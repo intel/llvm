@@ -12,10 +12,6 @@
 
 /// @cond ESIMD_DETAIL
 
-#ifndef __SYCL_DEVICE_ONLY__
-#define __ESIMD_EMU_ARG_UNUSED(x) (void)x
-#endif // __SYCL_DEVICE_ONLY__
-
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
@@ -117,7 +113,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
 #ifdef __SYCL_DEVICE_ONLY__
 
 // TODO: __esimd_dpas* should have single declaration for host and device:
-// void __esimd_dpas*(...)
+// Ret __esimd_dpas*(...)
 template <typename T, typename T0, typename T1, typename T2, int N, int N1,
           int N2>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
@@ -671,10 +667,7 @@ template <__ESIMD_ENS::argument_type src1_precision,
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
              __ESIMD_DNS::vector_type_t<T1, N1> src1,
-             __ESIMD_DNS::vector_type_t<T2, N2> src2, int sign_res,
-             int sign_acc) {
-  __ESIMD_EMU_ARG_UNUSED(sign_res);
-  __ESIMD_EMU_ARG_UNUSED(sign_acc);
+             __ESIMD_DNS::vector_type_t<T2, N2> src2) {
   return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
                             repeat_count, T, T1, T2, N, N1, N2>(
       std::addressof(src0), src1, src2);

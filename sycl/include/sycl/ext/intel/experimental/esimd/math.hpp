@@ -1843,9 +1843,9 @@ dpas(__ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
                        (sizeof(T2) * 8)),
                 "invalid size for Src2");
 
+#if defined(__SYCL_DEVICE_ONLY__)
   constexpr int dst_signed = std::is_signed<T>::value;
   constexpr int src0_signed = std::is_signed<T0>::value;
-#if defined(__SYCL_DEVICE_ONLY__)
   __ESIMD_NS::simd<T, N> result = __esimd_dpas<T, T0, T1, T2, N, N1, N2>(
       src0.data(), src1.data(), src2.data(), (int)src1_precision + 1,
       (int)src2_precision + 1, systolic_depth, repeat_count, dst_signed,
@@ -1854,8 +1854,8 @@ dpas(__ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
 #else
   __ESIMD_NS::simd<T, N> result =
       __esimd_dpas<src1_precision, src2_precision, systolic_depth, repeat_count,
-                   T, T0, T1, T2, N, N1, N2>(
-          src0.data(), src1.data(), src2.data(), dst_signed, src0_signed);
+                   T, T0, T1, T2, N, N1, N2>(src0.data(), src1.data(),
+                                             src2.data());
 #endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
