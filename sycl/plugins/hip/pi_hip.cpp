@@ -1772,8 +1772,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_ATOMIC_64: {
     // TODO: Reconsider it when AMD supports SYCL_USE_NATIVE_FP_ATOMICS.
     hipDeviceProp_t props;
-    cl::sycl::detail::pi::assertion(
-        hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    props.arch.hasGlobalInt64Atomics &&
                        props.arch.hasSharedInt64Atomics);
