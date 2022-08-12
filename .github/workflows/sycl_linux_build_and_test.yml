@@ -233,7 +233,7 @@ jobs:
   aws-stop:
     name: Stop AWS
     needs: [ aws-start, llvm_test_suite ]
-    if: ${{ always() && inputs.lts_ats_matrix != '' }}
+    if: ${{ always() && inputs.lts_aws_matrix != '' }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
