@@ -355,7 +355,7 @@ void update(T cgf, graph<graph_state::modifiable>& Graph);
 
 == Examples
 
-NOTE: The examples below demonstrate intended usage of the extension, but are not compatible with the proof-of-concept implementation. The proof-of-concept implementation currently requires different syntax, as described in the "Non-implemented features" section at the end of this document.
+// NOTE: The examples below demonstrate intended usage of the extension, but are not compatible with the proof-of-concept implementation. The proof-of-concept implementation currently requires different syntax, as described in the "Non-implemented features" section at the end of this document.
 
 1. Dot product
 
@@ -434,18 +434,18 @@ int main() {
 ...
 ----
 
-== Issues for later investigations
-
-. Explicit memory movement can cause POC to stall.
-
-== Non-implemented features
-Please, note that the following features are not yet implemented:
-
-. Level Zero backend only
-. Memory operation nodes not implemented
-. Host node not implemented
-. Submit overload of a queue. `submit(graph)` Use a combination of `executable_graph::exec_and_wait()` and queue property `sycl::ext::oneapi::property::queue::lazy_execution{}` instead.
-. `class graph<graph_state>` Use dedicated `class graph` (equivalent to `graph_state == modifiable`) and `class executable_graph` (equivalent to `graph_state == executable`) instead.
+// == Issues for later investigations
+//
+// . Explicit memory movement can cause POC to stall.
+//
+// == Non-implemented features
+// Please, note that the following features are not yet implemented:
+//
+// . Level Zero backend only
+// . Memory operation nodes not implemented
+// . Host node not implemented
+// . Submit overload of a queue. `submit(graph)` Use a combination of `executable_graph::exec_and_wait()` and queue property `sycl::ext::oneapi::property::queue::lazy_execution{}` instead.
+// . `class graph<graph_state>` Use dedicated `class graph` (equivalent to `graph_state == modifiable`) and `class executable_graph` (equivalent to `graph_state == executable`) instead.
 
 == Revision History
 
