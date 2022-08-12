@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_complex
+= sycl_ext_oneapi_complex_marray
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -69,7 +69,7 @@ values, and construct complex marrays.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_MARRAY_COMPLEX` to one of the values defined in the table
+macro `SYCL_EXT_ONEAPI_COMPLEX_MARRAY` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -90,7 +90,9 @@ The `marray` class is specialized for the `sycl::ext::oneapi::complex`
 class. The user interface of the `marray<sycl::ext::oneapi::complex, {N}>`
 class is similar to the SYCL-2020 generic `marray` interface. Some logical,
 bitwise, and arithmetic operators are deleted for the complex class as there is
-no equivalent.
+no equivalent. The marray specialization builds on the
+`sycl::ext::oneapi::complex` class, therfore this extension is dependent on
+link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex].
 
 The marray complex specialization is trivially copyable, and the type trait
 `is_device_copyable` should resolve to `std::true_type`.
@@ -228,7 +230,7 @@ namespace oneapi {
 ```
 
 The list of deleted operators are: %, %=, ++, --, +, -, &, |, ^, &=, |=, ^=,
-&&, ||, <<, >>, <<=, >>=, <, >, <=, >=, ~, !
+&&, ||, <<, >>, <<=, >>=, <, >, +<=+, >=, ~, !
 
 The `make_complex_marray` free function is added to construct complex marrays from real and
 imaginary components. Additionally, the free functions `get_real` and
@@ -277,10 +279,10 @@ namespace oneapi {
 
   // return sequence of elements of component
   template <class T, std::size_t NumElements, std::size_t... I>
-  T get_real(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::integer_sequence<std::size_t, I...> int_seq);
+  marray<T, int_seq::size()> get_real(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::integer_sequence<std::size_t, I...> int_seq);
 
   template <class T, std::size_t NumElements, std::size_t... I>
-  T get_imag(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::integer_sequence<std::size_t, I...> int_seq);
+  marray<T, int_seq::size()> get_imag(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::integer_sequence<std::size_t, I...> int_seq);
 
   // Set
 
@@ -307,7 +309,7 @@ namespace oneapi {
 } // namespace sycl
 ```
 
-The class `sycl::oneapi::marray<complex<T>, N>`, has specializations
+The class `sycl::ext::oneapi::marray<sycl::ext::oneapi::complex<T>, N>`, has specializations
 of `T`; `float`, `double`, and `sycl::half` defined.
 
 ```C++
@@ -316,13 +318,13 @@ namespace ext {
 namespace oneapi {
 
   template <std::size_t NumElements>
-  class marray<double, NumElements>;
+  class marray<sycl::ext::oneapi::complex<double>, NumElements>;
 
   template <std::size_t NumElements>
-  class marray<float, NumElements>;
+  class marray<sycl::ext::oneapi::complex<float>, NumElements>;
 
   template <std::size_t NumElements>
-  class marray<sycl::half, NumElements>;
+  class marray<sycl::ext::oneapi::complex<sycl::half>, NumElements>;
 
 } // namespace oneapi
 } // namespace ext
@@ -330,8 +332,9 @@ namespace oneapi {
 ```
 
 The generic type `mgencomplex` is defined as types
-`marray<complex<double>, {N}>`, `complex<complex<float>, {N}>`,
-`complex<complex<sycl::half>, {N}>`.
+`marray<sycl::ext::oneapi::complex<double>, {N}>`,
+`marray<sycl::ext::oneapi::complex<float>, {N}>`,
+`marray<sycl::ext::oneapi::complex<sycl::half>, {N}>`.
 
 The table below shows the free functions operating on the `marray` complex
 specialized class. No table is provided for the `marray` class as only
@@ -376,7 +379,7 @@ functions are removed and the underlying function defintion stays the same.
 |Set the real value of element idx in x to the decimal number y.
 |`void set_imag(mgencomplex& x, std::size_t idx, const genfloat& y);`
 |Set the imaginary value of element idx in x to the decimal number y.
-
+|===
 
 === Mathematical operations
 
