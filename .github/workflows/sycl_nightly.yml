@@ -20,6 +20,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     needs: resolve_matrix
+    secrets: inherit
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
@@ -29,6 +30,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     needs: resolve_matrix
+    secrets: inherit
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: opaque_pointers

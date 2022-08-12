@@ -27,6 +27,7 @@ enum class Operation : int {
   Abs,
   Ceil,
   Cos,
+  Cosh,
   Exp,
   Exp2,
   Expm1,
@@ -40,8 +41,10 @@ enum class Operation : int {
   ModPIOver4,
   Round,
   Sin,
+  Sinh,
   Sqrt,
   Tan,
+  Tanh,
   Trunc,
   EndUnaryOperationsSingleOutput,
 
