@@ -215,8 +215,8 @@ public:
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
       : sycl::handler(Queue, IsHost) {}
   // Methods
-  using cl::sycl::handler::evictHandlerImpl;
-  using cl::sycl::handler::getType;
+  using sycl::handler::evictHandlerImpl;
+  using sycl::handler::getType;
 
   sycl::detail::NDRDescT &getNDRDesc() { return MNDRDesc; }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
