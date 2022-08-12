@@ -502,6 +502,8 @@ private:
     case info::device_type::accelerator:
       return Value.Accelerator;
     default:
+      // Expect to get here if user used wrong device type. Include wildcard
+      // in the message even though it's handled in the caller.
       throw INVALID_CONFIG_EXCEPTION(
           BaseT, "Device types must be \"cpu\", \"gpu\", \"acc\", or \"*\".");
     }
