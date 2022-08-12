@@ -1946,6 +1946,12 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.SPIRITTAnnotations = true;
   }
 
+  if (Arg *A = Args.getLastArg(OPT_mabi_EQ_quadword_atomics)) {
+    if (!T.isOSAIX() || T.isPPC32())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+        << A->getSpelling() << T.str();
+  }
+
   bool NeedLocTracking = false;
 
   Opts.OptRecordFile = LangOpts->OptRecordFile;
@@ -4654,7 +4660,10 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
         return CreateFromArgsImpl(Invocation, CommandLineArgs, Diags, Argv0);
       },
       [](CompilerInvocation &Invocation, SmallVectorImpl<const char *> &Args,
-         StringAllocator SA) { Invocation.generateCC1CommandLine(Args, SA); },
+         StringAllocator SA) {
+        Args.push_back("-cc1");
+        Invocation.generateCC1CommandLine(Args, SA);
+      },
       Invocation, DummyInvocation, CommandLineArgs, Diags, Argv0);
 }
 

@@ -53,7 +53,7 @@ public:
     template <class T>
     void operator,(T const &) = delete;
 };
-#if _LIBCPP_STD_VER > 17
+#if TEST_STD_VER > 17
    static_assert(std::output_iterator<cpp17_output_iterator<int*>, int>);
 #endif
 
@@ -94,7 +94,7 @@ public:
     template <class T>
     void operator,(T const &) = delete;
 };
-#if _LIBCPP_STD_VER > 17
+#if TEST_STD_VER > 17
    static_assert(std::input_iterator<cpp17_input_iterator<int*>>);
 #endif
 
@@ -223,6 +223,96 @@ public:
 };
 
 #if TEST_STD_VER > 17
+
+template <std::random_access_iterator It>
+class cpp20_random_access_iterator {
+  It it_;
+
+  template <std::random_access_iterator>
+  friend class cpp20_random_access_iterator;
+
+public:
+  using iterator_category = std::input_iterator_tag;
+  using iterator_concept  = std::random_access_iterator_tag;
+  using value_type        = typename std::iterator_traits<It>::value_type;
+  using difference_type   = typename std::iterator_traits<It>::difference_type;
+
+  constexpr cpp20_random_access_iterator() : it_() {}
+  constexpr explicit cpp20_random_access_iterator(It it) : it_(it) {}
+
+  template <class U>
+  constexpr cpp20_random_access_iterator(const cpp20_random_access_iterator<U>& u) : it_(u.it_) {}
+
+  template <class U>
+  constexpr cpp20_random_access_iterator(cpp20_random_access_iterator<U>&& u) : it_(u.it_) {
+    u.it_ = U();
+  }
+
+  constexpr decltype(auto) operator*() const { return *it_; }
+  constexpr decltype(auto) operator[](difference_type n) const { return it_[n]; }
+
+  constexpr cpp20_random_access_iterator& operator++() {
+    ++it_;
+    return *this;
+  }
+  constexpr cpp20_random_access_iterator& operator--() {
+    --it_;
+    return *this;
+  }
+  constexpr cpp20_random_access_iterator operator++(int) { return cpp20_random_access_iterator(it_++); }
+  constexpr cpp20_random_access_iterator operator--(int) { return cpp20_random_access_iterator(it_--); }
+
+  constexpr cpp20_random_access_iterator& operator+=(difference_type n) {
+    it_ += n;
+    return *this;
+  }
+  constexpr cpp20_random_access_iterator& operator-=(difference_type n) {
+    it_ -= n;
+    return *this;
+  }
+  friend constexpr cpp20_random_access_iterator operator+(cpp20_random_access_iterator x, difference_type n) {
+    x += n;
+    return x;
+  }
+  friend constexpr cpp20_random_access_iterator operator+(difference_type n, cpp20_random_access_iterator x) {
+    x += n;
+    return x;
+  }
+  friend constexpr cpp20_random_access_iterator operator-(cpp20_random_access_iterator x, difference_type n) {
+    x -= n;
+    return x;
+  }
+  friend constexpr difference_type operator-(cpp20_random_access_iterator x, cpp20_random_access_iterator y) {
+    return x.it_ - y.it_;
+  }
+
+  friend constexpr bool operator==(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ == y.it_;
+  }
+  friend constexpr bool operator!=(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ != y.it_;
+  }
+  friend constexpr bool operator<(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ < y.it_;
+  }
+  friend constexpr bool operator<=(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ <= y.it_;
+  }
+  friend constexpr bool operator>(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ > y.it_;
+  }
+  friend constexpr bool operator>=(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ >= y.it_;
+  }
+
+  friend constexpr It base(const cpp20_random_access_iterator& i) { return i.it_; }
+
+  template <class T>
+  void operator,(T const&) = delete;
+};
+
+static_assert(std::random_access_iterator<cpp20_random_access_iterator<int*>>);
+
 template <class It>
 class contiguous_iterator
 {
@@ -758,6 +848,7 @@ namespace adl {
 class Iterator {
  public:
   using value_type = int;
+  using reference = int&;
   using difference_type = ptrdiff_t;
 
  private:
@@ -786,9 +877,27 @@ class Iterator {
   constexpr int iter_swaps() const { assert(iter_swaps_); return *iter_swaps_; }
 
   constexpr value_type& operator*() const { return *ptr_; }
+  constexpr reference operator[](difference_type n) const { return ptr_[n]; }
 
-  constexpr Iterator operator+(difference_type n) const {
-    return Iterator(ptr_ + n, iter_moves_, iter_swaps_);
+  friend constexpr Iterator operator+(Iterator i, difference_type n) {
+    return Iterator(i.ptr_ + n, i.iter_moves_, i.iter_swaps_);
+  }
+  friend constexpr Iterator operator+(difference_type n, Iterator i) {
+    return i + n;
+  }
+  constexpr Iterator operator-(difference_type n) const {
+    return Iterator(ptr_ - n, iter_moves_, iter_swaps_);
+  }
+  constexpr difference_type operator-(Iterator rhs) const {
+    return ptr_ - rhs.ptr_;
+  }
+  constexpr Iterator& operator+=(difference_type n) {
+    ptr_ += n;
+    return *this;
+  }
+  constexpr Iterator& operator-=(difference_type n) {
+    ptr_ -= n;
+    return *this;
   }
 
   constexpr Iterator& operator++() { ++ptr_; return *this; }
@@ -805,7 +914,8 @@ class Iterator {
     return prev;
   }
 
-  constexpr friend void iter_swap(Iterator a, Iterator) {
+  constexpr friend void iter_swap(Iterator a, Iterator b) {
+    std::swap(a.ptr_, b.ptr_);
     if (a.iter_swaps_) {
       ++(*a.iter_swaps_);
     }
@@ -818,7 +928,12 @@ class Iterator {
     return std::move(*iter);
   }
 
-  constexpr friend bool operator==(const Iterator& lhs, const Iterator& rhs) { return lhs.ptr_ == rhs.ptr_; }
+  constexpr friend bool operator==(const Iterator& lhs, const Iterator& rhs) {
+    return lhs.ptr_ == rhs.ptr_;
+  }
+  constexpr friend auto operator<=>(const Iterator& lhs, const Iterator& rhs) {
+    return lhs.ptr_ <=> rhs.ptr_;
+  }
 };
 
 } // namespace adl
@@ -832,7 +947,7 @@ class Iterator {
 // on plain swap instead of ranges::iter_swap.
 // This class is useful for testing that if algorithms support proxy iterator
 // properly, i.e. calling ranges::iter_swap and ranges::iter_move instead of
-// plain swap and std::move
+// plain swap and std::move.
 template <class T>
 struct Proxy;
 

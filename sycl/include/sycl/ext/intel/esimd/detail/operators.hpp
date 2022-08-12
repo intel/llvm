@@ -23,8 +23,9 @@
 // (which would stop further lookup, leaving just non-viable sycl::operator <
 // etc. on the table).
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 // clang-format off
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -481,5 +482,6 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
 
 #undef __ESIMD_DEF_SIMD_VIEW_CMP_OP
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

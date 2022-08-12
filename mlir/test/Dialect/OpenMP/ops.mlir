@@ -357,6 +357,15 @@ func.func @omp_simdloop_pretty_if(%lb : index, %ub : index, %step : index, %if_c
   return
 }
 
+// CHECK-LABEL: omp_simdloop_pretty_simdlen
+func.func @omp_simdloop_pretty_simdlen(%lb : index, %ub : index, %step : index) -> () {
+  // CHECK: omp.simdloop simdlen(2) for (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}})
+  omp.simdloop simdlen(2) for (%iv): index = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  return
+}
+
 // CHECK-LABEL: omp_simdloop_pretty_multiple
 func.func @omp_simdloop_pretty_multiple(%lb1 : index, %ub1 : index, %step1 : index, %lb2 : index, %ub2 : index, %step2 : index) -> () {
   // CHECK: omp.simdloop for (%{{.*}}, %{{.*}}) : index = (%{{.*}}, %{{.*}}) to (%{{.*}}, %{{.*}}) step (%{{.*}}, %{{.*}})
@@ -755,6 +764,25 @@ func.func @omp_atomic_update(%x : memref<i32>, %expr : i32, %xBool : memref<i1>,
   ^bb0(%xval: i1):
     %newval = llvm.icmp "eq" %xval, %exprBool : i1
     omp.yield(%newval : i1)
+  }
+
+  // CHECK: omp.atomic.update %[[X]] : memref<i32> {
+  // CHECK-NEXT: (%[[XVAL:.*]]: i32):
+  // CHECK-NEXT:   omp.yield(%[[XVAL]] : i32)
+  // CHECK-NEXT: }
+  omp.atomic.update %x : memref<i32> {
+  ^bb0(%xval:i32):
+    omp.yield(%xval:i32)
+  }
+
+  // CHECK: omp.atomic.update %[[X]] : memref<i32> {
+  // CHECK-NEXT: (%[[XVAL:.*]]: i32):
+  // CHECK-NEXT:   omp.yield(%{{.+}} : i32)
+  // CHECK-NEXT: }
+  %const = arith.constant 42 : i32
+  omp.atomic.update %x : memref<i32> {
+  ^bb0(%xval:i32):
+    omp.yield(%const:i32)
   }
 
   // CHECK: omp.atomic.update hint(none) %[[X]] : memref<i32>

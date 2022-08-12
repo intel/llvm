@@ -11,8 +11,8 @@
 
 #include "TaskTimer.h"
 #include "ThreadDecoder.h"
-#include "TraceIntelPTMultiCpuDecoder.h"
 #include "TraceIntelPTBundleLoader.h"
+#include "TraceIntelPTMultiCpuDecoder.h"
 
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-types.h"
@@ -52,10 +52,9 @@ public:
   ///
   /// \return
   ///     A trace instance or an error in case of failures.
-  static llvm::Expected<lldb::TraceSP>
-  CreateInstanceForTraceBundle(const llvm::json::Value &trace_bundle_description,
-                               llvm::StringRef bundle_dir,
-                               Debugger &debugger);
+  static llvm::Expected<lldb::TraceSP> CreateInstanceForTraceBundle(
+      const llvm::json::Value &trace_bundle_description,
+      llvm::StringRef bundle_dir, Debugger &debugger);
 
   static llvm::Expected<lldb::TraceSP>
   CreateInstanceForLiveProcess(Process &process);
@@ -71,7 +70,7 @@ public:
 
   llvm::StringRef GetSchema() override;
 
-  llvm::Expected<lldb::TraceCursorUP> CreateNewCursor(Thread &thread) override;
+  llvm::Expected<lldb::TraceCursorSP> CreateNewCursor(Thread &thread) override;
 
   void DumpTraceInfo(Thread &thread, Stream &s, bool verbose,
                      bool json) override;
@@ -220,6 +219,13 @@ private:
   ///     returned if the decoder couldn't be properly set up.
   llvm::Expected<DecodedThreadSP> Decode(Thread &thread);
 
+  /// \return
+  ///     The lowest timestamp in nanoseconds in all traces if available, \a
+  ///     llvm::None if all the traces were empty or no trace contained no
+  ///     timing information, or an \a llvm::Error if it was not possible to set
+  ///     up the decoder for some trace.
+  llvm::Expected<llvm::Optional<uint64_t>> FindBeginningOfTimeNanos();
+
   // Dump out trace info in JSON format
   void DumpTraceInfoAsJson(Thread &thread, Stream &s, bool verbose);
 
@@ -236,6 +242,8 @@ private:
     /// It is provided by either a trace bundle or a live process to convert TSC
     /// counters to and from nanos. It might not be available on all hosts.
     llvm::Optional<LinuxPerfZeroTscConversion> tsc_conversion;
+    llvm::Optional<uint64_t> beginning_of_time_nanos;
+    bool beginning_of_time_nanos_calculated = false;
   } m_storage;
 
   /// It is provided by either a trace bundle or a live process' "cpuInfo"

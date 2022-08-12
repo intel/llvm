@@ -48,6 +48,8 @@ constexpr void test_mid(Func&& func, Input& in, std::ranges::iterator_t<Input> m
   func(in, mid, std::forward<Args>(args)...);
 }
 
+std::mt19937 rand_gen() { return std::mt19937(); }
+
 template <class T>
 constexpr void run_tests() {
   std::array input = {T{1}, T{2}, T{3}};
@@ -60,6 +62,7 @@ constexpr void run_tests() {
   std::array output = {T{4}, T{5}, T{6}, T{7}, T{8}, T{9}};
   ProxyIterator out{output.begin()};
   ProxyIterator out2{output.begin() + 1};
+  ProxyIterator out_end{output.end()};
 
   T num{2};
   Proxy<T&> x{num};
@@ -68,8 +71,7 @@ constexpr void run_tests() {
   auto unary_pred = [](const Proxy<T&>&) { return true; };
   //auto binary_pred = [](const Proxy<T>&, const Proxy<T>&) { return return false; };
   auto binary_func = [](const Proxy<T>&, const Proxy<T>&) -> Proxy<T> { return Proxy<T>(T()); };
-  //auto gen = [] { return Proxy<T>(T{42}); };
-  //std::mt19937 rand_gen;
+  auto gen = [] { return Proxy<T>(T{42}); };
 
   test(std::ranges::any_of, in, unary_pred);
   test(std::ranges::all_of, in, unary_pred);
@@ -99,9 +101,9 @@ constexpr void run_tests() {
   test(std::ranges::is_partitioned, in, unary_pred);
   test(std::ranges::is_sorted, in);
   test(std::ranges::is_sorted_until, in);
-  //test(std::ranges::includes, in, in2);
-  //test(std::ranges::is_heap, in);
-  //test(std::ranges::is_heap_until, in);
+  test(std::ranges::includes, in, in2);
+  test(std::ranges::is_heap, in);
+  test(std::ranges::is_heap_until, in);
   //test(std::ranges::is_permutation, in, in2);
   test(std::ranges::for_each, in, std::identity{});
   std::ranges::for_each_n(in.begin(), count, std::identity{});
@@ -109,35 +111,33 @@ constexpr void run_tests() {
     test(std::ranges::copy, in, out);
     std::ranges::copy_n(in.begin(), count, out);
     test(std::ranges::copy_if, in, out, unary_pred);
-    // TODO: uncomment `copy_backward` once https://reviews.llvm.org/D128864 lands.
-    //test(std::ranges::copy_backward, in, out);
+    test(std::ranges::copy_backward, in, out_end);
   }
   test(std::ranges::move, in, out);
-  // TODO: uncomment `move_backward` once https://reviews.llvm.org/D128864 lands.
-  // test(std::ranges::move_backward, in, out);
+  test(std::ranges::move_backward, in, out_end);
   if constexpr (std::copyable<T>) {
     test(std::ranges::fill, in, x);
     std::ranges::fill_n(in.begin(), count, x);
     test(std::ranges::transform, in, out, std::identity{});
     test(std::ranges::transform, in, in2, out, binary_func);
   }
-  //test(std::ranges::generate, in, gen);
-  //std::ranges::generate_n(in.begin(), count, gen);
+  test(std::ranges::generate, in, gen);
+  std::ranges::generate_n(in.begin(), count, gen);
   if constexpr (std::copyable<T>) {
-  //test(std::ranges::remove_copy, in, out, x);
-  //test(std::ranges::remove_copy_if, in, out, unary_pred);
+    test(std::ranges::remove_copy, in, out, x);
+    test(std::ranges::remove_copy_if, in, out, unary_pred);
     test(std::ranges::replace, in, x, x);
     test(std::ranges::replace_if, in, unary_pred, x);
-    //test(std::ranges::replace_copy, in, out, x, x);
-    //test(std::ranges::replace_copy_if, in, out, unary_pred, x);
+    test(std::ranges::replace_copy, in, out, x, x);
+    test(std::ranges::replace_copy_if, in, out, unary_pred, x);
   }
   test(std::ranges::swap_ranges, in, in2);
   if constexpr (std::copyable<T>) {
     test(std::ranges::reverse_copy, in, out);
     test_mid(std::ranges::rotate_copy, in, mid, out);
-    //test(std::ranges::unique_copy, in, out);
+    test(std::ranges::unique_copy, in, out);
     test(std::ranges::partition_copy, in, out, out2, unary_pred);
-    //test_mid(std::ranges::partial_sort_copy, in, in2);
+    test(std::ranges::partial_sort_copy, in, in2);
     test(std::ranges::merge, in, in2, out);
     test(std::ranges::set_difference, in, in2, out);
     test(std::ranges::set_intersection, in, in2, out);
@@ -147,22 +147,24 @@ constexpr void run_tests() {
   test(std::ranges::remove, in, x);
   test(std::ranges::remove_if, in, unary_pred);
   test(std::ranges::reverse, in);
-  //test_mid(std::ranges::rotate, in, mid);
-  //test(std::ranges::shuffle, in, rand_gen);
-  //test(std::ranges::sample, in, out, count, rand_gen);
-  //test(std::ranges::unique, in);
+  test_mid(std::ranges::rotate, in, mid);
+  if (!std::is_constant_evaluated()) // `shuffle` isn't `constexpr`.
+    test(std::ranges::shuffle, in, rand_gen());
+  if (!std::is_constant_evaluated()) {
+    if constexpr (std::copyable<T>)
+      test(std::ranges::sample, in, out, count, rand_gen());
+  }
+  test(std::ranges::unique, in);
   test(std::ranges::partition, in, unary_pred);
-  // TODO(ranges): `stable_partition` requires `ranges::rotate` to be implemented.
-  //if (!std::is_constant_evaluated())
-  // test(std::ranges::stable_partition, in, unary_pred);
+  if (!std::is_constant_evaluated())
+    test(std::ranges::stable_partition, in, unary_pred);
   test(std::ranges::sort, in);
-  // TODO(ranges): `stable_sort` requires `ranges::rotate` to be implemented.
-  //if (!std::is_constant_evaluated())
-  //  test(std::ranges::stable_sort, in);
+  if (!std::is_constant_evaluated())
+    test(std::ranges::stable_sort, in);
   test_mid(std::ranges::partial_sort, in, mid);
   test_mid(std::ranges::nth_element, in, mid);
-  //if (!std::is_constant_evaluated())
-  //  test_mid(std::ranges::inplace_merge, in, mid);
+  if (!std::is_constant_evaluated())
+    test_mid(std::ranges::inplace_merge, in, mid);
   test(std::ranges::make_heap, in);
   test(std::ranges::push_heap, in);
   test(std::ranges::pop_heap, in);

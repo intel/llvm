@@ -9,23 +9,23 @@
 #ifndef _LIBCPP___ALGORITHM_RANGES_SHUFFLE_H
 #define _LIBCPP___ALGORITHM_RANGES_SHUFFLE_H
 
-#include <__algorithm/make_projected.h>
+#include <__algorithm/iterator_operations.h>
 #include <__algorithm/shuffle.h>
+#include <__algorithm/uniform_random_bit_generator_adaptor.h>
 #include <__config>
-#include <__functional/identity.h>
 #include <__functional/invoke.h>
 #include <__functional/ranges_operations.h>
 #include <__iterator/concepts.h>
 #include <__iterator/iterator_traits.h>
+#include <__iterator/next.h>
 #include <__iterator/permutable.h>
-#include <__iterator/projected.h>
 #include <__random/uniform_random_bit_generator.h>
 #include <__ranges/access.h>
 #include <__ranges/concepts.h>
 #include <__ranges/dangling.h>
-#include <__type_traits/remove_reference.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
+#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -44,18 +44,15 @@ struct __fn {
   requires permutable<_Iter> && uniform_random_bit_generator<remove_reference_t<_Gen>>
   _LIBCPP_HIDE_FROM_ABI
   _Iter operator()(_Iter __first, _Sent __last, _Gen&& __gen) const {
-    // TODO: implement
-    (void)__first; (void)__last; (void)__gen;
-    return {};
+    _ClassicGenAdaptor<_Gen> __adapted_gen(__gen);
+    return std::__shuffle<_RangeAlgPolicy>(std::move(__first), std::move(__last), __adapted_gen);
   }
 
   template<random_access_range _Range, class _Gen>
   requires permutable<iterator_t<_Range>> && uniform_random_bit_generator<remove_reference_t<_Gen>>
   _LIBCPP_HIDE_FROM_ABI
   borrowed_iterator_t<_Range> operator()(_Range&& __range, _Gen&& __gen) const {
-    // TODO: implement
-    (void)__range; (void)__gen;
-    return {};
+    return (*this)(ranges::begin(__range), ranges::end(__range), std::forward<_Gen>(__gen));
   }
 
 };

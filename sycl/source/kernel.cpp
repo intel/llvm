@@ -14,8 +14,8 @@
 #include <sycl/kernel.hpp>
 #include <sycl/program.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
@@ -42,72 +42,41 @@ program kernel::get_program() const {
   return impl->get_info<info::kernel::program>();
 }
 
-template <info::kernel param>
-typename info::param_traits<info::kernel, param>::return_type
+template <typename Param>
+typename detail::is_kernel_info_desc<Param>::return_type
 kernel::get_info() const {
-  return impl->get_info<param>();
+  return impl->get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>()  \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT kernel::get_info<info::kernel::Desc>() const;
 
 #include <sycl/info/kernel_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <info::kernel_device_specific param>
-typename info::param_traits<info::kernel_device_specific, param>::return_type
+template <typename Param>
+typename detail::is_kernel_device_specific_info_desc<Param>::return_type
 kernel::get_info(const device &Dev) const {
-  return impl->get_info<param>(Dev);
+  return impl->get_info<Param>(Dev);
 }
 
-template <info::kernel_device_specific param>
-typename info::param_traits<info::kernel_device_specific, param>::return_type
-kernel::get_info(const device &Device,
-                 typename info::param_traits<info::kernel_device_specific,
-                                             param>::input_type Value) const {
-  return impl->get_info<param>(Device, Value);
+template <typename Param>
+typename detail::is_kernel_device_specific_info_desc<
+    Param>::with_input_return_type
+kernel::get_info(const device &Device, const range<3> &WGSize) const {
+  return impl->get_info<Param>(Device, WGSize);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
       const device &) const;
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
-                                            in_type)                           \
-  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
-      const device &, in_type) const;
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(DescType, Desc, ReturnT, InputT,   \
+                                            PiCode)                            \
+  template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
+      const device &, const InputT &) const;
 
 #include <sycl/info/kernel_device_specific_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
-
-template <info::kernel_sub_group param>
-typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel::get_sub_group_info(const device &dev) const {
-  return impl->get_sub_group_info<param>(dev);
-}
-
-template <info::kernel_sub_group param>
-typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel::get_sub_group_info(
-    const device &dev,
-    typename info::param_traits<info::kernel_sub_group, param>::input_type val)
-    const {
-  return impl->get_sub_group_info<param>(dev, val);
-}
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  kernel::get_sub_group_info<info::param_type::param>(const device &) const;
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
-                                            in_type)                           \
-  template __SYCL_EXPORT ret_type                                              \
-  kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) \
-      const;
-
-#include <sycl/info/kernel_sub_group_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
@@ -118,5 +87,5 @@ pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

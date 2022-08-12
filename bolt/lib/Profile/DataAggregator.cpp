@@ -77,7 +77,7 @@ MaxSamples("max-samples",
   cl::Hidden,
   cl::cat(AggregatorCategory));
 
-static cl::opt<bool> ReadPreAggregated(
+cl::opt<bool> ReadPreAggregated(
     "pa", cl::desc("skip perf and read data from a pre-aggregated file format"),
     cl::cat(AggregatorCategory));
 
@@ -294,31 +294,28 @@ void DataAggregator::processFileBuildID(StringRef FileBuildID) {
 
   FileBuf = std::move(*MB);
   ParsingBuf = FileBuf->getBuffer();
-  if (ParsingBuf.empty()) {
-    errs() << "PERF2BOLT-WARNING: build-id will not be checked because perf "
-              "data was recorded without it\n";
-    return;
-  }
 
-  Col = 0;
-  Line = 1;
   Optional<StringRef> FileName = getFileNameForBuildID(FileBuildID);
   if (!FileName) {
-    errs() << "PERF2BOLT-ERROR: failed to match build-id from perf output. "
-              "This indicates the input binary supplied for data aggregation "
-              "is not the same recorded by perf when collecting profiling "
-              "data, or there were no samples recorded for the binary. "
-              "Use -ignore-build-id option to override.\n";
-    if (!opts::IgnoreBuildID)
-      abort();
+    if (hasAllBuildIDs()) {
+      errs() << "PERF2BOLT-ERROR: failed to match build-id from perf output. "
+                "This indicates the input binary supplied for data aggregation "
+                "is not the same recorded by perf when collecting profiling "
+                "data, or there were no samples recorded for the binary. "
+                "Use -ignore-build-id option to override.\n";
+      if (!opts::IgnoreBuildID)
+        abort();
+    } else {
+      errs() << "PERF2BOLT-WARNING: build-id will not be checked because perf "
+                "data was recorded without it\n";
+      return;
+    }
   } else if (*FileName != llvm::sys::path::filename(BC->getFilename())) {
     errs() << "PERF2BOLT-WARNING: build-id matched a different file name\n";
     BuildIDBinaryName = std::string(*FileName);
   } else {
     outs() << "PERF2BOLT: matched build-id and file name\n";
   }
-
-  return;
 }
 
 bool DataAggregator::checkPerfDataMagic(StringRef FileName) {
@@ -700,7 +697,7 @@ bool DataAggregator::doSample(BinaryFunction &Func, uint64_t Address,
 
   Address -= Func.getAddress();
   if (BAT)
-    Address = BAT->translate(Func, Address, /*IsBranchSrc=*/false);
+    Address = BAT->translate(Func.getAddress(), Address, /*IsBranchSrc=*/false);
 
   I->second.bumpCount(Address, Count);
   return true;
@@ -723,8 +720,8 @@ bool DataAggregator::doIntraBranch(BinaryFunction &Func, uint64_t From,
                     << Func.getPrintName() << " @ " << Twine::utohexstr(To)
                     << '\n');
   if (BAT) {
-    From = BAT->translate(Func, From, /*IsBranchSrc=*/true);
-    To = BAT->translate(Func, To, /*IsBranchSrc=*/false);
+    From = BAT->translate(Func.getAddress(), From, /*IsBranchSrc=*/true);
+    To = BAT->translate(Func.getAddress(), To, /*IsBranchSrc=*/false);
     LLVM_DEBUG(dbgs() << "BOLT-DEBUG: BAT translation on bumpBranchCount: "
                       << Func.getPrintName() << " @ " << Twine::utohexstr(From)
                       << " -> " << Func.getPrintName() << " @ "
@@ -753,7 +750,7 @@ bool DataAggregator::doInterBranch(BinaryFunction *FromFunc,
     }
     From -= FromFunc->getAddress();
     if (BAT)
-      From = BAT->translate(*FromFunc, From, /*IsBranchSrc=*/true);
+      From = BAT->translate(FromFunc->getAddress(), From, /*IsBranchSrc=*/true);
 
     recordExit(*FromFunc, From, Mispreds, Count);
   }
@@ -767,7 +764,7 @@ bool DataAggregator::doInterBranch(BinaryFunction *FromFunc,
     }
     To -= ToFunc->getAddress();
     if (BAT)
-      To = BAT->translate(*ToFunc, To, /*IsBranchSrc=*/false);
+      To = BAT->translate(ToFunc->getAddress(), To, /*IsBranchSrc=*/false);
 
     recordEntry(*ToFunc, To, Mispreds, Count);
   }
@@ -823,7 +820,8 @@ bool DataAggregator::doTrace(const LBREntry &First, const LBREntry &Second,
   }
 
   Optional<BoltAddressTranslation::FallthroughListTy> FTs =
-      BAT ? BAT->getFallthroughsInTrace(*FromFunc, First.To, Second.From)
+      BAT ? BAT->getFallthroughsInTrace(FromFunc->getAddress(), First.To,
+                                        Second.From)
           : getFallthroughsInTrace(*FromFunc, First, Second, Count);
   if (!FTs) {
     LLVM_DEBUG(
@@ -1272,13 +1270,6 @@ DataAggregator::parseAggregatedLBREntry() {
   return AggregatedLBREntry{From.get(), To.get(),
                             static_cast<uint64_t>(Frequency.get()), Mispreds,
                             Type};
-}
-
-bool DataAggregator::hasData() {
-  if (ParsingBuf.size() == 0)
-    return false;
-
-  return true;
 }
 
 bool DataAggregator::ignoreKernelInterrupt(LBREntry &LBR) const {
@@ -2152,6 +2143,11 @@ DataAggregator::parseNameBuildIDPair() {
   if (std::error_code EC = BuildIDStr.getError())
     return NoneType();
 
+  // If one of the strings is missing, don't issue a parsing error, but still
+  // do not return a value.
+  if (ParsingBuf[0] == '\n')
+    return NoneType();
+
   ErrorOr<StringRef> NameStr = parseString(FieldSeparator, true);
   if (std::error_code EC = NameStr.getError())
     return NoneType();
@@ -2160,16 +2156,48 @@ DataAggregator::parseNameBuildIDPair() {
   return std::make_pair(NameStr.get(), BuildIDStr.get());
 }
 
+bool DataAggregator::hasAllBuildIDs() {
+  const StringRef SavedParsingBuf = ParsingBuf;
+
+  if (!hasData())
+    return false;
+
+  bool HasInvalidEntries = false;
+  while (hasData()) {
+    if (!parseNameBuildIDPair()) {
+      HasInvalidEntries = true;
+      break;
+    }
+  }
+
+  ParsingBuf = SavedParsingBuf;
+
+  return !HasInvalidEntries;
+}
+
 Optional<StringRef>
 DataAggregator::getFileNameForBuildID(StringRef FileBuildID) {
+  const StringRef SavedParsingBuf = ParsingBuf;
+
+  StringRef FileName;
   while (hasData()) {
     Optional<std::pair<StringRef, StringRef>> IDPair = parseNameBuildIDPair();
-    if (!IDPair)
-      return NoneType();
+    if (!IDPair) {
+      consumeRestOfLine();
+      continue;
+    }
 
-    if (IDPair->second.startswith(FileBuildID))
-      return sys::path::filename(IDPair->first);
+    if (IDPair->second.startswith(FileBuildID)) {
+      FileName = sys::path::filename(IDPair->first);
+      break;
+    }
   }
+
+  ParsingBuf = SavedParsingBuf;
+
+  if (!FileName.empty())
+    return FileName;
+
   return NoneType();
 }
 

@@ -16,7 +16,7 @@
 // is somehow changed so it's no longer possible to run this test reliable
 // it can be removed.
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 int main(int argc, char *argv[]) {
   s::queue q;
@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
       // CHECK-NEXT: 3
       // CHECK-NEXT: 4
       // CHECK-NEXT: 5
-      out << item.get_linear_id() << cl::sycl::endl;
+      out << item.get_linear_id() << sycl::endl;
     });
   });
   q.wait();

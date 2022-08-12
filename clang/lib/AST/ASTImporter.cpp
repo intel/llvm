@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTImporter.h"
-#include "clang/AST/ASTImporterSharedState.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
+#include "clang/AST/ASTImporterSharedState.h"
 #include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -34,6 +34,7 @@
 #include "clang/AST/LambdaCapture.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
@@ -58,8 +59,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -1005,7 +1006,7 @@ ASTNodeImporter::import(const Designator &D) {
 
 template <>
 Expected<LambdaCapture> ASTNodeImporter::import(const LambdaCapture &From) {
-  VarDecl *Var = nullptr;
+  ValueDecl *Var = nullptr;
   if (From.capturesVariable()) {
     if (auto VarOrErr = import(From.getCapturedVar()))
       Var = *VarOrErr;
@@ -3115,6 +3116,11 @@ Error ASTNodeImporter::ImportTemplateInformation(
   case FunctionDecl::TK_FunctionTemplate:
     return Error::success();
 
+  case FunctionDecl::TK_DependentNonTemplate:
+    if (Expected<FunctionDecl *> InstFDOrErr =
+            import(FromFD->getInstantiatedFromDecl()))
+      ToFD->setInstantiatedFromDecl(*InstFDOrErr);
+    return Error::success();
   case FunctionDecl::TK_MemberSpecialization: {
     TemplateSpecializationKind TSK = FromFD->getTemplateSpecializationKind();
 
@@ -3220,9 +3226,12 @@ Error ASTNodeImporter::ImportFunctionDeclBody(FunctionDecl *FromFD,
 }
 
 // Returns true if the given D has a DeclContext up to the TranslationUnitDecl
-// which is equal to the given DC.
+// which is equal to the given DC, or D is equal to DC.
 static bool isAncestorDeclContextOf(const DeclContext *DC, const Decl *D) {
-  const DeclContext *DCi = D->getDeclContext();
+  const DeclContext *DCi = dyn_cast<DeclContext>(D);
+  if (!DCi)
+    DCi = D->getDeclContext();
+  assert(DCi && "Declaration should have a context");
   while (DCi != D->getTranslationUnitDecl()) {
     if (DCi == DC)
       return true;
@@ -3231,9 +3240,36 @@ static bool isAncestorDeclContextOf(const DeclContext *DC, const Decl *D) {
   return false;
 }
 
+// Returns true if the statement S has a parent declaration that has a
+// DeclContext that is inside (or equal to) DC. In a specific use case if DC is
+// a FunctionDecl, check if statement S resides in the body of the function.
+static bool isAncestorDeclContextOf(const DeclContext *DC, const Stmt *S) {
+  ParentMapContext &ParentC = DC->getParentASTContext().getParentMapContext();
+  DynTypedNodeList Parents = ParentC.getParents(*S);
+  while (!Parents.empty()) {
+    if (const Decl *PD = Parents.begin()->get<Decl>())
+      return isAncestorDeclContextOf(DC, PD);
+    Parents = ParentC.getParents(*Parents.begin());
+  }
+  return false;
+}
+
 static bool hasTypeDeclaredInsideFunction(QualType T, const FunctionDecl *FD) {
   if (T.isNull())
     return false;
+
+  auto CheckTemplateArgument = [FD](const TemplateArgument &Arg) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::Type:
+      return hasTypeDeclaredInsideFunction(Arg.getAsType(), FD);
+    case TemplateArgument::Expression:
+      return isAncestorDeclContextOf(FD, Arg.getAsExpr());
+    default:
+      // FIXME: Handle other argument kinds.
+      return false;
+    }
+  };
+
   if (const auto *RecordT = T->getAs<RecordType>()) {
     const RecordDecl *RD = RecordT->getDecl();
     assert(RD);
@@ -3242,12 +3278,15 @@ static bool hasTypeDeclaredInsideFunction(QualType T, const FunctionDecl *FD) {
       return true;
     }
     if (const auto *RDTempl = dyn_cast<ClassTemplateSpecializationDecl>(RD))
-      return llvm::count_if(RDTempl->getTemplateArgs().asArray(),
-                            [FD](const TemplateArgument &Arg) {
-                              return hasTypeDeclaredInsideFunction(
-                                  Arg.getAsType(), FD);
-                            });
+      if (llvm::count_if(RDTempl->getTemplateArgs().asArray(),
+                         CheckTemplateArgument))
+        return true;
+    // Note: It is possible that T can be get as both a RecordType and a
+    // TemplateSpecializationType.
   }
+  if (const auto *TST = T->getAs<TemplateSpecializationType>())
+    return llvm::count_if(TST->template_arguments(), CheckTemplateArgument);
+
   return false;
 }
 
@@ -7191,7 +7230,7 @@ ExpectedStmt ASTNodeImporter::VisitBinaryOperator(BinaryOperator *E) {
   return BinaryOperator::Create(
       Importer.getToContext(), ToLHS, ToRHS, E->getOpcode(), ToType,
       E->getValueKind(), E->getObjectKind(), ToOperatorLoc,
-      E->getFPFeatures(Importer.getFromContext().getLangOpts()));
+      E->getFPFeatures());
 }
 
 ExpectedStmt ASTNodeImporter::VisitConditionalOperator(ConditionalOperator *E) {
@@ -7302,7 +7341,7 @@ ASTNodeImporter::VisitCompoundAssignOperator(CompoundAssignOperator *E) {
   return CompoundAssignOperator::Create(
       Importer.getToContext(), ToLHS, ToRHS, E->getOpcode(), ToType,
       E->getValueKind(), E->getObjectKind(), ToOperatorLoc,
-      E->getFPFeatures(Importer.getFromContext().getLangOpts()),
+      E->getFPFeatures(),
       ToComputationLHSType, ToComputationResultType);
 }
 

@@ -18,8 +18,9 @@
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -888,5 +889,6 @@ protected:
 
 } // namespace detail
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

@@ -18,6 +18,7 @@
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/Object/COFF.h"
 
+#include "COFFDirectiveParser.h"
 #include "EHFrameSupportImpl.h"
 #include "JITLinkGeneric.h"
 
@@ -45,6 +46,7 @@ protected:
   const object::COFFObjectFile &getObject() const { return Obj; }
 
   virtual Error addRelocations() = 0;
+  virtual Symbol &createDLLImportEntry(StringRef StubName, Symbol &Target) = 0;
 
   Error graphifySections();
   Error graphifySymbols();
@@ -111,19 +113,20 @@ private:
   // COMDAT sequence.
   struct ComdatExportRequest {
     COFFSymbolIndex SymbolIndex;
-    COFFSectionIndex SectionIndex;
     jitlink::Linkage Linkage;
+    orc::ExecutorAddrDiff Size;
   };
-  Optional<ComdatExportRequest> PendingComdatExport;
+  std::vector<Optional<ComdatExportRequest>> PendingComdatExports;
 
   // This represents a pending request to create a weak external symbol with a
   // name.
-  struct WeakAliasRequest {
+  struct WeakExternalRequest {
     COFFSymbolIndex Alias;
     COFFSymbolIndex Target;
+    uint32_t Characteristics;
     StringRef SymbolName;
   };
-  std::vector<WeakAliasRequest> WeakAliasRequests;
+  std::vector<WeakExternalRequest> WeakExternalRequests;
 
   // Per COFF section jitlink symbol set sorted by offset.
   // Used for calculating implicit size of defined symbols.
@@ -132,6 +135,11 @@ private:
 
   Section &getCommonSection();
 
+  Symbol *createExternalSymbol(COFFSymbolIndex SymIndex, StringRef SymbolName,
+                               object::COFFSymbolRef Symbol,
+                               const object::coff_section *Section);
+  Expected<Symbol *> createAliasSymbol(StringRef SymbolName, Linkage L, Scope S,
+                                       Symbol &Target);
   Expected<Symbol *> createDefinedSymbol(COFFSymbolIndex SymIndex,
                                          StringRef SymbolName,
                                          object::COFFSymbolRef Symbol,
@@ -142,7 +150,10 @@ private:
   Expected<Symbol *> exportCOMDATSymbol(COFFSymbolIndex SymIndex,
                                         StringRef SymbolName,
                                         object::COFFSymbolRef Symbol);
+
+  Error handleDirectiveSection(StringRef Str);
   Error flushWeakAliasRequests();
+  Error handleAlternateNames();
   Error calculateImplicitSizeOfSymbols();
 
   static uint64_t getSectionAddress(const object::COFFObjectFile &Obj,
@@ -152,16 +163,23 @@ private:
   static bool isComdatSection(const object::coff_section *Section);
   static unsigned getPointerSize(const object::COFFObjectFile &Obj);
   static support::endianness getEndianness(const object::COFFObjectFile &Obj);
+  static StringRef getDLLImportStubPrefix() { return "__imp_"; }
+  static StringRef getDirectiveSectionName() { return ".drectve"; }
   StringRef getCOFFSectionName(COFFSectionIndex SectionIndex,
                                const object::coff_section *Sec,
                                object::COFFSymbolRef Sym);
 
   const object::COFFObjectFile &Obj;
   std::unique_ptr<LinkGraph> G;
+  COFFDirectiveParser DirectiveParser;
 
   Section *CommonSection = nullptr;
   std::vector<Block *> GraphBlocks;
   std::vector<Symbol *> GraphSymbols;
+
+  DenseMap<StringRef, StringRef> AlternateNames;
+  DenseMap<StringRef, Symbol *> ExternalSymbols;
+  DenseMap<StringRef, Symbol *> DefinedSymbols;
 };
 
 template <typename RelocHandlerFunction>

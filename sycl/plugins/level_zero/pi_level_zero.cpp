@@ -99,6 +99,16 @@ static const bool UseMultipleCmdlistBarriers = [] {
   return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
+// This is an experimental option that allows to disable caching of events in
+// the context.
+static const bool DisableEventsCaching = [] {
+  const char *DisableEventsCachingFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING");
+  if (!DisableEventsCachingFlag)
+    return false;
+  return std::stoi(DisableEventsCachingFlag) != 0;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -383,14 +393,14 @@ private:
 // with the given index in the compute command group. If it is instead set
 // to negative then all available compute engines may be used.
 //
-// The default value is "-1".
+// The default value is "0".
 //
 static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
   const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
-  // If the environment variable is not set, all available compute engines
-  // can be used.
+  // If the environment variable is not set only use "0" CCS for now.
+  // TODO: allow all CCSs when HW support is complete.
   if (!EnvVar)
-    return std::pair<int, int>(0, INT_MAX);
+    return std::pair<int, int>(0, 0);
 
   auto EnvVarValue = std::atoi(EnvVar);
   if (EnvVarValue >= 0) {
@@ -468,10 +478,18 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   std::list<ze_event_pool_handle_t> *ZePoolCache =
       getZeEventPoolCache(HostVisible, ProfilingEnabled);
 
-  // Remove full pool from the cache.
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
-      ZePoolCache->erase(ZePoolCache->begin());
+      if (DisableEventsCaching) {
+        // Remove full pool from the cache if events caching is disabled.
+        ZePoolCache->erase(ZePoolCache->begin());
+      } else {
+        // If event caching is enabled then we don't destroy events so there is
+        // no need to remove pool from the cache and add it back when it has
+        // available slots. Just keep it in the tail of the cache so that all
+        // pools can be destroyed during context destruction.
+        ZePoolCache->push_front(nullptr);
+      }
     }
   }
   if (ZePoolCache->empty()) {
@@ -714,14 +732,13 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
     }
   }
 
-  // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Reinitialize a sub-sub-device with its own ordinal, index.
   // Our sub-sub-device representation is currently [Level-Zero sub-device
-  // handle + Level-Zero compute group/engine index]. As we have a single queue
-  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
+  // handle + Level-Zero compute group/engine index]. Only the specified
+  // index queue will be used to submit work to the sub-sub-device.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
-    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
   } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
@@ -844,6 +861,50 @@ pi_device _pi_context::getRootDevice() const {
 }
 
 pi_result _pi_context::initialize() {
+
+  // Helper lambda to create various USM allocators for a device.
+  auto createUSMAllocators = [this](pi_device Device) {
+    SharedMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedMemoryAlloc(this, Device))));
+    SharedReadOnlyMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedReadOnlyMemoryAlloc(this, Device))));
+    DeviceMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMDeviceMemoryAlloc(this, Device))));
+  };
+
+  // Recursive helper to call createUSMAllocators for all sub-devices
+  std::function<void(pi_device)> createUSMAllocatorsRecursive;
+  createUSMAllocatorsRecursive =
+      [createUSMAllocators,
+       &createUSMAllocatorsRecursive](pi_device Device) -> void {
+    createUSMAllocators(Device);
+    for (auto &SubDevice : Device->SubDevices)
+      createUSMAllocatorsRecursive(SubDevice);
+  };
+
+  // Create USM allocator context for each pair (device, context).
+  //
+  for (auto &Device : Devices) {
+    createUSMAllocatorsRecursive(Device);
+  }
+  // Create USM allocator context for host. Device and Shared USM allocations
+  // are device-specific. Host allocations are not device-dependent therefore
+  // we don't need a map with device as key.
+  HostMemAllocContext = std::make_unique<USMAllocContext>(
+      std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+  // We may allocate memory to this root device so create allocators.
+  if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
+                              DeviceMemAllocContexts.end()) {
+    createUSMAllocators(SingleRootDevice);
+  }
+
   // Create the immediate command list to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -868,7 +929,18 @@ pi_result _pi_context::initialize() {
 pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
-  // For example, event pool caches would be still alive.
+  // For example, event and event pool caches would be still alive.
+
+  if (!DisableEventsCaching) {
+    std::scoped_lock Lock(EventCacheMutex);
+    for (auto &EventCache : EventCaches) {
+      for (auto Event : EventCache) {
+        ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+        delete Event;
+      }
+      EventCache.clear();
+    }
+  }
   {
     std::scoped_lock Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
@@ -1083,32 +1155,30 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
   auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  ComputeQueueGroup.ZeQueues = ComputeQueues;
   if (ComputeQueueGroupInfo.ZeIndex >= 0) {
     ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
   } else {
-    ComputeQueueGroup.LowerIndex = 0;
-    ComputeQueueGroup.UpperIndex = INT_MAX;
-    ComputeQueueGroup.NextIndex = 0;
-  }
-
-  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
-  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
-  FilterUpperIndex =
-      std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
-  if (FilterLowerIndex <= FilterUpperIndex) {
-    ComputeQueueGroup.ZeQueues = ComputeQueues;
-    ComputeQueueGroup.LowerIndex = FilterLowerIndex;
-    ComputeQueueGroup.UpperIndex = FilterUpperIndex;
-    ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
-    // Create space to hold immediate commandlists corresponding to the ZeQueues
-    if (UseImmediateCommandLists) {
-      ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+    // Set-up to round-robin across allowed range of engines.
+    uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
+    uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + ComputeQueues.size() - 1);
+    if (FilterLowerIndex <= FilterUpperIndex) {
+      ComputeQueueGroup.LowerIndex = FilterLowerIndex;
+      ComputeQueueGroup.UpperIndex = FilterUpperIndex;
+      ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
+      // Create space to hold immediate commandlists corresponding to the
+      // ZeQueues
+      if (UseImmediateCommandLists) {
+        ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+      }
+    } else {
+      die("No compute queue available/allowed.");
     }
-  } else {
-    die("No compute queue available.");
   }
 
   // Copy group initialization.
@@ -1119,8 +1189,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   } else {
     uint32_t FilterLowerIndex = getRangeOfAllowedCopyEngines.first;
     uint32_t FilterUpperIndex = getRangeOfAllowedCopyEngines.second;
-    FilterUpperIndex =
-        std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
@@ -3381,11 +3451,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
-      Context->Devices.end()) {
-    return PI_ERROR_INVALID_DEVICE;
-  }
+  PI_ASSERT(Context->isValidDevice(Device), PI_ERROR_INVALID_DEVICE);
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
@@ -4167,11 +4233,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   pi_device Device = nullptr;
   if (ZeDevice) {
     Device = Context->getPlatform()->getDeviceFromNativeHandle(ZeDevice);
-    // Check that the device is present in this context.
-    if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
-        Context->Devices.end()) {
-      return PI_ERROR_INVALID_CONTEXT;
-    }
+    PI_ASSERT(Context->isValidDevice(Device), PI_ERROR_INVALID_CONTEXT);
   }
 
   try {
@@ -4440,12 +4502,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
 
   // Validate input parameters.
   PI_ASSERT(DeviceList, PI_ERROR_INVALID_DEVICE);
-  {
-    auto DeviceEntry =
-        find(Context->Devices.begin(), Context->Devices.end(), DeviceList[0]);
-    if (DeviceEntry == Context->Devices.end())
-      return PI_ERROR_INVALID_DEVICE;
-  }
+  PI_ASSERT(Context->isValidDevice(DeviceList[0]), PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(!PFnNotify && !UserData, PI_ERROR_INVALID_VALUE);
   if (NumInputPrograms == 0 || InputPrograms == nullptr)
     return PI_ERROR_INVALID_VALUE;
@@ -4650,12 +4707,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   std::scoped_lock Guard(Program->Mutex);
   // Check if device belongs to associated context.
   PI_ASSERT(Program->Context, PI_ERROR_INVALID_PROGRAM);
-  {
-    auto DeviceEntry = find(Program->Context->Devices.begin(),
-                            Program->Context->Devices.end(), DeviceList[0]);
-    if (DeviceEntry == Program->Context->Devices.end())
-      return PI_ERROR_INVALID_VALUE;
-  }
+  PI_ASSERT(Program->Context->isValidDevice(DeviceList[0]),
+            PI_ERROR_INVALID_VALUE);
+
   // It is legal to build a program created from either IL or from native
   // device code.
   if (Program->State != _pi_program::IL &&
@@ -5430,6 +5484,42 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
+pi_result _pi_event::reset() {
+  Queue = nullptr;
+  CleanedUp = false;
+  Completed = false;
+  CommandData = nullptr;
+  CommandType = PI_COMMAND_TYPE_USER;
+  WaitList = {};
+  RefCount.reset();
+
+  if (!isHostVisible())
+    HostVisibleEvent = nullptr;
+
+  ZE_CALL(zeEventHostReset, (ZeEvent));
+  return PI_SUCCESS;
+}
+
+pi_event _pi_context::getEventFromCache(bool HostVisible, bool WithProfiling) {
+  std::scoped_lock Lock(EventCacheMutex);
+  auto Cache = getEventCache(HostVisible, WithProfiling);
+  if (Cache->empty())
+    return nullptr;
+
+  auto It = Cache->begin();
+  pi_event Event = *It;
+  Cache->erase(It);
+  return Event;
+}
+
+void _pi_context::addEventToCache(pi_event Event) {
+  std::scoped_lock Lock(EventCacheMutex);
+  auto Cache =
+      getEventCache(Event->isHostVisible(), Event->isProfilingEnabled());
+  Event->reset();
+  Cache->emplace_back(Event);
+}
+
 // Helper function for creating a PI event.
 // The "Queue" argument specifies the PI queue where a command is submitted.
 // The "HostVisible" argument specifies if event needs to be allocated from
@@ -5437,17 +5527,24 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent) {
-
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  size_t Index = 0;
+  if (auto CachedEvent =
+          Context->getEventFromCache(HostVisible, ProfilingEnabled)) {
+    *RetEvent = CachedEvent;
+    return PI_SUCCESS;
+  }
+
+  ze_event_handle_t ZeEvent;
   ze_event_pool_handle_t ZeEventPool = {};
+
+  size_t Index = 0;
+
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled))
     return Res;
 
-  ze_event_handle_t ZeEvent;
   ZeStruct<ze_event_desc_t> ZeEventDesc;
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
@@ -5456,9 +5553,9 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
-    // Set the scope to "device" for every event. This is sufficient for global
-    // device access and peer device access. If needed to be seen on the host
-    // we are doing special handling, see EventsScope options.
+    // Set the scope to "device" for every event. This is sufficient for
+    // global device access and peer device access. If needed to be seen on
+    // the host we are doing special handling, see EventsScope options.
     //
     // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
     //       used in some circumstances.
@@ -5819,7 +5916,12 @@ pi_result piEventRelease(pi_event Event) {
     Event->CommandData = nullptr;
   }
   if (Event->OwnZeEvent) {
-    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    if (DisableEventsCaching) {
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+      auto Context = Event->Context;
+      if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+        return Res;
+    }
   }
   // It is possible that host-visible event was never created.
   // In case it was check if that's different from this same event
@@ -5829,10 +5931,6 @@ pi_result piEventRelease(pi_event Event) {
     PI_CALL(piEventRelease(Event->HostVisibleEvent));
   }
 
-  auto Context = Event->Context;
-  if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
-    return Res;
-
   // We intentionally incremented the reference counter when an event is
   // created so that we can avoid pi_queue is released before the associated
   // pi_event is released. Here we have to decrement it so pi_queue
@@ -5840,7 +5938,12 @@ pi_result piEventRelease(pi_event Event) {
   if (Event->Queue) {
     PI_CALL(piQueueReleaseInternal(Event->Queue));
   }
-  delete Event;
+
+  if (DisableEventsCaching || !Event->OwnZeEvent) {
+    delete Event;
+  } else {
+    Event->Context->addEventToCache(Event);
+  }
 
   return PI_SUCCESS;
 }

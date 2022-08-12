@@ -94,10 +94,10 @@ void arith::ConstantOp::getAsmResultNames(
     if (intType && intType.getWidth() == 1)
       return setNameFn(getResult(), (intCst.getInt() ? "true" : "false"));
 
-    // Otherwise, build a compex name with the value and type.
+    // Otherwise, build a complex name with the value and type.
     SmallString<32> specialNameBuffer;
     llvm::raw_svector_ostream specialName(specialNameBuffer);
-    specialName << 'c' << intCst.getInt();
+    specialName << 'c' << intCst.getValue();
     if (intType)
       specialName << '_' << type;
     setNameFn(getResult(), specialName.str());
@@ -128,7 +128,8 @@ LogicalResult arith::ConstantOp::verify() {
 
 bool arith::ConstantOp::isBuildableWith(Attribute value, Type type) {
   // The value's type must be the same as the provided type.
-  if (value.getType() != type)
+  auto typedAttr = value.dyn_cast<TypedAttr>();
+  if (!typedAttr || typedAttr.getType() != type)
     return false;
   // Integer values must be signless.
   if (type.isa<IntegerType>() && !type.cast<IntegerType>().isSignless())
@@ -1332,10 +1333,37 @@ OpFoldResult arith::CmpIOp::fold(ArrayRef<Attribute> operands) {
     }
   }
 
+  // Move constant to the right side.
+  if (operands[0] && !operands[1]) {
+    // Do not use invertPredicate, as it will change eq to ne and vice versa.
+    using Pred = CmpIPredicate;
+    const std::pair<Pred, Pred> invPreds[] = {
+        {Pred::slt, Pred::sgt}, {Pred::sgt, Pred::slt}, {Pred::sle, Pred::sge},
+        {Pred::sge, Pred::sle}, {Pred::ult, Pred::ugt}, {Pred::ugt, Pred::ult},
+        {Pred::ule, Pred::uge}, {Pred::uge, Pred::ule}, {Pred::eq, Pred::eq},
+        {Pred::ne, Pred::ne},
+    };
+    Pred origPred = getPredicate();
+    for (auto pred : invPreds) {
+      if (origPred == pred.first) {
+        setPredicateAttr(CmpIPredicateAttr::get(getContext(), pred.second));
+        Value lhs = getLhs();
+        Value rhs = getRhs();
+        getLhsMutable().assign(rhs);
+        getRhsMutable().assign(lhs);
+        return getResult();
+      }
+    }
+    llvm_unreachable("unknown cmpi predicate kind");
+  }
+
   auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
-  auto rhs = operands.back().dyn_cast_or_null<IntegerAttr>();
-  if (!lhs || !rhs)
+  if (!lhs)
     return {};
+
+  // We are moving constants to the right side; So if lhs is constant rhs is
+  // guaranteed to be a constant.
+  auto rhs = operands.back().cast<IntegerAttr>();
 
   auto val = applyCmpPredicate(getPredicate(), lhs.getValue(), rhs.getValue());
   return BoolAttr::get(getContext(), val);

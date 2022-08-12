@@ -3898,12 +3898,10 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   if (R.isInvalid() || ExprEvalContexts.back().isDiscardedStatementContext())
     return R;
 
-  if (VarDecl *VD =
-      const_cast<VarDecl*>(cast<ReturnStmt>(R.get())->getNRVOCandidate())) {
-    CurScope->addNRVOCandidate(VD);
-  } else {
-    CurScope->setNoNRVO();
-  }
+  VarDecl *VD =
+      const_cast<VarDecl *>(cast<ReturnStmt>(R.get())->getNRVOCandidate());
+
+  CurScope->updateNRVOCandidate(VD);
 
   CheckJumpOutOfSEHFinally(*this, ReturnLoc, *CurScope->getFnParent());
 
@@ -4707,11 +4705,11 @@ buildCapturedStmtCaptureList(Sema &S, CapturedRegionScopeInfo *RSI,
       if (S.getLangOpts().OpenMP && RSI->CapRegionKind == CR_OpenMP)
         S.setOpenMPCaptureKind(Field, Cap.getVariable(), RSI->OpenMPLevel);
 
-      Captures.push_back(CapturedStmt::Capture(Cap.getLocation(),
-                                               Cap.isReferenceCapture()
-                                                   ? CapturedStmt::VCK_ByRef
-                                                   : CapturedStmt::VCK_ByCopy,
-                                               Cap.getVariable()));
+      Captures.push_back(CapturedStmt::Capture(
+          Cap.getLocation(),
+          Cap.isReferenceCapture() ? CapturedStmt::VCK_ByRef
+                                   : CapturedStmt::VCK_ByCopy,
+          cast<VarDecl>(Cap.getVariable())));
     }
     CaptureInits.push_back(Init.get());
   }

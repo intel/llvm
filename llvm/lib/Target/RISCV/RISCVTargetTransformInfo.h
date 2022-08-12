@@ -57,6 +57,7 @@ public:
 
   bool shouldExpandReduction(const IntrinsicInst *II) const;
   bool supportsScalableVectors() const { return ST->hasVInstructions(); }
+  bool enableScalableVectorization() const { return ST->hasVInstructions(); }
   PredicationStyle emitGetActiveLaneMask() const {
     return ST->hasVInstructions() ? PredicationStyle::Data
                                   : PredicationStyle::None;
@@ -110,6 +111,11 @@ public:
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                                              Optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind);
+
+  InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
+                                           Type *ResTy, VectorType *ValTy,
+                                           Optional<FastMathFlags> FMF,
+                                           TTI::TargetCostKind CostKind);
 
   bool isElementTypeLegalForScalableVector(Type *Ty) const {
     return TLI->isLegalElementTypeForRVV(Ty);

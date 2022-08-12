@@ -76,7 +76,7 @@ llvm::Error checkDataflow(
     llvm::StringRef Code,
     ast_matchers::internal::Matcher<FunctionDecl> TargetFuncMatcher,
     std::function<AnalysisT(ASTContext &, Environment &)> MakeAnalysis,
-    std::function<void(ASTContext &, const Stmt *,
+    std::function<void(ASTContext &, const CFGStmt &,
                        const TypeErasedDataflowAnalysisState &)>
         PostVisitStmt,
     std::function<void(AnalysisData)> VerifyResults, ArrayRef<std::string> Args,
@@ -112,11 +112,11 @@ llvm::Error checkDataflow(
   Environment Env(DACtx, *F);
   auto Analysis = MakeAnalysis(Context, Env);
 
-  std::function<void(const Stmt *, const TypeErasedDataflowAnalysisState &)>
+  std::function<void(const CFGStmt &, const TypeErasedDataflowAnalysisState &)>
       PostVisitStmtClosure = nullptr;
   if (PostVisitStmt != nullptr) {
     PostVisitStmtClosure = [&PostVisitStmt, &Context](
-                               const Stmt *Stmt,
+                               const CFGStmt &Stmt,
                                const TypeErasedDataflowAnalysisState &State) {
       PostVisitStmt(Context, Stmt, State);
     };
@@ -251,12 +251,16 @@ public:
 
   // Creates a boolean implication value.
   BoolValue *impl(BoolValue *LeftSubVal, BoolValue *RightSubVal) {
-    return disj(neg(LeftSubVal), RightSubVal);
+    Vals.push_back(
+        std::make_unique<ImplicationValue>(*LeftSubVal, *RightSubVal));
+    return Vals.back().get();
   }
 
   // Creates a boolean biconditional value.
   BoolValue *iff(BoolValue *LeftSubVal, BoolValue *RightSubVal) {
-    return conj(impl(LeftSubVal, RightSubVal), impl(RightSubVal, LeftSubVal));
+    Vals.push_back(
+        std::make_unique<BiconditionalValue>(*LeftSubVal, *RightSubVal));
+    return Vals.back().get();
   }
 
 private:

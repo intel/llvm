@@ -2707,7 +2707,7 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
   // We explictly allow bool elements in ext_vector_type for C/C++.
   bool IsNoBoolVecLang = getLangOpts().OpenCL || getLangOpts().OpenCLCPlusPlus;
   if ((!T->isDependentType() && !T->isIntegerType() &&
-       !T->isRealFloatingType()) ||
+       !T->isRealFloatingType()) || T->isBitIntType() ||
       (IsNoBoolVecLang && T->isBooleanType())) {
     Diag(AttrLoc, diag::err_attribute_invalid_vector_type) << T;
     return QualType();
@@ -5565,7 +5565,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           // in ClsType; hence we wrap ClsType into an ElaboratedType.
           // NOTE: in particular, no wrap occurs if ClsType already is an
           // Elaborated, DependentName, or DependentTemplateSpecialization.
-          if (NNSPrefix && isa<TemplateSpecializationType>(NNS->getAsType()))
+          if (isa<TemplateSpecializationType>(NNS->getAsType()))
             ClsType = Context.getElaboratedType(ETK_None, NNSPrefix, ClsType);
           break;
         }
@@ -6117,19 +6117,19 @@ namespace {
       }
     }
     void VisitElaboratedTypeLoc(ElaboratedTypeLoc TL) {
-      ElaboratedTypeKeyword Keyword
-        = TypeWithKeyword::getKeywordForTypeSpec(DS.getTypeSpecType());
       if (DS.getTypeSpecType() == TST_typename) {
         TypeSourceInfo *TInfo = nullptr;
         Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
-        if (TInfo) {
-          TL.copy(TInfo->getTypeLoc().castAs<ElaboratedTypeLoc>());
-          return;
-        }
+        if (TInfo)
+          if (auto ETL = TInfo->getTypeLoc().getAs<ElaboratedTypeLoc>()) {
+            TL.copy(ETL);
+            return;
+          }
       }
-      TL.setElaboratedKeywordLoc(Keyword != ETK_None
-                                 ? DS.getTypeSpecTypeLoc()
-                                 : SourceLocation());
+      const ElaboratedType *T = TL.getTypePtr();
+      TL.setElaboratedKeywordLoc(T->getKeyword() != ETK_None
+                                     ? DS.getTypeSpecTypeLoc()
+                                     : SourceLocation());
       const CXXScopeSpec& SS = DS.getTypeSpecScope();
       TL.setQualifierLoc(SS.getWithLocInContext(Context));
       Visit(TL.getNextTypeLoc().getUnqualifiedLoc());
@@ -9194,15 +9194,8 @@ QualType Sema::getElaboratedType(ElaboratedTypeKeyword Keyword,
                                  TagDecl *OwnedTagDecl) {
   if (T.isNull())
     return T;
-  NestedNameSpecifier *NNS;
-  if (SS.isValid())
-    NNS = SS.getScopeRep();
-  else {
-    if (Keyword == ETK_None)
-      return T;
-    NNS = nullptr;
-  }
-  return Context.getElaboratedType(Keyword, NNS, T, OwnedTagDecl);
+  return Context.getElaboratedType(
+      Keyword, SS.isValid() ? SS.getScopeRep() : nullptr, T, OwnedTagDecl);
 }
 
 QualType Sema::BuildTypeofExprType(Expr *E) {

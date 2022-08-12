@@ -18,11 +18,13 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/TypeOrdering.h"
+#include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/Solver.h"
 #include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/Compiler.h"
 #include <cassert>
 #include <memory>
 #include <type_traits>
@@ -89,12 +91,10 @@ public:
     return *cast<T>(Vals.back().get());
   }
 
-  /// Returns a stable storage location appropriate for `Type`.
+  /// Returns a new storage location appropriate for `Type`.
   ///
-  /// Requirements:
-  ///
-  ///  `Type` must not be null.
-  StorageLocation &getStableStorageLocation(QualType Type);
+  /// A null `Type` is interpreted as the pointee type of `std::nullptr_t`.
+  StorageLocation &createStorageLocation(QualType Type);
 
   /// Returns a stable storage location for `D`.
   StorageLocation &getStableStorageLocation(const VarDecl &D);
@@ -251,6 +251,12 @@ public:
   /// `Val2` imposed by the flow condition.
   bool equivalentBoolValues(BoolValue &Val1, BoolValue &Val2);
 
+  LLVM_DUMP_METHOD void dumpFlowCondition(AtomicBoolValue &Token);
+
+  /// Returns the `ControlFlowContext` registered for `F`, if any. Otherwise,
+  /// returns null.
+  const ControlFlowContext *getControlFlowContext(const FunctionDecl *F);
+
 private:
   struct NullableQualTypeDenseMapInfo : private llvm::DenseMapInfo<QualType> {
     static QualType getEmptyKey() {
@@ -337,6 +343,10 @@ private:
   llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, DisjunctionValue *>
       DisjunctionVals;
   llvm::DenseMap<BoolValue *, NegationValue *> NegationVals;
+  llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, ImplicationValue *>
+      ImplicationVals;
+  llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, BiconditionalValue *>
+      BiconditionalVals;
 
   // Flow conditions are tracked symbolically: each unique flow condition is
   // associated with a fresh symbolic variable (token), bound to the clause that
@@ -353,6 +363,8 @@ private:
   llvm::DenseMap<AtomicBoolValue *, llvm::DenseSet<AtomicBoolValue *>>
       FlowConditionDeps;
   llvm::DenseMap<AtomicBoolValue *, BoolValue *> FlowConditionConstraints;
+
+  llvm::DenseMap<const FunctionDecl *, ControlFlowContext> FunctionContexts;
 };
 
 } // namespace dataflow

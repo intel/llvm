@@ -622,6 +622,11 @@ public:
   getIndexOfElementToConstruct(ProgramStateRef State, const CXXConstructExpr *E,
                                const LocationContext *LCtx);
 
+  /// Retreives the size of the array in the pending ArrayInitLoopExpr.
+  static Optional<unsigned> getPendingInitLoop(ProgramStateRef State,
+                                               const CXXConstructExpr *E,
+                                               const LocationContext *LCtx);
+
   /// By looking at a certain item that may be potentially part of an object's
   /// ConstructionContext, retrieve such object's location. A particular
   /// statement can be transparently passed as \p Item in most cases.
@@ -715,11 +720,11 @@ public:
   /// returned, which is better than nothing but does not represent
   /// the actual behavior of the program. The Idx parameter is used if we
   /// construct an array of objects. In that case it points to the index
-  /// of the continous memory region.
+  /// of the continuous memory region.
   /// E.g.:
   /// For `int arr[4]` this index can be 0,1,2,3.
   /// For `int arr2[3][3]` this index can be 0,1,...,7,8.
-  /// A multi-dimensional array is also a continous memory location in a
+  /// A multi-dimensional array is also a continuous memory location in a
   /// row major order, so for arr[0][0] Idx is 0 and for arr[2][2] Idx is 8.
   SVal computeObjectUnderConstruction(const Expr *E, ProgramStateRef State,
                                       const LocationContext *LCtx,
@@ -816,7 +821,9 @@ private:
 
   /// Checks whether our policies allow us to inline a non-POD type array
   /// construction.
-  bool shouldInlineArrayConstruction(const ArrayType *Type);
+  bool shouldInlineArrayConstruction(const ProgramStateRef State,
+                                     const CXXConstructExpr *CE,
+                                     const LocationContext *LCtx);
 
   /// Checks whether we construct an array of non-POD type, and decides if the
   /// constructor should be inkoved once again.
@@ -915,6 +922,16 @@ private:
   removeIndexOfElementToConstruct(ProgramStateRef State,
                                   const CXXConstructExpr *E,
                                   const LocationContext *LCtx);
+
+  /// Sets the size of the array in a pending ArrayInitLoopExpr.
+  static ProgramStateRef setPendingInitLoop(ProgramStateRef State,
+                                            const CXXConstructExpr *E,
+                                            const LocationContext *LCtx,
+                                            unsigned Idx);
+
+  static ProgramStateRef removePendingInitLoop(ProgramStateRef State,
+                                               const CXXConstructExpr *E,
+                                               const LocationContext *LCtx);
 
   /// Store the location of a C++ object corresponding to a statement
   /// until the statement is actually encountered. For example, if a DeclStmt

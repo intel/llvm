@@ -14,7 +14,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static pi_result redefinedDeviceGetInfo(pi_device Device,
                                         pi_device_info ParamName,
@@ -105,7 +105,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
   Mock.redefine<detail::PiApiKind::piextMemCreateWithNativeHandle>(
       redefinedMemCreateWithNativeHandle);
-  cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
+  sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
@@ -221,8 +221,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
     auto BufI = std::make_shared<detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MockInteropBuffer), Q.get_context(),
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<
-            detail::default_buffer_allocator<char>, char>>(),
+        make_unique_ptr<
+            detail::SYCLMemObjAllocatorHolder<buffer_allocator<char>, char>>(),
         /* OwnNativeHandle */ true, event());
 
     detail::Requirement Req = getMockRequirement();

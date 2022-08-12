@@ -967,6 +967,24 @@ class DefaultValuedAttr<Attr attr, string val> :
   let baseAttr = attr;
 }
 
+// Decorates an optional attribute to have an (unvalidated) default value
+// return by ODS generated accessors if not present.
+class DefaultValuedOptionalAttr<Attr attr, string val> :
+    Attr<attr.predicate, attr.summary> {
+  // Construct this attribute with the input attribute and change only
+  // the default value.
+  // Note: this has to be kept up to date with Attr above.
+  let storageType = attr.storageType;
+  let returnType = attr.returnType;
+  let convertFromStorage = attr.convertFromStorage;
+  let constBuilderCall = attr.constBuilderCall;
+  let defaultValue = val;
+  let valueType = attr.valueType;
+  let isOptional = 1;
+
+  let baseAttr = attr;
+}
+
 // Decorates an attribute as optional. The return type of the generated
 // attribute accessor method will be Optional<>.
 class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
@@ -1264,6 +1282,7 @@ class DenseArrayAttrBase<string denseAttrName, string cppType, string summaryNam
   let storageType = "::mlir::" # denseAttrName;
   let returnType = "::llvm::ArrayRef<" # cppType # ">";
 }
+def DenseBoolArrayAttr : DenseArrayAttrBase<"DenseBoolArrayAttr", "bool", "i1">;
 def DenseI8ArrayAttr : DenseArrayAttrBase<"DenseI8ArrayAttr", "int8_t", "i8">;
 def DenseI16ArrayAttr : DenseArrayAttrBase<"DenseI16ArrayAttr", "int16_t", "i16">;
 def DenseI32ArrayAttr : DenseArrayAttrBase<"DenseI32ArrayAttr", "int32_t", "i32">;

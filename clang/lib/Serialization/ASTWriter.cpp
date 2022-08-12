@@ -1187,8 +1187,7 @@ ASTFileSignature ASTWriter::writeUnhashedControlBlock(Preprocessor &PP,
 
 /// Write the control block.
 void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
-                                  StringRef isysroot,
-                                  const std::string &OutputFile) {
+                                  StringRef isysroot, StringRef OutputFile) {
   using namespace llvm;
 
   Stream.EnterSubblock(CONTROL_BLOCK_ID, 5);
@@ -4347,8 +4346,12 @@ void ASTWriter::WriteModuleFileExtension(Sema &SemaRef,
 
 void ASTRecordWriter::AddAttr(const Attr *A) {
   auto &Record = *this;
-  if (!A)
+  // FIXME: Clang can't handle the serialization/deserialization of
+  // preferred_name properly now. See
+  // https://github.com/llvm/llvm-project/issues/56490 for example.
+  if (!A || (isa<PreferredNameAttr>(A) && Writer->isWritingNamedModules()))
     return Record.push_back(0);
+
   Record.push_back(A->getKind() + 1); // FIXME: stable encoding, target attrs
 
   Record.AddIdentifierRef(A->getAttrName());
@@ -4477,11 +4480,11 @@ time_t ASTWriter::getTimestampForOutput(const FileEntry *E) const {
   return IncludeTimestamps ? E->getModificationTime() : 0;
 }
 
-ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef,
-                                     const std::string &OutputFile,
+ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef, StringRef OutputFile,
                                      Module *WritingModule, StringRef isysroot,
                                      bool hasErrors,
-                                     bool ShouldCacheASTInMemory) {
+                                     bool ShouldCacheASTInMemory,
+                                     bool OutputPathIndependent) {
   WritingAST = true;
 
   ASTHasCompilerErrors = hasErrors;
@@ -4497,8 +4500,9 @@ ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef,
   Context = &SemaRef.Context;
   PP = &SemaRef.PP;
   this->WritingModule = WritingModule;
-  ASTFileSignature Signature =
-      WriteASTCore(SemaRef, isysroot, OutputFile, WritingModule);
+  ASTFileSignature Signature = WriteASTCore(
+      SemaRef, isysroot, OutputPathIndependent ? StringRef() : OutputFile,
+      WritingModule);
   Context = nullptr;
   PP = nullptr;
   this->WritingModule = nullptr;
@@ -4524,7 +4528,7 @@ static void AddLazyVectorDecls(ASTWriter &Writer, Vector &Vec,
 }
 
 ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
-                                         const std::string &OutputFile,
+                                         StringRef OutputFile,
                                          Module *WritingModule) {
   using namespace llvm;
 
@@ -5782,7 +5786,7 @@ void ASTRecordWriter::AddCXXDefinitionData(const CXXRecordDecl *D) {
         break;
       case LCK_ByCopy:
       case LCK_ByRef:
-        VarDecl *Var =
+        ValueDecl *Var =
             Capture.capturesVariable() ? Capture.getCapturedVar() : nullptr;
         AddDeclRef(Var);
         AddSourceLocation(Capture.isPackExpansion() ? Capture.getEllipsisLoc()

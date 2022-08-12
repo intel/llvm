@@ -25,8 +25,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, Queue, nullptr, IsHost) {}
@@ -387,8 +387,7 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
-    detail::EventImplPtr Event =
-        std::make_shared<cl::sycl::detail::event_impl>();
+    detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
   }
@@ -457,14 +456,6 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
     Args.emplace_back(kernel_param_kind_t::kind_std_layout,
                       &AccImpl->MOffset[0], SizeAccField, Index + IndexShift);
   }
-}
-
-// TODO remove this one once ABI breaking changes are allowed.
-void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource) {
-  processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
-             false);
 }
 
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
@@ -576,8 +567,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw cl::sycl::invalid_parameter_error(
-          "Unsupported accessor target case.", PI_ERROR_INVALID_OPERATION);
+      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
+                                          PI_ERROR_INVALID_OPERATION);
       break;
     }
     }
@@ -633,13 +624,6 @@ void handler::extractArgsAndReqs() {
     processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
                false);
   }
-}
-
-// TODO remove once ABI breaking changes are allowed
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs) {
-  extractArgsAndReqsFromLambda(LambdaPtr, KernelArgsNum, KernelArgs, false);
 }
 
 void handler::extractArgsAndReqsFromLambda(
@@ -819,5 +803,5 @@ void handler::depends_on(const std::vector<event> &Events) {
   }
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

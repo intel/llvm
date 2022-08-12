@@ -785,8 +785,7 @@ py::tuple PyDiagnostic::getNotes() {
   materializedNotes = py::tuple(numNotes);
   for (intptr_t i = 0; i < numNotes; ++i) {
     MlirDiagnostic noteDiag = mlirDiagnosticGetNote(diagnostic, i);
-    py::object pyNoteDiag = py::cast(PyDiagnostic(noteDiag));
-    PyTuple_SET_ITEM(materializedNotes->ptr(), i, pyNoteDiag.ptr());
+    materializedNotes.value()[i] = PyDiagnostic(noteDiag);
   }
   return *materializedNotes;
 }
@@ -1968,8 +1967,8 @@ template <typename Container>
 static std::vector<PyType> getValueTypes(Container &container,
                                          PyMlirContextRef &context) {
   std::vector<PyType> result;
-  result.reserve(container.getNumElements());
-  for (int i = 0, e = container.getNumElements(); i < e; ++i) {
+  result.reserve(container.size());
+  for (int i = 0, e = container.size(); i < e; ++i) {
     result.push_back(
         PyType(context, mlirValueGetType(container.getElement(i).get())));
   }
@@ -1993,14 +1992,24 @@ public:
                   step),
         operation(std::move(operation)), block(block) {}
 
+  static void bindDerived(ClassTy &c) {
+    c.def_property_readonly("types", [](PyBlockArgumentList &self) {
+      return getValueTypes(self, self.operation->getContext());
+    });
+  }
+
+private:
+  /// Give the parent CRTP class access to hook implementations below.
+  friend class Sliceable<PyBlockArgumentList, PyBlockArgument>;
+
   /// Returns the number of arguments in the list.
-  intptr_t getNumElements() {
+  intptr_t getRawNumElements() {
     operation->checkValid();
     return mlirBlockGetNumArguments(block);
   }
 
-  /// Returns `pos`-the element in the list. Asserts on out-of-bounds.
-  PyBlockArgument getElement(intptr_t pos) {
+  /// Returns `pos`-the element in the list.
+  PyBlockArgument getRawElement(intptr_t pos) {
     MlirValue argument = mlirBlockGetArgument(block, pos);
     return PyBlockArgument(operation, argument);
   }
@@ -2011,13 +2020,6 @@ public:
     return PyBlockArgumentList(operation, block, startIndex, length, step);
   }
 
-  static void bindDerived(ClassTy &c) {
-    c.def_property_readonly("types", [](PyBlockArgumentList &self) {
-      return getValueTypes(self, self.operation->getContext());
-    });
-  }
-
-private:
   PyOperationRef operation;
   MlirBlock block;
 };
@@ -2038,12 +2040,25 @@ public:
                   step),
         operation(operation) {}
 
-  intptr_t getNumElements() {
+  void dunderSetItem(intptr_t index, PyValue value) {
+    index = wrapIndex(index);
+    mlirOperationSetOperand(operation->get(), index, value.get());
+  }
+
+  static void bindDerived(ClassTy &c) {
+    c.def("__setitem__", &PyOpOperandList::dunderSetItem);
+  }
+
+private:
+  /// Give the parent CRTP class access to hook implementations below.
+  friend class Sliceable<PyOpOperandList, PyValue>;
+
+  intptr_t getRawNumElements() {
     operation->checkValid();
     return mlirOperationGetNumOperands(operation->get());
   }
 
-  PyValue getElement(intptr_t pos) {
+  PyValue getRawElement(intptr_t pos) {
     MlirValue operand = mlirOperationGetOperand(operation->get(), pos);
     MlirOperation owner;
     if (mlirValueIsAOpResult(operand))
@@ -2061,16 +2076,6 @@ public:
     return PyOpOperandList(operation, startIndex, length, step);
   }
 
-  void dunderSetItem(intptr_t index, PyValue value) {
-    index = wrapIndex(index);
-    mlirOperationSetOperand(operation->get(), index, value.get());
-  }
-
-  static void bindDerived(ClassTy &c) {
-    c.def("__setitem__", &PyOpOperandList::dunderSetItem);
-  }
-
-private:
   PyOperationRef operation;
 };
 
@@ -2090,12 +2095,22 @@ public:
                   step),
         operation(operation) {}
 
-  intptr_t getNumElements() {
+  static void bindDerived(ClassTy &c) {
+    c.def_property_readonly("types", [](PyOpResultList &self) {
+      return getValueTypes(self, self.operation->getContext());
+    });
+  }
+
+private:
+  /// Give the parent CRTP class access to hook implementations below.
+  friend class Sliceable<PyOpResultList, PyOpResult>;
+
+  intptr_t getRawNumElements() {
     operation->checkValid();
     return mlirOperationGetNumResults(operation->get());
   }
 
-  PyOpResult getElement(intptr_t index) {
+  PyOpResult getRawElement(intptr_t index) {
     PyValue value(operation, mlirOperationGetResult(operation->get(), index));
     return PyOpResult(value);
   }
@@ -2104,13 +2119,6 @@ public:
     return PyOpResultList(operation, startIndex, length, step);
   }
 
-  static void bindDerived(ClassTy &c) {
-    c.def_property_readonly("types", [](PyOpResultList &self) {
-      return getValueTypes(self, self.operation->getContext());
-    });
-  }
-
-private:
   PyOperationRef operation;
 };
 

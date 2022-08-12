@@ -17,8 +17,8 @@
 #include <sycl/stl.hpp>
 #include <sycl/types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -69,7 +69,7 @@ using image_allocator = detail::aligned_allocator<byte>;
 /// \sa sampler
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
+template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
@@ -311,15 +311,15 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<cl::sycl::image<Dimensions, AllocatorT>> {
-  size_t operator()(const cl::sycl::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<cl::sycl::detail::image_impl<Dimensions>>>()(
-        cl::sycl::detail::getSyclObjImpl(I));
+struct hash<sycl::image<Dimensions, AllocatorT>> {
+  size_t operator()(const sycl::image<Dimensions, AllocatorT> &I) const {
+    return hash<std::shared_ptr<sycl::detail::image_impl<Dimensions>>>()(
+        sycl::detail::getSyclObjImpl(I));
   }
 };
 } // namespace std

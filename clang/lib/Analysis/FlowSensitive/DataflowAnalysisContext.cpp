@@ -14,7 +14,9 @@
 
 #include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/Analysis/FlowSensitive/DebugSupport.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
+#include "llvm/Support/Debug.h"
 #include <cassert>
 #include <memory>
 #include <utility>
@@ -22,15 +24,14 @@
 namespace clang {
 namespace dataflow {
 
-StorageLocation &
-DataflowAnalysisContext::getStableStorageLocation(QualType Type) {
+StorageLocation &DataflowAnalysisContext::createStorageLocation(QualType Type) {
   if (!Type.isNull() &&
       (Type->isStructureOrClassType() || Type->isUnionType())) {
     // FIXME: Explore options to avoid eager initialization of fields as some of
     // them might not be needed for a particular analysis.
     llvm::DenseMap<const ValueDecl *, StorageLocation *> FieldLocs;
     for (const FieldDecl *Field : getObjectFields(Type))
-      FieldLocs.insert({Field, &getStableStorageLocation(Field->getType())});
+      FieldLocs.insert({Field, &createStorageLocation(Field->getType())});
     return takeOwnership(
         std::make_unique<AggregateStorageLocation>(Type, std::move(FieldLocs)));
   }
@@ -41,7 +42,7 @@ StorageLocation &
 DataflowAnalysisContext::getStableStorageLocation(const VarDecl &D) {
   if (auto *Loc = getStorageLocation(D))
     return *Loc;
-  auto &Loc = getStableStorageLocation(D.getType());
+  auto &Loc = createStorageLocation(D.getType());
   setStorageLocation(D, Loc);
   return Loc;
 }
@@ -50,7 +51,7 @@ StorageLocation &
 DataflowAnalysisContext::getStableStorageLocation(const Expr &E) {
   if (auto *Loc = getStorageLocation(E))
     return *Loc;
-  auto &Loc = getStableStorageLocation(E.getType());
+  auto &Loc = createStorageLocation(E.getType());
   setStorageLocation(E, Loc);
   return Loc;
 }
@@ -61,7 +62,7 @@ DataflowAnalysisContext::getOrCreateNullPointerValue(QualType PointeeType) {
       PointeeType.isNull() ? PointeeType : PointeeType.getCanonicalType();
   auto Res = NullPointerVals.try_emplace(CanonicalPointeeType, nullptr);
   if (Res.second) {
-    auto &PointeeLoc = getStableStorageLocation(CanonicalPointeeType);
+    auto &PointeeLoc = createStorageLocation(CanonicalPointeeType);
     Res.first->second =
         &takeOwnership(std::make_unique<PointerValue>(PointeeLoc));
   }
@@ -111,16 +112,27 @@ BoolValue &DataflowAnalysisContext::getOrCreateNegation(BoolValue &Val) {
 
 BoolValue &DataflowAnalysisContext::getOrCreateImplication(BoolValue &LHS,
                                                            BoolValue &RHS) {
-  return &LHS == &RHS ? getBoolLiteralValue(true)
-                      : getOrCreateDisjunction(getOrCreateNegation(LHS), RHS);
+  if (&LHS == &RHS)
+    return getBoolLiteralValue(true);
+
+  auto Res = ImplicationVals.try_emplace(std::make_pair(&LHS, &RHS), nullptr);
+  if (Res.second)
+    Res.first->second =
+        &takeOwnership(std::make_unique<ImplicationValue>(LHS, RHS));
+  return *Res.first->second;
 }
 
 BoolValue &DataflowAnalysisContext::getOrCreateIff(BoolValue &LHS,
                                                    BoolValue &RHS) {
-  return &LHS == &RHS
-             ? getBoolLiteralValue(true)
-             : getOrCreateConjunction(getOrCreateImplication(LHS, RHS),
-                                      getOrCreateImplication(RHS, LHS));
+  if (&LHS == &RHS)
+    return getBoolLiteralValue(true);
+
+  auto Res = BiconditionalVals.try_emplace(makeCanonicalBoolValuePair(LHS, RHS),
+                                           nullptr);
+  if (Res.second)
+    Res.first->second =
+        &takeOwnership(std::make_unique<BiconditionalValue>(LHS, RHS));
+  return *Res.first->second;
 }
 
 AtomicBoolValue &DataflowAnalysisContext::makeFlowConditionToken() {
@@ -197,18 +209,18 @@ void DataflowAnalysisContext::addTransitiveFlowConditionConstraints(
   if (!Res.second)
     return;
 
-  auto ConstraintsIT = FlowConditionConstraints.find(&Token);
-  if (ConstraintsIT == FlowConditionConstraints.end()) {
+  auto ConstraintsIt = FlowConditionConstraints.find(&Token);
+  if (ConstraintsIt == FlowConditionConstraints.end()) {
     Constraints.insert(&Token);
   } else {
     // Bind flow condition token via `iff` to its set of constraints:
     // FC <=> (C1 ^ C2 ^ ...), where Ci are constraints
-    Constraints.insert(&getOrCreateIff(Token, *ConstraintsIT->second));
+    Constraints.insert(&getOrCreateIff(Token, *ConstraintsIt->second));
   }
 
-  auto DepsIT = FlowConditionDeps.find(&Token);
-  if (DepsIT != FlowConditionDeps.end()) {
-    for (AtomicBoolValue *DepToken : DepsIT->second) {
+  auto DepsIt = FlowConditionDeps.find(&Token);
+  if (DepsIt != FlowConditionDeps.end()) {
+    for (AtomicBoolValue *DepToken : DepsIt->second) {
       addTransitiveFlowConditionConstraints(*DepToken, Constraints,
                                             VisitedTokens);
     }
@@ -218,10 +230,10 @@ void DataflowAnalysisContext::addTransitiveFlowConditionConstraints(
 BoolValue &DataflowAnalysisContext::substituteBoolValue(
     BoolValue &Val,
     llvm::DenseMap<BoolValue *, BoolValue *> &SubstitutionsCache) {
-  auto IT = SubstitutionsCache.find(&Val);
-  if (IT != SubstitutionsCache.end()) {
+  auto It = SubstitutionsCache.find(&Val);
+  if (It != SubstitutionsCache.end()) {
     // Return memoized result of substituting this boolean value.
-    return *IT->second;
+    return *It->second;
   }
 
   // Handle substitution on the boolean value (and its subvalues), saving the
@@ -256,6 +268,24 @@ BoolValue &DataflowAnalysisContext::substituteBoolValue(
     Result = &getOrCreateConjunction(LeftSub, RightSub);
     break;
   }
+  case Value::Kind::Implication: {
+    auto &IV = *cast<ImplicationValue>(&Val);
+    auto &LeftSub =
+        substituteBoolValue(IV.getLeftSubValue(), SubstitutionsCache);
+    auto &RightSub =
+        substituteBoolValue(IV.getRightSubValue(), SubstitutionsCache);
+    Result = &getOrCreateImplication(LeftSub, RightSub);
+    break;
+  }
+  case Value::Kind::Biconditional: {
+    auto &BV = *cast<BiconditionalValue>(&Val);
+    auto &LeftSub =
+        substituteBoolValue(BV.getLeftSubValue(), SubstitutionsCache);
+    auto &RightSub =
+        substituteBoolValue(BV.getRightSubValue(), SubstitutionsCache);
+    Result = &getOrCreateIff(LeftSub, RightSub);
+    break;
+  }
   default:
     llvm_unreachable("Unhandled Value Kind");
   }
@@ -278,19 +308,51 @@ BoolValue &DataflowAnalysisContext::buildAndSubstituteFlowCondition(
 BoolValue &DataflowAnalysisContext::buildAndSubstituteFlowConditionWithCache(
     AtomicBoolValue &Token,
     llvm::DenseMap<BoolValue *, BoolValue *> &SubstitutionsCache) {
-  auto ConstraintsIT = FlowConditionConstraints.find(&Token);
-  if (ConstraintsIT == FlowConditionConstraints.end()) {
+  auto ConstraintsIt = FlowConditionConstraints.find(&Token);
+  if (ConstraintsIt == FlowConditionConstraints.end()) {
     return getBoolLiteralValue(true);
   }
-  auto DepsIT = FlowConditionDeps.find(&Token);
-  if (DepsIT != FlowConditionDeps.end()) {
-    for (AtomicBoolValue *DepToken : DepsIT->second) {
+  auto DepsIt = FlowConditionDeps.find(&Token);
+  if (DepsIt != FlowConditionDeps.end()) {
+    for (AtomicBoolValue *DepToken : DepsIt->second) {
       auto &NewDep = buildAndSubstituteFlowConditionWithCache(
           *DepToken, SubstitutionsCache);
       SubstitutionsCache[DepToken] = &NewDep;
     }
   }
-  return substituteBoolValue(*ConstraintsIT->second, SubstitutionsCache);
+  return substituteBoolValue(*ConstraintsIt->second, SubstitutionsCache);
+}
+
+void DataflowAnalysisContext::dumpFlowCondition(AtomicBoolValue &Token) {
+  llvm::DenseSet<BoolValue *> Constraints = {&Token};
+  llvm::DenseSet<AtomicBoolValue *> VisitedTokens;
+  addTransitiveFlowConditionConstraints(Token, Constraints, VisitedTokens);
+
+  llvm::DenseMap<const AtomicBoolValue *, std::string> AtomNames = {
+      {&getBoolLiteralValue(false), "False"},
+      {&getBoolLiteralValue(true), "True"}};
+  llvm::dbgs() << debugString(Constraints, AtomNames);
+}
+
+const ControlFlowContext *
+DataflowAnalysisContext::getControlFlowContext(const FunctionDecl *F) {
+  // Canonicalize the key:
+  F = F->getDefinition();
+  if (F == nullptr)
+    return nullptr;
+  auto It = FunctionContexts.find(F);
+  if (It != FunctionContexts.end())
+    return &It->second;
+
+  if (Stmt *Body = F->getBody()) {
+    auto CFCtx = ControlFlowContext::build(F, *Body, F->getASTContext());
+    // FIXME: Handle errors.
+    assert(CFCtx);
+    auto Result = FunctionContexts.insert({F, std::move(*CFCtx)});
+    return &Result.first->second;
+  }
+
+  return nullptr;
 }
 
 } // namespace dataflow

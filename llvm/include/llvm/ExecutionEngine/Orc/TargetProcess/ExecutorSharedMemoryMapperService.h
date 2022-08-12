@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_EXECUTIONENGINE_ORC_TARGETPROCESS_EXECUTORSHAREDMEMORYMAPPERSERVICE
-#define LLVM_EXECUTIONENGINE_ORC_TARGETPROCESS_EXECUTORSHAREDMEMORYMAPPERSERVICE
+#ifndef LLVM_EXECUTIONENGINE_ORC_TARGETPROCESS_EXECUTORSHAREDMEMORYMAPPERSERVICE_H
+#define LLVM_EXECUTIONENGINE_ORC_TARGETPROCESS_EXECUTORSHAREDMEMORYMAPPERSERVICE_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
@@ -66,7 +66,10 @@ private:
   static llvm::orc::shared::CWrapperFunctionResult
   releaseWrapper(const char *ArgData, size_t ArgSize);
 
+#if (defined(LLVM_ON_UNIX) && !defined(__ANDROID__)) || defined(_WIN32)
   std::atomic<int> SharedMemoryCount{0};
+#endif
+
   std::mutex Mutex;
   ReservationMap Reservations;
   AllocationMap Allocations;
@@ -75,4 +78,4 @@ private:
 } // namespace rt_bootstrap
 } // namespace orc
 } // namespace llvm
-#endif // LLVM_EXECUTIONENGINE_ORC_TARGETPROCESS_EXECUTORSHAREDMEMORYMAPPERSERVICE
+#endif // LLVM_EXECUTIONENGINE_ORC_TARGETPROCESS_EXECUTORSHAREDMEMORYMAPPERSERVICE_H

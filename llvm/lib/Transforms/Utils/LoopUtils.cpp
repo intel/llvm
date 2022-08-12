@@ -38,6 +38,7 @@
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -602,10 +603,10 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     // loop will be already eliminated and we have less work to do but according
     // to API doc of User::dropAllReferences only valid operation after dropping
     // references, is deletion. So let's substitute all usages of
-    // instruction from the loop with undef value of corresponding type first.
+    // instruction from the loop with poison value of corresponding type first.
     for (auto *Block : L->blocks())
       for (Instruction &I : *Block) {
-        auto *Undef = UndefValue::get(I.getType());
+        auto *Poison = PoisonValue::get(I.getType());
         for (Use &U : llvm::make_early_inc_range(I.uses())) {
           if (auto *Usr = dyn_cast<Instruction>(U.getUser()))
             if (L->contains(Usr->getParent()))
@@ -615,7 +616,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
           if (DT)
             assert(!DT->isReachableFromEntry(U) &&
                    "Unexpected user in reachable block");
-          U.set(Undef);
+          U.set(Poison);
         }
         auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I);
         if (!DVI)
@@ -789,7 +790,7 @@ getEstimatedTripCount(BranchInst *ExitingBranch, Loop *L,
   // know the number of times the backedge was taken, vs. the number of times
   // we exited the loop.
   uint64_t LoopWeight, ExitWeight;
-  if (!ExitingBranch->extractProfMetadata(LoopWeight, ExitWeight))
+  if (!extractBranchWeights(*ExitingBranch, LoopWeight, ExitWeight))
     return None;
 
   if (L->contains(ExitingBranch->getSuccessor(1)))

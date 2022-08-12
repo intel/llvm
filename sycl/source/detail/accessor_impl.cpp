@@ -12,8 +12,8 @@
 #include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/buffer_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
@@ -40,12 +40,12 @@ void addHostAccessorAndWait(Requirement *Req) {
 }
 
 void constructorNotification(void *BufferObj, void *AccessorObj,
-                             cl::sycl::access::target Target,
-                             cl::sycl::access::mode Mode,
+                             sycl::access::target Target,
+                             sycl::access::mode Mode,
                              const detail::code_location &CodeLoc) {
   XPTIRegistry::bufferAccessorNotification(
       BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

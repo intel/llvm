@@ -211,7 +211,7 @@ void UnwindInfoSection::addSymbol(const Defined *d) {
   // we use that as the key here.
   auto p = symbols.insert({{d->isec, d->value}, d});
   // If we have multiple symbols at the same address, only one of them can have
-  // an associated CUE.
+  // an associated unwind entry.
   if (!p.second && d->unwindEntry) {
     assert(!p.first->second->unwindEntry);
     p.first->second = d;
@@ -401,8 +401,12 @@ static bool canFoldEncoding(compact_unwind_encoding_t encoding) {
   // of the unwind info's unwind address, two functions that have identical
   // unwind info can't be folded if it's using this encoding since both
   // entries need unique addresses.
-  static_assert(UNWIND_X86_64_MODE_MASK == UNWIND_X86_MODE_MASK, "");
-  static_assert(UNWIND_X86_64_MODE_STACK_IND == UNWIND_X86_MODE_STACK_IND, "");
+  static_assert(static_cast<uint32_t>(UNWIND_X86_64_MODE_MASK) ==
+                    static_cast<uint32_t>(UNWIND_X86_MODE_MASK),
+                "");
+  static_assert(static_cast<uint32_t>(UNWIND_X86_64_MODE_STACK_IND) ==
+                    static_cast<uint32_t>(UNWIND_X86_MODE_STACK_IND),
+                "");
   if ((target->cpuType == CPU_TYPE_X86_64 || target->cpuType == CPU_TYPE_X86) &&
       (encoding & UNWIND_X86_64_MODE_MASK) == UNWIND_X86_64_MODE_STACK_IND) {
     // FIXME: Consider passing in the two function addresses and getting

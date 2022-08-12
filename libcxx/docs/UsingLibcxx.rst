@@ -41,18 +41,22 @@ Libc++ provides implementations of some experimental features. Experimental feat
 are either Technical Specifications (TSes) or official features that were voted to
 the Standard but whose implementation is not complete or stable yet in libc++. Those
 are disabled by default because they are neither API nor ABI stable. However, the
-``_LIBCPP_ENABLE_EXPERIMENTAL`` macro can be defined to turn those features on. Note
-that you will also need to link to the appropriate ``libc++experimental.a`` static
-archive.
+``-fexperimental-library`` compiler flag can be defined to turn those features on.
 
 .. warning::
-  Experimental libraries are Experimental.
+  Experimental libraries are experimental.
     * The contents of the ``<experimental/...>`` headers and the associated static
       library will not remain compatible between versions.
     * No guarantees of API or ABI stability are provided.
     * When the standardized version of an experimental feature is implemented,
       the experimental feature is removed two releases after the non-experimental
       version has shipped. The full policy is explained :ref:`here <experimental features>`.
+
+.. note::
+  On compilers that do not support the ``-fexperimental-library`` flag, users can
+  define the ``_LIBCPP_ENABLE_EXPERIMENTAL`` macro and manually link against the
+  appropriate static library (usually shipped as ``libc++experimental.a``) to get
+  access to experimental library features.
 
 
 Using libc++ when it is not the system default
@@ -148,18 +152,18 @@ where the static or shared library was compiled **with** assertions but the user
 disable them). However, most of the code in libc++ is in the headers, so the user-selected
 value for ``_LIBCPP_ENABLE_ASSERTIONS`` (if any) will usually be respected.
 
-When an assertion fails, an assertion handler function is called. The library provides a default
-assertion handler that prints an error message and calls ``std::abort()``. Note that this assertion
-handler is provided by the static or shared library, so it is only available when deploying to a
-platform where the compiled library is sufficiently recent. However, users can also override that
-assertion handler with their own, which can be useful to provide custom behavior, or when deploying
-to older platforms where the default assertion handler isn't available.
+When an assertion fails, the program is aborted through a special verbose termination function. The
+library provides a default function that prints an error message and calls ``std::abort()``. Note
+that this function is provided by the static or shared library, so it is only available when deploying
+to a platform where the compiled library is sufficiently recent. However, users can also override that
+function with their own, which can be useful to provide custom behavior, or when deploying to older
+platforms where the default function isn't available.
 
-Replacing the default assertion handler is done by defining the following function:
+Replacing the default verbose termination function is done by defining the following function:
 
 .. code-block:: cpp
 
-  void __libcpp_assertion_handler(char const* file, int line, char const* expression, char const* message)
+  void __libcpp_verbose_abort(char const* format, ...)
 
 This mechanism is similar to how one can replace the default definition of ``operator new``
 and ``operator delete``. For example:
@@ -167,10 +171,14 @@ and ``operator delete``. For example:
 .. code-block:: cpp
 
   // In HelloWorldHandler.cpp
-  #include <version> // must include any libc++ header before defining the handler (C compatibility headers excluded)
+  #include <version> // must include any libc++ header before defining the function (C compatibility headers excluded)
 
-  void std::__libcpp_assertion_handler(char const* file, int line, char const* expression, char const* message) {
-    std::printf("Assertion %s failed at %s:%d, more info: %s", expression, file, line, message);
+  void std::__libcpp_verbose_abort(char const* format, ...) {
+    va_list list;
+    va_start(list, format);
+    std::vfprintf(stderr, format, list);
+    va_end(list);
+
     std::abort();
   }
 
@@ -179,30 +187,29 @@ and ``operator delete``. For example:
 
   int main() {
     std::vector<int> v;
-    int& x = v[0]; // Your assertion handler will be called here if _LIBCPP_ENABLE_ASSERTIONS=1
+    int& x = v[0]; // Your termination function will be called here if _LIBCPP_ENABLE_ASSERTIONS=1
   }
 
-Also note that the assertion handler should usually not return. Since the assertions in libc++
-catch undefined behavior, your code will proceed with undefined behavior if your assertion
-handler is called and does return.
+Also note that the verbose termination function should never return. Since assertions in libc++
+catch undefined behavior, your code will proceed with undefined behavior if your function is called
+and does return.
 
-Furthermore, throwing an exception from the assertion handler is not recommended. Indeed, many
-functions in the library are ``noexcept``, and any exception thrown from the assertion handler
-will result in ``std::terminate`` being called.
+Furthermore, exceptions should not be thrown from the function. Indeed, many functions in the
+library are ``noexcept``, and any exception thrown from the termination function will result
+in ``std::terminate`` being called.
 
-Back-deploying with a custom assertion handler
-----------------------------------------------
-When deploying to an older platform that does not provide a default assertion handler, the
-compiler will diagnose the usage of ``std::__libcpp_assertion_handler`` with an error. This
-is done to avoid the load-time error that would otherwise happen if the code was being deployed
-on the older system.
+Back-deploying with a custom verbose termination function
+---------------------------------------------------------
+When deploying to an older platform that does not provide a default verbose termination function,
+the compiler will diagnose the usage of ``std::__libcpp_verbose_abort`` with an error. This is done
+to avoid the load-time error that would otherwise happen if the code was being deployed on older
+systems.
 
-If you are providing a custom assertion handler, this error is effectively a false positive.
-To let the library know that you are providing a custom assertion handler in back-deployment
-scenarios, you must define the ``_LIBCPP_AVAILABILITY_CUSTOM_ASSERTION_HANDLER_PROVIDED`` macro,
-and the library will assume that you are providing your own definition. If no definition is
-provided and the code is back-deployed to the older platform, it will fail to load when the
-dynamic linker fails to find a definition for ``std::__libcpp_assertion_handler``, so you
+If you are providing a custom verbose termination function, this error is effectively a false positive.
+To let the library know that you are providing a custom function in back-deployment scenarios, you must
+define the ``_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED`` macro, and the library will assume that
+you are providing your own definition. If no definition is provided and the code is back-deployed to an older
+platform, it will fail to load when the dynamic linker fails to find a definition of the function, so you
 should only remove the guard rails if you really mean it!
 
 Libc++ Configuration Macros
@@ -427,3 +434,37 @@ which no dialect declares as such (See the second form described above).
 * ``identity::operator()``
 * ``to_integer``
 * ``to_underlying``
+
+Additional types supported in random distributions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The `C++ Standard <http://eel.is/c++draft/rand#req.genl-1.5>`_ mentions that instantiating several random number
+distributions with types other than ``short``, ``int``, ``long``, ``long long``, and their unsigned versions is
+undefined. As an extension, libc++ supports instantiating ``binomial_distribution``, ``discrete_distribution``,
+``geometric_distribution``, ``negative_binomial_distribution``, ``poisson_distribution``, and ``uniform_int_distribution``
+with ``int8_t``, ``__int128_t`` and their unsigned versions.
+
+Extended integral type support
+------------------------------
+
+Several platforms support the 128-bit integral types ``__int128_t`` and
+``__uint128_t``. When these types are present they can be used in the headers
+as required by the Standard:
+
+* ``<bits>``
+* ``<charconv>``
+* ``<functional>``
+* ``<type_traits>``
+
+As an extension these types can be used in the following headers:
+
+* ``<format>``
+* ``<random>``
+
+Extensions to ``<format>``
+--------------------------
+
+The exposition only type ``basic-format-string`` and its typedefs
+``format-string`` and ``wformat-string`` became ``basic_format_string``,
+``format_string``, and ``wformat_string`` in C++23. Libc++ makes these types
+available in C++20 as an extension.

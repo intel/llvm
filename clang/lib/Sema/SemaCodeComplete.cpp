@@ -1212,7 +1212,7 @@ static void setInBaseClass(ResultBuilder::Result &R) {
 enum class OverloadCompare { BothViable, Dominates, Dominated };
 // Will Candidate ever be called on the object, when overloaded with Incumbent?
 // Returns Dominates if Candidate is always called, Dominated if Incumbent is
-// always called, BothViable if either may be called dependending on arguments.
+// always called, BothViable if either may be called depending on arguments.
 // Precondition: must actually be overloads!
 static OverloadCompare compareOverloads(const CXXMethodDecl &Candidate,
                                         const CXXMethodDecl &Incumbent,
@@ -2783,7 +2783,7 @@ static void findTypeLocationForBlockDecl(const TypeSourceInfo *TSInfo,
   while (true) {
     // Look through typedefs.
     if (!SuppressBlock) {
-      if (TypedefTypeLoc TypedefTL = TL.getAs<TypedefTypeLoc>()) {
+      if (TypedefTypeLoc TypedefTL = TL.getAsAdjusted<TypedefTypeLoc>()) {
         if (TypeSourceInfo *InnerTSInfo =
                 TypedefTL.getTypedefNameDecl()->getTypeSourceInfo()) {
           TL = InnerTSInfo->getTypeLoc().getUnqualifiedLoc();

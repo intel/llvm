@@ -16,6 +16,14 @@ are expected to closely match the corresponding LLVM IR instructions and
 intrinsics. This minimizes the dependency on LLVM IR libraries in MLIR as well
 as reduces the churn in case of changes.
 
+Note that many different dialects can be lowered to LLVM but are provided as
+different sets of patterns and have different passes available to mlir-opt.
+However, this is primarily useful for testing and prototyping, and using the
+collection of patterns together is highly recommended. One place this is
+important and visible is the ControlFlow dialect's branching operations which
+will fail to apply if their types mismatch with the blocks they jump to in the
+parent op.
+
 SPIR-V to LLVM dialect conversion has a
 [dedicated document](SPIRVToLLVMDialectConversion.md).
 
@@ -552,6 +560,18 @@ llvm.func @caller(%arg0: !llvm.ptr<f32>) {
 
 The "bare pointer" calling convention does not support unranked memrefs as their
 shape cannot be known at compile time.
+
+### Generic alloction and deallocation functions
+
+When converting the Memref dialect, allocations and deallocations are converted
+into calls to `malloc` (`aligned_alloc` if aligned allocations are requested)
+and `free`. However, it is possible to convert them to more generic functions
+which can be implemented by a runtime library, thus allowing custom allocation
+strategies or runtime profiling. When the conversion pass is  instructed to
+perform such operation, the names of the calles are
+`_mlir_memref_to_llvm_alloc`, `_mlir_memref_to_llvm_aligned_alloc` and
+`_mlir_memref_to_llvm_free`. Their signatures are the same of `malloc`,
+`aligned_alloc` and `free`.
 
 ### C-compatible wrapper emission
 

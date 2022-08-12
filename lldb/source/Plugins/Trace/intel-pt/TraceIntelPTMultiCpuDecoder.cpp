@@ -35,21 +35,42 @@ bool TraceIntelPTMultiCpuDecoder::TracesThread(lldb::tid_t tid) const {
   return m_tids.count(tid);
 }
 
+Expected<Optional<uint64_t>> TraceIntelPTMultiCpuDecoder::FindLowestTSC() {
+  Optional<uint64_t> lowest_tsc;
+  TraceIntelPTSP trace_sp = GetTrace();
+
+  Error err = GetTrace()->OnAllCpusBinaryDataRead(
+      IntelPTDataKinds::kIptTrace,
+      [&](const DenseMap<cpu_id_t, ArrayRef<uint8_t>> &buffers) -> Error {
+        for (auto &cpu_id_to_buffer : buffers) {
+          Expected<Optional<uint64_t>> tsc =
+              FindLowestTSCInTrace(*trace_sp, cpu_id_to_buffer.second);
+          if (!tsc)
+            return tsc.takeError();
+          if (*tsc && (!lowest_tsc || *lowest_tsc > **tsc))
+            lowest_tsc = **tsc;
+        }
+        return Error::success();
+      });
+  if (err)
+    return std::move(err);
+  return lowest_tsc;
+}
+
 Expected<DecodedThreadSP> TraceIntelPTMultiCpuDecoder::Decode(Thread &thread) {
   if (Error err = CorrelateContextSwitchesAndIntelPtTraces())
     return std::move(err);
 
   TraceIntelPTSP trace_sp = GetTrace();
 
-  return trace_sp
-      ->GetThreadTimer(thread.GetID())
+  return trace_sp->GetThreadTimer(thread.GetID())
       .TimeTask("Decoding instructions", [&]() -> Expected<DecodedThreadSP> {
         auto it = m_decoded_threads.find(thread.GetID());
         if (it != m_decoded_threads.end())
           return it->second;
 
-        DecodedThreadSP decoded_thread_sp =
-            std::make_shared<DecodedThread>(thread.shared_from_this());
+        DecodedThreadSP decoded_thread_sp = std::make_shared<DecodedThread>(
+            thread.shared_from_this(), trace_sp->GetPerfZeroTscConversion());
 
         Error err = trace_sp->OnAllCpusBinaryDataRead(
             IntelPTDataKinds::kIptTrace,

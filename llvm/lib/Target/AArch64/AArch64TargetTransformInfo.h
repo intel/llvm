@@ -340,6 +340,12 @@ public:
     return PredicationStyle::None;
   }
 
+  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
+                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
+                                   DominatorTree *DT,
+                                   LoopVectorizationLegality *LVL,
+                                   InterleavedAccessInfo *IAI);
+
   bool supportsScalableVectors() const { return ST->hasSVE(); }
 
   bool enableScalableVectorization() const { return ST->hasSVE(); }

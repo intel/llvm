@@ -9,6 +9,7 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
 
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/CAPI/IR.h"
 #include "mlir/CAPI/Support.h"
 #include "mlir/CAPI/Utils.h"
@@ -752,7 +753,10 @@ MlirContext mlirAttributeGetContext(MlirAttribute attribute) {
 }
 
 MlirType mlirAttributeGetType(MlirAttribute attribute) {
-  return wrap(unwrap(attribute).getType());
+  Attribute attr = unwrap(attribute);
+  if (auto typedAttr = attr.dyn_cast<TypedAttr>())
+    return wrap(typedAttr.getType());
+  return wrap(NoneType::get(attr.getContext()));
 }
 
 MlirTypeID mlirAttributeGetTypeID(MlirAttribute attr) {

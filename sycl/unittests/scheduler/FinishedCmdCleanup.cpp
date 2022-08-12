@@ -11,7 +11,7 @@
 
 #include <detail/event_impl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 TEST_F(SchedulerTest, FinishedCmdCleanup) {
   MockScheduler MS;

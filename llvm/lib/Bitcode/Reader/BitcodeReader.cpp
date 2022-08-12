@@ -6337,7 +6337,7 @@ OutOfRecordLoop:
       // We found at least one unresolved value.  Nuke them all to avoid leaks.
       for (unsigned i = ModuleValueListSize, e = ValueList.size(); i != e; ++i){
         if ((A = dyn_cast_or_null<Argument>(ValueList[i])) && !A->getParent()) {
-          A->replaceAllUsesWith(UndefValue::get(A->getType()));
+          A->replaceAllUsesWith(PoisonValue::get(A->getType()));
           delete A;
         }
       }
@@ -7788,7 +7788,7 @@ static Expected<bool> getEnableSplitLTOUnitFlag(BitstreamCursor &Stream,
     case bitc::FS_FLAGS: { // [flags]
       uint64_t Flags = Record[0];
       // Scan flags.
-      assert(Flags <= 0x7f && "Unexpected bits in flag");
+      assert(Flags <= 0xff && "Unexpected bits in flag");
 
       return Flags & 0x8;
     }

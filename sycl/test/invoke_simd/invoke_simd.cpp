@@ -17,7 +17,7 @@
 #include <type_traits>
 
 using namespace sycl::ext::oneapi::experimental;
-using namespace cl::sycl;
+using namespace sycl;
 namespace esimd = sycl::ext::intel::esimd;
 
 constexpr int VL = 16;
@@ -66,7 +66,7 @@ inline auto createExceptionHandler() {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << "sycl::exception: " << e0.what() << std::endl;
       } catch (std::exception &e) {
         std::cout << "std::exception: " << e.what() << std::endl;
@@ -99,11 +99,11 @@ int main(void) {
     C[i] = -1;
   }
 
-  cl::sycl::range<1> GlobalRange{Size};
+  sycl::range<1> GlobalRange{Size};
   // Number of workitems in each workgroup.
-  cl::sycl::range<1> LocalRange{GroupSize};
+  sycl::range<1> LocalRange{GroupSize};
 
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
   try {
     auto e = q.submit([&](handler &cgh) {
@@ -126,7 +126,7 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
   }

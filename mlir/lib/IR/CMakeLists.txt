@@ -12,6 +12,7 @@ add_mlir_library(MLIRIR
   BuiltinTypeInterfaces.cpp
   Diagnostics.cpp
   Dialect.cpp
+  DialectResourceBlobManager.cpp
   Dominance.cpp
   ExtensibleDialect.cpp
   FunctionImplementation.cpp
@@ -31,6 +32,7 @@ add_mlir_library(MLIRIR
   TypeRange.cpp
   TypeUtilities.cpp
   Value.cpp
+  ValueRange.cpp
   Verifier.cpp
   Visitors.cpp
 

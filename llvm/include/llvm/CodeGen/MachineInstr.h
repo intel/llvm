@@ -572,12 +572,9 @@ public:
 
   /// Returns true if the instruction has implicit definition.
   bool hasImplicitDef() const {
-    for (unsigned I = getNumExplicitOperands(), E = getNumOperands();
-      I != E; ++I) {
-      const MachineOperand &MO = getOperand(I);
+    for (const MachineOperand &MO : implicit_operands())
       if (MO.isDef() && MO.isImplicit())
         return true;
-    }
     return false;
   }
 
@@ -926,6 +923,8 @@ public:
   /// For example, if the instruction has a unique labels attached
   /// to it, duplicating it would cause multiple definition errors.
   bool isNotDuplicable(QueryType Type = AnyInBundle) const {
+    if (getPreInstrSymbol() || getPostInstrSymbol())
+      return true;
     return hasProperty(MCID::NotDuplicable, Type);
   }
 

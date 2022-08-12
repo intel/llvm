@@ -41,38 +41,36 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __fill;
 
 template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
-          cl::sycl::access::target AccessTarget_Src, typename T_Dst,
-          int Dims_Dst, cl::sycl::access::mode AccessMode_Dst,
-          cl::sycl::access::target AccessTarget_Dst,
-          cl::sycl::access::placeholder IsPlaceholder_Src,
-          cl::sycl::access::placeholder IsPlaceholder_Dst>
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
+          sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 
@@ -245,15 +243,15 @@ template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo;
 
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
 
 // Kernels with single reduction
 
 /// If we are given sycl::range and not sycl::nd_range we have more freedom in
 /// how to split the iteration space.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
                         uint32_t NumConcurrentWorkGroups, Reduction &Redu);
 
@@ -406,13 +404,6 @@ private:
 
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs);
-
-  /// Extracts and prepares kernel arguments from the lambda using integration
-  /// header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
@@ -420,11 +411,6 @@ private:
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource);
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
@@ -734,7 +720,7 @@ private:
                                                  LambdaArgType>::value;
 
     if (IsCallableWithKernelHandler && MIsHost) {
-      throw cl::sycl::feature_not_supported(
+      throw sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_ERROR_INVALID_OPERATION);
     }
@@ -791,20 +777,6 @@ private:
       if (Src[I] > Dst[I])
         return false;
     return true;
-  }
-
-  // TODO: Delete these functions when ABI breaking changes are allowed.
-  // Currently these functions are unused but they are static members of
-  // the exported class 'handler' and has got into sycl library some time ago
-  // and must stay there for a while.
-  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
   }
 
   /// Handles some special cases of the copy operation from one accessor
@@ -1651,11 +1623,9 @@ public:
     // for the device.
     size_t MaxWGSize =
         ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
-    ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-        *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
-    if (Reduction::is_usm ||
-        (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
-        (!Reduction::has_fast_atomics && Reduction::is_dw_acc)) {
+    if (ext::oneapi::detail::reduCGFuncForRange<KernelName>(
+            *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups,
+            Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
@@ -2707,5 +2677,5 @@ private:
         NumWorkItems, KernelFunc);
   }
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

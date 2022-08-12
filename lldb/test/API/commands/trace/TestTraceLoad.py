@@ -13,11 +13,11 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
         trace_description_file_path = os.path.join(src_dir, "intelpt-multi-core-trace", "trace.json")
         self.traceLoad(traceDescriptionFilePath=trace_description_file_path, substrs=["intel-pt"])
         self.expect("thread trace dump instructions 2 -t",
-          substrs=["19523: [tsc=40450075478109270] (error) expected tracing enabled event",
+          substrs=["19531: [20456511.000 ns] (error) expected tracing enabled event",
                    "m.out`foo() + 65 at multi_thread.cpp:12:21",
-                   "19521: [tsc=40450075477657246] 0x0000000000400ba7    jg     0x400bb3"])
+                   "19523: [19691630.216 ns] 0x0000000000400ba7    jg     0x400bb3"])
         self.expect("thread trace dump instructions 3 -t",
-          substrs=["67912: [tsc=40450075477799536] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
+          substrs=["67919: [19736130.084 ns] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
                    "m.out`bar() + 26 at multi_thread.cpp:20:6"])
 
         self.expect("thread trace dump info --json",
@@ -60,17 +60,18 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
   "traceTechnology": "intel-pt",
   "threadStats": {
     "tid": 3497496,
-    "traceItemsCount": 19524,
+    "traceItemsCount": 19533,
     "memoryUsage": {
-      "totalInBytes": "175760",
+      "totalInBytes": "176097",
       "avgPerItemInBytes": 9.''', '''},
     "timingInSeconds": {
       "Decoding instructions": ''', '''
     },
     "events": {
-      "totalCount": 2,
+      "totalCount": 11,
       "individualCounts": {
         "software disabled tracing": 1,
+        "HW clock tick": 9,
         "CPU core changed": 1
       }
     },
@@ -110,11 +111,11 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
         # we'll load the compact trace and make sure it works
         self.traceLoad(os.path.join(compact_trace_bundle_dir, "trace.json"), substrs=["intel-pt"])
         self.expect("thread trace dump instructions 2 -t",
-          substrs=["19523: [tsc=40450075478109270] (error) expected tracing enabled event",
+          substrs=["19531: [20456511.000 ns] (error) expected tracing enabled event",
                    "m.out`foo() + 65 at multi_thread.cpp:12:21",
-                   "19521: [tsc=40450075477657246] 0x0000000000400ba7    jg     0x400bb3"])
+                   "19523: [19691630.216 ns] 0x0000000000400ba7    jg     0x400bb3"])
         self.expect("thread trace dump instructions 3 -t",
-          substrs=["67912: [tsc=40450075477799536] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
+          substrs=["67919: [19736130.084 ns] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
                    "m.out`bar() + 26 at multi_thread.cpp:20:6"])
 
         # This reduced the number of continuous executions to look at
@@ -129,11 +130,11 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
         trace_description_file_path = os.path.join(src_dir, "intelpt-multi-core-trace", "trace_with_string_numbers.json")
         self.traceLoad(traceDescriptionFilePath=trace_description_file_path, substrs=["intel-pt"])
         self.expect("thread trace dump instructions 2 -t",
-          substrs=["19523: [tsc=40450075478109270] (error) expected tracing enabled event",
+          substrs=["19531: [20456511.000 ns] (error) expected tracing enabled event",
                    "m.out`foo() + 65 at multi_thread.cpp:12:21",
-                   "19521: [tsc=40450075477657246] 0x0000000000400ba7    jg     0x400bb3"])
+                   "19523: [19691630.216 ns] 0x0000000000400ba7    jg     0x400bb3"])
         self.expect("thread trace dump instructions 3 -t",
-          substrs=["67912: [tsc=40450075477799536] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
+          substrs=["67919: [19736130.084 ns] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
                    "m.out`bar() + 26 at multi_thread.cpp:20:6"])
 
     @testSBAPIAndCommands
@@ -142,11 +143,11 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
         trace_description_file_path = os.path.join(src_dir, "intelpt-multi-core-trace", "trace_missing_threads.json")
         self.traceLoad(traceDescriptionFilePath=trace_description_file_path, substrs=["intel-pt"])
         self.expect("thread trace dump instructions 3 -t",
-          substrs=["19523: [tsc=40450075478109270] (error) expected tracing enabled event",
+          substrs=["19531: [20456511.000 ns] (error) expected tracing enabled event",
                    "m.out`foo() + 65 at multi_thread.cpp:12:21",
-                   "19521: [tsc=40450075477657246] 0x0000000000400ba7    jg     0x400bb3"])
+                   "19523: [19691630.216 ns] 0x0000000000400ba7    jg     0x400bb3"])
         self.expect("thread trace dump instructions 2 -t",
-          substrs=["67912: [tsc=40450075477799536] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
+          substrs=["67919: [19736130.084 ns] 0x0000000000400bd7    addl   $0x1, -0x4(%rbp)",
                    "m.out`bar() + 26 at multi_thread.cpp:20:6"])
 
     @testSBAPIAndCommands
@@ -263,3 +264,114 @@ Context:
         expected_substrs = ['error: missing value at traceBundle.processes[1].pid']
         self.traceLoad(traceDescriptionFilePath=trace_description_file_path, error=True, substrs=expected_substrs)
         self.assertEqual(self.dbg.GetNumTargets(), 0)
+
+    def testLoadTraceCursor(self):
+        src_dir = self.getSourceDir()
+        trace_description_file_path = os.path.join(src_dir, "intelpt-multi-core-trace", "trace.json")
+        traceDescriptionFile = lldb.SBFileSpec(trace_description_file_path, True)
+
+        error = lldb.SBError()
+        trace = self.dbg.LoadTraceFromFile(error, traceDescriptionFile)
+        self.assertSBError(error)
+
+        target = self.dbg.GetSelectedTarget()
+        process = target.process
+
+
+        # 1. Test some expected items of thread 1's trace cursor.
+        thread1 = process.threads[1]
+        cursor = trace.CreateNewCursor(error, thread1) 
+        self.assertTrue(cursor)
+        self.assertTrue(cursor.HasValue())
+        cursor.Seek(0, lldb.eTraceCursorSeekTypeBeginning)
+        cursor.SetForwards(True)
+
+        self.assertTrue(cursor.IsEvent())
+        self.assertEqual(cursor.GetEventTypeAsString(), "HW clock tick")
+        self.assertEqual(cursor.GetCPU(), lldb.LLDB_INVALID_CPU_ID)
+
+        cursor.Next()
+
+        self.assertTrue(cursor.IsEvent())
+        self.assertEqual(cursor.GetEventTypeAsString(), "CPU core changed")
+        self.assertEqual(cursor.GetCPU(), 51)
+
+        cursor.GoToId(19531)
+
+        self.assertTrue(cursor.IsError())
+        self.assertEqual(cursor.GetError(), "expected tracing enabled event")
+
+        cursor.GoToId(19523)
+
+        self.assertTrue(cursor.IsInstruction())
+        self.assertEqual(cursor.GetLoadAddress(), 4197287)
+
+
+
+        # Helper function to check equality of the current item of two trace cursors.
+        def assertCurrentTraceCursorItemEqual(lhs, rhs):
+            self.assertTrue(lhs.HasValue() and rhs.HasValue())
+
+            self.assertEqual(lhs.GetId(), rhs.GetId())
+            self.assertEqual(lhs.GetItemKind(), rhs.GetItemKind())
+            if lhs.IsError():
+                self.assertEqual(lhs.GetError(), rhs.GetError())
+            elif lhs.IsEvent():
+                self.assertEqual(lhs.GetEventType(), rhs.GetEventType())
+                self.assertEqual(lhs.GetEventTypeAsString(), rhs.GetEventTypeAsString())
+            elif lhs.IsInstruction():
+                self.assertEqual(lhs.GetLoadAddress(), rhs.GetLoadAddress())
+            else:
+                self.fail("Unknown trace item kind")
+
+        for thread in process.threads:
+            sequentialTraversalCursor = trace.CreateNewCursor(error, thread) 
+            self.assertSBError(error)
+            # Skip threads with no trace items
+            if not sequentialTraversalCursor.HasValue():
+                continue
+
+            # 2. Test "End" boundary of the trace by advancing past the trace's last item. 
+            sequentialTraversalCursor.Seek(0, lldb.eTraceCursorSeekTypeEnd)
+            self.assertTrue(sequentialTraversalCursor.HasValue())
+            sequentialTraversalCursor.SetForwards(True)
+            sequentialTraversalCursor.Next()
+            self.assertFalse(sequentialTraversalCursor.HasValue())
+
+
+
+            # 3. Test sequential traversal using sequential access API (ie Next())
+            # and random access API (ie GoToId()) simultaneously.
+            randomAccessCursor = trace.CreateNewCursor(error, thread) 
+            self.assertSBError(error)
+            # Reset the sequential cursor 
+            sequentialTraversalCursor.Seek(0, lldb.eTraceCursorSeekTypeBeginning)
+            sequentialTraversalCursor.SetForwards(True)
+            self.assertTrue(sequentialTraversalCursor.IsForwards())
+
+            while sequentialTraversalCursor.HasValue():
+                itemId = sequentialTraversalCursor.GetId()
+                randomAccessCursor.GoToId(itemId)
+                assertCurrentTraceCursorItemEqual(sequentialTraversalCursor, randomAccessCursor)
+                sequentialTraversalCursor.Next()
+
+
+
+            # 4. Test a random access with random access API (ie Seek()) and
+            # sequential access API (ie consecutive calls to Next()).
+            TEST_SEEK_ID = 3
+            randomAccessCursor.GoToId(TEST_SEEK_ID )
+            # Reset the sequential cursor 
+            sequentialTraversalCursor.Seek(0, lldb.eTraceCursorSeekTypeBeginning)
+            sequentialTraversalCursor.SetForwards(True)
+            for _ in range(TEST_SEEK_ID): sequentialTraversalCursor.Next()
+            assertCurrentTraceCursorItemEqual(sequentialTraversalCursor, randomAccessCursor)
+
+
+            
+                
+
+
+
+
+        

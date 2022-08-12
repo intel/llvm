@@ -1122,6 +1122,9 @@ private:
   /// every summary of a GV is synchronized.
   bool WithDSOLocalPropagation = false;
 
+  /// Indicates that we have whole program visibility.
+  bool WithWholeProgramVisibility = false;
+
   /// Indicates that summary-based synthetic entry count propagation has run
   bool HasSyntheticEntryCounts = false;
 
@@ -1279,6 +1282,9 @@ public:
 
   bool withDSOLocalPropagation() const { return WithDSOLocalPropagation; }
   void setWithDSOLocalPropagation() { WithDSOLocalPropagation = true; }
+
+  bool withWholeProgramVisibility() const { return WithWholeProgramVisibility; }
+  void setWithWholeProgramVisibility() { WithWholeProgramVisibility = true; }
 
   bool isReadOnly(const GlobalVarSummary *GVS) const {
     return WithAttributePropagation && GVS->maybeReadOnly();
@@ -1459,10 +1465,15 @@ public:
   /// Convenience method for creating a promoted global name
   /// for the given value name of a local, and its original module's ID.
   static std::string getGlobalNameForLocal(StringRef Name, ModuleHash ModHash) {
+    std::string Suffix = utostr((uint64_t(ModHash[0]) << 32) |
+                                ModHash[1]); // Take the first 64 bits
+    return getGlobalNameForLocal(Name, Suffix);
+  }
+
+  static std::string getGlobalNameForLocal(StringRef Name, StringRef Suffix) {
     SmallString<256> NewName(Name);
     NewName += ".llvm.";
-    NewName += utostr((uint64_t(ModHash[0]) << 32) |
-                      ModHash[1]); // Take the first 64 bits
+    NewName += Suffix;
     return std::string(NewName.str());
   }
 

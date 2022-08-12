@@ -46,9 +46,11 @@ struct ModuleID {
   /// or a header-name for C++20 header units.
   std::string ModuleName;
 
-  /// The context hash of a module represents the set of compiler options that
-  /// may make one version of a module incompatible with another. This includes
-  /// things like language mode, predefined macros, header search paths, etc...
+  /// The context hash of a module represents the compiler options that affect
+  /// the resulting command-line invocation.
+  ///
+  /// Modules with the same name and ContextHash but different invocations could
+  /// cause non-deterministic build results.
   ///
   /// Modules with the same name but a different \c ContextHash should be
   /// treated as separate modules for the purpose of a build.
@@ -230,6 +232,11 @@ private:
 
   /// Checks whether the module is known as being prebuilt.
   bool isPrebuiltModule(const Module *M);
+
+  /// Adds \p Path to \c FileDeps, making it absolute if necessary.
+  void addFileDep(StringRef Path);
+  /// Adds \p Path to \c MD.FileDeps, making it absolute if necessary.
+  void addFileDep(ModuleDeps &MD, StringRef Path);
 
   /// Constructs a CompilerInvocation that can be used to build the given
   /// module, excluding paths to discovered modular dependencies that are yet to

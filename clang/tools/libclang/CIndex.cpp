@@ -3487,9 +3487,11 @@ bool CursorVisitor::RunVisitorWorkList(VisitorWorkList &WL) {
            C != CEnd; ++C) {
         if (!C->capturesVariable())
           continue;
-
-        if (Visit(MakeCursorVariableRef(C->getCapturedVar(), C->getLocation(),
-                                        TU)))
+        // TODO: handle structured bindings here ?
+        if (!isa<VarDecl>(C->getCapturedVar()))
+          continue;
+        if (Visit(MakeCursorVariableRef(cast<VarDecl>(C->getCapturedVar()),
+                                        C->getLocation(), TU)))
           return true;
       }
       // Visit init captures
@@ -7376,7 +7378,7 @@ AnnotateTokensWorker::PostChildrenActions
 AnnotateTokensWorker::DetermineChildActions(CXCursor Cursor) const {
   PostChildrenActions actions;
 
-  // The DeclRefExpr of CXXOperatorCallExpr refering to the custom operator is
+  // The DeclRefExpr of CXXOperatorCallExpr referring to the custom operator is
   // visited before the arguments to the operator call. For the Call and
   // Subscript operator the range of this DeclRefExpr includes the whole call
   // expression, so that all tokens in that range would be mapped to the

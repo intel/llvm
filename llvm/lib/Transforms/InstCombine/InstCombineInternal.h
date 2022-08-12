@@ -597,10 +597,9 @@ public:
   /// demanded bits.
   bool SimplifyDemandedInstructionBits(Instruction &Inst);
 
-  virtual Value *
-  SimplifyDemandedVectorElts(Value *V, APInt DemandedElts, APInt &UndefElts,
-                             unsigned Depth = 0,
-                             bool AllowMultipleUsers = false) override;
+  Value *SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
+                                    APInt &UndefElts, unsigned Depth = 0,
+                                    bool AllowMultipleUsers = false) override;
 
   /// Canonicalize the position of binops relative to shufflevector.
   Instruction *foldVectorBinop(BinaryOperator &Inst);
@@ -717,6 +716,8 @@ public:
                                      const APInt &C1);
   Instruction *foldICmpAndShift(ICmpInst &Cmp, BinaryOperator *And,
                                 const APInt &C1, const APInt &C2);
+  Instruction *foldICmpXorShiftConst(ICmpInst &Cmp, BinaryOperator *Xor,
+                                     const APInt &C);
   Instruction *foldICmpShrConstConst(ICmpInst &I, Value *ShAmt, const APInt &C1,
                                      const APInt &C2);
   Instruction *foldICmpShlConstConst(ICmpInst &I, Value *ShAmt, const APInt &C1,

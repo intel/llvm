@@ -8,12 +8,14 @@
 
 #include "TraceIntelPT.h"
 
+#include "TraceCursorIntelPT.h"
+
 #include "../common/ThreadPostMortemTrace.h"
 #include "CommandObjectTraceStartIntelPT.h"
 #include "DecodedThread.h"
-#include "TraceIntelPTConstants.h"
 #include "TraceIntelPTBundleLoader.h"
 #include "TraceIntelPTBundleSaver.h"
+#include "TraceIntelPTConstants.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -63,8 +65,7 @@ Expected<FileSpec> TraceIntelPT::SaveToDisk(FileSpec directory, bool compact) {
 Expected<TraceSP> TraceIntelPT::CreateInstanceForTraceBundle(
     const json::Value &bundle_description, StringRef bundle_dir,
     Debugger &debugger) {
-  return TraceIntelPTBundleLoader(debugger, bundle_description,
-                                       bundle_dir)
+  return TraceIntelPTBundleLoader(debugger, bundle_description, bundle_dir)
       .Load();
 }
 
@@ -79,10 +80,13 @@ TraceIntelPTSP TraceIntelPT::GetSharedPtr() {
 }
 
 TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
-    JSONTraceBundleDescription &bundle_description, ArrayRef<ProcessSP> traced_processes,
+    JSONTraceBundleDescription &bundle_description,
+    ArrayRef<ProcessSP> traced_processes,
     ArrayRef<ThreadPostMortemTraceSP> traced_threads) {
-  TraceIntelPTSP trace_sp(new TraceIntelPT(bundle_description, traced_processes));
-  trace_sp->m_storage.tsc_conversion = bundle_description.tsc_perf_zero_conversion;
+  TraceIntelPTSP trace_sp(
+      new TraceIntelPT(bundle_description, traced_processes));
+  trace_sp->m_storage.tsc_conversion =
+      bundle_description.tsc_perf_zero_conversion;
 
   if (bundle_description.cpus) {
     std::vector<cpu_id_t> cpus;
@@ -138,11 +142,53 @@ Expected<DecodedThreadSP> TraceIntelPT::Decode(Thread &thread) {
   return it->second->Decode();
 }
 
-llvm::Expected<lldb::TraceCursorUP>
+Expected<Optional<uint64_t>> TraceIntelPT::FindBeginningOfTimeNanos() {
+  Storage &storage = GetUpdatedStorage();
+  if (storage.beginning_of_time_nanos_calculated)
+    return storage.beginning_of_time_nanos;
+  storage.beginning_of_time_nanos_calculated = true;
+
+  if (!storage.tsc_conversion)
+    return None;
+
+  Optional<uint64_t> lowest_tsc;
+
+  if (storage.multicpu_decoder) {
+    if (Expected<Optional<uint64_t>> tsc =
+            storage.multicpu_decoder->FindLowestTSC()) {
+      lowest_tsc = *tsc;
+    } else {
+      return tsc.takeError();
+    }
+  }
+
+  for (auto &decoder : storage.thread_decoders) {
+    Expected<Optional<uint64_t>> tsc = decoder.second->FindLowestTSC();
+    if (!tsc)
+      return tsc.takeError();
+
+    if (*tsc && (!lowest_tsc || *lowest_tsc > **tsc))
+      lowest_tsc = **tsc;
+  }
+
+  if (lowest_tsc) {
+    storage.beginning_of_time_nanos =
+        storage.tsc_conversion->ToNanos(*lowest_tsc);
+  }
+  return storage.beginning_of_time_nanos;
+}
+
+llvm::Expected<lldb::TraceCursorSP>
 TraceIntelPT::CreateNewCursor(Thread &thread) {
-  if (Expected<DecodedThreadSP> decoded_thread = Decode(thread))
-    return decoded_thread.get()->CreateNewCursor();
-  else
+  if (Expected<DecodedThreadSP> decoded_thread = Decode(thread)) {
+    if (Expected<Optional<uint64_t>> beginning_of_time =
+            FindBeginningOfTimeNanos())
+      return std::make_shared<TraceCursorIntelPT>(
+          thread.shared_from_this(), *decoded_thread, m_storage.tsc_conversion,
+          *beginning_of_time);
+    else
+      return beginning_of_time.takeError();
+  } else
     return decoded_thread.takeError();
 }
 

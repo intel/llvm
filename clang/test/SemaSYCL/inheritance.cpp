@@ -29,9 +29,9 @@ struct derived : base, second_base {
 };
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     derived f{};
     cgh.single_task(f);
   });
@@ -52,8 +52,8 @@ int main() {
 // Base classes should be initialized first.
 // CHECK: VarDecl {{.*}} used derived 'derived' cinit
 // CHECK-NEXT: InitListExpr {{.*}} 'derived'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'base' 'void (const base &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const base' lvalue <NoOp>
+// CHECK-NEXT: CXXConstructExpr {{.*}}'base' 'void (const base &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}}'const base' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg__base' 'base'
 // CHECK-NEXT: InitListExpr {{.*}} 'second_base'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>

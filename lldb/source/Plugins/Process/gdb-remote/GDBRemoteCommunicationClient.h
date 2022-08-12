@@ -220,6 +220,8 @@ public:
   bool GetProcessStandaloneBinary(UUID &uuid, lldb::addr_t &value,
                                   bool &value_is_offset);
 
+  std::vector<lldb::addr_t> GetProcessStandaloneBinaries();
+
   void GetRemoteQSupported();
 
   bool GetVContSupported(char flavor);
@@ -521,6 +523,8 @@ public:
 
   bool GetSaveCoreSupported() const;
 
+  llvm::Expected<int> KillProcess(lldb::pid_t pid);
+
 protected:
   LazyBool m_supports_not_sending_acks = eLazyBoolCalculate;
   LazyBool m_supports_thread_suffix = eLazyBoolCalculate;
@@ -591,6 +595,7 @@ protected:
   UUID m_process_standalone_uuid;
   lldb::addr_t m_process_standalone_value = LLDB_INVALID_ADDRESS;
   bool m_process_standalone_value_is_offset = false;
+  std::vector<lldb::addr_t> m_binary_addresses;
   llvm::VersionTuple m_os_version;
   llvm::VersionTuple m_maccatalyst_version;
   std::string m_os_build;

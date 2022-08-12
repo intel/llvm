@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
@@ -29,7 +30,6 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
-#include "mlir/Parser/Parser.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
@@ -400,8 +400,10 @@ public:
     OpBuilder builder = getBuilder();
     Location loc = builder.getUnknownLoc();
     Attribute valueAttr = parseAttribute(value, builder.getContext());
-    return builder.create<arith::ConstantOp>(loc, valueAttr.getType(),
-                                             valueAttr);
+    Type type = NoneType::get(builder.getContext());
+    if (auto typedAttr = valueAttr.dyn_cast<TypedAttr>())
+      type = typedAttr.getType();
+    return builder.create<arith::ConstantOp>(loc, type, valueAttr);
   }
 
   Value index(int64_t dim) {
@@ -630,12 +632,8 @@ struct FoldInsertPadIntoFill : public OpRewritePattern<tensor::InsertSliceOp> {
     // plus low padding sizes.
     SmallVector<OpFoldResult, 4> newOffsets;
     for (const auto &p : llvm::zip(lowPads, oldOffsets)) {
-      Value padValue = getValueOrCreateConstantIndexOp(
-          rewriter, srcPadOp.getLoc(), std::get<0>(p));
-      Value offsetValue = getValueOrCreateConstantIndexOp(
-          rewriter, insertOp.getLoc(), std::get<1>(p));
-      newOffsets.push_back(
-          applyMapToValues(rewriter, loc, addMap, {offsetValue, padValue})[0]);
+      newOffsets.push_back(makeComposedFoldedAffineApply(
+          rewriter, loc, addMap, {std::get<0>(p), std::get<1>(p)}));
     }
 
     SmallVector<OpFoldResult, 4> newSizes;
@@ -908,7 +906,7 @@ struct DeduplicateAndRemoveDeadOperandsAndResults
 
     // Replace all live uses of the op.
     SmallVector<Value> replacementsVals(genericOp->getNumResults(), nullptr);
-    for (auto result : llvm::enumerate(genericOp.getResults())) {
+    for (const auto &result : llvm::enumerate(genericOp.getResults())) {
       auto it = origOutsToNewOutsPos.find(result.index());
       if (it == origOutsToNewOutsPos.end())
         continue;
@@ -930,7 +928,8 @@ private:
                            SmallVector<AffineMap> &newIndexingMaps) const {
     llvm::SmallDenseMap<unsigned, unsigned> origToNewPos;
     llvm::SmallDenseMap<std::pair<Value, AffineMap>, unsigned> dedupedInputs;
-    for (auto inputOpOperand : llvm::enumerate(genericOp.getInputOperands())) {
+    for (const auto &inputOpOperand :
+         llvm::enumerate(genericOp.getInputOperands())) {
       // Check if operand is dead and if dropping the indexing map makes the
       // loops to shape computation invalid.
       if (!genericOp.payloadUsesValueFromOperand(inputOpOperand.value())) {
@@ -978,7 +977,7 @@ private:
     // If the op doesnt have tensor semantics, keep all the outputs as
     // preserved.
     if (!genericOp.hasTensorSemantics()) {
-      for (auto outputOpOperand :
+      for (const auto &outputOpOperand :
            llvm::enumerate(genericOp.getOutputOperands())) {
         origToNewPos[outputOpOperand.index()] = newOutputOperands.size();
         newOutputOperands.push_back(outputOpOperand.value()->get());
@@ -992,7 +991,7 @@ private:
       // - the corresponding indexing maps are not needed for loop bound
       //   computation.
       auto yieldOp = cast<YieldOp>(genericOp.getBody()->getTerminator());
-      for (auto outputOpOperand :
+      for (const auto &outputOpOperand :
            llvm::enumerate(genericOp.getOutputOperands())) {
         Value result = genericOp.getResult(outputOpOperand.index());
         AffineMap indexingMap =
@@ -1056,7 +1055,7 @@ private:
     auto updateReplacements =
         [&](OpOperandVector &origOperands, OpOperandVector &newOperands,
             const llvm::SmallDenseMap<unsigned, unsigned> &map) {
-          for (auto origOperand : llvm::enumerate(origOperands)) {
+          for (const auto &origOperand : llvm::enumerate(origOperands)) {
             auto it = map.find(origOperand.index());
             if (it == map.end())
               continue;
@@ -1712,8 +1711,15 @@ struct FoldTensorCastConsumerOp : public OpRewritePattern<tensor::CastOp> {
                                 PatternRewriter &rewriter) const override {
     if (!tensor::canFoldIntoProducerOp(castOp))
       return failure();
+
     auto linalgOp = castOp.getSource().getDefiningOp<LinalgOp>();
     if (!linalgOp)
+      return failure();
+
+    // Cast can be in conditionally reachable region, if which case folding will
+    // generate invalid code. Only conservatively fold ops in same block for
+    // now.
+    if (castOp->getBlock() != linalgOp->getBlock())
       return failure();
 
     OpBuilder::InsertionGuard guard(rewriter);

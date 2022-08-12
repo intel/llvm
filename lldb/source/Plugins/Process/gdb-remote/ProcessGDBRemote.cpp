@@ -581,80 +581,31 @@ Status ProcessGDBRemote::DoConnectRemote(llvm::StringRef remote_url) {
         ModuleSP module_sp;
 
         if (standalone_uuid.IsValid()) {
-          ModuleSpec module_spec;
-          module_spec.GetUUID() = standalone_uuid;
+          const bool force_symbol_search = true;
+          const bool notify = true;
+          DynamicLoader::LoadBinaryWithUUIDAndAddress(
+              this, standalone_uuid, standalone_value,
+              standalone_value_is_offset, force_symbol_search, notify);
+        }
+      }
 
-          // Look up UUID in global module cache before attempting
-          // a more expensive search.
-          Status error = ModuleList::GetSharedModule(module_spec, module_sp,
-                                                     nullptr, nullptr, nullptr);
+      // The remote stub may know about a list of binaries to
+      // force load into the process -- a firmware type situation
+      // where multiple binaries are present in virtual memory,
+      // and we are only given the addresses of the binaries.
+      // Not intended for use with userland debugging when we
+      // a DynamicLoader plugin that knows how to find the loaded
+      // binaries and will track updates as binaries are added.
 
-          if (!module_sp) {
-            // Force a an external lookup, if that tool is available.
-            if (!module_spec.GetSymbolFileSpec()) {
-              Status error;
-              Symbols::DownloadObjectAndSymbolFile(module_spec, error, true);
-            }
-
-            if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
-              module_sp = std::make_shared<Module>(module_spec);
-            }
-          }
-
-          // If we couldn't find the binary anywhere else, as a last resort,
-          // read it out of memory.
-          if (!module_sp.get() && standalone_value != LLDB_INVALID_ADDRESS &&
-              !standalone_value_is_offset) {
-            char namebuf[80];
-            snprintf(namebuf, sizeof(namebuf), "mem-image-0x%" PRIx64,
-                     standalone_value);
-            module_sp =
-                ReadModuleFromMemory(FileSpec(namebuf), standalone_value);
-          }
-
-          Log *log = GetLog(LLDBLog::DynamicLoader);
-          if (module_sp.get()) {
-            target.GetImages().AppendIfNeeded(module_sp, false);
-
-            bool changed = false;
-            if (module_sp->GetObjectFile()) {
-              if (standalone_value != LLDB_INVALID_ADDRESS) {
-                if (log)
-                  log->Printf("Loading binary UUID %s at %s 0x%" PRIx64,
-                              standalone_uuid.GetAsString().c_str(),
-                              standalone_value_is_offset ? "offset" : "address",
-                              standalone_value);
-                module_sp->SetLoadAddress(target, standalone_value,
-                                          standalone_value_is_offset, changed);
-              } else {
-                // No address/offset/slide, load the binary at file address,
-                // offset 0.
-                if (log)
-                  log->Printf("Loading binary UUID %s at file address",
-                              standalone_uuid.GetAsString().c_str());
-                const bool value_is_slide = true;
-                module_sp->SetLoadAddress(target, 0, value_is_slide, changed);
-              }
-            } else {
-              // In-memory image, load at its true address, offset 0.
-              if (log)
-                log->Printf("Loading binary UUID %s from memory",
-                            standalone_uuid.GetAsString().c_str());
-              const bool value_is_slide = true;
-              module_sp->SetLoadAddress(target, 0, value_is_slide, changed);
-            }
-
-            ModuleList added_module;
-            added_module.Append(module_sp, false);
-            target.ModulesDidLoad(added_module);
-          } else {
-            if (log)
-              log->Printf("Unable to find binary with UUID %s and load it at "
-                          "%s 0x%" PRIx64,
-                          standalone_uuid.GetAsString().c_str(),
-                          standalone_value_is_offset ? "offset" : "address",
-                          standalone_value);
-          }
+      std::vector<addr_t> bin_addrs = m_gdb_comm.GetProcessStandaloneBinaries();
+      if (bin_addrs.size()) {
+        UUID uuid;
+        const bool value_is_slide = false;
+        for (addr_t addr : bin_addrs) {
+          const bool force_symbol_search = true;
+          const bool notify = true;
+          DynamicLoader::LoadBinaryWithUUIDAndAddress(
+              this, uuid, addr, value_is_slide, force_symbol_search, notify);
         }
       }
 
@@ -745,9 +696,9 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
                 "ProcessGDBRemote::%s provided with STDIO paths via "
                 "launch_info: stdin=%s, stdout=%s, stderr=%s",
                 __FUNCTION__,
-                stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
-                stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
-                stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
+                stdin_file_spec ? stdin_file_spec.GetPath().c_str() : "<null>",
+                stdout_file_spec ? stdout_file_spec.GetPath().c_str() : "<null>",
+                stderr_file_spec ? stderr_file_spec.GetPath().c_str() : "<null>");
     else
       LLDB_LOGF(log,
                 "ProcessGDBRemote::%s no STDIO paths given via launch_info",
@@ -810,18 +761,18 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
           "(IsHost() is true) using secondary: stdin=%s, stdout=%s, "
           "stderr=%s",
           __FUNCTION__,
-          stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
-          stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
-          stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
+          stdin_file_spec ? stdin_file_spec.GetPath().c_str() : "<null>",
+          stdout_file_spec ? stdout_file_spec.GetPath().c_str() : "<null>",
+          stderr_file_spec ? stderr_file_spec.GetPath().c_str() : "<null>");
     }
 
     LLDB_LOGF(log,
               "ProcessGDBRemote::%s final STDIO paths after all "
               "adjustments: stdin=%s, stdout=%s, stderr=%s",
               __FUNCTION__,
-              stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
-              stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
-              stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
+              stdin_file_spec ? stdin_file_spec.GetPath().c_str() : "<null>",
+              stdout_file_spec ? stdout_file_spec.GetPath().c_str() : "<null>",
+              stderr_file_spec ? stderr_file_spec.GetPath().c_str() : "<null>");
 
     if (stdin_file_spec)
       m_gdb_comm.SetSTDIN(stdin_file_spec);
@@ -962,12 +913,12 @@ Status ProcessGDBRemote::ConnectToDebugserver(llvm::StringRef connect_url) {
           entry.c_str(), response);
     }
   };
-  
+
   PlatformSP platform_sp = GetTarget().GetPlatform();
   if (platform_sp) {
     handle_cmds(platform_sp->GetExtraStartupCommands());
   }
-  
+
   // Then dispatch any process commands:
   handle_cmds(GetExtraStartupCommands());
 
@@ -2394,7 +2345,6 @@ Status ProcessGDBRemote::DoDetach(bool keep_stopped) {
 }
 
 Status ProcessGDBRemote::DoDestroy() {
-  Status error;
   Log *log = GetLog(GDBRLog::Process);
   LLDB_LOGF(log, "ProcessGDBRemote::DoDestroy()");
 
@@ -2404,54 +2354,35 @@ Status ProcessGDBRemote::DoDestroy() {
 
   if (m_gdb_comm.IsConnected()) {
     if (m_public_state.GetValue() != eStateAttaching) {
-      StringExtractorGDBRemote response;
-      GDBRemoteCommunication::ScopedTimeout(m_gdb_comm,
-                                            std::chrono::seconds(3));
+      llvm::Expected<int> kill_res = m_gdb_comm.KillProcess(GetID());
 
-      if (m_gdb_comm.SendPacketAndWaitForResponse("k", response,
-                                                  GetInterruptTimeout()) ==
-          GDBRemoteCommunication::PacketResult::Success) {
-        char packet_cmd = response.GetChar(0);
-
-        if (packet_cmd == 'W' || packet_cmd == 'X') {
+      if (kill_res) {
+        exit_status = kill_res.get();
 #if defined(__APPLE__)
-          // For Native processes on Mac OS X, we launch through the Host
-          // Platform, then hand the process off to debugserver, which becomes
-          // the parent process through "PT_ATTACH".  Then when we go to kill
-          // the process on Mac OS X we call ptrace(PT_KILL) to kill it, then
-          // we call waitpid which returns with no error and the correct
-          // status.  But amusingly enough that doesn't seem to actually reap
-          // the process, but instead it is left around as a Zombie.  Probably
-          // the kernel is in the process of switching ownership back to lldb
-          // which was the original parent, and gets confused in the handoff.
-          // Anyway, so call waitpid here to finally reap it.
-          PlatformSP platform_sp(GetTarget().GetPlatform());
-          if (platform_sp && platform_sp->IsHost()) {
-            int status;
-            ::pid_t reap_pid;
-            reap_pid = waitpid(GetID(), &status, WNOHANG);
-            LLDB_LOGF(log, "Reaped pid: %d, status: %d.\n", reap_pid, status);
-          }
-#endif
-          SetLastStopPacket(response);
-          ClearThreadIDList();
-          exit_status = response.GetHexU8();
-        } else {
-          LLDB_LOGF(log,
-                    "ProcessGDBRemote::DoDestroy - got unexpected response "
-                    "to k packet: %s",
-                    response.GetStringRef().data());
-          exit_string.assign("got unexpected response to k packet: ");
-          exit_string.append(std::string(response.GetStringRef()));
+        // For Native processes on Mac OS X, we launch through the Host
+        // Platform, then hand the process off to debugserver, which becomes
+        // the parent process through "PT_ATTACH".  Then when we go to kill
+        // the process on Mac OS X we call ptrace(PT_KILL) to kill it, then
+        // we call waitpid which returns with no error and the correct
+        // status.  But amusingly enough that doesn't seem to actually reap
+        // the process, but instead it is left around as a Zombie.  Probably
+        // the kernel is in the process of switching ownership back to lldb
+        // which was the original parent, and gets confused in the handoff.
+        // Anyway, so call waitpid here to finally reap it.
+        PlatformSP platform_sp(GetTarget().GetPlatform());
+        if (platform_sp && platform_sp->IsHost()) {
+          int status;
+          ::pid_t reap_pid;
+          reap_pid = waitpid(GetID(), &status, WNOHANG);
+          LLDB_LOGF(log, "Reaped pid: %d, status: %d.\n", reap_pid, status);
         }
+#endif
+        ClearThreadIDList();
+        exit_string.assign("killed");
       } else {
-        LLDB_LOGF(log, "ProcessGDBRemote::DoDestroy - failed to send k packet");
-        exit_string.assign("failed to send the k packet");
+        exit_string.assign(llvm::toString(kill_res.takeError()));
       }
     } else {
-      LLDB_LOGF(log,
-                "ProcessGDBRemote::DoDestroy - killed or interrupted while "
-                "attaching");
       exit_string.assign("killed or interrupted while attaching.");
     }
   } else {
@@ -2465,7 +2396,7 @@ Status ProcessGDBRemote::DoDestroy() {
 
   StopAsyncThread();
   KillDebugserverProcess();
-  return error;
+  return Status();
 }
 
 void ProcessGDBRemote::SetLastStopPacket(
@@ -5307,8 +5238,11 @@ void ProcessGDBRemote::DidFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {
 
   // Hardware breakpoints/watchpoints are not inherited implicitly,
   // so we need to readd them if we're following child.
-  if (GetFollowForkMode() == eFollowChild)
+  if (GetFollowForkMode() == eFollowChild) {
     DidForkSwitchHardwareTraps(true);
+    // Update our PID
+    SetID(child_pid);
+  }
 }
 
 void ProcessGDBRemote::DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {
@@ -5360,6 +5294,11 @@ void ProcessGDBRemote::DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {
                "ProcessGDBRemote::DidFork() detach packet send failed: {0}",
                 error.AsCString() ? error.AsCString() : "<unknown error>");
       return;
+  }
+
+  if (GetFollowForkMode() == eFollowChild) {
+    // Update our PID
+    SetID(child_pid);
   }
 }
 

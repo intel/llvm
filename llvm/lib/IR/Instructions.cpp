@@ -1627,6 +1627,10 @@ AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
 void AtomicRMWInst::Init(BinOp Operation, Value *Ptr, Value *Val,
                          Align Alignment, AtomicOrdering Ordering,
                          SyncScope::ID SSID) {
+  assert(Ordering != AtomicOrdering::NotAtomic &&
+         "atomicrmw instructions can only be atomic.");
+  assert(Ordering != AtomicOrdering::Unordered &&
+         "atomicrmw instructions cannot be unordered.");
   Op<0>() = Ptr;
   Op<1>() = Val;
   setOperation(Operation);
@@ -4658,9 +4662,8 @@ InsertValueInst *InsertValueInst::cloneImpl() const {
 }
 
 AllocaInst *AllocaInst::cloneImpl() const {
-  AllocaInst *Result =
-      new AllocaInst(getAllocatedType(), getType()->getAddressSpace(),
-                     getOperand(0), getAlign());
+  AllocaInst *Result = new AllocaInst(getAllocatedType(), getAddressSpace(),
+                                      getOperand(0), getAlign());
   Result->setUsedWithInAlloca(isUsedWithInAlloca());
   Result->setSwiftError(isSwiftError());
   return Result;
