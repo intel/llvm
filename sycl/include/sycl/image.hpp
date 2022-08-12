@@ -247,7 +247,7 @@ public:
   bool operator!=(const image &rhs) const { return !(*this == rhs); }
 
   /* -- property interface members -- */
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return impl->template has_property<propertyT>();
   }
 

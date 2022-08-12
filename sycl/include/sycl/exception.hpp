@@ -97,7 +97,9 @@ public:
   cl_int get_cl_code() const;
 
 private:
-  std::string MMsg;
+  // Exceptions must be noexcept copy constructible, so cannot use std::string
+  // directly.
+  std::shared_ptr<std::string> MMsg;
   pi_int32 MPIErr;
   std::shared_ptr<context> MContext;
 
@@ -108,8 +110,9 @@ protected:
       : exception(std::string(Msg), PIErr, Context) {}
   exception(const std::string &Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)
-      : MMsg(Msg + " " + detail::codeToString(PIErr)), MPIErr(PIErr),
-        MContext(Context) {}
+      : MMsg(std::make_shared<std::string>(Msg + " " +
+                                           detail::codeToString(PIErr))),
+        MPIErr(PIErr), MContext(Context) {}
 
   // base constructors used by SYCL 1.2.1 exception subclasses
   exception(std::error_code ec, const char *Msg, const pi_int32 PIErr,
@@ -122,7 +125,8 @@ protected:
     MPIErr = PIErr;
   }
 
-  exception(const std::string &Msg) : MMsg(Msg), MContext(nullptr) {}
+  exception(const std::string &Msg)
+      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {}
 
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code ec, const std::string

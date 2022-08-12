@@ -48,7 +48,7 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
   // ephemeral runner will exit after one job so we will terminate instance sooner
   const ephemeral_str = onejob ? "--ephemeral" : "";
 
-  let ec2id;      // AWS EC2 instance id
+  let ec2id; // AWS EC2 instance id
   // last error that will be thrown in case all our attemps in instance creation will fails
   let last_error;
   // loop for spot/ondemand instances
@@ -99,7 +99,7 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
     // we already created instance and do not need to iterate these loops
     if (ec2id) break;
   }
-  if (last_error) {
+  if (!ec2id && last_error) {
     core.error(`Error creating AWS EC2 instance with ${label} label`);
     throw last_error;
   }
