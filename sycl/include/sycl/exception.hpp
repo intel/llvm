@@ -97,6 +97,8 @@ public:
   cl_int get_cl_code() const;
 
 private:
+  // Exceptions must be noexcept copy constructible, so cannot use std::string
+  // directly.
   std::shared_ptr<std::string> MMsg;
   pi_int32 MPIErr;
   std::shared_ptr<context> MContext;
