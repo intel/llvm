@@ -55,7 +55,6 @@ public:
   }
 };
 } // namespace DependsOnTest
-
 detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
                            detail::QueueImplPtr DevQueue,
                            const std::vector<EventImplPtr> &Events) {
