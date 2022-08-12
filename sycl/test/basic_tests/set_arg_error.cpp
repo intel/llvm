@@ -36,7 +36,7 @@ int main() {
                    sycl::access::target::local>
         local_acc({size}, h);
 #else
-    cl::sycl::local_accessor<int, 1> local_acc({size}, h);
+    sycl::local_accessor<int, 1> local_acc({size}, h);
 #endif
 
     TriviallyCopyable tc{1, 2};

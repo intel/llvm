@@ -47,7 +47,7 @@ int main() {
                      sycl::access::target::local>
           local_acc(sycl::range<1>(10), cgh);
 #else
-      cl::sycl::local_accessor<int, 1> local_acc(cl::sycl::range<1>(10), cgh);
+      sycl::local_accessor<int, 1> local_acc(sycl::range<1>(10), cgh);
 #endif // USE_DEPRECATED_LOCAL_ACC
       auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
       auto local_acc_wrapped = AccWrapper<decltype(local_acc)>{local_acc};
