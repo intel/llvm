@@ -11,8 +11,8 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 /// Encapsulates a single SYCL device event which is available only within SYCL
 /// kernel functions and can be used to wait for asynchronous operations within
@@ -34,5 +34,5 @@ public:
   void wait() { __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, &m_Event); }
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

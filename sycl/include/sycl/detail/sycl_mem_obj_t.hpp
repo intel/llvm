@@ -23,8 +23,8 @@
 #include <memory>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Forward declarations
@@ -94,7 +94,8 @@ public:
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
-  template <typename propertyT> __SYCL_DLL_LOCAL bool has_property() const {
+  template <typename propertyT>
+  __SYCL_DLL_LOCAL bool has_property() const noexcept {
     return MProps.has_property<propertyT>();
   }
 
@@ -312,6 +313,8 @@ public:
 
   bool isInterop() const;
 
+  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
+
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
@@ -350,5 +353,5 @@ protected:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

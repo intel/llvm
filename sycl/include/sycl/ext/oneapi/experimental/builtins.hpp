@@ -26,8 +26,8 @@
 #define __SYCL_CONSTANT_AS
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -275,7 +275,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __SYCL_CONSTANT_AS

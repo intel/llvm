@@ -14,8 +14,8 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/range.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declarations
 namespace detail {
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -375,5 +375,5 @@ template <int Dims> id<Dims> this_id() {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
