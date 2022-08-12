@@ -108,7 +108,7 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   }
 
   if (OC == OpImageQuerySize || OC == OpImageQuerySizeLod) {
-    visitCallSPRIVImageQuerySize(&CI);
+    visitCallSPIRVImageQuerySize(&CI);
     return;
   }
   if (OC == OpMemoryBarrier) {
@@ -249,7 +249,7 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
   Cast.eraseFromParent();
 }
 
-void SPIRVToOCLBase::visitCallSPRIVImageQuerySize(CallInst *CI) {
+void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   // Get image type
   SmallVector<StructType *, 4> ParamTys;
   getParameterTypes(CI, ParamTys);

@@ -13,8 +13,10 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
+#include <sycl/detail/defines_elementary.hpp>
+
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace unittest {
 /// Convinience wrapper around _pi_device_binary_property_struct.
 class PiProperty {
@@ -424,5 +426,5 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
 }
 
 } // namespace unittest
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

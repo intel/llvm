@@ -9,7 +9,7 @@
 // CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 8, i8* [[BITCAST]]) #4
 // CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[ANONCAST]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load %opencl.sampler_t addrspace(2)*, %opencl.sampler_t addrspace(2)* addrspace(4)* [[SAMPLER_ARG]].addr.ascast, align 8
-// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.cl::sycl::sampler" addrspace(4)* {{[^,]*}} [[GEP]], %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG]])
+// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.sycl::_V1::sampler" addrspace(4)* {{[^,]*}} [[GEP]], %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG]])
 //
 
 // CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]])
@@ -34,12 +34,12 @@
 // CHECK: [[GEP_LAMBDA_0:%[a-zA-z0-9]+]] = getelementptr inbounds %class.anon.0, %class.anon.0 addrspace(4)* [[LAMBDA]], i32 0, i32 0
 // CHECK: [[GEP_SMPL:%[a-zA-Z0-9]+]] = getelementptr inbounds %struct.sampler_wrapper, %struct.sampler_wrapper addrspace(4)* [[GEP_LAMBDA_0]], i32 0, i32 0
 // CHECK: [[LOAD_SMPL:%[0-9]+]] = load %opencl.sampler_t addrspace(2)*, %opencl.sampler_t addrspace(2)* addrspace(4)* [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
-// CHECK: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.cl::sycl::sampler" addrspace(4)* {{.*}}, %opencl.sampler_t addrspace(2)* [[LOAD_SMPL]])
+// CHECK: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.sycl::_V1::sampler" addrspace(4)* {{.*}}, %opencl.sampler_t addrspace(2)* [[LOAD_SMPL]])
 //
 #include "Inputs/sycl.hpp"
 
 struct sampler_wrapper {
-  cl::sycl::sampler smpl;
+  sycl::sampler smpl;
   int a;
 };
 
@@ -49,7 +49,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const KernelType &kernelFun
 }
 
 int main() {
-  cl::sycl::sampler smplr;
+  sycl::sampler smplr;
   kernel_single_task<class first_kernel>([=]() {
     smplr.use();
   });

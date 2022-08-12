@@ -42,8 +42,8 @@
 
 #endif // __SYCL_RT_OS
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -123,7 +123,7 @@ std::string OSUtil::getCurrentDSODir() {
   //
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
-  uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
+  uintptr_t CurrentFunc = (uintptr_t)&getCurrentDSODir;
   std::ifstream Stream("/proc/self/maps");
   Stream >> std::hex;
   while (!Stream.eof()) {
@@ -168,7 +168,7 @@ std::string OSUtil::getCurrentDSODir() {
   return "";
 }
 
-std::string OSUtil::getDirName(const char* Path) {
+std::string OSUtil::getDirName(const char *Path) {
   std::string Tmp(Path);
   // dirname(3) needs a writable C string: a null-terminator is written where a
   // path should split.
@@ -300,5 +300,5 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

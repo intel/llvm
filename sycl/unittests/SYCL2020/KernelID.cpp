@@ -19,8 +19,8 @@ class TestKernel2;
 class TestKernel3;
 class ServiceKernel1;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel1> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -76,8 +76,8 @@ template <> struct KernelInfo<ServiceKernel1> {
   static constexpr int64_t getKernelSize() { return 1; }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {

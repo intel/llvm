@@ -66,6 +66,8 @@ SYCL_EXTERNAL __regcall SpmdRet __builtin_invoke_simd(SimdCallee target,
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -323,4 +325,5 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
