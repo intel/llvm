@@ -93,5 +93,29 @@ int main() {
     assert(e.code() == sycl::errc::runtime && "Incorrect error code.");
   }
 
+  // Standalone device selectors.
+  queue default_queue(default_selector_v); // Compilation and no error
+
+  // Not sure what devices are available when this test is run, so no action is
+  // necessary on error.
+  try {
+    queue gpu_queue(gpu_selector_v);
+    assert(gpu_queue.get_device().is_gpu() &&
+           "Incorrect device. Expected GPU.");
+  } catch (exception &e) {
+  }
+  try {
+    queue cpu_queue(cpu_selector_v);
+    assert(cpu_queue.get_device().is_cpu() &&
+           "Incorrect device. Expected CPU.");
+  } catch (exception &e) {
+  }
+  try {
+    queue acc_queue(accelerator_selector_v);
+    assert(acc_queue.get_device().is_accelerator() &&
+           "Incorrect device. Expected Accelerator.");
+  } catch (exception &e) {
+  }
+
   return 0;
 }
