@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lts_matrix: ${{ steps.work.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ steps.work.outputs.lts_aws_matrix }}
     steps:
     - name: Download scripts and configs
       shell: bash
