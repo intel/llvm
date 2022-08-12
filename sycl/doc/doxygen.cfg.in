@@ -1118,7 +1118,7 @@ COLS_IN_ALPHA_INDEX    = 4
 # while generating the index headers.
 # This tag requires that the tag ALPHABETICAL_INDEX is set to YES.
 
-IGNORE_PREFIX          = cl::sycl:: cl::sycl::ext::intel::experimental::esimd
+IGNORE_PREFIX          = sycl::_V1:: sycl::_V1::ext::intel::experimental::esimd
 
 #---------------------------------------------------------------------------
 # Configuration options related to the HTML output

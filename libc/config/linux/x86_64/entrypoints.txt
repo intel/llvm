@@ -136,6 +136,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ceilf
     libc.src.math.ceill
     libc.src.math.cos
+    libc.src.math.coshf
     libc.src.math.cosf
     libc.src.math.expf
     libc.src.math.exp2f
@@ -212,11 +213,13 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.roundl
     libc.src.math.sin
     libc.src.math.sincosf
+    libc.src.math.sinhf
     libc.src.math.sinf
     libc.src.math.sqrt
     libc.src.math.sqrtf
     libc.src.math.sqrtl
     libc.src.math.tan
+    libc.src.math.tanhf
     libc.src.math.trunc
     libc.src.math.truncf
     libc.src.math.truncl
@@ -248,8 +251,10 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.pthread.pthread_create
     libc.src.pthread.pthread_detach
     libc.src.pthread.pthread_equal
+    libc.src.pthread.pthread_getname_np
     libc.src.pthread.pthread_join
     libc.src.pthread.pthread_self
+    libc.src.pthread.pthread_setname_np
     libc.src.pthread.pthread_mutex_destroy
     libc.src.pthread.pthread_mutex_init
     libc.src.pthread.pthread_mutex_lock

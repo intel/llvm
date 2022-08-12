@@ -37,8 +37,7 @@ What's New in Libc++ 16.0.0?
 
 Implemented Papers
 ------------------
-
-- P1004R2 (Making ``std::vector`` constexpr)
+- P2499R0 - ``string_view`` range constructor should be ``explicit``
 
 Improvements and New Features
 -----------------------------

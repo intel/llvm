@@ -8,13 +8,13 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/buffer_impl.hpp>
-#include <sycl/detail/memory_manager.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
@@ -96,5 +96,5 @@ buffer_impl::getNativeVector(backend BackendName) const {
   return Handles;
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

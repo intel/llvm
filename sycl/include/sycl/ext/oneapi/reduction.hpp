@@ -20,8 +20,8 @@
 
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -48,20 +48,18 @@ template <typename T> struct AreAllButLastReductions<T> {
 } // namespace detail
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #if __cplusplus >= 201703L
 // Entire feature is dependent on C++17. We still have to make the trait above
 // available as queue shortcuts use them unconditionally, including on
 // non-reduction path.
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
-
 namespace detail {
-
 template <class FunctorTy>
 event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
                      FunctorTy Func) {
@@ -651,6 +649,13 @@ public:
     }
   }
 
+  template <class _T = T, int D = buffer_dim>
+  auto &getTempBuffer(size_t Size, handler &CGH) {
+    auto Buffer = std::make_shared<buffer<_T, D>>(range<1>(Size));
+    CGH.addReduction(Buffer);
+    return *Buffer;
+  }
+
   /// Returns an accessor accessing the memory that will hold the reduction
   /// partial sums.
   /// If \p Size is equal to one, then the reduction result is the final and
@@ -710,14 +715,27 @@ public:
     return {*CounterBuf, CGH};
   }
 
-  RedOutVar &getUserRedVar() { return MRedOut; }
-
-  static inline result_type *getOutPointer(const rw_accessor_type &OutAcc) {
-    return OutAcc.get_pointer().get();
+  // On discrete (vs. integrated) GPUs it's faster to initialize memory with an
+  // extra kernel than copy it from the host.
+  template <typename Name> auto getGroupsCounterAccDiscrete(handler &CGH) {
+    auto &Buf = getTempBuffer<int, 1>(1, CGH);
+    std::shared_ptr<detail::queue_impl> QueueCopy = CGH.MQueue;
+    auto Event = CGH.withAuxHandler(QueueCopy, [&](handler &InitHandler) {
+      auto Acc = accessor{Buf, InitHandler, sycl::write_only, sycl::no_init};
+      InitHandler.single_task<Name>([=]() { Acc[0] = 0; });
+    });
+    CGH.depends_on(Event);
+    return accessor{Buf, CGH};
   }
+
+  RedOutVar &getUserRedVar() { return MRedOut; }
 
   static inline result_type *getOutPointer(result_type *OutPtr) {
     return OutPtr;
+  }
+  template <class AccessorType>
+  static inline result_type *getOutPointer(const AccessorType &OutAcc) {
+    return OutAcc.get_pointer().get();
   }
 
 private:
@@ -906,7 +924,7 @@ template <class KernelName> struct RangeFastAtomics;
 } // namespace main_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    const range<Dims> &Range,
                                    const nd_range<1> &NDRange,
                                    Reduction &Redu) {
@@ -943,29 +961,43 @@ void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
       Reducer.template atomic_combine(Reduction::getOutPointer(Out));
     }
   });
+  return Reduction::is_usm || Redu.initializeToIdentity();
 }
 
 namespace reduction {
 namespace main_krn {
 template <class KernelName> struct RangeFastReduce;
 } // namespace main_krn
+namespace init_krn {
+template <class KernelName> struct GroupCounter;
+}
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
                                   const range<Dims> &Range,
                                   const nd_range<1> &NDRange, Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
 
+  auto &Out = Redu.getUserRedVar();
+  if constexpr (Reduction::is_acc)
+    associateWithHandler(CGH, &Out, access::target::device);
+
+  auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
+  accessor PartialSums(PartialSumsBuf, CGH, sycl::read_write, sycl::no_init);
+
   bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
-  auto PartialSums =
-      Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
-  auto Out = (NWorkGroups == 1)
-                 ? PartialSums
-                 : Redu.getWriteAccForPartialReds(NElements, CGH);
+  using InitName =
+      __sycl_reduction_kernel<reduction::init_krn::GroupCounter, KernelName>;
+
+  // Integrated/discrete GPUs have different faster path.
   auto NWorkGroupsFinished =
-      Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
+      sycl::detail::getDeviceFromHandler(CGH)
+              .get_info<info::device::host_unified_memory>()
+          ? Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH)
+          : Redu.template getGroupsCounterAccDiscrete<InitName>(CGH);
+
   auto DoReducePartialSumsInLastWG =
       Reduction::template getReadWriteLocalAcc<int>(1, CGH);
 
@@ -984,20 +1016,25 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
     // reduce_over_group is only defined for each T, not for span<T, ...>
     size_t LID = NDId.get_local_id(0);
     for (int E = 0; E < NElements; ++E) {
-      Reducer.getElement(E) =
-          reduce_over_group(Group, Reducer.getElement(E), BOp);
-
+      auto &RedElem = Reducer.getElement(E);
+      RedElem = reduce_over_group(Group, RedElem, BOp);
       if (LID == 0) {
-        if (NWorkGroups == 1 && IsUpdateOfUserVar)
-          Reducer.getElement(E) =
-              BOp(Reducer.getElement(E), Reduction::getOutPointer(Out)[E]);
-
-        // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
-        Reduction::getOutPointer(
-            PartialSums)[NDId.get_group_linear_id() * NElements + E] =
-            Reducer.getElement(E);
+        if (NWorkGroups == 1) {
+          auto &OutElem = Reduction::getOutPointer(Out)[E];
+          // Can avoid using partial sum and write the final result immediately.
+          if (IsUpdateOfUserVar)
+            RedElem = BOp(RedElem, OutElem);
+          OutElem = RedElem;
+        } else {
+          PartialSums[NDId.get_group_linear_id() * NElements + E] =
+              Reducer.getElement(E);
+        }
       }
     }
+
+    if (NWorkGroups == 1)
+      // We're done.
+      return;
 
     // Signal this work-group has finished after all values are reduced
     if (LID == 0) {
@@ -1005,29 +1042,31 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
           sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
                            access::address_space::global_space>(
               NWorkGroupsFinished[0]);
-      DoReducePartialSumsInLastWG[0] =
-          ++NFinished == NWorkGroups && NWorkGroups > 1;
+      DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
     }
 
     sycl::detail::workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       // Reduce each result separately
-      // TODO: Opportunity to parallelize across elements
+      // TODO: Opportunity to parallelize across elements.
       for (int E = 0; E < NElements; ++E) {
+        auto &OutElem = Reduction::getOutPointer(Out)[E];
         auto LocalSum = Reducer.getIdentity();
         for (size_t I = LID; I < NWorkGroups; I += WGSize)
           LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-        Reducer.getElement(E) = reduce_over_group(Group, LocalSum, BOp);
+        auto Result = reduce_over_group(Group, LocalSum, BOp);
 
         if (LID == 0) {
           if (IsUpdateOfUserVar)
-            Reducer.getElement(E) =
-                BOp(Reducer.getElement(E), Reduction::getOutPointer(Out)[E]);
-          Reduction::getOutPointer(Out)[E] = Reducer.getElement(E);
+            Result = BOp(Result, OutElem);
+          OutElem = Result;
         }
       }
     }
   });
+
+  // We've updated user's variable, no extra work needed.
+  return false;
 }
 
 namespace reduction {
@@ -1036,7 +1075,7 @@ template <class KernelName> struct RangeBasic;
 } // namespace main_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
                              const range<Dims> &Range,
                              const nd_range<1> &NDRange, Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
@@ -1143,10 +1182,13 @@ void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       }
     }
   });
+  return Reduction::is_usm || Reduction::is_dw_acc;
 }
 
+/// Returns "true" if the result has to be saved to user's variable by
+/// reduSaveFinalResultToUserMem.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
                         uint32_t NumConcurrentWorkGroups, Reduction &Redu) {
   size_t NWorkItems = Range.size();
@@ -1159,16 +1201,15 @@ void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
-  if constexpr (Reduction::has_fast_atomics) {
-    reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                              Redu);
-
-  } else if constexpr (Reduction::has_fast_reduce) {
-    reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                             Redu);
-  } else {
-    reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange, Redu);
-  }
+  if constexpr (Reduction::has_fast_atomics)
+    return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
+                                                     NDRange, Redu);
+  else if constexpr (Reduction::has_fast_reduce)
+    return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
+                                                    NDRange, Redu);
+  else
+    return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                               Redu);
 }
 
 namespace reduction {
@@ -2514,7 +2555,6 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 } // namespace detail
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
 #endif // __cplusplus >= 201703L

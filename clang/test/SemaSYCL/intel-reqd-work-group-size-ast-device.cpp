@@ -4,7 +4,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // Test that checks template parameter support on member function of class template.

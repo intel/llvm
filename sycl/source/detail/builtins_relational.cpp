@@ -17,7 +17,6 @@
 namespace s = sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
@@ -507,4 +506,3 @@ MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
 MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
                         s::cl_ushort)
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)
