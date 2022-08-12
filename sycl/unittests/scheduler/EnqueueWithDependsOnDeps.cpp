@@ -49,14 +49,13 @@ public:
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                PI_INVALID_OPERATION);
+                                CL_INVALID_OPERATION);
     }
 
     return CommandGroup;
   }
 };
 } // namespace DependsOnTest
-
 detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
                            detail::QueueImplPtr DevQueue,
                            const std::vector<EventImplPtr> &Events) {
@@ -76,8 +75,7 @@ detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
             DevQueue->get_context());
     auto ExecBundle = sycl::build(KernelBundle);
     MockCGH.use_kernel_bundle(ExecBundle);
-
-    MockCGH.single_task<TestKernel>([] {});
+    MockCGH.single_task<TestKernel<>>([]{});
   }
 
   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
