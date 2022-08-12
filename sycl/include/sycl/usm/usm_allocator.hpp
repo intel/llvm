@@ -13,23 +13,14 @@
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
 #include <sycl/usm/usm_enums.hpp>
 
 #include <cstdlib>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
-// Forward declarations.
-__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
-                                  const device &dev, const context &ctxt,
-                                  usm::alloc kind,
-                                  const property_list &propList,
-                                  const detail::code_location CodeLoc);
-__SYCL_EXPORT void free(void *ptr, const context &ctxt,
-                        const detail::code_location CodeLoc);
-
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
@@ -126,5 +117,5 @@ private:
   property_list MPropList;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

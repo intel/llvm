@@ -12,8 +12,8 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/id.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 #ifdef __SYCL_INTERNAL_API
 class program;
@@ -206,5 +206,5 @@ template <typename T, T param> struct compatibility_param_traits {};
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace info
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

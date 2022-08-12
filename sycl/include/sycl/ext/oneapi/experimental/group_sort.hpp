@@ -16,8 +16,8 @@
 
 #include "group_helpers_sorters.hpp"
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -40,9 +40,10 @@ struct is_sorter_impl {
                                      std::declval<G>(), std::declval<Val>()))>;
 
   template <typename G = Group>
-  static decltype(
-      std::integral_constant<bool, is_expected_return_type<G>::value &&
-                                       sycl::is_group_v<G>>{}) test(int);
+  static decltype(std::integral_constant<bool,
+                                         is_expected_return_type<G>::value &&
+                                             sycl::is_group_v<G>>{})
+  test(int);
 
   template <typename = Group> static std::false_type test(...);
 };
@@ -56,7 +57,8 @@ struct is_sorter_impl<
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
-                  sycl::detail::is_generic_group<G>{}) test(int);
+                  sycl::detail::is_generic_group<G>{})
+  test(int);
 
   template <typename = Group> static std::false_type test(...);
 };
@@ -137,6 +139,6 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __cplusplus >=201703L

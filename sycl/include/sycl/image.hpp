@@ -17,8 +17,8 @@
 #include <sycl/stl.hpp>
 #include <sycl/types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -247,7 +247,7 @@ public:
   bool operator!=(const image &rhs) const { return !(*this == rhs); }
 
   /* -- property interface members -- */
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return impl->template has_property<propertyT>();
   }
 
@@ -311,8 +311,8 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <int Dimensions, typename AllocatorT>
