@@ -63,11 +63,6 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
-  // For ABI compatibility
-  SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes, event AvailableEvent,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator);
-
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
@@ -75,7 +70,8 @@ public:
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
+      : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    /*SizeInBytes*/ (size_t)0, AvailableEvent,
                     std::move(Allocator)) {}
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
@@ -285,10 +281,6 @@ public:
   __SYCL_DLL_LOCAL void setAlign(size_t RequiredAlign) {
     MAllocator->setAlignment(RequiredAlign);
   }
-
-  // For ABI compatibility
-  static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     cl_mem MemObject);
 
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      pi_native_handle MemObject);
