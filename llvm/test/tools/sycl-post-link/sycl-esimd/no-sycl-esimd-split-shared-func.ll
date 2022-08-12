@@ -17,7 +17,7 @@
 
 ;------------- Verify generated symbol file.
 ; CHECK-SYM: SYCL_kernel
-; CHECK-SYM: _SIMD_CALLEE
+; CHECK-SYM: SIMD_CALLEE
 ; CHECK-SYM: ESIMD_kernel
 ; CHECK-SYM-EMPTY:
 
@@ -28,58 +28,69 @@ target triple = "spir64-unknown-unknown"
 
 declare dso_local spir_func <4 x float> @__intrin(i64)
 
-define dso_local spir_func <4 x float> @block_read(i64 %addr) noinline {
+define dso_local spir_func <4 x float> @SHARED_FUNCTION(i64 %addr) noinline {
 ;------------- This function is participates in both SYCL and ESIMD callgraphs -
 ;------------- check that it is duplicated:
-; CHECK-IR-DAG: define dso_local spir_func <4 x float> @block_read.esimd
+; CHECK-IR-DAG: define dso_local spir_func <4 x float> @SHARED_FUNCTION.esimd
   %res = call spir_func <4 x float> @__intrin(i64 %addr)
   ret <4 x float> %res
 }
 
-; Function Attrs: convergent
-declare dso_local spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (float addrspace(4)*, <4 x float>, i32)*, float addrspace(4)*, float, i32) local_unnamed_addr
+declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (<4 x float> (<4 x float>)*, <4 x float>)* noundef, <4 x float> (<4 x float>)* noundef, float noundef)
 
 ;------------- This is also an entry point, because of the "sycl-module-id" attribute #0.
-; Function Attrs: convergent mustprogress noinline norecurse optnone
-define dso_local x86_regcallcc <4 x float> @_SIMD_CALLEE(float addrspace(4)* %A, <4 x float> %non_uni_val, i32 %uni_val) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !0 {
+define linkonce_odr x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %val) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !0 {
 ; Verify that correct attributes are attached to the function:
-; CHECK-IR-DAG: {{.*}} @_SIMD_CALLEE(float addrspace(4)* %A, <4 x float> %non_uni_val, i32 %uni_val) #[[ATTR1:[0-9]+]]
-entry:
-  %AA = ptrtoint float addrspace(4)* %A to i64
-  %ii = zext i32 %uni_val to i64
-  %addr = add nuw nsw i64 %ii, %AA
-  %data = call spir_func <4 x float> @block_read(i64 %addr)
-  %add = fadd <4 x float> %non_uni_val, %data
+; CHECK-IR-DAG: {{.*}} @SIMD_CALLEE(<4 x float> %{{.*}}) #[[ATTR1:[0-9]+]]
+  %data = call spir_func <4 x float> @SHARED_FUNCTION(i64 100)
+  %add = fadd <4 x float> %val, %data
   ret <4 x float> %add
 }
 
-define internal spir_func float @foo(float addrspace(1)* %ptr) align 2 {
-entry:
-;------------- Typical data flow of the @_SIMD_CALLEE function address in worst
-;------------- case (-O0), when invoke_simd uses function name:
-;------------- float res = invoke_simd(sg, SIMD_CALLEE, uniform{ A }, x, uniform{ y });
-  %f.addr.i = alloca <4 x float> (float addrspace(4)*, <4 x float>, i32)*, align 8
-  %f.addr.ascast.i = addrspacecast <4 x float> (float addrspace(4)*, <4 x float>, i32)** %f.addr.i to <4 x float> (float addrspace(4)*, <4 x float>, i32)* addrspace(4)*
-  store <4 x float> (float addrspace(4)*, <4 x float>, i32)* @_SIMD_CALLEE, <4 x float> (float addrspace(4)*, <4 x float>, i32)* addrspace(4)* %f.addr.ascast.i, align 8
-  %FUNC_PTR = load <4 x float> (float addrspace(4)*, <4 x float>, i32)*, <4 x float> (float addrspace(4)*, <4 x float>, i32)* addrspace(4)* %f.addr.ascast.i, align 8
+define dso_local spir_func float @SPMD_CALLER(float %x) #0 align 2 {
+;---- Typical data flow of the @SIMD_CALLEE function address in worst
+;---- case (-O0), when invoke_simd uses function name:
+;---- float res = invoke_simd(sg, SIMD_CALLEE, x);
+  %f.addr.i = alloca <4 x float> (<4 x float>)*, align 8
+  %f.addr.ascast.i = addrspacecast <4 x float> (<4 x float>)** %f.addr.i to <4 x float> (<4 x float>)* addrspace(4)*
+  store <4 x float> (<4 x float>)* @SIMD_CALLEE, <4 x float> (<4 x float>)* addrspace(4)* %f.addr.ascast.i, align 8
+  %FUNC_PTR = load <4 x float> (<4 x float>)*, <4 x float> (<4 x float>)* addrspace(4)* %f.addr.ascast.i, align 8
 
-;------------- Data flow for the parameters of SIMD_CALLEE
-  %param_A = addrspacecast float addrspace(1)* %ptr to float addrspace(4)*
-  %param_non_uni_val = load float, float addrspace(4)* %param_A, align 4
+;---- The invoke_simd call.
+; Test case when function pointer (%FUNC_PTR) is passed the __builtin_invoke_simd,
+; but the actual function can be deduced.
+  %res = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (<4 x float> (<4 x float>)*, <4 x float>)* @SIMD_CALL_HELPER, <4 x float> (<4 x float>)* %FUNC_PTR, float %x)
+; Verify that
+; 1) the second argument (function pointer) is removed
+; 2) The call target (helper) is changed to the optimized one
+; CHECK: %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX_{{.+}}(<4 x float> (<4 x float>)* @[[NAME1:SIMD_CALL_HELPER.+]], float %{{.*}})
 
-;------------- The invoke_simd calls.
-  %res1 = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (float addrspace(4)*, <4 x float>, i32)* %FUNC_PTR, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
-; Verify that %FUNC_PTR is replaced with @_SIMD_CALLEE:
-;  CHECK-IR-DAG: %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (float addrspace(4)*, <4 x float>, i32)* @_SIMD_CALLEE, float addrspace(4)* %param_A, float %param_non_uni_val, i32 10)
-  ret float %res1
+  ret float %res
+}
+; CHECK: }
+
+;---- Simd call helper library function mock.
+define linkonce_odr dso_local x86_regcallcc <4 x float> @SIMD_CALL_HELPER(<4 x float> (<4 x float>)* noundef nonnull %f, <4 x float> %simd_args) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
+  %f.addr = alloca <4 x float> (<4 x float>)*, align 8
+  %f.addr.ascast = addrspacecast <4 x float> (<4 x float>)** %f.addr to <4 x float> (<4 x float>)* addrspace(4)*
+  store <4 x float> (<4 x float>)* %f, <4 x float> (<4 x float>)* addrspace(4)* %f.addr.ascast, align 8
+  %1 = load <4 x float> (<4 x float>)*, <4 x float> (<4 x float>)* addrspace(4)* %f.addr.ascast, align 8
+  %call = call x86_regcallcc <4 x float> %1(<4 x float> %simd_args)
+  ret <4 x float> %call
 }
 
+;---- Output optimized version for the SIMD_CALLEE call
+; CHECK: define {{.*}} <4 x float> @[[NAME1]](<4 x float> %{{.*}}) #1
+; Verify that indirect call is converted to direct
+; CHECK: %{{.*}} = call x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %{{.*}})
+; CHECK: }
+
 ;------------- SYCL kernel, an entry point
-define dso_local spir_kernel void @SYCL_kernel(float addrspace(1)* %ptr) #2 {
+define dso_local spir_kernel void @SYCL_kernel(float addrspace(1)* %ptr, float %x) #1 {
 entry:
-  %res1 = call spir_func float @foo(float addrspace(1)* %ptr)
+  %res1 = call spir_func float @SPMD_CALLER(float %x)
   %ptri = ptrtoint float addrspace(1)* %ptr to i64
-  %vec = call spir_func <4 x float> @block_read(i64 %ptri)
+  %vec = call spir_func <4 x float> @SHARED_FUNCTION(i64 %ptri)
   %res2 = extractelement <4 x float> %vec, i32 0
   %res = fadd float %res1, %res2
   store float %res, float addrspace(1)* %ptr
@@ -87,22 +98,32 @@ entry:
 }
 
 ;------------- ESIMD kernel, an entry point
-define dso_local spir_kernel void @ESIMD_kernel(float addrspace(1)* %ptr) #3 !sycl_explicit_simd !0 {
+define dso_local spir_kernel void @ESIMD_kernel(float addrspace(1)* %ptr) #2 !sycl_explicit_simd !0 {
 entry:
   %ptr_as4 = addrspacecast float addrspace(1)* %ptr to float addrspace(4)*
-  %res = call x86_regcallcc <4 x float> @_SIMD_CALLEE(float addrspace(4)* %ptr_as4, <4 x float> <float 1.0, float 1.0, float 1.0, float 1.0>, i32 0)
-  %ptr_x16 = bitcast float addrspace(4)* %ptr_as4 to <4 x float> addrspace(4)*
-  store <4 x float> %res, <4 x float> addrspace(4)* %ptr_x16
+  %res = call x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> <float 1.0, float 1.0, float 1.0, float 1.0>)
+  %ptr_x4 = bitcast float addrspace(4)* %ptr_as4 to <4 x float> addrspace(4)*
+  store <4 x float> %res, <4 x float> addrspace(4)* %ptr_x4
   ret void
 }
 
+; Check that VCStackCall attribute is added to the invoke_simd helpers functions:
+attributes #0 = { "sycl-module-id"="invoke_simd.cpp" }
+; CHECK-IR-DAG: attributes #[[ATTR1]] = { "VCStackCall" {{.*}}"sycl-module-id"="invoke_simd.cpp" }
 
-; Check that VCStackCall attribute is added to the invoke_simd target functions:
-attributes #0 = { convergent mustprogress norecurse "sycl-module-id"="invoke_simd.cpp" }
-; CHECK-IR-DAG: attributes #[[ATTR1]] = { {{.*}} "VCStackCall" {{.*}}"sycl-module-id"="invoke_simd.cpp" }
+attributes #1 = { "sycl-module-id"="a.cpp" }
+attributes #2 = { "sycl-module-id"="b.cpp" }
 
+
+attributes #0 = { noinline }
+attributes #1 = { "sycl-module-id"="invoke_simd.cpp" }
 attributes #2 = { "sycl-module-id"="a.cpp" }
-attributes #3 = { "sycl-module-id"="b.cpp" }
+attributes #3 = { noinline "VCFunction" }
+attributes #4 = { alwaysinline "VCFunction" "sycl-module-id"="invoke_simd.cpp" }
+attributes #5 = { "CMGenxMain" "VCFunction" "VCNamedBarrierCount"="0" "VCSLMSize"="0" "oclrt"="1" "sycl-module-id"="b.cpp" }
+attributes #6 = { nounwind readnone "VCFunction" }
+attributes #7 = { "VCFunction" "VCStackCall" "sycl-module-id"="invoke_simd.cpp" }
 
 
 !0 = !{}
+!1 = !{i32 16}

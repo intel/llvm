@@ -20,6 +20,7 @@
 
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/GenXIntrinsics/GenXMetadata.h"
 #include "llvm/IR/Instructions.h"
@@ -368,10 +369,7 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   }
   // "helper" defined in invoke_simd.hpp which convetrs arguments.
   auto *Helper = cast<Function>(H);
-  // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
-  // from the resulting module after linkage if not fixed up.
-  Helper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
-  // Also mark helper as explicit SIMD function. Some BEs need this info.
+  // Mark helper as explicit SIMD function. Some BEs need this info.
   Helper->setMetadata(ESIMD_MARKER_MD,
                       llvm::MDNode::get(Helper->getContext(), {}));
   SmallPtrSet<const Function *, 8> Visited;
@@ -420,8 +418,6 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     // make the call to the user simd function direct:
     CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
     TheTformedCall->setCalledFunction(SimdF);
-    // fixup helper clone's linkage as well:
-    NewHelper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
     fixFunctionName(NewHelper);
     NewHelper->copyMetadata(Helper, 0);
   }
@@ -488,6 +484,7 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
   // template defined in the invoke_simd.hpp, which are cloned. Those might no
   // longer be used after the pass finishes.
   SmallPtrSet<Function *, 4> ClonedHelpers;
+  SetVector<CallInst *> ISCalls;
 
   for (Function &F : M) {
     if (!F.isDeclaration() || !F.getName().startswith(INVOKE_SIMD_PREF)) {
@@ -497,8 +494,11 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
     for (User *Usr : Users) {
       // a call can be the only use of the invoke_simd built-in
       CallInst *CI = cast<CallInst>(Usr);
-      Modified |= processInvokeSimdCall(CI, ClonedHelpers);
+      ISCalls.insert(CI);
     }
+  }
+  for (CallInst *CI : ISCalls) {
+    Modified |= processInvokeSimdCall(CI, ClonedHelpers);
   }
   for (Function *F : ClonedHelpers) {
     if (F->getNumUses() == 0) {

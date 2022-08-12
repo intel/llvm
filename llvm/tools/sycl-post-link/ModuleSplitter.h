@@ -126,37 +126,12 @@ public:
              const Properties &Props)
       : M(std::move(M)), EntryPoints(std::move(EntryPoints)), Props(Props) {
     Name = this->EntryPoints.GroupId.str();
-    fixupEntryPointsLinkage();
   }
 
   ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names,
              StringRef Name = "NoName")
       : M(std::move(M)), Name(Name) {
     rebuildEntryPoints(Names);
-    fixupEntryPointsLinkage();
-  }
-
-  // Some entry points may have linkonce_odr linkage, which does not really work
-  // for an entry point, because either inliner pass or LLVM linker will remove
-  // functions with such linkage, and entry point must be always available by
-  // definition. This function changes linkage of linkonce_odr entry points.
-  // An example of a such entry point is an instantiation of a function template
-  // even marked SYCL_EXTERNAL.
-  // TODO: is it practical to fix FE instead to assign different linkage for
-  // SYCL_EXTERNAL functions which get linkonce_odr currently?
-  bool fixupEntryPointsLinkage() {
-    bool Changed = false;
-
-    for (Function *F : EntryPoints.Functions) {
-      GlobalValue::LinkageTypes L = F->getLinkage();
-
-      if ((L == GlobalValue::LinkageTypes::LinkOnceODRLinkage) ||
-          (L == GlobalValue::LinkageTypes::LinkOnceAnyLinkage)) {
-        F->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
-        Changed = true;
-      }
-    }
-    return Changed;
   }
 
   // Filters out functions which are not part of this module's entry point set.

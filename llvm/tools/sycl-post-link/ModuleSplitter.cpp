@@ -329,7 +329,9 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   // It is conservatively assumed that any address-taken function can be invoked
   // or otherwise used by any function in any module split from the initial one.
   // So such functions along with the call graphs they start are always
-  // extracted (and duplicated in each split module).
+  // extracted (and duplicated in each split module). They are not treated as
+  // entry points, as SYCL runtime requires that intersection of entry point
+  // sets of different device binaries (for the same target) must be empty.
   // TODO: try to determine which split modules really use address-taken
   // functions and only duplicate the functions in such modules. Note that usage
   // may include e.g. function address comparison w/o actual invocation.
@@ -669,25 +671,16 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   auto It0 = Names.cbegin();
   auto It1 = Names.cend();
   std::for_each(It0, It1, [&](const std::string &Name) {
-    Function *F = M.getFunction(Name);
-    assert(F && "entry point lost");
-    Functions.insert(F);
+    // Sometimes functions considered entry points (those for which isEntryPoint
+    // returned true) may be dropped by optimizations, such as AlwaysInliner.
+    // For example, if a linkonce_odr function is inlined and there are no other
+    // uses, AlwaysInliner drops it. It is responsibility of the user to make an
+    // entry point not have internal linkage (such as linkonce_odr) to guarantee
+    // its availability in the resulting device binary image.
+    if (Function *F = M.getFunction(Name)) {
+      Functions.insert(F);
+    }
   });
-}
-
-void EntryPointGroup::rebuild(const Module &M) {
-  if (Functions.size() == 0) {
-    return;
-  }
-  EntryPointSet NewFunctions;
-  const auto It0 = Functions.begin();
-  const auto It1 = Functions.end();
-  std::for_each(It0, It1, [&](const Function *F) {
-    Function *NewF = M.getFunction(F->getName());
-    assert(NewF && "entry point lost");
-    NewFunctions.insert(NewF);
-  });
-  Functions = std::move(NewFunctions);
 }
 
 std::unique_ptr<ModuleSplitterBase>
