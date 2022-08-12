@@ -68,11 +68,6 @@ namespace SPIRV {
 /// This number should be bumped up whenever the generated SPIR-V changes.
 const static unsigned short KTranslatorVer = 14;
 
-#define SPCV_TARGET_LLVM_IMAGE_TYPE_ENCODE_ACCESS_QUAL 0
-// Workaround for SPIR 2 producer bug about kernel function calling convention.
-// This workaround checks metadata to determine if a function is kernel.
-#define SPCV_RELAX_KERNEL_CALLING_CONV 1
-
 class SPIRVOpaqueType;
 typedef SPIRVMap<std::string, Op, SPIRVOpaqueType> SPIRVOpaqueTypeOpCodeMap;
 
