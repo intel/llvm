@@ -456,11 +456,11 @@ struct BuiltinArgTypeMangleInfo {
   bool IsLocalArgBlock;
   SPIR::TypePrimitiveEnum Enum;
   unsigned Attr;
-  PointerIndirectPair PointerElementType;
+  Type *PointerTy;
   BuiltinArgTypeMangleInfo()
       : IsSigned(true), IsVoidPtr(false), IsEnum(false), IsSampler(false),
         IsAtomic(false), IsLocalArgBlock(false), Enum(SPIR::PRIMITIVE_NONE),
-        Attr(0), PointerElementType(nullptr, false) {}
+        Attr(0), PointerTy(nullptr) {}
 };
 
 /// Information for mangling builtin function.
@@ -517,8 +517,6 @@ public:
   virtual void init(StringRef UniqUnmangledName) {
     UnmangledName = UniqUnmangledName.str();
   }
-
-  void fillPointerElementTypes(ArrayRef<PointerIndirectPair>);
 
 protected:
   std::string UnmangledName;
@@ -986,7 +984,6 @@ inline void getParameterTypes(CallInst *CI,
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
                                            ArrayRef<Type *> ArgTys,
-                                           ArrayRef<PointerIndirectPair> PETs,
                                            Type *RetTy = nullptr);
 
 /// Mangle a function in SPIR-V friendly IR manner
@@ -998,8 +995,7 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \param Types of arguments of SPIR-V built-in function
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC, ArrayRef<Type *> ArgTys,
-                                           ArrayRef<PointerIndirectPair> PETs);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys);
 
 /// Cast a function to a void(void) funtion pointer.
 Constant *castToVoidFuncPtr(Function *F);

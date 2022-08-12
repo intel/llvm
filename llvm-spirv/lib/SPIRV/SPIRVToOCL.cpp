@@ -42,6 +42,7 @@
 #define DEBUG_TYPE "spvtocl"
 
 #include "SPIRVToOCL.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -277,7 +278,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
   BuiltinFuncMangleInfo Mangle;
-  Mangle.getTypeMangleInfo(0).PointerElementType.setPointer(ImgTy);
+  Mangle.getTypeMangleInfo(0).PointerTy = TypedPointerType::get(ImgTy, 0);
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;
 
