@@ -18,6 +18,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -387,19 +388,6 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
   return ModuleDesc{std::move(SubM), std::move(ModuleEntryPoints), MD.Props};
 }
 
-// TODO: try to move including all passes (cleanup, spec consts, compile time
-// properties) in one place and execute MPM.run() only once.
-void cleanupSplitModule(Module &SplitM) {
-  ModuleAnalysisManager MAM;
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  ModulePassManager MPM;
-  // Do cleanup.
-  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
-  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
-  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
-  MPM.run(SplitM, MAM);
-}
-
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
@@ -409,7 +397,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
   collectGlobalVarsToExtract(GVs, MD.getModule());
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
-  cleanupSplitModule(SplitM.getModule());
+  SplitM.cleanup();
 
   return SplitM;
 }
@@ -613,6 +601,52 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
     // rename the global object in MB:
     GoB->setName(Name + Suff);
   }
+}
+
+constexpr char SYCL_ORIG_LINKAGE_ATTR[] = "__sycl_orig_linkage";
+
+void ModuleDesc::fixupLinkageOfDirectInvokeSimdTargets() {
+  for (Function &F : *M) {
+    if (!F.hasFnAttribute(INVOKE_SIMD_DIRECT_TARGET_ATTR)) {
+      continue;
+    }
+    int L = static_cast<int>(F.getLinkage());
+    using LT = GlobalValue::LinkageTypes;
+
+    if (L == static_cast<int>(LT::LinkOnceODRLinkage)) {
+      F.addFnAttr(SYCL_ORIG_LINKAGE_ATTR, llvm::utostr(L));
+      F.setLinkage(LT::WeakODRLinkage);
+    } else if (L == static_cast<int>(LT::LinkOnceAnyLinkage)) {
+      F.addFnAttr(SYCL_ORIG_LINKAGE_ATTR, llvm::utostr(L));
+      F.setLinkage(LT::WeakAnyLinkage);
+    }
+  }
+}
+
+void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
+  for (Function &F : *M) {
+    Attribute A = F.getFnAttribute(SYCL_ORIG_LINKAGE_ATTR);
+
+    if (!A.isValid()) {
+      continue;
+    }
+    F.removeFnAttr(SYCL_ORIG_LINKAGE_ATTR);
+    int L = std::stoi(A.getValueAsString().str());
+    F.setLinkage(static_cast<GlobalValue::LinkageTypes>(L));
+  }
+}
+
+// TODO: try to move including all passes (cleanup, spec consts, compile time
+// properties) in one place and execute MPM.run() only once.
+void ModuleDesc::cleanup() {
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  ModulePassManager MPM;
+  // Do cleanup.
+  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
+  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
+  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
+  MPM.run(*M, MAM);
 }
 
 #ifndef NDEBUG

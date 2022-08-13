@@ -734,6 +734,7 @@ processInputModule(std::unique_ptr<Module> M) {
     while (DoubleGRFSplitter->hasMoreSplits()) {
       module_split::ModuleDesc MDesc1 = DoubleGRFSplitter->nextSplit();
       DUMP_ENTRY_POINTS(MDesc1.entries(), MDesc1.Name.c_str(), 2);
+      MDesc1.fixupLinkageOfDirectInvokeSimdTargets();
 
       // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
       // undergo different set of LLVMIR passes. After this they are linked back
@@ -787,6 +788,8 @@ processInputModule(std::unique_ptr<Module> M) {
         MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
         module_split::ModuleDesc M2 =
             link(std::move(MMs[0]), std::move(MMs[1]));
+        M2.restoreLinkageOfDirectInvokeSimdTargets();
+        M2.cleanup();
         MMs.clear();
         MMs.emplace_back(std::move(M2));
         Modified = true;

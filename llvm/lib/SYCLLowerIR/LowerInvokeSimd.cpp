@@ -38,6 +38,7 @@ using namespace llvm;
 namespace {
 
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+constexpr char REQD_SUB_GROUP_SIZE_MD[] = "intel_reqd_sub_group_size";
 
 class SYCLLowerInvokeSimdLegacyPass : public ModulePass {
 public:
@@ -333,6 +334,19 @@ void fixFunctionName(Function *F) {
   assert(Name.find('.') == std::string::npos);
 }
 
+void markFunctionAsESIMD(Function *F) {
+  LLVMContext &C = F->getContext();
+
+  if (!F->getMetadata(ESIMD_MARKER_MD)) {
+    F->setMetadata(ESIMD_MARKER_MD, llvm::MDNode::get(C, {}));
+  }
+  if (!F->getMetadata(REQD_SUB_GROUP_SIZE_MD)) {
+    auto One =
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(C), 1));
+    F->setMetadata(REQD_SUB_GROUP_SIZE_MD, MDNode::get(C, One));
+  }
+}
+
 // Process 'invoke_simd(sub_group_obj, f, spmd_args...);' call.
 //
 // If f is a function name or a function pointer, this call is lowered into
@@ -367,11 +381,16 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   if (!H) {
     llvm_unreachable(("bad use of " + Twine(INVOKE_SIMD_PREF)).str().c_str());
   }
-  // "helper" defined in invoke_simd.hpp which convetrs arguments.
+  // "helper" defined in invoke_simd.hpp which converts arguments.
   auto *Helper = cast<Function>(H);
   // Mark helper as explicit SIMD function. Some BEs need this info.
-  Helper->setMetadata(ESIMD_MARKER_MD,
-                      llvm::MDNode::get(Helper->getContext(), {}));
+  {
+    LLVMContext &C = Helper->getContext();
+    markFunctionAsESIMD(Helper);
+    // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
+    // from the ESIMD module after global DCE in post-link if not fixed up.
+    Helper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
+  }
   SmallPtrSet<const Function *, 8> Visited;
   Function *SimdF = deduceFunction(I, Visited);
 
@@ -379,11 +398,14 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     // Call target is not known - don't do anything.
     return false;
   }
+  if (!SimdF->hasFnAttribute(INVOKE_SIMD_DIRECT_TARGET_ATTR)) {
+    SimdF->addFnAttr(INVOKE_SIMD_DIRECT_TARGET_ATTR);
+  }
   if (!Helper->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
     Helper->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
   }
   // The invoke_simd target is known at compile-time - optimize.
-  // 1) find the call to f within the cloned helper - it is its first parameter
+  // 1. find the call to f within the cloned helper - it is its first parameter
   constexpr unsigned SimdCallTargetArgNo = 0;
   SmallPtrSet<const Use *, 4> Uses;
   Argument *SimdCallTargetArg = Helper->getArg(SimdCallTargetArgNo);
@@ -419,7 +441,6 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
     TheTformedCall->setCalledFunction(SimdF);
     fixFunctionName(NewHelper);
-    NewHelper->copyMetadata(Helper, 0);
   }
 
   // 3. Clone and transform __builtin_invoke_simd call:
