@@ -696,9 +696,9 @@ processInputModule(std::unique_ptr<Module> M) {
   // Violation of this invariant is user error and must've been reported.
   // However, if split mode is "auto", then entry point filtering is still
   // performed.
-  assert(!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
-         (SplitMode == module_split::SPLIT_AUTO) &&
-             "invalid split mode for IR-only output");
+  assert((!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
+          (SplitMode == module_split::SPLIT_AUTO)) &&
+         "invalid split mode for IR-only output");
 
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from all other kinds of splitting.
@@ -780,8 +780,8 @@ processInputModule(std::unique_ptr<Module> M) {
       if (!SplitEsimd && (MMs.size() > 1)) {
         // SYCL/ESIMD splitting is not requested, link back into single module.
         assert(MMs.size() == 2);
-        assert(MMs[0].isESIMD() && MMs[1].isSYCL() ||
-               MMs[1].isESIMD() && MMs[0].isSYCL());
+        assert((MMs[0].isESIMD() && MMs[1].isSYCL()) ||
+               (MMs[1].isESIMD() && MMs[0].isSYCL()));
         int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
         int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
         // ... but before that, make sure no link conflicts will occur.

@@ -103,16 +103,6 @@ Value *stripCasts(Value *V) {
   return V;
 }
 
-const Value *getSingleUserSkipCasts(const Value *V) {
-  while (isCast(V)) {
-    if (V->getNumUses() != 1) {
-      return nullptr;
-    }
-    V = *(V->user_begin());
-  }
-  return V;
-}
-
 void collectUsesLookThroughCasts(Value *V, SmallPtrSetImpl<const Use *> &Uses) {
   for (Use &U : V->uses()) {
     Value *VV = U.getUser();
@@ -385,7 +375,6 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   auto *Helper = cast<Function>(H);
   // Mark helper as explicit SIMD function. Some BEs need this info.
   {
-    LLVMContext &C = Helper->getContext();
     markFunctionAsESIMD(Helper);
     // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
     // from the ESIMD module after global DCE in post-link if not fixed up.
