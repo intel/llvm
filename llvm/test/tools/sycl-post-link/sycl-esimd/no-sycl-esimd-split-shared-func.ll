@@ -105,7 +105,7 @@ attributes #3 = { "referenced-indirectly" }
 ; CHECK:   %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX_{{.+}}(<4 x float> (<4 x float>)* @[[NEW_HELPER_NAME:SIMD_CALL_HELPER_[0-9]+]], float %{{.*}})
 ; CHECK:   ret float %{{.*}}
 
-; Check the original version (for SYCL call graph) is retained
+; Check the function is cloned for ESIMD call graph.
 ; CHECK: define dso_local spir_func <4 x float> @SHARED_F.esimd(i64 %{{.*}}) #[[SHARED_F_ATTRS:[0-9]+]] {
 ; CHECK:   %{{.*}} = call spir_func <4 x float> @__intrin(i64 %{{.*}})
 ; CHECK:   ret <4 x float> %{{.*}}
