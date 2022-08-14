@@ -1589,7 +1589,6 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   // Only add this if we aren't instantiating a variable template.  We'll end up
   // adding the VarTemplateSpecializationDecl later.
   if (!InstantiatingVarTemplate) {
-    SemaRef.addSyclVarDecl(Var);
     if (SemaRef.getLangOpts().SYCLIsDevice &&
         SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             Var->getType())) {
@@ -1611,6 +1610,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
         }
       }
     }
+    SemaRef.addSyclVarDecl(Var);
   }
   return Var;
 }
