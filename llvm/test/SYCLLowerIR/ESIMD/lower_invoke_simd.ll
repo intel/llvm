@@ -74,18 +74,18 @@ define linkonce_odr dso_local x86_regcallcc <16 x float> @SIMD_CALL_HELPER(<16 x
 
 ;---- Check that original SIMD_CALL_HELPER retained, because there are
 ;---- invoke_simd calls where simd target can't be inferred.
-; CHECK: define {{.*}} <16 x float> @SIMD_CALL_HELPER(<16 x float> (<16 x float>)* {{.*}}%{{.*}}, <16 x float> %{{.*}}) #1
+; CHECK: define {{.*}} <16 x float> @SIMD_CALL_HELPER(<16 x float> (<16 x float>)* {{.*}}%{{.*}}, <16 x float> %{{.*}}) #[[HELPER_ATTRS:[0-9]+]] !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1
 ; CHECK:   %{{.*}} = call x86_regcallcc <16 x float> %{{.*}}(<16 x float> %{{.*}})
 ; CHECK: }
 
 ;---- Optimized version for the SIMD_CALLEE call
-; CHECK: define {{.*}} <16 x float> @[[NAME1]](<16 x float> %{{.*}}) #1
+; CHECK: define {{.*}} <16 x float> @[[NAME1]](<16 x float> %{{.*}}) #[[HELPER_ATTRS]]
 ; Verify that indirect call is converted to direct
 ; CHECK: %{{.*}} = call x86_regcallcc <16 x float> @SIMD_CALLEE(<16 x float> %{{.*}})
 ; CHECK: }
 
 ;---- Optimized version for the ANOTHER_SIMD_CALLEE call
-; CHECK: define {{.*}} <16 x float> @[[NAME2]](<16 x float> %{{.*}}) #1
+; CHECK: define {{.*}} <16 x float> @[[NAME2]](<16 x float> %{{.*}}) #[[HELPER_ATTRS]]
 ; Verify that indirect call is converted to direct
 ; CHECK: %{{.*}} = call x86_regcallcc <16 x float> @ANOTHER_SIMD_CALLEE(<16 x float> %{{.*}})
 ; CHECK: }
@@ -94,7 +94,7 @@ declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_
 
 ; Check that VCStackCall attribute is added to the invoke_simd target functions:
 attributes #0 = { "sycl-module-id"="invoke_simd.cpp" }
-; CHECK: attributes #1 = { "VCStackCall" "sycl-module-id"="invoke_simd.cpp" }
+; CHECK: attributes #[[HELPER_ATTRS]] = { "VCStackCall" "sycl-module-id"="invoke_simd.cpp" }
 
 !0 = !{}
 !1 = !{i32 16}
