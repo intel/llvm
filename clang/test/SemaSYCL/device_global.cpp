@@ -53,13 +53,13 @@ private:
 
 struct ABar {
   void method() {
-    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+    // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
     static device_global<float> c;
   }
   struct BarInsider {
     static device_global<float> c;
     void method() {
-      // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+      // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
       static device_global<float> c;
     }
   };
@@ -73,16 +73,17 @@ template <typename T> void fooBar() {
 template <typename T> struct TS {
 private:
   static device_global<T> a;
-  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<T> b;
-  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  // expected-error@+2 {{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
+  // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<int> c;
 
 public:
   static device_global<T> d;
-  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<T> e;
-  // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
+  // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<int> f;
 };
 
@@ -109,12 +110,12 @@ int main() {
   });
 
   cl::sycl::kernel_single_task<class KernelName2>([]() {
-    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+    // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
     device_global<int> non_static;
 
     // expect no error on non_const_static declaration if decorated with
     // [[__sycl_detail__::global_variable_allowed]]
-    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+    // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
     static device_global<int> non_const_static;
   });
 }
