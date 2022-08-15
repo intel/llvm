@@ -32,17 +32,6 @@ namespace foo {
 device_global<int> same_name; // OK
 }
 
-namespace {                   // #PREVIOUS
-device_global<int> same_name; // OK
-}
-
-// expected-error@+2{{non-inline namespace cannot be reopened as inline}}
-// expected-note@#PREVIOUS{{previous definition is here}}
-inline namespace {
-namespace foo {
-}
-} // namespace
-
 struct BBar {
 private:
   struct BarInsider {
@@ -115,7 +104,6 @@ int main() {
 
     // expect no error on non_const_static declaration if decorated with
     // [[__sycl_detail__::global_variable_allowed]]
-    // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
     static device_global<int> non_const_static;
   });
 }
