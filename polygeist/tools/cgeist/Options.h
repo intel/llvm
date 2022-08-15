@@ -57,9 +57,6 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool> ShowAST("show-ast", llvm::cl::init(false),
                                    llvm::cl::desc("Show AST"));
 
-static llvm::cl::opt<bool> ImmediateMLIR("immediate", llvm::cl::init(false),
-                                         llvm::cl::desc("Emit immediate mlir"));
-
 static llvm::cl::opt<bool> RaiseToAffine("raise-scf-to-affine",
                                          llvm::cl::init(false),
                                          llvm::cl::desc("Raise SCF to Affine"));

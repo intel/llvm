@@ -37,8 +37,15 @@ def main():
     mlir_args.append(arg_file)
     mlir_args.append("--args")
     mlir_args.extend(split_output[1:])
+
+   # print("mlir_args: ", mlir_args)
+   # for mlir_arg in mlir_args:
+   #   print("\"", mlir_arg, "\",", sep="")
+
     mlir_res = subprocess.Popen(mlir_args)
     mlir_res.wait()
+    if (mlir_res.returncode != 0):
+      sys.exit(mlir_res.returncode)
 
 if __name__ == "__main__":
     main()

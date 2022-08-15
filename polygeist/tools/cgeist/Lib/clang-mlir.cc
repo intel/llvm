@@ -58,8 +58,6 @@ using namespace mlir::arith;
 using namespace mlir::func;
 using namespace mlirclang;
 
-#define DEBUG_TYPE "clang-mlir"
-
 static cl::opt<bool>
     memRefFullRank("memref-fullrank", cl::init(false),
                    cl::desc("Get the full rank of the memref."));
