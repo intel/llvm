@@ -69,8 +69,8 @@ class __copyAcc2Acc;
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 
@@ -404,13 +404,6 @@ private:
 
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs);
-
-  /// Extracts and prepares kernel arguments from the lambda using integration
-  /// header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
@@ -418,11 +411,6 @@ private:
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource);
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
@@ -789,20 +777,6 @@ private:
       if (Src[I] > Dst[I])
         return false;
     return true;
-  }
-
-  // TODO: Delete these functions when ABI breaking changes are allowed.
-  // Currently these functions are unused but they are static members of
-  // the exported class 'handler' and has got into sycl library some time ago
-  // and must stay there for a while.
-  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
   }
 
   /// Handles some special cases of the copy operation from one accessor
@@ -1665,13 +1639,13 @@ public:
   void parallel_for(nd_range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
     if constexpr (!Reduction::has_fast_atomics &&
-                  !Reduction::has_atomic_add_float64) {
+                  !Reduction::has_float64_atomics) {
       // The most basic implementation.
       parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
       std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-      if constexpr (Reduction::has_atomic_add_float64) {
+      if constexpr (Reduction::has_float64_atomics) {
         /// This version is a specialization for the add
         /// operator. It performs runtime checks for device aspect "atomic64";
         /// if found, fast sycl::atomic_ref operations are used to update the
@@ -2703,5 +2677,5 @@ private:
         NumWorkItems, KernelFunc);
   }
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

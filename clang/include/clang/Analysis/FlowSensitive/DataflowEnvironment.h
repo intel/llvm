@@ -19,6 +19,7 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
+#include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
 #include "clang/Analysis/FlowSensitive/StorageLocation.h"
@@ -142,6 +143,10 @@ public:
   ///
   ///  Each argument of `Call` must already have a `StorageLocation`.
   Environment pushCall(const CallExpr *Call) const;
+
+  /// Moves gathered information back into `this` from a `CalleeEnv` created via
+  /// `pushCall`.
+  void popCall(const Environment &CalleeEnv);
 
   /// Returns true if and only if the environment is equivalent to `Other`, i.e
   /// the two environments:
@@ -338,6 +343,12 @@ public:
   /// Returns true if and only if the clauses that constitute the flow condition
   /// imply that `Val` is true.
   bool flowConditionImplies(BoolValue &Val) const;
+
+  /// Returns the `ControlFlowContext` registered for `F`, if any. Otherwise,
+  /// returns null.
+  const ControlFlowContext *getControlFlowContext(const FunctionDecl *F) {
+    return DACtx->getControlFlowContext(F);
+  }
 
   LLVM_DUMP_METHOD void dump() const;
 

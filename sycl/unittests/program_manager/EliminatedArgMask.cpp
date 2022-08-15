@@ -24,8 +24,8 @@ constexpr const char EAMTestKernelName[] = "EAMTestKernel";
 constexpr const char EAMTestKernel2Name[] = "EAMTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs = 4;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<EAMTestKernel> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
@@ -54,8 +54,8 @@ template <> struct KernelInfo<EAMTestKernel2> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;
