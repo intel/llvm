@@ -1034,7 +1034,7 @@ are allowed. Below is a list of target architectures supported by DPC++:
 |   intel_gpu_9_3_0, intel_gpu_apl     | Apollo Lake   Intel graphics architecture |
 |   intel_gpu_9_2_9, intel_gpu_cfl     | Coffee Lake   Intel graphics architecture |
 |   intel_gpu_9_1_9, intel_gpu_kbl     | Kaby Lake     Intel graphics architecture |
-|   intel_gpu_9_0_9, intel_gpu_skl     | Sky Lake      Intel graphics architecture |
+|   intel_gpu_9_0_9, intel_gpu_skl     | Skylake       Intel graphics architecture |
 |   intel_gpu_8_0_0, intel_gpu_bdw     | Broadwell     Intel graphics architecture |
 
 TODO: Provide full list of AOT targets supported by the identification
