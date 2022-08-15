@@ -185,6 +185,11 @@ bool isESIMDFunctionInCallChain(const Function *F, const CallGraph &Deps) {
     if (isESIMDFunctionInCallChain(F1, Deps)) {
       return true;
     }
+    // Optimization to reduce recursion depth.
+    // No need to check function calls beyond kernel function.
+    if (isEntryPoint(*F1, true)) {
+      return false;
+    }
   }
   return false;
 }
