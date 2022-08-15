@@ -1,6 +1,10 @@
-buffer
 exceptions
 multi_ptr
 reduction
-vector_swizzles
 optional_kernel_features
+context
+queue
+device
+event
+kernel
+platform
