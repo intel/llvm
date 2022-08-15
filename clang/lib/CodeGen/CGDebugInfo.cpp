@@ -541,7 +541,8 @@ void CGDebugInfo::CreateCompileUnit() {
           SM.getFileEntryRefForID(SM.getMainFileID())) {
     MainFileDir = std::string(MainFile->getDir().getName());
     FileID MainFileID = SM.getMainFileID();
-    if (!llvm::sys::path::is_absolute(MainFileName)) {
+    if (!llvm::sys::path::is_absolute(MainFileName) &&
+        !CGM.getLangOpts().isSYCL()) {
       llvm::SmallString<1024> MainFileDirSS(MainFileDir);
       llvm::sys::path::append(MainFileDirSS, MainFileName);
       MainFileName =
@@ -630,6 +631,7 @@ void CGDebugInfo::CreateCompileUnit() {
   // file was specified with an absolute path.
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
+
   llvm::DIFile *CUFile = DBuilder.createFile(
       remapDIPath(MainFileName), remapDIPath(getCurrentDirname()), CSInfo,
       getSource(SM, SM.getMainFileID()));
