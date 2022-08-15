@@ -23,7 +23,6 @@ jobs:
     - name: Create Pull Request
       env:
         BRANCH: ci/update_gpu_driver-linux-${{ env.NEW_DRIVER_VERSION }}
-        LLVMBOT_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
       run: |
         cd $GITHUB_WORKSPACE
@@ -33,5 +32,5 @@ jobs:
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
-        git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
+        git push https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         gh pr create --head $BRANCH --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION"
