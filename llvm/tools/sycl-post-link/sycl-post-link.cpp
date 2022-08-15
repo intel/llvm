@@ -562,7 +562,7 @@ module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
   }
   module_split::ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
   Res.assignMergedProperties(MD1, MD2);
-  Res.Name = "linked[" + MD1.Name + "," + MD1.Name + "]";
+  Res.Name = "linked[" + MD1.Name + "," + MD2.Name + "]";
   return Res;
 }
 
@@ -789,9 +789,13 @@ processInputModule(std::unique_ptr<Module> M) {
         module_split::ModuleDesc M2 =
             link(std::move(MMs[0]), std::move(MMs[1]));
         M2.restoreLinkageOfDirectInvokeSimdTargets();
-        M2.cleanup();
+        string_vector Names;
+        M2.saveEntryPointNames(Names);
+        M2.cleanup(); // may remove some entry points, need to save/rebuild
+        M2.rebuildEntryPoints(Names);
         MMs.clear();
         MMs.emplace_back(std::move(M2));
+        DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
         Modified = true;
       }
       bool SplitOccurred = SplitByScope || SplitByDoubleGRF || SplitByESIMD;
