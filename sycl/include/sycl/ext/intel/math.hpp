@@ -10,7 +10,6 @@
 
 #pragma once
 
-#ifndef __NVPTX__
 extern "C" {
 float __imf_saturatef(float);
 float __imf_copysignf(float, float);
@@ -32,4 +31,3 @@ double copysign(double x, double y) { return __imf_copysign(x, y); }
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-#endif
