@@ -270,13 +270,6 @@ namespace oneapi {
   template <class T, std::size_t NumElements>
   marray<T, NumElements> get_imag(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input);
 
-  // return element of component
-  template <class T, std::size_t NumElements>
-  T get_real(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::size_t index);
-
-  template <class T, std::size_t NumElements>
-  T get_imag(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::size_t index);
-
   // return sequence of elements of component
   template <class T, std::size_t NumElements, std::size_t... I>
   marray<T, int_seq::size()> get_real(const marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::integer_sequence<std::size_t, I...> int_seq);
@@ -297,12 +290,6 @@ namespace oneapi {
 
   template <class T, std::size_t NumElements>
   void set_imag(marray<sycl::ext::oneapi::complex<T>, NumElements> &input, const T value);
-
-  template <class T, std::size_t NumElements>
-  void set_real(marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::size_t index, const T value);
-
-  template <class T, std::size_t NumElements>
-  void set_imag(marray<sycl::ext::oneapi::complex<T>, NumElements> &input, std::size_t index, const T value);
 
 } // namespace oneapi
 } // namespace ext
@@ -359,10 +346,6 @@ functions are removed and the underlying function defintion stays the same.
 |Returns an marray of the real components for marray of complex numbers.
 |`mgenfloat get_imag(const mgencomplex& x);`
 |Returns an marray of the imaginary components for marray of complex numbers.
-|`mgenfloat get_real(const mgencomplex& x, std::size_t idx);`
-|Returns the real component of the complex number for element idx in marray x.
-|`mgenfloat get_imag(const mgencomplex& x, std::size_t idx);`
-|Returns the imaginary component of the complex number for element idx in marray x.
 |`mgenfloat get_real(const mgencomplex& x, std::integer_sequence int_seq);`
 |Returns a sequence of real components of the complex number x. Each element should be constructed from the corresponding index within `int_seq` and the returned marray size should be the same as the `int_seq` size.
 |`mgenfloat get_imag(const mgencomplex& x, std::integer_sequence int_seq);`
@@ -375,10 +358,6 @@ functions are removed and the underlying function defintion stays the same.
 |Set each element of the real components in x to the decimal number y.
 |`void set_imag(mgencomplex& x, const genfloat& y);`
 |Set each element of the imaginary components in x to the decimal number y.
-|`void set_real(mgencomplex& x, std::size_t idx, const genfloat& y);`
-|Set the real value of element idx in x to the decimal number y.
-|`void set_imag(mgencomplex& x, std::size_t idx, const genfloat& y);`
-|Set the imaginary value of element idx in x to the decimal number y.
 |===
 
 === Mathematical operations
