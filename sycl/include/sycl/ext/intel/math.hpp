@@ -16,17 +16,18 @@ float __imf_copysignf(float, float);
 double __imf_copysign(double, double);
 };
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
+namespace math {
 float saturate(float x) { return __imf_saturatef(x); }
 
 float copysign(float x, float y) { return __imf_copysignf(x, y); }
 double copysign(double x, double y) { return __imf_copysign(x, y); }
 
+} // namespace math
 } // namespace intel
 } // namespace ext
-
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

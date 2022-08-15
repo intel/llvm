@@ -12,6 +12,9 @@
 #include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#ifndef __IGNORE_IMF_DEFINES__
+#include <sycl/ext/intel/math.hpp>
+#endif
 #include <sycl/types.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
