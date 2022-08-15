@@ -663,7 +663,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // If requested, use a custom linker script to handle very large device code
   // sections.
   if (Args.hasArg(options::OPT_fsycl) &&
-      Args.hasArg(options::OPT_fsycl_huge_device_code)) {
+      Args.hasFlag(options::OPT_fsycl_link_huge_device_code,
+                   options::OPT_fno_sycl_link_huge_device_code, false)) {
     // Create temporary linker script. Keep it if save-temps is enabled.
     const char *LKS;
     SmallString<256> Name = llvm::sys::path::filename(Output.getFilename());

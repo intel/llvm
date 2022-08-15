@@ -2867,6 +2867,12 @@ defm sycl_instrument_device_code
           BothFlags<[CC1Option, CoreOption], " Instrumentation and Tracing "
                     "Technology (ITT) instrumentation intrinsics calls "
                     "(experimental)">>;
+def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
+  Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Generate and use a custom"
+  " linker script for huge device code sections">;
+def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
+  Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Do not generate or use a"
+  " custom linker script for huge device code sections (default)">;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
@@ -2881,8 +2887,6 @@ def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
   Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>, Flags<[CoreOption]>,
   HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
-def fsycl_huge_device_code : Flag<["-"], "fsycl-huge-device-code">, Flags<[CoreOption]>,
-  HelpText<"Generate and use a custom linker script for huge device code sections">;
 def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Generate partially linked device and host object to be used at various stages of compilation">, Values<"image,early">;
 def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
