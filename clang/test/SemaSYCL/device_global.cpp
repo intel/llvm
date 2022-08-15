@@ -99,7 +99,7 @@ int main() {
   });
 
   cl::sycl::kernel_single_task<class KernelName2>([]() {
-    // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
+    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
     device_global<int> non_static;
 
     // expect no error on non_const_static declaration if decorated with
