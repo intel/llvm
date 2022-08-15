@@ -603,6 +603,9 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
   }
 }
 
+// Attribute to save current function linkage in before replacement.
+// See more comments in ModuleSplitter::fixupLinkageOfDirectInvokeSimdTargets
+// declaration.
 constexpr char SYCL_ORIG_LINKAGE_ATTR[] = "__sycl_orig_linkage";
 
 void ModuleDesc::fixupLinkageOfDirectInvokeSimdTargets() {
@@ -636,8 +639,8 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
-// TODO: try to move including all passes (cleanup, spec consts, compile time
-// properties) in one place and execute MPM.run() only once.
+// TODO: try to move all passes (cleanup, spec consts, compile time properties)
+// in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
