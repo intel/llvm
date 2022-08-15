@@ -40,6 +40,11 @@ This extension is written against the SYCL 2020 revision 5 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+The marray specialization builds on the `sycl::ext::oneapi::complex` class,
+therefore this extension is dependent on
+link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex].
+
+
 == Status
 
 This is a proposed extension specification, intended to gather community
@@ -90,9 +95,7 @@ The `marray` class is specialized for the `sycl::ext::oneapi::complex`
 class. The user interface of the `marray<sycl::ext::oneapi::complex, {N}>`
 class is similar to the SYCL-2020 generic `marray` interface. Some logical,
 bitwise, and arithmetic operators are deleted for the complex class as there is
-no equivalent. The marray specialization builds on the
-`sycl::ext::oneapi::complex` class, therfore this extension is dependent on
-link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex].
+no equivalent.
 
 The marray complex specialization is trivially copyable, and the type trait
 `is_device_copyable` should resolve to `std::true_type`.
