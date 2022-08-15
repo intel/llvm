@@ -9,8 +9,8 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -56,10 +56,8 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   device Dev = Queue->get_device();
   uint32_t NumThreads = Dev.get_info<info::device::max_compute_units>();
   // TODO: The heuristics here require additional tuning for various devices
-  // and vendors. For now this code assumes that execution units have about
-  // 8 working threads, which gives good results on some known/supported
-  // GPU devices.
-  if (Dev.is_gpu())
+  // and vendors. Also, it would be better to check vendor/generation/etc.
+  if (Dev.is_gpu() && Dev.get_info<info::device::host_unified_memory>())
     NumThreads *= 8;
   return NumThreads;
 }
@@ -130,5 +128,5 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 }
 } // namespace detail
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

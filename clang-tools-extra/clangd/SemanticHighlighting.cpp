@@ -925,7 +925,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingKind K) {
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingModifier K) {
   switch (K) {
   case HighlightingModifier::Declaration:
-    return OS << "decl"; // abbrevation for common case
+    return OS << "decl"; // abbreviation for common case
   default:
     return OS << toSemanticTokenModifier(K);
   }
@@ -943,7 +943,7 @@ bool operator<(const HighlightingToken &L, const HighlightingToken &R) {
 std::vector<SemanticToken>
 toSemanticTokens(llvm::ArrayRef<HighlightingToken> Tokens,
                  llvm::StringRef Code) {
-  assert(std::is_sorted(Tokens.begin(), Tokens.end()));
+  assert(llvm::is_sorted(Tokens));
   std::vector<SemanticToken> Result;
   // In case we split a HighlightingToken into multiple tokens (e.g. because it
   // was spanning multiple lines), this tracks the last one. This prevents

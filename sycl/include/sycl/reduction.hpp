@@ -15,8 +15,8 @@
 
 #include "sycl/ext/oneapi/reduction.hpp"
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
@@ -155,7 +155,7 @@ auto reduction(span<T, Extent> Span, const T &Identity,
 }
 #endif
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif // __cplusplus >= 201703L

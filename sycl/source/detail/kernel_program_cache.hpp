@@ -24,8 +24,8 @@
 // For testing purposes
 class MockKernelProgramCache;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
@@ -36,9 +36,7 @@ public:
     std::string Msg;
     pi_int32 Code;
 
-    bool isFilledIn() const {
-      return !Msg.empty();
-    }
+    bool isFilledIn() const { return !Msg.empty(); }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
@@ -64,7 +62,7 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -152,5 +150,5 @@ private:
   friend class ::MockKernelProgramCache;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

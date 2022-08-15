@@ -7,7 +7,7 @@
 int main() {
   __attribute__((opencl_global_device)) int *GLOBDEV = nullptr;
   __attribute__((opencl_global_host)) int *GLOBHOST = nullptr;
-  cl::sycl::kernel_single_task<class kernel_function>(
+  sycl::kernel_single_task<class kernel_function>(
       [=]() {
         __attribute__((opencl_global_device)) int *DevPtr = GLOBDEV;
         __attribute__((opencl_global_host)) int *HostPtr = GLOBHOST;

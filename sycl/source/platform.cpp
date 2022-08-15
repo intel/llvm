@@ -16,8 +16,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
@@ -90,5 +90,5 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
