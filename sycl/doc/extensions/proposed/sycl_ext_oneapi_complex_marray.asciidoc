@@ -40,7 +40,7 @@ This extension is written against the SYCL 2020 revision 5 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-The marray specialization builds on the `sycl::ext::oneapi::complex` class,
+The complex marray extension builds on the `sycl::ext::oneapi::complex` class,
 therefore this extension is dependent on
 link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex].
 
@@ -62,7 +62,7 @@ This extension is not currently implemented in {dpcpp}.
 == Overview
 
 {dpcpp} has support for `sycl::ext::oneapi::complex` this allows for the
-addition of new complex math features. This proposes the specialization of
+addition of new complex math features. This proposes the instantiation of
 `marray` to add support for complex numbers to be stored in arrays. The
 proposal includes overloading the existing math functions to support complex
 marrays and adding new free functions to simplify accessing, setting marray
@@ -91,156 +91,27 @@ supports.
 
 === Marray Complex Class Specialization
 
-The `marray` class is specialized for the `sycl::ext::oneapi::complex`
-class. The user interface of the `marray<sycl::ext::oneapi::complex, {N}>`
-class is similar to the SYCL-2020 generic `marray` interface. Some logical,
-bitwise, and arithmetic operators are deleted for the complex class as there is
-no equivalent.
+The `marray` class is extended for the `sycl::ext::oneapi::complex` class.
+The user interface of the `marray<sycl::ext::oneapi::complex, {N}>`
+class is not changed compared to the SYCL-2020 generic `marray` interface.
 
-The marray complex specialization is trivially copyable, and the type trait
-`is_device_copyable` should resolve to `std::true_type`.
+The `marray` complex instantiation is trivially copyable, and the type
+trait `is_device_copyable` should resolve to `std::true_type`.
 
-```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
+As the `marray` class is not specialized in this proposal. The `marray`
+definition used within this proposal assumes that any operator the `marray`
+class defines is only implemented if the marray's value type also
+implements the operator. So, for example, `marray<float, N>` does not
+implement the modulus operator as float does not support it. As the
+`marray` class is not changed in this proposal, it is not redefined below.
 
-    // Specialization of exiting `marray` class for `sycl::ext::oneapi::complex`
-    template <typename T, std::size_t NumElements>
-    class marray <sycl::ext::oneapi::complex<T>, NumElements> {
-        private:
-            using DataT = sycl::ext::oneapi::complex<T>;
-        public:
-            using value_type = DataT;
-            using reference = DataT&;
-            using const_reference = const DataT&;
-            using iterator = DataT*;
-            using const_iterator = const DataT*;
-
-            marray();
-
-            explicit constexpr marray(const DataT &arg);
-
-            template <typename... ArgTN>
-            constexpr marray(const ArgTN&... args);
-
-            constexpr marray(const marray<DataT, NumElements> &rhs);
-            constexpr marray(marray<DataT, NumElements> &&rhs);
-
-            // Available only when: NumElements == 1
-            operator DataT() const;
-
-            static constexpr std::size_t size() noexcept;
-
-            // subscript operator
-            reference operator[](std::size_t index);
-            const_reference operator[](std::size_t index) const;
-
-            marray &operator=(const marray<DataT, NumElements> &rhs);
-            marray &operator=(const DataT &rhs);
-
-            // iterator functions
-            iterator begin();
-            const_iterator begin() const;
-
-            iterator end();
-            const_iterator end() const;
-
-            // OP is: +, -, *, /
-            friend marray operatorOP(const marray &lhs, const marray &rhs) { /* ... */ }
-            friend marray operatorOP(const marray &lhs, const DataT &rhs) { /* ... */ }
-
-            // OP is: %
-            friend marray operatorOP(const marray &lhs, const DataT &rhs) = delete;
-         
-            // OP is: +=, -=, *=, /=
-            friend marray &operatorOP(marray &lhs, const marray &rhs) { /* ... */ }
-            friend marray &operatorOP(marray &lhs, const DataT &rhs) { /* ... */ }
-
-            // OP is: %=
-            friend marray &operatorOP(marray &lhs, const marray &rhs) = delete;
-            friend marray &operatorOP(marray &lhs, const DataT &rhs) = delete;
-         
-            // OP is prefix ++, --
-            friend marray &operatorOP(marray &rhs) = delete;
-         
-            // OP is postfix ++, --
-            friend marray operatorOP(marray& lhs, int) = delete;
-         
-            // OP is unary +, -
-            friend marray operatorOP(marray &rhs) = delete;
-         
-            // OP is: &, |, ^
-            friend marray operatorOP(const marray &lhs, const marray &rhs) = delete;
-            friend marray operatorOP(const marray &lhs, const DataT &rhs) = delete;
-         
-            // OP is: &=, |=, ^=
-            friend marray &operatorOP(marray &lhs, const marray &rhs) = delete;
-            friend marray &operatorOP(marray &lhs, const DataT &rhs) = delete;
-         
-            // OP is: &&, ||
-            friend marray<bool, NumElements> operatorOP(const marray &lhs, const marray &rhs) = delete;
-            friend marray<bool, NumElements> operatorOP(const marray& lhs, const DataT &rhs) = delete;
-         
-            // OP is: <<, >>
-            friend marray operatorOP(const marray &lhs, const marray &rhs) = delete;
-            friend marray operatorOP(const marray &lhs, const DataT &rhs) = delete;
-         
-            // OP is: <<=, >>=
-            friend marray &operatorOP(marray &lhs, const marray &rhs) = delete;
-            friend marray &operatorOP(marray &lhs, const DataT &rhs) = delete;
-         
-            // OP is: ==, !=
-            friend marray<bool, NumElements> operatorOP(const marray &lhs, const marray &rhs) {
-            /* ... */ }
-            friend marray<bool, NumElements> operatorOP(const marray &lhs, const DataT &rhs) {
-            /* ... */ }
-
-            // OP is: <, >, <=, >=
-            friend marray<bool, NumElements> operatorOP(const marray &lhs, const marray &rhs) = delete;
-            friend marray<bool, NumElements> operatorOP(const marray &lhs, const DataT &rhs) = delete;
-         
-            friend marray operator~(const marray &v) = delete;
-         
-            // OP is: +, -, *, /
-            friend marray operatorOP(const DataT &lhs, const marray &rhs) { /* ... */ }
-
-            // OP is: %
-            friend marray operatorOP(const DataT &lhs, const marray &rhs) = delete;
-         
-            // OP is: &, |, ^
-            friend marray operatorOP(const DataT &lhs, const marray &rhs) = delete;
-         
-            // OP is: &&, ||
-            friend marray<bool, NumElements> operatorOP(const DataT &lhs, const marray &rhs) = delete;
-         
-            // OP is: <<, >>
-            friend marray operatorOP(const DataT &lhs, const marray &rhs) = delete;
-         
-            // OP is: ==, !=
-            friend marray<bool, NumElements> operatorOP(const DataT &lhs, const marray &rhs) {
-            /* ... */ }
-
-            // OP is: <, >, <=, >=
-            friend marray<bool, NumElements> operatorOP(const DataT &lhs, const marray &rhs)  = delete;
-         
-            friend marray<bool, NumElements> operator!(const marray &v) = delete;
-    }
-
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-```
-
-The list of deleted operators are: %, %=, ++, --, +, -, &, |, ^, &=, |=, ^=,
-&&, ||, <<, >>, <<=, >>=, <, >, +<=+, >=, ~, !
-
-The `make_complex_marray` free function is added to construct complex marrays from real and
-imaginary components. Additionally, the free functions `get_real` and
-`get_imag` are added to access the real and imaginary components of the
-`marray` class without modifying the existing `marray` interface. The usage
-of free functions does cause a deviation from the `std::complex` interface.
-However, it does reduce this extensions impact on the `marray` interface.
+The `make_complex_marray` free function is added to construct complex
+marrays from real and imaginary components. Additionally, the free
+functions `get_real` and `get_imag` are added to access the real and
+imaginary components of the `marray` class without modifying the existing
+`marray` interface. The usage of free functions does cause a deviation
+from the `std::complex` interface. However, it does reduce this extensions
+impact on the `marray` interface.
 
 ```C++
 namespace sycl {
@@ -299,8 +170,8 @@ namespace oneapi {
 } // namespace sycl
 ```
 
-The class `sycl::ext::oneapi::marray<sycl::ext::oneapi::complex<T>, N>`, has specializations
-of `T`; `float`, `double`, and `sycl::half` defined.
+The class `sycl::ext::oneapi::marray<sycl::ext::oneapi::complex<T>, N>`,
+has instantiations of `T`; `float`, `double`, and `sycl::half` declared.
 
 ```C++
 namespace sycl {
@@ -327,8 +198,8 @@ The generic type `mgencomplex` is defined as types
 `marray<sycl::ext::oneapi::complex<sycl::half>, {N}>`.
 
 The table below shows the free functions operating on the `marray` complex
-specialized class. No table is provided for the `marray` class as only
-functions are removed and the underlying function defintion stays the same.
+class. No table is provided for the `marray` class as no changes to it are
+proposed.
 
 [%header,cols="5,5"]
 |===
