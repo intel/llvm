@@ -4,17 +4,20 @@
 // Test cases below check for valid usage of device_global and
 // global_variable_allowed attributes, and that they are being correctly
 // generated in the AST.
+
+// Test that there are no errors when variables of type device_global are
+// decorated with global_variable_allowed attribute appropriately.
 using namespace sycl::ext::oneapi;
 
-device_global<int> glob;                  // OK
-static device_global<float> static_glob;  // OK
-inline device_global<double> inline_glob; // OK
-static const device_global<int> static_const_glob;
+device_global_and_global_variable_allowed<int> glob;                  // OK
+static device_global_and_global_variable_allowed<float> static_glob;  // OK
+inline device_global_and_global_variable_allowed<double> inline_glob; // OK
+static const device_global_and_global_variable_allowed<int> static_const_glob;
 
 struct Foo {
-  static device_global<char> d; // OK
+  static device_global_and_global_variable_allowed<char> d; // OK
 };
-device_global<char> Foo::d;
+device_global_and_global_variable_allowed<char> Foo::d;
 
 struct Baz {
 private:
@@ -99,11 +102,16 @@ int main() {
   });
 
   cl::sycl::kernel_single_task<class KernelName2>([]() {
-    // expected-error@+1{{'device_global' variables must be static or declared at namespace scope}}
+    // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
     device_global<int> non_static;
 
-    // expect no error on non_const_static declaration if decorated with
-    // [[__sycl_detail__::global_variable_allowed]]
+    device_global_and_global_variable_allowed<int> non_static_ok;
+
+    // expected-note@#KernelSingleTaskKernelFuncCall{{called by 'kernel_single_task<KernelName2}}
+    // expected-error@+2{{'device_global' variable must be a static data member or declared in global or namespace scope}}
+    // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
     static device_global<int> non_const_static;
+
+    static device_global_and_global_variable_allowed<int> non_const_static_ok;
   });
 }
