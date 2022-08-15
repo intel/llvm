@@ -2227,6 +2227,7 @@ public:
   }
 };
 
+// TODO: Remove deprecated specialization once no longer needed
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
