@@ -263,6 +263,21 @@ variable should be passed via a dedicated argument (e.g. the value returned
 by `sub_group::get_local_id()[0]` could be passed as an integer to a
 `Callable` expecting a `sycl::ext::oneapi::experimental::simd<uint32_t, N>`).
 
+NOTE: Implementation must be able to calculate sub-group size based on the
+`invoke_simd` SIMD call target and actual SPMD arguments. The following
+algorithm should be employed:
+- If any of the arguments is non-uniform, then the specification requires that
+the corresponding formal SIMD argument must have `simd<T, N>` or
+`simd_mask<bool, N>` type. `N` is then the sub-group size. Implementation may
+iterate through supported sub-group sizes at compile time and use
+`std::is_invocable` to see if particular sub-group size fits. There must be
+exactly one fitting sub-group size (matching `N`) or the user program is not
+well-formed.
+- Otherwise, if the return type of the SIMD target function is `simd<T, N>` or
+`simd_mask<bool, N>`, then the sub-group size is `N`.
+- Otherwise (all arguments and the return type are uniform) the SIMD target is
+fully uniform and it can be invoked with any sub-group size.
+
 The `invoke_simd` function has the same requirements as other group functions
 (as defined in Section 4.17.3 of the SYCL 2020 specification). A call to
 `invoke_simd` must be encountered in converged control flow by all work-items
