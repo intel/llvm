@@ -463,10 +463,10 @@ __esimd_dpas_bits_precision(__ESIMD_ENS::argument_type precisionType) {
 
 template <__ESIMD_ENS::argument_type src1_precision,
           __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
-          int repeat_count, typename RT, typename T1, typename T2,
+          int repeat_count, typename RT, typename T0, typename T1, typename T2,
           __ESIMD_NS::uint SZ, __ESIMD_NS::uint N1, __ESIMD_NS::uint N2>
 inline __ESIMD_DNS::vector_type_t<RT, SZ>
-__esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<RT, SZ> *src0,
+__esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
                    const __ESIMD_DNS::vector_type_t<T1, N1> &src1,
                    const __ESIMD_DNS::vector_type_t<T2, N2> &src2) {
   __ESIMD_DNS::vector_type_t<RT, SZ> retv;
@@ -669,7 +669,7 @@ __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
              __ESIMD_DNS::vector_type_t<T1, N1> src1,
              __ESIMD_DNS::vector_type_t<T2, N2> src2) {
   return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
-                            repeat_count, T, T1, T2, N, N1, N2>(
+                            repeat_count, T, T0, T1, T2, N, N1, N2>(
       std::addressof(src0), src1, src2);
 }
 
@@ -681,7 +681,7 @@ inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
               __ESIMD_DNS::vector_type_t<T2, N2> src2) {
   return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
-                            repeat_count, T, T1, T2, N, N1, N2>(nullptr, src1,
+                            repeat_count, T, T, T1, T2, N, N1, N2>(nullptr, src1,
                                                                 src2);
 }
 
