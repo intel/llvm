@@ -23,10 +23,21 @@ on:
         type: string
         required: false
         default: ""
+      uniq:
+        description: Unique string to name dynamic runners in AWS
+        type: string
+        required: false
+        default: ${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       lts_matrix:
         description: "Generated Matrix"
         value: ${{ jobs.resolve_matrix.outputs.lts_matrix }}
+      cts_matrix:
+        description: "Generated SYCL CTS Matrix"
+        value: ${{ jobs.resolve_matrix.outputs.cts_matrix }}
+      lts_aws_matrix:
+        description: "Generated Matrix AWS subset"
+        value: ${{ jobs.resolve_matrix.outputs.lts_aws_matrix }}
 jobs:
   resolve_matrix:
     name: Resolve Test Matrix
@@ -34,6 +45,7 @@ jobs:
     outputs:
       lts_matrix: ${{ steps.work.outputs.lts_matrix }}
       cts_matrix: ${{ steps.work.outputs.cts_matrix }}
+      lts_aws_matrix: ${{ steps.work.outputs.lts_aws_matrix }}
     steps:
     - name: Download scripts and configs
       shell: bash

@@ -14,8 +14,8 @@
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace cuda {
@@ -107,5 +107,5 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -25,8 +25,8 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -281,10 +281,18 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  if (!MIsProfilingEnabled) {
+  std::weak_ptr<queue_impl> EmptyPtr;
+
+  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "get_profiling_info() can't be used without set "
-                          "'enable_profiling' queue property");
+                          "Profiling information is unavailable as the event "
+                          "has no associated queue.");
+  }
+  if (!MIsProfilingEnabled) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Profiling information is unavailable as the queue associated with "
+        "the event does not have the 'enable_profiling' property.");
   }
 }
 
@@ -445,5 +453,5 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

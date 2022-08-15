@@ -14,8 +14,8 @@
 #include <cstring>
 #include <string_view>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 std::vector<std::string_view> tokenize(const std::string &Filter,
@@ -171,5 +171,5 @@ bool device_filter_list::containsHost() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -38,8 +38,8 @@
 #include <functional>
 #include <optional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace unittest {
 
 namespace detail = sycl::detail;
@@ -205,5 +205,5 @@ private:
 };
 
 } // namespace unittest
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

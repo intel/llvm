@@ -22,8 +22,8 @@
 #include <set>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
@@ -723,8 +723,8 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::kernel_id> {

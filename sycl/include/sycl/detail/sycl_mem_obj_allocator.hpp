@@ -8,11 +8,11 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
+#include <sycl/detail/aligned_allocator.hpp>
 
-template <typename T> class aligned_allocator;
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
 
 template <typename DataT>
 using sycl_memory_object_allocator = aligned_allocator<DataT>;
@@ -87,5 +87,5 @@ private:
   std::size_t MValueSize;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

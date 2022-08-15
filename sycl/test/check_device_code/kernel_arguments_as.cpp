@@ -5,12 +5,12 @@
 //
 // Check the address space of the pointer in accessor class.
 //
-// CHECK: %struct.AccWrapper = type { %"class.cl::sycl::accessor[[NUMBER_SUFFIX:\.?[0-9]*]]" }
-// CHECK: %"class.cl::sycl::accessor[[NUMBER_SUFFIX]]" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
+// CHECK: %struct.AccWrapper = type { %"class.sycl::_V1::accessor[[NUMBER_SUFFIX:\.?[0-9]*]]" }
+// CHECK: %"class.sycl::_V1::accessor[[NUMBER_SUFFIX]]" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
 // CHECK-DISABLE: %[[UNION]] = type { ptr addrspace(1) }
 // CHECK-ENABLE: %[[UNION]] = type { ptr addrspace(5) }
-// CHECK: %struct.AccWrapper.{{[0-9]+}} = type { %"class.cl::sycl::accessor.[[NUM:[0-9]+]]" }
-// CHECK-NEXT: %"class.cl::sycl::accessor.[[NUM]]" = type { %"class{{.*}}LocalAccessorBaseDevice", ptr addrspace(3) }
+// CHECK: %struct.AccWrapper.{{[0-9]+}} = type { %"class.sycl::_V1::accessor.[[NUM:[0-9]+]]" }
+// CHECK-NEXT: %"class.sycl::_V1::accessor.[[NUM]]" = type { %"class{{.*}}LocalAccessorBaseDevice", ptr addrspace(3) }
 //
 // Check that kernel arguments doesn't have generic address space.
 //

@@ -8,10 +8,10 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class bundle_state : char { input = 0, object = 1, executable = 2 };
 
 }
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace sycl

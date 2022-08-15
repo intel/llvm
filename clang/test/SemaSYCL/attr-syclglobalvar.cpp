@@ -56,7 +56,7 @@ __attribute__((sycl_global_var)) void HppF(
   // expected-error@+1 {{attribute only applies to global variables}}
   __attribute__((sycl_global_var)) int Local;
 
-  cl::sycl::kernel_single_task<class kernel_name>([=] () {
+  sycl::kernel_single_task<class kernel_name>([=] () {
     (void)HppGlobalWithAttribute; // ok
     (void)HppExternGlobalWithAttribute; // ok
     (void)NS::HppNSGlobalWithAttribute; // ok
@@ -127,7 +127,7 @@ __attribute__((sycl_global_var)) void F(
   // expected-error@+1 {{'sycl_global_var' attribute only applies to global variables}}
   __attribute__((sycl_global_var)) int Local;
 
-  cl::sycl::kernel_single_task<class kernel_name>([=] () {
+  sycl::kernel_single_task<class kernel_name>([=] () {
     (void)HppGlobalWithAttribute; // ok
     (void)CppGlobalWithAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}}
     (void)HppExternGlobalWithAttribute; // ok
