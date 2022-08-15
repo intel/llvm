@@ -23,7 +23,7 @@ int main() {
     sycl::range<1> BufSize{1};
     sycl::buffer<int, 1> Buf(BufSize);
 
-    TestQueue Queue(sycl::default_selector_v);
+    TestQueue Queue(sycl::default_selector{});
 
     Queue.submit([&](sycl::handler &CGH) {
       auto BufAcc = Buf.get_access<sycl_access_mode::read_write>(CGH);
