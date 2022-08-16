@@ -267,11 +267,11 @@ namespace oneapi {
     mgenfloat norm(const mgencomplex& x);
 
     mgencomplex polar(const mgenfloat& rho, const mgenfloat& theta);
-    mgencomplex polar(const mgenfloat& rho, const genfloat& theta = 0);
-    mgencomplex polar(const genfloat& rho, const mgenfloat& theta);
+    mgencomplex polar(const mgenfloat& rho, genfloat theta = 0);
+    mgencomplex polar(genfloat rho, const mgenfloat& theta);
 
     mgencomplex pow(const mgencomplex& x, const mgenfloat& y);
-    mgencomplex pow(const mgencomplex& x, const genfloat& y);
+    mgencomplex pow(const mgencomplex& x, genfloat y);
     mgencomplex pow(const gencomplex& x, const mgenfloat& y);
 
     mgencomplex pow(const mgencomplex& x, const mgencomplex& y);
@@ -280,7 +280,7 @@ namespace oneapi {
 
     mgencomplex pow(const mgenfloat& x, const mgencomplex& y);
     mgencomplex pow(const mgenfloat& x, const gencomplex& y);
-    mgencomplex pow(const genfloat& x, const mgencomplex& y);
+    mgencomplex pow(genfloat x, const mgencomplex& y);
 
     mgencomplex proj(const mgencomplex& x);
     mgencomplex proj(const mgenfloat& x);
@@ -340,13 +340,13 @@ mathematical operation.
 |Compute the squared magnitude for each complex number in marray x.
 |`mgencomplex polar(const mgenfloat& rho, const mgenfloat& theta)`
 |Construct an marray, elementwise, of complex numbers from each polar coordinate in marray rho and marray theta.
-|`mgencomplex polar(const mgenfloat& rho, const genfloat& theta = 0)`
+|`mgencomplex polar(const mgenfloat& rho, genfloat theta = 0)`
 |Construct an marray, elementwise, of complex numbers from each polar coordinate in marray rho and scalar theta.
-|`mgencomplex polar(const genfloat& rho, const mgenfloat& theta)`
+|`mgencomplex polar(genfloat rho, const mgenfloat& theta)`
 |Construct an marray, elementwise, of complex numbers from each polar coordinate in scalar rho and marray theta.
 |`mgencomplex pow(const mgencomplex& x, const mgenfloat& y)`
 |Raise each complex element in x to the power of the corresponding decimal element in y.
-|`mgencomplex pow(const mgencomplex& x, const genfloat& y)`
+|`mgencomplex pow(const mgencomplex& x, genfloat y)`
 |Raise each complex element in x to the power of the decimal number y.
 |`mgencomplex pow(const gencomplex& x, const mgenfloat& y)`
 |Raise complex number x to the power of each decimal element in y.
@@ -360,7 +360,7 @@ mathematical operation.
 |Raise each decimal element in x to the power of the corresponding complex element in y.
 |`mgencomplex pow(const mgenfloat& x, const gencomplex& y)`
 |Raise each decimal element in x to the power of the complex number y.
-|`mgencomplex pow(const genfloat& x, const mgencomplex& y)`
+|`mgencomplex pow(genfloat x, const mgencomplex& y)`
 |Raise decimal number x to the power of each complex element in y.
 |`mgencomplex proj(const mgencomplex& x)`
 |Compute the projection for each complex number in marray x.
