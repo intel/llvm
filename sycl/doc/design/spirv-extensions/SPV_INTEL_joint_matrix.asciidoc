@@ -151,6 +151,10 @@ Suitable for VNNI instructions | *{capability_name}*
 Suitable for VNNI instructions | *{capability_name}*
 |====
 
+=== Matrix Use
+
+Add section 3.XX, Matrix Use.
+
 [options="header"]
 |====
 2+^| Use ^| Enabling capability
@@ -180,7 +184,7 @@ See also extension: *{extension_name}*
 
 [cols="1,1,7*3",width="100%"]
 |=====
-8+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
+7+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
  +
 Declare a matrix type. +
  +
@@ -203,12 +207,12 @@ result of a constant instruction with scalar 'integer type'. +
  +
 'Use' is an optional parameter that shows where in a math operation the matrix
 is used. It must be the result of a constant instruction with scalar
-'integer type'. +
+'integer type' in a range specified in 3.XX, Matrix Use table. +
 
 
 1+|Capability: +
 *{capability_name}*
-1+| 8 | {OpTypeJointMatrixINTEL_token}
+1+| 7+ | {OpTypeJointMatrixINTEL_token}
 | 'Result <id>'
 | '<id>' +
 'Component Type'
