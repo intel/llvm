@@ -8,7 +8,7 @@
 #include "sycl.hpp"
 class kernelA;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   queue q;
