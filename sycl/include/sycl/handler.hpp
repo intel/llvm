@@ -303,6 +303,9 @@ reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem);
+
 template <typename... ReductionT, size_t... Is>
 size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
                              std::index_sequence<Is...>);
@@ -1618,13 +1621,13 @@ public:
 #else
         ext::oneapi::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
 #endif
-    // TODO: currently the maximal work group size is determined for the given
+    // TODO: currently the preferred work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    size_t PrefWGSize =
+        ext::oneapi::detail::reduGetPreferredWGSize(MQueue, OneElemSize);
     if (ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-            *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups,
+            *this, KernelFunc, Range, PrefWGSize, NumConcurrentWorkGroups,
             Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
