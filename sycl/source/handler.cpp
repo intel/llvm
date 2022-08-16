@@ -8,14 +8,6 @@
 
 #include <algorithm>
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stream.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
@@ -24,9 +16,17 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/event.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stream.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, Queue, nullptr, IsHost) {}
@@ -245,12 +245,12 @@ event handler::finalize() {
 
     auto EnqueueKernel = [&]() {
       // 'Result' for single point of return
-      cl_int Result = CL_INVALID_VALUE;
+      pi_int32 Result = PI_ERROR_INVALID_VALUE;
 
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
-        Result = CL_SUCCESS;
+        Result = PI_SUCCESS;
       } else {
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
@@ -258,14 +258,13 @@ event handler::finalize() {
               nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
               MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
               &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
-          Result = CL_SUCCESS;
+          Result = PI_SUCCESS;
         } else {
           Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                     MKernel, MKernelName, MOSModuleHandle,
                                     RawEvents, OutEvent, nullptr);
         }
       }
-      // assert(Result != CL_INVALID_VALUE);
       return Result;
     };
 
@@ -280,15 +279,18 @@ event handler::finalize() {
     }
 
     if (DiscardEvent) {
-      if (CL_SUCCESS != EnqueueKernel())
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      if (PI_SUCCESS != EnqueueKernel())
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
     } else {
       NewEvent = std::make_shared<detail::event_impl>(MQueue);
       NewEvent->setContextImpl(MQueue->getContextImplPtr());
+      NewEvent->setStateIncomplete();
       OutEvent = &NewEvent->getHandleRef();
 
-      if (CL_SUCCESS != EnqueueKernel())
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      if (PI_SUCCESS != EnqueueKernel())
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
       else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
         NewEvent->setComplete();
 
@@ -385,8 +387,7 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
-    detail::EventImplPtr Event =
-        std::make_shared<cl::sycl::detail::event_impl>();
+    detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
   }
@@ -394,7 +395,7 @@ event handler::finalize() {
   if (!CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
@@ -455,14 +456,6 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
     Args.emplace_back(kernel_param_kind_t::kind_std_layout,
                       &AccImpl->MOffset[0], SizeAccField, Index + IndexShift);
   }
-}
-
-// TODO remove this one once ABI breaking changes are allowed.
-void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource) {
-  processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
-             false);
 }
 
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
@@ -543,6 +536,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       int SizeInBytes = LAcc->MElemSize;
       for (int I = 0; I < Dims; ++I)
         SizeInBytes *= Size[I];
+      // Some backends do not accept zero-sized local memory arguments, so we
+      // make it a minimum allocation of 1 byte.
+      SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
@@ -571,8 +567,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw cl::sycl::invalid_parameter_error(
-          "Unsupported accessor target case.", PI_INVALID_OPERATION);
+      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
+                                          PI_ERROR_INVALID_OPERATION);
       break;
     }
     }
@@ -590,7 +586,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+    throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
     break;
   }
 }
@@ -628,13 +624,6 @@ void handler::extractArgsAndReqs() {
     processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
                false);
   }
-}
-
-// TODO remove once ABI breaking changes are allowed
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs) {
-  extractArgsAndReqsFromLambda(LambdaPtr, KernelArgsNum, KernelArgs, false);
 }
 
 void handler::extractArgsAndReqsFromLambda(
@@ -814,5 +803,5 @@ void handler::depends_on(const std::vector<event> &Events) {
   }
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

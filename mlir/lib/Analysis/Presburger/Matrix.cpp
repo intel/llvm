@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/Presburger/Matrix.h"
+#include "mlir/Analysis/Presburger/Utils.h"
 #include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
@@ -27,32 +28,6 @@ Matrix Matrix::identity(unsigned dimension) {
   return matrix;
 }
 
-int64_t &Matrix::at(unsigned row, unsigned column) {
-  assert(row < nRows && "Row outside of range");
-  assert(column < nColumns && "Column outside of range");
-  return data[row * nReservedColumns + column];
-}
-
-int64_t Matrix::at(unsigned row, unsigned column) const {
-  assert(row < nRows && "Row outside of range");
-  assert(column < nColumns && "Column outside of range");
-  return data[row * nReservedColumns + column];
-}
-
-int64_t &Matrix::operator()(unsigned row, unsigned column) {
-  return at(row, column);
-}
-
-int64_t Matrix::operator()(unsigned row, unsigned column) const {
-  return at(row, column);
-}
-
-unsigned Matrix::getNumRows() const { return nRows; }
-
-unsigned Matrix::getNumColumns() const { return nColumns; }
-
-unsigned Matrix::getNumReservedColumns() const { return nReservedColumns; }
-
 unsigned Matrix::getNumReservedRows() const {
   return data.capacity() / nReservedColumns;
 }
@@ -64,6 +39,14 @@ void Matrix::reserveRows(unsigned rows) {
 unsigned Matrix::appendExtraRow() {
   resizeVertically(nRows + 1);
   return nRows - 1;
+}
+
+unsigned Matrix::appendExtraRow(ArrayRef<int64_t> elems) {
+  assert(elems.size() == nColumns && "elems must match row length!");
+  unsigned row = appendExtraRow();
+  for (unsigned col = 0; col < nColumns; ++col)
+    at(row, col) = elems[col];
+  return row;
 }
 
 void Matrix::resizeHorizontally(unsigned newNColumns) {
@@ -107,6 +90,13 @@ MutableArrayRef<int64_t> Matrix::getRow(unsigned row) {
 
 ArrayRef<int64_t> Matrix::getRow(unsigned row) const {
   return {&data[row * nReservedColumns], nColumns};
+}
+
+void Matrix::setRow(unsigned row, ArrayRef<int64_t> elems) {
+  assert(elems.size() == getNumColumns() &&
+         "elems size must match row length!");
+  for (unsigned i = 0, e = getNumColumns(); i < e; ++i)
+    at(row, i) = elems[i];
 }
 
 void Matrix::insertColumn(unsigned pos) { insertColumns(pos, 1); }
@@ -226,22 +216,11 @@ void Matrix::negateRow(unsigned row) {
     at(row, column) = -at(row, column);
 }
 
-uint64_t Matrix::normalizeRow(unsigned row, unsigned cols) {
-  if (cols == 0)
-    return 0;
-
-  int64_t gcd = std::abs(at(row, 0));
-  for (unsigned j = 1, e = cols; j < e; ++j)
-    gcd = llvm::GreatestCommonDivisor64(gcd, std::abs(at(row, j)));
-
-  if (gcd > 1)
-    for (unsigned j = 0, e = cols; j < e; ++j)
-      at(row, j) /= gcd;
-
-  return gcd;
+int64_t Matrix::normalizeRow(unsigned row, unsigned cols) {
+  return normalizeRange(getRow(row).slice(0, cols));
 }
 
-uint64_t Matrix::normalizeRow(unsigned row) {
+int64_t Matrix::normalizeRow(unsigned row) {
   return normalizeRow(row, getNumColumns());
 }
 

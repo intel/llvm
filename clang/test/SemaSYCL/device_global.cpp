@@ -93,7 +93,7 @@ TS<int> AAAA;
 union [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] a_union;
 
 int main() {
-  cl::sycl::kernel_single_task<class KernelName1>([=]() {
+  sycl::kernel_single_task<class KernelName1>([=]() {
     (void)glob;
     (void)static_glob;
     (void)inline_glob;

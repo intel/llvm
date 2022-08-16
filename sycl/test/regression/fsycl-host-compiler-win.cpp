@@ -12,13 +12,13 @@
 //
 // Uses -fsycl-host-compiler=<compiler> on a simple test, requires 'cl'
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #ifndef DEFINE_CHECK
 #error predefined macro not set
 #endif // DEFINE_CHECK
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int data[] = {0, 0, 0};

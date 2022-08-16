@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
-// RUN:    -emit-llvm %s -o - | FileCheck %s
+// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR -S \
-// RUN:    -emit-llvm %s -o - | FileCheck %s
+// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // Tests the optional filter parameter of
 // __sycl_detail__::add_ir_annotations_member attributes.
@@ -51,9 +51,9 @@ int main() {
 // CHECK-DAG: @[[Prop1Value:.*]] = private unnamed_addr constant [16 x i8] c"Property string\00", section "llvm.metadata"
 // CHECK-DAG: @[[Prop2_7Value:.*]] = private unnamed_addr constant [2 x i8] c"1\00", section "llvm.metadata"
 
-// CHECK-DAG: @[[GArgs:.*]] = private unnamed_addr constant { [6 x i8]*, [16 x i8]*, [6 x i8]*, i8*, [6 x i8]*, [2 x i8]* } { [6 x i8]* @[[Prop1Name]], [16 x i8]* @[[Prop1Value]], [6 x i8]* @[[Prop5Name]], i8* null, [6 x i8]* @[[Prop7Name]], [2 x i8]* @[[Prop2_7Value]] }, section "llvm.metadata"
+// CHECK-DAG: @[[GArgs:.*]] = private unnamed_addr constant { ptr, ptr, ptr, ptr, ptr, ptr } {  ptr @[[Prop1Name]], ptr @[[Prop1Value]], ptr @[[Prop5Name]], ptr null, ptr @[[Prop7Name]], ptr @[[Prop2_7Value]] }, section "llvm.metadata"
 
-// CHECK-DAG: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 {{.*}}, i8* getelementptr inbounds ([16 x i8], [16 x i8]* @[[AnnotName]], i32 0, i32 0), i8* getelementptr inbounds {{.*}}, i32 {{.*}}, i8* bitcast ({ [6 x i8]*, [16 x i8]*, [6 x i8]*, i8*, [6 x i8]*, [2 x i8]* }* @[[GArgs]] to i8*))
+// CHECK-DAG: %{{.*}} = call ptr addrspace(4) @llvm.ptr.annotation.p4(ptr {{.*}}, ptr @[[AnnotName]], {{.*}}, i32 {{.*}}, ptr @[[GArgs]])
 
 // CHECK-NOT: @[[Prop2Name:.*]] = private unnamed_addr constant [6 x i8] c"Prop2\00", section "llvm.metadata"
 // CHECK-NOT: @[[Prop3Name:.*]] = private unnamed_addr constant [6 x i8] c"Prop3\00", section "llvm.metadata"

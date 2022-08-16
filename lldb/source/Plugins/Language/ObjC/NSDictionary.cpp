@@ -137,7 +137,7 @@ private:
   lldb::ByteOrder m_order = lldb::eByteOrderInvalid;
   DataDescriptor_32 *m_data_32 = nullptr;
   DataDescriptor_64 *m_data_64 = nullptr;
-  lldb::addr_t m_data_ptr;
+  lldb::addr_t m_data_ptr = LLDB_INVALID_ADDRESS;
   CompilerType m_pair_type;
   std::vector<DictionaryItemDescriptor> m_children;
 };
@@ -713,7 +713,7 @@ lldb_private::formatters::NSDictionaryISyntheticFrontEnd::GetChildAtIndex(
     if (!m_pair_type.IsValid())
       return ValueObjectSP();
 
-    DataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
 
     if (m_ptr_size == 8) {
       uint64_t *data_ptr = (uint64_t *)buffer_sp->GetBytes();
@@ -840,7 +840,7 @@ lldb_private::formatters::NSCFDictionarySyntheticFrontEnd::GetChildAtIndex(
     if (!m_pair_type.IsValid())
       return ValueObjectSP();
 
-    DataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
 
     switch (m_ptr_size) {
     case 0: // architecture has no clue - fail
@@ -961,7 +961,7 @@ lldb::ValueObjectSP lldb_private::formatters::
     if (!m_pair_type.IsValid())
       return ValueObjectSP();
 
-    DataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
 
     if (m_ptr_size == 8) {
       uint64_t *data_ptr = (uint64_t *)buffer_sp->GetBytes();
@@ -1038,7 +1038,7 @@ lldb_private::formatters::NSDictionary1SyntheticFrontEnd::GetChildAtIndex(
   auto pair_type =
       GetLLDBNSPairType(process_sp->GetTarget().shared_from_this());
 
-  DataBufferSP buffer_sp(new DataBufferHeap(2 * ptr_size, 0));
+  WritableDataBufferSP buffer_sp(new DataBufferHeap(2 * ptr_size, 0));
 
   if (ptr_size == 8) {
     uint64_t *data_ptr = (uint64_t *)buffer_sp->GetBytes();
@@ -1121,9 +1121,8 @@ lldb_private::formatters::GenericNSDictionaryMSyntheticFrontEnd<D32,D64>::
     process_sp->ReadMemory(data_location, m_data_64, sizeof(D64),
                            error);
   }
-  if (error.Fail())
-    return false;
-  return true;
+
+  return error.Success();
 }
 
 template <typename D32, typename D64>
@@ -1203,7 +1202,7 @@ lldb_private::formatters::GenericNSDictionaryMSyntheticFrontEnd<
     if (!m_pair_type.IsValid())
       return ValueObjectSP();
 
-    DataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
 
     if (m_ptr_size == 8) {
       uint64_t *data_ptr = (uint64_t *)buffer_sp->GetBytes();
@@ -1284,9 +1283,8 @@ lldb_private::formatters::Foundation1100::
     process_sp->ReadMemory(data_location, m_data_64, sizeof(DataDescriptor_64),
                            error);
   }
-  if (error.Fail())
-    return false;
-  return false;
+
+  return error.Success();
 }
 
 bool
@@ -1357,7 +1355,7 @@ lldb_private::formatters::Foundation1100::
     if (!m_pair_type.IsValid())
       return ValueObjectSP();
 
-    DataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(2 * m_ptr_size, 0));
 
     if (m_ptr_size == 8) {
       uint64_t *data_ptr = (uint64_t *)buffer_sp->GetBytes();

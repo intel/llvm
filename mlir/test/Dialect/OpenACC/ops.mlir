@@ -4,7 +4,7 @@
 // Verify the generic form can be parsed.
 // RUN: mlir-opt -split-input-file -mlir-print-op-generic %s | mlir-opt -split-input-file | FileCheck %s
 
-func @compute1(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf32>) -> memref<10x10xf32> {
+func.func @compute1(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf32>) -> memref<10x10xf32> {
   %c0 = arith.constant 0 : index
   %c10 = arith.constant 10 : index
   %c1 = arith.constant 1 : index
@@ -60,7 +60,7 @@ func @compute1(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf3
 
 // -----
 
-func @compute2(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf32>) -> memref<10x10xf32> {
+func.func @compute2(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf32>) -> memref<10x10xf32> {
   %c0 = arith.constant 0 : index
   %c10 = arith.constant 10 : index
   %c1 = arith.constant 1 : index
@@ -114,7 +114,7 @@ func @compute2(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf3
 
 // -----
 
-func @compute3(%a: memref<10x10xf32>, %b: memref<10x10xf32>, %c: memref<10xf32>, %d: memref<10xf32>) -> memref<10xf32> {
+func.func @compute3(%a: memref<10x10xf32>, %b: memref<10x10xf32>, %c: memref<10xf32>, %d: memref<10xf32>) -> memref<10xf32> {
   %lb = arith.constant 0 : index
   %st = arith.constant 1 : index
   %c10 = arith.constant 10 : index
@@ -197,7 +197,7 @@ func @compute3(%a: memref<10x10xf32>, %b: memref<10x10xf32>, %c: memref<10xf32>,
 
 // -----
 
-func @testloopop() -> () {
+func.func @testloopop() -> () {
   %i64Value = arith.constant 1 : i64
   %i32Value = arith.constant 128 : i32
   %idxValue = arith.constant 8 : index
@@ -323,7 +323,7 @@ func @testloopop() -> () {
 
 // -----
 
-func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
+func.func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
   %i64value = arith.constant 1 : i64
   %i32value = arith.constant 1 : i32
   %idxValue = arith.constant 1 : index
@@ -376,9 +376,9 @@ func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf3
   acc.parallel private(%a: memref<10xf32>, %c: memref<10x10xf32>) firstprivate(%b: memref<10xf32>) {
   }
   acc.parallel {
-  } attributes {defaultAttr = #acc<"defaultvalue none">}
+  } attributes {defaultAttr = #acc<defaultvalue none>}
   acc.parallel {
-  } attributes {defaultAttr = #acc<"defaultvalue present">}
+  } attributes {defaultAttr = #acc<defaultvalue present>}
   acc.parallel {
   } attributes {asyncAttr}
   acc.parallel {
@@ -441,9 +441,9 @@ func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf3
 // CHECK:      acc.parallel private([[ARGA]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) firstprivate([[ARGB]]: memref<10xf32>) {
 // CHECK-NEXT: }
 // CHECK:      acc.parallel {
-// CHECK-NEXT: } attributes {defaultAttr = #acc<"defaultvalue none">}
+// CHECK-NEXT: } attributes {defaultAttr = #acc<defaultvalue none>}
 // CHECK:      acc.parallel {
-// CHECK-NEXT: } attributes {defaultAttr = #acc<"defaultvalue present">}
+// CHECK-NEXT: } attributes {defaultAttr = #acc<defaultvalue present>}
 // CHECK:      acc.parallel {
 // CHECK-NEXT: } attributes {asyncAttr}
 // CHECK:      acc.parallel {
@@ -453,7 +453,7 @@ func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf3
 
 // -----
 
-func @testdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
+func.func @testdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
   %ifCond = arith.constant true
   acc.data if(%ifCond) present(%a : memref<10xf32>) {
   }
@@ -482,11 +482,11 @@ func @testdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) 
   acc.data copyin(%b: memref<10xf32>) copyout(%c: memref<10x10xf32>) present(%a: memref<10xf32>) {
   }
   acc.data present(%a : memref<10xf32>) {
-  } attributes { defaultAttr = #acc<"defaultvalue none"> }
+  } attributes { defaultAttr = #acc<defaultvalue none> }
   acc.data present(%a : memref<10xf32>) {
-  } attributes { defaultAttr = #acc<"defaultvalue present"> }
+  } attributes { defaultAttr = #acc<defaultvalue present> }
   acc.data {
-  } attributes { defaultAttr = #acc<"defaultvalue none"> }
+  } attributes { defaultAttr = #acc<defaultvalue none> }
   return
 }
 
@@ -519,15 +519,15 @@ func @testdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) 
 // CHECK:      acc.data copyin([[ARGB]] : memref<10xf32>) copyout([[ARGC]] : memref<10x10xf32>) present([[ARGA]] : memref<10xf32>) {
 // CHECK-NEXT: }
 // CHECK:      acc.data present([[ARGA]] : memref<10xf32>) {
-// CHECK-NEXT: } attributes {defaultAttr = #acc<"defaultvalue none">}
+// CHECK-NEXT: } attributes {defaultAttr = #acc<defaultvalue none>}
 // CHECK:      acc.data present([[ARGA]] : memref<10xf32>) {
-// CHECK-NEXT: } attributes {defaultAttr = #acc<"defaultvalue present">}
+// CHECK-NEXT: } attributes {defaultAttr = #acc<defaultvalue present>}
 // CHECK:      acc.data {
-// CHECK-NEXT: } attributes {defaultAttr = #acc<"defaultvalue none">}
+// CHECK-NEXT: } attributes {defaultAttr = #acc<defaultvalue none>}
 
 // -----
 
-func @testupdateop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
+func.func @testupdateop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
   %i64Value = arith.constant 1 : i64
   %i32Value = arith.constant 1 : i32
   %idxValue = arith.constant 1 : index
@@ -657,7 +657,7 @@ acc.shutdown if(%ifCond)
 
 // -----
 
-func @testexitdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
+func.func @testexitdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
   %ifCond = arith.constant true
   %i64Value = arith.constant 1 : i64
   %i32Value = arith.constant 1 : i32
@@ -693,7 +693,7 @@ func @testexitdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf3
 // -----
 
 
-func @testenterdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
+func.func @testenterdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
   %ifCond = arith.constant true
   %i64Value = arith.constant 1 : i64
   %i32Value = arith.constant 1 : i32

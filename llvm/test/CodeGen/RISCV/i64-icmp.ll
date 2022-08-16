@@ -51,8 +51,7 @@ define i64 @icmp_eq_constant_2048(i64 %a) nounwind {
 define i64 @icmp_eq_constant_neg_2048(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_eq_constant_neg_2048:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a1, -2048
-; RV64I-NEXT:    xor a0, a0, a1
+; RV64I-NEXT:    xori a0, a0, -2048
 ; RV64I-NEXT:    seqz a0, a0
 ; RV64I-NEXT:    ret
   %1 = icmp eq i64 %a, -2048
@@ -130,8 +129,7 @@ define i64 @icmp_ne_constant_2048(i64 %a) nounwind {
 define i64 @icmp_ne_constant_neg_2048(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ne_constant_neg_2048:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a1, -2048
-; RV64I-NEXT:    xor a0, a0, a1
+; RV64I-NEXT:    xori a0, a0, -2048
 ; RV64I-NEXT:    snez a0, a0
 ; RV64I-NEXT:    ret
   %1 = icmp ne i64 %a, -2048
@@ -205,13 +203,11 @@ define i64 @icmp_ugt_constant_2046(i64 %a) nounwind {
 define i64 @icmp_ugt_constant_neg_2049(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ugt_constant_neg_2049:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    lui a1, 1046527
-; RV64I-NEXT:    slli a1, a1, 20
-; RV64I-NEXT:    srli a1, a1, 32
-; RV64I-NEXT:    sltu a0, a1, a0
+; RV64I-NEXT:    sltiu a0, a0, -2048
+; RV64I-NEXT:    xori a0, a0, 1
 ; RV64I-NEXT:    ret
-; 4294965247 signed extend is -2049
-  %1 = icmp ugt i64 %a, 4294965247
+; 18446744073709549567 signed extend is -2049
+  %1 = icmp ugt i64 %a, 18446744073709549567
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -219,13 +215,12 @@ define i64 @icmp_ugt_constant_neg_2049(i64 %a) nounwind {
 define i64 @icmp_ugt_constant_neg_2050(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ugt_constant_neg_2050:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a1, -1025
-; RV64I-NEXT:    slli a1, a1, 33
-; RV64I-NEXT:    srli a1, a1, 32
+; RV64I-NEXT:    lui a1, 1048575
+; RV64I-NEXT:    addiw a1, a1, 2046
 ; RV64I-NEXT:    sltu a0, a1, a0
 ; RV64I-NEXT:    ret
-; 4294965246 signed extend is -2050
-  %1 = icmp ugt i64 %a, 4294965246
+; 18446744073709549566 signed extend is -2050
+  %1 = icmp ugt i64 %a, 18446744073709549566
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -276,13 +271,11 @@ define i64 @icmp_uge_constant_2048(i64 %a) nounwind {
 define i64 @icmp_uge_constant_neg_2048(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_uge_constant_neg_2048:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    lui a1, 1046527
-; RV64I-NEXT:    slli a1, a1, 20
-; RV64I-NEXT:    srli a1, a1, 32
-; RV64I-NEXT:    sltu a0, a1, a0
+; RV64I-NEXT:    sltiu a0, a0, -2048
+; RV64I-NEXT:    xori a0, a0, 1
 ; RV64I-NEXT:    ret
-; 4294965248 signed extend is -2048
-  %1 = icmp uge i64 %a, 4294965248
+; 18446744073709549568 signed extend is -2048
+  %1 = icmp uge i64 %a, 18446744073709549568
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -290,13 +283,12 @@ define i64 @icmp_uge_constant_neg_2048(i64 %a) nounwind {
 define i64 @icmp_uge_constant_neg_2049(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_uge_constant_neg_2049:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a1, -1025
-; RV64I-NEXT:    slli a1, a1, 33
-; RV64I-NEXT:    srli a1, a1, 32
+; RV64I-NEXT:    lui a1, 1048575
+; RV64I-NEXT:    addiw a1, a1, 2046
 ; RV64I-NEXT:    sltu a0, a1, a0
 ; RV64I-NEXT:    ret
-; 4294965247 signed extend is -2049
-  %1 = icmp uge i64 %a, 4294965247
+; 18446744073709549567 signed extend is -2049
+  %1 = icmp uge i64 %a, 18446744073709549567
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -345,13 +337,10 @@ define i64 @icmp_ult_constant_2048(i64 %a) nounwind {
 define i64 @icmp_ult_constant_neg_2048(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ult_constant_neg_2048:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a1, 1
-; RV64I-NEXT:    slli a1, a1, 32
-; RV64I-NEXT:    addi a1, a1, -2048
-; RV64I-NEXT:    sltu a0, a0, a1
+; RV64I-NEXT:    sltiu a0, a0, -2048
 ; RV64I-NEXT:    ret
-; 4294965248 signed extend is -2048
-  %1 = icmp ult i64 %a, 4294965248
+; 18446744073709549568 signed extend is -2048
+  %1 = icmp ult i64 %a, 18446744073709549568
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -359,13 +348,12 @@ define i64 @icmp_ult_constant_neg_2048(i64 %a) nounwind {
 define i64 @icmp_ult_constant_neg_2049(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ult_constant_neg_2049:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    lui a1, 1046527
-; RV64I-NEXT:    slli a1, a1, 20
-; RV64I-NEXT:    srli a1, a1, 32
+; RV64I-NEXT:    lui a1, 1048575
+; RV64I-NEXT:    addiw a1, a1, 2047
 ; RV64I-NEXT:    sltu a0, a0, a1
 ; RV64I-NEXT:    ret
-; 4294965247 signed extend is -2049
-  %1 = icmp ult i64 %a, 4294965247
+; 18446744073709549567 signed extend is -2049
+  %1 = icmp ult i64 %a, 18446744073709549567
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -415,13 +403,10 @@ define i64 @icmp_ule_constant_2047(i64 %a) nounwind {
 define i64 @icmp_ule_constant_neg_2049(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ule_constant_neg_2049:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a1, 1
-; RV64I-NEXT:    slli a1, a1, 32
-; RV64I-NEXT:    addi a1, a1, -2048
-; RV64I-NEXT:    sltu a0, a0, a1
+; RV64I-NEXT:    sltiu a0, a0, -2048
 ; RV64I-NEXT:    ret
-; 4294965247 signed extend is -2049
-  %1 = icmp ule i64 %a, 4294965247
+; 18446744073709549567 signed extend is -2049
+  %1 = icmp ule i64 %a, 18446744073709549567
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -429,13 +414,12 @@ define i64 @icmp_ule_constant_neg_2049(i64 %a) nounwind {
 define i64 @icmp_ule_constant_neg_2050(i64 %a) nounwind {
 ; RV64I-LABEL: icmp_ule_constant_neg_2050:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    lui a1, 1046527
-; RV64I-NEXT:    slli a1, a1, 20
-; RV64I-NEXT:    srli a1, a1, 32
+; RV64I-NEXT:    lui a1, 1048575
+; RV64I-NEXT:    addiw a1, a1, 2047
 ; RV64I-NEXT:    sltu a0, a0, a1
 ; RV64I-NEXT:    ret
-; 4294965246 signed extend is -2050
-  %1 = icmp ule i64 %a, 4294965246
+; 18446744073709549566 signed extend is -2050
+  %1 = icmp ule i64 %a, 18446744073709549566
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
@@ -699,3 +683,78 @@ define i64 @icmp_sle_constant_neg_2050(i64 %a) nounwind {
   %2 = zext i1 %1 to i64
   ret i64 %2
 }
+
+define i64 @icmp_eq_zext_inreg_small_constant(i64 %a) nounwind {
+; RV64I-LABEL: icmp_eq_zext_inreg_small_constant:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    sext.w a0, a0
+; RV64I-NEXT:    addi a0, a0, -123
+; RV64I-NEXT:    seqz a0, a0
+; RV64I-NEXT:    ret
+  %1 = and i64 %a, 4294967295
+  %2 = icmp eq i64 %1, 123
+  %3 = zext i1 %2 to i64
+  ret i64 %3
+}
+
+define i64 @icmp_eq_zext_inreg_large_constant(i64 %a) nounwind {
+; RV64I-LABEL: icmp_eq_zext_inreg_large_constant:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    sext.w a0, a0
+; RV64I-NEXT:    lui a1, 563901
+; RV64I-NEXT:    addiw a1, a1, -529
+; RV64I-NEXT:    xor a0, a0, a1
+; RV64I-NEXT:    seqz a0, a0
+; RV64I-NEXT:    ret
+  %1 = and i64 %a, 4294967295
+  %2 = icmp eq i64 %1, 2309737967
+  %3 = zext i1 %2 to i64
+  ret i64 %3
+}
+
+define i64 @icmp_ne_zext_inreg_small_constant(i64 %a) nounwind {
+; RV64I-LABEL: icmp_ne_zext_inreg_small_constant:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    sext.w a0, a0
+; RV64I-NEXT:    snez a0, a0
+; RV64I-NEXT:    ret
+  %1 = and i64 %a, 4294967295
+  %2 = icmp ne i64 %1, 0
+  %3 = zext i1 %2 to i64
+  ret i64 %3
+}
+
+define i64 @icmp_ne_zext_inreg_large_constant(i64 %a) nounwind {
+; RV64I-LABEL: icmp_ne_zext_inreg_large_constant:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    sext.w a0, a0
+; RV64I-NEXT:    addi a0, a0, 2
+; RV64I-NEXT:    snez a0, a0
+; RV64I-NEXT:    ret
+  %1 = and i64 %a, 4294967295
+  %2 = icmp ne i64 %1, 4294967294
+  %3 = zext i1 %2 to i64
+  ret i64 %3
+}
+
+; This used to trigger an infinite loop where we toggled between 'and' and
+; 'sext_inreg'.
+define i64 @icmp_ne_zext_inreg_umin(i64 %a) nounwind {
+; RV64I-LABEL: icmp_ne_zext_inreg_umin:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a1, 30141
+; RV64I-NEXT:    addiw a1, a1, -747
+; RV64I-NEXT:    bltu a0, a1, .LBB66_2
+; RV64I-NEXT:  # %bb.1:
+; RV64I-NEXT:    mv a0, a1
+; RV64I-NEXT:  .LBB66_2:
+; RV64I-NEXT:    addi a0, a0, -123
+; RV64I-NEXT:    snez a0, a0
+; RV64I-NEXT:    ret
+  %1 = call i64 @llvm.umin.i64(i64 %a, i64 123456789)
+  %2 = and i64 %1, 4294967295
+  %3 = icmp ne i64 %2, 123
+  %4 = zext i1 %3 to i64
+  ret i64 %4
+}
+declare i64 @llvm.umin.i64(i64, i64)

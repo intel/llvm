@@ -14,8 +14,6 @@ from lldbsuite.test import lldbutil
 
 class DisassembleRawDataTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @no_debug_info_test
     @skipIfRemote
     def test_disassemble_raw_data(self):
@@ -54,16 +52,26 @@ class DisassembleRawDataTestCase(TestBase):
             self.assertEqual(inst.GetMnemonic(target), "move")
             self.assertEqual(inst.GetOperands(target),
                             '$' + "fp, " + '$' + "sp")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         elif re.match("powerpc64le", arch):
             self.assertEqual(inst.GetMnemonic(target), "li")
             self.assertEqual(inst.GetOperands(target), "4, 0")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         elif arch in ("aarch64", "arm64"):
             self.assertEqual(inst.GetMnemonic(target), "mov")
             self.assertEqual(inst.GetOperands(target), "w0, #0x63")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         elif arch == "arm":
             self.assertEqual(inst.GetMnemonic(target), "mov")
             self.assertEqual(inst.GetOperands(target), "r3, #99")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         else:
             self.assertEqual(inst.GetMnemonic(target), "movq")
             self.assertEqual(inst.GetOperands(target),
                             '%' + "rsp, " + '%' + "rbp")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindOther)

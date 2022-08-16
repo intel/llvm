@@ -61,7 +61,7 @@ a wrapper.
 
 ## Conditional compilation
 
-Data Parallel C++ compiler automatically instruments user code through
+DPC++ compiler automatically instruments user code through
 SPIRITTAnnotations LLVM pass, which is enabled for targets, that natively
 support specialization constants (i.e., SPIR-V targets). Annotations are
 generated for barriers, atomics, work item start and finish.

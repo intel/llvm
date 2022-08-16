@@ -4,12 +4,12 @@
 // This test checks the integration header generated when
 // the kernel argument is union.
 
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 
 // CHECK: class kernel_A;
 
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

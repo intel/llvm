@@ -10,8 +10,6 @@ from lldbsuite.test.lldbtest import *
 
 
 class TestCmdContainer(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def test_container_add(self):
@@ -69,7 +67,9 @@ class TestCmdContainer(TestBase):
         self.expect("test-multi test-multi-sub welcome friend", "Used the new command class",
                     substrs=["Hello friend, welcome again to LLDB"])
         self.expect("apropos welcome", "welcome should show up in apropos", substrs=["A docstring for the second Welcome"])
-        
+        self.expect("help test-multi test-multi-sub welcome", "welcome should show up in help", substrs=["A docstring for the second Welcome"])
+        self.expect("help", "test-multi should show up in help", substrs=["test-multi"])
+                    
         # Now switch the default and make sure we can now delete w/o the overwrite option:
         self.runCmd("settings set interpreter.require-overwrite 0")
         self.runCmd("command script add -c welcome.WelcomeCommand test-multi test-multi-sub welcome")

@@ -17,10 +17,17 @@
 #define __has_attribute(attr) 0
 #endif
 
-#if defined(HAVE_INIT_PRIORITY)
-#define CONSTRUCTOR_ATTRIBUTE __attribute__((__constructor__ 101))
-#elif __has_attribute(__constructor__)
-#define CONSTRUCTOR_ATTRIBUTE __attribute__((__constructor__))
+#if __has_attribute(constructor)
+#if __GNUC__ >= 9
+// Ordinarily init priorities below 101 are disallowed as they are reserved for the
+// implementation. However, we are the implementation, so silence the diagnostic,
+// since it doesn't apply to us.
+#pragma GCC diagnostic ignored "-Wprio-ctor-dtor"
+#endif
+// We're choosing init priority 90 to force our constructors to run before any
+// constructors in the end user application (starting at priority 101). This value
+// matches the libgcc choice for the same functions.
+#define CONSTRUCTOR_ATTRIBUTE __attribute__((constructor(90)))
 #else
 // FIXME: For MSVC, we should make a function pointer global in .CRT$X?? so that
 // this runs during initialization.
@@ -149,7 +156,7 @@ enum ProcessorFeatures {
 // Check motivated by bug reports for OpenSSL crashing on CPUs without CPUID
 // support. Consequently, for i386, the presence of CPUID is checked first
 // via the corresponding eflags bit.
-static bool isCpuIdSupported() {
+static bool isCpuIdSupported(void) {
 #if defined(__GNUC__) || defined(__clang__)
 #if defined(__i386__)
   int __cpuid_supported;

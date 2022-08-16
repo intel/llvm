@@ -5,7 +5,7 @@
 #include "llvm/ADT/StringSwitch.h"
 using namespace clang;
 
-int clang::hasAttribute(AttrSyntax Syntax, const IdentifierInfo *Scope,
+int clang::hasAttribute(AttributeCommonInfo::Syntax Syntax, const IdentifierInfo *Scope,
                         const IdentifierInfo *Attr, const TargetInfo &Target,
                         const LangOptions &LangOpts) {
   StringRef ScopeName = Scope ? Scope->getName() : "";
@@ -87,6 +87,10 @@ static StringRef normalizeAttrName(const IdentifierInfo *Name,
 
 bool AttributeCommonInfo::isGNUScope() const {
   return ScopeName && (ScopeName->isStr("gnu") || ScopeName->isStr("__gnu__"));
+}
+
+bool AttributeCommonInfo::isClangScope() const {
+  return ScopeName && (ScopeName->isStr("clang") || ScopeName->isStr("_Clang"));
 }
 
 #include "clang/Sema/AttrParsedAttrKinds.inc"

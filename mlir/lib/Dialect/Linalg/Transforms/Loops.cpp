@@ -13,7 +13,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -77,7 +77,7 @@ template <typename SingleInputPoolingOp>
 static InputAndOutputIndices
 getInputAndOutputIndices(OpBuilder &b, Location loc, ArrayRef<Value> allIvs,
                          SingleInputPoolingOp op) {
-  auto mapsRange = op.indexing_maps().template getAsRange<AffineMapAttr>();
+  auto mapsRange = op.getIndexingMapsArray();
   auto maps = llvm::to_vector<8>(
       llvm::map_range(mapsRange, [](AffineMapAttr a) { return a.getValue(); }));
   return InputAndOutputIndices{
@@ -298,7 +298,7 @@ struct FoldAffineOp : public RewritePattern {
 };
 
 template <typename LoopType>
-static void lowerLinalgToLoopsImpl(FuncOp funcOp) {
+static void lowerLinalgToLoopsImpl(func::FuncOp funcOp) {
   MLIRContext *context = funcOp.getContext();
   RewritePatternSet patterns(context);
   patterns.add<LinalgRewritePattern<LoopType>>(context);
@@ -338,16 +338,17 @@ struct LowerToParallelLoops
 
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createConvertLinalgToLoopsPass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createConvertLinalgToLoopsPass() {
   return std::make_unique<LowerToLoops>();
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createConvertLinalgToParallelLoopsPass() {
   return std::make_unique<LowerToParallelLoops>();
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createConvertLinalgToAffineLoopsPass() {
   return std::make_unique<LowerToAffineLoops>();
 }

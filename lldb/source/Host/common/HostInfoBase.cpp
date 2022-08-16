@@ -209,7 +209,8 @@ ArchSpec HostInfoBase::GetAugmentedArchSpec(llvm::StringRef triple) {
     normalized_triple.setVendor(host_triple.getVendor());
   if (normalized_triple.getOSName().empty())
     normalized_triple.setOS(host_triple.getOS());
-  if (normalized_triple.getEnvironmentName().empty())
+  if (normalized_triple.getEnvironmentName().empty() &&
+      !host_triple.getEnvironmentName().empty())
     normalized_triple.setEnvironment(host_triple.getEnvironment());
   return ArchSpec(normalized_triple);
 }
@@ -241,7 +242,7 @@ bool HostInfoBase::ComputePathRelativeToLibrary(FileSpec &file_spec,
   raw_path = (parent_path + dir).str();
   LLDB_LOGF(log, "HostInfo::%s() derived the path as: %s", __FUNCTION__,
             raw_path.c_str());
-  file_spec.GetDirectory().SetString(raw_path);
+  file_spec.SetDirectory(raw_path);
   return (bool)file_spec.GetDirectory();
 }
 
@@ -257,7 +258,7 @@ bool HostInfoBase::ComputeSharedLibraryDirectory(FileSpec &file_spec) {
     g_shlib_dir_helper(lldb_file_spec);
 
   // Remove the filename so that this FileSpec only represents the directory.
-  file_spec.GetDirectory() = lldb_file_spec.GetDirectory();
+  file_spec.SetDirectory(lldb_file_spec.GetDirectory());
 
   return (bool)file_spec.GetDirectory();
 }
@@ -277,7 +278,7 @@ bool HostInfoBase::ComputeProcessTempFileDirectory(FileSpec &file_spec) {
   if (llvm::sys::fs::create_directory(temp_file_spec.GetPath()))
     return false;
 
-  file_spec.GetDirectory().SetCString(temp_file_spec.GetCString());
+  file_spec.SetDirectory(temp_file_spec.GetPathAsConstString());
   return true;
 }
 
@@ -300,7 +301,7 @@ bool HostInfoBase::ComputeGlobalTempFileDirectory(FileSpec &file_spec) {
   if (llvm::sys::fs::create_directory(temp_file_spec.GetPath()))
     return false;
 
-  file_spec.GetDirectory().SetCString(temp_file_spec.GetCString());
+  file_spec.SetDirectory(temp_file_spec.GetPathAsConstString());
   return true;
 }
 

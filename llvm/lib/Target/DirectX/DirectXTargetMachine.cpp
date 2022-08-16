@@ -12,14 +12,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "DirectXTargetMachine.h"
+#include "DXILWriter/DXILWriterPass.h"
+#include "DirectX.h"
 #include "DirectXSubtarget.h"
 #include "DirectXTargetTransformInfo.h"
 #include "TargetInfo/DirectXTargetInfo.h"
-#include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/MC/MCSectionDXContainer.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
@@ -31,6 +34,11 @@ using namespace llvm;
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTarget() {
   RegisterTargetMachine<DirectXTargetMachine> X(getTheDirectXTarget());
+  auto *PR = PassRegistry::getPassRegistry();
+  initializeDXILPrepareModulePass(*PR);
+  initializeEmbedDXILPassPass(*PR);
+  initializeDXILOpLoweringLegacyPass(*PR);
+  initializeDXILTranslateMetadataPass(*PR);
 }
 
 class DXILTargetObjectFile : public TargetLoweringObjectFile {
@@ -39,7 +47,7 @@ public:
 
   MCSection *getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind,
                                       const TargetMachine &TM) const override {
-    llvm_unreachable("Not supported!");
+    return getContext().getDXContainerSection(GO->getSection(), Kind);
   }
 
 protected:
@@ -59,6 +67,11 @@ public:
   }
 
   FunctionPass *createTargetRegisterAllocator(bool) override { return nullptr; }
+  void addCodeGenPrepare() override {
+    addPass(createDXILOpLoweringLegacyPass());
+    addPass(createDXILPrepareModulePass());
+    addPass(createDXILTranslateMetadataPass());
+  }
 };
 
 DirectXTargetMachine::DirectXTargetMachine(const Target &T, const Triple &TT,
@@ -73,7 +86,9 @@ DirectXTargetMachine::DirectXTargetMachine(const Target &T, const Triple &TT,
                         TT, CPU, FS, Options, Reloc::Static, CodeModel::Small,
                         OL),
       TLOF(std::make_unique<DXILTargetObjectFile>()),
-      Subtarget(std::make_unique<DirectXSubtarget>(TT, CPU, FS, *this)) {}
+      Subtarget(std::make_unique<DirectXSubtarget>(TT, CPU, FS, *this)) {
+  initAsmInfo();
+}
 
 DirectXTargetMachine::~DirectXTargetMachine() {}
 
@@ -81,13 +96,26 @@ bool DirectXTargetMachine::addPassesToEmitFile(
     PassManagerBase &PM, raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
     CodeGenFileType FileType, bool DisableVerify,
     MachineModuleInfoWrapperPass *MMIWP) {
+  TargetPassConfig *PassConfig = createPassConfig(PM);
+  PassConfig->addCodeGenPrepare();
+
+  if (TargetPassConfig::willCompleteCodeGenPipeline()) {
+    PM.add(createDXILEmbedderPass());
+  }
   switch (FileType) {
   case CGFT_AssemblyFile:
     PM.add(createPrintModulePass(Out, "", true));
     break;
   case CGFT_ObjectFile:
-    // TODO: Write DXIL instead of bitcode
-    PM.add(createBitcodeWriterPass(Out, true, false, false));
+    if (TargetPassConfig::willCompleteCodeGenPipeline()) {
+      if (!MMIWP)
+        MMIWP = new MachineModuleInfoWrapperPass(this);
+      PM.add(MMIWP);
+      if (addAsmPrinter(PM, Out, DwoOut, FileType,
+                        MMIWP->getMMI().getContext()))
+        return true;
+    } else
+      PM.add(createDXILWriterPass(Out));
     break;
   case CGFT_Null:
     break;

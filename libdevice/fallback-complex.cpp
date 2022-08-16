@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "device_complex.h"
-#include "device_math.h"
 
 #ifdef __SPIR__
 #include <cmath>

@@ -96,49 +96,14 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-- Added trace code to help narrow down any checks and the relevant source code
-  that result in crashes.
-
-- Clang-tidy now consideres newlines as separators of single elements in the `Checks` section in
-  `.clang-tidy` configuration files. Where previously a comma had to be used to distinguish elements in
-  this list from each other, newline characters now also work as separators in the parsed YAML. That
-  means it is advised to use YAML's block style initiated by the pipe character `|` for the `Checks`
-  section in order to benefit from the easier syntax that works without commas.
-
 New checks
 ^^^^^^^^^^
-
-- New :doc:`bugprone-shared-ptr-array-mismatch <clang-tidy/checks/bugprone-shared-ptr-array-mismatch>` check.
-
-  Finds initializations of C++ shared pointers to non-array type that are initialized with an array.
-
-- New :doc:`modernize-macro-to-enum
-  <clang-tidy/checks/modernize-macro-to-enum>` check.
-
-  Replaces groups of adjacent macros with an unscoped anonymous enum.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
 
-- New alias :doc:`cppcoreguidelines-macro-to-enum
-  <clang-tidy/checks/cppcoreguidelines-macro-to-enum>` to :doc:`modernize-macro-to-enum
-  <clang-tidy/checks/modernize-macro-to-enum>` was added.
-
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-- Fixed a false positive in :doc:`readability-non-const-parameter
-  <clang-tidy/checks/readability-non-const-parameter>` when the parameter is referenced by an lvalue
-
-- Fixed a crash in :doc:`readability-const-return-type
-  <clang-tidy/checks/readability-const-return-type>` when a pure virtual function
-  overrided has a const return type. Removed the fix for a virtual function.
-
-- Fixed a false positive in :doc:`misc-redundant-expression <clang-tidy/checks/misc-redundant-expression>`
-  involving overloaded comparison operators.
-
-- Fixed a crash in :doc:`bugprone-sizeof-expression <clang-tidy/checks/bugprone-sizeof-expression>` when
-  `sizeof(...)` is compared agains a `__int128_t`.
 
 Removed checks
 ^^^^^^^^^^^^^^
@@ -160,8 +125,6 @@ The improvements are...
 
 Improvements to pp-trace
 ------------------------
-
-The improvements are...
 
 Clang-tidy Visual Studio plugin
 -------------------------------

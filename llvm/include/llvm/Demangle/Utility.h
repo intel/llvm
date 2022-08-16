@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DEMANGLE_UTILITY_H
-#define DEMANGLE_UTILITY_H
+#ifndef LLVM_DEMANGLE_UTILITY_H
+#define LLVM_DEMANGLE_UTILITY_H
 
 #include "StringView.h"
 #include <array>
@@ -171,7 +171,8 @@ public:
   void setCurrentPosition(size_t NewPos) { CurrentPosition = NewPos; }
 
   char back() const {
-    return CurrentPosition ? Buffer[CurrentPosition - 1] : '\0';
+    assert(CurrentPosition);
+    return Buffer[CurrentPosition - 1];
   }
 
   bool empty() const { return CurrentPosition == 0; }
@@ -181,21 +182,20 @@ public:
   size_t getBufferCapacity() const { return BufferCapacity; }
 };
 
-template <class T> class SwapAndRestore {
-  T &Restore;
-  T OriginalValue;
+template <class T> class ScopedOverride {
+  T &Loc;
+  T Original;
 
 public:
-  SwapAndRestore(T &Restore_) : SwapAndRestore(Restore_, Restore_) {}
+  ScopedOverride(T &Loc_) : ScopedOverride(Loc_, Loc_) {}
 
-  SwapAndRestore(T &Restore_, T NewVal)
-      : Restore(Restore_), OriginalValue(Restore) {
-    Restore = std::move(NewVal);
+  ScopedOverride(T &Loc_, T NewVal) : Loc(Loc_), Original(Loc_) {
+    Loc_ = std::move(NewVal);
   }
-  ~SwapAndRestore() { Restore = std::move(OriginalValue); }
+  ~ScopedOverride() { Loc = std::move(Original); }
 
-  SwapAndRestore(const SwapAndRestore &) = delete;
-  SwapAndRestore &operator=(const SwapAndRestore &) = delete;
+  ScopedOverride(const ScopedOverride &) = delete;
+  ScopedOverride &operator=(const ScopedOverride &) = delete;
 };
 
 inline bool initializeOutputBuffer(char *Buf, size_t *N, OutputBuffer &OB,

@@ -14,6 +14,7 @@
 #define LLVM_TRANSFORMS_UTILS_LOOPUTILS_H
 
 #include "llvm/Analysis/IVDescriptors.h"
+#include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 namespace llvm {
@@ -24,7 +25,6 @@ class StringRef;
 class AnalysisUsage;
 class TargetTransformInfo;
 class AAResults;
-class AliasSetTracker;
 class BasicBlock;
 class BlockFrequencyInfo;
 class ICFLoopSafetyInfo;
@@ -148,7 +148,7 @@ protected:
 /// this function is called by \p sinkRegionForLoopNest.
 bool sinkRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
                 BlockFrequencyInfo *, TargetLibraryInfo *,
-                TargetTransformInfo *, Loop *CurLoop, MemorySSAUpdater *,
+                TargetTransformInfo *, Loop *CurLoop, MemorySSAUpdater &,
                 ICFLoopSafetyInfo *, SinkAndHoistLICMFlags &,
                 OptimizationRemarkEmitter *, Loop *OutermostLoop = nullptr);
 
@@ -157,7 +157,7 @@ bool sinkRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
 bool sinkRegionForLoopNest(DomTreeNode *, AAResults *, LoopInfo *,
                            DominatorTree *, BlockFrequencyInfo *,
                            TargetLibraryInfo *, TargetTransformInfo *, Loop *,
-                           MemorySSAUpdater *, ICFLoopSafetyInfo *,
+                           MemorySSAUpdater &, ICFLoopSafetyInfo *,
                            SinkAndHoistLICMFlags &,
                            OptimizationRemarkEmitter *);
 
@@ -173,7 +173,7 @@ bool sinkRegionForLoopNest(DomTreeNode *, AAResults *, LoopInfo *,
 /// guaranteed to execute in the loop, but are safe to speculatively execute.
 bool hoistRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
                  BlockFrequencyInfo *, TargetLibraryInfo *, Loop *,
-                 MemorySSAUpdater *, ScalarEvolution *, ICFLoopSafetyInfo *,
+                 MemorySSAUpdater &, ScalarEvolution *, ICFLoopSafetyInfo *,
                  SinkAndHoistLICMFlags &, OptimizationRemarkEmitter *, bool,
                  bool AllowSpeculation);
 
@@ -211,7 +211,7 @@ bool promoteLoopAccessesToScalars(
     const SmallSetVector<Value *, 8> &, SmallVectorImpl<BasicBlock *> &,
     SmallVectorImpl<Instruction *> &, SmallVectorImpl<MemoryAccess *> &,
     PredIteratorCache &, LoopInfo *, DominatorTree *, const TargetLibraryInfo *,
-    Loop *, MemorySSAUpdater *, ICFLoopSafetyInfo *,
+    Loop *, MemorySSAUpdater &, ICFLoopSafetyInfo *,
     OptimizationRemarkEmitter *, bool AllowSpeculation);
 
 /// Does a BFS from a given node to all of its children inside a given loop.
@@ -345,9 +345,9 @@ void getLoopAnalysisUsage(AnalysisUsage &AU);
 /// true when moving out of loop and not true when moving into loops.
 /// If \p ORE is set use it to emit optimization remarks.
 bool canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
-                        Loop *CurLoop, AliasSetTracker *CurAST,
-                        MemorySSAUpdater *MSSAU, bool TargetExecutesOncePerLoop,
-                        SinkAndHoistLICMFlags *LICMFlags = nullptr,
+                        Loop *CurLoop, MemorySSAUpdater &MSSAU,
+                        bool TargetExecutesOncePerLoop,
+                        SinkAndHoistLICMFlags &LICMFlags,
                         OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Returns the comparison predicate used when expanding a min/max reduction.
@@ -413,8 +413,10 @@ Value *createOrderedReduction(IRBuilderBase &B,
 /// of each scalar operation (VL) that will be converted into a vector (I).
 /// If OpValue is non-null, we only consider operations similar to OpValue
 /// when intersecting.
-/// Flag set: NSW, NUW, exact, and all of fast-math.
-void propagateIRFlags(Value *I, ArrayRef<Value *> VL, Value *OpValue = nullptr);
+/// Flag set: NSW, NUW (if IncludeWrapFlags is true), exact, and all of
+/// fast-math.
+void propagateIRFlags(Value *I, ArrayRef<Value *> VL, Value *OpValue = nullptr,
+                      bool IncludeWrapFlags = true);
 
 /// Returns true if we can prove that \p S is defined and always negative in
 /// loop \p L.
@@ -433,7 +435,13 @@ bool cannotBeMaxInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE,
 bool cannotBeMinInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE,
                        bool Signed);
 
-enum ReplaceExitVal { NeverRepl, OnlyCheapRepl, NoHardUse, AlwaysRepl };
+enum ReplaceExitVal {
+  NeverRepl,
+  OnlyCheapRepl,
+  NoHardUse,
+  UnusedIndVarInLoop,
+  AlwaysRepl
+};
 
 /// If the final value of any expressions that are recurrent in the loop can
 /// be computed, substitute the exit values from the loop into any instructions
@@ -499,6 +507,12 @@ Value *
 addRuntimeChecks(Instruction *Loc, Loop *TheLoop,
                  const SmallVectorImpl<RuntimePointerCheck> &PointerChecks,
                  SCEVExpander &Expander);
+
+Value *
+addDiffRuntimeChecks(Instruction *Loc, Loop *TheLoop,
+                     ArrayRef<PointerDiffInfo> Checks, SCEVExpander &Expander,
+                     function_ref<Value *(IRBuilderBase &, unsigned)> GetVF,
+                     unsigned IC);
 
 /// Struct to hold information about a partially invariant condition.
 struct IVConditionInfo {

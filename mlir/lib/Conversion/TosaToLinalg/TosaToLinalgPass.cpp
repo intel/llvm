@@ -15,7 +15,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Transforms/PassDetail.h"
@@ -70,12 +70,14 @@ void mlir::tosa::addTosaToLinalgPasses(OpPassManager &pm,
                                        bool disableTosaDecompositions) {
   // Optional decompositions are designed to benefit linalg.
   if (!disableTosaDecompositions)
-    pm.addNestedPass<FuncOp>(mlir::tosa::createTosaOptionalDecompositions());
-  pm.addNestedPass<FuncOp>(mlir::createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(tosa::createTosaOptionalDecompositions());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
 
-  pm.addNestedPass<FuncOp>(tosa::createTosaMakeBroadcastablePass());
-  pm.addNestedPass<FuncOp>(tosa::createTosaToLinalgNamed());
-  pm.addNestedPass<FuncOp>(mlir::createCanonicalizerPass());
-  pm.addNestedPass<FuncOp>(tosa::createTosaMakeBroadcastablePass());
-  pm.addNestedPass<FuncOp>(tosa::createTosaToLinalg());
+  pm.addNestedPass<func::FuncOp>(tosa::createTosaMakeBroadcastablePass());
+  pm.addNestedPass<func::FuncOp>(tosa::createTosaToLinalgNamed());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // TODO: Remove pass that operates on const tensor and enable optionality
+  pm.addNestedPass<func::FuncOp>(tosa::createTosaLayerwiseConstantFoldPass());
+  pm.addNestedPass<func::FuncOp>(tosa::createTosaMakeBroadcastablePass());
+  pm.addNestedPass<func::FuncOp>(tosa::createTosaToLinalg());
 }

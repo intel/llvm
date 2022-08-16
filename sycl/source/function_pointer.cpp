@@ -10,8 +10,8 @@
 #include <detail/program_impl.hpp>
 #include <sycl/ext/oneapi/__function_pointer.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 ext::oneapi::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
@@ -19,7 +19,7 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 
   const detail::plugin &Plugin = detail::getSyclObjImpl(P)->getPlugin();
   pi_result Result = Plugin.call_nocheck<
-      cl::sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
+      sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
       detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
       detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
       FuncName, &FPtr);
@@ -27,10 +27,10 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
   // if the function exists or not. If the return address is not valid throw
   // error.
   if (Result != PI_SUCCESS) {
-    if (Result == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+    if (Result == PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
       throw runtime_error("Function exists but address is not available",
                           Result);
-    if (Result == PI_INVALID_KERNEL_NAME)
+    if (Result == PI_ERROR_INVALID_KERNEL_NAME)
       throw runtime_error("Function name is not valid", Result);
     else
       throw runtime_error("piextGetDeviceFunctionPointer returned error when "
@@ -42,5 +42,5 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

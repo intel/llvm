@@ -9,7 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace testing;
 
 TEST_F(SchedulerTest, BlockedCommands) {
@@ -150,8 +150,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   B.MIsBlockable = true;
   B.MRetVal = CL_SUCCESS;
 
-  cl::sycl::detail::EventImplPtr DepEvent{
-      new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
+  sycl::detail::EventImplPtr DepEvent{
+      new sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
   DepEvent->setCommand(&B);
 
   std::vector<detail::Command *> ToCleanUp;

@@ -223,6 +223,11 @@ public:
   /// Returns the size of this defined addressable.
   size_t getSize() const { return Size; }
 
+  /// Returns the address range of this defined addressable.
+  orc::ExecutorAddrRange getRange() const {
+    return orc::ExecutorAddrRange(getAddress(), getSize());
+  }
+
   /// Get the content for this block. Block must not be a zero-fill block.
   ArrayRef<char> getContent() const {
     assert(Data && "Block does not contain content");
@@ -298,7 +303,8 @@ public:
   /// Add an edge to this block.
   void addEdge(Edge::Kind K, Edge::OffsetT Offset, Symbol &Target,
                Edge::AddendT Addend) {
-    assert(!isZeroFill() && "Adding edge to zero-fill block?");
+    assert((K == Edge::KeepAlive || !isZeroFill()) &&
+           "Adding edge to zero-fill block?");
     Edges.push_back(Edge(K, Offset, Target, Addend));
   }
 
@@ -574,6 +580,11 @@ public:
     assert((Offset + Size <= static_cast<const Block &>(*Base).getSize()) &&
            "Symbol size cannot extend past the end of its containing block");
     this->Size = Size;
+  }
+
+  /// Returns the address range of this symbol.
+  orc::ExecutorAddrRange getRange() const {
+    return orc::ExecutorAddrRange(getAddress(), getSize());
   }
 
   /// Returns true if this symbol is backed by a zero-fill block.

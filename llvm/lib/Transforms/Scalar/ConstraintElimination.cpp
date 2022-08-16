@@ -21,6 +21,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
@@ -47,6 +48,21 @@ static int64_t MinSignedConstraintValue = std::numeric_limits<int64_t>::min();
 namespace {
 
 class ConstraintInfo;
+
+struct StackEntry {
+  unsigned NumIn;
+  unsigned NumOut;
+  bool IsNot;
+  bool IsSigned = false;
+  /// Variables that can be removed from the system once the stack entry gets
+  /// removed.
+  SmallVector<Value *, 2> ValuesToRelease;
+
+  StackEntry(unsigned NumIn, unsigned NumOut, bool IsNot, bool IsSigned,
+             SmallVector<Value *, 2> ValuesToRelease)
+      : NumIn(NumIn), NumOut(NumOut), IsNot(IsNot), IsSigned(IsSigned),
+        ValuesToRelease(ValuesToRelease) {}
+};
 
 /// Struct to express a pre-condition of the form %Op0 Pred %Op1.
 struct PreconditionTy {
@@ -89,14 +105,6 @@ struct ConstraintTy {
   /// Returns true if all preconditions for this list of constraints are
   /// satisfied given \p CS and the corresponding \p Value2Index mapping.
   bool isValid(const ConstraintInfo &Info) const;
-
-  /// Returns true if there is exactly one constraint in the list and isValid is
-  /// also true.
-  bool isValidSingle(const ConstraintInfo &Info) const {
-    if (size() != 1)
-      return false;
-    return isValid(Info);
-  }
 };
 
 /// Wrapper encapsulating separate constraint systems and corresponding value
@@ -131,6 +139,33 @@ public:
   void popLastNVariables(bool Signed, unsigned N) {
     getCS(Signed).popLastNVariables(N);
   }
+
+  bool doesHold(CmpInst::Predicate Pred, Value *A, Value *B) const;
+
+  void addFact(CmpInst::Predicate Pred, Value *A, Value *B, bool IsNegated,
+               unsigned NumIn, unsigned NumOut,
+               SmallVectorImpl<StackEntry> &DFSInStack);
+
+  /// Turn a comparison of the form \p Op0 \p Pred \p Op1 into a vector of
+  /// constraints, using indices from the corresponding constraint system.
+  /// Additional indices for newly discovered values are added to \p NewIndices.
+  ConstraintTy getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
+                             DenseMap<Value *, unsigned> &NewIndices) const;
+
+  /// Turn a condition \p CmpI into a vector of constraints, using indices from
+  /// the corresponding constraint system. Additional indices for newly
+  /// discovered values are added to \p NewIndices.
+  ConstraintTy getConstraint(CmpInst *Cmp,
+                             DenseMap<Value *, unsigned> &NewIndices) const {
+    return getConstraint(Cmp->getPredicate(), Cmp->getOperand(0),
+                         Cmp->getOperand(1), NewIndices);
+  }
+
+  /// Try to add information from \p A \p Pred \p B to the unsigned/signed
+  /// system if \p Pred is signed/unsigned.
+  void transferToOtherSystem(CmpInst::Predicate Pred, Value *A, Value *B,
+                             bool IsNegated, unsigned NumIn, unsigned NumOut,
+                             SmallVectorImpl<StackEntry> &DFSInStack);
 };
 
 } // namespace
@@ -143,13 +178,15 @@ static SmallVector<std::pair<int64_t, Value *>, 4>
 decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
           bool IsSigned) {
 
+  auto CanUseSExt = [](ConstantInt *CI) {
+    const APInt &Val = CI->getValue();
+    return Val.sgt(MinSignedConstraintValue) && Val.slt(MaxConstraintValue);
+  };
   // Decompose \p V used with a signed predicate.
   if (IsSigned) {
     if (auto *CI = dyn_cast<ConstantInt>(V)) {
-      const APInt &Val = CI->getValue();
-      if (Val.sle(MinSignedConstraintValue) || Val.sge(MaxConstraintValue))
-        return {};
-      return {{CI->getSExtValue(), nullptr}};
+      if (CanUseSExt(CI))
+        return {{CI->getSExtValue(), nullptr}};
     }
 
     return {{0, nullptr}, {1, V}};
@@ -168,11 +205,13 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
     // If the index is zero-extended, it is guaranteed to be positive.
     if (match(GEP->getOperand(GEP->getNumOperands() - 1),
               m_ZExt(m_Value(Op0)))) {
-      if (match(Op0, m_NUWShl(m_Value(Op1), m_ConstantInt(CI))))
+      if (match(Op0, m_NUWShl(m_Value(Op1), m_ConstantInt(CI))) &&
+          CanUseSExt(CI))
         return {{0, nullptr},
                 {1, GEP->getPointerOperand()},
                 {std::pow(int64_t(2), CI->getSExtValue()), Op1}};
-      if (match(Op0, m_NSWAdd(m_Value(Op1), m_ConstantInt(CI))))
+      if (match(Op0, m_NSWAdd(m_Value(Op1), m_ConstantInt(CI))) &&
+          CanUseSExt(CI))
         return {{CI->getSExtValue(), nullptr},
                 {1, GEP->getPointerOperand()},
                 {1, Op1}};
@@ -180,17 +219,19 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
     }
 
     if (match(GEP->getOperand(GEP->getNumOperands() - 1), m_ConstantInt(CI)) &&
-        !CI->isNegative())
+        !CI->isNegative() && CanUseSExt(CI))
       return {{CI->getSExtValue(), nullptr}, {1, GEP->getPointerOperand()}};
 
     SmallVector<std::pair<int64_t, Value *>, 4> Result;
     if (match(GEP->getOperand(GEP->getNumOperands() - 1),
-              m_NUWShl(m_Value(Op0), m_ConstantInt(CI))))
+              m_NUWShl(m_Value(Op0), m_ConstantInt(CI))) &&
+        CanUseSExt(CI))
       Result = {{0, nullptr},
                 {1, GEP->getPointerOperand()},
                 {std::pow(int64_t(2), CI->getSExtValue()), Op0}};
     else if (match(GEP->getOperand(GEP->getNumOperands() - 1),
-                   m_NSWAdd(m_Value(Op0), m_ConstantInt(CI))))
+                   m_NSWAdd(m_Value(Op0), m_ConstantInt(CI))) &&
+             CanUseSExt(CI))
       Result = {{CI->getSExtValue(), nullptr},
                 {1, GEP->getPointerOperand()},
                 {1, Op0}};
@@ -214,7 +255,8 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
   if (match(V, m_NUWAdd(m_Value(Op0), m_ConstantInt(CI))) &&
       !CI->uge(MaxConstraintValue))
     return {{CI->getZExtValue(), nullptr}, {1, Op0}};
-  if (match(V, m_Add(m_Value(Op0), m_ConstantInt(CI))) && CI->isNegative()) {
+  if (match(V, m_Add(m_Value(Op0), m_ConstantInt(CI))) && CI->isNegative() &&
+      CanUseSExt(CI)) {
     Preconditions.emplace_back(
         CmpInst::ICMP_UGE, Op0,
         ConstantInt::get(Op0->getType(), CI->getSExtValue() * -1));
@@ -223,7 +265,7 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
   if (match(V, m_NUWAdd(m_Value(Op0), m_Value(Op1))))
     return {{0, nullptr}, {1, Op0}, {1, Op1}};
 
-  if (match(V, m_NUWSub(m_Value(Op0), m_ConstantInt(CI))))
+  if (match(V, m_NUWSub(m_Value(Op0), m_ConstantInt(CI))) && CanUseSExt(CI))
     return {{-1 * CI->getSExtValue(), nullptr}, {1, Op0}};
   if (match(V, m_NUWSub(m_Value(Op0), m_Value(Op1))))
     return {{0, nullptr}, {1, Op0}, {-1, Op1}};
@@ -231,13 +273,9 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
   return {{0, nullptr}, {1, V}};
 }
 
-/// Turn a condition \p CmpI into a vector of constraints, using indices from \p
-/// Value2Index. Additional indices for newly discovered values are added to \p
-/// NewIndices.
-static ConstraintTy
-getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
-              const DenseMap<Value *, unsigned> &Value2Index,
-              DenseMap<Value *, unsigned> &NewIndices) {
+ConstraintTy
+ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
+                              DenseMap<Value *, unsigned> &NewIndices) const {
   bool IsEq = false;
   // Try to convert Pred to one of ULE/SLT/SLE/SLT.
   switch (Pred) {
@@ -274,16 +312,13 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
 
   SmallVector<PreconditionTy, 4> Preconditions;
   bool IsSigned = CmpInst::isSigned(Pred);
+  auto &Value2Index = getValue2Index(IsSigned);
   auto ADec = decompose(Op0->stripPointerCastsSameRepresentation(),
                         Preconditions, IsSigned);
   auto BDec = decompose(Op1->stripPointerCastsSameRepresentation(),
                         Preconditions, IsSigned);
   // Skip if decomposing either of the values failed.
   if (ADec.empty() || BDec.empty())
-    return {};
-
-  // Skip trivial constraints without any variables.
-  if (ADec.size() == 1 && BDec.size() == 1)
     return {};
 
   int64_t Offset1 = ADec[0].first;
@@ -334,26 +369,63 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   return Res;
 }
 
-static ConstraintTy getConstraint(CmpInst *Cmp, ConstraintInfo &Info,
-                                  DenseMap<Value *, unsigned> &NewIndices) {
-  return getConstraint(
-      Cmp->getPredicate(), Cmp->getOperand(0), Cmp->getOperand(1),
-      Info.getValue2Index(CmpInst::isSigned(Cmp->getPredicate())), NewIndices);
-}
-
 bool ConstraintTy::isValid(const ConstraintInfo &Info) const {
   return Coefficients.size() > 0 &&
          all_of(Preconditions, [&Info](const PreconditionTy &C) {
-           DenseMap<Value *, unsigned> NewIndices;
-           auto R = getConstraint(
-               C.Pred, C.Op0, C.Op1,
-               Info.getValue2Index(CmpInst::isSigned(C.Pred)), NewIndices);
-           // TODO: properly check NewIndices.
-           return NewIndices.empty() && R.Preconditions.empty() && !R.IsEq &&
-                  R.size() >= 2 &&
-                  Info.getCS(CmpInst::isSigned(C.Pred))
-                      .isConditionImplied(R.Coefficients);
+           return Info.doesHold(C.Pred, C.Op0, C.Op1);
          });
+}
+
+bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, Value *A,
+                              Value *B) const {
+  DenseMap<Value *, unsigned> NewIndices;
+  auto R = getConstraint(Pred, A, B, NewIndices);
+
+  if (!NewIndices.empty())
+    return false;
+
+  // TODO: properly check NewIndices.
+  return NewIndices.empty() && R.Preconditions.empty() && !R.IsEq &&
+         !R.empty() &&
+         getCS(CmpInst::isSigned(Pred)).isConditionImplied(R.Coefficients);
+}
+
+void ConstraintInfo::transferToOtherSystem(
+    CmpInst::Predicate Pred, Value *A, Value *B, bool IsNegated, unsigned NumIn,
+    unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack) {
+  // Check if we can combine facts from the signed and unsigned systems to
+  // derive additional facts.
+  if (!A->getType()->isIntegerTy())
+    return;
+  // FIXME: This currently depends on the order we add facts. Ideally we
+  // would first add all known facts and only then try to add additional
+  // facts.
+  switch (Pred) {
+  default:
+    break;
+  case CmpInst::ICMP_ULT:
+    //  If B is a signed positive constant, A >=s 0 and A <s B.
+    if (doesHold(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), 0))) {
+      addFact(CmpInst::ICMP_SGE, A, ConstantInt::get(B->getType(), 0),
+              IsNegated, NumIn, NumOut, DFSInStack);
+      addFact(CmpInst::ICMP_SLT, A, B, IsNegated, NumIn, NumOut, DFSInStack);
+    }
+    break;
+  case CmpInst::ICMP_SLT:
+    if (doesHold(CmpInst::ICMP_SGE, A, ConstantInt::get(B->getType(), 0)))
+      addFact(CmpInst::ICMP_ULT, A, B, IsNegated, NumIn, NumOut, DFSInStack);
+    break;
+  case CmpInst::ICMP_SGT:
+    if (doesHold(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), -1)))
+      addFact(CmpInst::ICMP_UGE, A, ConstantInt::get(B->getType(), 0),
+              IsNegated, NumIn, NumOut, DFSInStack);
+    break;
+  case CmpInst::ICMP_SGE:
+    if (doesHold(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), 0))) {
+      addFact(CmpInst::ICMP_UGE, A, B, IsNegated, NumIn, NumOut, DFSInStack);
+    }
+    break;
+  }
 }
 
 namespace {
@@ -375,22 +447,6 @@ struct ConstraintOrBlock {
   ConstraintOrBlock(DomTreeNode *DTN, CmpInst *Condition, bool Not)
       : NumIn(DTN->getDFSNumIn()), NumOut(DTN->getDFSNumOut()), IsBlock(false),
         Not(Not), Condition(Condition) {}
-};
-
-struct StackEntry {
-  unsigned NumIn;
-  unsigned NumOut;
-  Instruction *Condition;
-  bool IsNot;
-  bool IsSigned = false;
-  /// Variables that can be removed from the system once the stack entry gets
-  /// removed.
-  SmallVector<Value *, 2> ValuesToRelease;
-
-  StackEntry(unsigned NumIn, unsigned NumOut, CmpInst *Condition, bool IsNot,
-             bool IsSigned, SmallVector<Value *, 2> ValuesToRelease)
-      : NumIn(NumIn), NumOut(NumOut), Condition(Condition), IsNot(IsNot),
-        IsSigned(IsSigned), ValuesToRelease(ValuesToRelease) {}
 };
 
 /// Keep state required to build worklist.
@@ -423,15 +479,20 @@ struct State {
 } // namespace
 
 #ifndef NDEBUG
-static void dumpWithNames(ConstraintTy &C,
+static void dumpWithNames(const ConstraintSystem &CS,
                           DenseMap<Value *, unsigned> &Value2Index) {
   SmallVector<std::string> Names(Value2Index.size(), "");
   for (auto &KV : Value2Index) {
     Names[KV.second - 1] = std::string("%") + KV.first->getName().str();
   }
-  ConstraintSystem CS;
-  CS.addVariableRowFill(C.Coefficients);
   CS.dump(Names);
+}
+
+static void dumpWithNames(ArrayRef<int64_t> C,
+                          DenseMap<Value *, unsigned> &Value2Index) {
+  ConstraintSystem CS;
+  CS.addVariableRowFill(C);
+  dumpWithNames(CS, Value2Index);
 }
 #endif
 
@@ -510,6 +571,103 @@ void State::addInfoFor(BasicBlock &BB) {
     WorkList.emplace_back(DT.getNode(Br->getSuccessor(1)), CmpI, true);
 }
 
+void ConstraintInfo::addFact(CmpInst::Predicate Pred, Value *A, Value *B,
+                             bool IsNegated, unsigned NumIn, unsigned NumOut,
+                             SmallVectorImpl<StackEntry> &DFSInStack) {
+  // If the constraint has a pre-condition, skip the constraint if it does not
+  // hold.
+  DenseMap<Value *, unsigned> NewIndices;
+  auto R = getConstraint(Pred, A, B, NewIndices);
+  if (!R.isValid(*this))
+    return;
+
+  //LLVM_DEBUG(dbgs() << "Adding " << *Condition << " " << IsNegated << "\n");
+  bool Added = false;
+  assert(CmpInst::isSigned(Pred) == R.IsSigned &&
+         "condition and constraint signs must match");
+  auto &CSToUse = getCS(R.IsSigned);
+  if (R.Coefficients.empty())
+    return;
+
+  Added |= CSToUse.addVariableRowFill(R.Coefficients);
+
+  // If R has been added to the system, queue it for removal once it goes
+  // out-of-scope.
+  if (Added) {
+    SmallVector<Value *, 2> ValuesToRelease;
+    for (auto &KV : NewIndices) {
+      getValue2Index(R.IsSigned).insert(KV);
+      ValuesToRelease.push_back(KV.first);
+    }
+
+    LLVM_DEBUG({
+      dbgs() << "  constraint: ";
+      dumpWithNames(R.Coefficients, getValue2Index(R.IsSigned));
+    });
+
+    DFSInStack.emplace_back(NumIn, NumOut, IsNegated, R.IsSigned,
+                            ValuesToRelease);
+
+    if (R.IsEq) {
+      // Also add the inverted constraint for equality constraints.
+      for (auto &Coeff : R.Coefficients)
+        Coeff *= -1;
+      CSToUse.addVariableRowFill(R.Coefficients);
+
+      DFSInStack.emplace_back(NumIn, NumOut, IsNegated, R.IsSigned,
+                              SmallVector<Value *, 2>());
+    }
+  }
+}
+
+static void
+tryToSimplifyOverflowMath(IntrinsicInst *II, ConstraintInfo &Info,
+                          SmallVectorImpl<Instruction *> &ToRemove) {
+  auto DoesConditionHold = [](CmpInst::Predicate Pred, Value *A, Value *B,
+                              ConstraintInfo &Info) {
+    DenseMap<Value *, unsigned> NewIndices;
+    auto R = Info.getConstraint(Pred, A, B, NewIndices);
+    if (R.size() < 2 || R.needsNewIndices(NewIndices) || !R.isValid(Info))
+      return false;
+
+    auto &CSToUse = Info.getCS(CmpInst::isSigned(Pred));
+    return CSToUse.isConditionImplied(R.Coefficients);
+  };
+
+  if (II->getIntrinsicID() == Intrinsic::ssub_with_overflow) {
+    // If A s>= B && B s>= 0, ssub.with.overflow(a, b) should not overflow and
+    // can be simplified to a regular sub.
+    Value *A = II->getArgOperand(0);
+    Value *B = II->getArgOperand(1);
+    if (!DoesConditionHold(CmpInst::ICMP_SGE, A, B, Info) ||
+        !DoesConditionHold(CmpInst::ICMP_SGE, B,
+                           ConstantInt::get(A->getType(), 0), Info))
+      return;
+
+    IRBuilder<> Builder(II->getParent(), II->getIterator());
+    Value *Sub = nullptr;
+    for (User *U : make_early_inc_range(II->users())) {
+      if (match(U, m_ExtractValue<0>(m_Value()))) {
+        if (!Sub)
+          Sub = Builder.CreateSub(A, B);
+        U->replaceAllUsesWith(Sub);
+      } else if (match(U, m_ExtractValue<1>(m_Value())))
+        U->replaceAllUsesWith(Builder.getFalse());
+      else
+        continue;
+
+      if (U->use_empty()) {
+        auto *I = cast<Instruction>(U);
+        ToRemove.push_back(I);
+        I->setOperand(0, PoisonValue::get(II->getType()));
+      }
+    }
+
+    if (II->use_empty())
+      II->eraseFromParent();
+  }
+}
+
 static bool eliminateConstraints(Function &F, DominatorTree &DT) {
   bool Changed = false;
   DT.updateDFSNumbers();
@@ -529,9 +687,11 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
   // come before blocks and conditions dominated by them. If a block and a
   // condition have the same numbers, the condition comes before the block, as
   // it holds on entry to the block.
-  sort(S.WorkList, [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
+  stable_sort(S.WorkList, [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
     return std::tie(A.NumIn, A.IsBlock) < std::tie(B.NumIn, B.IsBlock);
   });
+
+  SmallVector<Instruction *> ToRemove;
 
   // Finally, process ordered worklist and eliminate implied conditions.
   SmallVector<StackEntry, 16> DFSInStack;
@@ -546,8 +706,13 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
       assert(E.NumIn <= CB.NumIn);
       if (CB.NumOut <= E.NumOut)
         break;
-      LLVM_DEBUG(dbgs() << "Removing " << *E.Condition << " " << E.IsNot
-                        << "\n");
+      LLVM_DEBUG({
+        dbgs() << "Removing ";
+        dumpWithNames(Info.getCS(E.IsSigned).getLastConstraint(),
+                      Info.getValue2Index(E.IsSigned));
+        dbgs() << "\n";
+      });
+
       Info.popLastConstraint(E.IsSigned);
       // Remove variables in the system that went out of scope.
       auto &Mapping = Info.getValue2Index(E.IsSigned);
@@ -569,14 +734,18 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
     // For a block, check if any CmpInsts become known based on the current set
     // of constraints.
     if (CB.IsBlock) {
-      for (Instruction &I : *CB.BB) {
+      for (Instruction &I : make_early_inc_range(*CB.BB)) {
+        if (auto *II = dyn_cast<WithOverflowInst>(&I)) {
+          tryToSimplifyOverflowMath(II, Info, ToRemove);
+          continue;
+        }
         auto *Cmp = dyn_cast<ICmpInst>(&I);
         if (!Cmp)
           continue;
 
         DenseMap<Value *, unsigned> NewIndices;
-        auto R = getConstraint(Cmp, Info, NewIndices);
-        if (R.IsEq || R.size() < 2 || R.needsNewIndices(NewIndices) ||
+        auto R = Info.getConstraint(Cmp, NewIndices);
+        if (R.IsEq || R.empty() || R.needsNewIndices(NewIndices) ||
             !R.isValid(Info))
           continue;
 
@@ -585,11 +754,10 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
           if (!DebugCounter::shouldExecute(EliminatedCounter))
             continue;
 
-          LLVM_DEBUG(dbgs() << "Condition " << *Cmp
-                            << " implied by dominating constraints\n");
           LLVM_DEBUG({
-            for (auto &E : reverse(DFSInStack))
-              dbgs() << "   C " << *E.Condition << " " << E.IsNot << "\n";
+            dbgs() << "Condition " << *Cmp
+                   << " implied by dominating constraints\n";
+            dumpWithNames(CSToUse, Info.getValue2Index(R.IsSigned));
           });
           Cmp->replaceUsesWithIf(
               ConstantInt::getTrue(F.getParent()->getContext()), [](Use &U) {
@@ -606,11 +774,10 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
           if (!DebugCounter::shouldExecute(EliminatedCounter))
             continue;
 
-          LLVM_DEBUG(dbgs() << "Condition !" << *Cmp
-                            << " implied by dominating constraints\n");
           LLVM_DEBUG({
-            for (auto &E : reverse(DFSInStack))
-              dbgs() << "   C " << *E.Condition << " " << E.IsNot << "\n";
+            dbgs() << "Condition !" << *Cmp
+                   << " implied by dominating constraints\n";
+            dumpWithNames(CSToUse, Info.getValue2Index(R.IsSigned));
           });
           Cmp->replaceAllUsesWith(
               ConstantInt::getFalse(F.getParent()->getContext()));
@@ -637,49 +804,14 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
       }
     }
 
-    // Otherwise, add the condition to the system and stack, if we can transform
-    // it into a constraint.
-    DenseMap<Value *, unsigned> NewIndices;
-    auto R = getConstraint(CB.Condition, Info, NewIndices);
-    if (!R.isValid(Info))
-      continue;
-
-    LLVM_DEBUG(dbgs() << "Adding " << *CB.Condition << " " << CB.Not << "\n");
-    bool Added = false;
-    assert(CmpInst::isSigned(CB.Condition->getPredicate()) == R.IsSigned &&
-           "condition and constraint signs must match");
-    auto &CSToUse = Info.getCS(R.IsSigned);
-    if (R.Coefficients.empty())
-      continue;
-
-    Added |= CSToUse.addVariableRowFill(R.Coefficients);
-
-    // If R has been added to the system, queue it for removal once it goes
-    // out-of-scope.
-    if (Added) {
-      SmallVector<Value *, 2> ValuesToRelease;
-      for (auto &KV : NewIndices) {
-        Info.getValue2Index(R.IsSigned).insert(KV);
-        ValuesToRelease.push_back(KV.first);
-      }
-
-      LLVM_DEBUG({
-        dbgs() << "  constraint: ";
-        dumpWithNames(R, Info.getValue2Index(R.IsSigned));
-      });
-
-      DFSInStack.emplace_back(CB.NumIn, CB.NumOut, CB.Condition, CB.Not,
-                              R.IsSigned, ValuesToRelease);
-
-      if (R.IsEq) {
-        // Also add the inverted constraint for equality constraints.
-        for (auto &Coeff : R.Coefficients)
-          Coeff *= -1;
-        CSToUse.addVariableRowFill(R.Coefficients);
-
-        DFSInStack.emplace_back(CB.NumIn, CB.NumOut, CB.Condition, CB.Not,
-                                R.IsSigned, SmallVector<Value *, 2>());
-      }
+    ICmpInst::Predicate Pred;
+    Value *A, *B;
+    if (match(CB.Condition, m_ICmp(Pred, m_Value(A), m_Value(B)))) {
+      // Otherwise, add the condition to the system and stack, if we can
+      // transform it into a constraint.
+      Info.addFact(Pred, A, B, CB.Not, CB.NumIn, CB.NumOut, DFSInStack);
+      Info.transferToOtherSystem(Pred, A, B, CB.Not, CB.NumIn, CB.NumOut,
+                                 DFSInStack);
     }
   }
 
@@ -692,6 +824,8 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
          "updates to CS and DFSInStack are out of sync");
 #endif
 
+  for (Instruction *I : ToRemove)
+    I->eraseFromParent();
   return Changed;
 }
 

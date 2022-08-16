@@ -19,7 +19,9 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include <numeric>
 
@@ -143,11 +145,11 @@ struct VectorFmaOpConvert final : public OpConversionPattern<vector::FMAOp> {
   LogicalResult
   matchAndRewrite(vector::FMAOp fmaOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!spirv::CompositeType::isValid(fmaOp.getVectorType()))
+    Type dstType = getTypeConverter()->convertType(fmaOp.getType());
+    if (!dstType)
       return failure();
-    rewriter.replaceOpWithNewOp<spirv::GLSLFmaOp>(
-        fmaOp, fmaOp.getType(), adaptor.getLhs(), adaptor.getRhs(),
-        adaptor.getAcc());
+    rewriter.replaceOpWithNewOp<spirv::GLFmaOp>(
+        fmaOp, dstType, adaptor.getLhs(), adaptor.getRhs(), adaptor.getAcc());
     return success();
   }
 };
@@ -249,6 +251,69 @@ struct VectorInsertStridedSliceOpConvert final
   }
 };
 
+struct VectorReductionPattern final
+    : public OpConversionPattern<vector::ReductionOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(vector::ReductionOp reduceOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type resultType = typeConverter->convertType(reduceOp.getType());
+    if (!resultType)
+      return failure();
+
+    auto srcVectorType = adaptor.getVector().getType().dyn_cast<VectorType>();
+    if (!srcVectorType || srcVectorType.getRank() != 1)
+      return rewriter.notifyMatchFailure(reduceOp, "not 1-D vector source");
+
+    // Extract all elements.
+    int numElements = srcVectorType.getDimSize(0);
+    SmallVector<Value, 4> values;
+    values.reserve(numElements + (adaptor.getAcc() != nullptr));
+    Location loc = reduceOp.getLoc();
+    for (int i = 0; i < numElements; ++i) {
+      values.push_back(rewriter.create<spirv::CompositeExtractOp>(
+          loc, srcVectorType.getElementType(), adaptor.getVector(),
+          rewriter.getI32ArrayAttr({i})));
+    }
+    if (Value acc = adaptor.getAcc())
+      values.push_back(acc);
+
+    // Reduce them.
+    Value result = values.front();
+    for (Value next : llvm::makeArrayRef(values).drop_front()) {
+      switch (reduceOp.getKind()) {
+#define INT_FLOAT_CASE(kind, iop, fop)                                         \
+  case vector::CombiningKind::kind:                                            \
+    if (resultType.isa<IntegerType>()) {                                       \
+      result = rewriter.create<spirv::iop>(loc, resultType, result, next);     \
+    } else {                                                                   \
+      assert(resultType.isa<FloatType>());                                     \
+      result = rewriter.create<spirv::fop>(loc, resultType, result, next);     \
+    }                                                                          \
+    break
+
+        INT_FLOAT_CASE(ADD, IAddOp, FAddOp);
+        INT_FLOAT_CASE(MUL, IMulOp, FMulOp);
+
+      case vector::CombiningKind::MINUI:
+      case vector::CombiningKind::MINSI:
+      case vector::CombiningKind::MINF:
+      case vector::CombiningKind::MAXUI:
+      case vector::CombiningKind::MAXSI:
+      case vector::CombiningKind::MAXF:
+      case vector::CombiningKind::AND:
+      case vector::CombiningKind::OR:
+      case vector::CombiningKind::XOR:
+        return rewriter.notifyMatchFailure(reduceOp, "unimplemented");
+      }
+    }
+
+    rewriter.replaceOp(reduceOp, result);
+    return success();
+  }
+};
+
 class VectorSplatPattern final : public OpConversionPattern<vector::SplatOp> {
 public:
   using OpConversionPattern<vector::SplatOp>::OpConversionPattern;
@@ -256,13 +321,18 @@ public:
   LogicalResult
   matchAndRewrite(vector::SplatOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    VectorType dstVecType = op.getType();
-    if (!spirv::CompositeType::isValid(dstVecType))
+    Type dstType = getTypeConverter()->convertType(op.getType());
+    if (!dstType)
       return failure();
-    SmallVector<Value, 4> source(dstVecType.getNumElements(),
-                                 adaptor.getInput());
-    rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(op, dstVecType,
-                                                             source);
+    if (dstType.isa<spirv::ScalarType>()) {
+      rewriter.replaceOp(op, adaptor.getInput());
+    } else {
+      auto dstVecType = dstType.cast<VectorType>();
+      SmallVector<Value, 4> source(dstVecType.getNumElements(),
+                                   adaptor.getInput());
+      rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(op, dstType,
+                                                               source);
+    }
     return success();
   }
 };
@@ -312,6 +382,7 @@ void mlir::populateVectorToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
                VectorExtractElementOpConvert, VectorExtractOpConvert,
                VectorExtractStridedSliceOpConvert, VectorFmaOpConvert,
                VectorInsertElementOpConvert, VectorInsertOpConvert,
-               VectorInsertStridedSliceOpConvert, VectorShuffleOpConvert,
-               VectorSplatPattern>(typeConverter, patterns.getContext());
+               VectorReductionPattern, VectorInsertStridedSliceOpConvert,
+               VectorShuffleOpConvert, VectorSplatPattern>(
+      typeConverter, patterns.getContext());
 }

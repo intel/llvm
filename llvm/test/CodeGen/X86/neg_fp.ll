@@ -23,7 +23,7 @@ entry:
 
 ; This may infinite loop if isNegatibleForFree and getNegatedExpression are conflicted.
 
-define double @negation_propagation(double* %arg, double %arg1, double %arg2) nounwind {
+define double @negation_propagation(ptr %arg, double %arg1, double %arg2) nounwind {
 ; CHECK-LABEL: negation_propagation:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    pushl %ebp
@@ -80,4 +80,18 @@ define float @fdiv_extra_use_changes_cost(float %a0, float %a1, float %a2) nounw
   %sub4 = fadd fast float %add3, %a2
   %div5 = fdiv fast float %sub4, %mul2
   ret float %div5
+}
+
+; PR55758 - this is not -(-X)
+
+define <2 x i64> @fneg_mismatched_sizes(<4 x float> %x) {
+; CHECK-LABEL: fneg_mismatched_sizes:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    xorps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
+; CHECK-NEXT:    xorps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
+; CHECK-NEXT:    retl
+  %n = fneg <4 x float> %x
+  %b = bitcast <4 x float> %n to <2 x i64>
+  %r = xor <2 x i64> %b, <i64 -9223372036854775808, i64 -9223372036854775808>
+  ret <2 x i64> %r
 }

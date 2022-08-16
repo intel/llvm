@@ -247,7 +247,7 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
@@ -255,7 +255,7 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
@@ -264,7 +264,7 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 
@@ -273,10 +273,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // array:
@@ -285,10 +285,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
@@ -298,10 +298,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
@@ -309,10 +309,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // array:
@@ -321,10 +321,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
@@ -334,10 +334,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
@@ -346,10 +346,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -361,10 +361,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -377,10 +377,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -391,10 +391,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -406,10 +406,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -422,10 +422,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -436,10 +436,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -451,10 +451,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -467,10 +467,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -481,10 +481,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}  'void (__global char *, range<1>, range<1>, id<1>, int)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -496,10 +496,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -512,10 +512,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -598,7 +598,7 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // array:
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
@@ -606,7 +606,7 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // element 1
@@ -615,7 +615,7 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: MemberExpr {{.*}} 'HasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 
@@ -624,10 +624,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // array:
@@ -636,10 +636,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
@@ -649,10 +649,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
@@ -660,10 +660,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // array:
@@ -672,10 +672,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 0
@@ -685,10 +685,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}}'HasArrayOfHasStreams' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
@@ -698,10 +698,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -713,10 +713,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -729,10 +729,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -743,10 +743,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -758,10 +758,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -774,10 +774,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -788,10 +788,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -803,10 +803,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -819,10 +819,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -833,10 +833,10 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ()' lvalue .__finalize
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue .s1
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -848,10 +848,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
@@ -864,10 +864,10 @@ int main() {
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::stream *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::stream[2]' lvalue .s_array
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'HasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'HasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasStreams[2]' lvalue .hs
-// CHECK-NEXT: ArraySubscriptExpr{{.*}} 'HasArrayOfHasStreams' lvalue
+// CHECK-NEXT: ArraySubscriptExpr{{.*}}'HasArrayOfHasStreams' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'HasArrayOfHasStreams *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'HasArrayOfHasStreams[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at

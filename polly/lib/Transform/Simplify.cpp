@@ -119,7 +119,7 @@ static isl::union_map underapproximatedAddMap(isl::union_map UMap,
   return UResult;
 }
 
-class SimplifyImpl {
+class SimplifyImpl final {
 private:
   /// The invocation id (if there are multiple instances in the pass manager's
   /// pipeline) to determine which statistics to update.
@@ -754,7 +754,7 @@ void SimplifyImpl::printScop(raw_ostream &OS, Scop &S) const {
   printAccesses(OS);
 }
 
-class SimplifyWrapperPass : public ScopPass {
+class SimplifyWrapperPass final : public ScopPass {
 public:
   static char ID;
   int CallNo;
@@ -762,13 +762,13 @@ public:
 
   explicit SimplifyWrapperPass(int CallNo = 0) : ScopPass(ID), CallNo(CallNo) {}
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredTransitive<ScopInfoRegionPass>();
     AU.addRequired<LoopInfoWrapperPass>();
     AU.setPreservesAll();
   }
 
-  virtual bool runOnScop(Scop &S) override {
+  bool runOnScop(Scop &S) override {
     LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
     Impl.emplace(CallNo);
@@ -777,12 +777,12 @@ public:
     return false;
   }
 
-  virtual void printScop(raw_ostream &OS, Scop &S) const override {
+  void printScop(raw_ostream &OS, Scop &S) const override {
     if (Impl)
       Impl->printScop(OS, S);
   }
 
-  virtual void releaseMemory() override { Impl.reset(); }
+  void releaseMemory() override { Impl.reset(); }
 };
 
 char SimplifyWrapperPass::ID;
@@ -855,7 +855,7 @@ INITIALIZE_PASS_END(SimplifyWrapperPass, "polly-simplify", "Polly - Simplify",
 
 namespace {
 /// Print result from SimplifyWrapperPass.
-class SimplifyPrinterLegacyPass : public ScopPass {
+class SimplifyPrinterLegacyPass final : public ScopPass {
 public:
   static char ID;
 

@@ -9,19 +9,20 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_INTERNAL_API
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 #include <detail/context_impl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
+#include <helpers/TestKernel.hpp>
 
 #include <gtest/gtest.h>
 
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int TestCounter = 0;
 int DeviceRetainCounter = 0;
@@ -49,6 +50,17 @@ static pi_result redefinedProgramRetain(pi_program c) {
 
 static pi_result redefinedEventRetain(pi_event c) {
   ++TestCounter;
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedMemRetain(pi_mem c) {
+  ++TestCounter;
+  return PI_SUCCESS;
+}
+
+pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
+                                   void *, pi_mem *,
+                                   const pi_mem_properties *) {
   return PI_SUCCESS;
 }
 
@@ -93,6 +105,9 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
   Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
+  Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+      redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
 
@@ -108,14 +123,23 @@ TEST(GetNative, GetNativeHandle) {
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Context);
   auto Event = Queue.memset(HostAlloc, 42, 1);
 
+  int Data[1] = {0};
+  sycl::buffer<int, 1> Buffer(&Data[0], sycl::range<1>(1));
+  Queue.submit([&](sycl::handler &cgh) {
+    auto Acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
+    constexpr size_t KS = sizeof(decltype(Acc));
+    cgh.single_task<TestKernel<KS>>([=]() { (void)Acc; });
+  });
+
   get_native<backend::opencl>(Context);
   get_native<backend::opencl>(Queue);
   get_native<backend::opencl>(Program);
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
+  get_native<backend::opencl>(Buffer);
 
   // Depending on global caches state, piDeviceRetain is called either once or
-  // twice, so there'll be 5 or 6 calls.
-  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
+  // twice, so there'll be 6 or 7 calls.
+  ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";
 }

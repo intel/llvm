@@ -30,6 +30,7 @@
 #include "bolt/Core/BinaryLoop.h"
 #include "bolt/Core/BinarySection.h"
 #include "bolt/Core/DebugData.h"
+#include "bolt/Core/FunctionLayout.h"
 #include "bolt/Core/JumpTable.h"
 #include "bolt/Core/MCPlus.h"
 #include "bolt/Utils/NameResolver.h"
@@ -253,10 +254,6 @@ private:
 
   std::unique_ptr<BinaryLoopInfo> BLI;
 
-  /// Set of external addresses in the code that are not a function start
-  /// and are referenced from this function.
-  std::set<uint64_t> InterproceduralReferences;
-
   /// All labels in the function that are referenced via relocations from
   /// data objects. Typically these are jump table destinations and computed
   /// goto labels.
@@ -337,9 +334,9 @@ private:
   /// True if the original entry point was patched.
   bool IsPatched{false};
 
-  /// True if the function contains jump table with entries pointing to
-  /// locations in fragments.
-  bool HasSplitJumpTable{false};
+  /// True if the function contains explicit or implicit indirect branch to its
+  /// split fragments, e.g., split jump table, landing pad in split fragment
+  bool HasIndirectTargetToSplitFragment{false};
 
   /// True if there are no control-flow edges with successors in other functions
   /// (i.e. if tail calls have edges to function-local basic blocks).
@@ -556,10 +553,8 @@ private:
   using BasicBlockListType = SmallVector<BinaryBasicBlock *, 0>;
   BasicBlockListType BasicBlocks;
   BasicBlockListType DeletedBasicBlocks;
-  BasicBlockOrderType BasicBlocksLayout;
-  /// Previous layout replaced by modifyLayout
-  BasicBlockOrderType BasicBlocksPreviousLayout;
-  bool ModifiedLayout{false};
+
+  FunctionLayout Layout;
 
   /// BasicBlockOffsets are used during CFG construction to map from code
   /// offsets to BinaryBasicBlocks.  Any modifications made to the CFG
@@ -667,9 +662,6 @@ private:
                                            uint64_t Offset,
                                            uint64_t &TargetAddress);
 
-  DenseMap<const MCInst *, SmallVector<MCInst *, 4>>
-  computeLocalUDChain(const MCInst *CurInstr);
-
   BinaryFunction &operator=(const BinaryFunction &) = delete;
   BinaryFunction(const BinaryFunction &) = delete;
 
@@ -702,6 +694,27 @@ private:
         FunctionNumber(++Count) {
     Symbols.push_back(BC.Ctx->getOrCreateSymbol(Name));
     IsInjected = true;
+  }
+
+  /// Create a basic block at a given \p Offset in the function and append it
+  /// to the end of list of blocks. Used during CFG construction only.
+  BinaryBasicBlock *addBasicBlockAt(uint64_t Offset, MCSymbol *Label) {
+    assert(CurrentState == State::Disassembled &&
+           "Cannot add block with an offset in non-disassembled state.");
+    assert(!getBasicBlockAtOffset(Offset) &&
+           "Basic block already exists at the offset.");
+
+    BasicBlocks.emplace_back(createBasicBlock(Label).release());
+    BinaryBasicBlock *BB = BasicBlocks.back();
+
+    BB->setIndex(BasicBlocks.size() - 1);
+    BB->setOffset(Offset);
+
+    BasicBlockOffsets.emplace_back(Offset, BB);
+    assert(llvm::is_sorted(BasicBlockOffsets, CompareBasicBlockOffsets()) &&
+           llvm::is_sorted(blocks()));
+
+    return BB;
   }
 
   /// Clear state of the function that could not be disassembled or if its
@@ -740,12 +753,6 @@ public:
   using const_reverse_iterator =
       pointee_iterator<BasicBlockListType::const_reverse_iterator>;
 
-  typedef BasicBlockOrderType::iterator order_iterator;
-  typedef BasicBlockOrderType::const_iterator const_order_iterator;
-  typedef BasicBlockOrderType::reverse_iterator reverse_order_iterator;
-  typedef BasicBlockOrderType::const_reverse_iterator
-      const_reverse_order_iterator;
-
   // CFG iterators.
   iterator                 begin()       { return BasicBlocks.begin(); }
   const_iterator           begin() const { return BasicBlocks.begin(); }
@@ -774,49 +781,6 @@ public:
   BasicBlockListType::iterator pbegin()  { return BasicBlocks.begin(); }
   BasicBlockListType::iterator pend()    { return BasicBlocks.end(); }
 
-  order_iterator       layout_begin()    { return BasicBlocksLayout.begin(); }
-  const_order_iterator layout_begin()    const
-                                         { return BasicBlocksLayout.begin(); }
-  order_iterator       layout_end()      { return BasicBlocksLayout.end(); }
-  const_order_iterator layout_end()      const
-                                         { return BasicBlocksLayout.end(); }
-  reverse_order_iterator       layout_rbegin()
-                                         { return BasicBlocksLayout.rbegin(); }
-  const_reverse_order_iterator layout_rbegin() const
-                                         { return BasicBlocksLayout.rbegin(); }
-  reverse_order_iterator       layout_rend()
-                                         { return BasicBlocksLayout.rend(); }
-  const_reverse_order_iterator layout_rend()   const
-                                         { return BasicBlocksLayout.rend(); }
-  size_t   layout_size()  const { return BasicBlocksLayout.size(); }
-  bool     layout_empty() const { return BasicBlocksLayout.empty(); }
-  const BinaryBasicBlock *layout_front() const
-                                         { return BasicBlocksLayout.front(); }
-        BinaryBasicBlock *layout_front() { return BasicBlocksLayout.front(); }
-  const BinaryBasicBlock *layout_back()  const
-                                         { return BasicBlocksLayout.back(); }
-        BinaryBasicBlock *layout_back()  { return BasicBlocksLayout.back(); }
-
-  inline iterator_range<order_iterator> layout() {
-    return iterator_range<order_iterator>(BasicBlocksLayout.begin(),
-                                          BasicBlocksLayout.end());
-  }
-
-  inline iterator_range<const_order_iterator> layout() const {
-    return iterator_range<const_order_iterator>(BasicBlocksLayout.begin(),
-                                                BasicBlocksLayout.end());
-  }
-
-  inline iterator_range<reverse_order_iterator> rlayout() {
-    return iterator_range<reverse_order_iterator>(BasicBlocksLayout.rbegin(),
-                                                  BasicBlocksLayout.rend());
-  }
-
-  inline iterator_range<const_reverse_order_iterator> rlayout() const {
-    return iterator_range<const_reverse_order_iterator>(
-        BasicBlocksLayout.rbegin(), BasicBlocksLayout.rend());
-  }
-
   cfi_iterator        cie_begin()       { return CIEFrameInstructions.begin(); }
   const_cfi_iterator  cie_begin() const { return CIEFrameInstructions.begin(); }
   cfi_iterator        cie_end()         { return CIEFrameInstructions.end(); }
@@ -836,6 +800,29 @@ public:
     return make_range(JumpTables.begin(), JumpTables.end());
   }
 
+  /// Return relocation associated with a given \p Offset in the function,
+  /// or nullptr if no such relocation exists.
+  const Relocation *getRelocationAt(uint64_t Offset) const {
+    assert(CurrentState == State::Empty &&
+           "Relocations unavailable in the current function state.");
+    auto RI = Relocations.find(Offset);
+    return (RI == Relocations.end()) ? nullptr : &RI->second;
+  }
+
+  /// Return the first relocation in the function that starts at an address in
+  /// the [StartOffset, EndOffset) range. Return nullptr if no such relocation
+  /// exists.
+  const Relocation *getRelocationInRange(uint64_t StartOffset,
+                                         uint64_t EndOffset) const {
+    assert(CurrentState == State::Empty &&
+           "Relocations unavailable in the current function state.");
+    auto RI = Relocations.lower_bound(StartOffset);
+    if (RI != Relocations.end() && RI->first < EndOffset)
+      return &RI->second;
+
+    return nullptr;
+  }
+
   /// Returns the raw binary encoding of this function.
   ErrorOr<ArrayRef<uint8_t>> getData() const;
 
@@ -844,26 +831,16 @@ public:
     return *this;
   }
 
-  /// Update layout of basic blocks used for output.
-  void updateBasicBlockLayout(BasicBlockOrderType &NewLayout) {
-    BasicBlocksPreviousLayout = BasicBlocksLayout;
+  FunctionLayout &getLayout() { return Layout; }
 
-    if (NewLayout != BasicBlocksLayout) {
-      ModifiedLayout = true;
-      BasicBlocksLayout.clear();
-      BasicBlocksLayout.swap(NewLayout);
-    }
-  }
+  const FunctionLayout &getLayout() const { return Layout; }
 
   /// Recompute landing pad information for the function and all its blocks.
   void recomputeLandingPads();
 
-  /// Return current basic block layout.
-  const BasicBlockOrderType &getLayout() const { return BasicBlocksLayout; }
-
   /// Return a list of basic blocks sorted using DFS and update layout indices
   /// using the same order. Does not modify the current layout.
-  BasicBlockOrderType dfs() const;
+  BasicBlockListType dfs() const;
 
   /// Find the loops in the CFG of the function and store information about
   /// them.
@@ -911,33 +888,11 @@ public:
   bool validateCFG() const;
 
   BinaryBasicBlock *getBasicBlockForLabel(const MCSymbol *Label) {
-    auto I = LabelToBB.find(Label);
-    return I == LabelToBB.end() ? nullptr : I->second;
+    return LabelToBB.lookup(Label);
   }
 
   const BinaryBasicBlock *getBasicBlockForLabel(const MCSymbol *Label) const {
-    auto I = LabelToBB.find(Label);
-    return I == LabelToBB.end() ? nullptr : I->second;
-  }
-
-  /// Returns the basic block after the given basic block in the layout or
-  /// nullptr the last basic block is given.
-  const BinaryBasicBlock *getBasicBlockAfter(const BinaryBasicBlock *BB,
-                                             bool IgnoreSplits = true) const {
-    return const_cast<BinaryFunction *>(this)->getBasicBlockAfter(BB,
-                                                                  IgnoreSplits);
-  }
-
-  BinaryBasicBlock *getBasicBlockAfter(const BinaryBasicBlock *BB,
-                                       bool IgnoreSplits = true) {
-    for (auto I = layout_begin(), E = layout_end(); I != E; ++I) {
-      auto Next = std::next(I);
-      if (*I == BB && Next != E) {
-        return (IgnoreSplits || (*I)->isCold() == (*Next)->isCold()) ? *Next
-                                                                     : nullptr;
-      }
-    }
-    return nullptr;
+    return LabelToBB.lookup(Label);
   }
 
   /// Retrieve the landing pad BB associated with invoke instruction \p Invoke
@@ -960,6 +915,15 @@ public:
 
   const MCInst *getInstructionAtOffset(uint64_t Offset) const {
     return const_cast<BinaryFunction *>(this)->getInstructionAtOffset(Offset);
+  }
+
+  /// Return offset for the first instruction. If there is data at the
+  /// beginning of a function then offset of the first instruction could
+  /// be different from 0
+  uint64_t getFirstInstructionOffset() const {
+    if (Instructions.empty())
+      return 0;
+    return Instructions.begin()->first;
   }
 
   /// Return jump table that covers a given \p Address in memory.
@@ -1030,7 +994,7 @@ public:
   bool hasName(const std::string &FunctionName) const {
     auto Res =
         forEachName([&](StringRef Name) { return Name == FunctionName; });
-    return Res.hasValue();
+    return Res.has_value();
   }
 
   /// Check if any of function names matches the given regex.
@@ -1041,7 +1005,7 @@ public:
   Optional<StringRef> hasRestoredNameRegex(const StringRef NameRegex) const;
 
   /// Return a vector of all possible names for the function.
-  const std::vector<StringRef> getNames() const {
+  std::vector<StringRef> getNames() const {
     std::vector<StringRef> AllNames;
     forEachName([&AllNames](StringRef Name) {
       AllNames.push_back(Name);
@@ -1110,8 +1074,8 @@ public:
   /// Return the number of emitted instructions for this function.
   uint32_t getNumNonPseudos() const {
     uint32_t N = 0;
-    for (BinaryBasicBlock *const &BB : layout())
-      N += BB->getNumNonPseudos();
+    for (const BinaryBasicBlock &BB : blocks())
+      N += BB.getNumNonPseudos();
     return N;
   }
 
@@ -1279,6 +1243,9 @@ public:
     case ELF::R_AARCH64_MOVW_UABS_G2:
     case ELF::R_AARCH64_MOVW_UABS_G2_NC:
     case ELF::R_AARCH64_MOVW_UABS_G3:
+    case ELF::R_AARCH64_PREL16:
+    case ELF::R_AARCH64_PREL32:
+    case ELF::R_AARCH64_PREL64:
       Rels[Offset] = Relocation{Offset, Symbol, RelType, Addend, Value};
       return;
     case ELF::R_AARCH64_CALL26:
@@ -1305,11 +1272,11 @@ public:
     case ELF::R_X86_64_PC8:
     case ELF::R_X86_64_PC32:
     case ELF::R_X86_64_PC64:
+    case ELF::R_X86_64_GOTPCRELX:
+    case ELF::R_X86_64_REX_GOTPCRELX:
       Relocations[Offset] = Relocation{Offset, Symbol, RelType, Addend, Value};
       return;
     case ELF::R_X86_64_PLT32:
-    case ELF::R_X86_64_GOTPCRELX:
-    case ELF::R_X86_64_REX_GOTPCRELX:
     case ELF::R_X86_64_GOTPCREL:
     case ELF::R_X86_64_TPOFF32:
     case ELF::R_X86_64_GOTTPOFF:
@@ -1387,9 +1354,12 @@ public:
   /// otherwise processed.
   bool isPseudo() const { return IsPseudo; }
 
-  /// Return true if the function contains a jump table with entries pointing
-  /// to split fragments.
-  bool hasSplitJumpTable() const { return HasSplitJumpTable; }
+  /// Return true if the function contains explicit or implicit indirect branch
+  /// to its split fragments, e.g., split jump table, landing pad in split
+  /// fragment.
+  bool hasIndirectTargetToSplitFragment() const {
+    return HasIndirectTargetToSplitFragment;
+  }
 
   /// Return true if all CFG edges have local successors.
   bool hasCanonicalCFG() const { return HasCanonicalCFG; }
@@ -1402,10 +1372,7 @@ public:
   bool hasUnknownControlFlow() const { return HasUnknownControlFlow; }
 
   /// Return true if the function body is non-contiguous.
-  bool isSplit() const {
-    return isSimple() && layout_size() &&
-           layout_front()->isCold() != layout_back()->isCold();
-  }
+  bool isSplit() const { return isSimple() && getLayout().isSplit(); }
 
   bool shouldPreserveNops() const { return PreserveNops; }
 
@@ -1460,7 +1427,7 @@ public:
 
   const CallSitesType &getColdCallSites() const { return ColdCallSites; }
 
-  const ArrayRef<uint8_t> getLSDAActionTable() const { return LSDAActionTable; }
+  ArrayRef<uint8_t> getLSDAActionTable() const { return LSDAActionTable; }
 
   const LSDATypeTableTy &getLSDATypeTable() const { return LSDATypeTable; }
 
@@ -1468,9 +1435,7 @@ public:
     return LSDATypeAddressTable;
   }
 
-  const ArrayRef<uint8_t> getLSDATypeIndexTable() const {
-    return LSDATypeIndexTable;
-  }
+  ArrayRef<uint8_t> getLSDATypeIndexTable() const { return LSDATypeIndexTable; }
 
   const LabelsMapType &getLabels() const { return Labels; }
 
@@ -1499,66 +1464,33 @@ public:
     return Address <= PC && PC < Address + Size;
   }
 
-  /// Create a basic block at a given \p Offset in the
-  /// function.
-  /// If \p DeriveAlignment is true, set the alignment of the block based
-  /// on the alignment of the existing offset.
-  /// The new block is not inserted into the CFG.  The client must
-  /// use insertBasicBlocks to add any new blocks to the CFG.
+  /// Create a basic block in the function. The new block is *NOT* inserted
+  /// into the CFG. The caller must use insertBasicBlocks() to add any new
+  /// blocks to the CFG.
   std::unique_ptr<BinaryBasicBlock>
-  createBasicBlock(uint64_t Offset, MCSymbol *Label = nullptr,
-                   bool DeriveAlignment = false) {
-    assert(BC.Ctx && "cannot be called with empty context");
+  createBasicBlock(MCSymbol *Label = nullptr) {
     if (!Label) {
       std::unique_lock<std::shared_timed_mutex> Lock(BC.CtxMutex);
       Label = BC.Ctx->createNamedTempSymbol("BB");
     }
-    auto BB = std::unique_ptr<BinaryBasicBlock>(
-        new BinaryBasicBlock(this, Label, Offset));
-
-    if (DeriveAlignment) {
-      uint64_t DerivedAlignment = Offset & (1 + ~Offset);
-      BB->setAlignment(std::min(DerivedAlignment, uint64_t(32)));
-    }
+    auto BB =
+        std::unique_ptr<BinaryBasicBlock>(new BinaryBasicBlock(this, Label));
 
     LabelToBB[Label] = BB.get();
 
     return BB;
   }
 
-  /// Create a basic block at a given \p Offset in the
-  /// function and append it to the end of list of blocks.
-  /// If \p DeriveAlignment is true, set the alignment of the block based
-  /// on the alignment of the existing offset.
-  ///
-  /// Returns NULL if basic block already exists at the \p Offset.
-  BinaryBasicBlock *addBasicBlock(uint64_t Offset, MCSymbol *Label = nullptr,
-                                  bool DeriveAlignment = false) {
-    assert((CurrentState == State::CFG || !getBasicBlockAtOffset(Offset)) &&
-           "basic block already exists in pre-CFG state");
+  /// Create a new basic block with an optional \p Label and add it to the list
+  /// of basic blocks of this function.
+  BinaryBasicBlock *addBasicBlock(MCSymbol *Label = nullptr) {
+    assert(CurrentState == State::CFG && "Can only add blocks in CFG state");
 
-    if (!Label) {
-      std::unique_lock<std::shared_timed_mutex> Lock(BC.CtxMutex);
-      Label = BC.Ctx->createNamedTempSymbol("BB");
-    }
-    std::unique_ptr<BinaryBasicBlock> BBPtr =
-        createBasicBlock(Offset, Label, DeriveAlignment);
-    BasicBlocks.emplace_back(BBPtr.release());
-
+    BasicBlocks.emplace_back(createBasicBlock(Label).release());
     BinaryBasicBlock *BB = BasicBlocks.back();
+
     BB->setIndex(BasicBlocks.size() - 1);
-
-    if (CurrentState == State::Disassembled) {
-      BasicBlockOffsets.emplace_back(Offset, BB);
-    } else if (CurrentState == State::CFG) {
-      BB->setLayoutIndex(layout_size());
-      BasicBlocksLayout.emplace_back(BB);
-    }
-
-    assert(CurrentState == State::CFG ||
-           (std::is_sorted(BasicBlockOffsets.begin(), BasicBlockOffsets.end(),
-                           CompareBasicBlockOffsets()) &&
-            std::is_sorted(begin(), end())));
+    Layout.addBasicBlock(BB);
 
     return BB;
   }
@@ -1604,13 +1536,6 @@ public:
   /// [Start->Index, Start->Index + NumNewBlocks) are inserted into the
   /// layout after the BB indicated by Start.
   void updateLayout(BinaryBasicBlock *Start, const unsigned NumNewBlocks);
-
-  /// Make sure basic blocks' indices match the current layout.
-  void updateLayoutIndices() const {
-    unsigned Index = 0;
-    for (BinaryBasicBlock *BB : layout())
-      BB->setLayoutIndex(Index++);
-  }
 
   /// Recompute the CFI state for NumNewBlocks following Start after inserting
   /// new blocks into the CFG.  This must be called after updateLayout.
@@ -1725,7 +1650,6 @@ public:
     }
     OffsetToCFI.emplace(Offset, FrameInstructions.size());
     FrameInstructions.emplace_back(std::forward<MCCFIInstruction>(Inst));
-    return;
   }
 
   BinaryBasicBlock::iterator addCFIInstruction(BinaryBasicBlock *BB,
@@ -1816,7 +1740,9 @@ public:
 
   void setIsPatched(bool V) { IsPatched = V; }
 
-  void setHasSplitJumpTable(bool V) { HasSplitJumpTable = V; }
+  void setHasIndirectTargetToSplitFragment(bool V) {
+    HasIndirectTargetToSplitFragment = V;
+  }
 
   void setHasCanonicalCFG(bool V) { HasCanonicalCFG = V; }
 
@@ -1947,11 +1873,6 @@ public:
 
     return ColdLSDASymbol;
   }
-
-  /// True if the symbol is a mapping symbol used in AArch64 to delimit
-  /// data inside code section.
-  bool isDataMarker(const SymbolRef &Symbol, uint64_t SymbolSize) const;
-  bool isCodeMarker(const SymbolRef &Symbol, uint64_t SymbolSize) const;
 
   void setOutputDataAddress(uint64_t Address) { OutputDataOffset = Address; }
 
@@ -2195,14 +2116,6 @@ public:
   /// and size.
   uint64_t getFunctionScore() const;
 
-  /// Return true if the layout has been changed by basic block reordering,
-  /// false otherwise.
-  bool hasLayoutChanged() const;
-
-  /// Get the edit distance of the new layout with respect to the previous
-  /// layout after basic block reordering.
-  uint64_t getEditDistance() const;
-
   /// Get the number of instructions within this function.
   uint64_t getInstructionCount() const;
 
@@ -2317,13 +2230,13 @@ public:
   size_t estimateHotSize(const bool UseSplitSize = true) const {
     size_t Estimate = 0;
     if (UseSplitSize && isSplit()) {
-      for (const BinaryBasicBlock *BB : BasicBlocksLayout)
-        if (!BB->isCold())
-          Estimate += BC.computeCodeSize(BB->begin(), BB->end());
+      for (const BinaryBasicBlock &BB : blocks())
+        if (!BB.isCold())
+          Estimate += BC.computeCodeSize(BB.begin(), BB.end());
     } else {
-      for (const BinaryBasicBlock *BB : BasicBlocksLayout)
-        if (BB->getKnownExecutionCount() != 0)
-          Estimate += BC.computeCodeSize(BB->begin(), BB->end());
+      for (const BinaryBasicBlock &BB : blocks())
+        if (BB.getKnownExecutionCount() != 0)
+          Estimate += BC.computeCodeSize(BB.begin(), BB.end());
     }
     return Estimate;
   }
@@ -2332,16 +2245,16 @@ public:
     if (!isSplit())
       return estimateSize();
     size_t Estimate = 0;
-    for (const BinaryBasicBlock *BB : BasicBlocksLayout)
-      if (BB->isCold())
-        Estimate += BC.computeCodeSize(BB->begin(), BB->end());
+    for (const BinaryBasicBlock &BB : blocks())
+      if (BB.isCold())
+        Estimate += BC.computeCodeSize(BB.begin(), BB.end());
     return Estimate;
   }
 
   size_t estimateSize() const {
     size_t Estimate = 0;
-    for (const BinaryBasicBlock *BB : BasicBlocksLayout)
-      Estimate += BC.computeCodeSize(BB->begin(), BB->end());
+    for (const BinaryBasicBlock &BB : blocks())
+      Estimate += BC.computeCodeSize(BB.begin(), BB.end());
     return Estimate;
   }
 
@@ -2411,7 +2324,7 @@ template <>
 struct GraphTraits<bolt::BinaryFunction *>
     : public GraphTraits<bolt::BinaryBasicBlock *> {
   static NodeRef getEntryNode(bolt::BinaryFunction *F) {
-    return *F->layout_begin();
+    return F->getLayout().block_front();
   }
 
   using nodes_iterator = pointer_iterator<bolt::BinaryFunction::iterator>;
@@ -2431,7 +2344,7 @@ template <>
 struct GraphTraits<const bolt::BinaryFunction *>
     : public GraphTraits<const bolt::BinaryBasicBlock *> {
   static NodeRef getEntryNode(const bolt::BinaryFunction *F) {
-    return *F->layout_begin();
+    return F->getLayout().block_front();
   }
 
   using nodes_iterator = pointer_iterator<bolt::BinaryFunction::const_iterator>;
@@ -2451,7 +2364,7 @@ template <>
 struct GraphTraits<Inverse<bolt::BinaryFunction *>>
     : public GraphTraits<Inverse<bolt::BinaryBasicBlock *>> {
   static NodeRef getEntryNode(Inverse<bolt::BinaryFunction *> G) {
-    return *G.Graph->layout_begin();
+    return G.Graph->getLayout().block_front();
   }
 };
 
@@ -2459,7 +2372,7 @@ template <>
 struct GraphTraits<Inverse<const bolt::BinaryFunction *>>
     : public GraphTraits<Inverse<const bolt::BinaryBasicBlock *>> {
   static NodeRef getEntryNode(Inverse<const bolt::BinaryFunction *> G) {
-    return *G.Graph->layout_begin();
+    return G.Graph->getLayout().block_front();
   }
 };
 

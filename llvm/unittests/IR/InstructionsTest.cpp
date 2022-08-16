@@ -26,6 +26,7 @@
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm-c/Core.h"
 #include "gmock/gmock-matchers.h"
 #include "gtest/gtest.h"
 #include <memory>
@@ -391,6 +392,67 @@ TEST(InstructionsTest, CastInst) {
   delete BB;
 }
 
+TEST(InstructionsTest, CastCAPI) {
+  LLVMContext C;
+
+  Type *Int8Ty = Type::getInt8Ty(C);
+  Type *Int32Ty = Type::getInt32Ty(C);
+  Type *Int64Ty = Type::getInt64Ty(C);
+
+  Type *FloatTy = Type::getFloatTy(C);
+  Type *DoubleTy = Type::getDoubleTy(C);
+
+  Type *Int8PtrTy = PointerType::get(Int8Ty, 0);
+  Type *Int32PtrTy = PointerType::get(Int32Ty, 0);
+
+  const Constant *C8 = Constant::getNullValue(Int8Ty);
+  const Constant *C64 = Constant::getNullValue(Int64Ty);
+
+  EXPECT_EQ(LLVMBitCast,
+            LLVMGetCastOpcode(wrap(C64), true, wrap(Int64Ty), true));
+  EXPECT_EQ(LLVMTrunc, LLVMGetCastOpcode(wrap(C64), true, wrap(Int8Ty), true));
+  EXPECT_EQ(LLVMSExt, LLVMGetCastOpcode(wrap(C8), true, wrap(Int64Ty), true));
+  EXPECT_EQ(LLVMZExt, LLVMGetCastOpcode(wrap(C8), false, wrap(Int64Ty), true));
+
+  const Constant *CF32 = Constant::getNullValue(FloatTy);
+  const Constant *CF64 = Constant::getNullValue(DoubleTy);
+
+  EXPECT_EQ(LLVMFPToUI,
+            LLVMGetCastOpcode(wrap(CF32), true, wrap(Int8Ty), false));
+  EXPECT_EQ(LLVMFPToSI,
+            LLVMGetCastOpcode(wrap(CF32), true, wrap(Int8Ty), true));
+  EXPECT_EQ(LLVMUIToFP,
+            LLVMGetCastOpcode(wrap(C8), false, wrap(FloatTy), true));
+  EXPECT_EQ(LLVMSIToFP, LLVMGetCastOpcode(wrap(C8), true, wrap(FloatTy), true));
+  EXPECT_EQ(LLVMFPTrunc,
+            LLVMGetCastOpcode(wrap(CF64), true, wrap(FloatTy), true));
+  EXPECT_EQ(LLVMFPExt,
+            LLVMGetCastOpcode(wrap(CF32), true, wrap(DoubleTy), true));
+
+  const Constant *CPtr8 = Constant::getNullValue(Int8PtrTy);
+
+  EXPECT_EQ(LLVMPtrToInt,
+            LLVMGetCastOpcode(wrap(CPtr8), true, wrap(Int8Ty), true));
+  EXPECT_EQ(LLVMIntToPtr,
+            LLVMGetCastOpcode(wrap(C8), true, wrap(Int8PtrTy), true));
+
+  Type *V8x8Ty = FixedVectorType::get(Int8Ty, 8);
+  Type *V8x64Ty = FixedVectorType::get(Int64Ty, 8);
+  const Constant *CV8 = Constant::getNullValue(V8x8Ty);
+  const Constant *CV64 = Constant::getNullValue(V8x64Ty);
+
+  EXPECT_EQ(LLVMTrunc, LLVMGetCastOpcode(wrap(CV64), true, wrap(V8x8Ty), true));
+  EXPECT_EQ(LLVMSExt, LLVMGetCastOpcode(wrap(CV8), true, wrap(V8x64Ty), true));
+
+  Type *Int32PtrAS1Ty = PointerType::get(Int32Ty, 1);
+  Type *V2Int32PtrAS1Ty = FixedVectorType::get(Int32PtrAS1Ty, 2);
+  Type *V2Int32PtrTy = FixedVectorType::get(Int32PtrTy, 2);
+  const Constant *CV2ptr32 = Constant::getNullValue(V2Int32PtrTy);
+
+  EXPECT_EQ(LLVMAddrSpaceCast, LLVMGetCastOpcode(wrap(CV2ptr32), true,
+                                                 wrap(V2Int32PtrAS1Ty), true));
+}
+
 TEST(InstructionsTest, VectorGep) {
   LLVMContext C;
 
@@ -701,7 +763,7 @@ TEST(InstructionsTest, AlterCallBundles) {
   EXPECT_TRUE(Clone->hasFnAttr(Attribute::AttrKind::Cold));
   EXPECT_EQ(Call->getDebugLoc(), Clone->getDebugLoc());
   EXPECT_EQ(Clone->getNumOperandBundles(), 1U);
-  EXPECT_TRUE(Clone->getOperandBundle("after").hasValue());
+  EXPECT_TRUE(Clone->getOperandBundle("after"));
 }
 
 TEST(InstructionsTest, AlterInvokeBundles) {
@@ -733,7 +795,7 @@ TEST(InstructionsTest, AlterInvokeBundles) {
   EXPECT_TRUE(Clone->hasFnAttr(Attribute::AttrKind::Cold));
   EXPECT_EQ(Invoke->getDebugLoc(), Clone->getDebugLoc());
   EXPECT_EQ(Clone->getNumOperandBundles(), 1U);
-  EXPECT_TRUE(Clone->getOperandBundle("after").hasValue());
+  EXPECT_TRUE(Clone->getOperandBundle("after"));
 }
 
 TEST_F(ModuleWithFunctionTest, DropPoisonGeneratingFlags) {
@@ -1436,7 +1498,7 @@ TEST(InstructionsTest, CallBrInstruction) {
   std::unique_ptr<Module> M = parseIR(Context, R"(
 define void @foo() {
 entry:
-  callbr void asm sideeffect "// XXX: ${0:l}", "X"(i8* blockaddress(@foo, %branch_test.exit))
+  callbr void asm sideeffect "// XXX: ${0:l}", "!i"()
           to label %land.rhs.i [label %branch_test.exit]
 
 land.rhs.i:
@@ -1466,20 +1528,6 @@ if.end:
   EXPECT_EQ(&BranchTestExit, CBI.getIndirectDest(0));
   CBI.setIndirectDest(0, &IfThen);
   EXPECT_EQ(&IfThen, CBI.getIndirectDest(0));
-
-  // Further, test that changing the indirect destination updates the arg
-  // operand to use the block address of the new indirect destination basic
-  // block. This is a critical invariant of CallBrInst.
-  BlockAddress *IndirectBA = BlockAddress::get(CBI.getIndirectDest(0));
-  BlockAddress *ArgBA = cast<BlockAddress>(CBI.getArgOperand(0));
-  EXPECT_EQ(IndirectBA, ArgBA)
-      << "After setting the indirect destination, callbr had an indirect "
-         "destination of '"
-      << CBI.getIndirectDest(0)->getName() << "', but a argument of '"
-      << ArgBA->getBasicBlock()->getName() << "'. These should always match:\n"
-      << CBI;
-  EXPECT_EQ(IndirectBA->getBasicBlock(), &IfThen);
-  EXPECT_EQ(ArgBA->getBasicBlock(), &IfThen);
 }
 
 TEST(InstructionsTest, UnaryOperator) {

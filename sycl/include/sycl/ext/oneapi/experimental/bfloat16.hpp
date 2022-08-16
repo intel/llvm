@@ -9,10 +9,10 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/half_type.hpp>
+#include <sycl/half_type.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -35,6 +35,7 @@ public:
     return __spirv_ConvertFToBF16INTEL(a);
 #endif
 #else
+    (void)a;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 conversion is not supported on host device"};
 #endif
@@ -50,6 +51,7 @@ public:
     return __spirv_ConvertBF16ToFINTEL(a);
 #endif
 #else
+    (void)a;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 conversion is not supported on host device"};
 #endif
@@ -88,6 +90,7 @@ public:
     return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
 #endif
 #else
+    (void)lhs;
     throw exception{errc::feature_not_supported,
                     "Bfloat16 unary minus is not supported on host device"};
 #endif
@@ -166,5 +169,5 @@ public:
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

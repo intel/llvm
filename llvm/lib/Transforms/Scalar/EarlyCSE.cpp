@@ -598,10 +598,7 @@ public:
            const TargetTransformInfo &TTI, DominatorTree &DT,
            AssumptionCache &AC, MemorySSA *MSSA)
       : TLI(TLI), TTI(TTI), DT(DT), AC(AC), SQ(DL, &TLI, &DT, &AC), MSSA(MSSA),
-        MSSAUpdater(std::make_unique<MemorySSAUpdater>(MSSA)) {
-    if (MSSA)
-      MSSA->ensureOptimizedUses();
-  }
+        MSSAUpdater(std::make_unique<MemorySSAUpdater>(MSSA)) {}
 
   bool run();
 
@@ -1350,7 +1347,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
 
     // If the instruction can be simplified (e.g. X+0 = X) then replace it with
     // its simpler value.
-    if (Value *V = SimplifyInstruction(&Inst, SQ)) {
+    if (Value *V = simplifyInstruction(&Inst, SQ)) {
       LLVM_DEBUG(dbgs() << "EarlyCSE Simplify: " << Inst << "  to: " << *V
                         << '\n');
       if (!DebugCounter::shouldExecute(CSECounter)) {

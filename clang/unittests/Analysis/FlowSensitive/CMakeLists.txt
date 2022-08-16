@@ -7,11 +7,11 @@ add_clang_unittest(ClangAnalysisFlowSensitiveTests
   ChromiumCheckModelTest.cpp
   DataflowAnalysisContextTest.cpp
   DataflowEnvironmentTest.cpp
+  DebugSupportTest.cpp
   MapLatticeTest.cpp
   MatchSwitchTest.cpp
   MultiVarConstantPropagationTest.cpp
   SingleVarConstantPropagationTest.cpp
-  SourceLocationsLatticeTest.cpp
   TestingSupport.cpp
   TestingSupportTest.cpp
   TransferTest.cpp
@@ -31,11 +31,11 @@ clang_target_link_libraries(ClangAnalysisFlowSensitiveTests
   clangFrontend
   clangLex
   clangSerialization
-  clangTesting
   clangTooling
   )
 
 target_link_libraries(ClangAnalysisFlowSensitiveTests
   PRIVATE
+  clangTesting
   LLVMTestingSupport
   )

@@ -11,9 +11,6 @@
 ! RUN: %flang_fc1 -help 2>&1 | FileCheck %s --check-prefix=HELP-FC1
 ! RUN: not %flang_fc1 -helps 2>&1 | FileCheck %s --check-prefix=ERROR
 
-!----------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG DRIVER (flang)
-!----------------------------------------------------
 ! HELP:USAGE: flang
 ! HELP-EMPTY:
 ! HELP-NEXT:OPTIONS:
@@ -42,12 +39,14 @@
 ! HELP-NEXT: -flogical-abbreviations Enable logical abbreviations
 ! HELP-NEXT: -fno-automatic         Implies the SAVE attribute for non-automatic local objects in subprograms unless RECURSIVE
 ! HELP-NEXT: -fno-color-diagnostics  Disable colors in diagnostics
+! HELP-NEXT: -fno-integrated-as      Disable the integrated assembler
 ! HELP-NEXT: -fopenacc              Enable OpenACC
 ! HELP-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! HELP-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
 ! HELP-NEXT: -help                  Display available options
 ! HELP-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! HELP-NEXT: -mllvm <value>         Additional arguments to forward to LLVM's option processing
+! HELP-NEXT: -mmlir <value>         Additional arguments to forward to MLIR's option processing
 ! HELP-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! HELP-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
 ! HELP-NEXT: -o <file>              Write output to <file>
@@ -55,6 +54,8 @@
 ! HELP-NEXT: -print-effective-triple Print the effective target triple
 ! HELP-NEXT: -print-target-triple    Print the normalized target triple
 ! HELP-NEXT: -P                     Disable linemarker output in -E mode
+! HELP-NEXT: -save-temps=<value>    Save intermediate compilation results.
+! HELP-NEXT: -save-temps            Save intermediate compilation results
 ! HELP-NEXT: -std=<value>           Language standard to compile for
 ! HELP-NEXT: -S                     Only run preprocess and compilation steps
 ! HELP-NEXT: --target=<value>       Generate code for the given target
@@ -63,14 +64,12 @@
 ! HELP-NEXT: -W<warning>            Enable the specified warning
 ! HELP-NEXT: -Xflang <arg>          Pass <arg> to the flang compiler
 
-!-------------------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG FRONTEND DRIVER (flang -fc1)
-!-------------------------------------------------------------
 ! HELP-FC1:USAGE: flang
 ! HELP-FC1-EMPTY:
 ! HELP-FC1-NEXT:OPTIONS:
 ! HELP-FC1-NEXT: -cpp                   Enable predefined and command line preprocessor macros
 ! HELP-FC1-NEXT: -D <macro>=<value>     Define <macro> to <value> (or 1 if <value> omitted)
+! HELP-FC1-NEXT: -emit-llvm-bc          Build ASTs then convert to LLVM, emit .bc file
 ! HELP-FC1-NEXT: -emit-llvm Use the LLVM representation for assembler and object files
 ! HELP-FC1-NEXT: -emit-mlir Build the parse tree, then lower it to MLIR
 ! HELP-FC1-NEXT: -emit-obj Emit native object files
@@ -78,6 +77,7 @@
 ! HELP-FC1-NEXT: -falternative-parameter-statement
 ! HELP-FC1-NEXT: Enable the old style PARAMETER statement
 ! HELP-FC1-NEXT: -fbackslash            Specify that backslash in string introduces an escape character
+! HELP-FC1-NEXT: -fcolor-diagnostics     Enable colors in diagnostics
 ! HELP-FC1-NEXT: -fdebug-dump-all       Dump symbols and the parse tree after the semantic checks
 ! HELP-FC1-NEXT: -fdebug-dump-parse-tree-no-sema
 ! HELP-FC1-NEXT:                        Dump the parse tree (skips the semantic checks)
@@ -90,6 +90,7 @@
 ! HELP-FC1-NEXT: -fdebug-measure-parse-tree
 ! HELP-FC1-NEXT:                         Measure the parse tree
 ! HELP-FC1-NEXT: -fdebug-module-writer   Enable debug messages while writing module files
+! HELP-FC1-NEXT: -fdebug-pass-manager    Prints debug information for the new pass manage
 ! HELP-FC1-NEXT: -fdebug-pre-fir-tree    Dump the pre-FIR tree
 ! HELP-FC1-NEXT: -fdebug-unparse-no-sema Unparse and stop (skips the semantic checks)
 ! HELP-FC1-NEXT: -fdebug-unparse-with-symbols
@@ -114,6 +115,7 @@
 ! HELP-FC1-NEXT: -fno-analyzed-objects-for-unparse
 ! HELP-FC1-NEXT:                        Do not use the analyzed objects when unparsing
 ! HELP-FC1-NEXT: -fno-automatic         Implies the SAVE attribute for non-automatic local objects in subprograms unless RECURSIVE
+! HELP-FC1-NEXT: -fno-debug-pass-manager Disables debug printing for the new pass manager
 ! HELP-FC1-NEXT: -fno-reformat          Dump the cooked character stream in -E mode
 ! HELP-FC1-NEXT: -fopenacc              Enable OpenACC
 ! HELP-FC1-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
@@ -123,6 +125,7 @@
 ! HELP-FC1-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! HELP-FC1-NEXT: -load <dsopath>        Load the named plugin (dynamic shared object)
 ! HELP-FC1-NEXT: -mllvm <value>         Additional arguments to forward to LLVM's option processing
+! HELP-FC1-NEXT: -mmlir <value>         Additional arguments to forward to MLIR's option processing
 ! HELP-FC1-NEXT: -module-dir <dir>      Put MODULE files in <dir>
 ! HELP-FC1-NEXT: -module-suffix <suffix> Use <suffix> as the suffix for module files (the default value is `.mod`)
 ! HELP-FC1-NEXT: -nocpp                 Disable predefined and command line preprocessor macros
@@ -138,7 +141,4 @@
 ! HELP-FC1-NEXT: -version               Print the compiler version
 ! HELP-FC1-NEXT: -W<warning>            Enable the specified warning
 
-!---------------
-! EXPECTED ERROR
-!---------------
 ! ERROR: error: unknown argument '-helps'; did you mean '-help'

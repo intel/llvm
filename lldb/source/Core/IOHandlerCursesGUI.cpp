@@ -588,9 +588,10 @@ public:
   }
 
   Window(const char *name, const Rect &bounds)
-      : Surface(Surface::Type::Window), m_name(name), m_parent(nullptr),
-        m_subwindows(), m_delegate_sp(), m_curr_active_window_idx(UINT32_MAX),
-        m_prev_active_window_idx(UINT32_MAX), m_delete(true),
+      : Surface(Surface::Type::Window), m_name(name), m_panel(nullptr),
+        m_parent(nullptr), m_subwindows(), m_delegate_sp(),
+        m_curr_active_window_idx(UINT32_MAX),
+        m_prev_active_window_idx(UINT32_MAX), m_delete(false),
         m_needs_update(true), m_can_activate(true), m_is_subwin(false) {
     Reset(::newwin(bounds.size.height, bounds.size.width, bounds.origin.y,
                    bounds.origin.y));
@@ -3170,7 +3171,7 @@ public:
     FileSpec core_file_spec = m_core_file_field->GetResolvedFileSpec();
 
     FileSpec core_file_directory_spec;
-    core_file_directory_spec.GetDirectory() = core_file_spec.GetDirectory();
+    core_file_directory_spec.SetDirectory(core_file_spec.GetDirectory());
     target_sp->AppendExecutableSearchPaths(core_file_directory_spec);
 
     ProcessSP process_sp(target_sp->CreateProcess(
@@ -4537,7 +4538,8 @@ struct Row {
     if (parent)
       parent->DrawTreeForChild(window, this, 0);
 
-    if (might_have_children) {
+    if (might_have_children &&
+        (!calculated_children || !GetChildren().empty())) {
       // It we can get UTF8 characters to work we should try to use the
       // "symbol" UTF8 string below
       //            const char *symbol = "";
@@ -5016,8 +5018,7 @@ class FrameTreeDelegate : public TreeDelegate {
 public:
   FrameTreeDelegate() : TreeDelegate() {
     FormatEntity::Parse(
-        "frame #${frame.index}: {${function.name}${function.pc-offset}}}",
-        m_format);
+        "#${frame.index}: {${function.name}${function.pc-offset}}}", m_format);
   }
 
   ~FrameTreeDelegate() override = default;
@@ -5702,8 +5703,8 @@ protected:
   uint32_t m_selected_row_idx = 0;
   uint32_t m_first_visible_row = 0;
   uint32_t m_num_rows = 0;
-  int m_min_x;
-  int m_min_y;
+  int m_min_x = 0;
+  int m_min_y = 0;
   int m_max_x = 0;
   int m_max_y = 0;
 
@@ -5825,9 +5826,11 @@ protected:
         ++m_num_rows;
       }
 
-      auto &children = row.GetChildren();
-      if (row.expanded && !children.empty()) {
-        DisplayRows(window, children, options);
+      if (row.expanded) {
+        auto &children = row.GetChildren();
+        if (!children.empty()) {
+          DisplayRows(window, children, options);
+        }
       }
     }
   }
@@ -5848,11 +5851,13 @@ protected:
         return &row;
       else {
         --row_index;
-        auto &children = row.GetChildren();
-        if (row.expanded && !children.empty()) {
-          Row *result = GetRowForRowIndexImpl(children, row_index);
-          if (result)
-            return result;
+        if (row.expanded) {
+          auto &children = row.GetChildren();
+          if (!children.empty()) {
+            Row *result = GetRowForRowIndexImpl(children, row_index);
+            if (result)
+              return result;
+          }
         }
       }
     }
@@ -6403,8 +6408,11 @@ public:
       if (exe_ctx.HasThreadScope()) {
         Process *process = exe_ctx.GetProcessPtr();
         if (process && process->IsAlive() &&
-            StateIsStoppedState(process->GetState(), true))
-          exe_ctx.GetThreadRef().StepOut();
+            StateIsStoppedState(process->GetState(), true)) {
+          Thread *thread = exe_ctx.GetThreadPtr();
+          uint32_t frame_idx = thread->GetSelectedFrameIndex();
+          exe_ctx.GetThreadRef().StepOut(frame_idx);
+        }
       }
     }
       return MenuActionResult::Handled;
@@ -7362,7 +7370,9 @@ public:
             m_debugger.GetCommandInterpreter().GetExecutionContext();
         if (exe_ctx.HasThreadScope() &&
             StateIsStoppedState(exe_ctx.GetProcessRef().GetState(), true)) {
-          exe_ctx.GetThreadRef().StepOut();
+          Thread *thread = exe_ctx.GetThreadPtr();
+          uint32_t frame_idx = thread->GetSelectedFrameIndex();
+          exe_ctx.GetThreadRef().StepOut(frame_idx);
         }
       }
       return eKeyHandled;
@@ -7667,14 +7677,6 @@ void IOHandlerCursesGUI::Activate() {
     status_window_sp->SetDelegate(
         WindowDelegateSP(new StatusBarWindowDelegate(m_debugger)));
 
-    // Show the main help window once the first time the curses GUI is
-    // launched
-    static bool g_showed_help = false;
-    if (!g_showed_help) {
-      g_showed_help = true;
-      main_window_sp->CreateHelpSubwindow();
-    }
-
     // All colors with black background.
     init_pair(1, COLOR_BLACK, COLOR_BLACK);
     init_pair(2, COLOR_RED, COLOR_BLACK);
@@ -7714,7 +7716,9 @@ IOHandlerCursesGUI::~IOHandlerCursesGUI() = default;
 
 void IOHandlerCursesGUI::Cancel() {}
 
-bool IOHandlerCursesGUI::Interrupt() { return false; }
+bool IOHandlerCursesGUI::Interrupt() {
+  return m_debugger.GetCommandInterpreter().IOHandlerInterrupt(*this);
+}
 
 void IOHandlerCursesGUI::GotEOF() {}
 

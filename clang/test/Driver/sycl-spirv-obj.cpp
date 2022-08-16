@@ -2,8 +2,6 @@
 /// Tests for SPIR-V related objects
 ///
 
-// REQUIRES: clang-driver
-
 /// -fsycl-device-obj=spirv
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl -fsycl-device-obj=spirv -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix SPIRV_DEVICE_OBJ
@@ -17,7 +15,7 @@
 // SPIRV_DEVICE_OBJ-SAME: "-fsycl-is-host"
 // SPIRV_DEVICE_OBJ-SAME: "-o" "[[HOST_OBJ:.+\.o]]"
 // SPIRV_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"
-// SPIRV_DEVICE_OBJ-SAME: "-inputs=[[DEVICE_SPV]],[[HOST_OBJ]]"
+// SPIRV_DEVICE_OBJ-SAME: "-input=[[DEVICE_SPV]]" "-input=[[HOST_OBJ]]"
 
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl -fsycl-device-obj=spirv -ccc-print-phases %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix SPIRV_DEVICE_OBJ_PHASES

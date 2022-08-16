@@ -73,6 +73,7 @@ typedef struct {int a;} ndrange_t;
 
 // Enable extensions that are enabled in opencl-c-base.h.
 #if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
+#define __opencl_c_device_enqueue 1
 #define __opencl_c_generic_address_space 1
 #define cl_khr_subgroup_extended_types 1
 #define cl_khr_subgroup_ballot 1
@@ -170,14 +171,14 @@ void test_atomic_fetch_with_address_space(volatile __generic atomic_float *a_flo
 // extension is disabled.  Test this by counting the number of notes about
 // candidate functions.
 void test_atomic_double_reporting(volatile __generic atomic_int *a) {
-  atomic_init(a);
+  atomic_init(a, a);
   // expected-error@-1{{no matching function for call to 'atomic_init'}}
 #if defined(NO_FP64)
   // Expecting 5 candidates: int, uint, long, ulong, float
-  // expected-note@-4 5 {{candidate function not viable: requires 2 arguments, but 1 was provided}}
+  // expected-note@-4 5 {{candidate function not viable: no known conversion}}
 #else
   // Expecting 6 candidates: int, uint, long, ulong, float, double
-  // expected-note@-7 6 {{candidate function not viable: requires 2 arguments, but 1 was provided}}
+  // expected-note@-7 6 {{candidate function not viable: no known conversion}}
 #endif
 }
 
@@ -193,11 +194,10 @@ void test_atomics_without_scope_device(volatile __generic atomic_int *a_int) {
   int d;
 
   atomic_exchange(a_int, d);
-  // expected-error@-1{{implicit declaration of function 'atomic_exchange' is invalid in OpenCL}}
+  // expected-error@-1{{use of undeclared identifier 'atomic_exchange'}}
 
   atomic_exchange_explicit(a_int, d, memory_order_seq_cst);
   // expected-error@-1{{no matching function for call to 'atomic_exchange_explicit'}}
-  // expected-note@-2 + {{candidate function not viable}}
 
   atomic_exchange_explicit(a_int, d, memory_order_seq_cst, memory_scope_work_group);
 }
@@ -224,7 +224,7 @@ kernel void basic_conversion(void) {
 
 #ifdef NO_FP64
   (void)convert_double_rtp(f);
-  // expected-error@-1{{implicit declaration of function 'convert_double_rtp' is invalid in OpenCL}}
+  // expected-error@-1{{use of undeclared identifier 'convert_double_rtp'}}
 #else
   double d;
   f = convert_float(d);
@@ -239,11 +239,10 @@ kernel void basic_conversion_neg(void) {
 
   f = convert_float_sat(i);
 #if !defined(__OPENCL_CPP_VERSION__)
-  // expected-error@-2{{implicit declaration of function 'convert_float_sat' is invalid in OpenCL}}
-  // expected-error@-3{{implicit conversion from 'int' to 'float' may lose precision}}
+  // expected-error@-2{{use of undeclared identifier 'convert_float_sat'}}
 #else
-  // expected-error@-5{{use of undeclared identifier 'convert_float_sat'; did you mean 'convert_float'?}}
-  // expected-note@-6{{'convert_float' declared here}}
+  // expected-error@-4{{use of undeclared identifier 'convert_float_sat'; did you mean 'convert_float'?}}
+  // expected-note@-5{{'convert_float' declared here}}
 #endif
 }
 
@@ -272,9 +271,7 @@ kernel void basic_image_readonly(read_only image2d_t image_read_only_image2d) {
   res = read_imageh(image_read_only_image2d, i2);
 #if __OPENCL_C_VERSION__ < CL_VERSION_1_2 && !defined(__OPENCL_CPP_VERSION__)
   // expected-error@-3{{no matching function for call to 'read_imagef'}}
-  // expected-note@-4 + {{candidate function not viable}}
-  // expected-error@-4{{no matching function for call to 'read_imageh'}}
-  // expected-note@-5 + {{candidate function not viable}}
+  // expected-error@-3{{no matching function for call to 'read_imageh'}}
 #endif
   res = read_imageh(image_read_only_image2d, sampler, i2);
 
@@ -304,15 +301,13 @@ kernel void basic_image_writeonly(write_only image1d_buffer_t image_write_only_i
   write_imagef(image3dwo, i4, i, f4);
 #if __OPENCL_C_VERSION__ <= CL_VERSION_1_2 && !defined(__OPENCL_CPP_VERSION__)
   // expected-error@-2{{no matching function for call to 'write_imagef'}}
-  // expected-note@-3 + {{candidate function not viable}}
 #endif
 }
 
 kernel void basic_subgroup(global uint *out) {
   out[0] = get_sub_group_size();
 #if __OPENCL_C_VERSION__ <= CL_VERSION_1_2 && !defined(__OPENCL_CPP_VERSION__)
-  // expected-error@-2{{implicit declaration of function 'get_sub_group_size' is invalid in OpenCL}}
-  // expected-error@-3{{implicit conversion changes signedness}}
+  // expected-error@-2{{use of undeclared identifier 'get_sub_group_size'}}
 #endif
 
 // Only test when the base header is included, because we need the enum declarations.
@@ -327,12 +322,10 @@ kernel void extended_subgroup(global uint4 *out, global int *scalar, global char
   scalar[1] = sub_group_clustered_reduce_logical_xor(2, 4);
   *c2 = sub_group_broadcast(*c2, 2);
 #if __OPENCL_C_VERSION__ < CL_VERSION_2_0 && !defined(__OPENCL_CPP_VERSION__)
-  // expected-error@-5{{implicit declaration of function 'get_sub_group_eq_mask' is invalid in OpenCL}}
-  // expected-error@-6{{implicit conversion changes signedness}}
-  // expected-error@-6{{implicit declaration of function 'sub_group_non_uniform_scan_inclusive_or' is invalid in OpenCL}}
-  // expected-error@-6{{implicit declaration of function 'sub_group_clustered_reduce_logical_xor' is invalid in OpenCL}}
-  // expected-error@-6{{implicit declaration of function 'sub_group_broadcast' is invalid in OpenCL}}
-  // expected-error@-7{{implicit conversion loses integer precision}}
+  // expected-error@-5{{use of undeclared identifier 'get_sub_group_eq_mask'}}
+  // expected-error@-5{{use of undeclared identifier 'sub_group_non_uniform_scan_inclusive_or'}}
+  // expected-error@-5{{use of undeclared identifier 'sub_group_clustered_reduce_logical_xor'}}
+  // expected-error@-5{{use of undeclared identifier 'sub_group_broadcast'}}
 #endif
 }
 
@@ -375,7 +368,7 @@ kernel void basic_work_item(void) {
 
   get_enqueued_local_size(ui);
 #if !defined(__OPENCL_CPP_VERSION__) && __OPENCL_C_VERSION__ < CL_VERSION_2_0
-// expected-error@-2{{implicit declaration of function 'get_enqueued_local_size' is invalid in OpenCL}}
+// expected-error@-2{{use of undeclared identifier 'get_enqueued_local_size'}}
 #endif
 }
 

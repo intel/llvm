@@ -9,6 +9,7 @@
 #include "flang/Semantics/expression.h"
 #include "check-call.h"
 #include "pointer-assignment.h"
+#include "resolve-names-utils.h"
 #include "resolve-names.h"
 #include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
@@ -248,20 +249,6 @@ MaybeExpr ExpressionAnalyzer::CompleteSubscripts(ArrayRef &&ref) {
           symbolRank, symbol.name(), subscripts);
     }
     return std::nullopt;
-  } else if (Component * component{ref.base().UnwrapComponent()}) {
-    int baseRank{component->base().Rank()};
-    if (baseRank > 0) {
-      int subscriptRank{0};
-      for (const auto &expr : ref.subscript()) {
-        subscriptRank += expr.Rank();
-      }
-      if (subscriptRank > 0) { // C919a
-        Say("Subscripts of component '%s' of rank-%d derived type "
-            "array have rank %d but must all be scalar"_err_en_US,
-            symbol.name(), baseRank, subscriptRank);
-        return std::nullopt;
-      }
-    }
   } else if (const auto *object{
                  symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     // C928 & C1002
@@ -288,7 +275,7 @@ MaybeExpr ExpressionAnalyzer::ApplySubscripts(
   if (subscripts.empty()) {
     return std::nullopt; // error recovery
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](SymbolRef &&symbol) {
             return CompleteSubscripts(ArrayRef{symbol, std::move(subscripts)});
@@ -305,55 +292,72 @@ MaybeExpr ExpressionAnalyzer::ApplySubscripts(
       std::move(dataRef.u));
 }
 
-// Top-level checks for data references.
-MaybeExpr ExpressionAnalyzer::TopLevelChecks(DataRef &&dataRef) {
-  if (Component * component{std::get_if<Component>(&dataRef.u)}) {
-    const Symbol &symbol{component->GetLastSymbol()};
-    int componentRank{symbol.Rank()};
-    if (componentRank > 0) {
-      int baseRank{component->base().Rank()};
-      if (baseRank > 0) { // C919a
-        Say("Reference to whole rank-%d component '%%%s' of "
-            "rank-%d array of derived type is not allowed"_err_en_US,
-            componentRank, symbol.name(), baseRank);
-      }
-    }
-  }
-  return Designate(std::move(dataRef));
+// C919a - only one part-ref of a data-ref may have rank > 0
+bool ExpressionAnalyzer::CheckRanks(const DataRef &dataRef) {
+  return common::visit(
+      common::visitors{
+          [this](const Component &component) {
+            const Symbol &symbol{component.GetLastSymbol()};
+            if (int componentRank{symbol.Rank()}; componentRank > 0) {
+              if (int baseRank{component.base().Rank()}; baseRank > 0) {
+                Say("Reference to whole rank-%d component '%s' of rank-%d array of derived type is not allowed"_err_en_US,
+                    componentRank, symbol.name(), baseRank);
+                return false;
+              }
+            } else {
+              return CheckRanks(component.base());
+            }
+            return true;
+          },
+          [this](const ArrayRef &arrayRef) {
+            if (const auto *component{arrayRef.base().UnwrapComponent()}) {
+              int subscriptRank{0};
+              for (const Subscript &subscript : arrayRef.subscript()) {
+                subscriptRank += subscript.Rank();
+              }
+              if (subscriptRank > 0) {
+                if (int componentBaseRank{component->base().Rank()};
+                    componentBaseRank > 0) {
+                  Say("Subscripts of component '%s' of rank-%d derived type array have rank %d but must all be scalar"_err_en_US,
+                      component->GetLastSymbol().name(), componentBaseRank,
+                      subscriptRank);
+                  return false;
+                }
+              } else {
+                return CheckRanks(component->base());
+              }
+            }
+            return true;
+          },
+          [](const SymbolRef &) { return true; },
+          [](const CoarrayRef &) { return true; },
+      },
+      dataRef.u);
 }
 
 // Parse tree correction after a substring S(j:k) was misparsed as an
-// array section.  N.B. Fortran substrings have to have a range, not a
+// array section.  Fortran substrings must have a range, not a
 // single index.
-static void FixMisparsedSubstring(const parser::Designator &d) {
-  auto &mutate{const_cast<parser::Designator &>(d)};
-  if (auto *dataRef{std::get_if<parser::DataRef>(&mutate.u)}) {
-    if (auto *ae{std::get_if<common::Indirection<parser::ArrayElement>>(
-            &dataRef->u)}) {
-      parser::ArrayElement &arrElement{ae->value()};
-      if (!arrElement.subscripts.empty()) {
-        auto iter{arrElement.subscripts.begin()};
-        if (auto *triplet{std::get_if<parser::SubscriptTriplet>(&iter->u)}) {
-          if (!std::get<2>(triplet->t) /* no stride */ &&
-              ++iter == arrElement.subscripts.end() /* one subscript */) {
-            if (Symbol *
-                symbol{std::visit(
-                    common::visitors{
-                        [](parser::Name &n) { return n.symbol; },
-                        [](common::Indirection<parser::StructureComponent>
-                                &sc) { return sc.value().component.symbol; },
-                        [](auto &) -> Symbol * { return nullptr; },
-                    },
-                    arrElement.base.u)}) {
-              const Symbol &ultimate{symbol->GetUltimate()};
-              if (const semantics::DeclTypeSpec * type{ultimate.GetType()}) {
-                if (!ultimate.IsObjectArray() &&
-                    type->category() == semantics::DeclTypeSpec::Character) {
-                  // The ambiguous S(j:k) was parsed as an array section
-                  // reference, but it's now clear that it's a substring.
-                  // Fix the parse tree in situ.
-                  mutate.u = arrElement.ConvertToSubstring();
-                }
+static std::optional<parser::Substring> FixMisparsedSubstringDataRef(
+    parser::DataRef &dataRef) {
+  if (auto *ae{
+          std::get_if<common::Indirection<parser::ArrayElement>>(&dataRef.u)}) {
+    // ...%a(j:k) and "a" is a character scalar
+    parser::ArrayElement &arrElement{ae->value()};
+    if (arrElement.subscripts.size() == 1) {
+      if (auto *triplet{std::get_if<parser::SubscriptTriplet>(
+              &arrElement.subscripts.front().u)}) {
+        if (!std::get<2 /*stride*/>(triplet->t).has_value()) {
+          if (const Symbol *
+              symbol{parser::GetLastName(arrElement.base).symbol}) {
+            const Symbol &ultimate{symbol->GetUltimate()};
+            if (const semantics::DeclTypeSpec * type{ultimate.GetType()}) {
+              if (!ultimate.IsObjectArray() &&
+                  type->category() == semantics::DeclTypeSpec::Character) {
+                // The ambiguous S(j:k) was parsed as an array section
+                // reference, but it's now clear that it's a substring.
+                // Fix the parse tree in situ.
+                return arrElement.ConvertToSubstring();
               }
             }
           }
@@ -361,18 +365,63 @@ static void FixMisparsedSubstring(const parser::Designator &d) {
       }
     }
   }
+  return std::nullopt;
+}
+
+// When a designator is a misparsed type-param-inquiry of a misparsed
+// substring -- it looks like a structure component reference of an array
+// slice -- fix the substring and then convert to an intrinsic function
+// call to KIND() or LEN().  And when the designator is a misparsed
+// substring, convert it into a substring reference in place.
+MaybeExpr ExpressionAnalyzer::FixMisparsedSubstring(
+    const parser::Designator &d) {
+  auto &mutate{const_cast<parser::Designator &>(d)};
+  if (auto *dataRef{std::get_if<parser::DataRef>(&mutate.u)}) {
+    if (auto *sc{std::get_if<common::Indirection<parser::StructureComponent>>(
+            &dataRef->u)}) {
+      parser::StructureComponent &structComponent{sc->value()};
+      parser::CharBlock which{structComponent.component.source};
+      if (which == "kind" || which == "len") {
+        if (auto substring{
+                FixMisparsedSubstringDataRef(structComponent.base)}) {
+          // ...%a(j:k)%kind or %len and "a" is a character scalar
+          mutate.u = std::move(*substring);
+          if (MaybeExpr substringExpr{Analyze(d)}) {
+            return MakeFunctionRef(which,
+                ActualArguments{ActualArgument{std::move(*substringExpr)}});
+          }
+        }
+      }
+    } else if (auto substring{FixMisparsedSubstringDataRef(*dataRef)}) {
+      mutate.u = std::move(*substring);
+    }
+  }
+  return std::nullopt;
 }
 
 MaybeExpr ExpressionAnalyzer::Analyze(const parser::Designator &d) {
   auto restorer{GetContextualMessages().SetLocation(d.source)};
-  FixMisparsedSubstring(d);
+  if (auto substringInquiry{FixMisparsedSubstring(d)}) {
+    return substringInquiry;
+  }
   // These checks have to be deferred to these "top level" data-refs where
   // we can be sure that there are no following subscripts (yet).
-  // Substrings have already been run through TopLevelChecks() and
-  // won't be returned by ExtractDataRef().
   if (MaybeExpr result{Analyze(d.u)}) {
     if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(result))}) {
-      return TopLevelChecks(std::move(*dataRef));
+      if (!CheckRanks(std::move(*dataRef))) {
+        return std::nullopt;
+      }
+      return Designate(std::move(*dataRef));
+    } else if (std::optional<DataRef> dataRef{
+                   ExtractDataRef(std::move(result), /*intoSubstring=*/true)}) {
+      if (!CheckRanks(std::move(*dataRef))) {
+        return std::nullopt;
+      }
+    } else if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(result),
+                   /*intoSubstring=*/false, /*intoComplexPart=*/true)}) {
+      if (!CheckRanks(std::move(*dataRef))) {
+        return std::nullopt;
+      }
     }
     return result;
   }
@@ -397,7 +446,7 @@ int ExpressionAnalyzer::AnalyzeKindParam(
   if (!kindParam) {
     return defaultKind;
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](std::uint64_t k) { return static_cast<int>(k); },
           [&](const parser::Scalar<
@@ -423,8 +472,21 @@ struct IntTypeVisitor {
   template <typename T> Result Test() {
     if (T::kind >= kind) {
       const char *p{digits.begin()};
-      auto value{T::Scalar::Read(p, 10, true /*signed*/)};
-      if (!value.overflow) {
+      using Int = typename T::Scalar;
+      typename Int::ValueWithOverflow num{0, false};
+      if (isNegated) {
+        auto unsignedNum{Int::Read(p, 10, false /*unsigned*/)};
+        num.value = unsignedNum.value.Negate().value;
+        num.overflow = unsignedNum.overflow || num.value > Int{0};
+        if (!num.overflow && num.value.Negate().overflow &&
+            !analyzer.context().IsInModuleFile(digits)) {
+          analyzer.Say(digits,
+              "negated maximum INTEGER(KIND=%d) literal"_port_en_US, T::kind);
+        }
+      } else {
+        num = Int::Read(p, 10, true /*signed*/);
+      }
+      if (!num.overflow) {
         if (T::kind > kind) {
           if (!isDefaultKind ||
               !analyzer.context().IsEnabled(LanguageFeature::BigIntLiterals)) {
@@ -438,7 +500,7 @@ struct IntTypeVisitor {
           }
         }
         return Expr<SomeType>{
-            Expr<SomeInteger>{Expr<T>{Constant<T>{std::move(value.value)}}}};
+            Expr<SomeInteger>{Expr<T>{Constant<T>{std::move(num.value)}}}};
       }
     }
     return std::nullopt;
@@ -447,17 +509,19 @@ struct IntTypeVisitor {
   parser::CharBlock digits;
   int kind;
   bool isDefaultKind;
+  bool isNegated;
 };
 
 template <typename PARSED>
-MaybeExpr ExpressionAnalyzer::IntLiteralConstant(const PARSED &x) {
+MaybeExpr ExpressionAnalyzer::IntLiteralConstant(
+    const PARSED &x, bool isNegated) {
   const auto &kindParam{std::get<std::optional<parser::KindParam>>(x.t)};
   bool isDefaultKind{!kindParam};
   int kind{AnalyzeKindParam(kindParam, GetDefaultKind(TypeCategory::Integer))};
   if (CheckIntrinsicKind(TypeCategory::Integer, kind)) {
     auto digits{std::get<parser::CharBlock>(x.t)};
     if (MaybeExpr result{common::SearchTypes(
-            IntTypeVisitor{*this, digits, kind, isDefaultKind})}) {
+            IntTypeVisitor{*this, digits, kind, isDefaultKind, isNegated})}) {
       return result;
     } else if (isDefaultKind) {
       Say(digits,
@@ -471,10 +535,11 @@ MaybeExpr ExpressionAnalyzer::IntLiteralConstant(const PARSED &x) {
   return std::nullopt;
 }
 
-MaybeExpr ExpressionAnalyzer::Analyze(const parser::IntLiteralConstant &x) {
+MaybeExpr ExpressionAnalyzer::Analyze(
+    const parser::IntLiteralConstant &x, bool isNegated) {
   auto restorer{
       GetContextualMessages().SetLocation(std::get<parser::CharBlock>(x.t))};
-  return IntLiteralConstant(x);
+  return IntLiteralConstant(x, isNegated);
 }
 
 MaybeExpr ExpressionAnalyzer::Analyze(
@@ -487,11 +552,12 @@ template <typename TYPE>
 Constant<TYPE> ReadRealLiteral(
     parser::CharBlock source, FoldingContext &context) {
   const char *p{source.begin()};
-  auto valWithFlags{Scalar<TYPE>::Read(p, context.rounding())};
+  auto valWithFlags{
+      Scalar<TYPE>::Read(p, context.targetCharacteristics().roundingMode())};
   CHECK(p == source.end());
   RealFlagWarnings(context, valWithFlags.flags, "conversion of REAL literal");
   auto value{valWithFlags.value};
-  if (context.flushSubnormalsToZero()) {
+  if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
     value = value.FlushSubnormalToZero();
   }
   return {value};
@@ -552,12 +618,20 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::RealLiteralConstant &x) {
   if (letterKind) {
     defaultKind = *letterKind;
   }
-  // C716 requires 'E' as an exponent, but this is more useful
+  // C716 requires 'E' as an exponent.
+  // Extension: allow exponent-letter matching the kind-param.
   auto kind{AnalyzeKindParam(x.kind, defaultKind)};
-  if (letterKind && kind != *letterKind && expoLetter != 'e') {
-    Say("Explicit kind parameter on real constant disagrees with "
-        "exponent letter '%c'"_port_en_US,
-        expoLetter);
+  if (letterKind && expoLetter != 'e') {
+    if (kind != *letterKind) {
+      Say("Explicit kind parameter on real constant disagrees with "
+          "exponent letter '%c'"_warn_en_US,
+          expoLetter);
+    } else if (x.kind &&
+        context_.ShouldWarn(
+            common::LanguageFeature::ExponentMatchingKindParam)) {
+      Say("Explicit kind parameter together with non-'E' exponent letter "
+          "is not standard"_port_en_US);
+    }
   }
   auto result{common::SearchTypes(
       RealTypeVisitor{kind, x.real.source, GetFoldingContext()})};
@@ -693,10 +767,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Name &n) {
   if (std::optional<int> kind{IsImpliedDo(n.source)}) {
     return AsMaybeExpr(ConvertToKind<TypeCategory::Integer>(
         *kind, AsExpr(ImpliedDoIndex{n.source})));
-  } else if (context_.HasError(n)) {
-    return std::nullopt;
-  } else if (!n.symbol) {
-    SayAt(n, "Internal error: unresolved name '%s'"_err_en_US, n.source);
+  }
+  if (context_.HasError(n.symbol)) { // includes case of no symbol
     return std::nullopt;
   } else {
     const Symbol &ultimate{n.symbol->GetUltimate()};
@@ -803,7 +875,7 @@ std::optional<Expr<SubscriptInteger>> ExpressionAnalyzer::GetSubstringBound(
 MaybeExpr ExpressionAnalyzer::Analyze(const parser::Substring &ss) {
   if (MaybeExpr baseExpr{Analyze(std::get<parser::DataRef>(ss.t))}) {
     if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(*baseExpr))}) {
-      if (MaybeExpr newBaseExpr{TopLevelChecks(std::move(*dataRef))}) {
+      if (MaybeExpr newBaseExpr{Designate(std::move(*dataRef))}) {
         if (std::optional<DataRef> checked{
                 ExtractDataRef(std::move(*newBaseExpr))}) {
           const parser::SubstringRange &range{
@@ -841,7 +913,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
   if (MaybeExpr string{Analyze(std::get<parser::CharLiteralConstant>(x.t))}) {
     if (auto *charExpr{std::get_if<Expr<SomeCharacter>>(&string->u)}) {
       Expr<SubscriptInteger> length{
-          std::visit([](const auto &ckExpr) { return ckExpr.LEN().value(); },
+          common::visit([](const auto &ckExpr) { return ckExpr.LEN().value(); },
               charExpr->u)};
       if (!lower) {
         lower = Expr<SubscriptInteger>{1};
@@ -850,7 +922,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
         upper = Expr<SubscriptInteger>{
             static_cast<std::int64_t>(ToInt64(length).value())};
       }
-      return std::visit(
+      return common::visit(
           [&](auto &&ckExpr) -> MaybeExpr {
             using Result = ResultType<decltype(ckExpr)>;
             auto *cp{std::get_if<Constant<Result>>(&ckExpr.u)};
@@ -858,7 +930,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(
             StaticDataObject::Pointer staticData{StaticDataObject::Create()};
             staticData->set_alignment(Result::kind)
                 .set_itemBytes(Result::kind)
-                .Push(cp->GetScalarValue().value());
+                .Push(cp->GetScalarValue().value(),
+                    foldingContext_.targetCharacteristics().isBigEndian());
             Substring substring{std::move(staticData), std::move(lower.value()),
                 std::move(upper.value())};
             return AsGenericExpr(
@@ -868,6 +941,21 @@ MaybeExpr ExpressionAnalyzer::Analyze(
     }
   }
   return std::nullopt;
+}
+
+// substring%KIND/LEN
+MaybeExpr ExpressionAnalyzer::Analyze(const parser::SubstringInquiry &x) {
+  if (MaybeExpr substring{Analyze(x.v)}) {
+    CHECK(x.source.size() >= 8);
+    int nameLen{x.source.end()[-1] == 'n' ? 3 /*LEN*/ : 4 /*KIND*/};
+    parser::CharBlock name{
+        x.source.end() - nameLen, static_cast<std::size_t>(nameLen)};
+    CHECK(name == "len" || name == "kind");
+    return MakeFunctionRef(
+        name, ActualArguments{ActualArgument{std::move(*substring)}});
+  } else {
+    return std::nullopt;
+  }
 }
 
 // Subscripted array references
@@ -904,7 +992,7 @@ std::optional<Expr<SubscriptInteger>> ExpressionAnalyzer::TripletPart(
 
 std::optional<Subscript> ExpressionAnalyzer::AnalyzeSectionSubscript(
     const parser::SectionSubscript &ss) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::SubscriptTriplet &t) -> std::optional<Subscript> {
             const auto &lower{std::get<0>(t.t)};
@@ -983,7 +1071,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::ArrayElement &ae) {
 // Type parameter inquiries apply to data references, but don't depend
 // on any trailing (co)subscripts.
 static NamedEntity IgnoreAnySubscripts(Designator<SomeDerived> &&designator) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](SymbolRef &&symbol) { return NamedEntity{symbol}; },
           [](Component &&component) {
@@ -1069,13 +1157,15 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::StructureComponent &sc) {
     }
   } else if (auto *details{sym->detailsIf<semantics::MiscDetails>()}) {
     // special part-ref: %re, %im, %kind, %len
-    // Type errors are detected and reported in semantics.
+    // Type errors on the base of %re/%im/%len are detected and
+    // reported in name resolution.
     using MiscKind = semantics::MiscDetails::Kind;
     MiscKind kind{details->kind()};
     if (kind == MiscKind::ComplexPartRe || kind == MiscKind::ComplexPartIm) {
       if (auto *zExpr{std::get_if<Expr<SomeComplex>>(&base->u)}) {
-        if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(*zExpr))}) {
-          Expr<SomeReal> realExpr{std::visit(
+        if (std::optional<DataRef> dataRef{ExtractDataRef(*zExpr)}) {
+          // Represent %RE/%IM as a designator
+          Expr<SomeReal> realExpr{common::visit(
               [&](const auto &z) {
                 using PartType = typename ResultType<decltype(z)>::Part;
                 auto part{kind == MiscKind::ComplexPartRe
@@ -1090,7 +1180,6 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::StructureComponent &sc) {
       }
     } else if (kind == MiscKind::KindParamInquiry ||
         kind == MiscKind::LenParamInquiry) {
-      // Convert x%KIND -> intrinsic KIND(x), x%LEN -> intrinsic LEN(x)
       ActualArgument arg{std::move(*base)};
       SetArgSourceLocation(arg, name);
       return MakeFunctionRef(name, ActualArguments{std::move(arg)});
@@ -1150,7 +1239,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::CoindexedNamedObject &x) {
     }
     for (const auto &imageSelSpec :
         std::get<std::list<parser::ImageSelectorSpec>>(x.imageSelector.t)) {
-      std::visit(
+      common::visit(
           common::visitors{
               [&](const auto &x) { Analyze(x.v); },
           },
@@ -1187,7 +1276,7 @@ ArrayConstructorValues<T> MakeSpecific(
     ArrayConstructorValues<SomeType> &&from) {
   ArrayConstructorValues<T> to;
   for (ArrayConstructorValue<SomeType> &x : from) {
-    std::visit(
+    common::visit(
         common::visitors{
             [&](common::CopyableIndirection<Expr<SomeType>> &&expr) {
               auto *typed{UnwrapExpr<Expr<T>>(expr.value())};
@@ -1336,7 +1425,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
   if (Expr<SomeCharacter> * charExpr{UnwrapExpr<Expr<SomeCharacter>>(*x)}) {
     CHECK(xType.category() == TypeCategory::Character);
     xType.length =
-        std::visit([](const auto &kc) { return kc.LEN(); }, charExpr->u);
+        common::visit([](const auto &kc) { return kc.LEN(); }, charExpr->u);
   }
   if (!type_) {
     // If there is no explicit type-spec in an array constructor, the type
@@ -1397,7 +1486,7 @@ void ArrayConstructorContext::Push(MaybeExpr &&x) {
 }
 
 void ArrayConstructorContext::Add(const parser::AcValue &x) {
-  std::visit(
+  common::visit(
       common::visitors{
           [&](const parser::AcValue::Triplet &triplet) { Add(triplet); },
           [&](const common::Indirection<parser::Expr> &expr) {
@@ -1820,7 +1909,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(
 
 static std::optional<parser::CharBlock> GetPassName(
     const semantics::Symbol &proc) {
-  return std::visit(
+  return common::visit(
       [](const auto &details) {
         if constexpr (std::is_base_of_v<semantics::WithPassArg,
                           std::decay_t<decltype(details)>>) {
@@ -1896,8 +1985,8 @@ static const Symbol *GetBindingResolution(
 }
 
 auto ExpressionAnalyzer::AnalyzeProcedureComponentRef(
-    const parser::ProcComponentRef &pcr, ActualArguments &&arguments)
-    -> std::optional<CalleeAndArguments> {
+    const parser::ProcComponentRef &pcr, ActualArguments &&arguments,
+    bool isSubroutine) -> std::optional<CalleeAndArguments> {
   const parser::StructureComponent &sc{pcr.v.thing};
   if (MaybeExpr base{Analyze(sc.base)}) {
     if (const Symbol * sym{sc.component.symbol}) {
@@ -1920,20 +2009,26 @@ auto ExpressionAnalyzer::AnalyzeProcedureComponentRef(
                 }
                 return true;
               }};
-          auto pair{ResolveGeneric(*sym, arguments, adjustment)};
+          auto pair{ResolveGeneric(*sym, arguments, adjustment, isSubroutine)};
           sym = pair.first;
-          if (!sym) {
+          if (sym) {
+            // re-resolve the name to the specific binding
+            sc.component.symbol = const_cast<Symbol *>(sym);
+          } else {
             EmitGenericResolutionError(*sc.component.symbol, pair.second);
             return std::nullopt;
           }
+        }
+        std::optional<DataRef> dataRef{ExtractDataRef(std::move(*dtExpr))};
+        if (dataRef.has_value() && !CheckRanks(std::move(*dataRef))) {
+          return std::nullopt;
         }
         if (const Symbol *
             resolution{GetBindingResolution(dtExpr->GetType(), *sym)}) {
           AddPassArg(arguments, std::move(*dtExpr), *sym, false);
           return CalleeAndArguments{
               ProcedureDesignator{*resolution}, std::move(arguments)};
-        } else if (std::optional<DataRef> dataRef{
-                       ExtractDataRef(std::move(*dtExpr))}) {
+        } else if (dataRef.has_value()) {
           if (sym->attrs().test(semantics::Attr::NOPASS)) {
             return CalleeAndArguments{
                 ProcedureDesignator{Component{std::move(*dataRef), *sym}},
@@ -1959,7 +2054,7 @@ auto ExpressionAnalyzer::AnalyzeProcedureComponentRef(
 static bool CheckCompatibleArgument(bool isElemental,
     const ActualArgument &actual, const characteristics::DummyArgument &dummy) {
   const auto *expr{actual.UnwrapExpr()};
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const characteristics::DummyDataObject &x) {
             if (x.attrs.test(characteristics::DummyDataObject::Attr::Pointer) &&
@@ -2042,67 +2137,94 @@ bool ExpressionAnalyzer::ResolveForward(const Symbol &symbol) {
 // adjustActuals is called on procedure bindings to handle pass arg.
 std::pair<const Symbol *, bool> ExpressionAnalyzer::ResolveGeneric(
     const Symbol &symbol, const ActualArguments &actuals,
-    const AdjustActuals &adjustActuals, bool mightBeStructureConstructor) {
+    const AdjustActuals &adjustActuals, bool isSubroutine,
+    bool mightBeStructureConstructor) {
   const Symbol *elemental{nullptr}; // matching elemental specific proc
   const Symbol *nonElemental{nullptr}; // matching non-elemental specific
-  const auto &details{symbol.GetUltimate().get<semantics::GenericDetails>()};
-  bool anyBareNullActual{
-      std::find_if(actuals.begin(), actuals.end(), [](auto iter) {
-        return IsBareNullPointer(iter->UnwrapExpr());
-      }) != actuals.end()};
-  for (const Symbol &specific : details.specificProcs()) {
-    if (!ResolveForward(specific)) {
-      continue;
+  const Symbol &ultimate{symbol.GetUltimate()};
+  // Check for a match with an explicit INTRINSIC
+  if (ultimate.attrs().test(semantics::Attr::INTRINSIC)) {
+    parser::Messages buffer;
+    auto restorer{foldingContext_.messages().SetMessages(buffer)};
+    ActualArguments localActuals{actuals};
+    if (context_.intrinsics().Probe(
+            CallCharacteristics{ultimate.name().ToString(), isSubroutine},
+            localActuals, foldingContext_) &&
+        !buffer.AnyFatalError()) {
+      return {&ultimate, false};
     }
-    if (std::optional<characteristics::Procedure> procedure{
-            characteristics::Procedure::Characterize(
-                ProcedureDesignator{specific}, context_.foldingContext())}) {
-      ActualArguments localActuals{actuals};
-      if (specific.has<semantics::ProcBindingDetails>()) {
-        if (!adjustActuals.value()(specific, localActuals)) {
-          continue;
-        }
+  }
+  if (const auto *details{ultimate.detailsIf<semantics::GenericDetails>()}) {
+    bool anyBareNullActual{
+        std::find_if(actuals.begin(), actuals.end(), [](auto iter) {
+          return IsBareNullPointer(iter->UnwrapExpr());
+        }) != actuals.end()};
+    for (const Symbol &specific : details->specificProcs()) {
+      if (!ResolveForward(specific)) {
+        continue;
       }
-      if (semantics::CheckInterfaceForGeneric(*procedure, localActuals,
-              GetFoldingContext(), false /* no integer conversions */) &&
-          CheckCompatibleArguments(*procedure, localActuals)) {
-        if ((procedure->IsElemental() && elemental) ||
-            (!procedure->IsElemental() && nonElemental)) {
-          // 16.9.144(6): a bare NULL() is not allowed as an actual
-          // argument to a generic procedure if the specific procedure
-          // cannot be unambiguously distinguished
-          return {nullptr, true /* due to NULL actuals */};
-        }
-        if (!procedure->IsElemental()) {
-          // takes priority over elemental match
-          nonElemental = &specific;
-          if (!anyBareNullActual) {
-            break; // unambiguous case
+      if (std::optional<characteristics::Procedure> procedure{
+              characteristics::Procedure::Characterize(
+                  ProcedureDesignator{specific}, context_.foldingContext())}) {
+        ActualArguments localActuals{actuals};
+        if (specific.has<semantics::ProcBindingDetails>()) {
+          if (!adjustActuals.value()(specific, localActuals)) {
+            continue;
           }
-        } else {
-          elemental = &specific;
+        }
+        if (semantics::CheckInterfaceForGeneric(*procedure, localActuals,
+                GetFoldingContext(), false /* no integer conversions */) &&
+            CheckCompatibleArguments(*procedure, localActuals)) {
+          if ((procedure->IsElemental() && elemental) ||
+              (!procedure->IsElemental() && nonElemental)) {
+            // 16.9.144(6): a bare NULL() is not allowed as an actual
+            // argument to a generic procedure if the specific procedure
+            // cannot be unambiguously distinguished
+            return {nullptr, true /* due to NULL actuals */};
+          }
+          if (!procedure->IsElemental()) {
+            // takes priority over elemental match
+            nonElemental = &specific;
+            if (!anyBareNullActual) {
+              break; // unambiguous case
+            }
+          } else {
+            elemental = &specific;
+          }
         }
       }
     }
-  }
-  if (nonElemental) {
-    return {&AccessSpecific(symbol, *nonElemental), false};
-  } else if (elemental) {
-    return {&AccessSpecific(symbol, *elemental), false};
-  }
-  // Check parent derived type
-  if (const auto *parentScope{symbol.owner().GetDerivedTypeParent()}) {
-    if (const Symbol * extended{parentScope->FindComponent(symbol.name())}) {
-      if (extended->GetUltimate().has<semantics::GenericDetails>()) {
-        auto pair{ResolveGeneric(*extended, actuals, adjustActuals, false)};
+    if (nonElemental) {
+      return {&AccessSpecific(symbol, *nonElemental), false};
+    } else if (elemental) {
+      return {&AccessSpecific(symbol, *elemental), false};
+    }
+    // Check parent derived type
+    if (const auto *parentScope{symbol.owner().GetDerivedTypeParent()}) {
+      if (const Symbol * extended{parentScope->FindComponent(symbol.name())}) {
+        auto pair{ResolveGeneric(
+            *extended, actuals, adjustActuals, isSubroutine, false)};
         if (pair.first) {
           return pair;
         }
       }
     }
+    if (mightBeStructureConstructor && details->derivedType()) {
+      return {details->derivedType(), false};
+    }
   }
-  if (mightBeStructureConstructor && details.derivedType()) {
-    return {details.derivedType(), false};
+  // Check for generic or explicit INTRINSIC of the same name in outer scopes.
+  // See 15.5.5.2 for details.
+  if (!symbol.owner().IsGlobal() && !symbol.owner().IsDerivedType()) {
+    for (const std::string &n : GetAllNames(context_, symbol.name())) {
+      if (const Symbol * outer{symbol.owner().parent().FindSymbol(n)}) {
+        auto pair{ResolveGeneric(*outer, actuals, adjustActuals, isSubroutine,
+            mightBeStructureConstructor)};
+        if (pair.first) {
+          return pair;
+        }
+      }
+    }
   }
   return {nullptr, false};
 }
@@ -2130,6 +2252,7 @@ const Symbol &ExpressionAnalyzer::AccessSpecific(
     // Create a renaming USE of the specific procedure.
     auto rename{context_.SaveTempName(
         used->symbol().owner().GetName().value().ToString() + "$" +
+        specific.owner().GetName().value().ToString() + "$" +
         specific.name().ToString())};
     return *const_cast<semantics::Scope &>(scope)
                 .try_emplace(rename, specific.attrs(),
@@ -2154,14 +2277,15 @@ auto ExpressionAnalyzer::GetCalleeAndArguments(
     const parser::ProcedureDesignator &pd, ActualArguments &&arguments,
     bool isSubroutine, bool mightBeStructureConstructor)
     -> std::optional<CalleeAndArguments> {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::Name &name) {
             return GetCalleeAndArguments(name, std::move(arguments),
                 isSubroutine, mightBeStructureConstructor);
           },
           [&](const parser::ProcComponentRef &pcr) {
-            return AnalyzeProcedureComponentRef(pcr, std::move(arguments));
+            return AnalyzeProcedureComponentRef(
+                pcr, std::move(arguments), isSubroutine);
           },
       },
       pd.u);
@@ -2175,7 +2299,26 @@ auto ExpressionAnalyzer::GetCalleeAndArguments(const parser::Name &name,
     return std::nullopt; // also handles null symbol
   }
   const Symbol &ultimate{DEREF(symbol).GetUltimate()};
-  if (ultimate.attrs().test(semantics::Attr::INTRINSIC)) {
+  CheckForBadRecursion(name.source, ultimate);
+  bool dueToNullActual{false};
+  bool isGenericInterface{ultimate.has<semantics::GenericDetails>()};
+  bool isExplicitIntrinsic{ultimate.attrs().test(semantics::Attr::INTRINSIC)};
+  const Symbol *resolution{nullptr};
+  if (isGenericInterface || isExplicitIntrinsic) {
+    ExpressionAnalyzer::AdjustActuals noAdjustment;
+    auto pair{ResolveGeneric(*symbol, arguments, noAdjustment, isSubroutine,
+        mightBeStructureConstructor)};
+    resolution = pair.first;
+    dueToNullActual = pair.second;
+    if (resolution) {
+      // re-resolve name to the specific procedure
+      name.symbol = const_cast<Symbol *>(resolution);
+    }
+  } else {
+    resolution = symbol;
+  }
+  if (!resolution || resolution->attrs().test(semantics::Attr::INTRINSIC)) {
+    // Not generic, or no resolution; may be intrinsic
     if (std::optional<SpecificCall> specificCall{context_.intrinsics().Probe(
             CallCharacteristics{ultimate.name().ToString(), isSubroutine},
             arguments, GetFoldingContext())}) {
@@ -2183,45 +2326,27 @@ auto ExpressionAnalyzer::GetCalleeAndArguments(const parser::Name &name,
       return CalleeAndArguments{
           ProcedureDesignator{std::move(specificCall->specificIntrinsic)},
           std::move(specificCall->arguments)};
-    }
-  } else {
-    CheckForBadRecursion(name.source, ultimate);
-    bool dueToNullActual{false};
-    if (ultimate.has<semantics::GenericDetails>()) {
-      ExpressionAnalyzer::AdjustActuals noAdjustment;
-      auto pair{ResolveGeneric(
-          *symbol, arguments, noAdjustment, mightBeStructureConstructor)};
-      symbol = pair.first;
-      dueToNullActual = pair.second;
-    }
-    if (symbol) {
-      if (symbol->GetUltimate().has<semantics::DerivedTypeDetails>()) {
-        if (mightBeStructureConstructor) {
-          return CalleeAndArguments{
-              semantics::SymbolRef{*symbol}, std::move(arguments)};
-        }
-      } else if (IsProcedure(*symbol)) {
-        return CalleeAndArguments{
-            ProcedureDesignator{*symbol}, std::move(arguments)};
-      }
-      if (!context_.HasError(*symbol)) {
-        AttachDeclaration(
-            Say(name.source, "'%s' is not a callable procedure"_err_en_US,
-                name.source),
-            *symbol);
-      }
-    } else if (std::optional<SpecificCall> specificCall{
-                   context_.intrinsics().Probe(
-                       CallCharacteristics{
-                           ultimate.name().ToString(), isSubroutine},
-                       arguments, GetFoldingContext())}) {
-      // Generics can extend intrinsics
-      return CalleeAndArguments{
-          ProcedureDesignator{std::move(specificCall->specificIntrinsic)},
-          std::move(specificCall->arguments)};
     } else {
-      EmitGenericResolutionError(*name.symbol, dueToNullActual);
+      if (isGenericInterface) {
+        EmitGenericResolutionError(*symbol, dueToNullActual);
+      }
+      return std::nullopt;
     }
+  }
+  if (resolution->GetUltimate().has<semantics::DerivedTypeDetails>()) {
+    if (mightBeStructureConstructor) {
+      return CalleeAndArguments{
+          semantics::SymbolRef{*resolution}, std::move(arguments)};
+    }
+  } else if (IsProcedure(*resolution)) {
+    return CalleeAndArguments{
+        ProcedureDesignator{*resolution}, std::move(arguments)};
+  }
+  if (!context_.HasError(*resolution)) {
+    AttachDeclaration(
+        Say(name.source, "'%s' is not a callable procedure"_err_en_US,
+            name.source),
+        *resolution);
   }
   return std::nullopt;
 }
@@ -2268,6 +2393,7 @@ void ExpressionAnalyzer::CheckForBadRecursion(
         msg = Say("NON_RECURSIVE procedure '%s' cannot call itself"_err_en_US,
             callSite);
       } else if (IsAssumedLengthCharacter(proc) && IsExternal(proc)) {
+        // TODO: Also catch assumed PDT type parameters
         msg = Say( // 15.6.2.1(3)
             "Assumed-length CHARACTER(*) function '%s' cannot call itself"_err_en_US,
             callSite);
@@ -2306,7 +2432,7 @@ static const Symbol *AssumedTypePointerOrAllocatableDummy(const A &object) {
   // point it is is not guaranteed that it has been checked the object has
   // POINTER or ALLOCATABLE attribute, so do not assume nullptr can be directly
   // returned.
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::StructureComponent &x) {
             return AssumedTypeDummy(x.component);
@@ -2460,29 +2586,30 @@ const Assignment *ExpressionAnalyzer::Analyze(
           new GenericAssignmentWrapper{}, GenericAssignmentWrapper::Deleter);
     } else {
       Assignment assignment{std::move(*lhs), std::move(*rhs)};
-      std::visit(common::visitors{
-                     [&](const std::list<parser::BoundsRemapping> &list) {
-                       Assignment::BoundsRemapping bounds;
-                       for (const auto &elem : list) {
-                         auto lower{AsSubscript(Analyze(std::get<0>(elem.t)))};
-                         auto upper{AsSubscript(Analyze(std::get<1>(elem.t)))};
-                         if (lower && upper) {
-                           bounds.emplace_back(Fold(std::move(*lower)),
-                               Fold(std::move(*upper)));
-                         }
-                       }
-                       assignment.u = std::move(bounds);
-                     },
-                     [&](const std::list<parser::BoundsSpec> &list) {
-                       Assignment::BoundsSpec bounds;
-                       for (const auto &bound : list) {
-                         if (auto lower{AsSubscript(Analyze(bound.v))}) {
-                           bounds.emplace_back(Fold(std::move(*lower)));
-                         }
-                       }
-                       assignment.u = std::move(bounds);
-                     },
-                 },
+      common::visit(
+          common::visitors{
+              [&](const std::list<parser::BoundsRemapping> &list) {
+                Assignment::BoundsRemapping bounds;
+                for (const auto &elem : list) {
+                  auto lower{AsSubscript(Analyze(std::get<0>(elem.t)))};
+                  auto upper{AsSubscript(Analyze(std::get<1>(elem.t)))};
+                  if (lower && upper) {
+                    bounds.emplace_back(
+                        Fold(std::move(*lower)), Fold(std::move(*upper)));
+                  }
+                }
+                assignment.u = std::move(bounds);
+              },
+              [&](const std::list<parser::BoundsSpec> &list) {
+                Assignment::BoundsSpec bounds;
+                for (const auto &bound : list) {
+                  if (auto lower{AsSubscript(Analyze(bound.v))}) {
+                    bounds.emplace_back(Fold(std::move(*lower)));
+                  }
+                }
+                assignment.u = std::move(bounds);
+              },
+          },
           std::get<parser::PointerAssignmentStmt::Bounds>(x.t).u);
       x.typedAssignment.Reset(
           new GenericAssignmentWrapper{std::move(assignment)},
@@ -2517,18 +2644,21 @@ std::optional<characteristics::Procedure> ExpressionAnalyzer::CheckCall(
           DEREF(proc.GetSymbol()).name());
     }
     // Checks for ASSOCIATED() are done in intrinsic table processing
-    bool procIsAssociated{false};
-    if (const SpecificIntrinsic *
-        specificIntrinsic{proc.GetSpecificIntrinsic()}) {
-      if (specificIntrinsic->name == "associated") {
-        procIsAssociated = true;
-      }
-    }
+    const SpecificIntrinsic *specificIntrinsic{proc.GetSpecificIntrinsic()};
+    bool procIsAssociated{
+        specificIntrinsic && specificIntrinsic->name == "associated"};
     if (!procIsAssociated) {
+      const Symbol *procSymbol{proc.GetSymbol()};
+      bool procIsDummy{procSymbol && IsDummy(*procSymbol)};
+      if (chars->functionResult &&
+          chars->functionResult->IsAssumedLengthCharacter() &&
+          !specificIntrinsic && !procIsDummy) {
+        Say(callSite,
+            "Assumed-length character function must be defined with a length to be called"_err_en_US);
+      }
       semantics::CheckArguments(*chars, arguments, GetFoldingContext(),
           context_.FindScope(callSite), treatExternalAsImplicit,
-          proc.GetSpecificIntrinsic());
-      const Symbol *procSymbol{proc.GetSymbol()};
+          specificIntrinsic);
       if (procSymbol && !IsPureProcedure(*procSymbol)) {
         if (const semantics::Scope *
             pure{semantics::FindPureProcedureContaining(
@@ -2585,6 +2715,13 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Expr::UnaryPlus &x) {
 }
 
 MaybeExpr ExpressionAnalyzer::Analyze(const parser::Expr::Negate &x) {
+  if (const auto *litConst{
+          std::get_if<parser::LiteralConstant>(&x.v.value().u)}) {
+    if (const auto *intConst{
+            std::get_if<parser::IntLiteralConstant>(&litConst->u)}) {
+      return Analyze(*intConst, true);
+    }
+  }
   return NumericUnaryHelper(*this, NumericOperator::Subtract, x);
 }
 
@@ -2692,7 +2829,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Expr::Concat &x) {
   if (!analyzer.fatalErrors()) {
     if (analyzer.IsIntrinsicConcat()) {
       analyzer.CheckForNullPointer();
-      return std::visit(
+      return common::visit(
           [&](auto &&x, auto &&y) -> MaybeExpr {
             using T = ResultType<decltype(x)>;
             if constexpr (std::is_same_v<T, ResultType<decltype(y)>>) {
@@ -2876,12 +3013,12 @@ static void FixMisparsedFunctionReference(
     auto &proc{std::get<parser::ProcedureDesignator>(funcRef.v.t)};
     if (Symbol *
         origSymbol{
-            std::visit(common::visitors{
-                           [&](parser::Name &name) { return name.symbol; },
-                           [&](parser::ProcComponentRef &pcr) {
-                             return pcr.v.thing.component.symbol;
-                           },
-                       },
+            common::visit(common::visitors{
+                              [&](parser::Name &name) { return name.symbol; },
+                              [&](parser::ProcComponentRef &pcr) {
+                                return pcr.v.thing.component.symbol;
+                              },
+                          },
                 proc.u)}) {
       Symbol &symbol{origSymbol->GetUltimate()};
       if (symbol.has<semantics::ObjectEntityDetails>() ||
@@ -3025,7 +3162,7 @@ Expr<SubscriptInteger> ExpressionAnalyzer::AnalyzeKindSelector(
   if (!selector) {
     return Expr<SubscriptInteger>{defaultKind};
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const parser::ScalarIntConstantExpr &x) {
             if (MaybeExpr kind{Analyze(x)}) {
@@ -3063,7 +3200,13 @@ DynamicType ExpressionAnalyzer::GetDefaultKindOfType(
 
 bool ExpressionAnalyzer::CheckIntrinsicKind(
     TypeCategory category, std::int64_t kind) {
-  if (IsValidKindOfIntrinsicType(category, kind)) { // C712, C714, C715, C727
+  if (foldingContext_.targetCharacteristics().IsTypeEnabled(
+          category, kind)) { // C712, C714, C715, C727
+    return true;
+  } else if (foldingContext_.targetCharacteristics().CanSupportType(
+                 category, kind)) {
+    Say("%s(KIND=%jd) is not an enabled type for this targe"_warn_en_US,
+        ToUpperCase(EnumToString(category)), kind);
     return true;
   } else {
     Say("%s(KIND=%jd) is not a supported type"_err_en_US,
@@ -3074,17 +3217,29 @@ bool ExpressionAnalyzer::CheckIntrinsicKind(
 
 bool ExpressionAnalyzer::CheckIntrinsicSize(
     TypeCategory category, std::int64_t size) {
+  std::int64_t kind{size};
   if (category == TypeCategory::Complex) {
     // COMPLEX*16 == COMPLEX(KIND=8)
-    if (size % 2 == 0 && IsValidKindOfIntrinsicType(category, size / 2)) {
-      return true;
+    if (size % 2 == 0) {
+      kind = size / 2;
+    } else {
+      Say("COMPLEX*%jd is not a supported type"_err_en_US, size);
+      return false;
     }
-  } else if (IsValidKindOfIntrinsicType(category, size)) {
-    return true;
   }
-  Say("%s*%jd is not a supported type"_err_en_US,
-      ToUpperCase(EnumToString(category)), size);
-  return false;
+  if (foldingContext_.targetCharacteristics().IsTypeEnabled(
+          category, kind)) { // C712, C714, C715, C727
+    return true;
+  } else if (foldingContext_.targetCharacteristics().CanSupportType(
+                 category, kind)) {
+    Say("%s*%jd is not an enabled type for this target"_warn_en_US,
+        ToUpperCase(EnumToString(category)), size);
+    return true;
+  } else {
+    Say("%s*%jd is not a supported type"_err_en_US,
+        ToUpperCase(EnumToString(category)), size);
+    return false;
+  }
 }
 
 bool ExpressionAnalyzer::AddImpliedDo(parser::CharBlock name, int kind) {
@@ -3199,7 +3354,7 @@ void ArgumentAnalyzer::Analyze(const parser::Variable &x) {
           symbol->name())};
       if (subp->isFunction()) {
         const auto &result{subp->result().name()};
-        msg->Attach(result, "Function result is '%s'"_err_en_US, result);
+        msg->Attach(result, "Function result is '%s'"_en_US, result);
       }
     } else {
       context_.SayAt(x, "Assignment to constant '%s' is not allowed"_err_en_US,
@@ -3215,7 +3370,7 @@ void ArgumentAnalyzer::Analyze(
   // be detected and represented (they're not expressions).
   // TODO: C1534: Don't allow a "restricted" specific intrinsic to be passed.
   std::optional<ActualArgument> actual;
-  std::visit(
+  common::visit(
       common::visitors{
           [&](const common::Indirection<parser::Expr> &x) {
             actual = AnalyzeExpr(x.value());
@@ -3229,12 +3384,10 @@ void ArgumentAnalyzer::Analyze(
             actual = ActualArgument(label.v);
           },
           [&](const parser::ActualArg::PercentRef &) {
-            context_.Say(
-                "not yet implemented: %REF() intrinsic for arguments"_err_en_US);
+            context_.Say("%REF() intrinsic for arguments"_todo_en_US);
           },
           [&](const parser::ActualArg::PercentVal &) {
-            context_.Say(
-                "not yet implemetned: %VAL() intrinsic for arguments"_err_en_US);
+            context_.Say("%VAL() intrinsic for arguments"_todo_en_US);
           },
       },
       std::get<parser::ActualArg>(arg.t).u);
@@ -3454,10 +3607,10 @@ bool ArgumentAnalyzer::OkLogicalIntegerAssignment(
   std::optional<parser::MessageFixedText> msg;
   if (lhs == TypeCategory::Integer && rhs == TypeCategory::Logical) {
     // allow assignment to LOGICAL from INTEGER as a legacy extension
-    msg = "nonstandard usage: assignment of LOGICAL to INTEGER"_port_en_US;
+    msg = "assignment of LOGICAL to INTEGER"_port_en_US;
   } else if (lhs == TypeCategory::Logical && rhs == TypeCategory::Integer) {
     // ... and assignment to LOGICAL from INTEGER
-    msg = "nonstandard usage: assignment of INTEGER to LOGICAL"_port_en_US;
+    msg = "assignment of INTEGER to LOGICAL"_port_en_US;
   } else {
     return false;
   }
@@ -3476,7 +3629,7 @@ std::optional<ProcedureRef> ArgumentAnalyzer::GetDefinedAssignmentProc() {
   const auto &scope{context_.context().FindScope(source_)};
   if (const Symbol * symbol{scope.FindSymbol(oprName)}) {
     ExpressionAnalyzer::AdjustActuals noAdjustment;
-    auto pair{context_.ResolveGeneric(*symbol, actuals_, noAdjustment)};
+    auto pair{context_.ResolveGeneric(*symbol, actuals_, noAdjustment, true)};
     if (pair.first) {
       proc = pair.first;
     } else {
@@ -3584,7 +3737,7 @@ const Symbol *ArgumentAnalyzer::FindBoundOp(
       [&](const Symbol &proc, ActualArguments &) {
         return passIndex == GetPassIndex(proc);
       }};
-  auto pair{context_.ResolveGeneric(*symbol, actuals_, adjustment)};
+  auto pair{context_.ResolveGeneric(*symbol, actuals_, adjustment, false)};
   if (!pair.first) {
     context_.EmitGenericResolutionError(*symbol, pair.second);
   }

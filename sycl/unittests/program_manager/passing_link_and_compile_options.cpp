@@ -6,7 +6,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
+
+#include <sycl/detail/defines_elementary.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -24,8 +26,8 @@ class EAMTestKernel2;
 const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs2 = 4;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs1; }
@@ -37,6 +39,7 @@ template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<EAMTestKernel2> {
@@ -49,11 +52,12 @@ template <> struct KernelInfo<EAMTestKernel2> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 template <typename T>
 static sycl::unittest::PiImage
@@ -267,8 +271,8 @@ TEST(Link_Compile_Options, check_sycl_build) {
                                                   expected_link_options);
   static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};
   auto KernelID = sycl::get_kernel_id<EAMTestKernel1>();
-  sycl::queue Queue{Dev};
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});

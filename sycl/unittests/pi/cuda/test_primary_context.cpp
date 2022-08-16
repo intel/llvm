@@ -11,12 +11,12 @@
 #include <cuda.h>
 
 #include "TestGetPlatforms.hpp"
-#include <CL/sycl.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaPrimaryContextTests : public ::testing::TestWithParam<platform> {
 

@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 bool match_types(const info::device_type &l, const info::device_type &r);
@@ -20,5 +20,5 @@ bool match_types(const info::device_type &l, const info::device_type &r);
 info::device_type get_forced_type();
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

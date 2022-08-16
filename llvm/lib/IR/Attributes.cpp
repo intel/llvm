@@ -55,12 +55,11 @@ static const unsigned AllocSizeNumElemsNotPresent = -1;
 
 static uint64_t packAllocSizeArgs(unsigned ElemSizeArg,
                                   const Optional<unsigned> &NumElemsArg) {
-  assert((!NumElemsArg.hasValue() ||
-          *NumElemsArg != AllocSizeNumElemsNotPresent) &&
+  assert((!NumElemsArg || *NumElemsArg != AllocSizeNumElemsNotPresent) &&
          "Attempting to pack a reserved value");
 
   return uint64_t(ElemSizeArg) << 32 |
-         NumElemsArg.getValueOr(AllocSizeNumElemsNotPresent);
+         NumElemsArg.value_or(AllocSizeNumElemsNotPresent);
 }
 
 static std::pair<unsigned, Optional<unsigned>>
@@ -76,7 +75,7 @@ unpackAllocSizeArgs(uint64_t Num) {
 
 static uint64_t packVScaleRangeArgs(unsigned MinValue,
                                     Optional<unsigned> MaxValue) {
-  return uint64_t(MinValue) << 32 | MaxValue.getValueOr(0);
+  return uint64_t(MinValue) << 32 | MaxValue.value_or(0);
 }
 
 static std::pair<unsigned, Optional<unsigned>>
@@ -376,6 +375,12 @@ UWTableKind Attribute::getUWTableKind() const {
   return UWTableKind(pImpl->getValueAsInt());
 }
 
+AllocFnKind Attribute::getAllocKind() const {
+  assert(hasAttribute(Attribute::AllocKind) &&
+         "Trying to get allockind value from non-allockind attribute");
+  return AllocFnKind(pImpl->getValueAsInt());
+}
+
 std::string Attribute::getAsString(bool InAttrGrp) const {
   if (!pImpl) return {};
 
@@ -432,7 +437,7 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     unsigned MinValue = getVScaleRangeMin();
     Optional<unsigned> MaxValue = getVScaleRangeMax();
     return ("vscale_range(" + Twine(MinValue) + "," +
-            Twine(MaxValue.getValueOr(0)) + ")")
+            Twine(MaxValue.value_or(0)) + ")")
         .str();
   }
 
@@ -445,6 +450,26 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
                     Twine(Kind == UWTableKind::Sync ? "sync" : "async") + ")")
                        .str();
     }
+  }
+
+  if (hasAttribute(Attribute::AllocKind)) {
+    AllocFnKind Kind = getAllocKind();
+    SmallVector<StringRef> parts;
+    if ((Kind & AllocFnKind::Alloc) != AllocFnKind::Unknown)
+      parts.push_back("alloc");
+    if ((Kind & AllocFnKind::Realloc) != AllocFnKind::Unknown)
+      parts.push_back("realloc");
+    if ((Kind & AllocFnKind::Free) != AllocFnKind::Unknown)
+      parts.push_back("free");
+    if ((Kind & AllocFnKind::Uninitialized) != AllocFnKind::Unknown)
+      parts.push_back("uninitialized");
+    if ((Kind & AllocFnKind::Zeroed) != AllocFnKind::Unknown)
+      parts.push_back("zeroed");
+    if ((Kind & AllocFnKind::Aligned) != AllocFnKind::Unknown)
+      parts.push_back("aligned");
+    return ("allockind(\"" +
+            Twine(llvm::join(parts.begin(), parts.end(), ",")) + "\")")
+        .str();
   }
 
   // Convert target-dependent attributes to strings of the form:
@@ -735,6 +760,10 @@ UWTableKind AttributeSet::getUWTableKind() const {
   return SetNode ? SetNode->getUWTableKind() : UWTableKind::None;
 }
 
+AllocFnKind AttributeSet::getAllocKind() const {
+  return SetNode ? SetNode->getAllocKind() : AllocFnKind::Unknown;
+}
+
 std::string AttributeSet::getAsString(bool InAttrGrp) const {
   return SetNode ? SetNode->getAsString(InAttrGrp) : "";
 }
@@ -907,6 +936,12 @@ UWTableKind AttributeSetNode::getUWTableKind() const {
   return UWTableKind::None;
 }
 
+AllocFnKind AttributeSetNode::getAllocKind() const {
+  if (auto A = findEnumAttribute(Attribute::AllocKind))
+    return A->getAllocKind();
+  return AllocFnKind::Unknown;
+}
+
 std::string AttributeSetNode::getAsString(bool InAttrGrp) const {
   std::string Str;
   for (iterator I = begin(), E = end(); I != E; ++I) {
@@ -1018,11 +1053,7 @@ AttributeList::get(LLVMContext &C,
   if (Attrs.empty())
     return {};
 
-  assert(llvm::is_sorted(Attrs,
-                         [](const std::pair<unsigned, Attribute> &LHS,
-                            const std::pair<unsigned, Attribute> &RHS) {
-                           return LHS.first < RHS.first;
-                         }) &&
+  assert(llvm::is_sorted(Attrs, llvm::less_first()) &&
          "Misordered Attributes list!");
   assert(llvm::all_of(Attrs,
                       [](const std::pair<unsigned, Attribute> &Pair) {
@@ -1055,11 +1086,7 @@ AttributeList::get(LLVMContext &C,
   if (Attrs.empty())
     return {};
 
-  assert(llvm::is_sorted(Attrs,
-                         [](const std::pair<unsigned, AttributeSet> &LHS,
-                            const std::pair<unsigned, AttributeSet> &RHS) {
-                           return LHS.first < RHS.first;
-                         }) &&
+  assert(llvm::is_sorted(Attrs, llvm::less_first()) &&
          "Misordered Attributes list!");
   assert(llvm::none_of(Attrs,
                        [](const std::pair<unsigned, AttributeSet> &Pair) {
@@ -1463,6 +1490,10 @@ UWTableKind AttributeList::getUWTableKind() const {
   return getFnAttrs().getUWTableKind();
 }
 
+AllocFnKind AttributeList::getAllocKind() const {
+  return getFnAttrs().getAllocKind();
+}
+
 std::string AttributeList::getAsString(unsigned Index, bool InAttrGrp) const {
   return getAttributes(Index).getAsString(InAttrGrp);
 }
@@ -1690,6 +1721,10 @@ AttrBuilder &AttrBuilder::addUWTableAttr(UWTableKind Kind) {
   return addRawIntAttr(Attribute::UWTable, uint64_t(Kind));
 }
 
+AttrBuilder &AttrBuilder::addAllocKindAttr(AllocFnKind Kind) {
+  return addRawIntAttr(Attribute::AllocKind, static_cast<uint64_t>(Kind));
+}
+
 Type *AttrBuilder::getTypeAttr(Attribute::AttrKind Kind) const {
   assert(Attribute::isTypeAttrKind(Kind) && "Not a type attribute");
   Attribute A = getAttribute(Kind);
@@ -1803,7 +1838,8 @@ AttributeMask AttributeFuncs::typeIncompatible(Type *Ty,
           .addAttribute(Attribute::ByVal)
           .addAttribute(Attribute::StructRet)
           .addAttribute(Attribute::ByRef)
-          .addAttribute(Attribute::ElementType);
+          .addAttribute(Attribute::ElementType)
+          .addAttribute(Attribute::AllocatedPointer);
   }
 
     // Attributes that only apply to pointers or vectors of pointers.
@@ -2027,4 +2063,15 @@ void AttributeFuncs::mergeAttributesForOutlining(Function &Base,
   // function, but not the other, we make sure that the function retains
   // that aspect in the merged function.
   mergeFnAttrs(Base, ToMerge);
+}
+
+void AttributeFuncs::updateMinLegalVectorWidthAttr(Function &Fn,
+                                                   uint64_t Width) {
+  Attribute Attr = Fn.getFnAttribute("min-legal-vector-width");
+  if (Attr.isValid()) {
+    uint64_t OldWidth;
+    Attr.getValueAsString().getAsInteger(0, OldWidth);
+    if (Width > OldWidth)
+      Fn.addFnAttr("min-legal-vector-width", llvm::utostr(Width));
+  }
 }

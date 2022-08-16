@@ -10,7 +10,7 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
@@ -51,7 +51,7 @@ namespace {
 class ConvertShapeConstraints
     : public ConvertShapeConstraintsBase<ConvertShapeConstraints> {
   void runOnOperation() override {
-    auto func = getOperation();
+    auto *func = getOperation();
     auto *context = &getContext();
 
     RewritePatternSet patterns(context);

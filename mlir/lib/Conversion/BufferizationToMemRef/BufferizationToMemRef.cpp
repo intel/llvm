@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../PassDetail.h"
 #include "mlir/Conversion/BufferizationToMemRef/BufferizationToMemRef.h"
+#include "../PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -57,7 +57,8 @@ struct CloneOpConversion : public OpConversionPattern<bufferization::CloneOp> {
       if (!memrefType.isDynamicDim(i))
         continue;
       Value size = rewriter.createOrFold<arith::ConstantIndexOp>(loc, i);
-      Value dim = rewriter.createOrFold<memref::DimOp>(loc, op.input(), size);
+      Value dim =
+          rewriter.createOrFold<memref::DimOp>(loc, op.getInput(), size);
       dynamicOperands.push_back(dim);
     }
 
@@ -68,7 +69,7 @@ struct CloneOpConversion : public OpConversionPattern<bufferization::CloneOp> {
     if (memrefType != allocType)
       alloc = rewriter.create<memref::CastOp>(op->getLoc(), memrefType, alloc);
     rewriter.replaceOp(op, alloc);
-    rewriter.create<memref::CopyOp>(loc, op.input(), alloc);
+    rewriter.create<memref::CopyOp>(loc, op.getInput(), alloc);
     return success();
   }
 };

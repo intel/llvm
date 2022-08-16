@@ -53,7 +53,7 @@ Shape GetShapeHelper::ConstantShape(const Constant<ExtentType> &arrayConstant) {
   return result;
 }
 
-auto GetShapeHelper::AsShape(ExtentExpr &&arrayExpr) const -> Result {
+auto GetShapeHelper::AsShapeResult(ExtentExpr &&arrayExpr) const -> Result {
   if (context_) {
     arrayExpr = Fold(*context_, std::move(arrayExpr));
   }
@@ -63,17 +63,17 @@ auto GetShapeHelper::AsShape(ExtentExpr &&arrayExpr) const -> Result {
   if (auto *constructor{UnwrapExpr<ArrayConstructor<ExtentType>>(arrayExpr)}) {
     Shape result;
     for (auto &value : *constructor) {
-      if (auto *expr{std::get_if<ExtentExpr>(&value.u)}) {
-        if (expr->Rank() == 0) {
-          result.emplace_back(std::move(*expr));
-          continue;
-        }
+      auto *expr{std::get_if<ExtentExpr>(&value.u)};
+      if (expr && expr->Rank() == 0) {
+        result.emplace_back(std::move(*expr));
+      } else {
+        return std::nullopt;
       }
-      return std::nullopt;
     }
     return result;
+  } else {
+    return std::nullopt;
   }
-  return std::nullopt;
 }
 
 Shape GetShapeHelper::CreateShape(int rank, NamedEntity &base) {
@@ -480,7 +480,7 @@ MaybeExtentExpr GetExtent(
 
 MaybeExtentExpr GetExtent(
     const Subscript &subscript, const NamedEntity &base, int dimension) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const Triplet &triplet) -> MaybeExtentExpr {
             MaybeExtentExpr upper{triplet.upper()};
@@ -650,7 +650,7 @@ Shape GetUBOUNDs(FoldingContext &context, const NamedEntity &base) {
 Shape GetUBOUNDs(const NamedEntity &base) { return GetUBOUNDs(nullptr, base); }
 
 auto GetShapeHelper::operator()(const Symbol &symbol) const -> Result {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const semantics::ObjectEntityDetails &object) {
             if (IsImpliedShape(symbol) && object.init()) {
@@ -690,9 +690,9 @@ auto GetShapeHelper::operator()(const Symbol &symbol) const -> Result {
                 // to symbols that belong to the subroutine scope and are
                 // meaningless on the caller side without the related call
                 // expression.
-                for (auto extent : *resultShape) {
-                  if (extent && !IsConstantExpr(*extent)) {
-                    return std::nullopt;
+                for (auto &extent : *resultShape) {
+                  if (extent && !IsActuallyConstant(*extent)) {
+                    extent.reset();
                   }
                 }
               }
@@ -847,15 +847,6 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
           }
         }
       }
-    } else if (intrinsic->name == "reshape") {
-      if (call.arguments().size() >= 2 && call.arguments().at(1)) {
-        // SHAPE(RESHAPE(array,shape)) -> shape
-        if (const auto *shapeExpr{
-                call.arguments().at(1).value().UnwrapExpr()}) {
-          auto shape{std::get<Expr<SomeInteger>>(shapeExpr->u)};
-          return AsShape(ConvertToType<ExtentType>(std::move(shape)));
-        }
-      }
     } else if (intrinsic->name == "pack") {
       if (call.arguments().size() >= 3 && call.arguments().at(2)) {
         // SHAPE(PACK(,,VECTOR=v)) -> SHAPE(v)
@@ -888,6 +879,18 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
             return Shape{ExtentExpr{FunctionRef<ExtentType>{
                 ProcedureDesignator{std::move(specific->specificIntrinsic)},
                 std::move(specific->arguments)}}};
+          }
+        }
+      }
+    } else if (intrinsic->name == "reshape") {
+      if (call.arguments().size() >= 2 && call.arguments().at(1)) {
+        // SHAPE(RESHAPE(array,shape)) -> shape
+        if (const auto *shapeExpr{
+                call.arguments().at(1).value().UnwrapExpr()}) {
+          auto shapeArg{std::get<Expr<SomeInteger>>(shapeExpr->u)};
+          if (auto result{AsShapeResult(
+                  ConvertToType<ExtentType>(std::move(shapeArg)))}) {
+            return result;
           }
         }
       }
@@ -928,19 +931,34 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
           } else {
             // SIZE= is absent and MOLD= is array: result is vector whose
             // length is determined by sizes of types.  See 16.9.193p4 case(ii).
+            // Note that if sourceBytes is not known to be empty, we
+            // can fold only when moldElementBytes is known to not be zero;
+            // the most general case risks a division by zero otherwise.
             if (auto sourceTypeAndShape{
                     characteristics::TypeAndShape::Characterize(
                         call.arguments().at(0), *context_)}) {
-              auto sourceBytes{
-                  sourceTypeAndShape->MeasureSizeInBytes(*context_)};
-              auto moldElementBytes{
-                  moldTypeAndShape->MeasureElementSizeInBytes(*context_, true)};
-              if (sourceBytes && moldElementBytes) {
-                ExtentExpr extent{Fold(*context_,
-                    (std::move(*sourceBytes) +
-                        common::Clone(*moldElementBytes) - ExtentExpr{1}) /
-                        common::Clone(*moldElementBytes))};
-                return Shape{MaybeExtentExpr{std::move(extent)}};
+              if (auto sourceBytes{
+                      sourceTypeAndShape->MeasureSizeInBytes(*context_)}) {
+                *sourceBytes = Fold(*context_, std::move(*sourceBytes));
+                if (auto sourceBytesConst{ToInt64(*sourceBytes)}) {
+                  if (*sourceBytesConst == 0) {
+                    return Shape{ExtentExpr{0}};
+                  }
+                }
+                if (auto moldElementBytes{
+                        moldTypeAndShape->MeasureElementSizeInBytes(
+                            *context_, true)}) {
+                  *moldElementBytes =
+                      Fold(*context_, std::move(*moldElementBytes));
+                  auto moldElementBytesConst{ToInt64(*moldElementBytes)};
+                  if (moldElementBytesConst && *moldElementBytesConst != 0) {
+                    ExtentExpr extent{Fold(*context_,
+                        (std::move(*sourceBytes) +
+                            common::Clone(*moldElementBytes) - ExtentExpr{1}) /
+                            common::Clone(*moldElementBytes))};
+                    return Shape{MaybeExtentExpr{std::move(extent)}};
+                  }
+                }
               }
             }
           }
@@ -966,7 +984,8 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
       // TODO: shapes of other non-elemental intrinsic results
     }
   }
-  return std::nullopt;
+  // The rank is always known even if the extents are not.
+  return Shape(static_cast<std::size_t>(call.Rank()), MaybeExtentExpr{});
 }
 
 // Check conformance of the passed shapes.

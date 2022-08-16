@@ -18,7 +18,7 @@
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Frontend/Utils.h"
-#include "clang/Lex/DependencyDirectivesSourceMinimizer.h"
+#include "clang/Lex/DependencyDirectivesScanner.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -140,7 +140,8 @@ GeneratePCHAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
       CI.getPreprocessor(), CI.getModuleCache(), OutputFile, Sysroot, Buffer,
       FrontendOpts.ModuleFileExtensions,
       CI.getPreprocessorOpts().AllowPCHWithCompilerErrors,
-      FrontendOpts.IncludeTimestamps, +CI.getLangOpts().CacheGeneratedPCH));
+      FrontendOpts.IncludeTimestamps, +CI.getLangOpts().CacheGeneratedPCH,
+      FrontendOpts.OutputPathIndependentPCM));
   Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
       CI, std::string(InFile), OutputFile, std::move(OS), Buffer));
 
@@ -203,7 +204,9 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
       /*IncludeTimestamps=*/
       +CI.getFrontendOpts().BuildingImplicitModule,
       /*ShouldCacheASTInMemory=*/
-      +CI.getFrontendOpts().BuildingImplicitModule));
+      +CI.getFrontendOpts().BuildingImplicitModule,
+      /*OutputPathIndependent=*/
+      +CI.getFrontendOpts().OutputPathIndependentPCM));
   Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
       CI, std::string(InFile), OutputFile, std::move(OS), Buffer));
   return std::make_unique<MultiplexConsumer>(std::move(Consumers));
@@ -480,6 +483,8 @@ private:
       return "InitializingStructuredBinding";
     case CodeSynthesisContext::MarkingClassDllexported:
       return "MarkingClassDllexported";
+    case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
+      return "BuildingBuiltinDumpStructCall";
     }
     return "";
   }
@@ -852,8 +857,9 @@ void DumpModuleInfoAction::ExecuteAction() {
     std::error_code EC;
     OutFile.reset(new llvm::raw_fd_ostream(OutputFileName.str(), EC,
                                            llvm::sys::fs::OF_TextWithCRLF));
+    OutputStream = OutFile.get();
   }
-  llvm::raw_ostream &Out = OutFile.get()? *OutFile.get() : llvm::outs();
+  llvm::raw_ostream &Out = OutputStream ? *OutputStream : llvm::outs();
 
   Out << "Information for module file '" << getCurrentFile() << "':\n";
   auto &FileMgr = getCompilerInstance().getFileManager();
@@ -1155,10 +1161,10 @@ void PrintDependencyDirectivesSourceMinimizerAction::ExecuteAction() {
   SourceManager &SM = CI.getPreprocessor().getSourceManager();
   llvm::MemoryBufferRef FromFile = SM.getBufferOrFake(SM.getMainFileID());
 
-  llvm::SmallString<1024> Output;
-  llvm::SmallVector<minimize_source_to_dependency_directives::Token, 32> Toks;
-  if (minimizeSourceToDependencyDirectives(
-          FromFile.getBuffer(), Output, Toks, &CI.getDiagnostics(),
+  llvm::SmallVector<dependency_directives_scan::Token, 16> Tokens;
+  llvm::SmallVector<dependency_directives_scan::Directive, 32> Directives;
+  if (scanSourceForDependencyDirectives(
+          FromFile.getBuffer(), Tokens, Directives, &CI.getDiagnostics(),
           SM.getLocForStartOfFile(SM.getMainFileID()))) {
     assert(CI.getDiagnostics().hasErrorOccurred() &&
            "no errors reported for failure");
@@ -1177,7 +1183,8 @@ void PrintDependencyDirectivesSourceMinimizerAction::ExecuteAction() {
     }
     return;
   }
-  llvm::outs() << Output;
+  printDependencyDirectivesAsSource(FromFile.getBuffer(), Directives,
+                                    llvm::outs());
 }
 
 void GetDependenciesByModuleNameAction::ExecuteAction() {

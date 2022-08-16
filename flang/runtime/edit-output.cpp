@@ -13,6 +13,89 @@
 
 namespace Fortran::runtime::io {
 
+// B/O/Z output of arbitrarily sized data emits a binary/octal/hexadecimal
+// representation of what is interpreted to be a single unsigned integer value.
+// When used with character data, endianness is exposed.
+template <int LOG2_BASE>
+static bool EditBOZOutput(IoStatementState &io, const DataEdit &edit,
+    const unsigned char *data0, std::size_t bytes) {
+  int digits{static_cast<int>((bytes * 8) / LOG2_BASE)};
+  int get{static_cast<int>(bytes * 8) - digits * LOG2_BASE};
+  if (get > 0) {
+    ++digits;
+  } else {
+    get = LOG2_BASE;
+  }
+  int shift{7};
+  int increment{isHostLittleEndian ? -1 : 1};
+  const unsigned char *data{data0 + (isHostLittleEndian ? bytes - 1 : 0)};
+  int skippedZeroes{0};
+  int digit{0};
+  // The same algorithm is used to generate digits for real (below)
+  // as well as for generating them only to skip leading zeroes (here).
+  // Bits are copied one at a time from the source data.
+  // TODO: Multiple bit copies for hexadecimal, where misalignment
+  // is not possible; or for octal when all 3 bits come from the
+  // same byte.
+  while (bytes > 0) {
+    if (get == 0) {
+      if (digit != 0) {
+        break; // first nonzero leading digit
+      }
+      ++skippedZeroes;
+      get = LOG2_BASE;
+    } else if (shift < 0) {
+      data += increment;
+      --bytes;
+      shift = 7;
+    } else {
+      digit = 2 * digit + ((*data >> shift--) & 1);
+      --get;
+    }
+  }
+  // Emit leading spaces and zeroes; detect field overflow
+  int leadingZeroes{0};
+  int editWidth{edit.width.value_or(0)};
+  int significant{digits - skippedZeroes};
+  if (edit.digits && significant <= *edit.digits) { // Bw.m, Ow.m, Zw.m
+    if (*edit.digits == 0 && bytes == 0) {
+      editWidth = std::max(1, editWidth);
+    } else {
+      leadingZeroes = *edit.digits - significant;
+    }
+  } else if (bytes == 0) {
+    leadingZeroes = 1;
+  }
+  int subTotal{leadingZeroes + significant};
+  int leadingSpaces{std::max(0, editWidth - subTotal)};
+  if (editWidth > 0 && leadingSpaces + subTotal > editWidth) {
+    return io.EmitRepeated('*', editWidth);
+  }
+  if (!(io.EmitRepeated(' ', leadingSpaces) &&
+          io.EmitRepeated('0', leadingZeroes))) {
+    return false;
+  }
+  // Emit remaining digits
+  while (bytes > 0) {
+    if (get == 0) {
+      char ch{static_cast<char>(digit >= 10 ? 'A' + digit - 10 : '0' + digit)};
+      if (!io.Emit(&ch, 1)) {
+        return false;
+      }
+      get = LOG2_BASE;
+      digit = 0;
+    } else if (shift < 0) {
+      data += increment;
+      --bytes;
+      shift = 7;
+    } else {
+      digit = 2 * digit + ((*data >> shift--) & 1);
+      --get;
+    }
+  }
+  return true;
+}
+
 template <int KIND>
 bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
     common::HostSignedIntType<8 * KIND> n) {
@@ -38,21 +121,14 @@ bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
     }
     break;
   case 'B':
-    for (; un > 0; un >>= 1) {
-      *--p = '0' + (static_cast<int>(un) & 1);
-    }
-    break;
+    return EditBOZOutput<1>(
+        io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
   case 'O':
-    for (; un > 0; un >>= 3) {
-      *--p = '0' + (static_cast<int>(un) & 7);
-    }
-    break;
+    return EditBOZOutput<3>(
+        io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
   case 'Z':
-    for (; un > 0; un >>= 4) {
-      int digit = static_cast<int>(un) & 0xf;
-      *--p = digit >= 10 ? 'A' + (digit - 10) : '0' + digit;
-    }
-    break;
+    return EditBOZOutput<4>(
+        io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
   case 'A': // legacy extension
     return EditCharacterOutput(
         io, edit, reinterpret_cast<char *>(&n), sizeof n);
@@ -106,8 +182,10 @@ const char *RealOutputEditingBase::FormatExponent(
     *--exponent = '0' + e - 10 * quotient;
     e = quotient;
   }
+  bool overflow{false};
   if (edit.expoDigits) {
     if (int ed{*edit.expoDigits}) { // Ew.dEe with e > 0
+      overflow = exponent + ed < eEnd;
       while (exponent > exponent_ + 2 /*E+*/ && exponent + ed > eEnd) {
         *--exponent = '0';
       }
@@ -121,10 +199,10 @@ const char *RealOutputEditingBase::FormatExponent(
   }
   *--exponent = expo < 0 ? '-' : '+';
   if (edit.expoDigits || edit.IsListDirected() || exponent + 3 == eEnd) {
-    *--exponent = edit.descriptor == 'D' ? 'D' : 'E'; // not 'G'
+    *--exponent = edit.descriptor == 'D' ? 'D' : 'E'; // not 'G' or 'Q'
   }
   length = eEnd - exponent;
-  return exponent;
+  return overflow ? nullptr : exponent;
 }
 
 bool RealOutputEditingBase::EmitPrefix(
@@ -182,9 +260,13 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
   if (edit.modes.editingFlags & signPlus) {
     flags |= decimal::AlwaysSign;
   }
+  bool noLeadingSpaces{editWidth == 0};
+  int scale{edit.modes.scale}; // 'kP' value
   if (editWidth == 0) { // "the processor selects the field width"
     if (edit.digits.has_value()) { // E0.d
-      editWidth = editDigits + 6; // -.666E+ee
+      if (editDigits == 0 && scale <= 0) { // E0.0
+        significantDigits = 1;
+      }
     } else { // E0
       flags |= decimal::Minimize;
       significantDigits =
@@ -193,16 +275,33 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
   }
   bool isEN{edit.variation == 'N'};
   bool isES{edit.variation == 'S'};
-  int scale{isEN || isES ? 1 : edit.modes.scale}; // 'kP' value
   int zeroesAfterPoint{0};
-  if (scale < 0) {
+  if (isEN) {
+    scale = IsZero() ? 1 : 3;
+    significantDigits += scale;
+  } else if (isES) {
+    scale = 1;
+    ++significantDigits;
+  } else if (scale < 0) {
+    if (scale <= -editDigits) {
+      io_.GetIoErrorHandler().SignalError(IostatBadScaleFactor,
+          "Scale factor (kP) %d cannot be less than -d (%d)", scale,
+          -editDigits);
+      return false;
+    }
     zeroesAfterPoint = -scale;
     significantDigits = std::max(0, significantDigits - zeroesAfterPoint);
   } else if (scale > 0) {
+    if (scale >= editDigits + 2) {
+      io_.GetIoErrorHandler().SignalError(IostatBadScaleFactor,
+          "Scale factor (kP) %d cannot be greater than d+2 (%d)", scale,
+          editDigits + 2);
+      return false;
+    }
     ++significantDigits;
     scale = std::min(scale, significantDigits + 1);
   }
-  // In EN editing, multiple attempts may be necessary, so it's in a loop.
+  // In EN editing, multiple attempts may be necessary, so this is a loop.
   while (true) {
     decimal::ConversionToDecimalResult converted{
         Convert(significantDigits, edit.modes.round, flags)};
@@ -213,12 +312,29 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
     if (!IsZero()) {
       converted.decimalExponent -= scale;
     }
-    if (isEN && scale < 3 && (converted.decimalExponent % 3) != 0) {
-      // EN mode: boost the scale and significant digits, try again; need
-      // an effective exponent field that's a multiple of three.
-      ++scale;
-      ++significantDigits;
-      continue;
+    if (isEN) {
+      // EN mode: we need an effective exponent field that is
+      // a multiple of three.
+      if (int modulus{converted.decimalExponent % 3}; modulus != 0) {
+        if (significantDigits > 1) {
+          --significantDigits;
+          --scale;
+          continue;
+        }
+        // Rounded nines up to a 1.
+        scale += modulus;
+        converted.decimalExponent -= modulus;
+      }
+      if (scale > 3) {
+        int adjust{3 * (scale / 3)};
+        scale -= adjust;
+        converted.decimalExponent += adjust;
+      } else if (scale < 1) {
+        int adjust{3 - 3 * (scale / 3)};
+        scale += adjust;
+        converted.decimalExponent -= adjust;
+      }
+      significantDigits = editDigits + scale;
     }
     // Format the exponent (see table 13.1 for all the cases)
     int expoLength{0};
@@ -237,13 +353,16 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
         1 /*'.'*/ + zeroesAfterPoint + digitsAfterPoint + trailingZeroes +
         expoLength};
     int width{editWidth > 0 ? editWidth : totalLength};
-    if (totalLength > width) {
+    if (totalLength > width || !exponent) {
       return io_.EmitRepeated('*', width);
     }
     if (totalLength < width && digitsBeforePoint == 0 &&
         zeroesBeforePoint == 0) {
       zeroesBeforePoint = 1;
       ++totalLength;
+    }
+    if (totalLength < width && noLeadingSpaces) {
+      width = totalLength;
     }
     return EmitPrefix(edit, totalLength, width) &&
         io_.Emit(converted.str, signLength + digitsBeforePoint) &&
@@ -284,10 +403,13 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
       return EmitPrefix(edit, converted.length, editWidth) &&
           io_.Emit(converted.str, converted.length) && EmitSuffix(edit);
     }
-    int scale{IsZero() ? 1 : edit.modes.scale}; // kP
-    int expo{converted.decimalExponent + scale};
+    int expo{converted.decimalExponent + edit.modes.scale /*kP*/};
     int signLength{*converted.str == '-' || *converted.str == '+' ? 1 : 0};
     int convertedDigits{static_cast<int>(converted.length) - signLength};
+    if (IsZero()) { // don't treat converted "0" as significant digit
+      expo = 0;
+      convertedDigits = 0;
+    }
     int trailingOnes{0};
     if (expo > extraDigits && extraDigits >= 0 && canIncrease) {
       extraDigits = expo;
@@ -297,15 +419,22 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
       canIncrease = false; // only once
       continue;
     } else if (expo == -fracDigits && convertedDigits > 0) {
-      if (rounding != decimal::FortranRounding::RoundToZero) {
-        // Convert again without rounding so that we can round here
-        rounding = decimal::FortranRounding::RoundToZero;
-        continue;
-      } else if (converted.str[signLength] >= '5') {
-        // Value rounds up to a scaled 1 (e.g., 0.06 for F5.1 -> 0.1)
+      if ((rounding == decimal::FortranRounding::RoundUp &&
+              *converted.str != '-') ||
+          (rounding == decimal::FortranRounding::RoundDown &&
+              *converted.str == '-') ||
+          (rounding == decimal::FortranRounding::RoundToZero &&
+              rounding != edit.modes.round && // it changed below
+              converted.str[signLength] >= '5')) {
+        // Round up/down to a scaled 1
         ++expo;
         convertedDigits = 0;
         trailingOnes = 1;
+      } else if (rounding != decimal::FortranRounding::RoundToZero) {
+        // Convert again with truncation so first digit can be checked
+        // on the next iteration by the code above
+        rounding = decimal::FortranRounding::RoundToZero;
+        continue;
       } else {
         // Value rounds down to zero
         expo = 0;
@@ -357,10 +486,11 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
 template <int binaryPrecision>
 DataEdit RealOutputEditing<binaryPrecision>::EditForGOutput(DataEdit edit) {
   edit.descriptor = 'E';
+  int editWidth{edit.width.value_or(0)};
   int significantDigits{
       edit.digits.value_or(BinaryFloatingPoint::decimalPrecision)}; // 'd'
-  if (!edit.width.has_value() || (*edit.width > 0 && significantDigits == 0)) {
-    return edit; // Gw.0 -> Ew.0 for w > 0
+  if (editWidth > 0 && significantDigits == 0) {
+    return edit; // Gw.0Ee -> Ew.0Ee for w > 0
   }
   int flags{0};
   if (edit.modes.editingFlags & signPlus) {
@@ -369,16 +499,18 @@ DataEdit RealOutputEditing<binaryPrecision>::EditForGOutput(DataEdit edit) {
   decimal::ConversionToDecimalResult converted{
       Convert(significantDigits, edit.modes.round, flags)};
   if (IsInfOrNaN(converted)) {
-    return edit;
+    return edit; // Inf/Nan -> Ew.d (same as Fw.d)
   }
   int expo{IsZero() ? 1 : converted.decimalExponent}; // 's'
   if (expo < 0 || expo > significantDigits) {
-    return edit; // Ew.d
+    if (editWidth == 0 && !edit.expoDigits) { // G0.d -> G0.dE0
+      edit.expoDigits = 0;
+    }
+    return edit; // Ew.dEe
   }
   edit.descriptor = 'F';
   edit.modes.scale = 0; // kP is ignored for G when no exponent field
   trailingBlanks_ = 0;
-  int editWidth{edit.width.value_or(0)};
   if (editWidth > 0) {
     int expoDigits{edit.expoDigits.value_or(0)};
     trailingBlanks_ = expoDigits > 0 ? expoDigits + 2 : 4; // 'n'
@@ -399,7 +531,12 @@ bool RealOutputEditing<binaryPrecision>::EditListDirectedOutput(
     return EditEorDOutput(edit);
   }
   int expo{converted.decimalExponent};
-  if (expo < 0 || expo > BinaryFloatingPoint::decimalPrecision) {
+  // The decimal precision of 16-bit floating-point types is very low,
+  // so use a reasonable cap of 6 to allow more values to be emitted
+  // with Fw.d editing.
+  static constexpr int maxExpo{
+      std::max(6, BinaryFloatingPoint::decimalPrecision)};
+  if (expo < 0 || expo > maxExpo) {
     DataEdit copy{edit};
     copy.modes.scale = 1; // 1P
     return EditEorDOutput(copy);
@@ -427,11 +564,17 @@ template <int KIND> bool RealOutputEditing<KIND>::Edit(const DataEdit &edit) {
   case 'F':
     return EditFOutput(edit);
   case 'B':
+    return EditBOZOutput<1>(io_, edit,
+        reinterpret_cast<const unsigned char *>(&x_),
+        common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'O':
+    return EditBOZOutput<3>(io_, edit,
+        reinterpret_cast<const unsigned char *>(&x_),
+        common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'Z':
-    return EditIntegerOutput<KIND>(io_, edit,
-        static_cast<common::HostSignedIntType<8 * KIND>>(
-            decimal::BinaryFloatingPointNumber<binaryPrecision>{x_}.raw()));
+    return EditBOZOutput<4>(io_, edit,
+        reinterpret_cast<const unsigned char *>(&x_),
+        common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'G':
     return Edit(EditForGOutput(edit));
   case 'A': // legacy extension
@@ -460,6 +603,15 @@ bool EditLogicalOutput(IoStatementState &io, const DataEdit &edit, bool truth) {
   case 'G':
     return io.EmitRepeated(' ', std::max(0, edit.width.value_or(1) - 1)) &&
         io.Emit(truth ? "T" : "F", 1);
+  case 'B':
+    return EditBOZOutput<1>(io, edit,
+        reinterpret_cast<const unsigned char *>(&truth), sizeof truth);
+  case 'O':
+    return EditBOZOutput<3>(io, edit,
+        reinterpret_cast<const unsigned char *>(&truth), sizeof truth);
+  case 'Z':
+    return EditBOZOutput<4>(io, edit,
+        reinterpret_cast<const unsigned char *>(&truth), sizeof truth);
   default:
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a LOGICAL data item",
@@ -506,7 +658,7 @@ bool ListDirectedCharacterOutput(IoStatementState &io,
     // Undelimited list-directed output
     ok = ok && list.EmitLeadingSpaceOrAdvance(io, length > 0 ? 1 : 0, true);
     std::size_t put{0};
-    std::size_t oneIfUTF8{connection.isUTF8 ? 1 : length};
+    std::size_t oneIfUTF8{connection.useUTF8<CHAR>() ? 1 : length};
     while (ok && put < length) {
       if (std::size_t chunk{std::min<std::size_t>(
               std::min<std::size_t>(length - put, oneIfUTF8),
@@ -525,18 +677,31 @@ bool ListDirectedCharacterOutput(IoStatementState &io,
 template <typename CHAR>
 bool EditCharacterOutput(IoStatementState &io, const DataEdit &edit,
     const CHAR *x, std::size_t length) {
+  int len{static_cast<int>(length)};
+  int width{edit.width.value_or(len)};
   switch (edit.descriptor) {
   case 'A':
-  case 'G':
     break;
+  case 'G':
+    if (width == 0) {
+      width = len;
+    }
+    break;
+  case 'B':
+    return EditBOZOutput<1>(io, edit,
+        reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
+  case 'O':
+    return EditBOZOutput<3>(io, edit,
+        reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
+  case 'Z':
+    return EditBOZOutput<4>(io, edit,
+        reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
   default:
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a CHARACTER data item",
         edit.descriptor);
     return false;
   }
-  int len{static_cast<int>(length)};
-  int width{edit.width.value_or(len)};
   return io.EmitRepeated(' ', std::max(0, width - len)) &&
       io.EmitEncoded(x, std::min(width, len));
 }

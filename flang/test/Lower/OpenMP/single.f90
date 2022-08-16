@@ -1,5 +1,5 @@
 !RUN: %flang_fc1 -emit-fir -fopenmp %s -o - | FileCheck %s --check-prefixes="FIRDialect,OMPDialect"
-!RUN: %flang_fc1 -emit-fir -fopenmp %s -o - | fir-opt --cfg-conversion | fir-opt --fir-to-llvm-ir | FileCheck %s --check-prefixes="OMPDialect"
+!RUN: %flang_fc1 -emit-fir -fopenmp %s -o - | fir-opt --cfg-conversion | fir-opt --fir-to-llvm-ir | FileCheck %s --check-prefixes="LLVMDialect,OMPDialect"
 
 !===============================================================================
 ! Single construct
@@ -44,3 +44,26 @@ subroutine omp_single_nowait(x)
   !OMPDialect: omp.terminator
   !$omp end parallel
 end subroutine omp_single_nowait
+
+!===============================================================================
+! Single construct with allocate
+!===============================================================================
+
+!FIRDialect-LABEL: func @_QPsingle_allocate
+subroutine single_allocate()
+  use omp_lib
+  integer :: x
+  !OMPDialect: omp.parallel {
+  !$omp parallel
+  !OMPDialect: omp.single allocate(
+  !FIRDialect: %{{.+}} : i32 -> %{{.+}} : !fir.ref<i32>
+  !LLVMDialect: %{{.+}} : i32 -> %{{.+}} : !llvm.ptr<i32>
+  !OMPDialect: ) {
+  !$omp single allocate(omp_high_bw_mem_alloc: x) private(x)
+  !FIRDialect: arith.addi
+  x = x + 12
+  !OMPDialect: omp.terminator
+  !$omp end single
+  !OMPDialect: omp.terminator
+  !$omp end parallel
+end subroutine single_allocate
