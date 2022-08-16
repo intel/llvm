@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <optional>
 
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
 #include <unistd.h>
 #else
 #include <direct.h>

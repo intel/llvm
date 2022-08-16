@@ -39,7 +39,7 @@ def do_configure(args):
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
     llvm_enable_lld = 'OFF'
-    sycl_enabled_plugins = ["opencl", "level_zero"]
+    sycl_enabled_plugins = ["opencl"]
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
