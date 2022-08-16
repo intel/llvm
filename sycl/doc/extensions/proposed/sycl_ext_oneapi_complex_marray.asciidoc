@@ -170,35 +170,15 @@ namespace oneapi {
 } // namespace sycl
 ```
 
-The class `sycl::ext::oneapi::marray<sycl::ext::oneapi::complex<T>, N>`,
-has instantiations of `T`; `float`, `double`, and `sycl::half` declared.
+The table below shows the free functions operating on the `marray` type
+when it is instantiated with `sycl::ext::oneapi::complex<double>`,
+`sycl::ext::oneapi::complex<float>`, and
+`sycl::ext::oneapi::complex<sycl::half>`. For the purposes of this
+specification, we use the generic type name `mgencomplex` to represent
+these three instantiations. However, there is no C++ type actually named
+`mgencomplex`.
 
-```C++
-namespace sycl {
-namespace ext {
-namespace oneapi {
-
-  template <std::size_t NumElements>
-  class marray<sycl::ext::oneapi::complex<double>, NumElements>;
-
-  template <std::size_t NumElements>
-  class marray<sycl::ext::oneapi::complex<float>, NumElements>;
-
-  template <std::size_t NumElements>
-  class marray<sycl::ext::oneapi::complex<sycl::half>, NumElements>;
-
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-```
-
-The generic type `mgencomplex` is defined as types
-`marray<sycl::ext::oneapi::complex<double>, {N}>`,
-`marray<sycl::ext::oneapi::complex<float>, {N}>`,
-`marray<sycl::ext::oneapi::complex<sycl::half>, {N}>`.
-
-The table below shows the free functions operating on the `marray` complex
-class. No table is provided for the `marray` class as no changes to it are
+No table is provided for the `marray` class as no changes to it are
 proposed.
 
 [%header,cols="5,5"]
