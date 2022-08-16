@@ -101,7 +101,7 @@ int main() {
     (void)Foo::d;
   });
 
-  cl::sycl::kernel_single_task<class KernelName2>([]() {
+  sycl::kernel_single_task<class KernelName2>([]() {
     // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
     device_global<int> non_static;
   });
