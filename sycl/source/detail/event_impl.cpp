@@ -366,7 +366,8 @@ event_impl::get_info<info::event::command_execution_status>() {
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
   }
-  return MState.load() != HES_Complete
+
+  return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
 }
