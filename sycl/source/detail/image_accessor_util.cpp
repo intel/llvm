@@ -9,8 +9,8 @@
 #include <sycl/accessor.hpp>
 #include <sycl/builtins.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // For Nearest Filtering mode, process cl_float4 Coordinates and return the
@@ -185,5 +185,5 @@ cl_float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

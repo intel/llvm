@@ -18,7 +18,7 @@
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   // captureless kernel lambda results in no fields.

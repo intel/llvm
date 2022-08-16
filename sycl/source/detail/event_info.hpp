@@ -14,8 +14,8 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <typename Param>
@@ -43,5 +43,5 @@ typename Param::return_type get_event_info(RT::PiEvent Event,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

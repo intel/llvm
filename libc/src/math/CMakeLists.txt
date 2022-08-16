@@ -76,6 +76,7 @@ add_math_entrypoint_object(copysignl)
 
 add_math_entrypoint_object(cos)
 add_math_entrypoint_object(cosf)
+add_math_entrypoint_object(coshf)
 
 add_math_entrypoint_object(expf)
 
@@ -181,12 +182,14 @@ add_math_entrypoint_object(sincosf)
 
 add_math_entrypoint_object(sin)
 add_math_entrypoint_object(sinf)
+add_math_entrypoint_object(sinhf)
 
 add_math_entrypoint_object(sqrt)
 add_math_entrypoint_object(sqrtf)
 add_math_entrypoint_object(sqrtl)
 
 add_math_entrypoint_object(tan)
+add_math_entrypoint_object(tanhf)
 
 add_math_entrypoint_object(trunc)
 add_math_entrypoint_object(truncf)

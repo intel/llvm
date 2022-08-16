@@ -19,8 +19,8 @@
 #include <cstdlib>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
@@ -117,5 +117,5 @@ private:
   property_list MPropList;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -13,8 +13,8 @@
 #include <sycl/detail/defines.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Type traits identical to those in std in newer versions. Can be removed when
@@ -79,5 +79,5 @@ struct is_output_iterator<T, output_iterator_requirements<T>> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -69,8 +69,8 @@ class __copyAcc2Acc;
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 
@@ -1636,13 +1636,13 @@ public:
   void parallel_for(nd_range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
     if constexpr (!Reduction::has_fast_atomics &&
-                  !Reduction::has_atomic_add_float64) {
+                  !Reduction::has_float64_atomics) {
       // The most basic implementation.
       parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
       std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-      if constexpr (Reduction::has_atomic_add_float64) {
+      if constexpr (Reduction::has_float64_atomics) {
         /// This version is a specialization for the add
         /// operator. It performs runtime checks for device aspect "atomic64";
         /// if found, fast sycl::atomic_ref operations are used to update the
@@ -2675,5 +2675,5 @@ private:
         NumWorkItems, KernelFunc);
   }
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -1263,10 +1263,14 @@ def : Pat<(seteq GPR:$rs1, 0), (SLTIU GPR:$rs1, 1)>;
 def : Pat<(seteq GPR:$rs1, GPR:$rs2), (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(seteq GPR:$rs1, simm12_plus1:$imm12),
           (SLTIU (ADDI GPR:$rs1, (NegImm simm12_plus1:$imm12)), 1)>;
+def : Pat<(seteq GPR:$rs1, -2048),
+          (SLTIU (XORI GPR:$rs1, -2048), 1)>;
 def : Pat<(setne GPR:$rs1, 0), (SLTU X0, GPR:$rs1)>;
 def : Pat<(setne GPR:$rs1, GPR:$rs2), (SLTU X0, (XOR GPR:$rs1, GPR:$rs2))>;
 def : Pat<(setne GPR:$rs1, simm12_plus1:$imm12),
           (SLTU X0, (ADDI GPR:$rs1, (NegImm simm12_plus1:$imm12)))>;
+def : Pat<(setne GPR:$rs1, -2048),
+          (SLTU X0, (XORI GPR:$rs1, -2048))>;
 def : Pat<(setugt GPR:$rs1, GPR:$rs2), (SLTU GPR:$rs2, GPR:$rs1)>;
 def : Pat<(setuge GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(setule GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs2, GPR:$rs1), 1)>;
@@ -1298,30 +1302,41 @@ def riscv_selectcc_frag : PatFrag<(ops node:$lhs, node:$rhs, node:$cc,
                                                   node:$falsev), [{}],
                                   IntCCtoRISCVCC>;
 
-let usesCustomInserter = 1 in
-class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
-    : Pseudo<(outs valty:$dst),
-             (ins cmpty:$lhs, cmpty:$rhs, ixlenimm:$imm,
-              valty:$truev, valty:$falsev),
-             [(set valty:$dst,
-               (riscv_selectcc_frag:$imm cmpty:$lhs, cmpty:$rhs, cond,
-                                         valty:$truev, valty:$falsev))]>;
+multiclass SelectCC_GPR_rrirr<RegisterClass valty> {
+  let usesCustomInserter = 1 in
+  def _Using_CC_GPR : Pseudo<(outs valty:$dst),
+                             (ins GPR:$lhs, GPR:$rhs, ixlenimm:$cc,
+                              valty:$truev, valty:$falsev),
+                             [(set valty:$dst,
+                               (riscv_selectcc_frag:$cc GPR:$lhs, GPR:$rhs, cond,
+                                                        valty:$truev, valty:$falsev))]>;
+  // Explicitly select 0 in the condition to X0. The register coalescer doesn't
+  // always do it.
+  def : Pat<(riscv_selectcc_frag:$cc GPR:$lhs, 0, cond, valty:$truev,
+                                     valty:$falsev),
+            (!cast<Instruction>(NAME#"_Using_CC_GPR") GPR:$lhs, X0,
+             (IntCCtoRISCVCC $cc), valty:$truev, valty:$falsev)>;
+}
 
-def Select_GPR_Using_CC_GPR : SelectCC_rrirr<GPR, GPR>;
+defm Select_GPR : SelectCC_GPR_rrirr<GPR>;
 
 /// Branches and jumps
 
 // Match `riscv_brcc` and lower to the appropriate RISC-V branch instruction.
-class BccPat<CondCode Cond, RVInstB Inst>
-    : Pat<(riscv_brcc GPR:$rs1, GPR:$rs2, Cond, bb:$imm12),
-          (Inst GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12)>;
+multiclass BccPat<CondCode Cond, RVInstB Inst> {
+  def : Pat<(riscv_brcc GPR:$rs1, GPR:$rs2, Cond, bb:$imm12),
+            (Inst GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12)>;
+  // Explicitly select 0 to X0. The register coalescer doesn't always do it.
+  def : Pat<(riscv_brcc GPR:$rs1, 0, Cond, bb:$imm12),
+            (Inst GPR:$rs1, X0, simm13_lsb0:$imm12)>;
+}
 
-def : BccPat<SETEQ, BEQ>;
-def : BccPat<SETNE, BNE>;
-def : BccPat<SETLT, BLT>;
-def : BccPat<SETGE, BGE>;
-def : BccPat<SETULT, BLTU>;
-def : BccPat<SETUGE, BGEU>;
+defm : BccPat<SETEQ, BEQ>;
+defm : BccPat<SETNE, BNE>;
+defm : BccPat<SETLT, BLT>;
+defm : BccPat<SETGE, BGE>;
+defm : BccPat<SETULT, BLTU>;
+defm : BccPat<SETUGE, BGEU>;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
