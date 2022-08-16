@@ -276,15 +276,10 @@ shr(T1 src0, T2 src1, Sat sat = {}) {
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
 __ESIMD_API std::enable_if_t<
-#if defined(ESIMD_XE_HPC)
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-#else
-    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t>(),
-#endif
     __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
   return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
@@ -300,19 +295,12 @@ rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
 __ESIMD_API std::enable_if_t<
-#if defined(ESIMD_XE_HPC)
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-#else
-    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
-                                    uint32_t>() &&
-        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t>(),
-#endif
     __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
   __ESIMD_NS::simd<T1, SZ> Src1 = src1;
@@ -331,20 +319,12 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_esimd_scalar<T0>::value &&
         __ESIMD_DNS::is_esimd_scalar<T1>::value &&
         __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-#if defined(ESIMD_XE_HPC)
         __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-#else
-        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t,
-                                    uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
-                                    uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t>(),
-#endif
     std::remove_const_t<T0>>
 rol(T1 src0, T2 src1) {
   __ESIMD_NS::simd<T1, 1> Src0 = src0;
@@ -362,15 +342,10 @@ rol(T1 src0, T2 src1) {
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
 __ESIMD_API std::enable_if_t<
-#if defined(ESIMD_XE_HPC)
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-#else
-    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t>(),
-#endif
     __ESIMD_NS::simd<T0, SZ>>
 ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
   return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
@@ -386,19 +361,12 @@ ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
 __ESIMD_API std::enable_if_t<
-#if defined(ESIMD_XE_HPC)
     __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                 int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-#else
-    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
-                                    uint32_t>() &&
-        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t>(),
-#endif
     __ESIMD_NS::simd<T0, SZ>>
 ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
   __ESIMD_NS::simd<T1, SZ> Src1 = src1;
@@ -417,20 +385,12 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_esimd_scalar<T0>::value &&
         __ESIMD_DNS::is_esimd_scalar<T1>::value &&
         __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-#if defined(ESIMD_XE_HPC)
         __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>() &&
         __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
                                     int64_t, uint64_t>(),
-#else
-        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t,
-                                    uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
-                                    uint32_t>() &&
-        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t>(),
-#endif
     std::remove_const_t<T0>>
 ror(T1 src0, T2 src1) {
   __ESIMD_NS::simd<T1, 1> Src0 = src0;
