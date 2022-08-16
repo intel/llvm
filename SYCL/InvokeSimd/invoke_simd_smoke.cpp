@@ -6,7 +6,7 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd %s -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
 
 #include <sycl/ext/intel/esimd.hpp>
@@ -37,9 +37,14 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
   return a + b;
 }
 
-SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
-                                      int i) SYCL_ESIMD_FUNCTION;
+// Use two functions with the same signature called via invoke_simd for better
+// testing.
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    simd<float, VL> __regcall SIMD_CALLEE1(float *A, simd<float, VL> b,
+                                           int i) SYCL_ESIMD_FUNCTION;
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    simd<float, VL> __regcall SIMD_CALLEE2(float *A, simd<float, VL> b,
+                                           int i) SYCL_ESIMD_FUNCTION;
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
@@ -115,10 +120,14 @@ int main(void) {
             float res = 0;
 
             if constexpr (use_invoke_simd) {
-              res = invoke_simd(sg, SIMD_CALLEE, uniform{A}, B[wi_id],
+              res = invoke_simd(sg, SIMD_CALLEE1, uniform{A}, B[wi_id],
                                 uniform{i});
+              res += invoke_simd(sg, SIMD_CALLEE2, uniform{A}, B[wi_id],
+                                 uniform{i});
+
             } else {
               res = SPMD_CALLEE(A, B[wi_id], wi_id);
+              res += SPMD_CALLEE(A, B[wi_id], wi_id);
             }
             C[wi_id] = res;
           });
@@ -135,10 +144,10 @@ int main(void) {
   int err_cnt = 0;
 
   for (unsigned i = 0; i < Size; ++i) {
-    if (A[i] + B[i] != C[i]) {
+    if (2 * (A[i] + B[i]) != C[i]) {
       if (++err_cnt < 10) {
-        std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
-                  << " + " << B[i] << "\n";
+        std::cout << "failed at index " << i << ", " << C[i] << " != 2*("
+                  << A[i] << " + " << B[i] << ")\n";
       }
     }
   }
@@ -156,8 +165,15 @@ int main(void) {
 }
 
 SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
-                                      int i) SYCL_ESIMD_FUNCTION {
+simd<float, VL> __regcall SIMD_CALLEE1(float *A, simd<float, VL> b,
+                                       int i) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
+  return res;
+}
+
+SYCL_EXTERNAL
+simd<float, VL> __regcall SIMD_CALLEE2(float *A, simd<float, VL> b,
+                                       int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
   return res;
 }
