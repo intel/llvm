@@ -29,8 +29,8 @@ int main() {
 
     auto sumR = reduction(sumBuf, cgh, plus<>());
     // Reduction kernel is used
-    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 5
-    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 13
+    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 6
+    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{1024, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 14
     cgh.parallel_for<class test1>(
         range<1>{1024}, sumR,
         [=](id<1> idx, auto &sum) { sum += inputValues[idx]; });
