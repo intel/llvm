@@ -2,8 +2,6 @@
 // UNSUPPORTED: windows
 #include <sycl/sycl.hpp>
 
-typedef sycl::accessor<int, 1, sycl::access::mode::read> dummy;
-
 using namespace sycl;
 
 int main() {
