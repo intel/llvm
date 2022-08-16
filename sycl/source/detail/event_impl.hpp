@@ -226,7 +226,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
