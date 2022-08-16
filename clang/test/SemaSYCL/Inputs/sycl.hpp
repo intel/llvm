@@ -66,24 +66,12 @@ namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
 
-// device_global type decorated with device_global attribute
+// device_global type decorated with attributes
 template <typename T>
-struct [[__sycl_detail__::device_global]] device_global {
+struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global {
 public:
   const T &get() const noexcept { return *Data; }
   device_global() {}
-  operator T &() noexcept { return *Data; }
-
-private:
-  T *Data;
-};
-
-// device_global type decorated with device_global and global_variable_allowed attributes
-template <typename T>
-struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global_and_global_variable_allowed {
-public:
-  const T &get() const noexcept { return *Data; }
-  device_global_and_global_variable_allowed() {}
   operator T &() noexcept { return *Data; }
 
 private:

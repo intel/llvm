@@ -7421,8 +7421,6 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // static if they are declared in SYCL device code.
   if (getLangOpts().SYCLIsDevice) {
     if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            NewVD->getType()) &&
-        !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
             NewVD->getType())) {
       if (SCSpec == DeclSpec::SCS_static) {
         const DeclContext *DC = NewVD->getDeclContext();
