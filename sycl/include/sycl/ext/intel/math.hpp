@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
+#include <type_traits>
 extern "C" {
 float __imf_saturatef(float);
 float __imf_copysignf(float, float);
@@ -21,10 +21,22 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace math {
-float saturate(float x) { return __imf_saturatef(x); }
+template <typename Tp> Tp saturate(Tp x) {
+  static_assert(std::is_same<Tp, float>::value,
+                "sycl::ext::intel::math::saturate only supports fp32 version.");
+  if (std::is_same<Tp, float>::value)
+    return __imf_saturatef(x);
+}
 
-float copysign(float x, float y) { return __imf_copysignf(x, y); }
-double copysign(double x, double y) { return __imf_copysign(x, y); }
+template <typename Tp> Tp copysign(Tp x, Tp y) {
+  static_assert(
+      std::is_same<Tp, float>::value || std::is_same<Tp, double>::value,
+      "sycl::ext::intel::math::copysign only supports fp32, fp64 version.");
+  if (std::is_same<Tp, float>::value)
+    return __imf_copysignf(x, y);
+  if (std::is_same<Tp, double>::value)
+    return __imf_copysign(x, y);
+}
 
 } // namespace math
 } // namespace intel
