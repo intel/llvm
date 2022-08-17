@@ -5110,6 +5110,16 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
   }
 
+  unsigned int is_managed;
+  PI_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
+  if (!is_managed) {
+    setErrorMessage(
+        "Memory advice ignored as memory advices only works with USM",
+        PI_SUCCESS);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 

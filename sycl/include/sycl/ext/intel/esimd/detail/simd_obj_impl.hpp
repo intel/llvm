@@ -326,14 +326,6 @@ public:
     copy_from(acc, offset, Flags{});
   }
 
-  /// Initializes this object from an rvalue to an array with the same number
-  /// of elements.
-  /// @param Arr Rvalue reference to the array.
-  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty (&&Arr)[N1]) {
-    __esimd_dbg_print(copy_from(const Ty(&&Arr)[N1]));
-    init_from_array(std::move(Arr));
-  }
-
   /// Type conversion into a scalar:
   /// <code><simd_obj_impl<RawTy, 1, simd<Ty,1>></code> to \c Ty.
   template <typename T = simd_obj_impl,

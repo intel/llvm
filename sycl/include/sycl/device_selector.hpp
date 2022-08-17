@@ -91,6 +91,14 @@ public:
   int operator()(const device &dev) const override;
 };
 
+// -------------- SYCL 2020
+
+// SYCL 2020 standalone selectors
+__SYCL_EXPORT int default_selector_v(const device &dev);
+__SYCL_EXPORT int gpu_selector_v(const device &dev);
+__SYCL_EXPORT int cpu_selector_v(const device &dev);
+__SYCL_EXPORT int accelerator_selector_v(const device &dev);
+
 namespace detail {
 // SYCL 2020 section 4.6.1.1 defines a negative score to reject a device from
 // selection

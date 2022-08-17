@@ -125,6 +125,9 @@ def warn_float_compare_literal : Warning<
 def warn_double_const_requires_fp64 : Warning<
   "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
   "casting to single precision">;
+def warn_imp_float_size_conversion : Warning<
+  "implicit conversion between floating point types of different sizes">,
+  InGroup<ImplicitFloatSizeConversion>, DefaultIgnore;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 
