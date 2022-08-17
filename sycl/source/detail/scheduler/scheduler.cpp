@@ -22,8 +22,8 @@
 #include <thread>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
@@ -473,5 +473,5 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

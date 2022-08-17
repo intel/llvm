@@ -10,13 +10,13 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void test(int val) {
   queue q;
   q.submit([&](handler &h) {
-    cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorA;
-    cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> accessorB;
+    sycl::accessor<int, 1, sycl::access::mode::read_write> accessorA;
+    sycl::accessor<int, 1, sycl::access::mode::read> accessorB;
 
     h.single_task<class esimd_kernel>(
         [=]() __attribute__((sycl_explicit_simd)) {
@@ -26,7 +26,7 @@ void test(int val) {
   });
 
   // --- Name
-  // CHECK-LABEL: define {{.*}}spir_kernel void @_ZTSZZ4testiENKUlRN2cl4sycl7handlerEE_clES2_E12esimd_kernel(
+  // CHECK-LABEL: define {{.*}}spir_kernel void @_ZTSZZ4testiENKUlRN4sycl3_V17handlerEE_clES2_E12esimd_kernel(
   // --- Attributes
   // CHECK: {{.*}} !kernel_arg_accessor_ptr ![[ACC_PTR_ATTR:[0-9]+]] !sycl_explicit_simd !{{[0-9]+}} {{.*}}{
   // --- init_esimd call is expected instead of __init:

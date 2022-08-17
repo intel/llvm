@@ -16,8 +16,8 @@
 #include <fstream>
 #include <limits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
@@ -182,5 +182,5 @@ const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

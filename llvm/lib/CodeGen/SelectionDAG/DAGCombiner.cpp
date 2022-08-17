@@ -1204,19 +1204,14 @@ CommitTargetLoweringOpt(const TargetLowering::TargetLoweringOpt &TLO) {
   LLVM_DEBUG(dbgs() << "\nReplacing.2 "; TLO.Old.dump(&DAG);
              dbgs() << "\nWith: "; TLO.New.dump(&DAG); dbgs() << '\n');
 
-  // Replace all uses.  If any nodes become isomorphic to other nodes and
-  // are deleted, make sure to remove them from our worklist.
-  WorklistRemover DeadNodes(*this);
+  // Replace all uses.
   DAG.ReplaceAllUsesOfValueWith(TLO.Old, TLO.New);
 
   // Push the new node and any (possibly new) users onto the worklist.
   AddToWorklistWithUsers(TLO.New.getNode());
 
-  // Finally, if the node is now dead, remove it from the graph.  The node
-  // may not be dead if the replacement process recursively simplified to
-  // something else needing this node.
-  if (TLO.Old->use_empty())
-    deleteAndRecombine(TLO.Old.getNode());
+  // Finally, if the node is now dead, remove it from the graph.
+  recursivelyDeleteUnusedNodes(TLO.Old.getNode());
 }
 
 /// Check the specified integer node value to see if it can be simplified or if
@@ -6356,6 +6351,24 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
     }
   }
 
+  if (N0.getOpcode() == ISD::EXTRACT_SUBVECTOR && N0.hasOneUse() && N1C &&
+      ISD::isExtOpcode(N0.getOperand(0).getOpcode())) {
+    SDValue Ext = N0.getOperand(0);
+    EVT ExtVT = Ext->getValueType(0);
+    SDValue Extendee = Ext->getOperand(0);
+
+    unsigned ScalarWidth = Extendee.getValueType().getScalarSizeInBits();
+    if (N1C->getAPIntValue().isMask(ScalarWidth)) {
+      //    (and (extract_subvector (zext|anyext|sext v) _) iN_mask)
+      // => (extract_subvector (iN_zeroext v))
+      SDValue ZeroExtExtendee =
+          DAG.getNode(ISD::ZERO_EXTEND, SDLoc(N), ExtVT, Extendee);
+
+      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(N), VT, ZeroExtExtendee,
+                         N0.getOperand(1));
+    }
+  }
+
   // fold (and (masked_gather x)) -> (zext_masked_gather x)
   if (auto *GN0 = dyn_cast<MaskedGatherSDNode>(N0)) {
     EVT MemVT = GN0->getMemoryVT();
@@ -7304,12 +7317,14 @@ static bool matchRotateSub(SDValue Pos, SDValue Neg, unsigned EltSize,
   unsigned MaskLoBits = 0;
   if (IsRotate && isPowerOf2_64(EltSize)) {
     unsigned Bits = Log2_64(EltSize);
-    APInt DemandedBits =
-        APInt::getLowBitsSet(Neg.getScalarValueSizeInBits(), Bits);
-    if (SDValue Inner =
-            TLI.SimplifyMultipleUseDemandedBits(Neg, DemandedBits, DAG)) {
-      Neg = Inner;
-      MaskLoBits = Bits;
+    unsigned NegBits = Neg.getScalarValueSizeInBits();
+    if (NegBits >= Bits) {
+      APInt DemandedBits = APInt::getLowBitsSet(NegBits, Bits);
+      if (SDValue Inner =
+              TLI.SimplifyMultipleUseDemandedBits(Neg, DemandedBits, DAG)) {
+        Neg = Inner;
+        MaskLoBits = Bits;
+      }
     }
   }
 
@@ -7325,11 +7340,13 @@ static bool matchRotateSub(SDValue Pos, SDValue Neg, unsigned EltSize,
   // affect Mask's demanded bits, just replace Pos with Pos'. These operations
   // are redundant for the purpose of the equality.
   if (MaskLoBits) {
-    APInt DemandedBits =
-        APInt::getLowBitsSet(Pos.getScalarValueSizeInBits(), MaskLoBits);
-    if (SDValue Inner =
-            TLI.SimplifyMultipleUseDemandedBits(Pos, DemandedBits, DAG)) {
-      Pos = Inner;
+    unsigned PosBits = Pos.getScalarValueSizeInBits();
+    if (PosBits >= MaskLoBits) {
+      APInt DemandedBits = APInt::getLowBitsSet(PosBits, MaskLoBits);
+      if (SDValue Inner =
+              TLI.SimplifyMultipleUseDemandedBits(Pos, DemandedBits, DAG)) {
+        Pos = Inner;
+      }
     }
   }
 
@@ -15746,8 +15763,9 @@ SDValue DAGCombiner::visitFP_ROUND(SDNode *N) {
     // Also, this is a value preserving truncation iff both fp_round's are.
     if (DAG.getTarget().Options.UnsafeFPMath || N0IsTrunc) {
       SDLoc DL(N);
-      return DAG.getNode(ISD::FP_ROUND, DL, VT, N0.getOperand(0),
-                         DAG.getIntPtrConstant(NIsTrunc && N0IsTrunc, DL));
+      return DAG.getNode(
+          ISD::FP_ROUND, DL, VT, N0.getOperand(0),
+          DAG.getIntPtrConstant(NIsTrunc && N0IsTrunc, DL, /*isTarget=*/true));
     }
   }
 
@@ -15805,11 +15823,11 @@ SDValue DAGCombiner::visitFP_EXTEND(SDNode *N) {
                                      LN0->getBasePtr(), N0.getValueType(),
                                      LN0->getMemOperand());
     CombineTo(N, ExtLoad);
-    CombineTo(N0.getNode(),
-              DAG.getNode(ISD::FP_ROUND, SDLoc(N0),
-                          N0.getValueType(), ExtLoad,
-                          DAG.getIntPtrConstant(1, SDLoc(N0))),
-              ExtLoad.getValue(1));
+    CombineTo(
+        N0.getNode(),
+        DAG.getNode(ISD::FP_ROUND, SDLoc(N0), N0.getValueType(), ExtLoad,
+                    DAG.getIntPtrConstant(1, SDLoc(N0), /*isTarget=*/true)),
+        ExtLoad.getValue(1));
     return SDValue(N, 0);   // Return N so it doesn't get rechecked!
   }
 
@@ -19618,6 +19636,23 @@ SDValue DAGCombiner::visitINSERT_VECTOR_ELT(SDNode *N) {
 
       // Failed to find a match in the chain - bail.
       break;
+    }
+
+    // See if we can fill in the missing constant elements as zeros.
+    // TODO: Should we do this for any constant?
+    APInt DemandedZeroElts = APInt::getZero(NumElts);
+    for (unsigned I = 0; I != NumElts; ++I)
+      if (!Ops[I])
+        DemandedZeroElts.setBit(I);
+
+    if (DAG.MaskedVectorIsZero(InVec, DemandedZeroElts)) {
+      SDValue Zero = VT.isInteger() ? DAG.getConstant(0, DL, MaxEltVT)
+                                    : DAG.getConstantFP(0, DL, MaxEltVT);
+      for (unsigned I = 0; I != NumElts; ++I)
+        if (!Ops[I])
+          Ops[I] = Zero;
+
+      return CanonicalizeBuildVector(Ops);
     }
   }
 

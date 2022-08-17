@@ -20,6 +20,7 @@ public:
   MockCGExecKernel(detail::NDRDescT NDRDesc,
                    std::unique_ptr<detail::HostKernelBase> HostKernel)
       : CGExecKernel(NDRDesc, std::move(HostKernel), /*SyclKernel*/ nullptr,
+                     /*Kernelbundle*/ nullptr,
                      /*ArgsStorage*/ {}, /*AccStorage*/ {},
                      /*SharedPtrStorage*/ {}, /*Requirements*/ {},
                      /*Events*/ {}, /*Args*/ {}, /*KernelName*/ "",

@@ -13,8 +13,8 @@
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 #include <sycl/ext/oneapi/atomic_ref.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 
@@ -129,5 +129,5 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
