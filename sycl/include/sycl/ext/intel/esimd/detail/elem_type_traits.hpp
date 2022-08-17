@@ -582,7 +582,7 @@ public:
   template <class T = sycl::half>
   static inline T bitcast_to_half(__raw_t<T> Bits) {
 #ifndef __SYCL_DEVICE_ONLY__
-    return sycl::half{Bits};
+    return sycl::half(::sycl::detail::host_half_impl::half_v2(Bits));
 #else
     sycl::half Res;
     Res.Data = Bits;
