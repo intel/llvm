@@ -15,8 +15,9 @@
 
 #include <sycl/detail/boost/mp11.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_ENS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::esimd {
 
 namespace kernel_properties {
 
@@ -74,5 +75,6 @@ void set_kernel_properties(KernelProps... props) {
   });
 }
 
-} // namespace __ESIMD_ENS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::experimental::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

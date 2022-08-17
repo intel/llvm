@@ -9,8 +9,8 @@
 #pragma once
 #include <sycl/access/access.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 template <typename ElementType, access::address_space Space> class multi_ptr;
 // Template specialization aliases for different pointer address spaces
@@ -42,5 +42,5 @@ template <typename ElementType>
 using private_ptr =
     multi_ptr<ElementType, access::address_space::private_space>;
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

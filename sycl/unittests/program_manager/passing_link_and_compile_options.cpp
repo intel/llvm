@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
 
+#include <sycl/detail/defines_elementary.hpp>
+
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
@@ -24,8 +26,8 @@ class EAMTestKernel2;
 const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs2 = 4;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs1; }
@@ -54,8 +56,8 @@ template <> struct KernelInfo<EAMTestKernel2> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 template <typename T>
 static sycl::unittest::PiImage

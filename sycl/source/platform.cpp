@@ -16,8 +16,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
@@ -26,6 +26,9 @@ platform::platform(cl_platform_id PlatformId) {
       detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
       detail::RT::getPlugin<backend::opencl>());
 }
+
+// protected constructor for internal use
+platform::platform(const device &Device) { *this = Device.get_platform(); }
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -87,5 +90,5 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
