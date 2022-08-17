@@ -202,8 +202,8 @@
 /// accessor_common contains several helpers common for both accessor(1) and
 /// accessor(3)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class stream;
 namespace ext {
 namespace intel {
@@ -444,9 +444,9 @@ private:
   static_assert(Dimensions > 0 && Dimensions <= 3,
                 "Dimensions can be 1/2/3 for image accessor.");
 
-  template <info::device param>
+  template <typename Param>
   void checkDeviceFeatureSupported(const device &Device) {
-    if (!Device.get_info<param>())
+    if (!Device.get_info<Param>())
       throw feature_not_supported("Images are not supported by this device.",
                                   PI_ERROR_INVALID_OPERATION);
   }
@@ -2611,8 +2611,8 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 
 #endif
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,

@@ -19,8 +19,8 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class platform;
@@ -187,15 +187,11 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <info::device param>
-  typename info::param_traits<info::device, param>::return_type
-  get_info() const {
+  template <typename Param> typename Param::return_type get_info() const {
     if (is_host()) {
-      return get_device_info_host<param>();
+      return get_device_info_host<Param>();
     }
-    return get_device_info<
-        typename info::param_traits<info::device, param>::return_type,
-        param>::get(this->getHandleRef(), this->getPlugin());
+    return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
   }
 
   /// Check if affinity partitioning by specified domain is supported by
@@ -245,5 +241,5 @@ private:
 }; // class device_impl
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -62,29 +62,29 @@ int main() {
   dummy_functor_4<scoped_enum_no_type_set::val_4> f4;
   templated_functor<dummy_functor_2> f5;
 
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f1);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     // expected-error@#KernelSingleTask {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f2);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     // expected-error@#KernelSingleTask {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f5);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f3);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f4);
   });
 

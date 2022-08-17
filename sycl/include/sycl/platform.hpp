@@ -13,12 +13,14 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/device_selector.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // TODO: make code thread-safe
 
 // Forward declaration
@@ -30,6 +32,12 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class platform_impl;
 }
+namespace ext {
+namespace oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace oneapi
+} // namespace ext
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -49,14 +57,25 @@ public:
   explicit platform(cl_platform_id PlatformId);
 #endif
 
-  /// Constructs a SYCL platform instance using device selector.
+  /// Constructs a SYCL platform instance using a device_selector.
   ///
   /// One of the SYCL devices that is associated with the constructed SYCL
   /// platform instance must be the SYCL device that is produced from the
   /// provided device selector.
   ///
-  /// \param DeviceSelector is an instance of SYCL device_selector.
+  /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector
   explicit platform(const device_selector &DeviceSelector);
+
+#if __cplusplus >= 201703L
+  /// Constructs a SYCL platform instance using the platform of the device
+  /// identified by the device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit platform(const DeviceSelector &deviceSelector)
+      : platform(detail::select_device(deviceSelector)) {}
+#endif
 
   platform(const platform &rhs) = default;
 
@@ -104,9 +123,8 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
+  template <typename Param>
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -141,6 +159,8 @@ private:
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
 
+  platform(const device &Device);
+
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
@@ -150,8 +170,8 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 }; // class platform
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::platform> {

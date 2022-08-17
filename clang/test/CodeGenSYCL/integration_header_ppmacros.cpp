@@ -14,7 +14,7 @@
 #include "Inputs/sycl.hpp"
 
 int main() {
-  cl::sycl::kernel_single_task<class first_kernel>([]() {});
+  sycl::kernel_single_task<class first_kernel>([]() {});
 }
 // CHECK-SYCL2020: #ifndef SYCL_LANGUAGE_VERSION
 // CHECK-SYCL2020-NEXT: #define SYCL_LANGUAGE_VERSION 202001

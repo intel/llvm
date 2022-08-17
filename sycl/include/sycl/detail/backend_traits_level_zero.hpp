@@ -35,8 +35,8 @@ typedef struct _ze_image_handle_t *ze_image_handle_t;
 typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Forward declarations
@@ -269,5 +269,5 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -11,6 +11,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
@@ -18,8 +19,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 #ifdef __SYCL_INTERNAL_API
 class program;
@@ -141,57 +142,29 @@ public:
   /// descriptor.
   ///
   /// \return depends on information being queried.
-  template <info::kernel param>
-  typename info::param_traits<info::kernel, param>::return_type
-  get_info() const;
+  template <typename Param>
+  typename detail::is_kernel_info_desc<Param>::return_type get_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
   ///
   /// \param Device is a valid SYCL device to query info for.
   /// \return depends on information being queried.
-  template <info::kernel_device_specific param>
-  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  template <typename Param>
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
   get_info(const device &Device) const;
 
   /// Query device-specific information from a kernel using the
   /// info::kernel_device_specific descriptor for a specific device and value.
+  /// max_sub_group_size is the only valid descriptor for this function.
   ///
   /// \param Device is a valid SYCL device.
-  /// \param Value depends on information being queried.
+  /// \param WGSize is the work-group size the sub-group size is requested for.
   /// \return depends on information being queried.
-  template <info::kernel_device_specific param>
-  typename info::param_traits<info::kernel_device_specific, param>::return_type
-  get_info(const device &Device,
-           typename info::param_traits<info::kernel_device_specific,
-                                       param>::input_type Value) const;
-
-  /// Query sub-group information from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \return depends on information being queried.
-  template <info::kernel_sub_group param>
-  // clang-format off
-  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device) const;
-  // clang-format on
-
-  /// Query sub-group information from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device and value.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \param Value depends on information being queried.
-  /// \return depends on information being queried.
-  template <info::kernel_sub_group param>
-  // clang-format off
-  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device,
-                     typename info::param_traits<info::kernel_sub_group,
-                     param>::input_type Value) const;
-  // clang-format on
+  template <typename Param>
+  typename detail::is_kernel_device_specific_info_desc<
+      Param>::with_input_return_type
+  get_info(const device &Device, const range<3> &WGSize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
@@ -212,8 +185,8 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::kernel> {

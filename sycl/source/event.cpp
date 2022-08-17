@@ -19,8 +19,8 @@
 #include <memory>
 #include <unordered_set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
@@ -36,8 +36,6 @@ event::event(cl_event ClEvent, const context &SyclContext)
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
-
-cl_event event::get() const { return impl->get(); }
 
 bool event::is_host() const { return impl->is_host(); }
 
@@ -69,22 +67,25 @@ std::vector<event> event::get_wait_list() {
 event::event(std::shared_ptr<detail::event_impl> event_impl)
     : impl(event_impl) {}
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template <>                                                                  \
-  __SYCL_EXPORT ret_type event::get_info<info::param_type::param>() const {    \
-    return impl->get_info<info::param_type::param>();                          \
-  }
+template <typename Param>
+typename detail::is_event_info_desc<Param>::return_type
+event::get_info() const {
+  return impl->template get_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
 
 #include <sycl/info/event_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \
-  __SYCL_EXPORT ret_type event::get_profiling_info<info::param_type::param>()  \
+  __SYCL_EXPORT ReturnT event::get_profiling_info<info::DescType::Desc>()      \
       const {                                                                  \
     impl->wait(impl);                                                          \
-    return impl->get_profiling_info<info::param_type::param>();                \
+    return impl->get_profiling_info<info::DescType::Desc>();                   \
   }
 
 #include <sycl/info/event_profiling_traits.def>
@@ -100,5 +101,5 @@ std::vector<pi_native_handle> event::getNativeVector() const {
   return ReturnVector;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
