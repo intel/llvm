@@ -184,6 +184,9 @@ public:
   void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
                            const llvm::opt::ArgList &Args) const override;
 
+  // math-errno should be the default for SYCL but not other OFK using CUDA TC
+  bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
+
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
 
