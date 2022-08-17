@@ -43,8 +43,8 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 // TODO each backend can have its own custom errc enumeration
@@ -86,7 +86,6 @@ struct BufferInterop {
   }
 };
 
-#ifdef SYCL2020_CONFORMANT_APIS
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
   using ReturnType =
@@ -101,7 +100,6 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
     return ReturnValue;
   }
 };
-#endif
 
 template <backend BackendName, typename DataT, int Dimensions,
           typename AllocatorT>
@@ -143,30 +141,12 @@ auto get_native(const kernel_bundle<State> &Obj)
 }
 
 template <backend BackendName, typename DataT, int Dimensions,
-          typename AllocatorT,
-          std::enable_if_t<BackendName == backend::opencl> * = nullptr>
-#ifndef SYCL2020_CONFORMANT_APIS
-__SYCL_DEPRECATED(
-    "get_native<backend::opencl, buffer>, which return type "
-    "cl_mem is deprecated. According to SYCL 2020 spec, please define "
-    "SYCL2020_CONFORMANT_APIS and use vector<cl_mem> instead.")
-#endif
+          typename AllocatorT>
 auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
     -> backend_return_t<BackendName, buffer<DataT, Dimensions, AllocatorT>> {
   return detail::get_native_buffer<BackendName>(Obj);
 }
 
-template <backend BackendName, typename DataT, int Dimensions,
-          typename AllocatorT,
-          std::enable_if_t<BackendName != backend::opencl> * = nullptr>
-auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
-    -> backend_return_t<BackendName, buffer<DataT, Dimensions, AllocatorT>> {
-  return detail::get_native_buffer<BackendName>(Obj);
-}
-
-// define SYCL2020_CONFORMANT_APIS to correspond SYCL 2020 spec and return
-// vector<cl_event> from get_native instead of just cl_event
-#ifdef SYCL2020_CONFORMANT_APIS
 template <>
 inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
@@ -184,24 +164,6 @@ get_native<backend::opencl, event>(const event &Obj) {
   }
   return ReturnValue;
 }
-#else
-// Specialization for cl_event with deprecation message
-template <>
-__SYCL_DEPRECATED(
-    "get_native<backend::opencl, event>, which return type is "
-    "cl_event is deprecated. According to SYCL 2020 spec, please define "
-    "SYCL2020_CONFORMANT_APIS and use vector<cl_event> instead.")
-inline backend_return_t<backend::opencl, event> get_native<
-    backend::opencl, event>(const event &Obj) {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
-  }
-  return reinterpret_cast<
-      typename detail::interop<backend::opencl, event>::type>(Obj.getNative());
-}
-#endif
 
 // Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,
@@ -334,7 +296,7 @@ typename std::enable_if<
 }
 
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = detail::default_buffer_allocator<T>>
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
                                 true &&
                             Backend != backend::ext_oneapi_level_zero,
@@ -369,5 +331,5 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

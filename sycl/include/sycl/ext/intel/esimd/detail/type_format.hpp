@@ -15,8 +15,9 @@
 
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 template <typename BaseTy, typename EltTy> struct compute_format_type;
 
@@ -82,7 +83,8 @@ template <typename Ty, typename EltTy, int Height, int Width>
 using compute_format_type_2d_t =
     typename compute_format_type_2d<Ty, EltTy, Height, Width>::type;
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @endcond ESIMD_DETAIL

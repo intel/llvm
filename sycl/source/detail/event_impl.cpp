@@ -25,8 +25,8 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -50,17 +50,7 @@ void event_impl::ensureContextInitialized() {
 bool event_impl::is_host() {
   // Treat all devices that don't support interoperability as host devices to
   // avoid attempts to call method get on such events.
-  return MHostEvent || !MOpenCLInterop;
-}
-
-cl_event event_impl::get() {
-  if (!MOpenCLInterop) {
-    throw invalid_object_error(
-        "This instance of event doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_EVENT);
-  }
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
-  return pi::cast<cl_event>(MEvent);
+  return MHostEvent;
 }
 
 event_impl::~event_impl() {
@@ -123,7 +113,6 @@ void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
-  MOpenCLInterop = !MHostEvent;
   MContext = Context;
   MIsContextInitialized = true;
 }
@@ -134,8 +123,8 @@ event_impl::event_impl(std::optional<HostEventState> State)
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
-      MContext(detail::getSyclObjImpl(SyclContext)), MOpenCLInterop(true),
-      MHostEvent(false), MIsFlushed(true), MState(HES_Complete) {
+      MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
+      MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
     throw sycl::invalid_parameter_error(
@@ -281,10 +270,18 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  if (!MIsProfilingEnabled) {
+  std::weak_ptr<queue_impl> EmptyPtr;
+
+  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "get_profiling_info() can't be used without set "
-                          "'enable_profiling' queue property");
+                          "Profiling information is unavailable as the event "
+                          "has no associated queue.");
+  }
+  if (!MIsProfilingEnabled) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Profiling information is unavailable as the queue associated with "
+        "the event does not have the 'enable_profiling' property.");
   }
 }
 
@@ -445,5 +442,5 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

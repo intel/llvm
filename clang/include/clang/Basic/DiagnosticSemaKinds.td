@@ -125,6 +125,9 @@ def warn_float_compare_literal : Warning<
 def warn_double_const_requires_fp64 : Warning<
   "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
   "casting to single precision">;
+def warn_imp_float_size_conversion : Warning<
+  "implicit conversion between floating point types of different sizes">,
+  InGroup<ImplicitFloatSizeConversion>, DefaultIgnore;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 
@@ -9074,6 +9077,16 @@ def ext_ms_anonymous_record : ExtWarn<
 def err_reference_to_local_in_enclosing_context : Error<
   "reference to local %select{variable|binding}1 %0 declared in enclosing "
   "%select{%3|block literal|lambda expression|context}2">;
+def err_bitfield_capture_by_ref : Error<
+  "cannot capture a bit-field by reference">;
+def err_capture_binding_openmp : Error<
+  "capturing a structured binding is not yet supported in OpenMP">;
+def ext_capture_binding : ExtWarn<
+  "captured structured bindings are a C++20 extension">, InGroup<CXX20>;
+def warn_cxx17_compat_capture_binding : Warning<
+  "captured structured bindings are incompatible with "
+  "C++ standards before C++20">,
+  InGroup<CXXPre20Compat>, DefaultIgnore;
 
 def err_static_data_member_not_allowed_in_local_class : Error<
   "static data member %0 not allowed in local %sub{select_tag_type_kind}2 %1">;

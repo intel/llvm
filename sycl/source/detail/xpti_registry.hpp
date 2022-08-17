@@ -20,8 +20,8 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // We define a sycl stream name and this will be used by the instrumentation
 // framework
@@ -112,5 +112,5 @@ private:
 #endif // XPTI_ENABLE_INSTRUMENTATION
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

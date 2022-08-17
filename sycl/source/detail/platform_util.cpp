@@ -20,8 +20,8 @@
 #include <intrin.h>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -167,8 +167,8 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   const char *PtrEnd = Ptr + NumBytes;
 
   // Set the pointer to the beginning of the current cache line.
-  Ptr = reinterpret_cast<const char *>(
-            reinterpret_cast<size_t>(Ptr) & CacheLineMask);
+  Ptr = reinterpret_cast<const char *>(reinterpret_cast<size_t>(Ptr) &
+                                       CacheLineMask);
   for (; Ptr < PtrEnd; Ptr += CacheLineSize) {
 #if defined(__SYCL_RT_OS_LINUX)
     __builtin_prefetch(Ptr);
@@ -179,5 +179,5 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

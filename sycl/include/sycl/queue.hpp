@@ -32,33 +32,9 @@
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+// Here we simplify the KernelFunc param is simplified to be
 // _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
 // these macros are #undef immediately.
-
-// replace _CODELOCPARAM(&CodeLoc) with nothing
-// or :   , const detail::code_location &CodeLoc =
-// detail::code_location::current()
-// replace _CODELOCARG(&CodeLoc) with nothing
-// or :  const detail::code_location &CodeLoc = {}
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
-
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
 #ifdef __SYCL_NONCONST_FUNCTOR__
@@ -75,8 +51,8 @@
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class context;
@@ -486,7 +462,7 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename PropertyT> bool has_property() const;
+  template <typename PropertyT> bool has_property() const noexcept;
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
@@ -1081,11 +1057,7 @@ public:
         CodeLoc);
   }
 
-// Clean up CODELOC and KERNELFUNC macros.
-#undef _CODELOCPARAM
-#undef _CODELOCONLYPARAM
-#undef _CODELOCARG
-#undef _CODELOCFW
+// Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
@@ -1301,8 +1273,8 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 #endif // __SYCL_USE_FALLBACK_ASSERT
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::queue> {
