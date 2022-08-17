@@ -29,10 +29,11 @@
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 
 #include "SYCL/SYCLOps.h.inc"
 #include "SYCL/SYCLOpsTypes.h.inc"
@@ -40,7 +41,9 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Support/FileUtilities.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -55,7 +58,6 @@
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 #include "Options.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 #define DEBUG_TYPE "cgeist"
 
@@ -75,6 +77,7 @@ extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
 extern int cc1gen_reproducer_main(ArrayRef<const char *> Argv,
                                   const char *Argv0, void *MainAddr);
+
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   if (!CanonicalPrefixes) {
     SmallString<128> ExecutablePath(Argv0);
@@ -91,6 +94,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   void *P = (void *)(intptr_t)GetExecutablePath;
   return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
+
 static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   // If we call the cc1 tool from the clangDriver library (through
   // Driver::CC1Main), we need to clean up the options usage count. The options
@@ -118,8 +122,9 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-static int emitBinary(char *Argv0, const char *filename,
-                      SmallVectorImpl<const char *> &LinkArgs, bool LinkOMP) {
+static int emitBinary(const char *Argv0, const char *filename,
+                      const SmallVectorImpl<const char *> &LinkArgs,
+                      bool LinkOMP) {
 
   using namespace clang;
   using namespace clang::driver;
@@ -236,18 +241,12 @@ static int emitBinary(char *Argv0, const char *filename,
 
 #include "Lib/clang-mlir.cc"
 
-// Register MLIR Dialects.
-static void registerDialects(mlir::DialectRegistry &registry) {
-  mlir::registerOpenMPDialectTranslation(registry);
-  mlir::registerLLVMDialectTranslation(registry);
-}
-
 // Load MLIR Dialects.
 static void loadDialects(MLIRContext &context, const bool syclKernelsOnly) {
   context.disableMultithreading();
-  context.getOrLoadDialect<AffineDialect>();
+  context.getOrLoadDialect<mlir::AffineDialect>();
   context.getOrLoadDialect<func::FuncDialect>();
-  context.getOrLoadDialect<DLTIDialect>();
+  context.getOrLoadDialect<mlir::DLTIDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
   context.getOrLoadDialect<mlir::async::AsyncDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
@@ -273,6 +272,15 @@ static void loadDialects(MLIRContext &context, const bool syclKernelsOnly) {
       PtrElementModel<LLVM::LLVMPointerType>>(context);
   LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
       context);
+}
+
+// Register MLIR Dialects.
+static void registerDialects(MLIRContext &context, const bool syclKernelsOnly) {
+  mlir::DialectRegistry registry;
+  mlir::registerOpenMPDialectTranslation(registry);
+  mlir::registerLLVMDialectTranslation(registry);
+  context.appendDialectRegistry(registry);
+  loadDialects(context, syclKernelsOnly);
 }
 
 // MLIR canonicalization & cleanup.
@@ -640,121 +648,22 @@ createAndExecutePassPipeline(mlir::MLIRContext &context,
   return 0;
 }
 
-int main(int argc, char **argv) {
-  bool syclKernelsOnly = false;
-  if (argc >= 1) {
-    if (std::string(argv[1]) == "-cc1") {
-      SmallVector<const char *> Argv;
-      for (int i = 0; i < argc; i++)
-        Argv.push_back(argv[i]);
-      return ExecuteCC1Tool(Argv);
-    }
-  }
-  SmallVector<const char *> LinkageArgs;
-  SmallVector<const char *> MLIRArgs;
-  {
-    bool linkOnly = false;
-    for (int i = 0; i < argc; i++) {
-      StringRef ref(argv[i]);
-      if (ref == "-Wl,--start-group")
-        linkOnly = true;
-      if (!linkOnly) {
-        if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize")) {
-          LinkageArgs.push_back(argv[i]);
-        } else if (ref == "-L" || ref == "-l") {
-          LinkageArgs.push_back(argv[i]);
-          i++;
-          LinkageArgs.push_back(argv[i]);
-        } else if (ref.startswith("-L") || ref.startswith("-l") ||
-                   ref.startswith("-Wl")) {
-          LinkageArgs.push_back(argv[i]);
-        } else if (ref == "-D" || ref == "-I") {
-          MLIRArgs.push_back(argv[i]);
-          i++;
-          MLIRArgs.push_back(argv[i]);
-        } else if (ref.startswith("-D")) {
-          MLIRArgs.push_back("-D");
-          MLIRArgs.push_back(&argv[i][2]);
-        } else if (ref.startswith("-I")) {
-          MLIRArgs.push_back("-I");
-          MLIRArgs.push_back(&argv[i][2]);
-        } else if (ref == "-fsycl-is-device") {
-          syclKernelsOnly = true;
-          MLIRArgs.push_back(argv[i]);
-        } else if (ref == "-g") {
-          LinkageArgs.push_back(argv[i]);
-        } else {
-          MLIRArgs.push_back(argv[i]);
-        }
-      } else {
-        LinkageArgs.push_back(argv[i]);
-      }
-      if (ref == "-Wl,--end-group")
-        linkOnly = false;
-    }
-  }
-  using namespace mlir;
-
-  std::vector<std::string> files;
-  std::vector<std::string> commands;
-  cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
-                                      cl::desc("<Specify input file>"),
-                                      cl::cat(toolOptions));
-
-  cl::list<std::string> inputCommandArgs(
-      "args", cl::Positional, cl::desc("<command arguments>"), cl::ZeroOrMore,
-      cl::PositionalEatsArgs);
-
-  int size = MLIRArgs.size();
-  const char **data = MLIRArgs.data();
-  InitLLVM y(size, data);
-  cl::ParseCommandLineOptions(size, data);
-  assert(inputFileName.size());
-  for (auto inp : inputFileName) {
-    std::ifstream inputFile(inp);
-    if (!inputFile.good()) {
-      outs() << "Not able to open file: " << inp << "\n";
-      return -1;
-    }
-    files.push_back(inp);
-  }
-  for (auto &cmd : inputCommandArgs) {
-    commands.push_back(cmd);
-  }
-
-  // Register and load MLIR Dialects.
-  mlir::DialectRegistry registry;
-  registerDialects(registry);
-
-  mlir::MLIRContext context(registry);
-  loadDialects(context, syclKernelsOnly);
-
-  mlir::OwningOpRef<mlir::ModuleOp> module(
-      mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc()));
-
-  llvm::Triple triple;
-  llvm::DataLayout DL("");
-  std::string fn;
-
-  if (!syclKernelsOnly) {
-    fn = cfunction.getValue();
-  }
-  parseMLIR(argv[0], files, fn, includeDirs, defines, module, triple, DL,
-            commands);
-
-  LLVM_DEBUG({
-    llvm::dbgs() << "Initial MLIR:\n";
-    module->dump();
-  });
-
+// Lower the MLIR in the given module, compile the generated LLVM IR.
+static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
+                         mlir::MLIRContext &context, llvm::DataLayout &DL,
+                         llvm::Triple &triple,
+                         const SmallVectorImpl<const char *> &LinkArgs,
+                         const char *Argv0) {
   bool LinkOMP = FOpenMP;
   int rc = createAndExecutePassPipeline(context, module, DL, triple, LinkOMP);
   if (rc != 0) {
-    llvm::errs() << "Failed to execute pass pipeline correctly, rc = " << rc << ".\n";
+    llvm::errs() << "Failed to execute pass pipeline correctly, rc = " << rc
+                 << ".\n";
     return rc;
   }
 
   if (EmitLLVM || !EmitAssembly) {
+    // Generate LLVM IR.
     llvm::LLVMContext llvmContext;
     auto llvmModule = mlir::translateModuleToLLVMIR(module.get(), llvmContext);
     if (!llvmModule) {
@@ -768,48 +677,218 @@ int main(int argc, char **argv) {
     LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
 
     if (!EmitAssembly) {
+      // Compile the LLVM IR.
       auto tmpFile =
           llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
       if (!tmpFile) {
-        llvm::errs() << "Failed to create temp file\n";
+        llvm::errs() << "Failed to create " << tmpFile->TmpName << "\n";
         return -1;
       }
-      std::error_code EC;
-      {
-        llvm::raw_fd_ostream out(tmpFile->FD, /*shouldClose*/ false);
-        out << *llvmModule << "\n";
-        out.flush();
-      }
+      llvm::raw_fd_ostream out(tmpFile->FD, /*shouldClose*/ false);
+      out << *llvmModule << "\n";
+      out.flush();
+
       int res =
-          emitBinary(argv[0], tmpFile->TmpName.c_str(), LinkageArgs, LinkOMP);
+          emitBinary(Argv0, tmpFile->TmpName.c_str(), LinkArgs, LinkOMP);
       if (res != 0)
-        llvm::errs() << "Compilation failed\n";        
+        llvm::errs() << "Compilation failed\n";
 
       if (tmpFile->discard()) {
-        llvm::errs() << "Failed to erase " << tmpFile->TmpName  << "\n";
+        llvm::errs() << "Failed to erase " << tmpFile->TmpName << "\n";
         return -1;
       }
       return res;
     } else if (Output == "-") {
+      // Write the LLVM IR to stdout.
       LLVM_DEBUG(dbgs() << "*** LLVM IR Produced ***\n");
       llvm::outs() << *llvmModule << "\n";
     } else {
+      // Write the LLVM IR to a file.
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
       out << *llvmModule << "\n";
-      LLVM_DEBUG(dbgs() << "*** Dumped LLVM IR in file '" << Output << "' ***\n");      
+      LLVM_DEBUG(dbgs() << "*** Dumped LLVM IR in file '" << Output
+                        << "' ***\n");
     }
-  } else {
-    if (Output == "-") {
+  } else if (Output == "-") {
+      // Write the MLIR to stdout.
       LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
       module->print(outs());
-    }
-    else {
-      std::error_code EC;
-      llvm::raw_fd_ostream out(Output, EC);
-      module->print(out);
-      LLVM_DEBUG(dbgs() << "*** Dumped MLIR in file '" << Output << "' ***\n");            
-    }
+  } else {
+    // Write the MLIR to a file.
+    std::error_code EC;
+    llvm::raw_fd_ostream out(Output, EC);
+    module->print(out);
+    LLVM_DEBUG(dbgs() << "*** Dumped MLIR in file '" << Output << "' ***\n");
   }
+
   return 0;
+}
+
+// Split the input arguments into 2 sets (LinkageOpts, MLIROpts).
+static bool splitCommandLineOptions(int argc, char **argv,
+                                    SmallVector<const char *> &LinkageArgs,
+                                    SmallVector<const char *> &MLIRArgs) {
+  bool syclKernelsOnly = false;
+  bool linkOnly = false;
+  for (int i = 0; i < argc; i++) {
+    StringRef ref(argv[i]);
+    if (ref == "-Wl,--start-group")
+      linkOnly = true;
+    if (!linkOnly) {
+      if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize"))
+        LinkageArgs.push_back(argv[i]);
+      else if (ref == "-L" || ref == "-l") {
+        LinkageArgs.push_back(argv[i]);
+        i++;
+        LinkageArgs.push_back(argv[i]);
+      } else if (ref.startswith("-L") || ref.startswith("-l") ||
+                 ref.startswith("-Wl")) 
+        LinkageArgs.push_back(argv[i]);
+      else if (ref == "-D" || ref == "-I") {
+        MLIRArgs.push_back(argv[i]);
+        i++;
+        MLIRArgs.push_back(argv[i]);
+      } else if (ref.startswith("-D")) {
+        MLIRArgs.push_back("-D");
+        MLIRArgs.push_back(&argv[i][2]);
+      } else if (ref.startswith("-I")) {
+        MLIRArgs.push_back("-I");
+        MLIRArgs.push_back(&argv[i][2]);
+      } else if (ref == "-fsycl-is-device") {
+        syclKernelsOnly = true;
+        MLIRArgs.push_back(argv[i]);
+      } else if (ref == "-g") 
+        LinkageArgs.push_back(argv[i]);
+      else 
+        MLIRArgs.push_back(argv[i]);
+    } else 
+      LinkageArgs.push_back(argv[i]);
+    
+    if (ref == "-Wl,--end-group")
+      linkOnly = false;
+  }
+
+  return syclKernelsOnly;
+}
+
+// Fill the module with the MLIR in the inputFile.
+static void loadMLIR(const std::string &inputFile, mlir::OwningOpRef<ModuleOp> &module,
+                     mlir::MLIRContext &context) {
+  assert(inputFile.substr(inputFile.find_last_of(".") + 1) == "mlir" &&
+         "Input file has incorrect extension");
+
+  std::string errorMsg;
+  std::unique_ptr<llvm::MemoryBuffer> input = mlir::openInputFile(inputFile, &errorMsg);
+  if (!input) {
+    llvm::errs() << errorMsg << "\n";
+    exit(1);
+  }
+
+  // Parse the input mlir.
+  llvm::SourceMgr sourceMgr;
+  SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
+  sourceMgr.AddNewSourceBuffer(std::move(input), llvm::SMLoc());
+  module = mlir::parseSourceFile<ModuleOp>(sourceMgr, &context);
+  if (!module) {
+    llvm::errs() << "Error can't load file " << inputFile << "\n";
+    exit(1);
+  }
+}
+
+// Generate MLIR for the input files.
+static void processInputFiles(const cl::list<std::string> &inputFiles,
+                              const cl::list<std::string> &inputCommandArgs,
+                              mlir::MLIRContext &context,
+                              mlir::OwningOpRef<ModuleOp> &module,
+                              llvm::DataLayout &DL, llvm::Triple &triple,
+                              const char *Argv0, bool syclKernelsOnly) {
+  assert(!inputFiles.empty() && "inputFiles should not be empty");
+
+  // Ensure all input files can be opened.
+  std::vector<std::string> files;
+  for (auto inputFile : inputFiles) {
+    std::ifstream ifs(inputFile);
+    if (!ifs.good()) {
+      llvm::errs() << "Not able to open file: " << inputFile << "\n";
+      exit(-1);
+    }
+    files.push_back(inputFile);
+  }
+
+  std::vector<std::string> commands;
+  for (auto cmd : inputCommandArgs)
+    commands.push_back(cmd);
+
+  // Count the number of MLIR input files we might have.
+  int numMLIRFiles =
+      llvm::count_if(inputFiles, [](const std::string &inputFile) {
+        std::string extension =
+            inputFile.substr(inputFile.find_last_of(".") + 1);
+        return (extension == "mlir");
+      });
+
+  // Early exit if we have a input file with a '.mlir' extension.
+  if (numMLIRFiles > 0) {
+    if (files.size() != 1) {
+      llvm::errs() << "More than one input file has been provided. Only a single "
+                      "input MLIR file can be processed\n";
+      exit(-1);
+    }
+    loadMLIR(files[0], module, context);
+    return;
+  }
+  
+  // Generate MLIR for the C/C++ files.
+  std::string fn = (!syclKernelsOnly) ? cfunction.getValue() : "";
+  parseMLIR(Argv0, files, fn, includeDirs, defines, module, triple, DL,
+            commands);
+}
+
+int main(int argc, char **argv) {
+  if (argc >= 1 && std::string(argv[1]) == "-cc1") {
+    SmallVector<const char *> Argv;
+    for (int i = 0; i < argc; i++)
+      Argv.push_back(argv[i]);
+    return ExecuteCC1Tool(Argv);
+  }
+
+  // Split up the arguments into MLIR and linkage arguments.
+  SmallVector<const char *> LinkageArgs, MLIRArgs;
+  bool syclKernelsOnly = splitCommandLineOptions(argc, argv, LinkageArgs, MLIRArgs);
+  assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
+
+  // Parse command line options.
+  llvm::cl::list<std::string> inputFileNames(
+      llvm::cl::Positional, llvm::cl::OneOrMore,
+      llvm::cl::desc("<Specify input file>"), llvm::cl::cat(toolOptions));
+
+  llvm::cl::list<std::string> inputCommandArgs(
+      "args", llvm::cl::Positional, llvm::cl::desc("<command arguments>"),
+      llvm::cl::ZeroOrMore, llvm::cl::PositionalEatsArgs);
+
+  int size = MLIRArgs.size();
+  const char **data = MLIRArgs.data();
+  InitLLVM y(size, data);
+  llvm::cl::ParseCommandLineOptions(size, data);
+
+  // Register MLIR dialects.
+  mlir::MLIRContext context;
+  registerDialects(context, syclKernelsOnly);
+
+  // Generate MLIR for the input files (in a single module).
+  mlir::OwningOpRef<mlir::ModuleOp> module(
+      mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc()));
+  llvm::DataLayout DL("");
+  llvm::Triple triple;
+  processInputFiles(inputFileNames, inputCommandArgs, context, module, DL, triple, argv[0],
+                    syclKernelsOnly);
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "Initial MLIR:\n";
+    module->dump();
+  });
+
+  // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
+  return compileModule(module, context, DL, triple, LinkageArgs, argv[0]);
 }
