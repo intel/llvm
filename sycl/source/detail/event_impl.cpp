@@ -350,9 +350,9 @@ event_impl::get_info<info::event::command_execution_status>() {
     return get_event_info<info::event::command_execution_status>(
         this->getHandleRef(), this->getPlugin());
   }
-  return MHostEvent && MState.load() != HES_Complete
-             ? sycl::info::event_command_status::submitted
-             : info::event_command_status::complete;
+  if (MHostEvent && MState.load() == HES_Complete)
+    return info::event_command_status::complete;
+  return sycl::info::event_command_status::submitted;
 }
 
 static uint64_t getTimestamp() {
