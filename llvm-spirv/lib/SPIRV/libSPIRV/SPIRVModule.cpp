@@ -245,9 +245,8 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
-  SPIRVTypeJointMatrixINTEL *addJointMatrixINTELType(SPIRVType *, SPIRVValue *,
-                                                     SPIRVValue *, SPIRVValue *,
-                                                     SPIRVValue *) override;
+  SPIRVTypeJointMatrixINTEL *
+  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -916,11 +915,10 @@ SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
   return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
 }
 
-SPIRVTypeJointMatrixINTEL *SPIRVModuleImpl::addJointMatrixINTELType(
-    SPIRVType *CompType, SPIRVValue *Rows, SPIRVValue *Columns,
-    SPIRVValue *Layout, SPIRVValue *Scope) {
-  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Rows,
-                                               Columns, Layout, Scope));
+SPIRVTypeJointMatrixINTEL *
+SPIRVModuleImpl::addJointMatrixINTELType(SPIRVType *CompType,
+                                         std::vector<SPIRVValue *> Args) {
+  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Args));
 }
 
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {

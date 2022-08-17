@@ -75,12 +75,19 @@ getIntrinsicArgumentLowering(llvm::StringRef intrinsicName);
 
 /// Return how argument \p argName should be lowered given the rules for the
 /// intrinsic function. The argument names are the one defined by the standard.
-ArgLoweringRule lowerIntrinsicArgumentAs(mlir::Location,
-                                         const IntrinsicArgumentLoweringRules &,
-                                         llvm::StringRef argName);
+ArgLoweringRule lowerIntrinsicArgumentAs(const IntrinsicArgumentLoweringRules &,
+                                         unsigned position);
 
 /// Return place-holder for absent intrinsic arguments.
 fir::ExtendedValue getAbsentIntrinsicArgument();
+
+/// Get SymbolRefAttr of runtime (or wrapper function containing inlined
+// implementation) of an unrestricted intrinsic (defined by its signature
+// and generic name)
+mlir::SymbolRefAttr
+getUnrestrictedIntrinsicSymbolRefAttr(fir::FirOpBuilder &, mlir::Location,
+                                      llvm::StringRef name,
+                                      mlir::FunctionType signature);
 
 //===----------------------------------------------------------------------===//
 // Direct access to intrinsics that may be used by lowering outside
@@ -90,6 +97,10 @@ fir::ExtendedValue getAbsentIntrinsicArgument();
 /// Generate maximum. There must be at least one argument and all arguments
 /// must have the same type.
 mlir::Value genMax(fir::FirOpBuilder &, mlir::Location,
+                   llvm::ArrayRef<mlir::Value> args);
+
+/// Generate minimum. Same constraints as genMax.
+mlir::Value genMin(fir::FirOpBuilder &, mlir::Location,
                    llvm::ArrayRef<mlir::Value> args);
 
 /// Generate power function x**y with the given expected

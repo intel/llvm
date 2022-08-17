@@ -647,6 +647,7 @@ Let ``VT`` be a vector type and ``ET`` the element type of ``VT``.
                                          is a NaN, return the other argument. If both arguments are
                                          NaNs, fmax() return a NaN.
  ET __builtin_reduce_add(VT a)           \+                                                               integer and floating point types
+ ET __builtin_reduce_mul(VT a)           \*                                                               integer and floating point types
  ET __builtin_reduce_and(VT a)           &                                                                integer types
  ET __builtin_reduce_or(VT a)            \|                                                               integer types
  ET __builtin_reduce_xor(VT a)           ^                                                                integer types
@@ -742,7 +743,13 @@ targets pending ABI standardization:
 * 64-bit ARM (AArch64)
 * AMDGPU
 * SPIR
-* X86 (Only available under feature AVX512-FP16)
+* X86 (see below)
+
+On X86 targets, ``_Float16`` is supported as long as SSE2 is available, which
+includes all 64-bit and all recent 32-bit processors. When the target supports
+AVX512-FP16, ``_Float16`` arithmetic is performed using that native support.
+Otherwise, ``_Float16`` arithmetic is performed by promoting to ``float``,
+performing the operation, and then truncating to ``_Float16``.
 
 ``_Float16`` will be supported on more targets as they define ABIs for it.
 
@@ -2299,7 +2306,8 @@ invariant that is defined to be true.
 The boolean argument to this function is defined to be true. The optimizer may
 analyze the form of the expression provided as the argument and deduce from
 that information used to optimize the program. If the condition is violated
-during execution, the behavior is undefined. The argument itself is 
+during execution, the behavior is undefined. The argument itself is never
+evaluated, so any side effects of the expression will be discarded.
 
 Query for this feature with ``__has_builtin(__builtin_assume)``.
 
@@ -2372,44 +2380,82 @@ controlled state.
 
 .. code-block:: c++
 
-     __builtin_dump_struct(&some_struct, &some_printf_func);
+    __builtin_dump_struct(&some_struct, some_printf_func, args...);
 
 **Examples**:
 
 .. code-block:: c++
 
-     struct S {
-       int x, y;
-       float f;
-       struct T {
-         int i;
-       } t;
-     };
+    struct S {
+      int x, y;
+      float f;
+      struct T {
+        int i;
+      } t;
+    };
 
-     void func(struct S *s) {
-       __builtin_dump_struct(s, &printf);
-     }
+    void func(struct S *s) {
+      __builtin_dump_struct(s, printf);
+    }
 
 Example output:
 
 .. code-block:: none
 
-     struct S {
-     int i : 100
-     int j : 42
-     float f : 3.14159
-     struct T t : struct T {
-         int i : 1997
-         }
-     }
+    struct S {
+      int x = 100
+      int y = 42
+      float f = 3.141593
+      struct T t = {
+        int i = 1997
+      }
+    }
+
+.. code-block:: c++
+
+    #include <string>
+    struct T { int a, b; };
+    constexpr void constexpr_sprintf(std::string &out, const char *format,
+                                     auto ...args) {
+      // ...
+    }
+    constexpr std::string dump_struct(auto &x) {
+      std::string s;
+      __builtin_dump_struct(&x, constexpr_sprintf, s);
+      return s;
+    }
+    static_assert(dump_struct(T{1, 2}) == R"(struct T {
+      int a = 1
+      int b = 2
+    }
+    )");
 
 **Description**:
 
-The '``__builtin_dump_struct``' function is used to print the fields of a simple
-structure and their values for debugging purposes. The builtin accepts a pointer
-to a structure to dump the fields of, and a pointer to a formatted output
-function whose signature must be: ``int (*)(const char *, ...)`` and must
-support the format specifiers used by ``printf()``.
+The ``__builtin_dump_struct`` function is used to print the fields of a simple
+structure and their values for debugging purposes. The first argument of the
+builtin should be a pointer to the struct to dump. The second argument ``f``
+should be some callable expression, and can be a function object or an overload
+set. The builtin calls ``f``, passing any further arguments ``args...``
+followed by a ``printf``-compatible format string and the corresponding
+arguments. ``f`` may be called more than once, and ``f`` and ``args`` will be
+evaluated once per call. In C++, ``f`` may be a template or overload set and
+resolve to different functions for each call.
+
+In the format string, a suitable format specifier will be used for builtin
+types that Clang knows how to format. This includes standard builtin types, as
+well as aggregate structures, ``void*`` (printed with ``%p``), and ``const
+char*`` (printed with ``%s``). A ``*%p`` specifier will be used for a field
+that Clang doesn't know how to format, and the corresopnding argument will be a
+pointer to the field. This allows a C++ templated formatting function to detect
+this case and implement custom formatting. A ``*`` will otherwise not precede a
+format specifier.
+
+This builtin does not return a value.
+
+This builtin can be used in constant expressions.
+
+Query for this feature with ``__has_builtin(__builtin_dump_struct)``
 
 .. _langext-__builtin_shufflevector:
 
@@ -2948,7 +2994,7 @@ Query for this feature with ``__has_builtin(__builtin_trap)``.
 
 ``__builtin_sycl_unique_stable_name()`` is a builtin that takes a type and
 produces a string literal containing a unique name for the type that is stable
-across split compilations, mainly to support SYCL/Data Parallel C++ language.
+across split compilations, mainly to support SYCL language.
 
 In cases where the split compilation needs to share a unique token for a type
 across the boundary (such as in an offloading situation), this name can be used
@@ -2960,7 +3006,7 @@ stable numbering order in which they appear in their local declaration contexts.
 Once this builtin is evaluated in a constexpr context, it is erroneous to use
 it in an instantiation which changes its value.
 
-In order to produce the unique name, the current implementation of the bultin
+In order to produce the unique name, the current implementation of the builtin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
 the SYCL kernel and emits a stable local ordering of the respective lambdas.
@@ -3199,6 +3245,26 @@ Note that the `size` argument must be a compile time constant.
 
 Note that this intrinsic cannot yet be called in a ``constexpr`` context.
 
+Guaranteed inlined memset
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: c
+
+  void __builtin_memset_inline(void *dst, int value, size_t size);
+
+
+``__builtin_memset_inline`` has been designed as a building block for efficient
+``memset`` implementations. It is identical to ``__builtin_memset`` but also
+guarantees not to call any external functions. See LLVM IR `llvm.memset.inline
+<https://llvm.org/docs/LangRef.html#llvm-memset-inline-intrinsic>`_ intrinsic
+for more information.
+
+This is useful to implement a custom version of ``memset``, implement a
+``libc`` memset or work around the absence of a ``libc``.
+
+Note that the `size` argument must be a compile time constant.
+
+Note that this intrinsic cannot yet be called in a ``constexpr`` context.
 
 Atomic Min/Max builtins with memory ordering
 --------------------------------------------
@@ -3402,10 +3468,9 @@ as the first argument to the intrinsic.
 Source location builtins
 ------------------------
 
-Clang provides experimental builtins to support C++ standard library implementation
-of ``std::experimental::source_location`` as specified in  http://wg21.link/N4600.
-With the exception of ``__builtin_COLUMN``, these builtins are also implemented by
-GCC.
+Clang provides builtins to support C++ standard library implementation
+of ``std::source_location`` as specified in C++20.  With the exception
+of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
 
 **Syntax**:
 
@@ -3415,6 +3480,7 @@ GCC.
   const char *__builtin_FUNCTION();
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
+  const std::source_location::__impl *__builtin_source_location();
 
 **Example of use**:
 
@@ -3441,9 +3507,11 @@ GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE`` return
-the values, at the "invocation point", for ``__LINE__``, ``__FUNCTION__``, and
-``__FILE__`` respectively. These builtins are constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE``
+return the values, at the "invocation point", for ``__LINE__``,
+``__FUNCTION__``, and ``__FILE__`` respectively. ``__builtin_COLUMN`` similarly
+returns the column, though there is no corresponding macro. These builtins are
+constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
@@ -3453,6 +3521,15 @@ the invocation point is the same as the location of the builtin.
 
 When the invocation point of ``__builtin_FUNCTION`` is not a function scope the
 empty string is returned.
+
+The builtin ``__builtin_source_location`` returns a pointer to constant static
+data of type ``std::source_location::__impl``. This type must have already been
+defined, and must contain exactly four fields: ``const char *_M_file_name``,
+``const char *_M_function_name``, ``<any-integral-type> _M_line``, and
+``<any-integral-type> _M_column``. The fields will be populated in the same
+manner as the above four builtins, except that ``_M_function_name`` is populated
+with ``__PRETTY_FUNCTION__`` rather than ``__FUNCTION__``.
+
 
 Alignment builtins
 ------------------
@@ -3763,6 +3840,44 @@ it causes the instantiation of ``twice`` and ``thrice`` with an ``int`` type; of
 these two instantiations, ``twice`` will be optimized (because its definition
 was outside the region) and ``thrice`` will not be optimized.
 
+Clang also implements MSVC's range-based pragma,
+``#pragma optimize("[optimization-list]", on | off)``. At the moment, Clang only
+supports an empty optimization list, whereas MSVC supports the arguments, ``s``,
+``g``, ``t``, and ``y``. Currently, the implementation of ``pragma optimize`` behaves
+the same as ``#pragma clang optimize``. All functions
+between ``off`` and ``on`` will be decorated with the ``optnone`` attribute.
+
+.. code-block:: c++
+
+  #pragma optimize("", off)
+  // This function will be decorated with optnone.
+  void f1() {}
+
+  #pragma optimize("", on)
+  // This function will be optimized with whatever was specified on
+  // the commandline.
+  void f2() {}
+
+  // This will warn with Clang's current implementation.
+  #pragma optimize("g", on)
+  void f3() {}
+
+For MSVC, an empty optimization list and ``off`` parameter will turn off
+all optimizations, ``s``, ``g``, ``t``, and ``y``. An empty optimization and
+``on`` parameter will reset the optimizations to the ones specified on the
+commandline.
+
+.. list-table:: Parameters (unsupported by Clang)
+
+   * - Parameter
+     - Type of optimization
+   * - g
+     - Deprecated
+   * - s or t
+     - Short or fast sequences of machine code
+   * - y
+     - Enable frame pointers
+
 Extensions for loop hint optimizations
 ======================================
 
@@ -4007,7 +4122,7 @@ Note that ``-ffp-contract=fast`` will override pragmas to fuse multiply and
 addition across statements regardless of any controlling pragmas.
 
 ``#pragma clang fp exceptions`` specifies floating point exception behavior. It
-may take one the the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
+may take one of the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
 these values is same as for `constrained floating point intrinsics <http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics>`_.
 
 .. code-block:: c++
@@ -4142,8 +4257,22 @@ The ``__declspec`` style syntax is also supported:
 
   #pragma clang attribute pop
 
-A single push directive accepts only one attribute regardless of the syntax
-used.
+A single push directive can contain multiple attributes, however, 
+only one syntax style can be used within a single directive:
+
+.. code-block:: c++
+
+  #pragma clang attribute push ([[noreturn, noinline]], apply_to = function)
+
+  void function1(); // The function now has the [[noreturn]] and [[noinline]] attributes
+
+  #pragma clang attribute pop
+  
+  #pragma clang attribute push (__attribute((noreturn, noinline)), apply_to = function)
+
+  void function2(); // The function now has the __attribute((noreturn)) and __attribute((noinline)) attributes
+
+  #pragma clang attribute pop
 
 Because multiple push directives can be nested, if you're writing a macro that
 expands to ``_Pragma("clang attribute")`` it's good hygiene (though not

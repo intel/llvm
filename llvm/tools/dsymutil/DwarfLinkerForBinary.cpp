@@ -18,7 +18,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -494,7 +493,7 @@ void DwarfLinkerForBinary::collectRelocationsToApplyToSwiftReflectionSections(
 
 void DwarfLinkerForBinary::copySwiftReflectionMetadata(
     const llvm::dsymutil::DebugMapObject *Obj, DwarfStreamer *Streamer,
-    const std::vector<uint64_t> &SectionToOffsetInDwarf,
+    std::vector<uint64_t> &SectionToOffsetInDwarf,
     std::vector<MachOUtils::DwarfRelocationApplicationInfo>
         &RelocationsToApply) {
   using binaryformat::Swift5ReflectionSectionKind;
@@ -539,6 +538,10 @@ void DwarfLinkerForBinary::copySwiftReflectionMetadata(
       collectRelocationsToApplyToSwiftReflectionSections(
           Section, *SectionContents, MO, SectionToOffsetInDwarf, Obj,
           RelocationsToApply);
+      // Update the section start with the current section's contribution, so
+      // the next section we copy from a different .o file points to the correct
+      // place.
+      SectionToOffsetInDwarf[SectionKind] += Section.getSize();
       Streamer->emitSwiftReflectionSection(SectionKind, *SectionContents,
                                            Section.getAlignment(),
                                            Section.getSize());
@@ -710,7 +713,8 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
   }
 
   // link debug info for loaded object files.
-  GeneralLinker.link();
+  if (Error E = GeneralLinker.link())
+    return error(toString(std::move(E)));
 
   StringRef ArchName = Map.getTriple().getArchName();
   if (Error E = emitRemarks(Options, Map.getBinaryPath(), ArchName, RL))
@@ -937,7 +941,7 @@ getAttributeOffsets(const DWARFAbbreviationDeclaration *Abbrev, unsigned Idx,
   return std::make_pair(Offset, End);
 }
 
-bool DwarfLinkerForBinary::AddressManager::hasLiveMemoryLocation(
+bool DwarfLinkerForBinary::AddressManager::isLiveVariable(
     const DWARFDie &DIE, CompileUnit::DIEInfo &MyInfo) {
   const auto *Abbrev = DIE.getAbbreviationDeclarationPtr();
 
@@ -956,7 +960,7 @@ bool DwarfLinkerForBinary::AddressManager::hasLiveMemoryLocation(
                               LocationEndOffset, MyInfo);
 }
 
-bool DwarfLinkerForBinary::AddressManager::hasLiveAddressRange(
+bool DwarfLinkerForBinary::AddressManager::isLiveSubprogram(
     const DWARFDie &DIE, CompileUnit::DIEInfo &MyInfo) {
   const auto *Abbrev = DIE.getAbbreviationDeclarationPtr();
 
@@ -1006,7 +1010,6 @@ DwarfLinkerForBinary::AddressManager::relocate(const ValidReloc &Reloc) const {
 /// \returns whether any reloc has been applied.
 bool DwarfLinkerForBinary::AddressManager::applyValidRelocs(
     MutableArrayRef<char> Data, uint64_t BaseOffset, bool IsLittleEndian) {
-  assert(areRelocationsResolved());
   std::vector<ValidReloc> Relocs = getRelocations(
       ValidDebugInfoRelocs, BaseOffset, BaseOffset + Data.size());
 

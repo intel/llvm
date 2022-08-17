@@ -106,6 +106,6 @@ it can be merged:
 [json grammar file]: https://github.com/KhronosGroup/SPIRV-Headers/blob/master/include/spirv/unified1/spirv.core.grammar.json
 [instructions]: https://github.com/KhronosGroup/SPIRV-Headers#generating-headers-from-the-json-grammar-for-the-spir-v-core-instruction-set
 [SPIR-V Headers repository]: https://github.com/KhronosGroup/SPIRV-Headers
-[internal SPIR-V header file]: https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/master/lib/SPIRV/libSPIRV/spirv_internal.hpp
+[internal SPIR-V header file]: https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/lib/SPIRV/libSPIRV/spirv_internal.hpp
 [Contributor License Agreement]: https://cla-assistant.io/KhronosGroup/SPIRV-LLVM-Translator
 [Travis CI testing]: https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator

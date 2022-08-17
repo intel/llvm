@@ -9,8 +9,6 @@ import os, signal, subprocess
 
 class SBModuleAPICase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         TestBase.setUp(self)
         self.background_pid = None
@@ -21,6 +19,7 @@ class SBModuleAPICase(TestBase):
             os.kill(self.background_pid, signal.SIGKILL)
 
     @skipUnlessDarwin
+    @skipIfRemote
     def test_module_is_file_backed(self):
         """Test the SBModule::IsFileBacked() method"""
         self.build()

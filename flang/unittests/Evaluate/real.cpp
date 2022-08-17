@@ -35,8 +35,8 @@ void dumpTest() {
       {0x3f000000, "0x1.0p-1"},
       {0x7f7fffff, "0x1.fffffep127"},
       {0x00800000, "0x1.0p-126"},
-      {0x00400000, "0x0.8p-127"},
-      {0x00000001, "0x0.000002p-127"},
+      {0x00400000, "0x0.8p-126"},
+      {0x00000001, "0x0.000002p-126"},
       {0, nullptr},
   };
   for (int j{0}; table[j].expected != nullptr; ++j) {
@@ -390,6 +390,22 @@ void subsetTests(int pass, Rounding rounding, std::uint32_t opds) {
       ("%d AINT(0x%jx)", pass, static_cast<std::intmax_t>(rj));
       MATCH(actualFlags, FlagsToBits(aint.flags))
       ("%d AINT(0x%jx)", pass, static_cast<std::intmax_t>(rj));
+    }
+
+    {
+      ValueWithRealFlags<REAL> root{x.SQRT(rounding)};
+#ifndef __clang__ // broken and also slow
+      fpenv.ClearFlags();
+#endif
+      FLT fcheck{std::sqrt(fj)};
+      auto actualFlags{FlagsToBits(fpenv.CurrentFlags())};
+      u.f = fcheck;
+      UINT rcheck{NormalizeNaN(u.ui)};
+      UINT check = root.value.RawBits().ToUInt64();
+      MATCH(rcheck, check)
+      ("%d SQRT(0x%jx)", pass, static_cast<std::intmax_t>(rj));
+      MATCH(actualFlags, FlagsToBits(root.flags))
+      ("%d SQRT(0x%jx)", pass, static_cast<std::intmax_t>(rj));
     }
 
     {

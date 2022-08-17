@@ -604,10 +604,10 @@ image_load v[0:3], v[0:1], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D
 // CHECK-NEXT:{{^}}^
 
 //==============================================================================
-// image data size does not match dmask and tfe
+// image data size does not match dmask, d16 and tfe
 
 image_load v[0:1], v0, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D
-// CHECK: error: image data size does not match dmask and tfe
+// CHECK: error: image data size does not match dmask, d16 and tfe
 // CHECK-NEXT:{{^}}image_load v[0:1], v0, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D
 // CHECK-NEXT:{{^}}^
 
@@ -988,6 +988,19 @@ s_sendmsg sendmsg(MSG_GS_DONE, GS_OP_NOP, 0)
 // CHECK: error: message operation does not support streams
 // CHECK-NEXT:{{^}}s_sendmsg sendmsg(MSG_GS_DONE, GS_OP_NOP, 0)
 // CHECK-NEXT:{{^}}                                          ^
+
+//==============================================================================
+// missing dst operand or lds modifier
+
+buffer_load_dword off, s[8:11], s3
+// CHECK: error: missing dst operand or lds modifier
+// CHECK-NEXT:{{^}}buffer_load_dword off, s[8:11], s3
+// CHECK-NEXT:{{^}}^
+
+buffer_load_dword off, s[8:11], s3 offset:1
+// CHECK: error: missing dst operand or lds modifier
+// CHECK-NEXT:{{^}}buffer_load_dword off, s[8:11], s3 offset:1
+// CHECK-NEXT:{{^}}^
 
 //==============================================================================
 // missing message operation

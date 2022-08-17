@@ -46,7 +46,7 @@ FailureOr<GenericOp> mlir::linalg::generalizeNamedOp(RewriterBase &rewriter,
 
   SmallVector<Value> inputOperands = linalgOp.getInputOperands();
   SmallVector<Value> outputOperands = linalgOp.getOutputOperands();
-  SmallVector<AffineMap> indexingMaps = linalgOp.getIndexingMaps();
+  SmallVector<AffineMap> indexingMaps = linalgOp.getIndexingMapsArray();
   SmallVector<StringRef> iterators = llvm::to_vector<4>(
       linalgOp.iterator_types().getAsValueRange<StringAttr>());
   SmallVector<RankedTensorType> resultTypes = linalgOp.getOutputTensorTypes();
@@ -74,7 +74,7 @@ struct LinalgGeneralizationPass
 } // namespace
 
 void LinalgGeneralizationPass::runOnOperation() {
-  FuncOp func = getOperation();
+  func::FuncOp func = getOperation();
   RewritePatternSet patterns(&getContext());
   populateLinalgNamedOpsGeneralizationPatterns(patterns);
   (void)applyPatternsAndFoldGreedily(func.getBody(), std::move(patterns));
@@ -85,6 +85,7 @@ void mlir::linalg::populateLinalgNamedOpsGeneralizationPatterns(
   patterns.add<LinalgGeneralizationPattern>(patterns.getContext(), marker);
 }
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLinalgGeneralizationPass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createLinalgGeneralizationPass() {
   return std::make_unique<LinalgGeneralizationPass>();
 }

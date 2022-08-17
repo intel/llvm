@@ -1,6 +1,6 @@
 ; Test call site info MIR printer and parser.Parser assertions and machine
 ; verifier will check the rest;
-; RUN: llc -emit-call-site-info %s -stop-before=finalize-isel -o %t.mir
+; RUN: llc -opaque-pointers -emit-call-site-info %s -stop-before=finalize-isel -o %t.mir
 ; RUN: cat %t.mir | FileCheck %s
 ; CHECK: name: fn2
 ; CHECK: callSites:
@@ -10,7 +10,7 @@
 ; CHECK-NEXT:   arg: 0, reg: '$edi'
 ; CHECK-NEXT:   arg: 1, reg: '$esi'
 ; CHECK-NEXT:   arg: 2, reg: '$edx'
-; RUN: llc -emit-call-site-info %t.mir -run-pass=finalize-isel -o -| FileCheck %s --check-prefix=PARSER
+; RUN: llc -opaque-pointers -emit-call-site-info %t.mir -run-pass=finalize-isel -o -| FileCheck %s --check-prefix=PARSER
 ; Verify that we are able to parse output mir and that we are getting the same result.
 ; PARSER: name: fn2
 ; PARSER: callSites:
@@ -27,7 +27,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: noinline nounwind uwtable
 define dso_local i64 @fn2(i32 %a, i32 %b, i32 %c) local_unnamed_addr {
 entry:
-  %call = tail call i32 (i32, i32, i32, ...) bitcast (i32 (...)* @fn1 to i32 (i32, i32, i32, ...)*)(i32 -50, i32 50, i32 -7)
+  %call = tail call i32 (i32, i32, i32, ...) @fn1(i32 -50, i32 50, i32 -7)
   %add = mul i32 %a, 3
   %sub = sub i32 %add, %b
   %add2 = add i32 %sub, %c

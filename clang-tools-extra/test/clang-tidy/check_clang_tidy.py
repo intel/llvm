@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 #===- check_clang_tidy.py - ClangTidy Test Helper ------------*- python -*--===#
 #
@@ -19,11 +19,17 @@ Usage:
     [-assume-filename=<file-with-source-extension>] \
     [-check-suffix=<comma-separated-file-check-suffixes>] \
     [-check-suffixes=<comma-separated-file-check-suffixes>] \
+    [-std=c++(98|11|14|17|20)[-or-later]] \
     <source-file> <check-name> <temp-file> \
     -- [optional clang-tidy arguments]
 
 Example:
   // RUN: %check_clang_tidy %s llvm-include-order %t -- -- -isystem %S/Inputs
+
+Notes:
+  -std=c++(98|11|14|17|20)-or-later:
+    This flag will cause multiple runs within the same check_clang_tidy
+    execution. Make sure you don't have shared state across these runs.
 """
 
 import argparse
@@ -167,13 +173,13 @@ class CheckRunner:
     print('Running ' + repr(args) + '...')
     clang_tidy_output = try_run(args)
     print('------------------------ clang-tidy output -----------------------')
-    print(clang_tidy_output.encode())
-    print('\n------------------------------------------------------------------')
+    print(clang_tidy_output.encode(sys.stdout.encoding, errors="replace").decode(sys.stdout.encoding))
+    print('------------------------------------------------------------------')
 
     diff_output = try_run(['diff', '-u', self.original_file_name, self.temp_file_name], False)
-    print('------------------------------ Fixes -----------------------------\n' +
-          diff_output +
-          '\n------------------------------------------------------------------')
+    print('------------------------------ Fixes -----------------------------')
+    print(diff_output)
+    print('------------------------------------------------------------------')
     return clang_tidy_output
 
   def check_fixes(self):

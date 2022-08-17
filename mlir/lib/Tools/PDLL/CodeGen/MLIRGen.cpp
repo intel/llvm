@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Tools/PDLL/CodeGen/MLIRGen.h"
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/PDL/IR/PDL.h"
 #include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/Dialect/PDL/IR/PDLTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/Parser/Parser.h"
 #include "mlir/Tools/PDLL/AST/Context.h"
 #include "mlir/Tools/PDLL/AST/Nodes.h"
 #include "mlir/Tools/PDLL/AST/Types.h"
@@ -200,9 +200,9 @@ void CodeGen::genImpl(const ast::CompoundStmt *stmt) {
 static void checkAndNestUnderRewriteOp(OpBuilder &builder, Value rootExpr,
                                        Location loc) {
   if (isa<pdl::PatternOp>(builder.getInsertionBlock()->getParentOp())) {
-    pdl::RewriteOp rewrite = builder.create<pdl::RewriteOp>(
-        loc, rootExpr, /*name=*/StringAttr(),
-        /*externalArgs=*/ValueRange(), /*externalConstParams=*/ArrayAttr());
+    pdl::RewriteOp rewrite =
+        builder.create<pdl::RewriteOp>(loc, rootExpr, /*name=*/StringAttr(),
+                                       /*externalArgs=*/ValueRange());
     builder.createBlock(&rewrite.body());
   }
 }
@@ -316,11 +316,12 @@ Value CodeGen::genNonInitializerVar(const ast::VariableDecl *varDecl,
       Value typeValue =
           TypeSwitch<const ast::Node *, Value>(constraint.constraint)
               .Case<ast::AttrConstraintDecl, ast::ValueConstraintDecl,
-                    ast::ValueRangeConstraintDecl>([&, this](auto *cst) -> Value {
-                if (auto *typeConstraintExpr = cst->getTypeExpr())
-                  return this->genSingleExpr(typeConstraintExpr);
-                return Value();
-              })
+                    ast::ValueRangeConstraintDecl>(
+                  [&, this](auto *cst) -> Value {
+                    if (auto *typeConstraintExpr = cst->getTypeExpr())
+                      return this->genSingleExpr(typeConstraintExpr);
+                    return Value();
+                  })
               .Default(Value());
       if (typeValue)
         return typeValue;
@@ -442,9 +443,16 @@ Value CodeGen::genExprImpl(const ast::MemberAccessExpr *expr) {
       return builder.create<pdl::ResultsOp>(loc, mlirType, parentExprs[0]);
     }
 
-    assert(opType.getName() && "expected valid operation name");
-    const ods::Operation *odsOp = odsContext.lookupOperation(*opType.getName());
-    assert(odsOp && "expected valid ODS operation information");
+    const ods::Operation *odsOp = opType.getODSOperation();
+    if (!odsOp) {
+      assert(llvm::isDigit(name[0]) &&
+             "unregistered op only allows numeric indexing");
+      unsigned resultIndex;
+      name.getAsInteger(/*Radix=*/10, resultIndex);
+      IntegerAttr index = builder.getI32IntegerAttr(resultIndex);
+      return builder.create<pdl::ResultOp>(loc, genType(expr->getType()),
+                                           parentExprs[0], index);
+    }
 
     // Find the result with the member name or by index.
     ArrayRef<ods::OperandOrResult> results = odsOp->getResults();
@@ -564,14 +572,8 @@ SmallVector<Value> CodeGen::genConstraintOrRewriteCall(const T *decl,
     } else {
       resultTypes.push_back(genType(declResultType));
     }
-
-    // FIXME: We currently do not have a modeling for the "constant params"
-    // support PDL provides. We should either figure out a modeling for this, or
-    // refactor the support within PDL to be something a bit more reasonable for
-    // what we need as a frontend.
-    Operation *pdlOp = builder.create<PDLOpT>(loc, resultTypes,
-                                              decl->getName().getName(), inputs,
-                                              /*params=*/ArrayAttr());
+    Operation *pdlOp = builder.create<PDLOpT>(
+        loc, resultTypes, decl->getName().getName(), inputs);
     return pdlOp->getResults();
   }
 

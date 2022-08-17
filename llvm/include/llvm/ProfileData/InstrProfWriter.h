@@ -15,7 +15,9 @@
 #define LLVM_PROFILEDATA_INSTRPROFWRITER_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/MemProf.h"
 #include "llvm/Support/Endian.h"
@@ -41,7 +43,12 @@ private:
 
   // A map to hold memprof data per function. The lower 64 bits obtained from
   // the md5 hash of the function name is used to index into the map.
-  memprof::FunctionMemProfMap MemProfData;
+  llvm::MapVector<GlobalValue::GUID, memprof::IndexedMemProfRecord>
+      MemProfRecordData;
+  // A map to hold frame id to frame mappings. The mappings are used to
+  // convert IndexedMemProfRecord to MemProfRecords with frame information
+  // inline.
+  llvm::MapVector<memprof::FrameId, memprof::Frame> MemProfFrameData;
 
   // An enum describing the attributes of the profile.
   InstrProfKind ProfileKind = InstrProfKind::Unknown;
@@ -63,8 +70,14 @@ public:
     addRecord(std::move(I), 1, Warn);
   }
 
-  void addRecord(const ::llvm::memprof::MemProfRecord &MR,
-                 function_ref<void(Error)> Warn);
+  /// Add a memprof record for a function identified by its \p Id.
+  void addMemProfRecord(const GlobalValue::GUID Id,
+                        const memprof::IndexedMemProfRecord &Record);
+
+  /// Add a memprof frame identified by the hash of the contents of the frame in
+  /// \p FrameId.
+  bool addMemProfFrame(const memprof::FrameId, const memprof::Frame &F,
+                       function_ref<void(Error)> Warn);
 
   /// Merge existing function counts from the given writer.
   void mergeRecordsFromWriter(InstrProfWriter &&IPW,

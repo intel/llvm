@@ -187,6 +187,7 @@ define <vscale x  1 x i1> @select_nxv1i1(i1 %cond, <vscale x  1 x i1> %a, <vscal
 ; CHECK-NEXT:    // kill: def $w0 killed $w0 def $x0
 ; CHECK-NEXT:    sbfx x8, x0, #0, #1
 ; CHECK-NEXT:    whilelo p2.d, xzr, x8
+; CHECK-NEXT:    punpklo p2.h, p2.b
 ; CHECK-NEXT:    sel p0.b, p2, p0.b, p1.b
 ; CHECK-NEXT:    ret
   %res = select i1 %cond, <vscale x  1 x i1> %a, <vscale x  1 x i1> %b
@@ -225,6 +226,7 @@ define <vscale x 4 x i32> @sel_nxv4i32(<vscale x 4 x i1> %p, <vscale x 4 x i32> 
 define <vscale x 1 x i64> @sel_nxv1i64(<vscale x 1 x i1> %p, <vscale x 1 x i64> %dst, <vscale x 1 x i64> %a) {
 ; CHECK-LABEL: sel_nxv1i64:
 ; CHECK:       // %bb.0:
+; CHECK-NEXT:    uzp1 p0.d, p0.d, p0.d
 ; CHECK-NEXT:    mov z0.d, p0/m, z1.d
 ; CHECK-NEXT:    ret
   %sel = select <vscale x 1 x i1> %p, <vscale x 1 x i64> %a, <vscale x 1 x i64> %dst
@@ -483,6 +485,7 @@ define <vscale x 1 x i1> @icmp_select_nxv1i1(<vscale x 1 x i1> %a, <vscale x 1 x
 ; CHECK-NEXT:    cset w8, eq
 ; CHECK-NEXT:    sbfx x8, x8, #0, #1
 ; CHECK-NEXT:    whilelo p2.d, xzr, x8
+; CHECK-NEXT:    punpklo p2.h, p2.b
 ; CHECK-NEXT:    sel p0.b, p2, p0.b, p1.b
 ; CHECK-NEXT:    ret
     %mask = icmp eq i64 %x0, 0
@@ -569,14 +572,14 @@ define <vscale x 4 x float> @select_f32_invert_fadd(<vscale x 4 x float> %a, <vs
   ret <vscale x 4 x float> %sel
 }
 
-define <vscale x 4 x float> @select_f32_invert_fsub(<vscale x 4 x float> %a, <vscale x 4 x float> %b) {
+define <vscale x 4 x float> @select_f32_invert_fsub(<vscale x 4 x float> %a, <vscale x 4 x float> %b, <vscale x 4 x i32> %c) {
 ; CHECK-LABEL: select_f32_invert_fsub:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.s
-; CHECK-NEXT:    fcmne p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    cmpne p0.s, p0/z, z2.s, #0
 ; CHECK-NEXT:    fsub z0.s, p0/m, z0.s, z1.s
 ; CHECK-NEXT:    ret
-  %p = fcmp oeq <vscale x 4 x float> %a, zeroinitializer
+  %p = icmp eq <vscale x 4 x i32> %c, zeroinitializer
   %fsub = fsub <vscale x 4 x float> %a, %b
   %sel = select <vscale x 4 x i1> %p, <vscale x 4 x float> %a, <vscale x 4 x float> %fsub
   ret <vscale x 4 x float> %sel

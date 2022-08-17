@@ -105,13 +105,10 @@ define amdgpu_kernel void @scalar_to_vector_v4i16() {
 ; SI-NEXT:    buffer_load_ubyte v0, off, s[0:3], 0
 ; SI-NEXT:    s_waitcnt vmcnt(0)
 ; SI-NEXT:    v_lshlrev_b32_e32 v1, 8, v0
-; SI-NEXT:    v_or_b32_e32 v0, v1, v0
-; SI-NEXT:    v_lshrrev_b32_e32 v1, 8, v0
-; SI-NEXT:    v_lshlrev_b32_e32 v2, 8, v1
-; SI-NEXT:    v_or_b32_e32 v1, v1, v2
-; SI-NEXT:    v_lshlrev_b32_e32 v2, 16, v1
-; SI-NEXT:    v_or_b32_e32 v1, v1, v2
-; SI-NEXT:    v_or_b32_e32 v0, v0, v2
+; SI-NEXT:    v_or_b32_e32 v0, v0, v1
+; SI-NEXT:    v_lshlrev_b32_e32 v1, 16, v0
+; SI-NEXT:    v_or_b32_e32 v0, v0, v1
+; SI-NEXT:    v_mov_b32_e32 v1, v0
 ; SI-NEXT:    buffer_store_dwordx2 v[0:1], off, s[0:3], 0
 ; SI-NEXT:    s_endpgm
 ;
@@ -122,13 +119,10 @@ define amdgpu_kernel void @scalar_to_vector_v4i16() {
 ; VI-NEXT:    buffer_load_ubyte v0, off, s[0:3], 0
 ; VI-NEXT:    s_waitcnt vmcnt(0)
 ; VI-NEXT:    v_lshlrev_b16_e32 v1, 8, v0
-; VI-NEXT:    v_or_b32_e32 v0, v1, v0
-; VI-NEXT:    v_lshrrev_b16_e32 v1, 8, v0
-; VI-NEXT:    v_lshlrev_b16_e32 v2, 8, v1
-; VI-NEXT:    v_or_b32_e32 v1, v1, v2
-; VI-NEXT:    v_lshlrev_b32_e32 v2, 16, v1
-; VI-NEXT:    v_or_b32_sdwa v1, v1, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:DWORD
-; VI-NEXT:    v_or_b32_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:DWORD
+; VI-NEXT:    v_or_b32_e32 v0, v0, v1
+; VI-NEXT:    v_lshlrev_b32_e32 v1, 16, v0
+; VI-NEXT:    v_or_b32_sdwa v0, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:DWORD
+; VI-NEXT:    v_mov_b32_e32 v1, v0
 ; VI-NEXT:    buffer_store_dwordx2 v[0:1], off, s[0:3], 0
 ; VI-NEXT:    s_endpgm
 bb:
@@ -147,13 +141,10 @@ define amdgpu_kernel void @scalar_to_vector_v4f16() {
 ; SI-NEXT:    buffer_load_ubyte v0, off, s[0:3], 0
 ; SI-NEXT:    s_waitcnt vmcnt(0)
 ; SI-NEXT:    v_lshlrev_b32_e32 v1, 8, v0
-; SI-NEXT:    v_or_b32_e32 v0, v1, v0
-; SI-NEXT:    v_lshrrev_b32_e32 v1, 8, v0
-; SI-NEXT:    v_lshlrev_b32_e32 v2, 8, v1
-; SI-NEXT:    v_or_b32_e32 v1, v1, v2
-; SI-NEXT:    v_lshlrev_b32_e32 v2, 16, v1
-; SI-NEXT:    v_or_b32_e32 v1, v1, v2
-; SI-NEXT:    v_or_b32_e32 v0, v0, v2
+; SI-NEXT:    v_or_b32_e32 v0, v0, v1
+; SI-NEXT:    v_lshlrev_b32_e32 v1, 16, v0
+; SI-NEXT:    v_or_b32_e32 v0, v0, v1
+; SI-NEXT:    v_mov_b32_e32 v1, v0
 ; SI-NEXT:    buffer_store_dwordx2 v[0:1], off, s[0:3], 0
 ; SI-NEXT:    s_endpgm
 ;
@@ -165,9 +156,8 @@ define amdgpu_kernel void @scalar_to_vector_v4f16() {
 ; VI-NEXT:    s_waitcnt vmcnt(0)
 ; VI-NEXT:    v_lshlrev_b16_e32 v1, 8, v0
 ; VI-NEXT:    v_or_b32_e32 v0, v1, v0
-; VI-NEXT:    v_lshrrev_b16_e32 v1, 8, v0
-; VI-NEXT:    v_lshlrev_b16_e32 v2, 8, v1
-; VI-NEXT:    v_or_b32_e32 v1, v1, v2
+; VI-NEXT:    v_and_b32_e32 v1, 0xffffff00, v0
+; VI-NEXT:    v_or_b32_sdwa v1, v0, v1 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_1 src1_sel:DWORD
 ; VI-NEXT:    v_lshlrev_b32_e32 v2, 16, v1
 ; VI-NEXT:    v_or_b32_sdwa v1, v1, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:DWORD
 ; VI-NEXT:    v_or_b32_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:DWORD

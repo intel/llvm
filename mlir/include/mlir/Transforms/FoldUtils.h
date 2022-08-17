@@ -45,6 +45,16 @@ public:
             function_ref<void(Operation *)> preReplaceAction = nullptr,
             bool *inPlaceUpdate = nullptr);
 
+  /// Tries to fold a pre-existing constant operation. `constValue` represents
+  /// the value of the constant, and can be optionally passed if the value is
+  /// already known (e.g. if the constant was discovered by m_Constant). This is
+  /// purely an optimization opportunity for callers that already know the value
+  /// of the constant. Returns false if an existing constant for `op` already
+  /// exists in the folder, in which case `op` is replaced and erased.
+  /// Otherwise, returns true and `op` is inserted into the folder (and
+  /// hoisted if necessary).
+  bool insertKnownConstant(Operation *op, Attribute constValue = {});
+
   /// Notifies that the given constant `op` should be remove from this
   /// OperationFolder's internal bookkeeping.
   ///
@@ -57,7 +67,7 @@ public:
   /// the results after folding the operation.
   template <typename OpTy, typename... Args>
   void create(OpBuilder &builder, SmallVectorImpl<Value> &results,
-              Location location, Args &&... args) {
+              Location location, Args &&...args) {
     // The op needs to be inserted only if the fold (below) fails, or the number
     // of results produced by the successful folding is zero (which is treated
     // as an in-place fold). Using create methods of the builder will insert the
@@ -78,7 +88,7 @@ public:
   template <typename OpTy, typename... Args>
   typename std::enable_if<OpTy::template hasTrait<OpTrait::OneResult>(),
                           Value>::type
-  create(OpBuilder &builder, Location location, Args &&... args) {
+  create(OpBuilder &builder, Location location, Args &&...args) {
     SmallVector<Value, 1> results;
     create<OpTy>(builder, results, location, std::forward<Args>(args)...);
     return results.front();
@@ -86,9 +96,9 @@ public:
 
   /// Overload to create or fold a zero result operation.
   template <typename OpTy, typename... Args>
-  typename std::enable_if<OpTy::template hasTrait<OpTrait::ZeroResult>(),
+  typename std::enable_if<OpTy::template hasTrait<OpTrait::ZeroResults>(),
                           OpTy>::type
-  create(OpBuilder &builder, Location location, Args &&... args) {
+  create(OpBuilder &builder, Location location, Args &&...args) {
     auto op = builder.create<OpTy>(location, std::forward<Args>(args)...);
     SmallVector<Value, 0> unused;
     (void)tryToFold(op.getOperation(), unused);
@@ -114,11 +124,23 @@ private:
   using ConstantMap =
       DenseMap<std::tuple<Dialect *, Attribute, Type>, Operation *>;
 
+  /// Returns true if the given operation is an already folded constant that is
+  /// owned by this folder.
+  bool isFolderOwnedConstant(Operation *op) const;
+
   /// Tries to perform folding on the given `op`. If successful, populates
   /// `results` with the results of the folding.
   LogicalResult tryToFold(
       OpBuilder &builder, Operation *op, SmallVectorImpl<Value> &results,
       function_ref<void(Operation *)> processGeneratedConstants = nullptr);
+
+  /// Try to process a set of fold results, generating constants as necessary.
+  /// Populates `results` on success, otherwise leaves it unchanged.
+  LogicalResult
+  processFoldResults(OpBuilder &builder, Operation *op,
+                     SmallVectorImpl<Value> &results,
+                     ArrayRef<OpFoldResult> foldResults,
+                     function_ref<void(Operation *)> processGeneratedConstants);
 
   /// Try to get or create a new constant entry. On success this returns the
   /// constant operation, nullptr otherwise.

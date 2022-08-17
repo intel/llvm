@@ -60,7 +60,7 @@ public:
     return *this;
   }
   // Do not use this API to cause the LB of an empty dimension
-  // to anything other than 1.  Use SetBounds() instead if you can.
+  // to be anything other than 1.  Use SetBounds() instead if you can.
   Dimension &SetLowerBound(SubscriptValue lower) {
     raw_.lower_bound = lower;
     return *this;
@@ -347,7 +347,7 @@ public:
 
   // Deallocates storage, including allocatable and automatic
   // components.  Optionally invokes FINAL subroutines.
-  int Destroy(bool finalize = false);
+  int Destroy(bool finalize = false, bool destroyPointers = false);
 
   bool IsContiguous(int leadingDimensions = maxRank) const {
     auto bytes{static_cast<SubscriptValue>(ElementBytes())};

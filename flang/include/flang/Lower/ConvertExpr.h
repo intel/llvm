@@ -23,24 +23,22 @@
 
 namespace mlir {
 class Location;
-}
+class Value;
+} // namespace mlir
 
-namespace Fortran::evaluate {
-template <typename>
-class Expr;
-struct SomeType;
-} // namespace Fortran::evaluate
+namespace fir {
+class AllocMemOp;
+class ArrayLoadOp;
+class ShapeOp;
+} // namespace fir
 
 namespace Fortran::lower {
 
 class AbstractConverter;
-class StatementContext;
-class SymMap;
 class ExplicitIterSpace;
 class ImplicitIterSpace;
 class StatementContext;
-
-using SomeExpr = Fortran::evaluate::Expr<Fortran::evaluate::SomeType>;
+class SymMap;
 
 /// Create an extended expression value.
 fir::ExtendedValue createSomeExtendedExpression(mlir::Location loc,
@@ -80,30 +78,6 @@ fir::ExtendedValue createInitializerAddress(mlir::Location loc,
                                             const SomeExpr &expr,
                                             SymMap &symMap,
                                             StatementContext &stmtCtx);
-
-/// Create the address of the box.
-/// \p expr must be the designator of an allocatable/pointer entity.
-fir::MutableBoxValue createMutableBox(mlir::Location loc,
-                                      AbstractConverter &converter,
-                                      const SomeExpr &expr, SymMap &symMap);
-
-/// Lower an array expression to a value of type box. The expression must be a
-/// variable.
-fir::ExtendedValue createSomeArrayBox(AbstractConverter &converter,
-                                      const SomeExpr &expr, SymMap &symMap,
-                                      StatementContext &stmtCtx);
-
-/// Lower a subroutine call. This handles both elemental and non elemental
-/// subroutines. \p isUserDefAssignment must be set if this is called in the
-/// context of a user defined assignment. For subroutines with alternate
-/// returns, the returned value indicates which label the code should jump to.
-/// The returned value is null otherwise.
-mlir::Value createSubroutineCall(AbstractConverter &converter,
-                                 const evaluate::ProcedureRef &call,
-                                 ExplicitIterSpace &explicitIterSpace,
-                                 ImplicitIterSpace &implicitIterSpace,
-                                 SymMap &symMap, StatementContext &stmtCtx,
-                                 bool isUserDefAssignment);
 
 /// Create the address of the box.
 /// \p expr must be the designator of an allocatable/pointer entity.
@@ -200,6 +174,17 @@ void createAllocatableArrayAssignment(AbstractConverter &converter,
                                       SymMap &symMap,
                                       StatementContext &stmtCtx);
 
+/// Lower a pointer assignment in an explicit iteration space. The explicit
+/// space iterates over a data structure with a type of `!fir.array<...
+/// !fir.box<!fir.ptr<T>> ...>`. Lower the assignment by copying the rhs box
+/// value to each array element.
+void createArrayOfPointerAssignment(
+    AbstractConverter &converter, const SomeExpr &lhs, const SomeExpr &rhs,
+    ExplicitIterSpace &explicitIterSpace, ImplicitIterSpace &implicitIterSpace,
+    const llvm::SmallVector<mlir::Value> &lbounds,
+    llvm::Optional<llvm::SmallVector<mlir::Value>> ubounds, SymMap &symMap,
+    StatementContext &stmtCtx);
+
 /// Lower an array expression with "parallel" semantics. Such a rhs expression
 /// is fully evaluated prior to being assigned back to a temporary array.
 fir::ExtendedValue createSomeArrayTempValue(AbstractConverter &converter,
@@ -220,6 +205,24 @@ void createLazyArrayTempValue(AbstractConverter &converter,
                               const SomeExpr &expr, mlir::Value raggedHeader,
                               SymMap &symMap, StatementContext &stmtCtx);
 
+/// Lower an array expression to a value of type box. The expression must be a
+/// variable.
+fir::ExtendedValue createSomeArrayBox(AbstractConverter &converter,
+                                      const SomeExpr &expr, SymMap &symMap,
+                                      StatementContext &stmtCtx);
+
+/// Lower a subroutine call. This handles both elemental and non elemental
+/// subroutines. \p isUserDefAssignment must be set if this is called in the
+/// context of a user defined assignment. For subroutines with alternate
+/// returns, the returned value indicates which label the code should jump to.
+/// The returned value is null otherwise.
+mlir::Value createSubroutineCall(AbstractConverter &converter,
+                                 const evaluate::ProcedureRef &call,
+                                 ExplicitIterSpace &explicitIterSpace,
+                                 ImplicitIterSpace &implicitIterSpace,
+                                 SymMap &symMap, StatementContext &stmtCtx,
+                                 bool isUserDefAssignment);
+
 // Attribute for an alloca that is a trivial adaptor for converting a value to
 // pass-by-ref semantics for a VALUE parameter. The optimizer may be able to
 // eliminate these.
@@ -228,10 +231,6 @@ inline mlir::NamedAttribute getAdaptToByRefAttr(fir::FirOpBuilder &builder) {
                                 fir::getAdaptToByRefAttrName()),
           builder.getUnitAttr()};
 }
-
-/// Generate max(\p value, 0) where \p value is a scalar integer.
-mlir::Value genMaxWithZero(fir::FirOpBuilder &builder, mlir::Location loc,
-                           mlir::Value value);
 
 } // namespace Fortran::lower
 

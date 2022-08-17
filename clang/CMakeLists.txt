@@ -78,15 +78,17 @@ if(CLANG_BUILT_STANDALONE)
   if (NOT LLVM_CONFIG_FOUND)
     # Pull values from LLVMConfig.cmake.  We can drop this once the llvm-config
     # path is removed.
-    set(MAIN_INCLUDE_DIR "${LLVM_INCLUDE_DIR}")
+    set(INCLUDE_DIRS ${LLVM_INCLUDE_DIRS})
     set(LLVM_OBJ_DIR "${LLVM_BINARY_DIR}")
     # N.B. this is just a default value, the CACHE PATHs below can be overriden.
     set(MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../llvm")
     set(TOOLS_BINARY_DIR "${LLVM_TOOLS_BINARY_DIR}")
     set(LIBRARY_DIR "${LLVM_LIBRARY_DIR}")
+  else()
+    set(INCLUDE_DIRS "${LLVM_BINARY_DIR}/include" "${MAIN_INCLUDE_DIR}")
   endif()
 
-  set(LLVM_MAIN_INCLUDE_DIR "${MAIN_INCLUDE_DIR}" CACHE PATH "Path to llvm/include")
+  set(LLVM_INCLUDE_DIRS ${INCLUDE_DIRS} CACHE PATH "Path to llvm/include and any other header dirs needed")
   set(LLVM_BINARY_DIR "${LLVM_OBJ_ROOT}" CACHE PATH "Path to LLVM build tree")
   set(LLVM_MAIN_SRC_DIR "${MAIN_SRC_DIR}" CACHE PATH "Path to LLVM source tree")
   set(LLVM_TOOLS_BINARY_DIR "${TOOLS_BINARY_DIR}" CACHE PATH "Path to llvm/bin")
@@ -128,7 +130,7 @@ if(CLANG_BUILT_STANDALONE)
     set(LLVM_INCLUDE_TESTS ON)
   endif()
 
-  include_directories("${LLVM_BINARY_DIR}/include" "${LLVM_MAIN_INCLUDE_DIR}")
+  include_directories(${LLVM_INCLUDE_DIRS})
   link_directories("${LLVM_LIBRARY_DIR}")
 
   set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
@@ -191,7 +193,9 @@ if(CLANG_BUILT_STANDALONE)
     else()
       set(LLVM_INCLUDE_TESTS OFF)
     endif()
-  endif()
+
+    umbrella_lit_testsuite_begin(check-all)
+  endif() # LLVM_INCLUDE_TESTS
 
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
 else()
@@ -245,7 +249,24 @@ set(PPC_LINUX_DEFAULT_IEEELONGDOUBLE OFF CACHE BOOL
 set(CLANG_SPAWN_CC1 OFF CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
-option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on Linux" OFF)
+# Turn this OFF downstream for compatibility reasons. GCC default is no-pie
+# and many distros, e.g. RedHat has no-pie by default for GCC.
+option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on linux-gnu" OFF)
+
+# Manually handle default so we can change the meaning of a cached default.
+set(CLANG_ENABLE_OPAQUE_POINTERS "DEFAULT" CACHE STRING
+    "Enable opaque pointers by default")
+if(CLANG_ENABLE_OPAQUE_POINTERS STREQUAL "DEFAULT")
+  if(DPCPP_ENABLE_OPAQUE_POINTERS)
+    set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
+  else()
+    set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL OFF)
+  endif()
+elseif(CLANG_ENABLE_OPAQUE_POINTERS)
+  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
+else()
+  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL OFF)
+endif()
 
 # TODO: verify the values against LangStandards.def?
 set(CLANG_DEFAULT_STD_C "" CACHE STRING
@@ -353,6 +374,10 @@ endif()
 # The libdir suffix must exactly match whatever LLVM's configuration used.
 set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}")
 
+set(CLANG_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
+mark_as_advanced(CLANG_TOOLS_INSTALL_DIR)
+
 set(CLANG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -403,7 +428,7 @@ endif ()
 
 # Determine HOST_LINK_VERSION on Darwin.
 set(HOST_LINK_VERSION)
-if (APPLE)
+if (APPLE AND NOT CMAKE_LINKER MATCHES ".*lld.*")
   set(LD_V_OUTPUT)
   execute_process(
     COMMAND sh -c "${CMAKE_LINKER} -v 2>&1 | head -1"
@@ -487,6 +512,13 @@ endif()
 CMAKE_DEPENDENT_OPTION(CLANG_PLUGIN_SUPPORT
   "Build clang with plugin support" ON
   "HAVE_CLANG_PLUGIN_SUPPORT" OFF)
+
+# If libstdc++ is statically linked, clang-repl needs to statically link libstdc++
+# itself, which is not possible in many platforms because of current limitations in 
+# JIT stack. (more platforms need to be supported by JITLink)
+if(NOT LLVM_STATIC_LINK_CXX_STDLIB)
+  set(HAVE_CLANG_REPL_SUPPORT ON)
+endif()
 
 option(CLANG_ENABLE_ARCMT "Build ARCMT." ON)
 option(CLANG_ENABLE_STATIC_ANALYZER
@@ -577,21 +609,7 @@ if( CLANG_INCLUDE_TESTS )
   add_subdirectory(bindings/python/tests)
 
   if(CLANG_BUILT_STANDALONE)
-    # Add a global check rule now that all subdirectories have been traversed
-    # and we know the total set of lit testsuites.
-    get_property(LLVM_LIT_TESTSUITES GLOBAL PROPERTY LLVM_LIT_TESTSUITES)
-    get_property(LLVM_LIT_PARAMS GLOBAL PROPERTY LLVM_LIT_PARAMS)
-    get_property(LLVM_LIT_DEPENDS GLOBAL PROPERTY LLVM_LIT_DEPENDS)
-    get_property(LLVM_LIT_EXTRA_ARGS GLOBAL PROPERTY LLVM_LIT_EXTRA_ARGS)
-    get_property(LLVM_ADDITIONAL_TEST_TARGETS
-                 GLOBAL PROPERTY LLVM_ADDITIONAL_TEST_TARGETS)
-    add_lit_target(check-all
-      "Running all regression tests"
-      ${LLVM_LIT_TESTSUITES}
-      PARAMS ${LLVM_LIT_PARAMS}
-      DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_TARGETS}
-      ARGS ${LLVM_LIT_EXTRA_ARGS}
-      )
+    umbrella_lit_testsuite_end(check-all)
   endif()
   add_subdirectory(utils/perf-training)
 endif()

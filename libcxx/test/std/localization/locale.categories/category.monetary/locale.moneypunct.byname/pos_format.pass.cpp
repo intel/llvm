@@ -190,7 +190,7 @@ int main(int, char**)
     {
         Fnf f(LOCALE_zh_CN_UTF_8, 1);
         std::money_base::pattern p = f.pos_format();
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_AIX)
         assert_sign_symbol_none_value(p);
 #else
         assert_symbol_sign_none_value(p);
@@ -209,7 +209,7 @@ int main(int, char**)
     {
         Fwf f(LOCALE_zh_CN_UTF_8, 1);
         std::money_base::pattern p = f.pos_format();
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_AIX)
         assert_sign_symbol_none_value(p);
 #else
         assert_symbol_sign_none_value(p);

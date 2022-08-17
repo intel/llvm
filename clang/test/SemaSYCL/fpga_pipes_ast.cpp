@@ -4,8 +4,8 @@
 
 struct pipe_storage {};
 
-// CHECK: VarDecl {{.*}} Storage1 'const pipe_storage' callinit
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'const pipe_storage' 'void () noexcept'
+// CHECK: VarDecl {{.*}} Storage1 {{.*}}'const pipe_storage' callinit
+// CHECK-NEXT: CXXConstructExpr {{.*}}'const pipe_storage' 'void () noexcept'
 // CHECK-NEXT: SYCLIntelPipeIOAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 5
@@ -13,13 +13,13 @@ struct pipe_storage {};
 const pipe_storage Storage1 __attribute__((io_pipe_id(5)));
 
 // CHECK: VarTemplateDecl {{.*}} Storage2
-// CHECK: VarDecl {{.*}} Storage2 'pipe_storage' callinit
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'pipe_storage' 'void () noexcept'
-// CHECK_NEXT: SYCLIntelPipeIOAttr
-// CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
-// CHECK: VarTemplateSpecializationDecl {{.*}} used Storage2 'pipe_storage' callinit
+// CHECK: VarDecl {{.*}} Storage2 {{.*}}'pipe_storage' callinit
+// CHECK-NEXT: CXXConstructExpr {{.*}}'pipe_storage' 'void () noexcept'
+// CHECK-NEXT: SYCLIntelPipeIOAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
+// CHECK: VarTemplateSpecializationDecl {{.*}} used Storage2 {{.*}}'pipe_storage' callinit
 // CHECK-NEXT: TemplateArgument integral 2
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'pipe_storage' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'pipe_storage' 'void () noexcept'
 // CHECK-NEXT: SYCLIntelPipeIOAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 2
@@ -37,8 +37,8 @@ int main() {
 // Test for Intel 'io_pipe_id' attribute duplication.
 // No diagnostic is emitted because the arguments match.
 // Duplicate attribute is silently ignored.
-// CHECK: VarDecl {{.*}} Storage4 'const pipe_storage' callinit
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'const pipe_storage' 'void () noexcept'
+// CHECK: VarDecl {{.*}} Storage4 {{.*}}'const pipe_storage' callinit
+// CHECK-NEXT: CXXConstructExpr {{.*}}'const pipe_storage' 'void () noexcept'
 // CHECK-NEXT: SYCLIntelPipeIOAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 1

@@ -61,6 +61,21 @@ struct Reloc {
   // gives the destination that this relocation refers to.
   int64_t addend = 0;
   llvm::PointerUnion<Symbol *, InputSection *> referent = nullptr;
+
+  Reloc() = default;
+
+  Reloc(uint8_t type, bool pcrel, uint8_t length, uint32_t offset,
+        int64_t addend, llvm::PointerUnion<Symbol *, InputSection *> referent)
+      : type(type), pcrel(pcrel), length(length), offset(offset),
+        addend(addend), referent(referent) {}
+};
+
+struct OptimizationHint {
+  // Offset of the first address within the containing InputSection.
+  uint64_t offset0;
+  // Offset of the other addresses relative to the first one.
+  int16_t delta[2];
+  uint8_t type;
 };
 
 bool validateSymbolRelocation(const Symbol *, const InputSection *,

@@ -9,6 +9,7 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 
 package(
     default_visibility = ["//visibility:public"],
+    features = ["-use_header_modules"],
     licenses = ["notice"],
 )
 
@@ -36,70 +37,96 @@ cc_library(
 
 cc_library(
     name = "__support_cpp_array",
-    hdrs = ["src/__support/CPP/Array.h",],
+    hdrs = ["src/__support/CPP/array.h"],
     deps = [":libc_root"],
 )
 
 cc_library(
     name = "__support_cpp_array_ref",
-    hdrs = ["src/__support/CPP/ArrayRef.h",],
-    deps = [":libc_root"],
+    hdrs = ["src/__support/CPP/ArrayRef.h"],
+    deps = [
+        ":__support_cpp_array",
+        ":__support_cpp_type_traits",
+        ":libc_root",
+    ],
 )
 
 cc_library(
     name = "__support_cpp_bit",
-    hdrs = ["src/__support/CPP/Bit.h",],
+    hdrs = ["src/__support/CPP/Bit.h"],
     deps = [":libc_root"],
 )
 
 cc_library(
     name = "__support_cpp_bitset",
-    hdrs = ["src/__support/CPP/Bitset.h",],
+    hdrs = ["src/__support/CPP/Bitset.h"],
     deps = [":libc_root"],
 )
 
 cc_library(
     name = "__support_cpp_functional",
-    hdrs = ["src/__support/CPP/Functional.h",],
+    hdrs = ["src/__support/CPP/functional.h"],
     deps = [":libc_root"],
 )
 
 cc_library(
     name = "__support_cpp_limits",
-    hdrs = ["src/__support/CPP/Limits.h",],
-    deps = [":libc_root"],
+    hdrs = ["src/__support/CPP/limits.h"],
+    deps = [":libc_root", "__support_cpp_uint"],
 )
 
 cc_library(
     name = "__support_cpp_string_view",
-    hdrs = ["src/__support/CPP/StringView.h",],
+    hdrs = ["src/__support/CPP/StringView.h"],
     deps = [":libc_root"],
+)
+
+cc_library(
+    name = "__support_cpp_uint",
+    hdrs = [
+        "src/__support/CPP/UInt.h",
+    ],
+    deps = [":libc_root","__support_cpp_array"],
+)
+
+cc_library(
+    name = "__support_cpp_uint128",
+    hdrs = [
+        "src/__support/CPP/UInt128.h",
+    ],
+    deps = [":libc_root",":__support_cpp_uint"],
 )
 
 cc_library(
     name = "__support_cpp_type_traits",
     hdrs = [
-        "src/__support/CPP/TypeTraits.h",
+        "src/__support/CPP/type_traits.h",
     ],
-    deps = [":libc_root"],
+    deps = [":libc_root","__support_cpp_uint"],
 )
 
 cc_library(
     name = "__support_cpp_utility",
-    hdrs = ["src/__support/CPP/Utility.h",],
-    deps = [":libc_root"],
+    hdrs = ["src/__support/CPP/utility.h"],
+    deps = [
+        ":__support_cpp_type_traits",
+        ":libc_root",
+    ],
 )
 
 cc_library(
     name = "__support_cpp_vector",
-    hdrs = ["src/__support/CPP/vector.h",],
+    hdrs = ["src/__support/CPP/vector.h"],
     deps = [":libc_root"],
 )
 
 cc_library(
     name = "__support_cpp_atomic",
-    hdrs = ["src/__support/CPP/atomic.h",],
-    deps = [":libc_root"],
+    hdrs = ["src/__support/CPP/atomic.h"],
+    deps = [
+        ":__support_cpp_type_traits",
+        ":libc_root",
+    ],
 )
 
 cc_library(
@@ -133,6 +160,8 @@ fputil_common_hdrs = [
     "src/__support/FPUtil/NearestIntegerOperations.h",
     "src/__support/FPUtil/NormalFloat.h",
     "src/__support/FPUtil/PlatformDefs.h",
+    "src/__support/FPUtil/builtin_wrappers.h",
+    "src/__support/FPUtil/except_value_utils.h",
 ]
 
 fputil_hdrs = selects.with_or({
@@ -154,6 +183,7 @@ cc_library(
         ":__support_common",
         ":__support_cpp_bit",
         ":__support_cpp_type_traits",
+        ":__support_cpp_uint128",
         ":libc_root",
     ],
 )
@@ -179,7 +209,79 @@ cc_library(
     hdrs = sqrt_hdrs,
     deps = [
         ":__support_common",
+        ":__support_cpp_bit",
+        ":__support_cpp_type_traits",
+        ":__support_cpp_uint128",
         ":__support_fputil",
+        ":libc_root",
+    ],
+)
+
+fma_common_hdrs = [
+    "src/__support/FPUtil/FMA.h",
+    "src/__support/FPUtil/generic/FMA.h",
+]
+
+fma_platform_hdrs = [
+    "src/__support/FPUtil/x86_64/FMA.h",
+    "src/__support/FPUtil/aarch64/FMA.h",
+]
+
+cc_library(
+    name = "__support_fputil_fma",
+    hdrs = fma_common_hdrs,
+    # These are conditionally included and will #error out if the platform
+    # doesn't support FMA, so they can't be compiled on their own.
+    textual_hdrs = fma_platform_hdrs,
+    deps = [
+        ":__support_common",
+        ":__support_cpp_bit",
+        ":__support_cpp_type_traits",
+        ":__support_cpp_uint128",
+        ":__support_fputil",
+        ":libc_root",
+    ],
+)
+
+cc_library(
+    name = "__support_fputil_multiply_add",
+    hdrs = [
+        "src/__support/FPUtil/multiply_add.h",
+    ],
+    deps = [
+        ":__support_common",
+        ":__support_fputil_fma",
+    ],
+)
+
+cc_library(
+    name = "__support_fputil_polyeval",
+    hdrs = [
+        "src/__support/FPUtil/PolyEval.h",
+    ],
+    deps = [
+        ":__support_fputil_multiply_add",
+    ],
+)
+
+nearest_integer_common_hdrs = [
+    "src/__support/FPUtil/nearest_integer.h",
+]
+
+nearest_integer_platform_hdrs = [
+    "src/__support/FPUtil/x86_64/nearest_integer.h",
+    "src/__support/FPUtil/aarch64/nearest_integer.h",
+]
+
+cc_library(
+    name = "__support_fputil_nearest_integer",
+    hdrs = nearest_integer_common_hdrs,
+    # These are conditionally included and will #error out if the platform
+    # doesn't support rounding instructions, so they can't be compiled on their
+    # own.
+    textual_hdrs = nearest_integer_platform_hdrs,
+    deps = [
+        ":__support_common",
         ":libc_root",
     ],
 )
@@ -350,6 +452,41 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "common_constants",
+    srcs = ["src/math/generic/common_constants.cpp"],
+    hdrs = ["src/math/generic/common_constants.h"],
+    deps = [
+        ":libc_root",
+    ],
+)
+
+cc_library(
+    name = "range_reduction",
+    hdrs = [
+        "src/math/generic/range_reduction.h",
+        "src/math/generic/range_reduction_fma.h",
+    ],
+    deps = [
+        ":__support_fputil",
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":libc_root",
+    ],
+)
+
+libc_math_function(
+    name = "expm1f",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":common_constants",
+    ],
+)
+
 libc_math_function(name = "fabs")
 
 libc_math_function(name = "fabsf")
@@ -499,8 +636,11 @@ libc_math_function(name = "fmaxl")
 libc_math_function(
     name = "cosf",
     additional_deps = [
-        ":math_utils",
-        ":sincosf_utils",
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":common_constants",
+        ":range_reduction",
     ],
 )
 
@@ -515,8 +655,11 @@ libc_math_function(
 libc_math_function(
     name = "sinf",
     additional_deps = [
-        ":math_utils",
-        ":sincosf_utils",
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":common_constants",
+        ":range_reduction",
     ],
 )
 
@@ -695,16 +838,6 @@ no_sanitize_features = [
 ]
 
 cc_library(
-    name = "string_utils",
-    hdrs = ["src/string/string_utils.h"],
-    deps = [
-        ":__support_common",
-        ":__support_cpp_bitset",
-        ":libc_root",
-    ],
-)
-
-cc_library(
     name = "string_memory_utils",
     hdrs = [
         "src/string/memory_utils/elements.h",
@@ -725,6 +858,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "string_utils",
+    hdrs = ["src/string/string_utils.h"],
+    deps = [
+        ":__support_common",
+        ":__support_cpp_bitset",
+        ":libc_root",
+        ":string_memory_utils",
+    ],
+)
+
 libc_function(
     name = "memchr",
     srcs = ["src/string/memchr.cpp"],
@@ -739,12 +883,7 @@ libc_function(
     name = "memcpy",
     srcs = ["src/string/memcpy.cpp"],
     hdrs = ["src/string/memcpy.h"],
-    copts = [
-        "-fno-builtin-memcpy",
-        "-fno-builtin-memmove",
-        "-mllvm -combiner-global-alias-analysis",
-        "-mllvm --tail-merge-threshold=0",
-    ],
+    copts = ["-mllvm --tail-merge-threshold=0"],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -756,10 +895,6 @@ libc_function(
     name = "memset",
     srcs = ["src/string/memset.cpp"],
     hdrs = ["src/string/memset.h"],
-    copts = [
-        "-fno-builtin-memset",
-        "-mllvm -combiner-global-alias-analysis",
-    ],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -771,15 +906,10 @@ libc_function(
     name = "memmove",
     srcs = ["src/string/memmove.cpp"],
     hdrs = ["src/string/memmove.h"],
-    copts = [
-        "-fno-builtin-memmove",
-        "-mllvm -combiner-global-alias-analysis",
-    ],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
         ":__support_integer_operations",
-        ":memcpy",
         ":string_memory_utils",
     ],
 )
@@ -788,10 +918,6 @@ libc_function(
     name = "memcmp",
     srcs = ["src/string/memcmp.cpp"],
     hdrs = ["src/string/memcmp.h"],
-    copts = [
-        "-fno-builtin-memcmp",
-        "-mllvm -combiner-global-alias-analysis",
-    ],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -804,10 +930,6 @@ libc_function(
     name = "bcmp",
     srcs = ["src/string/bcmp.cpp"],
     hdrs = ["src/string/bcmp.h"],
-    copts = [
-        "-fno-builtin-bcmp",
-        "-fno-builtin-memcmp",
-    ],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -819,11 +941,6 @@ libc_function(
     name = "bzero",
     srcs = ["src/string/bzero.cpp"],
     hdrs = ["src/string/bzero.h"],
-    copts = [
-        "-fno-builtin-bzero",
-        "-fno-builtin-memset",
-        "-mllvm -combiner-global-alias-analysis",
-    ],
     features = no_sanitize_features,
     deps = [
         ":__support_common",

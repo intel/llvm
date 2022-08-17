@@ -21,7 +21,6 @@
 #include "clang/Sema/Ownership.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Registry.h"
 #include "llvm/Support/VersionTuple.h"
@@ -658,6 +657,18 @@ public:
   bool isSupportedByPragmaAttribute() const;
   bool supportsNonconformingLambdaSyntax() const;
 
+  /// Returns whether a [[]] attribute, if specified ahead of a declaration,
+  /// should be applied to the decl-specifier-seq instead (i.e. whether it
+  /// "slides" to the decl-specifier-seq).
+  ///
+  /// By the standard, attributes specified before the declaration always
+  /// appertain to the declaration, but historically we have allowed some of
+  /// these attributes to slide to the decl-specifier-seq, so we need to keep
+  /// supporting this behavior.
+  ///
+  /// This may only be called if isStandardAttributeSyntax() returns true.
+  bool slidesFromDeclToDeclSpecLegacyBehavior() const;
+
   /// If the parsed attribute has a semantic equivalent, and it would
   /// have a semantic Spelling enumeration (due to having semantically-distinct
   /// spelling variations), return the value of that semantic spelling. If the
@@ -782,7 +793,7 @@ class AttributePool {
   friend class AttributeFactory;
   friend class ParsedAttributes;
   AttributeFactory &Factory;
-  llvm::TinyPtrVector<ParsedAttr *> Attrs;
+  llvm::SmallVector<ParsedAttr *> Attrs;
 
   void *allocate(size_t size) {
     return Factory.allocate(size);
@@ -907,10 +918,17 @@ public:
 };
 
 class ParsedAttributesView {
-  using VecTy = llvm::TinyPtrVector<ParsedAttr *>;
+  using VecTy = llvm::SmallVector<ParsedAttr *>;
   using SizeType = decltype(std::declval<VecTy>().size());
 
 public:
+  SourceRange Range;
+
+  static const ParsedAttributesView &none() {
+    static const ParsedAttributesView Attrs;
+    return Attrs;
+  }
+
   bool empty() const { return AttrList.empty(); }
   SizeType size() const { return AttrList.size(); }
   ParsedAttr &operator[](SizeType pos) { return *AttrList[pos]; }
@@ -1009,15 +1027,19 @@ public:
 
   AttributePool &getPool() const { return pool; }
 
-  void takeAllFrom(ParsedAttributes &attrs) {
-    addAll(attrs.begin(), attrs.end());
-    attrs.clearListOnly();
-    pool.takeAllFrom(attrs.pool);
+  void takeAllFrom(ParsedAttributes &Other) {
+    assert(&Other != this &&
+           "ParsedAttributes can't take attributes from itself");
+    addAll(Other.begin(), Other.end());
+    Other.clearListOnly();
+    pool.takeAllFrom(Other.pool);
   }
 
-  void takeOneFrom(ParsedAttributes &Attrs, ParsedAttr *PA) {
-    Attrs.getPool().remove(PA);
-    Attrs.remove(PA);
+  void takeOneFrom(ParsedAttributes &Other, ParsedAttr *PA) {
+    assert(&Other != this &&
+           "ParsedAttributes can't take attribute from itself");
+    Other.getPool().remove(PA);
+    Other.remove(PA);
     getPool().add(PA);
     addAtEnd(PA);
   }
@@ -1025,6 +1047,7 @@ public:
   void clear() {
     clearListOnly();
     pool.clear();
+    Range = SourceRange();
   }
 
   /// Add attribute with expression arguments.
@@ -1108,26 +1131,10 @@ private:
   mutable AttributePool pool;
 };
 
-struct ParsedAttributesWithRange : ParsedAttributes {
-  ParsedAttributesWithRange(AttributeFactory &factory)
-      : ParsedAttributes(factory) {}
-
-  void clear() {
-    ParsedAttributes::clear();
-    Range = SourceRange();
-  }
-
-  SourceRange Range;
-};
-struct ParsedAttributesViewWithRange : ParsedAttributesView {
-  ParsedAttributesViewWithRange() {}
-  void clearListOnly() {
-    ParsedAttributesView::clearListOnly();
-    Range = SourceRange();
-  }
-
-  SourceRange Range;
-};
+/// Consumes the attributes from `First` and `Second` and concatenates them into
+/// `Result`. Sets `Result.Range` to the combined range of `First` and `Second`.
+void takeAndConcatenateAttrs(ParsedAttributes &First, ParsedAttributes &Second,
+                             ParsedAttributes &Result);
 
 /// These constants match the enumerated choices of
 /// err_attribute_argument_n_type and err_attribute_argument_type.

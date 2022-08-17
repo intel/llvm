@@ -65,7 +65,7 @@ public:
     if (!resultType)
       return failure();
     auto newOp =
-        rewriter.create<OpType>(op.getLoc(), resultType, op.source(),
+        rewriter.create<OpType>(op.getLoc(), resultType, op.getSource(),
                                 mixedOffsets, mixedSizes, mixedStrides);
     CastOpFunc func;
     func(rewriter, op, newOp);
@@ -79,6 +79,12 @@ public:
 /// Other attribute types are not supported.
 Value getValueOrCreateConstantIndexOp(OpBuilder &b, Location loc,
                                       OpFoldResult ofr);
+
+/// Create a cast from an index-like value (index or integer) to another
+/// index-like value. If the value type and the target type are the same, it
+/// returns the original value.
+Value getValueOrCreateCastToIndexLike(OpBuilder &b, Location loc,
+                                      Type targetType, Value value);
 
 /// Similar to the other overload, but converts multiple OpFoldResults into
 /// Values.

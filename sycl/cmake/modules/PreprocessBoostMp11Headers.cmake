@@ -86,12 +86,11 @@ function(preprocess_mp11_headers)
   
   # 2) Add SYCL_README.txt to the output directory root
   set(SYCL_README_TEXT "\
-  This directory contains boost/mp11 headers imported from\n\
-    ${MP11_HDRS_SRC_PATH} (${MP11_HDRS_SRC_ID})\n\
-  and adapted for use in SYCL headers in a way that does not conflict with\n\
-  potential use of boost in user code. Particularly, `BOOST_*` macros are\n\
-  replaced with `SYCL_DETAIL_BOOST_*`, APIs are moved into the top-level
-  `sycl::detail` namespace. For example, `sycl::detail::boost::mp11::mp_list`.\n")
+  This directory contains boost/mp11 headers adapted for use in SYCL headers in\n\
+  a way that does not conflict with potential use of boost in user code.\n\
+  Particularly, `BOOST_*` macros are replaced with `SYCL_DETAIL_BOOST_*`, APIs\n\
+  are moved into the top-level `sycl::detail` namespace. For example,\n\
+  `sycl::detail::boost::mp11::mp_list`.\n")
   
   set(SYCL_README_FILE_NAME "${MP11_HDRS_OUT}/README.txt")
   

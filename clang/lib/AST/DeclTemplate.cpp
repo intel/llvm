@@ -930,6 +930,14 @@ ClassTemplateSpecializationDecl::Create(ASTContext &Context, TagKind TK,
           SpecializedTemplate, Args, PrevDecl);
   Result->setMayHaveOutOfDateDef(false);
 
+  // If the template decl is incomplete, copy the external lexical storage from
+  // the base template. This allows instantiations of incomplete types to
+  // complete using the external AST if the template's declaration came from an
+  // external AST.
+  if (!SpecializedTemplate->getTemplatedDecl()->isCompleteDefinition())
+    Result->setHasExternalLexicalStorage(
+      SpecializedTemplate->getTemplatedDecl()->hasExternalLexicalStorage());
+
   Context.getTypeDeclType(Result, PrevDecl);
   return Result;
 }
@@ -1335,10 +1343,14 @@ VarTemplateDecl *VarTemplateSpecializationDecl::getSpecializedTemplate() const {
 
 void VarTemplateSpecializationDecl::setTemplateArgsInfo(
     const TemplateArgumentListInfo &ArgsInfo) {
-  TemplateArgsInfo.setLAngleLoc(ArgsInfo.getLAngleLoc());
-  TemplateArgsInfo.setRAngleLoc(ArgsInfo.getRAngleLoc());
-  for (const TemplateArgumentLoc &Loc : ArgsInfo.arguments())
-    TemplateArgsInfo.addArgument(Loc);
+  TemplateArgsInfo =
+      ASTTemplateArgumentListInfo::Create(getASTContext(), ArgsInfo);
+}
+
+void VarTemplateSpecializationDecl::setTemplateArgsInfo(
+    const ASTTemplateArgumentListInfo *ArgsInfo) {
+  TemplateArgsInfo =
+      ASTTemplateArgumentListInfo::Create(getASTContext(), ArgsInfo);
 }
 
 //===----------------------------------------------------------------------===//

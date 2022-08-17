@@ -320,13 +320,11 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
           (LHSKnown.One & RHSKnown.One & DemandedMask) != 0) {
         APInt NewMask = ~(LHSKnown.One & RHSKnown.One & DemandedMask);
 
-        Constant *AndC =
-            ConstantInt::get(I->getType(), NewMask & AndRHS->getValue());
+        Constant *AndC = ConstantInt::get(VTy, NewMask & AndRHS->getValue());
         Instruction *NewAnd = BinaryOperator::CreateAnd(I->getOperand(0), AndC);
         InsertNewInstWith(NewAnd, *I);
 
-        Constant *XorC =
-            ConstantInt::get(I->getType(), NewMask & XorRHS->getValue());
+        Constant *XorC = ConstantInt::get(VTy, NewMask & XorRHS->getValue());
         Instruction *NewXor = BinaryOperator::CreateXor(NewAnd, XorC);
         return InsertNewInstWith(NewXor, *I);
       }
@@ -389,12 +387,12 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     if (match(I->getOperand(0), m_OneUse(m_LShr(m_Value(X), m_APInt(C))))) {
       // The shift amount must be valid (not poison) in the narrow type, and
       // it must not be greater than the high bits demanded of the result.
-      if (C->ult(I->getType()->getScalarSizeInBits()) &&
+      if (C->ult(VTy->getScalarSizeInBits()) &&
           C->ule(DemandedMask.countLeadingZeros())) {
         // trunc (lshr X, C) --> lshr (trunc X), C
         IRBuilderBase::InsertPointGuard Guard(Builder);
         Builder.SetInsertPoint(I);
-        Value *Trunc = Builder.CreateTrunc(X, I->getType());
+        Value *Trunc = Builder.CreateTrunc(X, VTy);
         return Builder.CreateLShr(Trunc, C->getZExtValue());
       }
     }
@@ -416,9 +414,8 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     if (!I->getOperand(0)->getType()->isIntOrIntVectorTy())
       return nullptr;  // vector->int or fp->int?
 
-    if (VectorType *DstVTy = dyn_cast<VectorType>(I->getType())) {
-      if (VectorType *SrcVTy =
-            dyn_cast<VectorType>(I->getOperand(0)->getType())) {
+    if (auto *DstVTy = dyn_cast<VectorType>(VTy)) {
+      if (auto *SrcVTy = dyn_cast<VectorType>(I->getOperand(0)->getType())) {
         if (cast<FixedVectorType>(DstVTy)->getNumElements() !=
             cast<FixedVectorType>(SrcVTy)->getNumElements())
           // Don't touch a bitcast between vectors of different element counts.
@@ -536,7 +533,7 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
       const APInt *C;
       if (match(I->getOperand(1), m_APInt(C)) &&
           C->countTrailingZeros() == CTZ) {
-        Constant *ShiftC = ConstantInt::get(I->getType(), CTZ);
+        Constant *ShiftC = ConstantInt::get(VTy, CTZ);
         Instruction *Shl = BinaryOperator::CreateShl(I->getOperand(0), ShiftC);
         return InsertNewInstWith(Shl, *I);
       }
@@ -563,7 +560,26 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
                                                     DemandedMask, Known))
             return R;
 
+      // TODO: If we only want bits that already match the signbit then we don't
+      // need to shift.
+
+      // If we can pre-shift a right-shifted constant to the left without
+      // losing any high bits amd we don't demand the low bits, then eliminate
+      // the left-shift:
+      // (C >> X) << LeftShiftAmtC --> (C << RightShiftAmtC) >> X
       uint64_t ShiftAmt = SA->getLimitedValue(BitWidth-1);
+      Value *X;
+      Constant *C;
+      if (DemandedMask.countTrailingZeros() >= ShiftAmt &&
+          match(I->getOperand(0), m_LShr(m_ImmConstant(C), m_Value(X)))) {
+        Constant *LeftShiftAmtC = ConstantInt::get(VTy, ShiftAmt);
+        Constant *NewC = ConstantExpr::getShl(C, LeftShiftAmtC);
+        if (ConstantExpr::getLShr(NewC, LeftShiftAmtC) == C) {
+          Instruction *Lshr = BinaryOperator::CreateLShr(NewC, X);
+          return InsertNewInstWith(Lshr, *I);
+        }
+      }
+
       APInt DemandedMaskIn(DemandedMask.lshr(ShiftAmt));
 
       // If the shift is NUW/NSW, then it does demand the high bits.
@@ -593,7 +609,7 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         else if (SignBitOne)
           Known.One.setSignBit();
         if (Known.hasConflict())
-          return UndefValue::get(I->getType());
+          return UndefValue::get(VTy);
       }
     } else {
       // This is a variable shift, so we can't shift the demand mask by a known
@@ -616,6 +632,34 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     if (match(I->getOperand(1), m_APInt(SA))) {
       uint64_t ShiftAmt = SA->getLimitedValue(BitWidth-1);
 
+      // If we are just demanding the shifted sign bit and below, then this can
+      // be treated as an ASHR in disguise.
+      if (DemandedMask.countLeadingZeros() >= ShiftAmt) {
+        // If we only want bits that already match the signbit then we don't
+        // need to shift.
+        unsigned NumHiDemandedBits =
+            BitWidth - DemandedMask.countTrailingZeros();
+        unsigned SignBits =
+            ComputeNumSignBits(I->getOperand(0), Depth + 1, CxtI);
+        if (SignBits >= NumHiDemandedBits)
+          return I->getOperand(0);
+
+        // If we can pre-shift a left-shifted constant to the right without
+        // losing any low bits (we already know we don't demand the high bits),
+        // then eliminate the right-shift:
+        // (C << X) >> RightShiftAmtC --> (C >> RightShiftAmtC) << X
+        Value *X;
+        Constant *C;
+        if (match(I->getOperand(0), m_Shl(m_ImmConstant(C), m_Value(X)))) {
+          Constant *RightShiftAmtC = ConstantInt::get(VTy, ShiftAmt);
+          Constant *NewC = ConstantExpr::getLShr(C, RightShiftAmtC);
+          if (ConstantExpr::getShl(NewC, RightShiftAmtC) == C) {
+            Instruction *Shl = BinaryOperator::CreateShl(NewC, X);
+            return InsertNewInstWith(Shl, *I);
+          }
+        }
+      }
+
       // Unsigned shift right.
       APInt DemandedMaskIn(DemandedMask.shl(ShiftAmt));
 
@@ -637,6 +681,14 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     break;
   }
   case Instruction::AShr: {
+    unsigned SignBits = ComputeNumSignBits(I->getOperand(0), Depth + 1, CxtI);
+
+    // If we only want bits that already match the signbit then we don't need
+    // to shift.
+    unsigned NumHiDemandedBits = BitWidth - DemandedMask.countTrailingZeros();
+    if (SignBits >= NumHiDemandedBits)
+      return I->getOperand(0);
+
     // If this is an arithmetic shift right and only the low-bit is set, we can
     // always convert this into a logical shr, even if the shift amount is
     // variable.  The low bit of the shift cannot be an input sign bit unless
@@ -647,11 +699,6 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
                         I->getOperand(0), I->getOperand(1), I->getName());
       return InsertNewInstWith(NewVal, *I);
     }
-
-    // If the sign bit is the only bit demanded by this ashr, then there is no
-    // need to do it, the shift doesn't change the high bit.
-    if (DemandedMask.isSignMask())
-      return I->getOperand(0);
 
     const APInt *SA;
     if (match(I->getOperand(1), m_APInt(SA))) {
@@ -671,8 +718,6 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
 
       if (SimplifyDemandedBits(I, 0, DemandedMaskIn, Known, Depth + 1))
         return I;
-
-      unsigned SignBits = ComputeNumSignBits(I->getOperand(0), Depth + 1, CxtI);
 
       assert(!Known.hasConflict() && "Bits known to be one AND zero?");
       // Compute the new bits that are at the top now plus sign bits.
@@ -722,13 +767,13 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     break;
   }
   case Instruction::SRem: {
-    ConstantInt *Rem;
-    if (match(I->getOperand(1), m_ConstantInt(Rem))) {
+    const APInt *Rem;
+    if (match(I->getOperand(1), m_APInt(Rem))) {
       // X % -1 demands all the bits because we don't want to introduce
       // INT_MIN % -1 (== undef) by accident.
-      if (Rem->isMinusOne())
+      if (Rem->isAllOnes())
         break;
-      APInt RA = Rem->getValue().abs();
+      APInt RA = Rem->abs();
       if (RA.isPowerOf2()) {
         if (DemandedMask.ult(RA))    // srem won't affect demanded bits
           return I->getOperand(0);
@@ -795,7 +840,7 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         if (DemandedMask == 1 && VTy->getScalarSizeInBits() % 2 == 0 &&
             match(II->getArgOperand(0), m_Not(m_Value(X)))) {
           Function *Ctpop = Intrinsic::getDeclaration(
-              II->getModule(), Intrinsic::ctpop, II->getType());
+              II->getModule(), Intrinsic::ctpop, VTy);
           return InsertNewInstWith(CallInst::Create(Ctpop, {X}), *I);
         }
         break;
@@ -818,12 +863,10 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
           Instruction *NewVal;
           if (NLZ > NTZ)
             NewVal = BinaryOperator::CreateLShr(
-                II->getArgOperand(0),
-                ConstantInt::get(I->getType(), NLZ - NTZ));
+                II->getArgOperand(0), ConstantInt::get(VTy, NLZ - NTZ));
           else
             NewVal = BinaryOperator::CreateShl(
-                II->getArgOperand(0),
-                ConstantInt::get(I->getType(), NTZ - NLZ));
+                II->getArgOperand(0), ConstantInt::get(VTy, NTZ - NLZ));
           NewVal->takeName(I);
           return InsertNewInstWith(NewVal, *I);
         }
@@ -881,8 +924,8 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         // Handle target specific intrinsics
         Optional<Value *> V = targetSimplifyDemandedUseBitsIntrinsic(
             *II, DemandedMask, Known, KnownBitsComputed);
-        if (V.hasValue())
-          return V.getValue();
+        if (V)
+          return V.value();
         break;
       }
       }
@@ -1592,8 +1635,8 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
       Optional<Value *> V = targetSimplifyDemandedVectorEltsIntrinsic(
           *II, DemandedElts, UndefElts, UndefElts2, UndefElts3,
           simplifyAndSetOp);
-      if (V.hasValue())
-        return V.getValue();
+      if (V)
+        return V.value();
       break;
     }
     } // switch on IntrinsicID

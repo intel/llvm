@@ -236,23 +236,21 @@ static Expected<SectionRename> parseRenameSectionValue(StringRef FlagValue) {
 }
 
 static Expected<std::pair<StringRef, uint64_t>>
-parseSetSectionAlignment(StringRef FlagValue) {
+parseSetSectionAttribute(StringRef Option, StringRef FlagValue) {
   if (!FlagValue.contains('='))
-    return createStringError(
-        errc::invalid_argument,
-        "bad format for --set-section-alignment: missing '='");
+    return make_error<StringError>("bad format for " + Option + ": missing '='",
+                                   errc::invalid_argument);
   auto Split = StringRef(FlagValue).split('=');
   if (Split.first.empty())
-    return createStringError(
-        errc::invalid_argument,
-        "bad format for --set-section-alignment: missing section name");
-  uint64_t NewAlign;
-  if (Split.second.getAsInteger(0, NewAlign))
-    return createStringError(
-        errc::invalid_argument,
-        "invalid alignment for --set-section-alignment: '%s'",
-        Split.second.str().c_str());
-  return std::make_pair(Split.first, NewAlign);
+    return make_error<StringError>("bad format for " + Option +
+                                       ": missing section name",
+                                   errc::invalid_argument);
+  uint64_t Value;
+  if (Split.second.getAsInteger(0, Value))
+    return make_error<StringError>("invalid value for " + Option + ": '" +
+                                       Split.second + "'",
+                                   errc::invalid_argument);
+  return std::make_pair(Split.first, Value);
 }
 
 static Expected<SectionFlagsUpdate>
@@ -551,8 +549,8 @@ static Error loadNewSectionData(StringRef ArgValue, StringRef OptionName,
   return Error::success();
 }
 
-// ParseObjcopyOptions returns the config and sets the input arguments. If a
-// help flag is set then ParseObjcopyOptions will print the help messege and
+// parseObjcopyOptions returns the config and sets the input arguments. If a
+// help flag is set then parseObjcopyOptions will print the help messege and
 // exit.
 Expected<DriverConfig>
 objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
@@ -721,26 +719,16 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
     }
   }
 
-  if (auto Arg = InputArgs.getLastArg(OBJCOPY_compress_debug_sections,
-                                      OBJCOPY_compress_debug_sections_eq)) {
-    Config.CompressionType = DebugCompressionType::Z;
-
-    if (Arg->getOption().getID() == OBJCOPY_compress_debug_sections_eq) {
-      Config.CompressionType =
-          StringSwitch<DebugCompressionType>(
-              InputArgs.getLastArgValue(OBJCOPY_compress_debug_sections_eq))
-              .Case("zlib-gnu", DebugCompressionType::GNU)
-              .Case("zlib", DebugCompressionType::Z)
-              .Default(DebugCompressionType::None);
-      if (Config.CompressionType == DebugCompressionType::None)
-        return createStringError(
-            errc::invalid_argument,
-            "invalid or unsupported --compress-debug-sections format: %s",
-            InputArgs.getLastArgValue(OBJCOPY_compress_debug_sections_eq)
-                .str()
-                .c_str());
-    }
-    if (!zlib::isAvailable())
+  if (const auto *A = InputArgs.getLastArg(OBJCOPY_compress_debug_sections)) {
+    Config.CompressionType = StringSwitch<DebugCompressionType>(A->getValue())
+                                 .Case("zlib", DebugCompressionType::Z)
+                                 .Default(DebugCompressionType::None);
+    if (Config.CompressionType == DebugCompressionType::None)
+      return createStringError(
+          errc::invalid_argument,
+          "invalid or unsupported --compress-debug-sections format: %s",
+          A->getValue());
+    if (!compression::zlib::isAvailable())
       return createStringError(
           errc::invalid_argument,
           "LLVM was not compiled with LLVM_ENABLE_ZLIB: can not compress");
@@ -794,7 +782,7 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
   }
   for (auto Arg : InputArgs.filtered(OBJCOPY_set_section_alignment)) {
     Expected<std::pair<StringRef, uint64_t>> NameAndAlign =
-        parseSetSectionAlignment(Arg->getValue());
+        parseSetSectionAttribute("--set-section-alignment", Arg->getValue());
     if (!NameAndAlign)
       return NameAndAlign.takeError();
     Config.SetSectionAlignment[NameAndAlign->first] = NameAndAlign->second;
@@ -810,22 +798,28 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
           "--set-section-flags set multiple times for section '%s'",
           SFU->Name.str().c_str());
   }
-  // Prohibit combinations of --set-section-flags when the section name is used
-  // by --rename-section, either as a source or a destination.
+  for (auto Arg : InputArgs.filtered(OBJCOPY_set_section_type)) {
+    Expected<std::pair<StringRef, uint64_t>> NameAndType =
+        parseSetSectionAttribute("--set-section-type", Arg->getValue());
+    if (!NameAndType)
+      return NameAndType.takeError();
+    Config.SetSectionType[NameAndType->first] = NameAndType->second;
+  }
+  // Prohibit combinations of --set-section-{flags,type} when the section name
+  // is used as the destination of a --rename-section.
   for (const auto &E : Config.SectionsToRename) {
     const SectionRename &SR = E.second;
-    if (Config.SetSectionFlags.count(SR.OriginalName))
+    auto Err = [&](const char *Option) {
       return createStringError(
           errc::invalid_argument,
-          "--set-section-flags=%s conflicts with --rename-section=%s=%s",
-          SR.OriginalName.str().c_str(), SR.OriginalName.str().c_str(),
-          SR.NewName.str().c_str());
-    if (Config.SetSectionFlags.count(SR.NewName))
-      return createStringError(
-          errc::invalid_argument,
-          "--set-section-flags=%s conflicts with --rename-section=%s=%s",
+          "--set-section-%s=%s conflicts with --rename-section=%s=%s", Option,
           SR.NewName.str().c_str(), SR.OriginalName.str().c_str(),
           SR.NewName.str().c_str());
+    };
+    if (Config.SetSectionFlags.count(SR.NewName))
+      return Err("flags");
+    if (Config.SetSectionType.count(SR.NewName))
+      return Err("type");
   }
 
   for (auto Arg : InputArgs.filtered(OBJCOPY_remove_section))
@@ -870,11 +864,12 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
       InputArgs.hasArg(OBJCOPY_extract_main_partition);
   ELFConfig.LocalizeHidden = InputArgs.hasArg(OBJCOPY_localize_hidden);
   Config.Weaken = InputArgs.hasArg(OBJCOPY_weaken);
-  if (InputArgs.hasArg(OBJCOPY_discard_all, OBJCOPY_discard_locals))
-    Config.DiscardMode =
-        InputArgs.hasFlag(OBJCOPY_discard_all, OBJCOPY_discard_locals)
-            ? DiscardType::All
-            : DiscardType::Locals;
+  if (auto *Arg =
+          InputArgs.getLastArg(OBJCOPY_discard_all, OBJCOPY_discard_locals)) {
+    Config.DiscardMode = Arg->getOption().matches(OBJCOPY_discard_all)
+                             ? DiscardType::All
+                             : DiscardType::Locals;
+  }
   Config.OnlyKeepDebug = InputArgs.hasArg(OBJCOPY_only_keep_debug);
   ELFConfig.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
   MachOConfig.KeepUndefined = InputArgs.hasArg(OBJCOPY_keep_undefined);
@@ -998,7 +993,7 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
         "--decompress-debug-sections");
   }
 
-  if (Config.DecompressDebugSections && !zlib::isAvailable())
+  if (Config.DecompressDebugSections && !compression::zlib::isAvailable())
     return createStringError(
         errc::invalid_argument,
         "LLVM was not compiled with LLVM_ENABLE_ZLIB: cannot decompress");
@@ -1012,8 +1007,8 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
   return std::move(DC);
 }
 
-// ParseInstallNameToolOptions returns the config and sets the input arguments.
-// If a help flag is set then ParseInstallNameToolOptions will print the help
+// parseInstallNameToolOptions returns the config and sets the input arguments.
+// If a help flag is set then parseInstallNameToolOptions will print the help
 // messege and exit.
 Expected<DriverConfig>
 objcopy::parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr) {
@@ -1210,8 +1205,8 @@ objcopy::parseBitcodeStripOptions(ArrayRef<const char *> ArgsArr,
   return std::move(DC);
 }
 
-// ParseStripOptions returns the config and sets the input arguments. If a
-// help flag is set then ParseStripOptions will print the help messege and
+// parseStripOptions returns the config and sets the input arguments. If a
+// help flag is set then parseStripOptions will print the help messege and
 // exit.
 Expected<DriverConfig>
 objcopy::parseStripOptions(ArrayRef<const char *> RawArgsArr,
@@ -1277,11 +1272,10 @@ objcopy::parseStripOptions(ArrayRef<const char *> RawArgsArr,
   ELFConfig.AllowBrokenLinks = InputArgs.hasArg(STRIP_allow_broken_links);
   Config.StripDebug = InputArgs.hasArg(STRIP_strip_debug);
 
-  if (InputArgs.hasArg(STRIP_discard_all, STRIP_discard_locals))
-    Config.DiscardMode =
-        InputArgs.hasFlag(STRIP_discard_all, STRIP_discard_locals)
-            ? DiscardType::All
-            : DiscardType::Locals;
+  if (auto *Arg = InputArgs.getLastArg(STRIP_discard_all, STRIP_discard_locals))
+    Config.DiscardMode = Arg->getOption().matches(STRIP_discard_all)
+                             ? DiscardType::All
+                             : DiscardType::Locals;
   Config.StripSections = InputArgs.hasArg(STRIP_strip_sections);
   Config.StripUnneeded = InputArgs.hasArg(STRIP_strip_unneeded);
   if (auto Arg = InputArgs.getLastArg(STRIP_strip_all, STRIP_no_strip_all))
@@ -1313,8 +1307,9 @@ objcopy::parseStripOptions(ArrayRef<const char *> RawArgsArr,
       return std::move(E);
 
   if (!InputArgs.hasArg(STRIP_no_strip_all) && !Config.StripDebug &&
-      !Config.StripUnneeded && Config.DiscardMode == DiscardType::None &&
-      !Config.StripAllGNU && Config.SymbolsToRemove.empty())
+      !Config.OnlyKeepDebug && !Config.StripUnneeded &&
+      Config.DiscardMode == DiscardType::None && !Config.StripAllGNU &&
+      Config.SymbolsToRemove.empty())
     Config.StripAll = true;
 
   if (Config.DiscardMode == DiscardType::All) {

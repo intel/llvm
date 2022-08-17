@@ -42,7 +42,9 @@ subroutine foodim1()
   ! CHECK-DAG: %[[c42:.*]] = fir.convert %c42{{.*}} : (i32) -> index
   ! CHECK-DAG: %[[c100:.*]] = fir.convert %c100_i32 : (i32) -> index
   ! CHECK-DAG: %[[diff:.*]] = arith.subi %[[c100]], %[[c42]] : index
-  ! CHECK: %[[extent:.*]] = arith.addi %[[diff]], %c1{{.*}} : index
+  ! CHECK: %[[rawExtent:.*]] = arith.addi %[[diff]], %c1{{.*}} : index
+  ! CHECK: %[[extentPositive:.*]] = arith.cmpi sgt, %[[rawExtent]], %c0{{.*}} : index
+  ! CHECK: %[[extent:.*]] = arith.select %[[extentPositive]], %[[rawExtent]], %c0{{.*}} : index
   ! CHECK: %[[alloc:.*]] = fir.allocmem !fir.array<?xf32>, %[[extent]] {{{.*}}uniq_name = "_QFfoodim1Ex.alloc"}
   ! CHECK-DAG: fir.store %[[alloc]] to %[[xAddrVar]] : !fir.ref<!fir.heap<!fir.array<?xf32>>>
   ! CHECK-DAG: fir.store %[[extent]] to %[[xExtVar]] : !fir.ref<index>
@@ -86,7 +88,9 @@ subroutine char_deferred(n)
   ! CHECK: fir.freemem %{{.*}}
   allocate(character(n):: c)
   ! CHECK: %[[n:.*]] = fir.load %arg0 : !fir.ref<i32>
-  ! CHECK: %[[ni:.*]] = fir.convert %[[n]] : (i32) -> index
+  ! CHECK: %[[nPositive:.*]] = arith.cmpi sgt, %[[n]], %c0{{.*}} : i32
+  ! CHECK: %[[ns:.*]] = arith.select %[[nPositive]], %[[n]], %c0{{.*}} : i32
+  ! CHECK: %[[ni:.*]] = fir.convert %[[ns]] : (i32) -> index
   ! CHECK: fir.allocmem !fir.char<1,?>(%[[ni]] : index) {{{.*}}uniq_name = "_QFchar_deferredEc.alloc"}
   ! CHECK: fir.store %[[ni]] to %[[cLenVar]] : !fir.ref<index>
 
@@ -124,8 +128,11 @@ end subroutine
 subroutine char_explicit_dyn(l1, l2)
   integer :: l1, l2
   character(l1), allocatable :: c
-  ! CHECK-DAG: %[[cLen:.*]] = fir.load %arg0 : !fir.ref<i32>
-  ! CHECK-DAG: %[[cAddrVar:.*]] = fir.alloca !fir.heap<!fir.char<1,?>> {{{.*}}uniq_name = "_QFchar_explicit_dynEc.addr"}
+  ! CHECK: %[[l1:.*]] = fir.load %arg0 : !fir.ref<i32>
+  ! CHECK: %[[c0_i32:.*]] = arith.constant 0 : i32
+  ! CHECK: %[[cmp:.*]] = arith.cmpi sgt, %[[l1]], %[[c0_i32]] : i32
+  ! CHECK: %[[cLen:.*]] = arith.select %[[cmp]], %[[l1]], %[[c0_i32]] : i32
+  ! CHECK: %[[cAddrVar:.*]] = fir.alloca !fir.heap<!fir.char<1,?>> {{{.*}}uniq_name = "_QFchar_explicit_dynEc.addr"}
   ! CHECK-NOT: "_QFchar_explicit_dynEc.len"
   allocate(c)
   ! CHECK: %[[cLenCast1:.*]] = fir.convert %[[cLen]] : (i32) -> index

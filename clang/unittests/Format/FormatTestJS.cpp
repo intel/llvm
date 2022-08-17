@@ -337,6 +337,13 @@ TEST_F(FormatTestJS, ReservedWords) {
                "  x: 'x'\n"
                "};",
                "const Axis = {for: 'for', x:   'x'};");
+  verifyFormat("export class Foo extends Bar {\n"
+               "  get case(): Case {\n"
+               "    return (\n"
+               "        (this.Bar$has('case')) ? (this.Bar$get('case')) :\n"
+               "                                 (this.case = new Case()));\n"
+               "  }\n"
+               "}");
 }
 
 TEST_F(FormatTestJS, ReservedWordsMethods) {
@@ -1868,6 +1875,11 @@ TEST_F(FormatTestJS, Modules) {
                                               " myX} from 'm';");
   verifyFormat("import * as lib from 'some/module.js';");
   verifyFormat("var x = {import: 1};\nx.import = 2;");
+  // Ensure an import statement inside a block is at the correct level.
+  verifyFormat("function() {\n"
+               "  var x;\n"
+               "  import 'some/module.js';\n"
+               "}");
 
   verifyFormat("export function fn() {\n"
                "  return 'fn';\n"

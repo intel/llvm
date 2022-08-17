@@ -65,11 +65,6 @@
 #define PATH_MAX MAX_PATH
 #endif
 typedef int socklen_t;
-constexpr const char *dev_null_path = "nul";
-
-#else
-constexpr const char *dev_null_path = "/dev/null";
-
 #endif
 
 using namespace lldb_vscode;
@@ -1446,22 +1441,12 @@ void request_modules(const llvm::json::Object &request) {
 //   }]
 // }
 void request_initialize(const llvm::json::Object &request) {
-  g_vsc.debugger = lldb::SBDebugger::Create(true /*source_init_files*/);
+  auto log_cb = [](const char *buf, void *baton) -> void {
+    g_vsc.SendOutput(OutputType::Console, llvm::StringRef{buf});
+  };
+  g_vsc.debugger =
+      lldb::SBDebugger::Create(true /*source_init_files*/, log_cb, nullptr);
   g_vsc.progress_event_thread = std::thread(ProgressEventThreadFunction);
-
-  // Create an empty target right away since we might get breakpoint requests
-  // before we are given an executable to launch in a "launch" request, or a
-  // executable when attaching to a process by process ID in a "attach"
-  // request.
-  FILE *out = llvm::sys::RetryAfterSignal(nullptr, fopen, dev_null_path, "w");
-  if (out) {
-    // Set the output and error file handles to redirect into nothing otherwise
-    // if any code in LLDB prints to the debugger file handles, the output and
-    // error file handles are initialized to STDOUT and STDERR and any output
-    // will kill our debug session.
-    g_vsc.debugger.SetOutputFileHandle(out, true);
-    g_vsc.debugger.SetErrorFileHandle(out, false);
-  }
 
   // Start our event thread so we can receive events from the debugger, target,
   // process and more.
@@ -1547,6 +1532,8 @@ void request_initialize(const llvm::json::Object &request) {
   body.try_emplace("supportsLoadedSourcesRequest", false);
   // The debug adapter supports sending progress reporting events.
   body.try_emplace("supportsProgressReporting", true);
+  // The debug adapter supports 'logMessage' in breakpoint.
+  body.try_emplace("supportsLogPoints", true);
 
   response.try_emplace("body", std::move(body));
   g_vsc.SendJSON(llvm::json::Value(std::move(response)));
@@ -2094,9 +2081,10 @@ void request_setBreakpoints(const llvm::json::Object &request) {
           }
         }
         // At this point the breakpoint is new
-        src_bp.SetBreakpoint(path.data());
-        AppendBreakpoint(src_bp.bp, response_breakpoints, path, src_bp.line);
-        g_vsc.source_breakpoints[path][src_bp.line] = std::move(src_bp);
+        g_vsc.source_breakpoints[path][src_bp.line] = src_bp;
+        SourceBreakpoint &new_bp = g_vsc.source_breakpoints[path][src_bp.line];
+        new_bp.SetBreakpoint(path.data());
+        AppendBreakpoint(new_bp.bp, response_breakpoints, path, new_bp.line);
       }
     }
   }
@@ -2319,10 +2307,11 @@ void request_setFunctionBreakpoints(const llvm::json::Object &request) {
   // Any breakpoints that are left in "request_bps" are breakpoints that
   // need to be set.
   for (auto &pair : request_bps) {
-    pair.second.SetBreakpoint();
     // Add this breakpoint info to the response
-    AppendBreakpoint(pair.second.bp, response_breakpoints);
     g_vsc.function_breakpoints[pair.first()] = std::move(pair.second);
+    FunctionBreakpoint &new_bp = g_vsc.function_breakpoints[pair.first()];
+    new_bp.SetBreakpoint();
+    AppendBreakpoint(new_bp.bp, response_breakpoints);
   }
 
   llvm::json::Object body;
@@ -3147,18 +3136,25 @@ void redirection_test() {
 /// \return
 ///     A fd pointing to the original stdout.
 int SetupStdoutStderrRedirection() {
-  int new_stdout_fd = dup(fileno(stdout));
-  auto stdout_err_redirector_callback = [&](llvm::StringRef data) {
-    g_vsc.SendOutput(OutputType::Console, data);
+  int stdoutfd = fileno(stdout);
+  int new_stdout_fd = dup(stdoutfd);
+  auto output_callback_stderr = [](llvm::StringRef data) {
+    g_vsc.SendOutput(OutputType::Stderr, data);
   };
-
-  for (int fd : {fileno(stdout), fileno(stderr)}) {
-    if (llvm::Error err = RedirectFd(fd, stdout_err_redirector_callback)) {
-      std::string error_message = llvm::toString(std::move(err));
-      if (g_vsc.log)
-        *g_vsc.log << error_message << std::endl;
-      stdout_err_redirector_callback(error_message);
-    }
+  auto output_callback_stdout = [](llvm::StringRef data) {
+    g_vsc.SendOutput(OutputType::Stdout, data);
+  };
+  if (llvm::Error err = RedirectFd(stdoutfd, output_callback_stdout)) {
+    std::string error_message = llvm::toString(std::move(err));
+    if (g_vsc.log)
+      *g_vsc.log << error_message << std::endl;
+    output_callback_stderr(error_message);
+  }
+  if (llvm::Error err = RedirectFd(fileno(stderr), output_callback_stderr)) {
+    std::string error_message = llvm::toString(std::move(err));
+    if (g_vsc.log)
+      *g_vsc.log << error_message << std::endl;
+    output_callback_stderr(error_message);
   }
 
   /// used only by TestVSCode_redirection_to_console.py
@@ -3246,7 +3242,6 @@ int main(int argc, char *argv[]) {
     g_vsc.output.descriptor = StreamDescriptor::from_file(new_stdout_fd, false);
   }
 
-  uint32_t packet_idx = 0;
   while (!g_vsc.sent_terminated_event) {
     llvm::json::Object object;
     lldb_vscode::PacketStatus status = g_vsc.GetNextObject(object);
@@ -3257,7 +3252,6 @@ int main(int argc, char *argv[]) {
 
     if (!g_vsc.HandleObject(object))
       return 1;
-    ++packet_idx;
   }
 
   return EXIT_SUCCESS;

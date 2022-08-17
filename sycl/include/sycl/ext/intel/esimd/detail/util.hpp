@@ -12,7 +12,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #include <type_traits>
@@ -23,8 +23,9 @@
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 /// ESIMD intrinsic operand size in bytes.
 struct OperandSize {
@@ -187,7 +188,18 @@ public:
   }
 };
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+/// Returns the address referenced by the accessor \p Acc and
+/// the byte offset \p Offset.
+template <typename T, typename AccessorTy>
+T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
+  auto BytePtr = reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset;
+  return reinterpret_cast<T *>(BytePtr);
+}
+#endif // __ESIMD_FORCE_STATELESS_MEM
+
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @endcond ESIMD_DETAIL

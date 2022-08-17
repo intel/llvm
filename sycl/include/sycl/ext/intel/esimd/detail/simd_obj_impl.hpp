@@ -18,8 +18,9 @@
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -314,23 +315,15 @@ public:
   ///   argument.
   /// @param acc The accessor to read from.
   /// @param offset 32-bit offset in bytes of the first element.
-  template <typename AccessorT, typename Flags = element_aligned_tag,
-            typename = std::enable_if_t<
-                detail::is_sycl_accessor_with<
-                    AccessorT, accessor_mode_cap::can_read,
-                    sycl::access::target::global_buffer>::value &&
-                is_simd_flag_type_v<Flags>>>
+  template <
+      typename AccessorT, typename Flags = element_aligned_tag,
+      typename = std::enable_if_t<
+          detail::is_sycl_accessor_with<AccessorT, accessor_mode_cap::can_read,
+                                        sycl::access::target::device>::value &&
+          is_simd_flag_type_v<Flags>>>
   simd_obj_impl(AccessorT acc, uint32_t offset, Flags = {}) noexcept {
     __esimd_dbg_print(simd_obj_impl(AccessorT acc, uint32_t offset, Flags));
     copy_from(acc, offset, Flags{});
-  }
-
-  /// Initializes this object from an rvalue to an array with the same number
-  /// of elements.
-  /// @param Arr Rvalue reference to the array.
-  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty (&&Arr)[N1]) {
-    __esimd_dbg_print(copy_from(const Ty(&&Arr)[N1]));
-    init_from_array(std::move(Arr));
   }
 
   /// Type conversion into a scalar:
@@ -713,7 +706,7 @@ public:
             int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                                sycl::access::target::global_buffer, void>
+                                sycl::access::target::device, void>
   copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
@@ -739,7 +732,7 @@ public:
             int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                                sycl::access::target::global_buffer, void>
+                                sycl::access::target::device, void>
   copy_to(AccessorT acc, uint32_t offset, Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   // Unary operations.
@@ -888,5 +881,6 @@ protected:
 
 } // namespace detail
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

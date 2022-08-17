@@ -13,6 +13,7 @@
 
 #include "NativeRegisterContextLinux_ppc64le.h"
 
+#include "lldb/Host/HostInfo.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Log.h"
@@ -121,6 +122,11 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
   default:
     llvm_unreachable("have no register context for architecture");
   }
+}
+
+llvm::Expected<ArchSpec>
+NativeRegisterContextLinux::DetermineArchitecture(lldb::tid_t tid) {
+  return HostInfo::GetArchitecture();
 }
 
 NativeRegisterContextLinux_ppc64le::NativeRegisterContextLinux_ppc64le(
@@ -349,7 +355,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteRegister(
 }
 
 Status NativeRegisterContextLinux_ppc64le::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
@@ -400,7 +406,7 @@ Status NativeRegisterContextLinux_ppc64le::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextLinux_ppc64le::%s "
                                    "DataBuffer::GetBytes() returned a null "

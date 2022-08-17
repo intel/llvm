@@ -28,7 +28,7 @@ namespace {
 struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
   void runOnOperation() override {
     BufferizationOptions options = getPartialBufferizationOptions();
-    options.allowDialectInFilter<linalg::LinalgDialect>();
+    options.opFilter.allowDialect<linalg::LinalgDialect>();
 
     if (failed(bufferizeOp(getOperation(), options)))
       signalPassFailure();
@@ -42,6 +42,6 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLinalgBufferizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLinalgBufferizePass() {
   return std::make_unique<LinalgBufferizePass>();
 }

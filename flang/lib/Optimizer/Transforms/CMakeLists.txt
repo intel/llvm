@@ -10,6 +10,7 @@ add_flang_library(FIRTransforms
   MemRefDataFlowOpt.cpp
   RewriteLoop.cpp
   SimplifyRegionLite.cpp
+  AlgebraicSimplification.cpp
 
   DEPENDS
   FIRBuilder
@@ -21,9 +22,10 @@ add_flang_library(FIRTransforms
   FIRBuilder
   FIRDialect
   MLIRAffineUtils
-  MLIRFunc
-  MLIRLLVMIR
-  MLIROpenACC
-  MLIROpenMP
+  MLIRFuncDialect
+  MLIRLLVMDialect
+  MLIRMathTransforms
+  MLIROpenACCDialect
+  MLIROpenMPDialect
   FIRSupport
 )

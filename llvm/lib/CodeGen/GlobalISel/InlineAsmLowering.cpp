@@ -145,6 +145,7 @@ static unsigned getConstraintGenerality(TargetLowering::ConstraintType CT) {
   case TargetLowering::C_RegisterClass:
     return 2;
   case TargetLowering::C_Memory:
+  case TargetLowering::C_Address:
     return 3;
   }
   llvm_unreachable("Invalid constraint type");
@@ -331,6 +332,8 @@ bool InlineAsmLowering::lowerInlineAsm(
       }
       ++ResNo;
     } else {
+      assert(OpInfo.Type != InlineAsm::isLabel &&
+             "GlobalISel currently doesn't support callbr");
       OpInfo.ConstraintVT = MVT::Other;
     }
 
@@ -426,7 +429,8 @@ bool InlineAsmLowering::lowerInlineAsm(
       }
 
       break;
-    case InlineAsm::isInput: {
+    case InlineAsm::isInput:
+    case InlineAsm::isLabel: {
       if (OpInfo.isMatchingInputConstraint()) {
         unsigned DefIdx = OpInfo.getMatchedOperand();
         // Find operand with register def that corresponds to DefIdx.
@@ -644,6 +648,8 @@ bool InlineAsmLowering::lowerInlineAsm(
       return false;
     case TargetLowering::C_Memory:
       break; // Already handled.
+    case TargetLowering::C_Address:
+      break; // Silence warning.
     case TargetLowering::C_Unknown:
       LLVM_DEBUG(dbgs() << "Unexpected unknown constraint\n");
       return false;

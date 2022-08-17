@@ -18,7 +18,7 @@ SOURCE-NEXT: #end
 SOURCE-NEXT: }
 
 RUN: clang-pseudo -source %s -print-tokens | FileCheck %s -check-prefix=TOKEN
-     TOKEN:   0: raw_identifier   0:0 "int" flags=1
+     TOKEN: 0: raw_identifier 0:0 "int" flags=1
 TOKEN-NEXT: raw_identifier   0:0 "is_debug"
 TOKEN-NEXT: l_paren          0:0 "("
 TOKEN-NEXT: r_paren          0:0 ")"
@@ -38,15 +38,5 @@ TOKEN-NEXT: semi             4:2 ";"
 TOKEN-NEXT: hash             5:0 "#" flags=1
 TOKEN-NEXT: raw_identifier   5:0 "endif"
 TOKEN-NEXT: r_brace          6:0 "}" flags=1
-
-RUN: clang-pseudo -source %s -print-directive-map | FileCheck %s -check-prefix=PPS --strict-whitespace
-     PPS: code (5 tokens)
-PPS-NEXT: #ifndef (3 tokens)
-PPS-NEXT:   code (4 tokens)
-PPS-NEXT: #else (2 tokens)
-PPS-NEXT:   code (3 tokens)
-PPS-NEXT: #endif (2 tokens)
-PPS-NEXT: code (2 tokens)
-                ^ including this block comment
 
 *******************************************************************************/

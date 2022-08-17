@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Protocol.h"
+#include "Logging.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -18,6 +20,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -34,7 +37,7 @@ static bool mapOptOrNull(const llvm::json::Value &params,
 
   // Field is missing or null.
   auto *v = o->get(prop);
-  if (!v || v->getAsNull().hasValue())
+  if (!v || v->getAsNull())
     return true;
   return fromJSON(*v, out, path.field(prop));
 }
@@ -264,6 +267,10 @@ bool mlir::lsp::fromJSON(const llvm::json::Value &value,
               documentSymbol->getBoolean("hierarchicalDocumentSymbolSupport"))
         result.hierarchicalDocumentSymbol = *hierarchicalSupport;
     }
+    if (auto *codeAction = textDocument->getObject("codeAction")) {
+      if (codeAction->getObject("codeActionLiteralSupport"))
+        result.codeActionStructure = true;
+    }
   }
   return true;
 }
@@ -395,6 +402,12 @@ raw_ostream &mlir::lsp::operator<<(raw_ostream &os, const Range &value) {
 // Location
 //===----------------------------------------------------------------------===//
 
+bool mlir::lsp::fromJSON(const llvm::json::Value &value, Location &result,
+                         llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("uri", result.uri) && o.map("range", result.range);
+}
+
 llvm::json::Value mlir::lsp::toJSON(const Location &value) {
   return llvm::json::Object{
       {"uri", value.uri},
@@ -462,6 +475,36 @@ bool mlir::lsp::fromJSON(const llvm::json::Value &value,
 // DidChangeTextDocumentParams
 //===----------------------------------------------------------------------===//
 
+LogicalResult
+TextDocumentContentChangeEvent::applyTo(std::string &contents) const {
+  // If there is no range, the full document changed.
+  if (!range) {
+    contents = text;
+    return success();
+  }
+
+  // Try to map the replacement range to the content.
+  llvm::SourceMgr tmpScrMgr;
+  tmpScrMgr.AddNewSourceBuffer(llvm::MemoryBuffer::getMemBuffer(contents),
+                               SMLoc());
+  SMRange rangeLoc = range->getAsSMRange(tmpScrMgr);
+  if (!rangeLoc.isValid())
+    return failure();
+
+  contents.replace(rangeLoc.Start.getPointer() - contents.data(),
+                   rangeLoc.End.getPointer() - rangeLoc.Start.getPointer(),
+                   text);
+  return success();
+}
+
+LogicalResult TextDocumentContentChangeEvent::applyTo(
+    ArrayRef<TextDocumentContentChangeEvent> changes, std::string &contents) {
+  for (const auto &change : changes)
+    if (failed(change.applyTo(contents)))
+      return failure();
+  return success();
+}
+
 bool mlir::lsp::fromJSON(const llvm::json::Value &value,
                          TextDocumentContentChangeEvent &result,
                          llvm::json::Path path) {
@@ -512,7 +555,7 @@ llvm::json::Value mlir::lsp::toJSON(const MarkupContent &mc) {
 
 llvm::json::Value mlir::lsp::toJSON(const Hover &hover) {
   llvm::json::Object result{{"contents", toJSON(hover.contents)}};
-  if (hover.range.hasValue())
+  if (hover.range)
     result["range"] = toJSON(*hover.range);
   return std::move(result);
 }
@@ -548,6 +591,14 @@ bool mlir::lsp::fromJSON(const llvm::json::Value &value,
 // DiagnosticRelatedInformation
 //===----------------------------------------------------------------------===//
 
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         DiagnosticRelatedInformation &result,
+                         llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("location", result.location) &&
+         o.map("message", result.message);
+}
+
 llvm::json::Value mlir::lsp::toJSON(const DiagnosticRelatedInformation &info) {
   return llvm::json::Object{
       {"location", info.location},
@@ -574,6 +625,23 @@ llvm::json::Value mlir::lsp::toJSON(const Diagnostic &diag) {
   return std::move(result);
 }
 
+bool mlir::lsp::fromJSON(const llvm::json::Value &value, Diagnostic &result,
+                         llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  if (!o)
+    return false;
+  int severity = 0;
+  if (!mapOptOrNull(value, "severity", severity, path))
+    return false;
+  result.severity = (DiagnosticSeverity)severity;
+
+  return o.map("range", result.range) && o.map("message", result.message) &&
+         mapOptOrNull(value, "category", result.category, path) &&
+         mapOptOrNull(value, "source", result.source, path) &&
+         mapOptOrNull(value, "relatedInformation", result.relatedInformation,
+                      path);
+}
+
 //===----------------------------------------------------------------------===//
 // PublishDiagnosticsParams
 //===----------------------------------------------------------------------===//
@@ -584,4 +652,340 @@ llvm::json::Value mlir::lsp::toJSON(const PublishDiagnosticsParams &params) {
       {"diagnostics", params.diagnostics},
       {"version", params.version},
   };
+}
+
+//===----------------------------------------------------------------------===//
+// TextEdit
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value, TextEdit &result,
+                         llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("range", result.range) && o.map("newText", result.newText);
+}
+
+llvm::json::Value mlir::lsp::toJSON(const TextEdit &value) {
+  return llvm::json::Object{
+      {"range", value.range},
+      {"newText", value.newText},
+  };
+}
+
+raw_ostream &mlir::lsp::operator<<(raw_ostream &os, const TextEdit &value) {
+  os << value.range << " => \"";
+  llvm::printEscapedString(value.newText, os);
+  return os << '"';
+}
+
+//===----------------------------------------------------------------------===//
+// CompletionItemKind
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         CompletionItemKind &result, llvm::json::Path path) {
+  if (Optional<int64_t> intValue = value.getAsInteger()) {
+    if (*intValue < static_cast<int>(CompletionItemKind::Text) ||
+        *intValue > static_cast<int>(CompletionItemKind::TypeParameter))
+      return false;
+    result = static_cast<CompletionItemKind>(*intValue);
+    return true;
+  }
+  return false;
+}
+
+CompletionItemKind mlir::lsp::adjustKindToCapability(
+    CompletionItemKind kind,
+    CompletionItemKindBitset &supportedCompletionItemKinds) {
+  size_t kindVal = static_cast<size_t>(kind);
+  if (kindVal >= kCompletionItemKindMin &&
+      kindVal <= supportedCompletionItemKinds.size() &&
+      supportedCompletionItemKinds[kindVal])
+    return kind;
+
+  // Provide some fall backs for common kinds that are close enough.
+  switch (kind) {
+  case CompletionItemKind::Folder:
+    return CompletionItemKind::File;
+  case CompletionItemKind::EnumMember:
+    return CompletionItemKind::Enum;
+  case CompletionItemKind::Struct:
+    return CompletionItemKind::Class;
+  default:
+    return CompletionItemKind::Text;
+  }
+}
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         CompletionItemKindBitset &result,
+                         llvm::json::Path path) {
+  if (const llvm::json::Array *arrayValue = value.getAsArray()) {
+    for (size_t i = 0, e = arrayValue->size(); i < e; ++i) {
+      CompletionItemKind kindOut;
+      if (fromJSON((*arrayValue)[i], kindOut, path.index(i)))
+        result.set(size_t(kindOut));
+    }
+    return true;
+  }
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
+// CompletionItem
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const CompletionItem &value) {
+  assert(!value.label.empty() && "completion item label is required");
+  llvm::json::Object result{{"label", value.label}};
+  if (value.kind != CompletionItemKind::Missing)
+    result["kind"] = static_cast<int>(value.kind);
+  if (!value.detail.empty())
+    result["detail"] = value.detail;
+  if (value.documentation)
+    result["documentation"] = value.documentation;
+  if (!value.sortText.empty())
+    result["sortText"] = value.sortText;
+  if (!value.filterText.empty())
+    result["filterText"] = value.filterText;
+  if (!value.insertText.empty())
+    result["insertText"] = value.insertText;
+  if (value.insertTextFormat != InsertTextFormat::Missing)
+    result["insertTextFormat"] = static_cast<int>(value.insertTextFormat);
+  if (value.textEdit)
+    result["textEdit"] = *value.textEdit;
+  if (!value.additionalTextEdits.empty()) {
+    result["additionalTextEdits"] =
+        llvm::json::Array(value.additionalTextEdits);
+  }
+  if (value.deprecated)
+    result["deprecated"] = value.deprecated;
+  return std::move(result);
+}
+
+raw_ostream &mlir::lsp::operator<<(raw_ostream &os,
+                                   const CompletionItem &value) {
+  return os << value.label << " - " << toJSON(value);
+}
+
+bool mlir::lsp::operator<(const CompletionItem &lhs,
+                          const CompletionItem &rhs) {
+  return (lhs.sortText.empty() ? lhs.label : lhs.sortText) <
+         (rhs.sortText.empty() ? rhs.label : rhs.sortText);
+}
+
+//===----------------------------------------------------------------------===//
+// CompletionList
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const CompletionList &value) {
+  return llvm::json::Object{
+      {"isIncomplete", value.isIncomplete},
+      {"items", llvm::json::Array(value.items)},
+  };
+}
+
+//===----------------------------------------------------------------------===//
+// CompletionContext
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         CompletionContext &result, llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  int triggerKind;
+  if (!o || !o.map("triggerKind", triggerKind) ||
+      !mapOptOrNull(value, "triggerCharacter", result.triggerCharacter, path))
+    return false;
+  result.triggerKind = static_cast<CompletionTriggerKind>(triggerKind);
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
+// CompletionParams
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         CompletionParams &result, llvm::json::Path path) {
+  if (!fromJSON(value, static_cast<TextDocumentPositionParams &>(result), path))
+    return false;
+  if (const llvm::json::Value *context = value.getAsObject()->get("context"))
+    return fromJSON(*context, result.context, path.field("context"));
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
+// ParameterInformation
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const ParameterInformation &value) {
+  assert((value.labelOffsets || !value.labelString.empty()) &&
+         "parameter information label is required");
+  llvm::json::Object result;
+  if (value.labelOffsets)
+    result["label"] = llvm::json::Array(
+        {value.labelOffsets->first, value.labelOffsets->second});
+  else
+    result["label"] = value.labelString;
+  if (!value.documentation.empty())
+    result["documentation"] = value.documentation;
+  return std::move(result);
+}
+
+//===----------------------------------------------------------------------===//
+// SignatureInformation
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const SignatureInformation &value) {
+  assert(!value.label.empty() && "signature information label is required");
+  llvm::json::Object result{
+      {"label", value.label},
+      {"parameters", llvm::json::Array(value.parameters)},
+  };
+  if (!value.documentation.empty())
+    result["documentation"] = value.documentation;
+  return std::move(result);
+}
+
+raw_ostream &mlir::lsp::operator<<(raw_ostream &os,
+                                   const SignatureInformation &value) {
+  return os << value.label << " - " << toJSON(value);
+}
+
+//===----------------------------------------------------------------------===//
+// SignatureHelp
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const SignatureHelp &value) {
+  assert(value.activeSignature >= 0 &&
+         "Unexpected negative value for number of active signatures.");
+  assert(value.activeParameter >= 0 &&
+         "Unexpected negative value for active parameter index");
+  return llvm::json::Object{
+      {"activeSignature", value.activeSignature},
+      {"activeParameter", value.activeParameter},
+      {"signatures", llvm::json::Array(value.signatures)},
+  };
+}
+
+//===----------------------------------------------------------------------===//
+// DocumentLinkParams
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         DocumentLinkParams &result, llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("textDocument", result.textDocument);
+}
+
+//===----------------------------------------------------------------------===//
+// DocumentLink
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const DocumentLink &value) {
+  return llvm::json::Object{
+      {"range", value.range},
+      {"target", value.target},
+  };
+}
+
+//===----------------------------------------------------------------------===//
+// InlayHintsParams
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         InlayHintsParams &result, llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("textDocument", result.textDocument) &&
+         o.map("range", result.range);
+}
+
+//===----------------------------------------------------------------------===//
+// InlayHint
+//===----------------------------------------------------------------------===//
+
+llvm::json::Value mlir::lsp::toJSON(const InlayHint &value) {
+  return llvm::json::Object{{"position", value.position},
+                            {"kind", (int)value.kind},
+                            {"label", value.label},
+                            {"paddingLeft", value.paddingLeft},
+                            {"paddingRight", value.paddingRight}};
+}
+bool mlir::lsp::operator==(const InlayHint &lhs, const InlayHint &rhs) {
+  return std::tie(lhs.position, lhs.kind, lhs.label) ==
+         std::tie(rhs.position, rhs.kind, rhs.label);
+}
+bool mlir::lsp::operator<(const InlayHint &lhs, const InlayHint &rhs) {
+  return std::tie(lhs.position, lhs.kind, lhs.label) <
+         std::tie(rhs.position, rhs.kind, rhs.label);
+}
+
+llvm::raw_ostream &mlir::lsp::operator<<(llvm::raw_ostream &os,
+                                         InlayHintKind value) {
+  switch (value) {
+  case InlayHintKind::Parameter:
+    return os << "parameter";
+  case InlayHintKind::Type:
+    return os << "type";
+  }
+  llvm_unreachable("Unknown InlayHintKind");
+}
+
+//===----------------------------------------------------------------------===//
+// CodeActionContext
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         CodeActionContext &result, llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  if (!o || !o.map("diagnostics", result.diagnostics))
+    return false;
+  o.map("only", result.only);
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
+// CodeActionParams
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value,
+                         CodeActionParams &result, llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("textDocument", result.textDocument) &&
+         o.map("range", result.range) && o.map("context", result.context);
+}
+
+//===----------------------------------------------------------------------===//
+// WorkspaceEdit
+//===----------------------------------------------------------------------===//
+
+bool mlir::lsp::fromJSON(const llvm::json::Value &value, WorkspaceEdit &result,
+                         llvm::json::Path path) {
+  llvm::json::ObjectMapper o(value, path);
+  return o && o.map("changes", result.changes);
+}
+
+llvm::json::Value mlir::lsp::toJSON(const WorkspaceEdit &value) {
+  llvm::json::Object fileChanges;
+  for (auto &change : value.changes)
+    fileChanges[change.first] = llvm::json::Array(change.second);
+  return llvm::json::Object{{"changes", std::move(fileChanges)}};
+}
+
+//===----------------------------------------------------------------------===//
+// CodeAction
+//===----------------------------------------------------------------------===//
+
+const llvm::StringLiteral CodeAction::kQuickFix = "quickfix";
+const llvm::StringLiteral CodeAction::kRefactor = "refactor";
+const llvm::StringLiteral CodeAction::kInfo = "info";
+
+llvm::json::Value mlir::lsp::toJSON(const CodeAction &value) {
+  llvm::json::Object codeAction{{"title", value.title}};
+  if (value.kind)
+    codeAction["kind"] = *value.kind;
+  if (value.diagnostics)
+    codeAction["diagnostics"] = llvm::json::Array(*value.diagnostics);
+  if (value.isPreferred)
+    codeAction["isPreferred"] = true;
+  if (value.edit)
+    codeAction["edit"] = *value.edit;
+  return std::move(codeAction);
 }

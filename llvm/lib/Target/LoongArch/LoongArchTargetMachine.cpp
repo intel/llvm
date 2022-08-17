@@ -29,19 +29,16 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeLoongArchTarget() {
   RegisterTargetMachine<LoongArchTargetMachine> Y(getTheLoongArch64Target());
 }
 
-// FIXME: This is just a placeholder to make current commit buildable. Body of
-// this function will be filled in later commits.
 static std::string computeDataLayout(const Triple &TT) {
-  std::string Ret;
-  Ret += "e";
-  return Ret;
+  if (TT.isArch64Bit())
+    return "e-m:e-p:64:64-i64:64-i128:128-n64-S128";
+  assert(TT.isArch32Bit() && "only LA32 and LA64 are currently supported");
+  return "e-m:e-p:32:32-i64:64-n32-S128";
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
                                            Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
-    return Reloc::Static;
-  return *RM;
+  return RM.value_or(Reloc::Static);
 }
 
 LoongArchTargetMachine::LoongArchTargetMachine(
@@ -103,13 +100,20 @@ public:
     return getTM<LoongArchTargetMachine>();
   }
 
+  void addIRPasses() override;
   bool addInstSelector() override;
 };
-} // namespace
+} // end namespace
 
 TargetPassConfig *
 LoongArchTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new LoongArchPassConfig(*this, PM);
+}
+
+void LoongArchPassConfig::addIRPasses() {
+  addPass(createAtomicExpandPass());
+
+  TargetPassConfig::addIRPasses();
 }
 
 bool LoongArchPassConfig::addInstSelector() {

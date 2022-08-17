@@ -16,6 +16,7 @@ class CrashLogScriptedProcess(ScriptedProcess):
             return
 
         self.pid = crash_log.process_id
+        self.addr_mask = crash_log.addr_mask
         self.crashed_thread_idx = crash_log.crashed_thread_idx
         self.loaded_images = []
 
@@ -122,11 +123,13 @@ class CrashLogScriptedThread(ScriptedThread):
             return None
 
         for frame in self.backing_thread.frames:
+            frame_pc = frame.pc & self.scripted_process.addr_mask
+            pc = frame_pc if frame.index == 0  or frame_pc == 0 else frame_pc - 1
             sym_addr = lldb.SBAddress()
-            sym_addr.SetLoadAddress(frame.pc, self.target)
+            sym_addr.SetLoadAddress(pc, self.target)
             if not sym_addr.IsValid():
                 continue
-            self.frames.append({"idx": frame.index, "pc": frame.pc})
+            self.frames.append({"idx": frame.index, "pc": pc})
 
         return self.frames
 
@@ -135,14 +138,11 @@ class CrashLogScriptedThread(ScriptedThread):
 
         self.backing_thread = crashlog_thread
         self.idx = self.backing_thread.index
+        self.tid = self.backing_thread.id
+        self.name = self.backing_thread.name
+        self.queue = self.backing_thread.queue
         self.has_crashed = (self.scripted_process.crashed_thread_idx == self.idx)
         self.create_stackframes()
-
-    def get_thread_id(self) -> int:
-        return self.idx
-
-    def get_name(self) -> str:
-        return CrashLogScriptedThread.__name__ + ".thread-" + str(self.idx)
 
     def get_state(self):
         if not self.has_crashed:

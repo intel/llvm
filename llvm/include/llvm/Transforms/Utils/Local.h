@@ -286,7 +286,6 @@ void salvageDebugInfo(Instruction &I);
 
 /// Implementation of salvageDebugInfo, applying only to instructions in
 /// \p Insns, rather than all debug users from findDbgUsers( \p I).
-/// Returns true if any debug users were updated.
 /// Mark undef if salvaging cannot be completed.
 void salvageDebugInfoForDbgValues(Instruction &I,
                                   ArrayRef<DbgVariableIntrinsic *> Insns);
@@ -335,7 +334,7 @@ bool replaceAllDbgUsesWith(Instruction &From, Value &To, Instruction &DomPoint,
 
 /// Remove all instructions from a basic block other than its terminator
 /// and any present EH pad instructions. Returns a pair where the first element
-/// is the number of instructions (excluding debug info instrinsics) that have
+/// is the number of instructions (excluding debug info intrinsics) that have
 /// been removed, and the second element is the number of debug info intrinsics
 /// that have been removed.
 std::pair<unsigned, unsigned>

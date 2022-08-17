@@ -59,30 +59,27 @@ namespace {
     enum {
       RegBase,
       FrameIndexBase
-    } BaseType;
+    } BaseType = RegBase;
 
     // This is really a union, discriminated by BaseType!
     SDValue Base_Reg;
-    int Base_FrameIndex;
+    int Base_FrameIndex = 0;
 
-    unsigned Scale;
+    unsigned Scale = 1;
     SDValue IndexReg;
-    int32_t Disp;
+    int32_t Disp = 0;
     SDValue Segment;
-    const GlobalValue *GV;
-    const Constant *CP;
-    const BlockAddress *BlockAddr;
-    const char *ES;
-    MCSymbol *MCSym;
-    int JT;
+    const GlobalValue *GV = nullptr;
+    const Constant *CP = nullptr;
+    const BlockAddress *BlockAddr = nullptr;
+    const char *ES = nullptr;
+    MCSymbol *MCSym = nullptr;
+    int JT = -1;
     Align Alignment;            // CP alignment.
-    unsigned char SymbolFlags;  // X86II::MO_*
+    unsigned char SymbolFlags = X86II::MO_NO_FLAG;  // X86II::MO_*
     bool NegateIndex = false;
 
-    X86ISelAddressMode()
-        : BaseType(RegBase), Base_FrameIndex(0), Scale(1), Disp(0), GV(nullptr),
-          CP(nullptr), BlockAddr(nullptr), ES(nullptr), MCSym(nullptr), JT(-1),
-          SymbolFlags(X86II::MO_NO_FLAG) {}
+    X86ISelAddressMode() = default;
 
     bool hasSymbolicDisplacement() const {
       return GV != nullptr || CP != nullptr || ES != nullptr ||
@@ -513,6 +510,9 @@ namespace {
       return Subtarget->getInstrInfo();
     }
 
+    /// Return a condition code of the given SDNode
+    X86::CondCode getCondFromNode(SDNode *N) const;
+
     /// Address-mode matching performs shift-of-and to and-of-shift
     /// reassociation in order to expose more scaled addressing
     /// opportunities.
@@ -529,7 +529,7 @@ namespace {
 
       unsigned StoreSize = N->getMemoryVT().getStoreSize();
 
-      if (N->getAlignment() < StoreSize)
+      if (N->getAlign().value() < StoreSize)
         return false;
 
       switch (StoreSize) {
@@ -1487,12 +1487,13 @@ void X86DAGToDAGISel::PostprocessISelDAG() {
     if ((Opc == X86::TEST8rr || Opc == X86::TEST16rr ||
          Opc == X86::TEST32rr || Opc == X86::TEST64rr) &&
         N->getOperand(0) == N->getOperand(1) &&
-        N->isOnlyUserOf(N->getOperand(0).getNode()) &&
+        N->getOperand(0)->hasNUsesOfValue(2, N->getOperand(0).getResNo()) &&
         N->getOperand(0).isMachineOpcode()) {
       SDValue And = N->getOperand(0);
       unsigned N0Opc = And.getMachineOpcode();
-      if (N0Opc == X86::AND8rr || N0Opc == X86::AND16rr ||
-          N0Opc == X86::AND32rr || N0Opc == X86::AND64rr) {
+      if ((N0Opc == X86::AND8rr || N0Opc == X86::AND16rr ||
+           N0Opc == X86::AND32rr || N0Opc == X86::AND64rr) &&
+          !And->hasAnyUseOfValue(1)) {
         MachineSDNode *Test = CurDAG->getMachineNode(Opc, SDLoc(N),
                                                      MVT::i32,
                                                      And.getOperand(0),
@@ -1501,8 +1502,9 @@ void X86DAGToDAGISel::PostprocessISelDAG() {
         MadeChange = true;
         continue;
       }
-      if (N0Opc == X86::AND8rm || N0Opc == X86::AND16rm ||
-          N0Opc == X86::AND32rm || N0Opc == X86::AND64rm) {
+      if ((N0Opc == X86::AND8rm || N0Opc == X86::AND16rm ||
+           N0Opc == X86::AND32rm || N0Opc == X86::AND64rm) &&
+          !And->hasAnyUseOfValue(1)) {
         unsigned NewOpc;
         switch (N0Opc) {
         case X86::AND8rm:  NewOpc = X86::TEST8mr; break;
@@ -1523,7 +1525,8 @@ void X86DAGToDAGISel::PostprocessISelDAG() {
                                                      MVT::i32, MVT::Other, Ops);
         CurDAG->setNodeMemRefs(
             Test, cast<MachineSDNode>(And.getNode())->memoperands());
-        ReplaceUses(N, Test);
+        ReplaceUses(And.getValue(2), SDValue(Test, 1));
+        ReplaceUses(SDValue(N, 0), SDValue(Test, 0));
         MadeChange = true;
         continue;
       }
@@ -2428,6 +2431,14 @@ bool X86DAGToDAGISel::matchAddressRecursively(SDValue N, X86ISelAddressMode &AM,
       return false;
     break;
 
+  case ISD::XOR:
+    // We want to look through a transform in InstCombine that
+    // turns 'add' with min_signed_val into 'xor', so we can treat this 'xor'
+    // exactly like an 'add'.
+    if (isMinSignedConstant(N.getOperand(1)) && !matchAdd(N, AM, Depth))
+      return false;
+    break;
+
   case ISD::AND: {
     // Perform some heroic transforms on an and of a constant-count shift
     // with a constant to enable use of the scaled offset field.
@@ -2927,24 +2938,15 @@ bool X86DAGToDAGISel::isSExtAbsoluteSymbolRef(unsigned Width, SDNode *N) const {
          CR->getSignedMax().slt(1ull << Width);
 }
 
-static X86::CondCode getCondFromNode(SDNode *N) {
+X86::CondCode X86DAGToDAGISel::getCondFromNode(SDNode *N) const {
   assert(N->isMachineOpcode() && "Unexpected node");
-  X86::CondCode CC = X86::COND_INVALID;
   unsigned Opc = N->getMachineOpcode();
-  if (Opc == X86::JCC_1)
-    CC = static_cast<X86::CondCode>(N->getConstantOperandVal(1));
-  else if (Opc == X86::SETCCr)
-    CC = static_cast<X86::CondCode>(N->getConstantOperandVal(0));
-  else if (Opc == X86::SETCCm)
-    CC = static_cast<X86::CondCode>(N->getConstantOperandVal(5));
-  else if (Opc == X86::CMOV16rr || Opc == X86::CMOV32rr ||
-           Opc == X86::CMOV64rr)
-    CC = static_cast<X86::CondCode>(N->getConstantOperandVal(2));
-  else if (Opc == X86::CMOV16rm || Opc == X86::CMOV32rm ||
-           Opc == X86::CMOV64rm)
-    CC = static_cast<X86::CondCode>(N->getConstantOperandVal(6));
+  const MCInstrDesc &MCID = getInstrInfo()->get(Opc);
+  int CondNo = X86::getCondSrcNoFromDesc(MCID);
+  if (CondNo < 0)
+    return X86::COND_INVALID;
 
-  return CC;
+  return static_cast<X86::CondCode>(N->getConstantOperandVal(CondNo));
 }
 
 /// Test whether the given X86ISD::CMP node has any users that use a flag
@@ -3500,7 +3502,7 @@ bool X86DAGToDAGISel::matchBitExtract(SDNode *Node) {
   const bool AllowExtraUsesByDefault = Subtarget->hasBMI2();
   auto checkUses = [AllowExtraUsesByDefault](SDValue Op, unsigned NUses,
                                              Optional<bool> AllowExtraUses) {
-    return AllowExtraUses.getValueOr(AllowExtraUsesByDefault) ||
+    return AllowExtraUses.value_or(AllowExtraUsesByDefault) ||
            Op.getNode()->hasNUsesOfValue(NUses, Op.getResNo());
   };
   auto checkOneUse = [checkUses](SDValue Op,
@@ -5514,7 +5516,7 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     MVT CmpVT = N0.getSimpleValueType();
 
     // Floating point needs special handling if we don't have FCOMI.
-    if (Subtarget->hasCMov())
+    if (Subtarget->canUseCMOV())
       break;
 
     bool IsSignaling = Node->getOpcode() == X86ISD::STRICT_FCMPS;
@@ -5554,7 +5556,7 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
 
     // Move AH into flags.
     // Some 64-bit targets lack SAHF support, but they do support FCOMI.
-    assert(Subtarget->hasLAHFSAHF() &&
+    assert(Subtarget->canUseLAHFSAHF() &&
            "Target doesn't support SAHF or FCOMI?");
     SDValue AH = CurDAG->getCopyToReg(Chain, dl, X86::AH, Extract, SDValue());
     Chain = AH;
@@ -6174,6 +6176,7 @@ SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
   case InlineAsm::Constraint_v: // not offsetable    ??
   case InlineAsm::Constraint_m: // memory
   case InlineAsm::Constraint_X:
+  case InlineAsm::Constraint_p: // address
     if (!selectAddr(nullptr, Op, Op0, Op1, Op2, Op3, Op4))
       return true;
     break;

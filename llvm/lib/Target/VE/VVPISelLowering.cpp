@@ -39,9 +39,9 @@ SDValue VETargetLowering::lowerToVVP(SDValue Op, SelectionDAG &DAG) const {
   // Can we represent this as a VVP node.
   const unsigned Opcode = Op->getOpcode();
   auto VVPOpcodeOpt = getVVPOpcode(Opcode);
-  if (!VVPOpcodeOpt.hasValue())
+  if (!VVPOpcodeOpt)
     return SDValue();
-  unsigned VVPOpcode = VVPOpcodeOpt.getValue();
+  unsigned VVPOpcode = VVPOpcodeOpt.value();
   const bool FromVP = ISD::isVPOpcode(Opcode);
 
   // The representative and legalized vector type of this operation.
@@ -183,8 +183,8 @@ SDValue VETargetLowering::splitPackedLoadStore(SDValue Op,
          "Can only split packed load/store");
   MVT SplitDataVT = splitVectorType(DataVT);
 
-  SDValue PassThru = getNodePassthru(Op);
-  assert(!PassThru && "Should have been folded in lowering to VVP layer");
+  assert(!getNodePassthru(Op) &&
+         "Should have been folded in lowering to VVP layer");
 
   // Analyze the operation
   SDValue PackedMask = getNodeMask(Op);
