@@ -18,19 +18,17 @@ void f2(__spv::__spirv_JointMatrixINTEL<uint64_t, 10, 2, 0, 0> *matrix) {}
 // CHECK: @_Z2f3{{.*}}(%spirv.JointMatrixINTEL._char_10_2_0_0
 void f3(__spv::__spirv_JointMatrixINTEL<char, 10, 2, 0, 0> *matrix) {}
 
-namespace cl {
-  namespace sycl {
-    class half {};
-    class bfloat16 {};
-  }
+namespace sycl {
+  class half {};
+  class bfloat16 {};
 }
-typedef cl::sycl::half my_half;
+typedef sycl::half my_half;
 
 // CHECK: @_Z2f4{{.*}}(%spirv.JointMatrixINTEL._half_10_2_0_0
 void f4(__spv::__spirv_JointMatrixINTEL<my_half, 10, 2, 0, 0> *matrix) {}
 
 // CHECK: @_Z2f5{{.*}}(%spirv.JointMatrixINTEL._bfloat16_10_2_0_0
-void f5(__spv::__spirv_JointMatrixINTEL<cl::sycl::bfloat16, 10, 2, 0, 0> *matrix) {}
+void f5(__spv::__spirv_JointMatrixINTEL<sycl::bfloat16, 10, 2, 0, 0> *matrix) {}
 
 // CHECK: @_Z2f6{{.*}}(%spirv.JointMatrixINTEL._i128_10_2_0_0
 void f6(__spv::__spirv_JointMatrixINTEL<_BitInt(128), 10, 2, 0, 0> *matrix) {}

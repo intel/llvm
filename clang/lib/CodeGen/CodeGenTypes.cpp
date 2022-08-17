@@ -84,8 +84,8 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
               OS << "bfloat16";
             else if (TTy->isStructTy()) {
               StringRef LlvmTyName = TTy->getStructName();
-              // Emit half/bfloat16 for cl::sycl[::*]::{half,bfloat16}
-              if (LlvmTyName.startswith("class.cl::sycl::") ||
+              // Emit half/bfloat16 for sycl[::*]::{half,bfloat16}
+              if (LlvmTyName.startswith("class.sycl::") ||
                   LlvmTyName.startswith("class.__sycl_internal::"))
                 LlvmTyName = LlvmTyName.rsplit("::").second;
               OS << LlvmTyName;
