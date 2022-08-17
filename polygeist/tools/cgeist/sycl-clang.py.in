@@ -15,7 +15,7 @@ import subprocess
 import shlex
 
 # run programs with
-# sycl-clang.py <file> <cgeist flags> 2> /dev/null
+# sycl-clang.py <file> <cgeist flags> -XClang<optnl> <clang args> 2> /dev/null
 
 def main():
     bin_path = "@CMAKE_RUNTIME_OUTPUT_DIRECTORY@"
@@ -23,19 +23,46 @@ def main():
     clang_tool = bin_path + "/clang++"
     arg_file = sys.argv[1]
 
+    # help message
+    if len(sys.argv) == 1 and (arg_file == "-h" or arg_file == "--help"):
+        print("Usage: sycl-clang.py <file> <cgeist flags> -XClang<optional> \
+        <both clang and cgeist args>")
+        sys.exit(0)
+
     # Invoke clang, capture the command line produced by clang.
-    clang_args = [clang_tool, "-###", "-fsycl", "-fsycl-device-only", "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"]
-    clang_args.extend(sys.argv[1:2])
+    clang_args = [clang_tool, "-###", "-fsycl", "-fsycl-device-only", \
+    "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"]
+    # Add the file name to process
+    clang_args.append(arg_file)
+    # extract respective flags
+    both_args =[]
+    cgeist_args = []
+    if '-XClang' in sys.argv:
+        both_args.extend(sys.argv[sys.argv.index('-XClang')+1:])
+        clang_args.extend(both_args)
+        # extract arguments upto the point where clang args begin
+        cgeist_args.extend(sys.argv[2:sys.argv.index('-XClang')])
+    else:
+        cgeist_args.extend(sys.argv[2:])
+
     clang_res = subprocess.Popen(clang_args, stderr=subprocess.PIPE)
     output = clang_res.stderr.readlines()
     expanded_clang_args = output[5].decode("utf-8")
     split_output = shlex.split(expanded_clang_args)
 
-    # Form the cgeist invocation command. Append the MLIR flags first, then append the clang flags after "--args".
-    mlir_args = [mlir_tool]
-    mlir_args.extend(sys.argv[2:])
+    # Form the cgeist invocation command. Append the cgeist flags first, then 
+    # append the clang flags and common flags (passed through -XClang) 
+    # after "--args".
+    mlir_args = [mlir_tool] 
     mlir_args.append(arg_file)
+
+    # append cgeist arguments as passed through command line
+    mlir_args.extend(cgeist_args)
+    
     mlir_args.append("--args")
+    # common arguments as passed through -XClang command line will already be
+    # there in split_output, so we extract and append clang internal arguments
+    # and common arguments from split_output.
     mlir_args.extend(split_output[1:])
 
    # print("mlir_args: ", mlir_args)
