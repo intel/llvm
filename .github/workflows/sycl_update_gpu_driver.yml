@@ -26,6 +26,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
       run: |
         cd $GITHUB_WORKSPACE
+        git config --global user.name "Buildbot for SYCL"
+        git config --global user.email "bb-sycl@github.com"
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
