@@ -15,12 +15,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/detail/sycl_fe_intrins.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#include <sycl/exception.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class program;
 
 namespace ext {
@@ -47,7 +47,7 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class cl::sycl::program;
+  friend class sycl::program;
 
 public:
   template <typename V = T>
@@ -83,5 +83,5 @@ public:
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

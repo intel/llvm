@@ -16,6 +16,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/ExtensibleDialect.h"
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SetVector.h"
@@ -88,22 +89,22 @@ static llvm::hash_code test::hash_value(const FieldInfo &fi) { // NOLINT
 //===----------------------------------------------------------------------===//
 
 static LogicalResult parseCustomTypeA(AsmParser &parser,
-                                      FailureOr<int> &a_result) {
-  a_result.emplace();
-  return parser.parseInteger(*a_result);
+                                      FailureOr<int> &aResult) {
+  aResult.emplace();
+  return parser.parseInteger(*aResult);
 }
 
 static void printCustomTypeA(AsmPrinter &printer, int a) { printer << a; }
 
 static LogicalResult parseCustomTypeB(AsmParser &parser, int a,
-                                      FailureOr<Optional<int>> &b_result) {
+                                      FailureOr<Optional<int>> &bResult) {
   if (a < 0)
     return success();
   for (int i : llvm::seq(0, a))
     if (failed(parser.parseInteger(i)))
       return failure();
-  b_result.emplace(0);
-  return parser.parseInteger(**b_result);
+  bResult.emplace(0);
+  return parser.parseInteger(**bResult);
 }
 
 static void printCustomTypeB(AsmPrinter &printer, int a, Optional<int> b) {
@@ -316,6 +317,72 @@ unsigned TestTypeWithLayoutType::extractKind(DataLayoutEntryListRef params,
 }
 
 //===----------------------------------------------------------------------===//
+// Dynamic Types
+//===----------------------------------------------------------------------===//
+
+/// Define a singleton dynamic type.
+static std::unique_ptr<DynamicTypeDefinition>
+getSingletonDynamicType(TestDialect *testDialect) {
+  return DynamicTypeDefinition::get(
+      "dynamic_singleton", testDialect,
+      [](function_ref<InFlightDiagnostic()> emitError,
+         ArrayRef<Attribute> args) {
+        if (!args.empty()) {
+          emitError() << "expected 0 type arguments, but had " << args.size();
+          return failure();
+        }
+        return success();
+      });
+}
+
+/// Define a dynamic type representing a pair.
+static std::unique_ptr<DynamicTypeDefinition>
+getPairDynamicType(TestDialect *testDialect) {
+  return DynamicTypeDefinition::get(
+      "dynamic_pair", testDialect,
+      [](function_ref<InFlightDiagnostic()> emitError,
+         ArrayRef<Attribute> args) {
+        if (args.size() != 2) {
+          emitError() << "expected 2 type arguments, but had " << args.size();
+          return failure();
+        }
+        return success();
+      });
+}
+
+static std::unique_ptr<DynamicTypeDefinition>
+getCustomAssemblyFormatDynamicType(TestDialect *testDialect) {
+  auto verifier = [](function_ref<InFlightDiagnostic()> emitError,
+                     ArrayRef<Attribute> args) {
+    if (args.size() != 2) {
+      emitError() << "expected 2 type arguments, but had " << args.size();
+      return failure();
+    }
+    return success();
+  };
+
+  auto parser = [](AsmParser &parser,
+                   llvm::SmallVectorImpl<Attribute> &parsedParams) {
+    Attribute leftAttr, rightAttr;
+    if (parser.parseLess() || parser.parseAttribute(leftAttr) ||
+        parser.parseColon() || parser.parseAttribute(rightAttr) ||
+        parser.parseGreater())
+      return failure();
+    parsedParams.push_back(leftAttr);
+    parsedParams.push_back(rightAttr);
+    return success();
+  };
+
+  auto printer = [](AsmPrinter &printer, ArrayRef<Attribute> params) {
+    printer << "<" << params[0] << ":" << params[1] << ">";
+  };
+
+  return DynamicTypeDefinition::get("dynamic_custom_assembly_format",
+                                    testDialect, std::move(verifier),
+                                    std::move(parser), std::move(printer));
+}
+
+//===----------------------------------------------------------------------===//
 // TestDialect
 //===----------------------------------------------------------------------===//
 
@@ -332,18 +399,30 @@ void TestDialect::registerTypes() {
 #include "TestTypeDefs.cpp.inc"
            >();
   SimpleAType::attachInterface<PtrElementModel>(*getContext());
+
+  registerDynamicType(getSingletonDynamicType(this));
+  registerDynamicType(getPairDynamicType(this));
+  registerDynamicType(getCustomAssemblyFormatDynamicType(this));
 }
 
-static Type parseTestType(AsmParser &parser, SetVector<Type> &stack) {
+Type TestDialect::parseTestType(AsmParser &parser,
+                                SetVector<Type> &stack) const {
   StringRef typeTag;
-  if (failed(parser.parseKeyword(&typeTag)))
-    return Type();
-
   {
     Type genType;
-    auto parseResult = generatedTypeParser(parser, typeTag, genType);
+    auto parseResult = generatedTypeParser(parser, &typeTag, genType);
     if (parseResult.hasValue())
       return genType;
+  }
+
+  {
+    Type dynType;
+    auto parseResult = parseOptionalDynamicType(typeTag, parser, dynType);
+    if (parseResult.hasValue()) {
+      if (succeeded(parseResult.getValue()))
+        return dynType;
+      return Type();
+    }
   }
 
   if (typeTag != "test_rec") {
@@ -381,9 +460,12 @@ Type TestDialect::parseType(DialectAsmParser &parser) const {
   return parseTestType(parser, stack);
 }
 
-static void printTestType(Type type, AsmPrinter &printer,
-                          SetVector<Type> &stack) {
+void TestDialect::printTestType(Type type, AsmPrinter &printer,
+                                SetVector<Type> &stack) const {
   if (succeeded(generatedTypePrinter(type, printer)))
+    return;
+
+  if (succeeded(printIfDynamicType(type, printer)))
     return;
 
   auto rec = type.cast<TestRecursiveType>();

@@ -4,8 +4,7 @@
 ; Verify when widening a divide/remainder operation, we only generate a
 ; divide/rem per element since divide/remainder can trap.
 
-; CHECK: vectorDiv
-define void @vectorDiv (<2 x i32> addrspace(1)* %nsource, <2 x i32> addrspace(1)* %dsource, <2 x i32> addrspace(1)* %qdest) nounwind {
+define void @vectorDiv (ptr addrspace(1) %nsource, ptr addrspace(1) %dsource, ptr addrspace(1) %qdest) nounwind {
 ; CHECK-LABEL: vectorDiv:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %rdx, %r8
@@ -31,30 +30,29 @@ define void @vectorDiv (<2 x i32> addrspace(1)* %nsource, <2 x i32> addrspace(1)
 ; CHECK-NEXT:    movq %xmm0, (%r8,%rcx,8)
 ; CHECK-NEXT:    retq
 entry:
-  %nsource.addr = alloca <2 x i32> addrspace(1)*, align 4
-  %dsource.addr = alloca <2 x i32> addrspace(1)*, align 4
-  %qdest.addr = alloca <2 x i32> addrspace(1)*, align 4
+  %nsource.addr = alloca ptr addrspace(1), align 4
+  %dsource.addr = alloca ptr addrspace(1), align 4
+  %qdest.addr = alloca ptr addrspace(1), align 4
   %index = alloca i32, align 4
-  store <2 x i32> addrspace(1)* %nsource, <2 x i32> addrspace(1)** %nsource.addr
-  store <2 x i32> addrspace(1)* %dsource, <2 x i32> addrspace(1)** %dsource.addr
-  store <2 x i32> addrspace(1)* %qdest, <2 x i32> addrspace(1)** %qdest.addr
-  %tmp = load <2 x i32> addrspace(1)*, <2 x i32> addrspace(1)** %qdest.addr
-  %tmp1 = load i32, i32* %index
-  %arrayidx = getelementptr <2 x i32>, <2 x i32> addrspace(1)* %tmp, i32 %tmp1
-  %tmp2 = load <2 x i32> addrspace(1)*, <2 x i32> addrspace(1)** %nsource.addr
-  %tmp3 = load i32, i32* %index
-  %arrayidx4 = getelementptr <2 x i32>, <2 x i32> addrspace(1)* %tmp2, i32 %tmp3
-  %tmp5 = load <2 x i32>, <2 x i32> addrspace(1)* %arrayidx4
-  %tmp6 = load <2 x i32> addrspace(1)*, <2 x i32> addrspace(1)** %dsource.addr
-  %tmp7 = load i32, i32* %index
-  %arrayidx8 = getelementptr <2 x i32>, <2 x i32> addrspace(1)* %tmp6, i32 %tmp7
-  %tmp9 = load <2 x i32>, <2 x i32> addrspace(1)* %arrayidx8
+  store ptr addrspace(1) %nsource, ptr %nsource.addr
+  store ptr addrspace(1) %dsource, ptr %dsource.addr
+  store ptr addrspace(1) %qdest, ptr %qdest.addr
+  %tmp = load ptr addrspace(1), ptr %qdest.addr
+  %tmp1 = load i32, ptr %index
+  %arrayidx = getelementptr <2 x i32>, ptr addrspace(1) %tmp, i32 %tmp1
+  %tmp2 = load ptr addrspace(1), ptr %nsource.addr
+  %tmp3 = load i32, ptr %index
+  %arrayidx4 = getelementptr <2 x i32>, ptr addrspace(1) %tmp2, i32 %tmp3
+  %tmp5 = load <2 x i32>, ptr addrspace(1) %arrayidx4
+  %tmp6 = load ptr addrspace(1), ptr %dsource.addr
+  %tmp7 = load i32, ptr %index
+  %arrayidx8 = getelementptr <2 x i32>, ptr addrspace(1) %tmp6, i32 %tmp7
+  %tmp9 = load <2 x i32>, ptr addrspace(1) %arrayidx8
   %tmp10 = sdiv <2 x i32> %tmp5, %tmp9
-  store <2 x i32> %tmp10, <2 x i32> addrspace(1)* %arrayidx
+  store <2 x i32> %tmp10, ptr addrspace(1) %arrayidx
   ret void
 }
 
-; CHECK: test_char_div
 define <3 x i8> @test_char_div(<3 x i8> %num, <3 x i8> %div) {
 ; CHECK-LABEL: test_char_div:
 ; CHECK:       # %bb.0:
@@ -74,7 +72,6 @@ define <3 x i8> @test_char_div(<3 x i8> %num, <3 x i8> %div) {
   ret <3 x i8>  %div.r
 }
 
-; CHECK: test_uchar_div
 define <3 x i8> @test_uchar_div(<3 x i8> %num, <3 x i8> %div) {
 ; CHECK-LABEL: test_uchar_div:
 ; CHECK:       # %bb.0:
@@ -94,7 +91,6 @@ define <3 x i8> @test_uchar_div(<3 x i8> %num, <3 x i8> %div) {
   ret <3 x i8>  %div.r
 }
 
-; CHECK: test_short_div
 define <5 x i16> @test_short_div(<5 x i16> %num, <5 x i16> %div) {
 ; CHECK-LABEL: test_short_div:
 ; CHECK:       # %bb.0:
@@ -138,7 +134,6 @@ define <5 x i16> @test_short_div(<5 x i16> %num, <5 x i16> %div) {
   ret <5 x i16>  %div.r
 }
 
-; CHECK: test_ushort_div
 define <4 x i16> @test_ushort_div(<4 x i16> %num, <4 x i16> %div) {
 ; CHECK-LABEL: test_ushort_div:
 ; CHECK:       # %bb.0:
@@ -176,7 +171,6 @@ define <4 x i16> @test_ushort_div(<4 x i16> %num, <4 x i16> %div) {
   ret <4 x i16>  %div.r
 }
 
-; CHECK: test_uint_div
 define <3 x i32> @test_uint_div(<3 x i32> %num, <3 x i32> %div) {
 ; CHECK-LABEL: test_uint_div:
 ; CHECK:       # %bb.0:
@@ -202,7 +196,6 @@ define <3 x i32> @test_uint_div(<3 x i32> %num, <3 x i32> %div) {
   ret <3 x i32>  %div.r
 }
 
-; CHECK: test_long_div
 define <3 x i64> @test_long_div(<3 x i64> %num, <3 x i64> %div) {
 ; CHECK-LABEL: test_long_div:
 ; CHECK:       # %bb.0:
@@ -227,7 +220,6 @@ define <3 x i64> @test_long_div(<3 x i64> %num, <3 x i64> %div) {
   ret <3 x i64>  %div.r
 }
 
-; CHECK: test_ulong_div
 define <3 x i64> @test_ulong_div(<3 x i64> %num, <3 x i64> %div) {
 ; CHECK-LABEL: test_ulong_div:
 ; CHECK:       # %bb.0:
@@ -252,7 +244,6 @@ define <3 x i64> @test_ulong_div(<3 x i64> %num, <3 x i64> %div) {
   ret <3 x i64>  %div.r
 }
 
-; CHECK: test_char_rem
 define <4 x i8> @test_char_rem(<4 x i8> %num, <4 x i8> %rem) {
 ; CHECK-LABEL: test_char_rem:
 ; CHECK:       # %bb.0:
@@ -286,7 +277,6 @@ define <4 x i8> @test_char_rem(<4 x i8> %num, <4 x i8> %rem) {
   ret <4 x i8>  %rem.r
 }
 
-; CHECK: test_short_rem
 define <5 x i16> @test_short_rem(<5 x i16> %num, <5 x i16> %rem) {
 ; CHECK-LABEL: test_short_rem:
 ; CHECK:       # %bb.0:
@@ -330,7 +320,6 @@ define <5 x i16> @test_short_rem(<5 x i16> %num, <5 x i16> %rem) {
   ret <5 x i16>  %rem.r
 }
 
-; CHECK: test_uint_rem
 define <4 x i32> @test_uint_rem(<4 x i32> %num, <4 x i32> %rem) {
 ; CHECK-LABEL: test_uint_rem:
 ; CHECK:       # %bb.0:
@@ -362,7 +351,6 @@ define <4 x i32> @test_uint_rem(<4 x i32> %num, <4 x i32> %rem) {
 }
 
 
-; CHECK: test_ulong_rem
 define <5 x i64> @test_ulong_rem(<5 x i64> %num, <5 x i64> %rem) {
 ; CHECK-LABEL: test_ulong_rem:
 ; CHECK:       # %bb.0:
@@ -396,8 +384,7 @@ define <5 x i64> @test_ulong_rem(<5 x i64> %num, <5 x i64> %rem) {
   ret <5 x i64>  %rem.r
 }
 
-; CHECK: test_int_div
-define void @test_int_div(<3 x i32>* %dest, <3 x i32>* %old, i32 %n) {
+define void @test_int_div(ptr %dest, ptr %old, i32 %n) {
 ; CHECK-LABEL: test_int_div:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    testl %edx, %edx
@@ -437,12 +424,12 @@ bb.nph:
 
 for.body:
   %i.014 = phi i32 [ 0, %bb.nph ], [ %inc, %for.body ]
-  %arrayidx11 = getelementptr <3 x i32>, <3 x i32>* %dest, i32 %i.014
-  %tmp4 = load <3 x i32>, <3 x i32>* %arrayidx11 ; <<3 x i32>> [#uses=1]
-  %arrayidx7 = getelementptr inbounds <3 x i32>, <3 x i32>* %old, i32 %i.014
-  %tmp8 = load <3 x i32>, <3 x i32>* %arrayidx7 ; <<3 x i32>> [#uses=1]
+  %arrayidx11 = getelementptr <3 x i32>, ptr %dest, i32 %i.014
+  %tmp4 = load <3 x i32>, ptr %arrayidx11 ; <<3 x i32>> [#uses=1]
+  %arrayidx7 = getelementptr inbounds <3 x i32>, ptr %old, i32 %i.014
+  %tmp8 = load <3 x i32>, ptr %arrayidx7 ; <<3 x i32>> [#uses=1]
   %div = sdiv <3 x i32> %tmp4, %tmp8
-  store <3 x i32> %div, <3 x i32>* %arrayidx11
+  store <3 x i32> %div, ptr %arrayidx11
   %inc = add nsw i32 %i.014, 1
   %exitcond = icmp eq i32 %inc, %n
   br i1 %exitcond, label %for.end, label %for.body

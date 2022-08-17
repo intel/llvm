@@ -1037,6 +1037,41 @@ TEST_F(AArch64GISelMITest, WidenSSUBE) {
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
+TEST_F(AArch64GISelMITest, WidenUMULOCondition) {
+  setUp();
+  if (!TM)
+    return;
+
+  // Declare your legalization info
+  DefineLegalizerInfo(A, {
+    getActionDefinitionsBuilder(G_ADD).legalFor({{s16, s16}});
+  });
+
+  LLT s32 = LLT::scalar(32);
+  LLT s64 = LLT::scalar(64);
+
+  auto UMulo =
+    B.buildInstr(TargetOpcode::G_UMULO, {s64, LLT::scalar(1)},
+                 {Copies[0], Copies[1]});
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+
+  B.setInstrAndDebugLoc(*UMulo);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*UMulo, 1, s32));
+
+  auto CheckStr = R"(
+  CHECK: [[COPY0:%[0-9]+]]:_(s64) = COPY
+  CHECK: [[COPY1:%[0-9]+]]:_(s64) = COPY
+  CHECK: [[ADD:%[0-9]+]]:_(s64), [[OVERFLOW:%[0-9]+]]:_(s32) = G_UMULO [[COPY0]]:_, [[COPY1]]:_
+  CHECK: {{[0-9]+}}:_(s1) = G_TRUNC [[OVERFLOW]]
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
 TEST_F(AArch64GISelMITest, NarrowUADDO) {
   setUp();
   if (!TM)
@@ -2099,6 +2134,64 @@ TEST_F(AArch64GISelMITest, LibcallSimple) {
   // Make sure we do not crash anymore
   EXPECT_EQ(LegalizerHelper::LegalizeResult::UnableToLegalize,
             Helper.libcall(*MIBFADD, DummyLocObserver));
+}
+
+TEST_F(AArch64GISelMITest, LibcallMul) {
+  setUp();
+  if (!TM)
+    return;
+
+  // Declare your legalization info
+  DefineLegalizerInfo(A, {
+    getActionDefinitionsBuilder(G_MUL).libcallFor({s32, s64, s128});
+  });
+
+  LLT S32{LLT::scalar(32)};
+  LLT S64{LLT::scalar(64)};
+  LLT S128{LLT::scalar(128)};
+  auto MIBTrunc = B.buildTrunc(S32, Copies[0]);
+  auto MIBExt = B.buildAnyExt(S128, Copies[0]);
+
+  auto MIBMul32 =
+      B.buildInstr(TargetOpcode::G_MUL, {S32}, {MIBTrunc, MIBTrunc});
+  auto MIBMul64 =
+      B.buildInstr(TargetOpcode::G_MUL, {S64}, {Copies[0], Copies[0]});
+  auto MIBMul128 =
+      B.buildInstr(TargetOpcode::G_MUL, {S128}, {MIBExt, MIBExt});
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LostDebugLocObserver DummyLocObserver("");
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.libcall(*MIBMul32, DummyLocObserver));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.libcall(*MIBMul64, DummyLocObserver));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.libcall(*MIBMul128, DummyLocObserver));
+
+  auto CheckStr = R"(
+  CHECK: [[COPY:%[0-9]+]]:_(s64) = COPY
+  CHECK: [[TRUNC:%[0-9]+]]:_(s32) = G_TRUNC
+  CHECK: [[ANYEXT:%[0-9]+]]:_(s128) = G_ANYEXT
+  CHECK: $w0 = COPY [[TRUNC]]
+  CHECK: $w1 = COPY [[TRUNC]]
+  CHECK: BL &__mulsi3
+  CHECK: $x0 = COPY [[COPY]]
+  CHECK: $x1 = COPY [[COPY]]
+  CHECK: BL &__muldi3
+  CHECK: [[UV:%[0-9]+]]:_(s64), [[UV1:%[0-9]+]]:_(s64) = G_UNMERGE_VALUES [[ANYEXT]]
+  CHECK: [[UV2:%[0-9]+]]:_(s64), [[UV3:%[0-9]+]]:_(s64) = G_UNMERGE_VALUES [[ANYEXT]]
+  CHECK: $x0 = COPY [[UV]]
+  CHECK: $x1 = COPY [[UV1]]
+  CHECK: $x2 = COPY [[UV2]]
+  CHECK: $x3 = COPY [[UV3]]
+  CHECK: BL &__multi3
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
 TEST_F(AArch64GISelMITest, LibcallSRem) {
@@ -4089,6 +4182,53 @@ TEST_F(AArch64GISelMITest, narrowScalarShiftByConstant) {
   )";
 
   // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(AArch64GISelMITest, MoreElementsSelect) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s1 = LLT::scalar(1);
+  LLT s64 = LLT::scalar(64);
+  LLT v2s1 = LLT::fixed_vector(2, 1);
+  LLT v2s32 = LLT::fixed_vector(2, 32);
+
+  LegalizerInfo LI;
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, LI, Observer, B);
+
+  B.setInsertPt(*EntryMBB, EntryMBB->end());
+
+  auto Val0 = B.buildBitcast(v2s32, Copies[0]);
+  auto Val1 = B.buildBitcast(v2s32, Copies[1]);
+
+  // Build select of vectors with scalar condition.
+  auto Zero = B.buildConstant(s64, 0);
+  auto Cond = B.buildICmp(CmpInst::ICMP_EQ, s1, Copies[2], Zero);
+  auto Select = B.buildSelect(v2s32, Cond, Val0, Val1);
+
+  // Splat the condition into a vector select
+  B.setInstr(*Select);
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::UnableToLegalize,
+            Helper.moreElementsVector(*Select, 1, LLT::fixed_vector(3, 1)));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.moreElementsVector(*Select, 1, v2s1));
+
+  auto CheckStr = R"(
+  CHECK: [[BITCAST0:%[0-9]+]]:_(<2 x s32>) = G_BITCAST
+  CHECK: [[BITCAST1:%[0-9]+]]:_(<2 x s32>) = G_BITCAST
+  CHECK: [[ZERO0:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
+  CHECK: [[CMP:%[0-9]+]]:_(s1) = G_ICMP intpred(eq), %{{[0-9]+}}:_(s64), [[ZERO0]]
+  CHECK: [[IMPDEF:%[0-9]+]]:_(<2 x s1>) = G_IMPLICIT_DEF
+  CHECK: [[ZERO1:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
+  CHECK: [[INSERT:%[0-9]+]]:_(<2 x s1>) = G_INSERT_VECTOR_ELT [[IMPDEF]]:_, [[CMP]]:_(s1), [[ZERO1]]
+  CHECK: [[SHUFFLE:%[0-9]+]]:_(<2 x s1>) = G_SHUFFLE_VECTOR [[INSERT]]:_(<2 x s1>), [[IMPDEF]]:_, shufflemask(0, 0)
+  CHECK: [[SELECT:%[0-9]+]]:_(<2 x s32>) = G_SELECT [[SHUFFLE]]:_(<2 x s1>), [[BITCAST0]]:_, [[BITCAST1]]:_
+  )";
+
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 

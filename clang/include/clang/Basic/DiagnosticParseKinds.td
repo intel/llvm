@@ -174,6 +174,9 @@ def err_stmtexpr_file_scope : Error<
   "statement expression not allowed at file scope">;
 def ext_gnu_statement_expr : Extension<
   "use of GNU statement expression extension">, InGroup<GNUStatementExpression>;
+def ext_gnu_statement_expr_macro : Extension<
+  "use of GNU statement expression extension from macro expansion">,
+  InGroup<GNUStatementExpressionFromMacroExpansion>;
 def ext_gnu_conditional_expr : Extension<
   "use of GNU ?: conditional expression extension, omitting middle operand">, InGroup<GNUConditionalOmittedOperand>;
 def ext_gnu_empty_initializer : Extension<
@@ -279,7 +282,7 @@ def err_inline_nested_namespace_definition : Error<
 def err_expected_semi_after_attribute_list : Error<
   "expected ';' after attribute list">;
 def err_expected_semi_after_static_assert : Error<
-  "expected ';' after static_assert">;
+  "expected ';' after '%0'">;
 def err_expected_semi_for : Error<"expected ';' in 'for' statement specifier">;
 def err_single_decl_assign_in_for_range : Error<
   "range-based 'for' statement uses ':', not '='">;
@@ -422,7 +425,7 @@ def err_unexpected_token_in_nested_name_spec : Error<
 def err_bool_redeclaration : Error<
   "redeclaration of C++ built-in type 'bool'">;
 def warn_cxx98_compat_static_assert : Warning<
-  "static_assert declarations are incompatible with C++98">,
+  "'static_assert' declarations are incompatible with C++98">,
   InGroup<CXX98Compat>, DefaultIgnore;
 def ext_ms_static_assert : ExtWarn<
   "use of 'static_assert' without inclusion of <assert.h> is a Microsoft "
@@ -535,6 +538,8 @@ def err_invalid_operator_on_type : Error<
   "cannot use %select{dot|arrow}0 operator on a type">;
 def err_expected_unqualified_id : Error<
   "expected %select{identifier|unqualified-id}0">;
+def err_while_loop_outside_of_a_function : Error<
+  "while loop outside of a function">; 
 def err_brackets_go_after_unqualified_id : Error<
   "brackets are not allowed here; to declare an array, "
   "place the brackets after the %select{identifier|name}0">;
@@ -1166,10 +1171,6 @@ def warn_pragma_pack_malformed : Warning<
 def warn_pragma_intrinsic_builtin : Warning<
   "%0 is not a recognized builtin%select{|; consider including <intrin.h> to access non-builtin intrinsics}1">,
   InGroup<IgnoredPragmaIntrinsic>;
-// - #pragma optimize
-def warn_pragma_optimize : Warning<
-  "'#pragma optimize' is not supported">,
-  InGroup<IgnoredPragmaOptimize>;
 // - #pragma unused
 def warn_pragma_unused_expected_var : Warning<
   "expected '#pragma unused' argument to be a variable name">,
@@ -1275,7 +1276,7 @@ def warn_pragma_expected_colon : Warning<
 def warn_pragma_expected_predicate : Warning<
   "expected %select{'enable', 'disable', 'begin' or 'end'|'disable'}0 - ignoring">, InGroup<IgnoredPragmas>;
 def warn_pragma_unknown_extension : Warning<
-  "unknown OpenCL extension %0 - ignoring">, InGroup<IgnoredPragmas>;
+  "OpenCL extension %0 unknown or does not require pragma - ignoring">, InGroup<IgnoredPragmas>;
 def warn_pragma_unsupported_extension : Warning<
   "unsupported OpenCL extension %0 - ignoring">, InGroup<IgnoredPragmas>;
 def warn_pragma_extension_is_core : Warning<
@@ -1464,6 +1465,12 @@ def warn_omp51_compat_attributes : Warning<
 def err_omp_expected_colon : Error<"missing ':' in %0">;
 def err_omp_expected_context_selector
     : Error<"expected valid context selector in %0">;
+def err_omp_requires_out_inout_depend_type : Error<
+  "reserved locator 'omp_all_memory' requires 'out' or 'inout' "
+  "dependency types">;
+def warn_omp_more_one_omp_all_memory : Warning<
+  "reserved locator 'omp_all_memory' cannot be specified more than once">,
+  InGroup<OpenMPClauses>;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<
@@ -1593,5 +1600,14 @@ def warn_max_tokens_total : Warning<
   InGroup<MaxTokens>, DefaultIgnore;
 
 def note_max_tokens_total_override : Note<"total token limit set here">;
+
+// HLSL Parser Diagnostics
+
+def err_expected_semantic_identifier : Error<
+  "expected HLSL Semantic identifier">;
+def err_unknown_hlsl_semantic : Error<"unknown HLSL semantic %0">;
+def ext_hlsl_access_specifiers : ExtWarn<
+  "access specifiers are a clang HLSL extension">,
+  InGroup<HLSLExtension>;
 
 } // end of Parser diagnostics

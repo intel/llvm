@@ -217,6 +217,13 @@ public:
   }
   SubCommand() = default;
 
+  // Get the special subcommand representing no subcommand.
+  static SubCommand &getTopLevel();
+
+  // Get the special subcommand that can be used to put an option into all
+  // subcomands.
+  static SubCommand &getAll();
+
   void reset();
 
   explicit operator bool() const;
@@ -309,7 +316,7 @@ public:
   }
 
   bool isInAllSubCommands() const {
-    return llvm::is_contained(Subs, &*AllSubCommands);
+    return llvm::is_contained(Subs, &SubCommand::getAll());
   }
 
   //-------------------------------------------------------------------------===
@@ -1952,7 +1959,8 @@ void PrintHelpMessage(bool Hidden = false, bool Categorized = false);
 /// Hopefully this API can be deprecated soon. Any situation where options need
 /// to be modified by tools or libraries should be handled by sane APIs rather
 /// than just handing around a global list.
-StringMap<Option *> &getRegisteredOptions(SubCommand &Sub = *TopLevelSubCommand);
+StringMap<Option *> &
+getRegisteredOptions(SubCommand &Sub = SubCommand::getTopLevel());
 
 /// Use this to get all registered SubCommands from the provided parser.
 ///
@@ -1996,11 +2004,14 @@ void TokenizeGNUCommandLine(StringRef Source, StringSaver &Saver,
                             SmallVectorImpl<const char *> &NewArgv,
                             bool MarkEOLs = false);
 
-/// Tokenizes a Windows command line which may contain quotes and escaped
-/// quotes.
+/// Tokenizes a string of Windows command line arguments, which may contain
+/// quotes and escaped quotes.
 ///
 /// See MSDN docs for CommandLineToArgvW for information on the quoting rules.
 /// http://msdn.microsoft.com/en-us/library/windows/desktop/17w5ykft(v=vs.85).aspx
+///
+/// For handling a full Windows command line including the executable name at
+/// the start, see TokenizeWindowsCommandLineFull below.
 ///
 /// \param [in] Source The string to be split on whitespace with quotes.
 /// \param [in] Saver Delegates back to the caller for saving parsed strings.
@@ -2017,6 +2028,23 @@ void TokenizeWindowsCommandLine(StringRef Source, StringSaver &Saver,
 /// StringSaver.
 void TokenizeWindowsCommandLineNoCopy(StringRef Source, StringSaver &Saver,
                                       SmallVectorImpl<StringRef> &NewArgv);
+
+/// Tokenizes a Windows full command line, including command name at the start.
+///
+/// This uses the same syntax rules as TokenizeWindowsCommandLine for all but
+/// the first token. But the first token is expected to be parsed as the
+/// executable file name in the way CreateProcess would do it, rather than the
+/// way the C library startup code would do it: CreateProcess does not consider
+/// that \ is ever an escape character (because " is not a valid filename char,
+/// hence there's never a need to escape it to be used literally).
+///
+/// Parameters are the same as for TokenizeWindowsCommandLine. In particular,
+/// if you set MarkEOLs = true, then the first word of every line will be
+/// parsed using the special rules for command names, making this function
+/// suitable for parsing a file full of commands to execute.
+void TokenizeWindowsCommandLineFull(StringRef Source, StringSaver &Saver,
+                                    SmallVectorImpl<const char *> &NewArgv,
+                                    bool MarkEOLs = false);
 
 /// String tokenization function type.  Should be compatible with either
 /// Windows or Unix command line tokenizers.
@@ -2103,7 +2131,7 @@ bool expandResponseFiles(int Argc, const char *const *Argv, const char *EnvVar,
 /// not specific to the tool. This function allows a tool to specify a single
 /// option category to display in the -help output.
 void HideUnrelatedOptions(cl::OptionCategory &Category,
-                          SubCommand &Sub = *TopLevelSubCommand);
+                          SubCommand &Sub = SubCommand::getTopLevel());
 
 /// Mark all options not part of the categories as cl::ReallyHidden.
 ///
@@ -2113,7 +2141,7 @@ void HideUnrelatedOptions(cl::OptionCategory &Category,
 /// not specific to the tool. This function allows a tool to specify a single
 /// option category to display in the -help output.
 void HideUnrelatedOptions(ArrayRef<const cl::OptionCategory *> Categories,
-                          SubCommand &Sub = *TopLevelSubCommand);
+                          SubCommand &Sub = SubCommand::getTopLevel());
 
 /// Reset all command line options to a state that looks as if they have
 /// never appeared on the command line.  This is useful for being able to parse

@@ -18,12 +18,14 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Serialization/ASTBitCodes.h"
 #include "clang/Serialization/ASTDeserializationListener.h"
 #include "clang/Serialization/PCHContainerOperations.h"
+#include "clang/Serialization/SourceLocationEncoding.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -102,6 +104,8 @@ private:
   /// Keys in the map never have const/volatile qualifiers.
   using TypeIdxMap = llvm::DenseMap<QualType, serialization::TypeIdx,
                                     serialization::UnsafeQualTypeDenseMapInfo>;
+
+  using LocSeq = SourceLocationSequence;
 
   /// The bitstream writer used to emit this precompiled header.
   llvm::BitstreamWriter &Stream;
@@ -451,7 +455,7 @@ private:
 
   void WriteBlockInfoBlock();
   void WriteControlBlock(Preprocessor &PP, ASTContext &Context,
-                         StringRef isysroot, const std::string &OutputFile);
+                         StringRef isysroot, StringRef OutputFile);
 
   /// Write out the signature and diagnostic options, and return the signature.
   ASTFileSignature writeUnhashedControlBlock(Preprocessor &PP,
@@ -476,7 +480,6 @@ private:
                                      bool isModule);
 
   unsigned TypeExtQualAbbrev = 0;
-  unsigned TypeFunctionProtoAbbrev = 0;
   void WriteTypeAbbrevs();
   void WriteType(QualType T);
 
@@ -530,8 +533,7 @@ private:
   void WriteDecl(ASTContext &Context, Decl *D);
 
   ASTFileSignature WriteASTCore(Sema &SemaRef, StringRef isysroot,
-                                const std::string &OutputFile,
-                                Module *WritingModule);
+                                StringRef OutputFile, Module *WritingModule);
 
 public:
   /// Create a new precompiled header writer that outputs to
@@ -568,10 +570,11 @@ public:
   ///
   /// \return the module signature, which eventually will be a hash of
   /// the module but currently is merely a random 32-bit number.
-  ASTFileSignature WriteAST(Sema &SemaRef, const std::string &OutputFile,
+  ASTFileSignature WriteAST(Sema &SemaRef, StringRef OutputFile,
                             Module *WritingModule, StringRef isysroot,
                             bool hasErrors = false,
-                            bool ShouldCacheASTInMemory = false);
+                            bool ShouldCacheASTInMemory = false,
+                            bool OutputPathIndependent = false);
 
   /// Emit a token.
   void AddToken(const Token &Tok, RecordDataImpl &Record);
@@ -581,10 +584,12 @@ public:
                         RecordDataImpl &Record);
 
   /// Emit a source location.
-  void AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record);
+  void AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record,
+                         LocSeq *Seq = nullptr);
 
   /// Emit a source range.
-  void AddSourceRange(SourceRange Range, RecordDataImpl &Record);
+  void AddSourceRange(SourceRange Range, RecordDataImpl &Record,
+                      LocSeq *Seq = nullptr);
 
   /// Emit a reference to an identifier.
   void AddIdentifierRef(const IdentifierInfo *II, RecordDataImpl &Record);
@@ -681,10 +686,6 @@ public:
     return TypeExtQualAbbrev;
   }
 
-  unsigned getTypeFunctionProtoAbbrev() const {
-    return TypeFunctionProtoAbbrev;
-  }
-
   unsigned getDeclParmVarAbbrev() const { return DeclParmVarAbbrev; }
   unsigned getDeclRecordAbbrev() const { return DeclRecordAbbrev; }
   unsigned getDeclTypedefAbbrev() const { return DeclTypedefAbbrev; }
@@ -701,6 +702,10 @@ public:
 
   bool hasChain() const { return Chain; }
   ASTReader *getChain() const { return Chain; }
+
+  bool isWritingNamedModules() const {
+    return WritingModule && WritingModule->isModulePurview();
+  }
 
 private:
   // ASTDeserializationListener implementation
@@ -760,6 +765,7 @@ class PCHGenerator : public SemaConsumer {
   ASTWriter Writer;
   bool AllowASTWithErrors;
   bool ShouldCacheASTInMemory;
+  bool OutputPathIndependent;
 
 protected:
   ASTWriter &getWriter() { return Writer; }
@@ -772,7 +778,8 @@ public:
                std::shared_ptr<PCHBuffer> Buffer,
                ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
                bool AllowASTWithErrors = false, bool IncludeTimestamps = true,
-               bool ShouldCacheASTInMemory = false);
+               bool ShouldCacheASTInMemory = false,
+               bool OutputPathIndependent = false);
   ~PCHGenerator() override;
 
   void InitializeSema(Sema &S) override { SemaPtr = &S; }

@@ -8,6 +8,7 @@
 // RUN:   | llvm-dwarfdump --verify -
 
 #include <cstdint>
+#include <cstddef>
 template<typename ...Ts>
 struct t1 {
 };
@@ -24,9 +25,9 @@ struct udt { };
 }
 template<template<typename> class T>
 void ttp_user() { }
-enum Enumeration { Enumerator1, Enumerator2, Enumerator3 = 1 };
+enum Enumeration : int { Enumerator1, Enumerator2, Enumerator3 = 1 };
 enum class EnumerationClass { Enumerator1, Enumerator2, Enumerator3 = 1 };
-enum { AnonEnum1, AnonEnum2, AnonEnum3 = 1 };
+enum : int { AnonEnum1, AnonEnum2, AnonEnum3 = 1 };
 enum EnumerationSmall : unsigned char { kNeg = 0xff };
 }
 template <typename... Ts>
@@ -179,6 +180,10 @@ struct t12 {
   t11<LocalEnum, LocalEnum1> v1;
 };
 
+template<decltype(ns::AnonEnum1)>
+void f10() {
+}
+
 int main() {
   struct { } A;
   auto L = []{};
@@ -327,6 +332,7 @@ int main() {
   f1<decltype(fcc)>();
   int fnrt() __attribute__((noreturn));
   f1<decltype(fnrt)>();
+  f10<ns::AnonEnum1>();
 }
 void t8::mem() {
   struct t7 { };

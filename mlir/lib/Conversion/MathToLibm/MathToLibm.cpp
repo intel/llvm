@@ -30,6 +30,14 @@ public:
 
   LogicalResult matchAndRewrite(Op op, PatternRewriter &rewriter) const final;
 };
+// Pattern to promote an op of a smaller floating point type to F32.
+template <typename Op>
+struct PromoteOpToF32 : public OpRewritePattern<Op> {
+public:
+  using OpRewritePattern<Op>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Op op, PatternRewriter &rewriter) const final;
+};
 // Pattern to convert scalar math operations to calls to libm functions.
 // Additionally the libm function signatures are declared.
 template <typename Op>
@@ -84,11 +92,28 @@ VecOpToScalarOp<Op>::matchAndRewrite(Op op, PatternRewriter &rewriter) const {
 
 template <typename Op>
 LogicalResult
+PromoteOpToF32<Op>::matchAndRewrite(Op op, PatternRewriter &rewriter) const {
+  auto opType = op.getType();
+  if (!opType.template isa<Float16Type, BFloat16Type>())
+    return failure();
+
+  auto loc = op.getLoc();
+  auto f32 = rewriter.getF32Type();
+  auto extendedOperands = llvm::to_vector(
+      llvm::map_range(op->getOperands(), [&](Value operand) -> Value {
+        return rewriter.create<arith::ExtFOp>(loc, f32, operand);
+      }));
+  auto newOp = rewriter.create<Op>(loc, f32, extendedOperands);
+  rewriter.replaceOpWithNewOp<arith::TruncFOp>(op, opType, newOp);
+  return success();
+}
+
+template <typename Op>
+LogicalResult
 ScalarOpToLibmCall<Op>::matchAndRewrite(Op op,
                                         PatternRewriter &rewriter) const {
   auto module = SymbolTable::getNearestSymbolTable(op);
   auto type = op.getType();
-  // TODO: Support Float16 by upcasting to Float32
   if (!type.template isa<Float32Type, Float64Type>())
     return failure();
 
@@ -101,8 +126,8 @@ ScalarOpToLibmCall<Op>::matchAndRewrite(Op op,
     rewriter.setInsertionPointToStart(&module->getRegion(0).front());
     auto opFunctionTy = FunctionType::get(
         rewriter.getContext(), op->getOperandTypes(), op->getResultTypes());
-    opFunc =
-        rewriter.create<FuncOp>(rewriter.getUnknownLoc(), name, opFunctionTy);
+    opFunc = rewriter.create<func::FuncOp>(rewriter.getUnknownLoc(), name,
+                                           opFunctionTy);
     opFunc.setPrivate();
   }
   assert(isa<FunctionOpInterface>(SymbolTable::lookupSymbolIn(module, name)));
@@ -116,15 +141,33 @@ ScalarOpToLibmCall<Op>::matchAndRewrite(Op op,
 void mlir::populateMathToLibmConversionPatterns(RewritePatternSet &patterns,
                                                 PatternBenefit benefit) {
   patterns.add<VecOpToScalarOp<math::Atan2Op>, VecOpToScalarOp<math::ExpM1Op>,
-               VecOpToScalarOp<math::TanhOp>>(patterns.getContext(), benefit);
+               VecOpToScalarOp<math::TanhOp>, VecOpToScalarOp<math::CosOp>,
+               VecOpToScalarOp<math::SinOp>, VecOpToScalarOp<math::ErfOp>,
+               VecOpToScalarOp<math::RoundOp>, VecOpToScalarOp<math::AtanOp>,
+               VecOpToScalarOp<math::TanOp>>(patterns.getContext(), benefit);
+  patterns.add<PromoteOpToF32<math::Atan2Op>, PromoteOpToF32<math::ExpM1Op>,
+               PromoteOpToF32<math::TanhOp>, PromoteOpToF32<math::CosOp>,
+               PromoteOpToF32<math::SinOp>, PromoteOpToF32<math::ErfOp>,
+               PromoteOpToF32<math::RoundOp>, PromoteOpToF32<math::AtanOp>,
+               PromoteOpToF32<math::TanOp>>(patterns.getContext(), benefit);
+  patterns.add<ScalarOpToLibmCall<math::AtanOp>>(patterns.getContext(), "atanf",
+                                                 "atan", benefit);
   patterns.add<ScalarOpToLibmCall<math::Atan2Op>>(patterns.getContext(),
                                                   "atan2f", "atan2", benefit);
   patterns.add<ScalarOpToLibmCall<math::ErfOp>>(patterns.getContext(), "erff",
                                                 "erf", benefit);
   patterns.add<ScalarOpToLibmCall<math::ExpM1Op>>(patterns.getContext(),
                                                   "expm1f", "expm1", benefit);
+  patterns.add<ScalarOpToLibmCall<math::TanOp>>(patterns.getContext(), "tanf",
+                                                "tan", benefit);
   patterns.add<ScalarOpToLibmCall<math::TanhOp>>(patterns.getContext(), "tanhf",
                                                  "tanh", benefit);
+  patterns.add<ScalarOpToLibmCall<math::RoundOp>>(patterns.getContext(),
+                                                  "roundf", "round", benefit);
+  patterns.add<ScalarOpToLibmCall<math::CosOp>>(patterns.getContext(), "cosf",
+                                                "cos", benefit);
+  patterns.add<ScalarOpToLibmCall<math::SinOp>>(patterns.getContext(), "sinf",
+                                                "sin", benefit);
 }
 
 namespace {

@@ -161,7 +161,7 @@ public:
   // Get function size with a specific context. When there's no exact match
   // for the given context, try to retrieve the size of that function from
   // closest matching context.
-  uint32_t getFuncSizeForContext(const SampleContext &Context);
+  uint32_t getFuncSizeForContext(const ContextTrieNode *Context);
 
   // For inlinees that are full optimized away, we can establish zero size using
   // their remaining probes.
@@ -239,6 +239,8 @@ class ProfiledBinary {
   std::unordered_set<uint64_t> CallOffsets;
   // A set of return instruction offsets. Used by virtual unwinding.
   std::unordered_set<uint64_t> RetOffsets;
+  // An ordered set of unconditional branch instruction offsets.
+  std::set<uint64_t> UncondBranchOffsets;
   // A set of branch instruction offsets.
   std::unordered_set<uint64_t> BranchOffsets;
 
@@ -395,6 +397,13 @@ public:
            CallOffsets.count(Offset);
   }
 
+  bool rangeCrossUncondBranch(uint64_t Start, uint64_t End) {
+    if (Start >= End)
+      return false;
+    auto R = UncondBranchOffsets.lower_bound(Start);
+    return R != UncondBranchOffsets.end() && *R < End;
+  }
+
   uint64_t getAddressforIndex(uint64_t Index) const {
     return offsetToVirtualAddr(CodeAddrOffsets[Index]);
   }
@@ -476,8 +485,8 @@ public:
     return &I->second;
   }
 
-  uint32_t getFuncSizeForContext(SampleContext &Context) {
-    return FuncSizeTracker.getFuncSizeForContext(Context);
+  uint32_t getFuncSizeForContext(const ContextTrieNode *ContextNode) {
+    return FuncSizeTracker.getFuncSizeForContext(ContextNode);
   }
 
   // Load the symbols from debug table and populate into symbol list.

@@ -17,46 +17,46 @@
 #include "clang/AST/CommentLexer.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/Index/USRGeneration.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include <memory>
 
 using namespace clang::extractapi;
 using namespace llvm;
 
-GlobalRecord *APISet::addGlobal(GVKind Kind, StringRef Name, StringRef USR,
-                                PresumedLoc Loc,
-                                const AvailabilityInfo &Availability,
-                                LinkageInfo Linkage, const DocComment &Comment,
-                                DeclarationFragments Fragments,
-                                DeclarationFragments SubHeading,
-                                FunctionSignature Signature) {
-  auto Result = Globals.insert({Name, nullptr});
-  if (Result.second) {
-    // Create the record if it does not already exist.
-    auto Record = std::make_unique<GlobalRecord>(
-        Kind, Name, USR, Loc, Availability, Linkage, Comment, Fragments,
-        SubHeading, Signature);
-    Result.first->second = std::move(Record);
-  }
+namespace {
+
+template <typename RecordTy, typename... CtorArgsTy>
+RecordTy *addTopLevelRecord(APISet::RecordMap<RecordTy> &RecordMap,
+                            StringRef USR, CtorArgsTy &&...CtorArgs) {
+  auto Result = RecordMap.insert({USR, nullptr});
+
+  // Create the record if it does not already exist
+  if (Result.second)
+    Result.first->second =
+        std::make_unique<RecordTy>(USR, std::forward<CtorArgsTy>(CtorArgs)...);
+
   return Result.first->second.get();
 }
 
-GlobalRecord *
+} // namespace
+
+GlobalVariableRecord *
 APISet::addGlobalVar(StringRef Name, StringRef USR, PresumedLoc Loc,
                      const AvailabilityInfo &Availability, LinkageInfo Linkage,
                      const DocComment &Comment, DeclarationFragments Fragments,
                      DeclarationFragments SubHeading) {
-  return addGlobal(GVKind::Variable, Name, USR, Loc, Availability, Linkage,
-                   Comment, Fragments, SubHeading, {});
+  return addTopLevelRecord(GlobalVariables, USR, Name, Loc, Availability,
+                           Linkage, Comment, Fragments, SubHeading);
 }
 
-GlobalRecord *
-APISet::addFunction(StringRef Name, StringRef USR, PresumedLoc Loc,
-                    const AvailabilityInfo &Availability, LinkageInfo Linkage,
-                    const DocComment &Comment, DeclarationFragments Fragments,
-                    DeclarationFragments SubHeading,
-                    FunctionSignature Signature) {
-  return addGlobal(GVKind::Function, Name, USR, Loc, Availability, Linkage,
-                   Comment, Fragments, SubHeading, Signature);
+GlobalFunctionRecord *APISet::addGlobalFunction(
+    StringRef Name, StringRef USR, PresumedLoc Loc,
+    const AvailabilityInfo &Availability, LinkageInfo Linkage,
+    const DocComment &Comment, DeclarationFragments Fragments,
+    DeclarationFragments SubHeading, FunctionSignature Signature) {
+  return addTopLevelRecord(GlobalFunctions, USR, Name, Loc, Availability,
+                           Linkage, Comment, Fragments, SubHeading, Signature);
 }
 
 EnumConstantRecord *APISet::addEnumConstant(
@@ -64,7 +64,7 @@ EnumConstantRecord *APISet::addEnumConstant(
     const AvailabilityInfo &Availability, const DocComment &Comment,
     DeclarationFragments Declaration, DeclarationFragments SubHeading) {
   auto Record = std::make_unique<EnumConstantRecord>(
-      Name, USR, Loc, Availability, Comment, Declaration, SubHeading);
+      USR, Name, Loc, Availability, Comment, Declaration, SubHeading);
   return Enum->Constants.emplace_back(std::move(Record)).get();
 }
 
@@ -73,14 +73,8 @@ EnumRecord *APISet::addEnum(StringRef Name, StringRef USR, PresumedLoc Loc,
                             const DocComment &Comment,
                             DeclarationFragments Declaration,
                             DeclarationFragments SubHeading) {
-  auto Result = Enums.insert({Name, nullptr});
-  if (Result.second) {
-    // Create the record if it does not already exist.
-    auto Record = std::make_unique<EnumRecord>(
-        Name, USR, Loc, Availability, Comment, Declaration, SubHeading);
-    Result.first->second = std::move(Record);
-  }
-  return Result.first->second.get();
+  return addTopLevelRecord(Enums, USR, Name, Loc, Availability, Comment,
+                           Declaration, SubHeading);
 }
 
 StructFieldRecord *APISet::addStructField(StructRecord *Struct, StringRef Name,
@@ -90,7 +84,7 @@ StructFieldRecord *APISet::addStructField(StructRecord *Struct, StringRef Name,
                                           DeclarationFragments Declaration,
                                           DeclarationFragments SubHeading) {
   auto Record = std::make_unique<StructFieldRecord>(
-      Name, USR, Loc, Availability, Comment, Declaration, SubHeading);
+      USR, Name, Loc, Availability, Comment, Declaration, SubHeading);
   return Struct->Fields.emplace_back(std::move(Record)).get();
 }
 
@@ -99,19 +93,110 @@ StructRecord *APISet::addStruct(StringRef Name, StringRef USR, PresumedLoc Loc,
                                 const DocComment &Comment,
                                 DeclarationFragments Declaration,
                                 DeclarationFragments SubHeading) {
-  auto Result = Structs.insert({Name, nullptr});
-  if (Result.second) {
-    // Create the record if it does not already exist.
-    auto Record = std::make_unique<StructRecord>(
-        Name, USR, Loc, Availability, Comment, Declaration, SubHeading);
-    Result.first->second = std::move(Record);
-  }
-  return Result.first->second.get();
+  return addTopLevelRecord(Structs, USR, Name, Loc, Availability, Comment,
+                           Declaration, SubHeading);
+}
+
+ObjCCategoryRecord *APISet::addObjCCategory(
+    StringRef Name, StringRef USR, PresumedLoc Loc,
+    const AvailabilityInfo &Availability, const DocComment &Comment,
+    DeclarationFragments Declaration, DeclarationFragments SubHeading,
+    SymbolReference Interface) {
+  // Create the category record.
+  auto *Record = addTopLevelRecord(ObjCCategories, USR, Name, Loc, Availability,
+                                   Comment, Declaration, SubHeading, Interface);
+
+  // If this category is extending a known interface, associate it with the
+  // ObjCInterfaceRecord.
+  auto It = ObjCInterfaces.find(Interface.USR);
+  if (It != ObjCInterfaces.end())
+    It->second->Categories.push_back(Record);
+
+  return Record;
+}
+
+ObjCInterfaceRecord *APISet::addObjCInterface(
+    StringRef Name, StringRef USR, PresumedLoc Loc,
+    const AvailabilityInfo &Availability, LinkageInfo Linkage,
+    const DocComment &Comment, DeclarationFragments Declaration,
+    DeclarationFragments SubHeading, SymbolReference SuperClass) {
+  return addTopLevelRecord(ObjCInterfaces, USR, Name, Loc, Availability,
+                           Linkage, Comment, Declaration, SubHeading,
+                           SuperClass);
+}
+
+ObjCMethodRecord *APISet::addObjCMethod(
+    ObjCContainerRecord *Container, StringRef Name, StringRef USR,
+    PresumedLoc Loc, const AvailabilityInfo &Availability,
+    const DocComment &Comment, DeclarationFragments Declaration,
+    DeclarationFragments SubHeading, FunctionSignature Signature,
+    bool IsInstanceMethod) {
+  auto Record = std::make_unique<ObjCMethodRecord>(
+      USR, Name, Loc, Availability, Comment, Declaration, SubHeading, Signature,
+      IsInstanceMethod);
+  return Container->Methods.emplace_back(std::move(Record)).get();
+}
+
+ObjCPropertyRecord *APISet::addObjCProperty(
+    ObjCContainerRecord *Container, StringRef Name, StringRef USR,
+    PresumedLoc Loc, const AvailabilityInfo &Availability,
+    const DocComment &Comment, DeclarationFragments Declaration,
+    DeclarationFragments SubHeading,
+    ObjCPropertyRecord::AttributeKind Attributes, StringRef GetterName,
+    StringRef SetterName, bool IsOptional) {
+  auto Record = std::make_unique<ObjCPropertyRecord>(
+      USR, Name, Loc, Availability, Comment, Declaration, SubHeading,
+      Attributes, GetterName, SetterName, IsOptional);
+  return Container->Properties.emplace_back(std::move(Record)).get();
+}
+
+ObjCInstanceVariableRecord *APISet::addObjCInstanceVariable(
+    ObjCContainerRecord *Container, StringRef Name, StringRef USR,
+    PresumedLoc Loc, const AvailabilityInfo &Availability,
+    const DocComment &Comment, DeclarationFragments Declaration,
+    DeclarationFragments SubHeading,
+    ObjCInstanceVariableRecord::AccessControl Access) {
+  auto Record = std::make_unique<ObjCInstanceVariableRecord>(
+      USR, Name, Loc, Availability, Comment, Declaration, SubHeading, Access);
+  return Container->Ivars.emplace_back(std::move(Record)).get();
+}
+
+ObjCProtocolRecord *APISet::addObjCProtocol(
+    StringRef Name, StringRef USR, PresumedLoc Loc,
+    const AvailabilityInfo &Availability, const DocComment &Comment,
+    DeclarationFragments Declaration, DeclarationFragments SubHeading) {
+  return addTopLevelRecord(ObjCProtocols, USR, Name, Loc, Availability, Comment,
+                           Declaration, SubHeading);
+}
+
+MacroDefinitionRecord *
+APISet::addMacroDefinition(StringRef Name, StringRef USR, PresumedLoc Loc,
+                           DeclarationFragments Declaration,
+                           DeclarationFragments SubHeading) {
+  return addTopLevelRecord(Macros, USR, Name, Loc, Declaration, SubHeading);
+}
+
+TypedefRecord *APISet::addTypedef(StringRef Name, StringRef USR,
+                                  PresumedLoc Loc,
+                                  const AvailabilityInfo &Availability,
+                                  const DocComment &Comment,
+                                  DeclarationFragments Declaration,
+                                  DeclarationFragments SubHeading,
+                                  SymbolReference UnderlyingType) {
+  return addTopLevelRecord(Typedefs, USR, Name, Loc, Availability, Comment,
+                           Declaration, SubHeading, UnderlyingType);
 }
 
 StringRef APISet::recordUSR(const Decl *D) {
   SmallString<128> USR;
   index::generateUSRForDecl(D, USR);
+  return copyString(USR);
+}
+
+StringRef APISet::recordUSRForMacro(StringRef Name, SourceLocation SL,
+                                    const SourceManager &SM) {
+  SmallString<128> USR;
+  index::generateUSRForMacro(Name, SL, SM, USR);
   return copyString(USR);
 }
 
@@ -130,8 +215,19 @@ StringRef APISet::copyString(StringRef String) {
 
 APIRecord::~APIRecord() {}
 
-void GlobalRecord::anchor() {}
+ObjCContainerRecord::~ObjCContainerRecord() {}
+
+void GlobalFunctionRecord::anchor() {}
+void GlobalVariableRecord::anchor() {}
 void EnumConstantRecord::anchor() {}
 void EnumRecord::anchor() {}
 void StructFieldRecord::anchor() {}
 void StructRecord::anchor() {}
+void ObjCPropertyRecord::anchor() {}
+void ObjCInstanceVariableRecord::anchor() {}
+void ObjCMethodRecord::anchor() {}
+void ObjCCategoryRecord::anchor() {}
+void ObjCInterfaceRecord::anchor() {}
+void ObjCProtocolRecord::anchor() {}
+void MacroDefinitionRecord::anchor() {}
+void TypedefRecord::anchor() {}

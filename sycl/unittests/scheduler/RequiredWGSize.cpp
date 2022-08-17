@@ -8,11 +8,11 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -207,6 +207,10 @@ static void performChecks() {
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  if (!Dev.has(sycl::aspect::online_compiler)) {
+    std::cerr << "aspect::online_compiler is required for this test.";
+    return;
+  }
 
   sycl::queue Queue{Dev};
 
@@ -217,7 +221,7 @@ static void performChecks() {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(KernelGetGroupInfoCalled, true);

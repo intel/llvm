@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/stl.hpp>
 
-#include <iostream>
 #include <map>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Represents a specialization constant value in SYCL runtime.
@@ -47,5 +47,5 @@ void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
                                       SerializedObj &Dst);
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

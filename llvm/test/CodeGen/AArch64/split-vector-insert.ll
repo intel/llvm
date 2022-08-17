@@ -3,10 +3,10 @@
 ; REQUIRES: asserts
 
 target triple = "aarch64-unknown-linux-gnu"
-attributes #0 = {"target-features"="+sve"}
+attributes #0 = {"target-features"="+sve" uwtable}
 
-declare <vscale x 2 x i64> @llvm.experimental.vector.insert.nxv2i64.v8i64(<vscale x 2 x i64>, <8 x i64>, i64)
-declare <vscale x 2 x double> @llvm.experimental.vector.insert.nxv2f64.v8f64(<vscale x 2 x double>, <8 x double>, i64)
+declare <vscale x 2 x i64> @llvm.vector.insert.nxv2i64.v8i64(<vscale x 2 x i64>, <8 x i64>, i64)
+declare <vscale x 2 x double> @llvm.vector.insert.nxv2f64.v8f64(<vscale x 2 x double>, <8 x double>, i64)
 
 define <vscale x 2 x i64> @test_nxv2i64_v8i64(<vscale x 2 x i64> %a, <8 x i64> %b) #0 {
 ; CHECK-LEGALIZATION: Legally typed node: [[T1:t[0-9]+]]: nxv2i64 = insert_subvector {{t[0-9]+}}, {{t[0-9]+}}, Constant:i64<0>
@@ -52,13 +52,16 @@ define <vscale x 2 x i64> @test_nxv2i64_v8i64(<vscale x 2 x i64> %a, <8 x i64> %
 ; CHECK-NEXT:    str q4, [x9, x8]
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [sp, #2, mul vl]
 ; CHECK-NEXT:    addvl sp, sp, #3
+; CHECK-NEXT:    .cfi_def_cfa wsp, 16
 ; CHECK-NEXT:    ldr x29, [sp], #16 // 8-byte Folded Reload
+; CHECK-NEXT:   .cfi_def_cfa_offset 0
+; CHECK-NEXT:   .cfi_restore w29
 ; CHECK-NEXT:    ret
 
 
 
 
-  %r = call <vscale x 2 x i64> @llvm.experimental.vector.insert.nxv2i64.v8i64(<vscale x 2 x i64> %a, <8 x i64> %b, i64 0)
+  %r = call <vscale x 2 x i64> @llvm.vector.insert.nxv2i64.v8i64(<vscale x 2 x i64> %a, <8 x i64> %b, i64 0)
   ret <vscale x 2 x i64> %r
 }
 
@@ -106,12 +109,15 @@ define <vscale x 2 x double> @test_nxv2f64_v8f64(<vscale x 2 x double> %a, <8 x 
 ; CHECK-NEXT:    str q4, [x9, x8]
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [sp, #2, mul vl]
 ; CHECK-NEXT:    addvl sp, sp, #3
+; CHECK-NEXT:   .cfi_def_cfa wsp, 16
 ; CHECK-NEXT:    ldr x29, [sp], #16 // 8-byte Folded Reload
+; CHECK-NEXT:   .cfi_def_cfa_offset 0
+; CHECK-NEXT:   .cfi_restore w29
 ; CHECK-NEXT:    ret
 
 
 
 
-  %r = call <vscale x 2 x double> @llvm.experimental.vector.insert.nxv2f64.v8f64(<vscale x 2 x double> %a, <8 x double> %b, i64 0)
+  %r = call <vscale x 2 x double> @llvm.vector.insert.nxv2f64.v8f64(<vscale x 2 x double> %a, <8 x double> %b, i64 0)
   ret <vscale x 2 x double> %r
 }

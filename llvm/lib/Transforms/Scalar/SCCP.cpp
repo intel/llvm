@@ -91,6 +91,18 @@ static bool isOverdefined(const ValueLatticeElement &LV) {
   return !LV.isUnknownOrUndef() && !isConstant(LV);
 }
 
+static bool canRemoveInstruction(Instruction *I) {
+  if (wouldInstructionBeTriviallyDead(I))
+    return true;
+
+  // Some instructions can be handled but are rejected above. Catch
+  // those cases by falling through to here.
+  // TODO: Mark globals as being constant earlier, so
+  // TODO: wouldInstructionBeTriviallyDead() knows that atomic loads
+  // TODO: are safe to remove.
+  return isa<LoadInst>(I);
+}
+
 static bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V) {
   Constant *Const = nullptr;
   if (V->getType()->isStructTy()) {
@@ -121,7 +133,8 @@ static bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V) {
   // Calls with "clang.arc.attachedcall" implicitly use the return value and
   // those uses cannot be updated with a constant.
   CallBase *CB = dyn_cast<CallBase>(V);
-  if (CB && ((CB->isMustTailCall() && !CB->isSafeToRemove()) ||
+  if (CB && ((CB->isMustTailCall() &&
+              !canRemoveInstruction(CB)) ||
              CB->getOperandBundle(LLVMContext::OB_clang_arc_attachedcall))) {
     Function *F = CB->getCalledFunction();
 
@@ -150,7 +163,7 @@ static bool simplifyInstsInBlock(SCCPSolver &Solver, BasicBlock &BB,
     if (Inst.getType()->isVoidTy())
       continue;
     if (tryToReplaceWithConstant(Solver, &Inst)) {
-      if (Inst.isSafeToRemove())
+      if (canRemoveInstruction(&Inst))
         Inst.eraseFromParent();
 
       MadeChanges = true;
@@ -164,6 +177,7 @@ static bool simplifyInstsInBlock(SCCPSolver &Solver, BasicBlock &BB,
         continue;
       if (IV.getConstantRange().isAllNonNegative()) {
         auto *ZExt = new ZExtInst(ExtOp, Inst.getType(), "", &Inst);
+        ZExt->takeName(&Inst);
         InsertedValues.insert(ZExt);
         Inst.replaceAllUsesWith(ZExt);
         Solver.removeLatticeValueFor(&Inst);
@@ -176,10 +190,14 @@ static bool simplifyInstsInBlock(SCCPSolver &Solver, BasicBlock &BB,
   return MadeChanges;
 }
 
+static bool removeNonFeasibleEdges(const SCCPSolver &Solver, BasicBlock *BB,
+                                   DomTreeUpdater &DTU,
+                                   BasicBlock *&NewUnreachableBB);
+
 // runSCCP() - Run the Sparse Conditional Constant Propagation algorithm,
 // and return true if the function was modified.
 static bool runSCCP(Function &F, const DataLayout &DL,
-                    const TargetLibraryInfo *TLI) {
+                    const TargetLibraryInfo *TLI, DomTreeUpdater &DTU) {
   LLVM_DEBUG(dbgs() << "SCCP on function '" << F.getName() << "'\n");
   SCCPSolver Solver(
       DL, [TLI](Function &F) -> const TargetLibraryInfo & { return *TLI; },
@@ -207,13 +225,12 @@ static bool runSCCP(Function &F, const DataLayout &DL,
   // as we cannot modify the CFG of the function.
 
   SmallPtrSet<Value *, 32> InsertedValues;
+  SmallVector<BasicBlock *, 8> BlocksToErase;
   for (BasicBlock &BB : F) {
     if (!Solver.isBlockExecutable(&BB)) {
       LLVM_DEBUG(dbgs() << "  BasicBlock Dead:" << BB);
-
       ++NumDeadBlocks;
-      NumInstRemoved += removeAllNonTerminatorAndEHPadInstructions(&BB).first;
-
+      BlocksToErase.push_back(&BB);
       MadeChanges = true;
       continue;
     }
@@ -222,17 +239,32 @@ static bool runSCCP(Function &F, const DataLayout &DL,
                                         NumInstRemoved, NumInstReplaced);
   }
 
+  // Remove unreachable blocks and non-feasible edges.
+  for (BasicBlock *DeadBB : BlocksToErase)
+    NumInstRemoved += changeToUnreachable(DeadBB->getFirstNonPHI(),
+                                          /*PreserveLCSSA=*/false, &DTU);
+
+  BasicBlock *NewUnreachableBB = nullptr;
+  for (BasicBlock &BB : F)
+    MadeChanges |= removeNonFeasibleEdges(Solver, &BB, DTU, NewUnreachableBB);
+
+  for (BasicBlock *DeadBB : BlocksToErase)
+    if (!DeadBB->hasAddressTaken())
+      DTU.deleteBB(DeadBB);
+
   return MadeChanges;
 }
 
 PreservedAnalyses SCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
   const DataLayout &DL = F.getParent()->getDataLayout();
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
-  if (!runSCCP(F, DL, &TLI))
+  auto *DT = AM.getCachedResult<DominatorTreeAnalysis>(F);
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+  if (!runSCCP(F, DL, &TLI, DTU))
     return PreservedAnalyses::all();
 
   auto PA = PreservedAnalyses();
-  PA.preserveSet<CFGAnalyses>();
+  PA.preserve<DominatorTreeAnalysis>();
   return PA;
 }
 
@@ -255,7 +287,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addPreserved<GlobalsAAWrapperPass>();
-    AU.setPreservesCFG();
+    AU.addPreserved<DominatorTreeWrapperPass>();
   }
 
   // runOnFunction - Run the Sparse Conditional Constant Propagation
@@ -266,7 +298,10 @@ public:
     const DataLayout &DL = F.getParent()->getDataLayout();
     const TargetLibraryInfo *TLI =
         &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-    return runSCCP(F, DL, TLI);
+    auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
+    DomTreeUpdater DTU(DTWP ? &DTWP->getDomTree() : nullptr,
+                       DomTreeUpdater::UpdateStrategy::Lazy);
+    return runSCCP(F, DL, TLI, DTU);
   }
 };
 
@@ -336,7 +371,8 @@ static void findReturnsToZap(Function &F,
 }
 
 static bool removeNonFeasibleEdges(const SCCPSolver &Solver, BasicBlock *BB,
-                                   DomTreeUpdater &DTU) {
+                                   DomTreeUpdater &DTU,
+                                   BasicBlock *&NewUnreachableBB) {
   SmallPtrSet<BasicBlock *, 8> FeasibleSuccessors;
   bool HasNonFeasibleEdges = false;
   for (BasicBlock *Succ : successors(BB)) {
@@ -356,7 +392,19 @@ static bool removeNonFeasibleEdges(const SCCPSolver &Solver, BasicBlock *BB,
           isa<IndirectBrInst>(TI)) &&
          "Terminator must be a br, switch or indirectbr");
 
-  if (FeasibleSuccessors.size() == 1) {
+  if (FeasibleSuccessors.size() == 0) {
+    // Branch on undef/poison, replace with unreachable.
+    SmallPtrSet<BasicBlock *, 8> SeenSuccs;
+    SmallVector<DominatorTree::UpdateType, 8> Updates;
+    for (BasicBlock *Succ : successors(BB)) {
+      Succ->removePredecessor(BB);
+      if (SeenSuccs.insert(Succ).second)
+        Updates.push_back({DominatorTree::Delete, BB, Succ});
+    }
+    TI->eraseFromParent();
+    new UnreachableInst(BB->getContext(), BB);
+    DTU.applyUpdatesPermissive(Updates);
+  } else if (FeasibleSuccessors.size() == 1) {
     // Replace with an unconditional branch to the only feasible successor.
     BasicBlock *OnlyFeasibleSuccessor = *FeasibleSuccessors.begin();
     SmallVector<DominatorTree::UpdateType, 8> Updates;
@@ -379,6 +427,23 @@ static bool removeNonFeasibleEdges(const SCCPSolver &Solver, BasicBlock *BB,
   } else if (FeasibleSuccessors.size() > 1) {
     SwitchInstProfUpdateWrapper SI(*cast<SwitchInst>(TI));
     SmallVector<DominatorTree::UpdateType, 8> Updates;
+
+    // If the default destination is unfeasible it will never be taken. Replace
+    // it with a new block with a single Unreachable instruction.
+    BasicBlock *DefaultDest = SI->getDefaultDest();
+    if (!FeasibleSuccessors.contains(DefaultDest)) {
+      if (!NewUnreachableBB) {
+        NewUnreachableBB =
+            BasicBlock::Create(DefaultDest->getContext(), "default.unreachable",
+                               DefaultDest->getParent(), DefaultDest);
+        new UnreachableInst(DefaultDest->getContext(), NewUnreachableBB);
+      }
+
+      SI->setDefaultDest(NewUnreachableBB);
+      Updates.push_back({DominatorTree::Delete, BB, DefaultDest});
+      Updates.push_back({DominatorTree::Insert, BB, NewUnreachableBB});
+    }
+
     for (auto CI = SI->case_begin(); CI != SI->case_end();) {
       if (FeasibleSuccessors.contains(CI->getCaseSuccessor())) {
         ++CI;
@@ -526,8 +591,9 @@ bool llvm::runIPSCCP(
       NumInstRemoved += changeToUnreachable(F.front().getFirstNonPHI(),
                                             /*PreserveLCSSA=*/false, &DTU);
 
+    BasicBlock *NewUnreachableBB = nullptr;
     for (BasicBlock &BB : F)
-      MadeChanges |= removeNonFeasibleEdges(Solver, &BB, DTU);
+      MadeChanges |= removeNonFeasibleEdges(Solver, &BB, DTU, NewUnreachableBB);
 
     for (BasicBlock *DeadBB : BlocksToErase)
       if (!DeadBB->hasAddressTaken())

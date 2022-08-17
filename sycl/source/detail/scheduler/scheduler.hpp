@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
+#include <sycl/detail/cg.hpp>
+#include <sycl/detail/sycl_mem_obj_i.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -64,8 +64,8 @@
 /// \code{.cpp}
 /// {
 ///   // Creating SYCL CPU and GPU queues
-///   cl::sycl::queue CPU_Queue = ...;
-///   cl::sycl::queue GPU_Queue = ...;
+///   sycl::queue CPU_Queue = ...;
+///   sycl::queue GPU_Queue = ...;
 ///
 ///   // Creating 3 SYCL buffers
 ///   auto BufferA = ...; // Buffer is initialized with host memory.
@@ -171,8 +171,8 @@
 // For testing purposes
 class MockScheduler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class queue_impl;
@@ -514,7 +514,7 @@ protected:
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
         std::vector<std::shared_ptr<const void>> &);
 
     /// Reschedules the command passed using Queue provided.
@@ -541,7 +541,7 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
         std::vector<std::shared_ptr<const void>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
@@ -618,7 +618,8 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context);
+                                        const ContextImplPtr &Context,
+                                        bool AllowConst = true);
 
     friend class Command;
 
@@ -825,5 +826,5 @@ protected:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

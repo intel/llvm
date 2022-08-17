@@ -303,7 +303,7 @@ ExecutionEngine::create(ModuleOp m, const ExecutionEngineOptions &options) {
   auto compileFunctionCreator = [&](JITTargetMachineBuilder jtmb)
       -> Expected<std::unique_ptr<IRCompileLayer::IRCompiler>> {
     if (options.jitCodeGenOptLevel)
-      jtmb.setCodeGenOptLevel(options.jitCodeGenOptLevel.getValue());
+      jtmb.setCodeGenOptLevel(*options.jitCodeGenOptLevel);
     auto tm = jtmb.createTargetMachine();
     if (!tm)
       return tm.takeError();
@@ -360,11 +360,9 @@ Expected<void *> ExecutionEngine::lookup(StringRef name) const {
     return makeStringError(os.str());
   }
 
-  auto rawFPtr = expectedSymbol->getAddress();
-  auto *fptr = reinterpret_cast<void *>(rawFPtr);
-  if (!fptr)
-    return makeStringError("looked up function is null");
-  return fptr;
+  if (void *fptr = expectedSymbol->toPtr<void *>())
+    return fptr;
+  return makeStringError("looked up function is null");
 }
 
 Error ExecutionEngine::invokePacked(StringRef name,

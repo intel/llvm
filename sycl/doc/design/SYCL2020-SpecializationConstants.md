@@ -784,8 +784,8 @@ constexpr inline specialization_id<float> id_float;
 The integration footer will look like:
 
 ```
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // Note: we do not declare `get_spec_constant_symbolic_ID` here and assume that
 // it is declared in some other header which was already included.
@@ -814,11 +814,11 @@ inline const char *get_spec_constant_symbolic_ID<id_float>() {
 }
 
 } // namespace detail
-} //namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 // Detailed description of this header is provided below in corresponding RT section
-#include <CL/sycl/detail/spec_const_integration.hpp>
+#include <sycl/detail/spec_const_integration.hpp>
 ```
 
 Note that `get_spec_constant_symbolic_ID` specialization are generated for each
@@ -915,7 +915,7 @@ namespace sycl {
   }
 }
 
-#include <CL/sycl/detail/spec_const_integration.hpp>
+#include <sycl/detail/spec_const_integration.hpp>
 ```
 
 ### DPC++ runtime

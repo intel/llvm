@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/PrintPasses.h"
 
 using namespace llvm;
 using namespace ore;
@@ -70,6 +71,17 @@ bool MachineFunctionPass::runOnFunction(Function &F) {
   if (ShouldEmitSizeRemarks)
     CountBefore = MF.getInstructionCount();
 
+  // For --print-changed, if the function name is a candidate, save the
+  // serialized MF to be compared later.
+  // TODO Implement --filter-passes.
+  SmallString<0> BeforeStr, AfterStr;
+  bool ShouldPrintChanged = PrintChanged != ChangePrinter::None &&
+                            isFunctionInPrintList(MF.getName());
+  if (ShouldPrintChanged) {
+    raw_svector_ostream OS(BeforeStr);
+    MF.print(OS);
+  }
+
   bool RV = runOnMachineFunction(MF);
 
   if (ShouldEmitSizeRemarks) {
@@ -97,6 +109,49 @@ bool MachineFunctionPass::runOnFunction(Function &F) {
 
   MFProps.set(SetProperties);
   MFProps.reset(ClearedProperties);
+
+  // For --print-changed, print if the serialized MF has changed. Modes other
+  // than quiet/verbose are unimplemented and treated the same as 'quiet'.
+  if (ShouldPrintChanged) {
+    raw_svector_ostream OS(AfterStr);
+    MF.print(OS);
+    if (BeforeStr != AfterStr) {
+      StringRef Arg;
+      if (const PassInfo *PI = Pass::lookupPassInfo(getPassID()))
+        Arg = PI->getPassArgument();
+      errs() << ("*** IR Dump After " + getPassName() + " (" + Arg + ") on " +
+                 MF.getName() + " ***\n");
+      switch (PrintChanged) {
+      case ChangePrinter::None:
+        llvm_unreachable("");
+      case ChangePrinter::Quiet:
+      case ChangePrinter::Verbose:
+      case ChangePrinter::DotCfgQuiet:   // unimplemented
+      case ChangePrinter::DotCfgVerbose: // unimplemented
+        errs() << AfterStr;
+        break;
+      case ChangePrinter::DiffQuiet:
+      case ChangePrinter::DiffVerbose:
+      case ChangePrinter::ColourDiffQuiet:
+      case ChangePrinter::ColourDiffVerbose: {
+        bool Color = llvm::is_contained(
+            {ChangePrinter::ColourDiffQuiet, ChangePrinter::ColourDiffVerbose},
+            PrintChanged.getValue());
+        StringRef Removed = Color ? "\033[31m-%l\033[0m\n" : "-%l\n";
+        StringRef Added = Color ? "\033[32m+%l\033[0m\n" : "+%l\n";
+        StringRef NoChange = " %l\n";
+        errs() << doSystemDiff(BeforeStr, AfterStr, Removed, Added, NoChange);
+        break;
+      }
+      }
+    } else if (llvm::is_contained({ChangePrinter::Verbose,
+                                   ChangePrinter::DiffVerbose,
+                                   ChangePrinter::ColourDiffVerbose},
+                                  PrintChanged.getValue())) {
+      errs() << ("*** IR Dump After " + getPassName() + " on " + MF.getName() +
+                 " omitted because no change ***\n");
+    }
+  }
   return RV;
 }
 

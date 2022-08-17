@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -28,8 +28,8 @@
 #include <mutex>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <class T> struct LessByHash {
@@ -339,5 +339,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

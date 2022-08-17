@@ -20,6 +20,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRLinalgTestPasses
     MLIRMathTestPasses
     MLIRMemRefTestPasses
+    MLIRNVGPUTestPasses
     MLIRSCFTestPasses
     MLIRShapeTestPasses
     MLIRSPIRVTestPasses
@@ -28,9 +29,12 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestDialect
     MLIRTestIR
     MLIRTestPass
+    MLIRTestPDLL
     MLIRTestReducer
     MLIRTestRewrite
+    MLIRTestTransformDialect
     MLIRTestTransforms
+    MLIRTilingInterfaceTestPasses
     MLIRVectorTestPasses
     )
 endif()
@@ -62,7 +66,7 @@ add_mlir_library(MLIRMlirOptMain
   ${LIBS}
   )
 
-add_llvm_tool(mlir-opt
+add_mlir_tool(mlir-opt
   mlir-opt.cpp
 
   DEPENDS

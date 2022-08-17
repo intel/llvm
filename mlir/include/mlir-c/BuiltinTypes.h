@@ -150,9 +150,18 @@ MLIR_CAPI_EXPORTED int64_t mlirShapedTypeGetDimSize(MlirType type,
 /// in shaped types.
 MLIR_CAPI_EXPORTED bool mlirShapedTypeIsDynamicSize(int64_t size);
 
+/// Returns the value indicating a dynamic size in a shaped type. Prefer
+/// mlirShapedTypeIsDynamicSize to direct comparisons with this value.
+MLIR_CAPI_EXPORTED int64_t mlirShapedTypeGetDynamicSize();
+
 /// Checks whether the given value is used as a placeholder for dynamic strides
 /// and offsets in shaped types.
 MLIR_CAPI_EXPORTED bool mlirShapedTypeIsDynamicStrideOrOffset(int64_t val);
+
+/// Returns the value indicating a dynamic stride or offset in a shaped type.
+/// Prefer mlirShapedTypeGetDynamicStrideOrOffset to direct comparisons with
+/// this value.
+MLIR_CAPI_EXPORTED int64_t mlirShapedTypeGetDynamicStrideOrOffset();
 
 //===----------------------------------------------------------------------===//
 // Vector type.
@@ -324,6 +333,29 @@ MLIR_CAPI_EXPORTED MlirType mlirFunctionTypeGetInput(MlirType type,
 /// Returns the pos-th result type.
 MLIR_CAPI_EXPORTED MlirType mlirFunctionTypeGetResult(MlirType type,
                                                       intptr_t pos);
+
+//===----------------------------------------------------------------------===//
+// Opaque type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is an opaque type.
+MLIR_CAPI_EXPORTED bool mlirTypeIsAOpaque(MlirType type);
+
+/// Creates an opaque type in the given context associated with the dialect
+/// identified by its namespace. The type contains opaque byte data of the
+/// specified length (data need not be null-terminated).
+MLIR_CAPI_EXPORTED MlirType mlirOpaqueTypeGet(MlirContext ctx,
+                                              MlirStringRef dialectNamespace,
+                                              MlirStringRef typeData);
+
+/// Returns the namespace of the dialect with which the given opaque type
+/// is associated. The namespace string is owned by the context.
+MLIR_CAPI_EXPORTED MlirStringRef
+mlirOpaqueTypeGetDialectNamespace(MlirType type);
+
+/// Returns the raw data as a string reference. The data remains live as long as
+/// the context in which the type lives.
+MLIR_CAPI_EXPORTED MlirStringRef mlirOpaqueTypeGetData(MlirType type);
 
 #ifdef __cplusplus
 }

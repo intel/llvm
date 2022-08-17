@@ -560,12 +560,7 @@ AffineMap mlir::compressDims(AffineMap map,
 }
 
 AffineMap mlir::compressUnusedDims(AffineMap map) {
-  llvm::SmallBitVector unusedDims(map.getNumDims(), true);
-  map.walkExprs([&](AffineExpr expr) {
-    if (auto dimExpr = expr.dyn_cast<AffineDimExpr>())
-      unusedDims.reset(dimExpr.getPosition());
-  });
-  return compressDims(map, unusedDims);
+  return compressDims(map, getUnusedDimsBitVector({map}));
 }
 
 static SmallVector<AffineMap>
@@ -679,7 +674,7 @@ AffineMap mlir::inversePermutation(AffineMap map) {
   return AffineMap::get(map.getNumResults(), 0, seenExprs, map.getContext());
 }
 
-AffineMap mlir::inverseAndBroadcastProjectedPermuation(AffineMap map) {
+AffineMap mlir::inverseAndBroadcastProjectedPermutation(AffineMap map) {
   assert(map.isProjectedPermutation(/*allowZeroInResults=*/true));
   MLIRContext *context = map.getContext();
   AffineExpr zero = mlir::getAffineConstantExpr(0, context);
@@ -720,6 +715,18 @@ AffineMap mlir::concatAffineMaps(ArrayRef<AffineMap> maps) {
 AffineMap mlir::getProjectedMap(AffineMap map,
                                 const llvm::SmallBitVector &unusedDims) {
   return compressUnusedSymbols(compressDims(map, unusedDims));
+}
+
+llvm::SmallBitVector mlir::getUnusedDimsBitVector(ArrayRef<AffineMap> maps) {
+  unsigned numDims = maps[0].getNumDims();
+  llvm::SmallBitVector numDimsBitVector(numDims, true);
+  for (const auto &m : maps) {
+    for (unsigned i = 0; i < numDims; ++i) {
+      if (m.isFunctionOfDim(i))
+        numDimsBitVector.reset(i);
+    }
+  }
+  return numDimsBitVector;
 }
 
 //===----------------------------------------------------------------------===//

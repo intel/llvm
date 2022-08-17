@@ -155,14 +155,14 @@ public:
     /// Reads the option with the check-local name \p LocalName from the
     /// ``CheckOptions``. If the corresponding key is not present, return
     /// ``None``.
-    llvm::Optional<std::string> get(StringRef LocalName) const;
+    llvm::Optional<StringRef> get(StringRef LocalName) const;
 
     /// Read a named option from the ``Context``.
     ///
     /// Reads the option with the check-local name \p LocalName from the
     /// ``CheckOptions``. If the corresponding key is not present, returns
     /// \p Default.
-    std::string get(StringRef LocalName, StringRef Default) const;
+    StringRef get(StringRef LocalName, StringRef Default) const;
 
     /// Read a named option from the ``Context``.
     ///
@@ -170,7 +170,7 @@ public:
     /// global ``CheckOptions``. Gets local option first. If local is not
     /// present, falls back to get global option. If global option is not
     /// present either, return ``None``.
-    llvm::Optional<std::string> getLocalOrGlobal(StringRef LocalName) const;
+    llvm::Optional<StringRef> getLocalOrGlobal(StringRef LocalName) const;
 
     /// Read a named option from the ``Context``.
     ///
@@ -178,7 +178,7 @@ public:
     /// global ``CheckOptions``. Gets local option first. If local is not
     /// present, falls back to get global option. If global option is not
     /// present either, returns \p Default.
-    std::string getLocalOrGlobal(StringRef LocalName, StringRef Default) const;
+    StringRef getLocalOrGlobal(StringRef LocalName, StringRef Default) const;
 
     /// Read a named option from the ``Context`` and parse it as an
     /// integral type ``T``.
@@ -192,7 +192,7 @@ public:
     template <typename T>
     std::enable_if_t<std::is_integral<T>::value, llvm::Optional<T>>
     get(StringRef LocalName) const {
-      if (llvm::Optional<std::string> Value = get(LocalName)) {
+      if (llvm::Optional<StringRef> Value = get(LocalName)) {
         T Result{};
         if (!StringRef(*Value).getAsInteger(10, Result))
           return Result;
@@ -213,7 +213,7 @@ public:
     template <typename T>
     std::enable_if_t<std::is_integral<T>::value, T> get(StringRef LocalName,
                                                         T Default) const {
-      return get<T>(LocalName).getValueOr(Default);
+      return get<T>(LocalName).value_or(Default);
     }
 
     /// Read a named option from the ``Context`` and parse it as an
@@ -229,7 +229,7 @@ public:
     template <typename T>
     std::enable_if_t<std::is_integral<T>::value, llvm::Optional<T>>
     getLocalOrGlobal(StringRef LocalName) const {
-      llvm::Optional<std::string> ValueOr = get(LocalName);
+      llvm::Optional<StringRef> ValueOr = get(LocalName);
       bool IsGlobal = false;
       if (!ValueOr) {
         IsGlobal = true;
@@ -258,7 +258,7 @@ public:
     template <typename T>
     std::enable_if_t<std::is_integral<T>::value, T>
     getLocalOrGlobal(StringRef LocalName, T Default) const {
-      return getLocalOrGlobal<T>(LocalName).getValueOr(Default);
+      return getLocalOrGlobal<T>(LocalName).value_or(Default);
     }
 
     /// Read a named option from the ``Context`` and parse it as an
@@ -297,7 +297,7 @@ public:
     template <typename T>
     std::enable_if_t<std::is_enum<T>::value, T>
     get(StringRef LocalName, T Default, bool IgnoreCase = false) const {
-      return get<T>(LocalName, IgnoreCase).getValueOr(Default);
+      return get<T>(LocalName, IgnoreCase).value_or(Default);
     }
 
     /// Read a named option from the ``Context`` and parse it as an
@@ -339,7 +339,7 @@ public:
     std::enable_if_t<std::is_enum<T>::value, T>
     getLocalOrGlobal(StringRef LocalName, T Default,
                      bool IgnoreCase = false) const {
-      return getLocalOrGlobal<T>(LocalName, IgnoreCase).getValueOr(Default);
+      return getLocalOrGlobal<T>(LocalName, IgnoreCase).value_or(Default);
     }
 
     /// Stores an option with the check-local name \p LocalName with
@@ -417,6 +417,11 @@ protected:
   StringRef getCurrentMainFile() const { return Context->getCurrentFile(); }
   /// Returns the language options from the context.
   const LangOptions &getLangOpts() const { return Context->getLangOpts(); }
+  /// Returns true when the check is run in a use case when only 1 fix will be
+  /// applied at a time.
+  bool areDiagsSelfContained() const {
+    return Context->areDiagsSelfContained();
+  }
 };
 
 /// Read a named option from the ``Context`` and parse it as a bool.

@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
+#include "mlir/ExecutionEngine/Msan.h"
 
 #ifndef _WIN32
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
@@ -27,6 +28,7 @@
 
 #include <cinttypes>
 #include <cstdio>
+#include <cstdlib>
 #include <string.h>
 
 #ifdef MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS
@@ -44,13 +46,14 @@ extern "C" void printClose() { fputs(" )", stdout); }
 extern "C" void printComma() { fputs(", ", stdout); }
 extern "C" void printNewline() { fputc('\n', stdout); }
 
-extern "C" MLIR_CRUNNERUTILS_EXPORT void
-memrefCopy(int64_t elemSize, UnrankedMemRefType<char> *srcArg,
-           UnrankedMemRefType<char> *dstArg) {
+extern "C" void memrefCopy(int64_t elemSize, UnrankedMemRefType<char> *srcArg,
+                           UnrankedMemRefType<char> *dstArg) {
   DynamicMemRefType<char> src(*srcArg);
   DynamicMemRefType<char> dst(*dstArg);
 
   int64_t rank = src.rank;
+  MLIR_MSAN_MEMORY_IS_INITIALIZED(src.sizes, rank * sizeof(int64_t));
+
   // Handle empty shapes -> nothing to copy.
   for (int rankp = 0; rankp < rank; ++rankp)
     if (src.sizes[rankp] == 0)
@@ -101,7 +104,7 @@ memrefCopy(int64_t elemSize, UnrankedMemRefType<char> *srcArg,
 }
 
 /// Prints GFLOPS rating.
-extern "C" void print_flops(double flops) {
+extern "C" void printFlops(double flops) {
   fprintf(stderr, "%lf GFLOPS\n", flops / 1.0E9);
 }
 
@@ -117,6 +120,32 @@ extern "C" double rtclock() {
   fprintf(stderr, "Timing utility not implemented on Windows\n");
   return 0.0;
 #endif // _WIN32
+}
+
+extern "C" void *_mlir_alloc(uint64_t size) { return malloc(size); }
+
+extern "C" void *_mlir_aligned_alloc(uint64_t alignment, uint64_t size) {
+#ifdef _WIN32
+  return _aligned_malloc(size, alignment);
+#elif defined(__APPLE__)
+  // aligned_alloc was added in MacOS 10.15. Fall back to posix_memalign to also
+  // support older versions.
+  void *result = nullptr;
+  (void)::posix_memalign(&result, alignment, size);
+  return result;
+#else
+  return aligned_alloc(alignment, size);
+#endif
+}
+
+extern "C" void _mlir_free(void *ptr) { free(ptr); }
+
+extern "C" void _mlir_aligned_free(void *ptr) {
+#ifdef _WIN32
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
 }
 
 #endif // MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS

@@ -5,13 +5,13 @@ conversions between, and within dialects. This framework allows for transforming
 illegal operations to those supported by a provided conversion target, via a set
 of pattern-based operation rewriting patterns.
 
-[TOC]
-
 The dialect conversion framework consists of the following components:
 
 *   A [Conversion Target](#conversion-target)
 *   A set of [Rewrite Patterns](#rewrite-pattern-specification)
 *   A [Type Converter](#type-conversion) (Optional)
+
+[TOC]
 
 ## Modes of Conversion
 
@@ -379,7 +379,7 @@ move into that region. As noted above, the conversions performed by this method
 use the argument materialization hook on the `TypeConverter`. This hook also
 takes an optional `TypeConverter::SignatureConversion` parameter that applies a
 custom conversion to the entry block of the region. The types of the entry block
-arguments are often tied semantically to details on the operation, e.g. FuncOp,
+arguments are often tied semantically to details on the operation, e.g. func::FuncOp,
 AffineForOp, etc. To convert the signature of just the region entry block, and
 not any other blocks within the region, the `applySignatureConversion` hook may
 be used instead. A signature conversion, `TypeConverter::SignatureConversion`,

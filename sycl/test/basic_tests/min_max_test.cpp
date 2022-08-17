@@ -4,7 +4,7 @@
 
 #include "windows.h"
 
-#include "CL/sycl.hpp"
+#include "sycl.hpp"
 
 int main() {
   int tmp = min(1, 4);

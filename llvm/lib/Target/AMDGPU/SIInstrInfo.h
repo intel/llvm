@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_AMDGPU_SIINSTRINFO_H
 
 #include "AMDGPUMIRFormatter.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIRegisterInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SetVector.h"
@@ -183,8 +184,7 @@ public:
     return ST;
   }
 
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 
   bool isIgnorableUse(const MachineOperand &MO) const override;
 
@@ -328,14 +328,13 @@ public:
                             Register SrcReg2, int64_t CmpMask, int64_t CmpValue,
                             const MachineRegisterInfo *MRI) const override;
 
-  unsigned getAddressSpaceForPseudoSourceKind(
-             unsigned Kind) const override;
-
   bool
   areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
                                   const MachineInstr &MIb) const override;
 
   static bool isFoldableCopy(const MachineInstr &MI);
+
+  void removeModOperands(MachineInstr &MI) const;
 
   bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
                      MachineRegisterInfo *MRI) const final;
@@ -554,6 +553,14 @@ public:
     return MI.getDesc().TSFlags & SIInstrFlags::EXP;
   }
 
+  static bool isDualSourceBlendEXP(const MachineInstr &MI) {
+    if (!isEXP(MI))
+      return false;
+    unsigned Target = MI.getOperand(0).getImm();
+    return Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND0 ||
+           Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND1;
+  }
+
   bool isEXP(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::EXP;
   }
@@ -656,12 +663,41 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::IsMAI;
   }
 
+  static bool isMFMA(const MachineInstr &MI) {
+    return isMAI(MI) && MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
+           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
+  }
+
   static bool isDOT(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::IsDOT;
   }
 
+  static bool isWMMA(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsWMMA;
+  }
+
+  bool isWMMA(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsWMMA;
+  }
+
   bool isDOT(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::IsDOT;
+  }
+
+  static bool isLDSDIR(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::LDSDIR;
+  }
+
+  bool isLDSDIR(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::LDSDIR;
+  }
+
+  static bool isVINTERP(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::VINTERP;
+  }
+
+  bool isVINTERP(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::VINTERP;
   }
 
   static bool isScalarUnit(const MachineInstr &MI) {
@@ -1140,6 +1176,11 @@ public:
   static unsigned getDSShaderTypeValue(const MachineFunction &MF);
 
   const TargetSchedModel &getSchedModel() const { return SchedModel; }
+
+  // Enforce operand's \p OpName even alignment if required by target.
+  // This is used if an operand is a 32 bit register but needs to be aligned
+  // regardless.
+  void enforceOperandRCAlignment(MachineInstr &MI, unsigned OpName) const;
 };
 
 /// \brief Returns true if a reg:subreg pair P has a TRC class
@@ -1200,6 +1241,9 @@ namespace AMDGPU {
   int getDPPOp32(uint16_t Opcode);
 
   LLVM_READONLY
+  int getDPPOp64(uint16_t Opcode);
+
+  LLVM_READONLY
   int getBasicFromSDWAOp(uint16_t Opcode);
 
   LLVM_READONLY
@@ -1216,9 +1260,6 @@ namespace AMDGPU {
   /// \returns \p Opcode if it is an Addr64 opcode, otherwise -1.
   LLVM_READONLY
   int getIfAddr64Inst(uint16_t Opcode);
-
-  LLVM_READONLY
-  int getMUBUFNoLdsInst(uint16_t Opcode);
 
   LLVM_READONLY
   int getAtomicNoRetOp(uint16_t Opcode);

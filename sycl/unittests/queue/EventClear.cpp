@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};
@@ -31,7 +31,7 @@ pi_result redefinedQueueCreate(pi_context context, pi_device device,
   // Use in-order queues to force storing events for calling wait on them,
   // rather than calling piQueueFinish.
   if (properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    return PI_INVALID_QUEUE_PROPERTIES;
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;
 }
@@ -82,11 +82,11 @@ pi_result redefinedEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-bool preparePiMock(platform &Plt) {
+std::optional<unittest::PiMock> preparePiMock(platform &Plt) {
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI events created in that case"
               << std::endl;
-    return false;
+    return {};
   }
 
   unittest::PiMock Mock{Plt};
@@ -98,14 +98,15 @@ bool preparePiMock(platform &Plt) {
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-  return true;
+  return std::move(Mock);
 }
 
 // Check that the USM events are cleared from the queue upon call to wait(),
 // so that they are not waited for multiple times.
 TEST(QueueEventClear, ClearOnQueueWait) {
   platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
+  auto Mock = preparePiMock(Plt);
+  if (!Mock)
     return;
 
   context Ctx{Plt.get_devices()[0]};
@@ -126,7 +127,8 @@ TEST(QueueEventClear, ClearOnQueueWait) {
 // exceeds a threshold.
 TEST(QueueEventClear, CleanupOnThreshold) {
   platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
+  auto Mock = preparePiMock(Plt);
+  if (!Mock)
     return;
 
   context Ctx{Plt.get_devices()[0]};

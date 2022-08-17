@@ -13,8 +13,8 @@ import numpy as np
 
 from mlir import ir
 from mlir import runtime as rt
-from mlir.execution_engine import ExecutionEngine
 
+from mlir.dialects import bufferization
 from mlir.dialects import builtin
 from mlir.dialects import func
 from mlir.dialects import sparse_tensor as st
@@ -119,7 +119,7 @@ class StressTest:
         for tp in types:
           w = st.ConvertOp(tp, v)
           # Release intermediate tensors before they fall out of scope.
-          st.ReleaseOp(v.result)
+          bufferization.DeallocTensorOp(v.result)
           v = w
         self._assertEqualsRoundtripTp(v.result.type)
         func.ReturnOp(v)
@@ -139,15 +139,13 @@ class StressTest:
       f.write(str(self._module))
     return self
 
-  def compile(self, compiler, support_lib: str):
+  def compile(self, compiler):
     """Compile the ir.Module."""
     assert self._module is not None, \
         'StressTest: must call build() before compile()'
     assert self._engine is None, \
         'StressTest: must not call compile() repeatedly'
-    compiler(self._module)
-    self._engine = ExecutionEngine(
-        self._module, opt_level=0, shared_libs=[support_lib])
+    self._engine = compiler.compile_and_jit(self._module)
     return self
 
   def run(self, np_arg0: np.ndarray) -> np.ndarray:
@@ -189,12 +187,19 @@ def main():
     vec = 0
     vl = 1
     e = False
+    # Disable direct sparse2sparse conversion, because it doubles the time!
+    # TODO: While direct s2s is far too slow for per-commit testing,
+    # we should have some framework ensure that we run this test with
+    # `s2s=0` on a regular basis, to ensure that it does continue to work.
+    s2s = 1
     sparsification_options = (
         f'parallelization-strategy={par} '
         f'vectorization-strategy={vec} '
         f'vl={vl} '
-        f'enable-simd-index32={e}')
-    compiler = sparse_compiler.SparseCompiler(options=sparsification_options)
+        f'enable-simd-index32={e} '
+        f's2s-strategy={s2s}')
+    compiler = sparse_compiler.SparseCompiler(
+        options=sparsification_options, opt_level=0, shared_libs=[support_lib])
     f64 = ir.F64Type.get()
     # Be careful about increasing this because
     #     len(types) = 1 + 2^rank * rank! * len(bitwidths)^2
@@ -230,9 +235,8 @@ def main():
     np_arg0 = np.arange(size, dtype=tyconv.irtype_to_dtype(f64)).reshape(*shape)
     np_out = (
         StressTest(tyconv).build(types).writeTo(
-            sys.argv[1] if len(sys.argv) > 1 else None).compile(
-                compiler, support_lib).writeTo(
-                    sys.argv[2] if len(sys.argv) > 2 else None).run(np_arg0))
+            sys.argv[1] if len(sys.argv) > 1 else None).compile(compiler)
+        .writeTo(sys.argv[2] if len(sys.argv) > 2 else None).run(np_arg0))
     # CHECK: Passed
     if np.allclose(np_out, np_arg0):
       print('Passed')

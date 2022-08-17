@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/buffer.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/stream.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/buffer.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
+#include <sycl/stream.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class __SYCL_EXPORT stream_impl {
@@ -70,9 +70,8 @@ private:
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.
   static const size_t OffsetSize = 2 * sizeof(unsigned);
-
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

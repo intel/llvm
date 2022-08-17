@@ -11,18 +11,11 @@
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-struct out_16 {
-  short x, y, z, w;
-};
 #endif
 
 #ifdef cl_khr_3d_image_writes
 #pragma OPENCL EXTENSION cl_khr_3d_image_writes : enable
 #endif
-
-struct out_32 {
-  int x, y, z, w;
-};
 
 // CLC helpers
 int __clc__sampler_extract_normalized_coords_prop(int) __asm(
@@ -57,75 +50,81 @@ int __clc__sampled_image3d_unpack_sampler(__ocl_sampled_image3d_ro_t) __asm(
     "__clc__sampled_image_unpack_sampler");
 
 // NVVM helpers
-struct out_16
-__nvvm_suld_1d_v4i16_trap_s(long, int) __asm("llvm.nvvm.suld.1d.v4i16.trap");
-struct out_16
+#ifdef cl_khr_fp16
+short4
+__nvvm_suld_1d_v4i16_trap_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_trap");
+short4
 __nvvm_suld_2d_v4i16_trap_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i16.trap");
-struct out_16
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_trap");
+short4
 __nvvm_suld_3d_v4i16_trap_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i16.trap");
-struct out_32
-__nvvm_suld_1d_v4i32_trap_s(long, int) __asm("llvm.nvvm.suld.1d.v4i32.trap");
-struct out_32
-__nvvm_suld_2d_v4i32_trap_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i32.trap");
-struct out_32
-__nvvm_suld_3d_v4i32_trap_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i32.trap");
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_trap");
 
-struct out_16
-__nvvm_suld_1d_v4i16_clamp_s(long, int) __asm("llvm.nvvm.suld.1d.v4i16.clamp");
-struct out_16
+short4
+__nvvm_suld_1d_v4i16_clamp_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_clamp");
+short4
 __nvvm_suld_2d_v4i16_clamp_s(long, int,
-                             int) __asm("llvm.nvvm.suld.2d.v4i16.clamp");
-struct out_16
+                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_clamp");
+short4
 __nvvm_suld_3d_v4i16_clamp_s(long, int, int,
-                             int) __asm("llvm.nvvm.suld.3d.v4i16.clamp");
-struct out_32
-__nvvm_suld_1d_v4i32_clamp_s(long, int) __asm("llvm.nvvm.suld.1d.v4i32.clamp");
-struct out_32
-__nvvm_suld_2d_v4i32_clamp_s(long, int,
-                             int) __asm("llvm.nvvm.suld.2d.v4i32.clamp");
-struct out_32
-__nvvm_suld_3d_v4i32_clamp_s(long, int, int,
-                             int) __asm("llvm.nvvm.suld.3d.v4i32.clamp");
+                             int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_clamp");
 
-struct out_16
-__nvvm_suld_1d_v4i16_zero_s(long, int) __asm("llvm.nvvm.suld.1d.v4i16.zero");
-struct out_16
+short4
+__nvvm_suld_1d_v4i16_zero_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_zero");
+short4
 __nvvm_suld_2d_v4i16_zero_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i16.zero");
-struct out_16
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_zero");
+short4
 __nvvm_suld_3d_v4i16_zero_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i16.zero");
-struct out_32
-__nvvm_suld_1d_v4i32_zero_s(long, int) __asm("llvm.nvvm.suld.1d.v4i32.zero");
-struct out_32
-__nvvm_suld_2d_v4i32_zero_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i32.zero");
-struct out_32
-__nvvm_suld_3d_v4i32_zero_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i32.zero");
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_zero");
 
-struct out_16
+short4
 __nvvm_suld_1d_v4i16_clamp(read_only image1d_t,
-                           int) __asm("llvm.nvvm.suld.1d.v4i16.clamp");
-struct out_16
+                           int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_clamp");
+short4
 __nvvm_suld_2d_v4i16_clamp(read_only image2d_t, int,
-                           int) __asm("llvm.nvvm.suld.2d.v4i16.clamp");
-struct out_16
+                           int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_clamp");
+short4
 __nvvm_suld_3d_v4i16_clamp(read_only image3d_t, int, int,
-                           int) __asm("llvm.nvvm.suld.3d.v4i16.clamp");
-struct out_32
+                           int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_clamp");
+#endif
+
+int4
+__nvvm_suld_1d_v4i32_trap_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_trap");
+int4
+__nvvm_suld_2d_v4i32_trap_s(long, int,
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_trap");
+int4
+__nvvm_suld_3d_v4i32_trap_s(long, int, int,
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_trap");
+
+int4
+__nvvm_suld_1d_v4i32_clamp_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_clamp");
+int4
+__nvvm_suld_2d_v4i32_clamp_s(long, int,
+                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_clamp");
+int4
+__nvvm_suld_3d_v4i32_clamp_s(long, int, int,
+                             int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_clamp");
+
+int4
+__nvvm_suld_1d_v4i32_zero_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_zero");
+int4
+__nvvm_suld_2d_v4i32_zero_s(long, int,
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_zero");
+int4
+__nvvm_suld_3d_v4i32_zero_s(long, int, int,
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_zero");
+
+int4
 __nvvm_suld_1d_v4i32_clamp(read_only image1d_t,
-                           int) __asm("llvm.nvvm.suld.1d.v4i32.clamp");
-struct out_32
+                           int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_clamp");
+int4
 __nvvm_suld_2d_v4i32_clamp(read_only image2d_t, int,
-                           int) __asm("llvm.nvvm.suld.2d.v4i32.clamp");
-struct out_32
+                           int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_clamp");
+int4
 __nvvm_suld_3d_v4i32_clamp(read_only image3d_t, int, int,
-                           int) __asm("llvm.nvvm.suld.3d.v4i32.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_clamp");
 
 void __nvvm_sust_1d_v4i16_clamp(write_only image1d_t, int, short, short, short,
                                 short) __asm("llvm.nvvm.sust.b.1d.v4i16.clamp");
@@ -199,11 +198,8 @@ typedef float4 pixelf32;
 typedef half fp16;
 typedef float fp32;
 
-#define _DEFINE_OUT_TYPE(elem_t, elem_size)                                    \
-  inline elem_t##4 out_##elem_t(struct out_##elem_size out) {                  \
-    return (elem_t##4)(as_##elem_t(out.x), as_##elem_t(out.y),                 \
-                       as_##elem_t(out.z), as_##elem_t(out.w));                \
-  }
+pixelf16 as_pixelf16(short4 v) { return as_half4(v); }
+pixelf32 as_pixelf32(int4 v) { return as_float4(v); }
 
 #define _DEFINE_VEC4_CAST(from_t, to_t)                                        \
   inline to_t##4 cast_##from_t##4_to_##to_t##4(from_t##4 from) {               \
@@ -223,43 +219,29 @@ typedef float fp32;
     return cast_##pixelf_base_t##_to_##to_t(from);                             \
   }
 
-#define _DEFINE_OUT_PIXELF(pixelf_size, elem_t)                                \
-  inline pixelf##pixelf_size out_pixelf##pixelf_size(                          \
-      struct out_##pixelf_size out) {                                          \
-    return (pixelf##pixelf_size)(as_##elem_t(out.x), as_##elem_t(out.y),       \
-                                 as_##elem_t(out.z), as_##elem_t(out.w));      \
-  }
-
 #define _DEFINE_READ_1D_PIXELF(pixelf_size, cuda_address_mode)                 \
   pixelf##pixelf_size read_1d_##pixelf_size##_##cuda_address_mode(long image,  \
                                                                   int x) {     \
-    struct out_##pixelf_size res =                                             \
+    return as_pixelf##pixelf_size(                                             \
         __nvvm_suld_1d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
-            image, x * sizeof(struct out_##pixelf_size));                      \
-    return out_pixelf##pixelf_size(res);                                       \
+            image, x * sizeof(pixelf##pixelf_size)));                          \
   }
 
 #define _DEFINE_READ_2D_PIXELF(pixelf_size, cuda_address_mode)                 \
   pixelf##pixelf_size read_2d_##pixelf_size##_##cuda_address_mode(             \
       long image, int x, int y) {                                              \
-    struct out_##pixelf_size res =                                             \
+    return as_pixelf##pixelf_size(                                             \
         __nvvm_suld_2d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
-            image, x * sizeof(struct out_##pixelf_size), y);                   \
-    return out_pixelf##pixelf_size(res);                                       \
+            image, x * sizeof(pixelf##pixelf_size), y));                       \
   }
 
 #define _DEFINE_READ_3D_PIXELF(pixelf_size, cuda_address_mode)                 \
   pixelf##pixelf_size read_3d_##pixelf_size##_##cuda_address_mode(             \
       long image, int x, int y, int z) {                                       \
-    struct out_##pixelf_size res =                                             \
+    return as_pixelf##pixelf_size(                                             \
         __nvvm_suld_3d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
-            image, x * sizeof(struct out_##pixelf_size), y, z);                \
-    return out_pixelf##pixelf_size(res);                                       \
+            image, x * sizeof(pixelf##pixelf_size), y, z));                    \
   }
-
-_DEFINE_OUT_TYPE(float, 32)
-_DEFINE_OUT_TYPE(int, 32)
-_DEFINE_OUT_TYPE(uint, 32)
 
 _DEFINE_VEC4_CAST(float, int)
 _DEFINE_VEC4_CAST(int, float)
@@ -275,8 +257,6 @@ _DEFINE_CAST(float4, float4)
 _DEFINE_CAST(pixelf32, float4)
 _DEFINE_CAST(pixelf32, pixelf32)
 _DEFINE_CAST(float4, pixelf32)
-
-_DEFINE_OUT_PIXELF(32, float)
 
 _DEFINE_PIXELF_CAST(32, float4, int4)
 _DEFINE_PIXELF_CAST(32, float4, uint4)
@@ -298,8 +278,6 @@ _DEFINE_CAST(half4, half4)
 _DEFINE_CAST(pixelf16, half4)
 _DEFINE_CAST(pixelf16, pixelf16)
 _DEFINE_CAST(half4, pixelf16)
-_DEFINE_OUT_TYPE(half, 16)
-_DEFINE_OUT_PIXELF(16, half)
 _DEFINE_READ_1D_PIXELF(16, trap)
 _DEFINE_READ_2D_PIXELF(16, trap)
 _DEFINE_READ_3D_PIXELF(16, trap)
@@ -311,11 +289,9 @@ _DEFINE_READ_2D_PIXELF(16, clamp)
 _DEFINE_READ_3D_PIXELF(16, clamp)
 #endif
 
-#undef _DEFINE_OUT_TYPE
 #undef _DEFINE_VEC4_CAST
 #undef _DEFINE_VEC2_CAST
 #undef _DEFINE_CAST
-#undef _DEFINE_OUT_PIXELF
 #undef _DEFINE_READ_1D_PIXELF
 #undef _DEFINE_READ_2D_PIXELF
 #undef _DEFINE_READ_3D_PIXELF
@@ -327,7 +303,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   _CLC_DEF                                                                          \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image1d_roiET_T0_T1_( \
       read_only image1d_t image, int x) {                                           \
-    return out_##elem_t(                                                            \
+    return as_##elem_t##4(                                                          \
         __nvvm_suld_1d_v4i##elem_size##_clamp(image, x * sizeof(elem_t##4)));       \
   }
 
@@ -335,7 +311,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   _CLC_DEF                                                                              \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image2d_roDv2_iET_T0_T1_( \
       read_only image2d_t image, int2 coord) {                                          \
-    return out_##elem_t(__nvvm_suld_2d_v4i##elem_size##_clamp(                          \
+    return as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_clamp(                        \
         image, coord.x * sizeof(elem_t##4), coord.y));                                  \
   }
 
@@ -344,7 +320,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   _CLC_DEF                                                                                          \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image3d_ro##coord_mangled##ET_T0_T1_( \
       read_only image3d_t image, int4 coord) {                                                      \
-    return out_##elem_t(__nvvm_suld_3d_v4i##elem_size##_clamp(                                      \
+    return as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_clamp(                                    \
         image, coord.x * sizeof(elem_t##4), coord.y, coord.z));                                     \
   }
 
@@ -463,7 +439,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       float coord, long image, int sampler) {                                  \
     if (is_nearest_filter_mode(sampler)) {                                     \
       int i = (int)__spirv_ocl_floor(coord);                                   \
-      return out_##elem_t(                                                     \
+      return as_##elem_t##4(                                                   \
           __nvvm_suld_1d_v4i##elem_size##_##cuda_address_mode##_s(             \
               image, i * sizeof(elem_t##4)));                                  \
     } else {                                                                   \
@@ -487,7 +463,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
     if (is_nearest_filter_mode(sampler)) {                                     \
       int i = (int)__spirv_ocl_floor(coord.x);                                 \
       int j = (int)__spirv_ocl_floor(coord.y);                                 \
-      return out_##elem_t(                                                     \
+      return as_##elem_t##4(                                                   \
           __nvvm_suld_2d_v4i##elem_size##_##cuda_address_mode##_s(             \
               image, i * sizeof(elem_t##4), j));                               \
     } else {                                                                   \
@@ -520,7 +496,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int i = (int)__spirv_ocl_floor(coord.x);                                 \
       int j = (int)__spirv_ocl_floor(coord.y);                                 \
       int k = (int)__spirv_ocl_floor(coord.z);                                 \
-      return out_##elem_t(                                                     \
+      return as_##elem_t##4(                                                   \
           __nvvm_suld_3d_v4i##elem_size##_##cuda_address_mode##_s(             \
               image, i * sizeof(elem_t##4), j, k));                            \
     } else {                                                                   \
@@ -570,7 +546,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       if (i > width - 1) {                                                     \
         i = i - width;                                                         \
       }                                                                        \
-      return out_##elem_t(__nvvm_suld_1d_v4i##elem_size##_trap_s(              \
+      return as_##elem_t##4(__nvvm_suld_1d_v4i##elem_size##_trap_s(            \
           image, i * sizeof(elem_t##4)));                                      \
     } else {                                                                   \
       int i0, i1;                                                              \
@@ -609,7 +585,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       if (j > height - 1) {                                                    \
         j = j - height;                                                        \
       }                                                                        \
-      return out_##elem_t(__nvvm_suld_2d_v4i##elem_size##_trap_s(              \
+      return as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_trap_s(            \
           image, i * sizeof(elem_t##4), j));                                   \
     } else {                                                                   \
       int i0, i1, j0, j1;                                                      \
@@ -666,7 +642,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       if (k > depth - 1) {                                                     \
         k = k - depth;                                                         \
       }                                                                        \
-      return out_##elem_t(__nvvm_suld_3d_v4i##elem_size##_trap_s(              \
+      return as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_trap_s(            \
           image, i * sizeof(elem_t##4), j, k));                                \
     } else {                                                                   \
       int i0, i1, j0, j1, k0, k1;                                              \
@@ -735,7 +711,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int i = (int)__spirv_ocl_floor(u);                                       \
       i = __spirv_ocl_s_min(i, width - 1);                                     \
                                                                                \
-      return out_##elem_t(__nvvm_suld_1d_v4i##elem_size##_trap_s(              \
+      return as_##elem_t##4(__nvvm_suld_1d_v4i##elem_size##_trap_s(            \
           image, i * sizeof(elem_t##4)));                                      \
     } else {                                                                   \
       int i0, i1;                                                              \
@@ -771,7 +747,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int j = (int)__spirv_ocl_floor(v);                                       \
       j = __spirv_ocl_s_min(j, height - 1);                                    \
                                                                                \
-      return out_##elem_t(__nvvm_suld_2d_v4i##elem_size##_trap_s(              \
+      return as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_trap_s(            \
           image, i * sizeof(elem_t##4), j));                                   \
     } else {                                                                   \
       int i0, i1, j0, j1;                                                      \
@@ -821,7 +797,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int k = (int)__spirv_ocl_floor(w);                                       \
       k = __spirv_ocl_s_min(k, depth - 1);                                     \
                                                                                \
-      return out_##elem_t(__nvvm_suld_3d_v4i##elem_size##_trap_s(              \
+      return as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_trap_s(            \
           image, i * sizeof(elem_t##4), j, k));                                \
     } else {                                                                   \
       int i0, i1, j0, j1, k0, k1;                                              \
