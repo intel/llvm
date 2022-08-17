@@ -14,6 +14,7 @@ jobs:
   update_driver_linux:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
+    environment: deps_aaaaa
     steps:
     - uses: actions/checkout@v2
     - name: Update dependencies file
@@ -24,6 +25,7 @@ jobs:
       env:
         BRANCH: ci/update_gpu_driver-linux-${{ env.NEW_DRIVER_VERSION }}
         GITHUB_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
+        MYTOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       run: |
         cd $GITHUB_WORKSPACE
         git config --global user.name "Buildbot for SYCL"
@@ -32,7 +34,7 @@ jobs:
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
         echo AAAA
-        echo ${#GITHUB_TOKEN}
+        echo ${#MYTOKEN}
         echo AAAAAA
         git push https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         echo BBBB
