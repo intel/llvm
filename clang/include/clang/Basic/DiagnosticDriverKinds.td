@@ -344,7 +344,7 @@ def warn_drv_sycl_offload_target_duplicate : Warning<
   "will be ignored">, InGroup<SyclTarget>;
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
-  InGroup<SyclMissingTarget>;
+  InGroup<SyclTarget>;
 def err_drv_failed_to_deduce_target_from_arch : Error<
   "failed to deduce triple for target architecture '%0'; specify the triple "
   "using '-fopenmp-targets' and '-Xopenmp-target' instead.">;
