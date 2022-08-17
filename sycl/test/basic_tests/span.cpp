@@ -28,9 +28,8 @@ int main() {
   sycl::span<int> fromIntVec{vec};
 
   // fully specialized
-  // TODO: fix fully specialized span from array declaration support
-  // sycl::span<int,4> fullSpecArray{arr};
-  // sycl::span<const int,3> fullSpecConstArray{constArr};
+  sycl::span<int,4> fullSpecArray{arr};
+  sycl::span<const int,3> fullSpecConstArray{constArr};
   sycl::span<int, 4> fullSpecVecArray{vec};
 
   return 0;
