@@ -32,5 +32,14 @@ int main() {
   sycl::span<const int,3> fullSpecConstArray{constArr};
   sycl::span<int, 4> fullSpecVecArray{vec};
 
+  // check that the extent is deduced correctly
+  static_assert(decltype(fromArray)::extent == decltype(fullSpecArray)::extent,
+                "extent doesn't match between unspecialized and fully "
+                "specialized span from array");
+  static_assert(decltype(fromConstArray)::extent ==
+                    decltype(fullSpecConstArray)::extent,
+                "extent doesn't match between unspecialized and fully "
+                "specialized span from const array");
+
   return 0;
 }
