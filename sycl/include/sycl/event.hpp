@@ -64,13 +64,6 @@ public:
 
   bool operator!=(const event &rhs) const;
 
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-#ifdef __SYCL_INTERNAL_API
-  cl_event get() const;
-#endif
-
   /// Checks if this event is a SYCL host event.
   ///
   /// \return true if this event is a SYCL host event.
