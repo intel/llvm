@@ -5,6 +5,9 @@
 // RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization %s -o %t.noopt.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %BE_RUN_PLACEHOLDER %t.noopt.out | FileCheck %s --check-prefix=CHECK-NOOPT
 
+// Temporarily disable for CPU due to environment-specific failures.
+// UNSUPPORTED: cpu
+
 #ifdef XPTI_COLLECTOR
 
 #include "../Inputs/buffer_info_collector.cpp"
