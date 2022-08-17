@@ -30,8 +30,8 @@
 #define __SYCL_CONSTEXPR_HALF
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace ext {
 namespace intel {
@@ -622,8 +622,8 @@ inline float cast_if_host_half(half_impl::half val) {
 
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 // Partial specialization of some functions in namespace `std`
 namespace std {

@@ -19,8 +19,8 @@
 #include <sycl/detail/sycl_fe_intrins.hpp>
 #include <sycl/exception.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class program;
 
 namespace ext {
@@ -83,5 +83,5 @@ public:
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

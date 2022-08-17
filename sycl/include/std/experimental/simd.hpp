@@ -1382,6 +1382,9 @@ public:
 // TODO: implement simd
 template <class _Tp, class _Abi>
 class simd {
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  template <class, class> friend class simd;
+#endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
 public:
   using value_type = _Tp;
   using reference = __simd_reference<_Tp, _Tp, _Abi>;
@@ -1454,6 +1457,15 @@ private:
 
 public:
   // implicit type conversion constructor
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  template <class _Up,
+    class = typename std::enable_if<
+      std::is_same<_Abi, __simd_abi<_StorageKind::_VecExt, size()>>::value &&
+    __is_non_narrowing_arithmetic_convertible<_Up, _Tp>()>::type>
+    simd(const simd<_Up, _Abi>& __v) {
+    __s_.__storage_ = __builtin_convertvector(__v.__s_.__storage_, raw_storage_type);
+  }
+#endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
   template <class _Up,
             class = typename std::enable_if<
                 std::is_same<_Abi, simd_abi::fixed_size<size()>>::value &&

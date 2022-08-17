@@ -69,8 +69,8 @@ class __copyAcc2Acc;
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 
@@ -251,7 +251,7 @@ using sycl::detail::queue_impl;
 /// If we are given sycl::range and not sycl::nd_range we have more freedom in
 /// how to split the iteration space.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
                         uint32_t NumConcurrentWorkGroups, Reduction &Redu);
 
@@ -302,6 +302,9 @@ reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
+
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem);
 
 template <typename... ReductionT, size_t... Is>
 size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
@@ -404,13 +407,6 @@ private:
 
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs);
-
-  /// Extracts and prepares kernel arguments from the lambda using integration
-  /// header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
@@ -418,11 +414,6 @@ private:
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource);
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
@@ -789,20 +780,6 @@ private:
       if (Src[I] > Dst[I])
         return false;
     return true;
-  }
-
-  // TODO: Delete these functions when ABI breaking changes are allowed.
-  // Currently these functions are unused but they are static members of
-  // the exported class 'handler' and has got into sycl library some time ago
-  // and must stay there for a while.
-  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
   }
 
   /// Handles some special cases of the copy operation from one accessor
@@ -1306,9 +1283,6 @@ private:
     kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
   }
 
-  std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
-  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
-
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
@@ -1644,16 +1618,14 @@ public:
 #else
         ext::oneapi::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
 #endif
-    // TODO: currently the maximal work group size is determined for the given
+    // TODO: currently the preferred work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
-    ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-        *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
-    if (Reduction::is_usm ||
-        (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
-        (!Reduction::has_fast_atomics && Reduction::is_dw_acc)) {
+    size_t PrefWGSize =
+        ext::oneapi::detail::reduGetPreferredWGSize(MQueue, OneElemSize);
+    if (ext::oneapi::detail::reduCGFuncForRange<KernelName>(
+            *this, KernelFunc, Range, PrefWGSize, NumConcurrentWorkGroups,
+            Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
@@ -1667,13 +1639,13 @@ public:
   void parallel_for(nd_range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
     if constexpr (!Reduction::has_fast_atomics &&
-                  !Reduction::has_atomic_add_float64) {
+                  !Reduction::has_float64_atomics) {
       // The most basic implementation.
       parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
       std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-      if constexpr (Reduction::has_atomic_add_float64) {
+      if constexpr (Reduction::has_float64_atomics) {
         /// This version is a specialization for the add
         /// operator. It performs runtime checks for device aspect "atomic64";
         /// if found, fast sycl::atomic_ref operations are used to update the
@@ -2593,6 +2565,7 @@ public:
   void mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
+  std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
@@ -2705,5 +2678,5 @@ private:
         NumWorkItems, KernelFunc);
   }
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

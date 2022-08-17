@@ -14,8 +14,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/type_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
@@ -718,5 +718,5 @@ bool operator<=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() == nullptr;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

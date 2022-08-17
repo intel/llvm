@@ -37,8 +37,8 @@
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -76,8 +76,8 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

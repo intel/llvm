@@ -109,9 +109,11 @@ def ImplicitIntFloatConversion : DiagGroup<"implicit-int-float-conversion",
  [ImplicitConstIntFloatConversion]>;
 def ObjCSignedCharBoolImplicitFloatConversion :
   DiagGroup<"objc-signed-char-bool-implicit-float-conversion">;
+def ImplicitFloatSizeConversion :
+  DiagGroup<"implicit-float-size-conversion">;
 def ImplicitFloatConversion : DiagGroup<"implicit-float-conversion",
   [ImplicitIntFloatConversion,
-   ObjCSignedCharBoolImplicitFloatConversion]>;
+   ObjCSignedCharBoolImplicitFloatConversion, ImplicitFloatSizeConversion]>;
 def ImplicitFixedPointConversion : DiagGroup<"implicit-fixed-point-conversion">;
 
 def FloatOverflowConversion : DiagGroup<"float-overflow-conversion">;

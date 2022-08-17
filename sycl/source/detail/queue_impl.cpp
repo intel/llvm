@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/event_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/memory_manager.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 
@@ -22,8 +22,8 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
@@ -331,5 +331,5 @@ pi_native_handle queue_impl::getNative() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
