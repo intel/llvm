@@ -112,7 +112,7 @@ static bool areElementwiseOpsFusable(GenericOp producer, GenericOp consumer,
     };
 
     for (auto pair :
-         llvm::zip(consumer->getOperands(), consumer.getIndexingMaps())) {
+         llvm::zip(consumer->getOperands(), consumer.getIndexingMapsArray())) {
       Value operand = std::get<0>(pair);
       if (operand == consumerOpOperand->get())
         continue;
@@ -709,7 +709,7 @@ fuseWithReshapeByExpansion(GenericOp genericOp, Operation *reshapeOp,
     return llvm::None;
 
   SmallVector<AffineMap, 4> expandedOpIndexingMaps = llvm::to_vector<4>(
-      llvm::map_range(genericOp.getIndexingMaps(), [&](AffineMap m) {
+      llvm::map_range(genericOp.getIndexingMapsArray(), [&](AffineMap m) {
         return getIndexingMapInExpandedOp(rewriter, m, expansionInfo);
       }));
 
@@ -1008,7 +1008,7 @@ getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
   if (!genericOp.hasTensorSemantics() || genericOp.getNumOutputs() != 1)
     return {};
 
-  if (!llvm::all_of(genericOp.getIndexingMaps(), [](AffineMap map) {
+  if (!llvm::all_of(genericOp.getIndexingMapsArray(), [](AffineMap map) {
         return map.isProjectedPermutation();
       })) {
     return {};
@@ -1085,9 +1085,11 @@ getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
     }
 
     // Check that the sequence is preserved in all indexing maps.
-    if (llvm::any_of(genericOp.getIndexingMaps(), [&](AffineMap indexingMap) {
-          return !isDimSequencePreserved(indexingMap, foldedIterationSpaceDims);
-        }))
+    if (llvm::any_of(genericOp.getIndexingMapsArray(),
+                     [&](AffineMap indexingMap) {
+                       return !isDimSequencePreserved(indexingMap,
+                                                      foldedIterationSpaceDims);
+                     }))
       continue;
 
     processedIterationDims.insert(foldedIterationSpaceDims.begin(),
@@ -1344,13 +1346,33 @@ static FailureOr<SmallVector<Value>> collapseGenericOpIterationDims(
         genericOp, "illegal to collapse specified dimensions");
   }
 
+  // Bail on non-canonical ranges.
+  SmallVector<Range> loopRanges =
+      cast<LinalgOp>(genericOp.getOperation())
+          .createLoopRanges(rewriter, genericOp.getLoc());
+  auto opFoldIsConstantValue = [](OpFoldResult ofr, int64_t value) {
+    if (auto attr = ofr.dyn_cast<Attribute>())
+      return attr.cast<IntegerAttr>().getInt() == value;
+    llvm::APInt actual;
+    return matchPattern(ofr.get<Value>(), m_ConstantInt(&actual)) &&
+           actual.getSExtValue() == value;
+  };
+  if (!llvm::all_of(loopRanges, [&](Range range) {
+        return opFoldIsConstantValue(range.offset, 0) &&
+               opFoldIsConstantValue(range.stride, 1);
+      })) {
+    return rewriter.notifyMatchFailure(
+        genericOp,
+        "expected all loop ranges to have zero start and unit stride");
+  }
+
   // Get the iterator types for the operand.
   SmallVector<StringRef> iteratorTypes = getCollapsedOpIteratorTypes(
       genericOp.iterator_types().getValue(), collapsingInfo);
 
   // Get the indexing maps.
   auto indexingMaps = llvm::to_vector(
-      llvm::map_range(genericOp.getIndexingMaps(), [&](AffineMap map) {
+      llvm::map_range(genericOp.getIndexingMapsArray(), [&](AffineMap map) {
         return getCollapsedOpIndexingMap(map, collapsingInfo);
       }));
 
@@ -1388,17 +1410,10 @@ static FailureOr<SmallVector<Value>> collapseGenericOpIterationDims(
     // Collect the loop range of the generic op.
     OpBuilder::InsertionGuard g(rewriter);
     rewriter.setInsertionPoint(collapsedGenericOp);
-    SmallVector<Range> loopRanges =
-        cast<LinalgOp>(genericOp.getOperation())
-            .createLoopRanges(rewriter, genericOp.getLoc());
-    assert(llvm::all_of(loopRanges,
-                        [](Range range) {
-                          return matchPattern(range.offset, m_Zero()) &&
-                                 matchPattern(range.stride, m_One());
-                        }) &&
-           "expected all loop ranges to have zero start and unit stride");
-    SmallVector<Value> loopBound = llvm::to_vector(
-        llvm::map_range(loopRanges, [](Range range) { return range.size; }));
+    SmallVector<Value> loopBound =
+        llvm::to_vector(llvm::map_range(loopRanges, [&](Range range) {
+          return materializeOpFoldResult(rewriter, loc, range.size);
+        }));
     generateCollapsedIndexingRegion(loc,
                                     &collapsedGenericOp->getRegion(0).front(),
                                     collapsingInfo, loopBound, rewriter);
@@ -1494,14 +1509,14 @@ public:
       return failure();
     for (OpOperand *opOperand : genericOp.getInputOperands()) {
       Operation *def = opOperand->get().getDefiningOp();
-      Attribute constantAttr;
+      TypedAttr constantAttr;
       auto isScalarOrSplatConstantOp = [&constantAttr](Operation *def) -> bool {
         {
           DenseElementsAttr splatAttr;
           if (matchPattern(def, m_Constant<DenseElementsAttr>(&splatAttr)) &&
               splatAttr.isSplat() &&
               splatAttr.getType().getElementType().isIntOrFloat()) {
-            constantAttr = splatAttr.getSplatValue<Attribute>();
+            constantAttr = splatAttr.getSplatValue<TypedAttr>();
             return true;
           }
         }
@@ -1717,11 +1732,7 @@ struct LinalgElementwiseOpFusionPass
 
     // Add elementwise op fusion patterns.
     populateElementwiseOpsFusionPatterns(patterns, defaultControlFn);
-
     populateFoldReshapeOpsByExpansionPatterns(patterns, defaultControlFn);
-
-    // Add the sparse tensor rewriting patterns.
-    populateSparseTensorRewriting(patterns);
 
     // General canonicalization patterns.
     AffineApplyOp::getCanonicalizationPatterns(patterns, context);

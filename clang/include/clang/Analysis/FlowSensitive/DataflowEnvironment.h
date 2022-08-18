@@ -19,7 +19,7 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
-#include "clang/AST/TypeOrdering.h"
+#include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
 #include "clang/Analysis/FlowSensitive/StorageLocation.h"
@@ -128,6 +128,25 @@ public:
   /// If `DeclCtx` is a non-static member function, initializes the environment
   /// with a symbolic representation of the `this` pointee.
   Environment(DataflowAnalysisContext &DACtx, const DeclContext &DeclCtx);
+
+  /// Creates and returns an environment to use for an inline analysis  of the
+  /// callee. Uses the storage location from each argument in the `Call` as the
+  /// storage location for the corresponding parameter in the callee.
+  ///
+  /// Requirements:
+  ///
+  ///  The callee of `Call` must be a `FunctionDecl` with a body.
+  ///
+  ///  The body of the callee must not reference globals.
+  ///
+  ///  The arguments of `Call` must map 1:1 to the callee's parameters.
+  ///
+  ///  Each argument of `Call` must already have a `StorageLocation`.
+  Environment pushCall(const CallExpr *Call) const;
+
+  /// Moves gathered information back into `this` from a `CalleeEnv` created via
+  /// `pushCall`.
+  void popCall(const Environment &CalleeEnv);
 
   /// Returns true if and only if the environment is equivalent to `Other`, i.e
   /// the two environments:
@@ -324,6 +343,14 @@ public:
   /// Returns true if and only if the clauses that constitute the flow condition
   /// imply that `Val` is true.
   bool flowConditionImplies(BoolValue &Val) const;
+
+  /// Returns the `ControlFlowContext` registered for `F`, if any. Otherwise,
+  /// returns null.
+  const ControlFlowContext *getControlFlowContext(const FunctionDecl *F) {
+    return DACtx->getControlFlowContext(F);
+  }
+
+  LLVM_DUMP_METHOD void dump() const;
 
 private:
   /// Creates a value appropriate for `Type`, if `Type` is supported, otherwise

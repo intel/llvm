@@ -1073,6 +1073,12 @@ main-binary-uuid: is the UUID of a firmware type binary that the gdb stub knows 
 main-binary-address: is the load address of the firmware type binary
 main-binary-slide: is the slide of the firmware type binary, if address isn't known
 
+binary-addresses: A comma-separated list of binary load addresses base16.  
+                  lldb will parse the binaries in memory to get UUIDs, then
+                  try to find the binaries & debug info by UUID.  Intended for
+                  use with a small number of firmware type binaries where the 
+                  search for binary/debug info may be expensive.
+
 //----------------------------------------------------------------------
 // "qShlibInfoAddr"
 //
@@ -1920,7 +1926,10 @@ for this region.
 //       The libcompression APIs on darwin systems call this COMPRESSION_LZ4_RAW.
 //
 //    lzfse
-//       An Apple proprietary compression algorithm implemented in libcompression.
+//       Compression algorithm added in macOS 10.11, with open source C reference
+//       implementation on github.
+//       https://en.wikipedia.org/wiki/LZFSE
+//       https://github.com/lzfse/lzfse
 //
 //    lzma
 //       libcompression implements "LZMA level 6", the default compression for the

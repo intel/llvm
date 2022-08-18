@@ -16,8 +16,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
@@ -26,6 +26,9 @@ platform::platform(cl_platform_id PlatformId) {
       detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
       detail::RT::getPlugin<backend::opencl>());
 }
+
+// protected constructor for internal use
+platform::platform(const device &Device) { *this = Device.get_platform(); }
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -49,22 +52,21 @@ std::vector<platform> platform::get_platforms() {
 
 backend platform::get_backend() const noexcept { return getImplBackend(impl); }
 
-template <info::platform param>
-typename info::param_traits<info::platform, param>::return_type
+template <typename Param>
+typename detail::is_platform_info_desc<Param>::return_type
 platform::get_info() const {
-  return impl->get_info<param>();
+  return impl->get_info<Param>();
 }
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  platform::get_info<info::param_type::param>() const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
+      const;
 
 #include <sycl/info/platform_traits.def>
-
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {
@@ -88,5 +90,5 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

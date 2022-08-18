@@ -19,13 +19,13 @@
 #endif
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 
 using memory_order __SYCL2020_DEPRECATED("use 'sycl::memory_order' instead") =
-    cl::sycl::memory_order;
+    sycl::memory_order;
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed __SYCL2020_DEPRECATED(
     "use 'sycl::memory_order_relaxed' instead") = memory_order::relaxed;
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_acquire __SYCL2020_DEPRECATED(
@@ -38,7 +38,7 @@ __SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst __SYCL2020_DEPRECATED(
     "use 'sycl::memory_order_seq_cst' instead") = memory_order::seq_cst;
 
 using memory_scope __SYCL2020_DEPRECATED("use 'sycl::memory_scope' instead") =
-    cl::sycl::memory_scope;
+    sycl::memory_scope;
 __SYCL_INLINE_CONSTEXPR
 memory_scope memory_scope_work_item __SYCL2020_DEPRECATED(
     "use 'sycl::memory_scope_work_item' instead") = memory_scope::work_item;
@@ -59,7 +59,7 @@ namespace detail {
 __SYCL2020_DEPRECATED(
     "use 'sycl::detail::getStdMemoryOrder(sycl::memory_order)' instead")
 static inline constexpr std::memory_order
-getStdMemoryOrder(::cl::sycl::ext::oneapi::memory_order order) {
+getStdMemoryOrder(::sycl::ext::oneapi::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;
@@ -81,5 +81,5 @@ getStdMemoryOrder(::cl::sycl::ext::oneapi::memory_order order) {
 
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

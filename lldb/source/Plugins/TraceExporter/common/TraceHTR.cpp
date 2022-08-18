@@ -130,7 +130,7 @@ TraceHTR::TraceHTR(Thread &thread, TraceCursor &cursor)
 
   // Move cursor to the first instruction in the trace
   cursor.SetForwards(true);
-  cursor.Seek(0, TraceCursor::SeekType::Beginning);
+  cursor.Seek(0, lldb::eTraceCursorSeekTypeBeginning);
 
   // TODO: fix after persona0220's patch on a new way to access instruction
   // kinds
@@ -160,15 +160,15 @@ TraceHTR::TraceHTR(Thread &thread, TraceCursor &cursor)
       cursor.Next();
     } else {
       lldb::addr_t current_instruction_load_address = cursor.GetLoadAddress();
-      lldb::TraceInstructionControlFlowType current_instruction_type =
-          cursor.GetInstructionControlFlowType();
+      lldb::InstructionControlFlowKind current_instruction_type =
+          cursor.GetInstructionControlFlowKind();
 
       m_instruction_layer_up->AppendInstruction(
           current_instruction_load_address);
       cursor.Next();
       bool more_data_in_trace = cursor.HasValue();
       if (current_instruction_type &
-          lldb::eTraceInstructionControlFlowTypeCall) {
+          lldb::eInstructionControlFlowKindCall) {
         if (more_data_in_trace && !cursor.IsError()) {
           m_instruction_layer_up->AddCallInstructionMetadata(
               current_instruction_load_address,

@@ -3,39 +3,39 @@
 // Tests for IR of device_has(aspect, ...) attribute
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !intel_declared_aspects ![[ASPECTS1:[0-9]+]]
 
 // CHECK: define dso_local spir_func void @{{.*}}func1{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
-[[sycl::device_has(cl::sycl::aspect::cpu)]] void func1() {}
+[[sycl::device_has(sycl::aspect::cpu)]] void func1() {}
 
 // CHECK: define dso_local spir_func void @{{.*}}func2{{.*}} !intel_declared_aspects ![[ASPECTS2:[0-9]+]] {
-[[sycl::device_has(cl::sycl::aspect::fp16, cl::sycl::aspect::gpu)]] void func2() {}
+[[sycl::device_has(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
 // CHECK: define dso_local spir_func void @{{.*}}func3{{.*}} !intel_declared_aspects ![[EMPTYASPECTS:[0-9]+]] {
 [[sycl::device_has()]] void func3() {}
 
 // CHECK: define linkonce_odr spir_func void @{{.*}}func4{{.*}} !intel_declared_aspects ![[ASPECTS3:[0-9]+]] {
-template <cl::sycl::aspect Aspect>
+template <sycl::aspect Aspect>
 [[sycl::device_has(Aspect)]] void func4() {}
 
 // CHECK: define dso_local spir_func void @{{.*}}func5{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
-[[sycl::device_has(cl::sycl::aspect::cpu)]] void func5();
+[[sycl::device_has(sycl::aspect::cpu)]] void func5();
 void func5() {}
 
-constexpr cl::sycl::aspect getAspect() { return cl::sycl::aspect::cpu; }
+constexpr sycl::aspect getAspect() { return sycl::aspect::cpu; }
 // CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
 [[sycl::device_has(getAspect())]] void func6() {}
 
 class KernelFunctor {
 public:
-  [[sycl::device_has(cl::sycl::aspect::cpu)]] void operator()() const {
+  [[sycl::device_has(sycl::aspect::cpu)]] void operator()() const {
     func1();
     func2();
     func3();
-    func4<cl::sycl::aspect::host>();
+    func4<sycl::aspect::host>();
     func5();
     func6();
   }
@@ -46,7 +46,7 @@ void foo() {
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
     // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !intel_declared_aspects ![[ASPECTS4:[0-9]+]]
-    h.single_task<class kernel_name_2>([]() [[sycl::device_has(cl::sycl::aspect::gpu)]] {});
+    h.single_task<class kernel_name_2>([]() [[sycl::device_has(sycl::aspect::gpu)]] {});
   });
 }
 

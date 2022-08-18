@@ -36,26 +36,18 @@ on:
       build_artifact_suffix:
         type: string
         required: true
-      intel_drivers_image:
+      lts_matrix:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
-      lts_config:
+        default: "[]"
+      lts_aws_matrix:
         type: string
         required: false
-        default: ""
+        default: "[]"
       lts_cmake_extra_args:
         type: string
         required: false
         default: ""
-      amdgpu_image:
-        type: string
-        required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      cuda_image:
-        type: string
-        required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       lts_ref:
         type: string
         required: false
@@ -167,38 +159,36 @@ jobs:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
 
-  # This job generates matrix of tests for LLVM Test Suite
-  resolve_matrix:
-    name: Resolve Test Matrix
+  aws-start:
+    name: Start AWS
+    needs: build
+    if: ${{ inputs.lts_aws_matrix != '[]' }}
     runs-on: ubuntu-latest
-    outputs:
-      lts: ${{ steps.work.outputs.lts }}
+    environment: aws
     steps:
-    - name: Download scripts and configs
-      run: |
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.js
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
-        wget raw.githubusercontent.com/intel/llvm/sycl/devops/dependencies.json
-        mv dependencies.json dependencies.sycl.json
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/dependencies.json
-    - id: work
-      uses: actions/github-script@v6
-      name: Generate matrix
-      env:
-        GHA_INPUTS: ${{ toJSON(inputs) }}
-      with:
-        script: |
-          const script = require('./generate_test_matrix.js');
-          script({core, process});
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
+      - name: Start AWS EC2 runners
+        uses: ./aws-ec2
+        with:
+          runs-on-list: ${{ inputs.lts_aws_matrix }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
   llvm_test_suite:
-    needs: [build, resolve_matrix]
-    if: ${{ inputs.lts_config != '' }}
+    needs: [build, aws-start]
+    if: ${{ !failure() && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
       matrix:
-        include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
+        include: ${{ fromJSON(inputs.lts_matrix) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
     env: ${{ matrix.env }}
@@ -226,6 +216,7 @@ jobs:
     # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
+        persist-credentials: false
         path: llvm
     # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/llvm_test_suite
@@ -240,3 +231,25 @@ jobs:
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
+  aws-stop:
+    name: Stop AWS
+    needs: [ aws-start, llvm_test_suite ]
+    if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
+    runs-on: ubuntu-latest
+    environment: aws
+    steps:
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
+      - name: Stop AWS EC2 runners
+        uses: ./aws-ec2
+        with:
+          runs-on-list: ${{ inputs.lts_aws_matrix }}
+          mode: stop
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}

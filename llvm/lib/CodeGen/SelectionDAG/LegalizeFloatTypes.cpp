@@ -1071,8 +1071,9 @@ SDValue DAGTypeLegalizer::SoftenFloatOp_STORE(SDNode *N, unsigned OpNo) {
 
   if (ST->isTruncatingStore())
     // Do an FP_ROUND followed by a non-truncating store.
-    Val = BitConvertToInteger(DAG.getNode(ISD::FP_ROUND, dl, ST->getMemoryVT(),
-                                          Val, DAG.getIntPtrConstant(0, dl)));
+    Val = BitConvertToInteger(
+        DAG.getNode(ISD::FP_ROUND, dl, ST->getMemoryVT(), Val,
+                    DAG.getIntPtrConstant(0, dl, /*isTarget=*/true)));
   else
     Val = GetSoftenedFloat(Val);
 
@@ -2532,7 +2533,8 @@ SDValue DAGTypeLegalizer::PromoteFloatRes_XINT_TO_FP(SDNode *N) {
   // Round the value to the desired precision (that of the source type).
   return DAG.getNode(
       ISD::FP_EXTEND, DL, NVT,
-      DAG.getNode(ISD::FP_ROUND, DL, VT, NV, DAG.getIntPtrConstant(0, DL)));
+      DAG.getNode(ISD::FP_ROUND, DL, VT, NV,
+                  DAG.getIntPtrConstant(0, DL, /*isTarget=*/true)));
 }
 
 SDValue DAGTypeLegalizer::PromoteFloatRes_UNDEF(SDNode *N) {
@@ -2918,6 +2920,9 @@ bool DAGTypeLegalizer::SoftPromoteHalfOperand(SDNode *N, unsigned OpNo) {
   case ISD::STACKMAP:
     Res = SoftPromoteHalfOp_STACKMAP(N, OpNo);
     break;
+  case ISD::PATCHPOINT:
+    Res = SoftPromoteHalfOp_PATCHPOINT(N, OpNo);
+    break;
   }
 
   if (!Res.getNode())
@@ -3048,6 +3053,21 @@ SDValue DAGTypeLegalizer::SoftPromoteHalfOp_STORE(SDNode *N, unsigned OpNo) {
 
 SDValue DAGTypeLegalizer::SoftPromoteHalfOp_STACKMAP(SDNode *N, unsigned OpNo) {
   assert(OpNo > 1); // Because the first two arguments are guaranteed legal.
+  SmallVector<SDValue> NewOps(N->ops().begin(), N->ops().end());
+  SDValue Op = N->getOperand(OpNo);
+  NewOps[OpNo] = GetSoftPromotedHalf(Op);
+  SDValue NewNode =
+      DAG.getNode(N->getOpcode(), SDLoc(N), N->getVTList(), NewOps);
+
+  for (unsigned ResNum = 0; ResNum < N->getNumValues(); ResNum++)
+    ReplaceValueWith(SDValue(N, ResNum), NewNode.getValue(ResNum));
+
+  return SDValue(); // Signal that we replaced the node ourselves.
+}
+
+SDValue DAGTypeLegalizer::SoftPromoteHalfOp_PATCHPOINT(SDNode *N,
+                                                       unsigned OpNo) {
+  assert(OpNo >= 7);
   SmallVector<SDValue> NewOps(N->ops().begin(), N->ops().end());
   SDValue Op = N->getOperand(OpNo);
   NewOps[OpNo] = GetSoftPromotedHalf(Op);

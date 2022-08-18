@@ -103,18 +103,18 @@ TEST_F(BufferTest, BufferLocationOnly) {
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
-  cl::sycl::buffer<int, 1> Buf(3);
+  sycl::buffer<int, 1> Buf(3);
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
+      .submit([&](sycl::handler &cgh) {
         sycl::ext::oneapi::accessor_property_list<
-            cl::sycl::ext::intel::property::buffer_location::instance<2>>
+            sycl::ext::intel::property::buffer_location::instance<2>>
             PL{sycl::ext::intel::buffer_location<2>};
         sycl::accessor<
-            int, 1, cl::sycl::access::mode::read_write,
-            cl::sycl::access::target::global_buffer,
-            cl::sycl::access::placeholder::false_t,
-            cl::sycl::ext::oneapi::accessor_property_list<
-                cl::sycl::ext::intel::property::buffer_location::instance<2>>>
+            int, 1, sycl::access::mode::read_write,
+            sycl::access::target::global_buffer,
+            sycl::access::placeholder::false_t,
+            sycl::ext::oneapi::accessor_property_list<
+                sycl::ext::intel::property::buffer_location::instance<2>>>
             Acc{Buf, cgh, sycl::read_write, PL};
         constexpr size_t KS = sizeof(decltype(Acc));
         cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
@@ -133,21 +133,21 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
-  cl::sycl::buffer<int, 1> Buf(3);
+  sycl::buffer<int, 1> Buf(3);
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
+      .submit([&](sycl::handler &cgh) {
         sycl::ext::oneapi::accessor_property_list<
-            cl::sycl::ext::oneapi::property::no_alias::instance<true>,
-            cl::sycl::ext::intel::property::buffer_location::instance<5>>
+            sycl::ext::oneapi::property::no_alias::instance<true>,
+            sycl::ext::intel::property::buffer_location::instance<5>>
             PL{sycl::ext::oneapi::no_alias,
                sycl::ext::intel::buffer_location<5>};
         sycl::accessor<
-            int, 1, cl::sycl::access::mode::write,
-            cl::sycl::access::target::global_buffer,
-            cl::sycl::access::placeholder::false_t,
-            cl::sycl::ext::oneapi::accessor_property_list<
-                cl::sycl::ext::oneapi::property::no_alias::instance<true>,
-                cl::sycl::ext::intel::property::buffer_location::instance<5>>>
+            int, 1, sycl::access::mode::write,
+            sycl::access::target::global_buffer,
+            sycl::access::placeholder::false_t,
+            sycl::ext::oneapi::accessor_property_list<
+                sycl::ext::oneapi::property::no_alias::instance<true>,
+                sycl::ext::intel::property::buffer_location::instance<5>>>
             Acc{Buf, cgh, sycl::write_only, PL};
 
         constexpr size_t KS = sizeof(decltype(Acc));
@@ -158,16 +158,16 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
   // Check that if new accessor created, buffer_location is changed
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
+      .submit([&](sycl::handler &cgh) {
         sycl::ext::oneapi::accessor_property_list<
-            cl::sycl::ext::intel::property::buffer_location::instance<3>>
+            sycl::ext::intel::property::buffer_location::instance<3>>
             PL{sycl::ext::intel::buffer_location<3>};
         sycl::accessor<
-            int, 1, cl::sycl::access::mode::write,
-            cl::sycl::access::target::global_buffer,
-            cl::sycl::access::placeholder::false_t,
-            cl::sycl::ext::oneapi::accessor_property_list<
-                cl::sycl::ext::intel::property::buffer_location::instance<3>>>
+            int, 1, sycl::access::mode::write,
+            sycl::access::target::global_buffer,
+            sycl::access::placeholder::false_t,
+            sycl::ext::oneapi::accessor_property_list<
+                sycl::ext::intel::property::buffer_location::instance<3>>>
             Acc{Buf, cgh, sycl::write_only, PL};
       })
       .wait();
@@ -180,11 +180,11 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
   // Check that if new accessor created, buffer_location is deleted from buffer
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
-        sycl::accessor<int, 1, cl::sycl::access::mode::write,
-                       cl::sycl::access::target::global_buffer,
-                       cl::sycl::access::placeholder::false_t,
-                       cl::sycl::ext::oneapi::accessor_property_list<>>
+      .submit([&](sycl::handler &cgh) {
+        sycl::accessor<int, 1, sycl::access::mode::write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::false_t,
+                       sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::write_only};
       })
       .wait();
@@ -203,13 +203,13 @@ TEST_F(BufferTest, WOBufferLocation) {
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
-  cl::sycl::buffer<int, 1> Buf(3);
+  sycl::buffer<int, 1> Buf(3);
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
-        sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                       cl::sycl::access::target::global_buffer,
-                       cl::sycl::access::placeholder::false_t,
-                       cl::sycl::ext::oneapi::accessor_property_list<>>
+      .submit([&](sycl::handler &cgh) {
+        sycl::accessor<int, 1, sycl::access::mode::read_write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::false_t,
+                       sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::read_write};
         constexpr size_t KS = sizeof(decltype(Acc));
         cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });

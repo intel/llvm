@@ -479,6 +479,13 @@ MlirAttribute mlirDenseElementsAttrBFloat16Get(MlirType shapedType,
   const void *buffer = static_cast<const void *>(elements);
   return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);
 }
+MlirAttribute mlirDenseElementsAttrFloat16Get(MlirType shapedType,
+                                              intptr_t numElements,
+                                              const uint16_t *elements) {
+  size_t bufferSize = numElements * 2;
+  const void *buffer = static_cast<const void *>(elements);
+  return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);
+}
 
 MlirAttribute mlirDenseElementsAttrStringGet(MlirType shapedType,
                                              intptr_t numElements,
@@ -589,14 +596,6 @@ MlirStringRef mlirDenseElementsAttrGetStringValue(MlirAttribute attr,
 const void *mlirDenseElementsAttrGetRawData(MlirAttribute attr) {
   return static_cast<const void *>(
       unwrap(attr).cast<DenseElementsAttr>().getRawData().data());
-}
-
-//===----------------------------------------------------------------------===//
-// Opaque elements attribute.
-//===----------------------------------------------------------------------===//
-
-bool mlirAttributeIsAOpaqueElements(MlirAttribute attr) {
-  return unwrap(attr).isa<OpaqueElementsAttr>();
 }
 
 //===----------------------------------------------------------------------===//

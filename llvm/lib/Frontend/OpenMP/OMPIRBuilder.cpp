@@ -34,6 +34,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 #include "llvm/Transforms/Utils/LoopPeel.h"
 #include "llvm/Transforms/Utils/UnrollLoop.h"
@@ -791,6 +792,38 @@ void OpenMPIRBuilder::emitOffloadingEntry(Constant *Addr, StringRef Name,
   Entry->setAlignment(Align(1));
 }
 
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::emitTargetKernel(
+    const LocationDescription &Loc, Value *&Return, Value *Ident,
+    Value *DeviceID, Value *NumTeams, Value *NumThreads, Value *HostPtr,
+    ArrayRef<Value *> KernelArgs, ArrayRef<Value *> NoWaitArgs) {
+  if (!updateToLocation(Loc))
+    return Loc.IP;
+
+  auto *KernelArgsPtr =
+      Builder.CreateAlloca(OpenMPIRBuilder::KernelArgs, nullptr, "kernel_args");
+  for (unsigned I = 0, Size = KernelArgs.size(); I != Size; ++I) {
+    llvm::Value *Arg =
+        Builder.CreateStructGEP(OpenMPIRBuilder::KernelArgs, KernelArgsPtr, I);
+    Builder.CreateAlignedStore(
+        KernelArgs[I], Arg,
+        M.getDataLayout().getPrefTypeAlign(KernelArgs[I]->getType()));
+  }
+
+  bool HasNoWait = !NoWaitArgs.empty();
+  SmallVector<Value *> OffloadingArgs{Ident,      DeviceID, NumTeams,
+                                      NumThreads, HostPtr,  KernelArgsPtr};
+  if (HasNoWait)
+    OffloadingArgs.append(NoWaitArgs.begin(), NoWaitArgs.end());
+
+  Return = Builder.CreateCall(
+      HasNoWait
+          ? getOrCreateRuntimeFunction(M, OMPRTL___tgt_target_kernel_nowait)
+          : getOrCreateRuntimeFunction(M, OMPRTL___tgt_target_kernel),
+      OffloadingArgs);
+
+  return Builder.saveIP();
+}
+
 void OpenMPIRBuilder::emitCancelationCheckImpl(Value *CancelFlag,
                                                omp::Directive CanceledDirective,
                                                FinalizeCallbackTy ExitCB) {
@@ -1421,7 +1454,36 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
       InsertPointTy(TaskAllocaBB, TaskAllocaBB->begin());
   InsertPointTy TaskBodyIP = InsertPointTy(TaskBodyBB, TaskBodyBB->begin());
   BodyGenCB(TaskAllocaIP, TaskBodyIP);
-  Builder.SetInsertPoint(TaskExitBB);
+  Builder.SetInsertPoint(TaskExitBB, TaskExitBB->begin());
+
+  return Builder.saveIP();
+}
+
+OpenMPIRBuilder::InsertPointTy
+OpenMPIRBuilder::createTaskgroup(const LocationDescription &Loc,
+                                 InsertPointTy AllocaIP,
+                                 BodyGenCallbackTy BodyGenCB) {
+  if (!updateToLocation(Loc))
+    return InsertPointTy();
+
+  uint32_t SrcLocStrSize;
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc, SrcLocStrSize);
+  Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
+  Value *ThreadID = getOrCreateThreadID(Ident);
+
+  // Emit the @__kmpc_taskgroup runtime call to start the taskgroup
+  Function *TaskgroupFn =
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_taskgroup);
+  Builder.CreateCall(TaskgroupFn, {Ident, ThreadID});
+
+  BasicBlock *TaskgroupExitBB = splitBB(Builder, true, "taskgroup.exit");
+  BodyGenCB(AllocaIP, Builder.saveIP());
+
+  Builder.SetInsertPoint(TaskgroupExitBB);
+  // Emit the @__kmpc_end_taskgroup runtime call to end the taskgroup
+  Function *EndTaskgroupFn =
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_taskgroup);
+  Builder.CreateCall(EndTaskgroupFn, {Ident, ThreadID});
 
   return Builder.saveIP();
 }
@@ -2778,32 +2840,40 @@ OpenMPIRBuilder::tileLoops(DebugLoc DL, ArrayRef<CanonicalLoopInfo *> Loops,
   return Result;
 }
 
+/// Attach metadata \p Properties to the basic block described by \p BB. If the
+/// basic block already has metadata, the basic block properties are appended.
+static void addBasicBlockMetadata(BasicBlock *BB,
+                                  ArrayRef<Metadata *> Properties) {
+  // Nothing to do if no property to attach.
+  if (Properties.empty())
+    return;
+
+  LLVMContext &Ctx = BB->getContext();
+  SmallVector<Metadata *> NewProperties;
+  NewProperties.push_back(nullptr);
+
+  // If the basic block already has metadata, prepend it to the new metadata.
+  MDNode *Existing = BB->getTerminator()->getMetadata(LLVMContext::MD_loop);
+  if (Existing)
+    append_range(NewProperties, drop_begin(Existing->operands(), 1));
+
+  append_range(NewProperties, Properties);
+  MDNode *BasicBlockID = MDNode::getDistinct(Ctx, NewProperties);
+  BasicBlockID->replaceOperandWith(0, BasicBlockID);
+
+  BB->getTerminator()->setMetadata(LLVMContext::MD_loop, BasicBlockID);
+}
+
 /// Attach loop metadata \p Properties to the loop described by \p Loop. If the
 /// loop already has metadata, the loop properties are appended.
 static void addLoopMetadata(CanonicalLoopInfo *Loop,
                             ArrayRef<Metadata *> Properties) {
   assert(Loop->isValid() && "Expecting a valid CanonicalLoopInfo");
 
-  // Nothing to do if no property to attach.
-  if (Properties.empty())
-    return;
-
-  LLVMContext &Ctx = Loop->getFunction()->getContext();
-  SmallVector<Metadata *> NewLoopProperties;
-  NewLoopProperties.push_back(nullptr);
-
-  // If the loop already has metadata, prepend it to the new metadata.
+  // Attach metadata to the loop's latch
   BasicBlock *Latch = Loop->getLatch();
   assert(Latch && "A valid CanonicalLoopInfo must have a unique latch");
-  MDNode *Existing = Latch->getTerminator()->getMetadata(LLVMContext::MD_loop);
-  if (Existing)
-    append_range(NewLoopProperties, drop_begin(Existing->operands(), 1));
-
-  append_range(NewLoopProperties, Properties);
-  MDNode *LoopID = MDNode::getDistinct(Ctx, NewLoopProperties);
-  LoopID->replaceOperandWith(0, LoopID);
-
-  Latch->getTerminator()->setMetadata(LLVMContext::MD_loop, LoopID);
+  addBasicBlockMetadata(Latch, Properties);
 }
 
 /// Attach llvm.access.group metadata to the memref instructions of \p Block
@@ -2834,11 +2904,77 @@ void OpenMPIRBuilder::unrollLoopHeuristic(DebugLoc, CanonicalLoopInfo *Loop) {
             });
 }
 
-void OpenMPIRBuilder::applySimd(DebugLoc, CanonicalLoopInfo *CanonicalLoop) {
+void OpenMPIRBuilder::createIfVersion(CanonicalLoopInfo *CanonicalLoop,
+                                      Value *IfCond, ValueToValueMapTy &VMap,
+                                      const Twine &NamePrefix) {
+  Function *F = CanonicalLoop->getFunction();
+
+  // Define where if branch should be inserted
+  Instruction *SplitBefore;
+  if (Instruction::classof(IfCond)) {
+    SplitBefore = dyn_cast<Instruction>(IfCond);
+  } else {
+    SplitBefore = CanonicalLoop->getPreheader()->getTerminator();
+  }
+
+  // TODO: We should not rely on pass manager. Currently we use pass manager
+  // only for getting llvm::Loop which corresponds to given CanonicalLoopInfo
+  // object. We should have a method  which returns all blocks between
+  // CanonicalLoopInfo::getHeader() and CanonicalLoopInfo::getAfter()
+  FunctionAnalysisManager FAM;
+  FAM.registerPass([]() { return DominatorTreeAnalysis(); });
+  FAM.registerPass([]() { return LoopAnalysis(); });
+  FAM.registerPass([]() { return PassInstrumentationAnalysis(); });
+
+  // Get the loop which needs to be cloned
+  LoopAnalysis LIA;
+  LoopInfo &&LI = LIA.run(*F, FAM);
+  Loop *L = LI.getLoopFor(CanonicalLoop->getHeader());
+
+  // Create additional blocks for the if statement
+  BasicBlock *Head = SplitBefore->getParent();
+  Instruction *HeadOldTerm = Head->getTerminator();
+  llvm::LLVMContext &C = Head->getContext();
+  llvm::BasicBlock *ThenBlock = llvm::BasicBlock::Create(
+      C, NamePrefix + ".if.then", Head->getParent(), Head->getNextNode());
+  llvm::BasicBlock *ElseBlock = llvm::BasicBlock::Create(
+      C, NamePrefix + ".if.else", Head->getParent(), CanonicalLoop->getExit());
+
+  // Create if condition branch.
+  Builder.SetInsertPoint(HeadOldTerm);
+  Instruction *BrInstr =
+      Builder.CreateCondBr(IfCond, ThenBlock, /*ifFalse*/ ElseBlock);
+  InsertPointTy IP{BrInstr->getParent(), ++BrInstr->getIterator()};
+  // Then block contains branch to omp loop which needs to be vectorized
+  spliceBB(IP, ThenBlock, false);
+  ThenBlock->replaceSuccessorsPhiUsesWith(Head, ThenBlock);
+
+  Builder.SetInsertPoint(ElseBlock);
+
+  // Clone loop for the else branch
+  SmallVector<BasicBlock *, 8> NewBlocks;
+
+  VMap[CanonicalLoop->getPreheader()] = ElseBlock;
+  for (BasicBlock *Block : L->getBlocks()) {
+    BasicBlock *NewBB = CloneBasicBlock(Block, VMap, "", F);
+    NewBB->moveBefore(CanonicalLoop->getExit());
+    VMap[Block] = NewBB;
+    NewBlocks.push_back(NewBB);
+  }
+  remapInstructionsInBlocks(NewBlocks, VMap);
+  Builder.CreateBr(NewBlocks.front());
+}
+
+void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
+                                ConstantInt *Simdlen) {
   LLVMContext &Ctx = Builder.getContext();
 
   Function *F = CanonicalLoop->getFunction();
 
+  // TODO: We should not rely on pass manager. Currently we use pass manager
+  // only for getting llvm::Loop which corresponds to given CanonicalLoopInfo
+  // object. We should have a method  which returns all blocks between
+  // CanonicalLoopInfo::getHeader() and CanonicalLoopInfo::getAfter()
   FunctionAnalysisManager FAM;
   FAM.registerPass([]() { return DominatorTreeAnalysis(); });
   FAM.registerPass([]() { return LoopAnalysis(); });
@@ -2848,6 +2984,24 @@ void OpenMPIRBuilder::applySimd(DebugLoc, CanonicalLoopInfo *CanonicalLoop) {
   LoopInfo &&LI = LIA.run(*F, FAM);
 
   Loop *L = LI.getLoopFor(CanonicalLoop->getHeader());
+
+  if (IfCond) {
+    ValueToValueMapTy VMap;
+    createIfVersion(CanonicalLoop, IfCond, VMap, "simd");
+    // Add metadata to the cloned loop which disables vectorization
+    Value *MappedLatch = VMap.lookup(CanonicalLoop->getLatch());
+    assert(MappedLatch &&
+           "Cannot find value which corresponds to original loop latch");
+    assert(isa<BasicBlock>(MappedLatch) &&
+           "Cannot cast mapped latch block value to BasicBlock");
+    BasicBlock *NewLatchBlock = dyn_cast<BasicBlock>(MappedLatch);
+    ConstantAsMetadata *BoolConst =
+        ConstantAsMetadata::get(ConstantInt::getFalse(Type::getInt1Ty(Ctx)));
+    addBasicBlockMetadata(
+        NewLatchBlock,
+        {MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
+                           BoolConst})});
+  }
 
   SmallSet<BasicBlock *, 8> Reachable;
 
@@ -2879,6 +3033,11 @@ void OpenMPIRBuilder::applySimd(DebugLoc, CanonicalLoopInfo *CanonicalLoop) {
                          AccessGroup}),
        MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
                          BoolConst})});
+  if (Simdlen != nullptr)
+    addLoopMetadata(
+        CanonicalLoop,
+        MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.width"),
+                          ConstantAsMetadata::get(Simdlen)}));
 }
 
 /// Create the TargetMachine object to query the backend for optimization

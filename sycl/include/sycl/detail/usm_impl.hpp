@@ -11,19 +11,18 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/usm/usm_enums.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
-                                 cl::sycl::usm::alloc Kind,
+                                 sycl::usm::alloc Kind,
                                  const code_location &CL);
 
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
-                                     const context &Ctxt,
-                                     cl::sycl::usm::alloc Kind,
+                                     const context &Ctxt, sycl::usm::alloc Kind,
                                      const code_location &CL);
 
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
@@ -31,5 +30,5 @@ __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
 
 } // namespace usm
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -75,29 +75,113 @@ static bool callHasFP128Argument(const CallInst *CI) {
   });
 }
 
-static Value *convertStrToNumber(CallInst *CI, StringRef &Str, int64_t Base) {
+// Convert the entire string Str representing an integer in Base, up to
+// the terminating nul if present, to a constant according to the rules
+// of strtoul[l] or, when AsSigned is set, of strtol[l].  On success
+// return the result, otherwise null.
+// The function assumes the string is encoded in ASCII and carefully
+// avoids converting sequences (including "") that the corresponding
+// library call might fail and set errno for.
+static Value *convertStrToInt(CallInst *CI, StringRef &Str, Value *EndPtr,
+                              uint64_t Base, bool AsSigned, IRBuilderBase &B) {
   if (Base < 2 || Base > 36)
-    // handle special zero base
     if (Base != 0)
+      // Fail for an invalid base (required by POSIX).
       return nullptr;
 
-  char *End;
-  std::string nptr = Str.str();
-  errno = 0;
-  long long int Result = strtoll(nptr.c_str(), &End, Base);
-  if (errno)
+  // Current offset into the original string to reflect in EndPtr.
+  size_t Offset = 0;
+  // Strip leading whitespace.
+  for ( ; Offset != Str.size(); ++Offset)
+    if (!isSpace((unsigned char)Str[Offset])) {
+      Str = Str.substr(Offset);
+      break;
+    }
+
+  if (Str.empty())
+    // Fail for empty subject sequences (POSIX allows but doesn't require
+    // strtol[l]/strtoul[l] to fail with EINVAL).
     return nullptr;
 
-  // if we assume all possible target locales are ASCII supersets,
-  // then if strtoll successfully parses a number on the host,
-  // it will also successfully parse the same way on the target
-  if (*End != '\0')
-    return nullptr;
+  // Strip but remember the sign.
+  bool Negate = Str[0] == '-';
+  if (Str[0] == '-' || Str[0] == '+') {
+    Str = Str.drop_front();
+    if (Str.empty())
+      // Fail for a sign with nothing after it.
+      return nullptr;
+    ++Offset;
+  }
 
-  if (!isIntN(CI->getType()->getPrimitiveSizeInBits(), Result))
-    return nullptr;
+  // Set Max to the absolute value of the minimum (for signed), or
+  // to the maximum (for unsigned) value representable in the type.
+  Type *RetTy = CI->getType();
+  unsigned NBits = RetTy->getPrimitiveSizeInBits();
+  uint64_t Max = AsSigned && Negate ? 1 : 0;
+  Max += AsSigned ? maxIntN(NBits) : maxUIntN(NBits);
 
-  return ConstantInt::get(CI->getType(), Result);
+  // Autodetect Base if it's zero and consume the "0x" prefix.
+  if (Str.size() > 1) {
+    if (Str[0] == '0') {
+      if (toUpper((unsigned char)Str[1]) == 'X') {
+        if (Str.size() == 2 || (Base && Base != 16))
+          // Fail if Base doesn't allow the "0x" prefix or for the prefix
+          // alone that implementations like BSD set errno to EINVAL for.
+          return nullptr;
+
+        Str = Str.drop_front(2);
+        Offset += 2;
+        Base = 16;
+      }
+      else if (Base == 0)
+        Base = 8;
+    } else if (Base == 0)
+      Base = 10;
+  }
+  else if (Base == 0)
+    Base = 10;
+
+  // Convert the rest of the subject sequence, not including the sign,
+  // to its uint64_t representation (this assumes the source character
+  // set is ASCII).
+  uint64_t Result = 0;
+  for (unsigned i = 0; i != Str.size(); ++i) {
+    unsigned char DigVal = Str[i];
+    if (isDigit(DigVal))
+      DigVal = DigVal - '0';
+    else {
+      DigVal = toUpper(DigVal);
+      if (isAlpha(DigVal))
+        DigVal = DigVal - 'A' + 10;
+      else
+        return nullptr;
+    }
+
+    if (DigVal >= Base)
+      // Fail if the digit is not valid in the Base.
+      return nullptr;
+
+    // Add the digit and fail if the result is not representable in
+    // the (unsigned form of the) destination type.
+    bool VFlow;
+    Result = SaturatingMultiplyAdd(Result, Base, (uint64_t)DigVal, &VFlow);
+    if (VFlow || Result > Max)
+      return nullptr;
+  }
+
+  if (EndPtr) {
+    // Store the pointer to the end.
+    Value *Off = B.getInt64(Offset + Str.size());
+    Value *StrBeg = CI->getArgOperand(0);
+    Value *StrEnd = B.CreateInBoundsGEP(B.getInt8Ty(), StrBeg, Off, "endptr");
+    B.CreateStore(StrEnd, EndPtr);
+  }
+
+  if (Negate)
+    // Unsigned negation doesn't overflow.
+    Result = -Result;
+
+  return ConstantInt::get(RetTy, Result);
 }
 
 static bool isOnlyUsedInComparisonWithZero(Value *V) {
@@ -1638,31 +1722,6 @@ static Value *optimizeTrigReflections(CallInst *Call, LibFunc Func,
   return nullptr;
 }
 
-static Value *getPow(Value *InnerChain[33], unsigned Exp, IRBuilderBase &B) {
-  // Multiplications calculated using Addition Chains.
-  // Refer: http://wwwhomes.uni-bielefeld.de/achim/addition_chain.html
-
-  assert(Exp != 0 && "Incorrect exponent 0 not handled");
-
-  if (InnerChain[Exp])
-    return InnerChain[Exp];
-
-  static const unsigned AddChain[33][2] = {
-      {0, 0}, // Unused.
-      {0, 0}, // Unused (base case = pow1).
-      {1, 1}, // Unused (pre-computed).
-      {1, 2},  {2, 2},   {2, 3},  {3, 3},   {2, 5},  {4, 4},
-      {1, 8},  {5, 5},   {1, 10}, {6, 6},   {4, 9},  {7, 7},
-      {3, 12}, {8, 8},   {8, 9},  {2, 16},  {1, 18}, {10, 10},
-      {6, 15}, {11, 11}, {3, 20}, {12, 12}, {8, 17}, {13, 13},
-      {3, 24}, {14, 14}, {4, 25}, {15, 15}, {3, 28}, {16, 16},
-  };
-
-  InnerChain[Exp] = B.CreateFMul(getPow(InnerChain, AddChain[Exp][0], B),
-                                 getPow(InnerChain, AddChain[Exp][1], B));
-  return InnerChain[Exp];
-}
-
 // Return a properly extended integer (DstWidth bits wide) if the operation is
 // an itofp.
 static Value *getIntToFPVal(Value *I2F, IRBuilderBase &B, unsigned DstWidth) {
@@ -1963,70 +2022,55 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
   if (Value *Sqrt = replacePowWithSqrt(Pow, B))
     return Sqrt;
 
-  // pow(x, n) -> x * x * x * ...
+  // If we can approximate pow:
+  // pow(x, n) -> powi(x, n) * sqrt(x) if n has exactly a 0.5 fraction
+  // pow(x, n) -> powi(x, n) if n is a constant signed integer value
   const APFloat *ExpoF;
   if (AllowApprox && match(Expo, m_APFloat(ExpoF)) &&
       !ExpoF->isExactlyValue(0.5) && !ExpoF->isExactlyValue(-0.5)) {
-    // We limit to a max of 7 multiplications, thus the maximum exponent is 32.
-    // If the exponent is an integer+0.5 we generate a call to sqrt and an
-    // additional fmul.
-    // TODO: This whole transformation should be backend specific (e.g. some
-    //       backends might prefer libcalls or the limit for the exponent might
-    //       be different) and it should also consider optimizing for size.
-    APFloat LimF(ExpoF->getSemantics(), 33),
-            ExpoA(abs(*ExpoF));
-    if (ExpoA < LimF) {
-      // This transformation applies to integer or integer+0.5 exponents only.
-      // For integer+0.5, we create a sqrt(Base) call.
-      Value *Sqrt = nullptr;
-      if (!ExpoA.isInteger()) {
-        APFloat Expo2 = ExpoA;
-        // To check if ExpoA is an integer + 0.5, we add it to itself. If there
-        // is no floating point exception and the result is an integer, then
-        // ExpoA == integer + 0.5
-        if (Expo2.add(ExpoA, APFloat::rmNearestTiesToEven) != APFloat::opOK)
-          return nullptr;
+    APFloat ExpoA(abs(*ExpoF));
+    APFloat ExpoI(*ExpoF);
+    Value *Sqrt = nullptr;
+    if (!ExpoA.isInteger()) {
+      APFloat Expo2 = ExpoA;
+      // To check if ExpoA is an integer + 0.5, we add it to itself. If there
+      // is no floating point exception and the result is an integer, then
+      // ExpoA == integer + 0.5
+      if (Expo2.add(ExpoA, APFloat::rmNearestTiesToEven) != APFloat::opOK)
+        return nullptr;
 
-        if (!Expo2.isInteger())
-          return nullptr;
+      if (!Expo2.isInteger())
+        return nullptr;
 
-        Sqrt = getSqrtCall(Base, Pow->getCalledFunction()->getAttributes(),
-                           Pow->doesNotAccessMemory(), M, B, TLI);
-        if (!Sqrt)
-          return nullptr;
-      }
+      if (ExpoI.roundToIntegral(APFloat::rmTowardNegative) !=
+          APFloat::opInexact)
+        return nullptr;
+      if (!ExpoI.isInteger())
+        return nullptr;
+      ExpoF = &ExpoI;
 
-      // We will memoize intermediate products of the Addition Chain.
-      Value *InnerChain[33] = {nullptr};
-      InnerChain[1] = Base;
-      InnerChain[2] = B.CreateFMul(Base, Base, "square");
-
-      // We cannot readily convert a non-double type (like float) to a double.
-      // So we first convert it to something which could be converted to double.
-      ExpoA.convert(APFloat::IEEEdouble(), APFloat::rmTowardZero, &Ignored);
-      Value *FMul = getPow(InnerChain, ExpoA.convertToDouble(), B);
-
-      // Expand pow(x, y+0.5) to pow(x, y) * sqrt(x).
-      if (Sqrt)
-        FMul = B.CreateFMul(FMul, Sqrt);
-
-      // If the exponent is negative, then get the reciprocal.
-      if (ExpoF->isNegative())
-        FMul = B.CreateFDiv(ConstantFP::get(Ty, 1.0), FMul, "reciprocal");
-
-      return FMul;
+      Sqrt = getSqrtCall(Base, Pow->getCalledFunction()->getAttributes(),
+                         Pow->doesNotAccessMemory(), M, B, TLI);
+      if (!Sqrt)
+        return nullptr;
     }
 
+    // 0.5 fraction is now optionally handled.
+    // Do pow -> powi for remaining integer exponent
     APSInt IntExpo(TLI->getIntSize(), /*isUnsigned=*/false);
-    // powf(x, n) -> powi(x, n) if n is a constant signed integer value
     if (ExpoF->isInteger() &&
         ExpoF->convertToInteger(IntExpo, APFloat::rmTowardZero, &Ignored) ==
             APFloat::opOK) {
-      return copyFlags(
+      Value *PowI = copyFlags(
           *Pow,
           createPowWithIntegerExponent(
               Base, ConstantInt::get(B.getIntNTy(TLI->getIntSize()), IntExpo),
               M, B));
+
+      if (PowI && Sqrt)
+        return B.CreateFMul(PowI, Sqrt);
+
+      return PowI;
     }
   }
 
@@ -2561,24 +2605,35 @@ Value *LibCallSimplifier::optimizeToAscii(CallInst *CI, IRBuilderBase &B) {
                      ConstantInt::get(CI->getType(), 0x7F));
 }
 
+// Fold calls to atoi, atol, and atoll.
 Value *LibCallSimplifier::optimizeAtoi(CallInst *CI, IRBuilderBase &B) {
+  CI->addParamAttr(0, Attribute::NoCapture);
+
   StringRef Str;
   if (!getConstantStringInfo(CI->getArgOperand(0), Str))
     return nullptr;
 
-  return convertStrToNumber(CI, Str, 10);
+  return convertStrToInt(CI, Str, nullptr, 10, /*AsSigned=*/true, B);
 }
 
-Value *LibCallSimplifier::optimizeStrtol(CallInst *CI, IRBuilderBase &B) {
-  StringRef Str;
-  if (!getConstantStringInfo(CI->getArgOperand(0), Str))
+// Fold calls to strtol, strtoll, strtoul, and strtoull.
+Value *LibCallSimplifier::optimizeStrToInt(CallInst *CI, IRBuilderBase &B,
+                                           bool AsSigned) {
+  Value *EndPtr = CI->getArgOperand(1);
+  if (isa<ConstantPointerNull>(EndPtr)) {
+    // With a null EndPtr, this function won't capture the main argument.
+    // It would be readonly too, except that it still may write to errno.
+    CI->addParamAttr(0, Attribute::NoCapture);
+    EndPtr = nullptr;
+  } else if (!isKnownNonZero(EndPtr, DL))
     return nullptr;
 
-  if (!isa<ConstantPointerNull>(CI->getArgOperand(1)))
+  StringRef Str;
+  if (!getConstantStringInfo(CI->getArgOperand(0), Str))
     return nullptr;
 
   if (ConstantInt *CInt = dyn_cast<ConstantInt>(CI->getArgOperand(2))) {
-    return convertStrToNumber(CI, Str, CInt->getSExtValue());
+    return convertStrToInt(CI, Str, EndPtr, CInt->getSExtValue(), AsSigned, B);
   }
 
   return nullptr;
@@ -3417,7 +3472,10 @@ Value *LibCallSimplifier::optimizeCall(CallInst *CI, IRBuilderBase &Builder) {
       return optimizeAtoi(CI, Builder);
     case LibFunc_strtol:
     case LibFunc_strtoll:
-      return optimizeStrtol(CI, Builder);
+      return optimizeStrToInt(CI, Builder, /*AsSigned=*/true);
+    case LibFunc_strtoul:
+    case LibFunc_strtoull:
+      return optimizeStrToInt(CI, Builder, /*AsSigned=*/false);
     case LibFunc_printf:
       return optimizePrintF(CI, Builder);
     case LibFunc_sprintf:

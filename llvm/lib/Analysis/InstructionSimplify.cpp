@@ -1591,12 +1591,6 @@ static Value *simplifyAndOfICmpsWithSameOperands(ICmpInst *Op0, ICmpInst *Op1) {
       !match(Op1, m_ICmp(Pred1, m_Specific(A), m_Specific(B))))
     return nullptr;
 
-  // We have (icmp Pred0, A, B) & (icmp Pred1, A, B).
-  // If Op1 is always implied true by Op0, then Op0 is a subset of Op1, and we
-  // can eliminate Op1 from this 'and'.
-  if (ICmpInst::isImpliedTrueByMatchingCmp(Pred0, Pred1))
-    return Op0;
-
   // Check for any combination of predicates that are guaranteed to be disjoint.
   if ((Pred0 == ICmpInst::getInversePredicate(Pred1)) ||
       (Pred0 == ICmpInst::ICMP_EQ && ICmpInst::isFalseWhenEqual(Pred1)) ||
@@ -1615,12 +1609,6 @@ static Value *simplifyOrOfICmpsWithSameOperands(ICmpInst *Op0, ICmpInst *Op1) {
   if (!match(Op0, m_ICmp(Pred0, m_Value(A), m_Value(B))) ||
       !match(Op1, m_ICmp(Pred1, m_Specific(A), m_Specific(B))))
     return nullptr;
-
-  // We have (icmp Pred0, A, B) | (icmp Pred1, A, B).
-  // If Op1 is always implied true by Op0, then Op0 is a subset of Op1, and we
-  // can eliminate Op0 from this 'or'.
-  if (ICmpInst::isImpliedTrueByMatchingCmp(Pred0, Pred1))
-    return Op1;
 
   // Check for any combination of predicates that cover the entire range of
   // possibilities.
@@ -5585,6 +5573,24 @@ static bool isIdempotent(Intrinsic::ID ID) {
   }
 }
 
+/// Return true if the intrinsic rounds a floating-point value to an integral
+/// floating-point value (not an integer type).
+static bool removesFPFraction(Intrinsic::ID ID) {
+  switch (ID) {
+  default:
+    return false;
+
+  case Intrinsic::floor:
+  case Intrinsic::ceil:
+  case Intrinsic::trunc:
+  case Intrinsic::rint:
+  case Intrinsic::nearbyint:
+  case Intrinsic::round:
+  case Intrinsic::roundeven:
+    return true;
+  }
+}
+
 static Value *simplifyRelativeLoad(Constant *Ptr, Constant *Offset,
                                    const DataLayout &DL) {
   GlobalValue *PtrSym;
@@ -5650,6 +5656,18 @@ static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
       if (II->getIntrinsicID() == IID)
         return II;
 
+  if (removesFPFraction(IID)) {
+    // Converting from int or calling a rounding function always results in a
+    // finite integral number or infinity. For those inputs, rounding functions
+    // always return the same value, so the (2nd) rounding is eliminated. Ex:
+    // floor (sitofp x) -> sitofp x
+    // round (ceil x) -> ceil x
+    auto *II = dyn_cast<IntrinsicInst>(Op0);
+    if ((II && removesFPFraction(II->getIntrinsicID())) ||
+        match(Op0, m_SIToFP(m_Value())) || match(Op0, m_UIToFP(m_Value())))
+      return Op0;
+  }
+
   Value *X;
   switch (IID) {
   case Intrinsic::fabs:
@@ -5707,23 +5725,6 @@ static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
         match(Op0, m_Intrinsic<Intrinsic::pow>(m_SpecificFP(10.0), m_Value(X))))
       return X;
     break;
-  case Intrinsic::floor:
-  case Intrinsic::trunc:
-  case Intrinsic::ceil:
-  case Intrinsic::round:
-  case Intrinsic::roundeven:
-  case Intrinsic::nearbyint:
-  case Intrinsic::rint: {
-    // floor (sitofp x) -> sitofp x
-    // floor (uitofp x) -> uitofp x
-    //
-    // Converting from int always results in a finite integral number or
-    // infinity. For either of those inputs, these rounding functions always
-    // return the same value, so the rounding can be eliminated.
-    if (match(Op0, m_SIToFP(m_Value())) || match(Op0, m_UIToFP(m_Value())))
-      return Op0;
-    break;
-  }
   case Intrinsic::experimental_vector_reverse:
     // experimental.vector.reverse(experimental.vector.reverse(x)) -> x
     if (match(Op0,
@@ -6111,8 +6112,8 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
     Value *Op2 = Call->getArgOperand(2);
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
     if (Value *V = simplifyFPOp({Op0, Op1, Op2}, {}, Q,
-                                FPI->getExceptionBehavior().getValue(),
-                                FPI->getRoundingMode().getValue()))
+                                FPI->getExceptionBehavior().value(),
+                                FPI->getRoundingMode().value()))
       return V;
     return nullptr;
   }
@@ -6176,38 +6177,33 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
   }
   case Intrinsic::experimental_constrained_fadd: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFAddInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
-                            FPI->getFastMathFlags(), Q,
-                            FPI->getExceptionBehavior().getValue(),
-                            FPI->getRoundingMode().getValue());
+    return simplifyFAddInst(
+        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
+        Q, FPI->getExceptionBehavior().value(), FPI->getRoundingMode().value());
   }
   case Intrinsic::experimental_constrained_fsub: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFSubInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
-                            FPI->getFastMathFlags(), Q,
-                            FPI->getExceptionBehavior().getValue(),
-                            FPI->getRoundingMode().getValue());
+    return simplifyFSubInst(
+        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
+        Q, FPI->getExceptionBehavior().value(), FPI->getRoundingMode().value());
   }
   case Intrinsic::experimental_constrained_fmul: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFMulInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
-                            FPI->getFastMathFlags(), Q,
-                            FPI->getExceptionBehavior().getValue(),
-                            FPI->getRoundingMode().getValue());
+    return simplifyFMulInst(
+        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
+        Q, FPI->getExceptionBehavior().value(), FPI->getRoundingMode().value());
   }
   case Intrinsic::experimental_constrained_fdiv: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFDivInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
-                            FPI->getFastMathFlags(), Q,
-                            FPI->getExceptionBehavior().getValue(),
-                            FPI->getRoundingMode().getValue());
+    return simplifyFDivInst(
+        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
+        Q, FPI->getExceptionBehavior().value(), FPI->getRoundingMode().value());
   }
   case Intrinsic::experimental_constrained_frem: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFRemInst(FPI->getArgOperand(0), FPI->getArgOperand(1),
-                            FPI->getFastMathFlags(), Q,
-                            FPI->getExceptionBehavior().getValue(),
-                            FPI->getRoundingMode().getValue());
+    return simplifyFRemInst(
+        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
+        Q, FPI->getExceptionBehavior().value(), FPI->getRoundingMode().value());
   }
   default:
     return nullptr;

@@ -13,8 +13,8 @@
 #include <sycl/backend.hpp>
 #include <sycl/sycl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
@@ -116,5 +116,5 @@ __SYCL_EXPORT event make_event(const context &Context,
 } // namespace level_zero
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

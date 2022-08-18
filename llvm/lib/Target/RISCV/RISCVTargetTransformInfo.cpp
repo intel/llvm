@@ -65,13 +65,19 @@ InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
     if (Imm == UINT64_C(0xffff) && ST->hasStdExtZbb())
       return TTI::TCC_Free;
     // zext.w
-    if (Imm == UINT64_C(0xffffffff) && ST->hasStdExtZbb())
+    if (Imm == UINT64_C(0xffffffff) && ST->hasStdExtZba())
       return TTI::TCC_Free;
     LLVM_FALLTHROUGH;
   case Instruction::Add:
   case Instruction::Or:
   case Instruction::Xor:
+    Takes12BitImm = true;
+    break;
   case Instruction::Mul:
+    // Negated power of 2 is a shift and a negate.
+    if (Imm.isNegatedPowerOf2())
+      return TTI::TCC_Free;
+    // FIXME: There is no MULI instruction.
     Takes12BitImm = true;
     break;
   case Instruction::Sub:
@@ -198,6 +204,9 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
       //   vid.v v9
       //   vrsub.vx v10, v9, a0
       //   vrgather.vv v9, v8, v10
+      if (Tp->getElementType()->isIntegerTy(1))
+        // Mask operation additionally required extend and truncate
+        return LT.first * 9;
       return LT.first * 6;
     }
   }
@@ -366,6 +375,32 @@ RISCVTTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
   if (TTI::requiresOrderedReduction(FMF))
     return (LT.first - 1) + BaseCost + VL;
   return (LT.first - 1) + BaseCost + Log2_32_Ceil(VL);
+}
+
+InstructionCost RISCVTTIImpl::getExtendedReductionCost(
+    unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *ValTy,
+    Optional<FastMathFlags> FMF, TTI::TargetCostKind CostKind) {
+  if (isa<FixedVectorType>(ValTy) && !ST->useRVVForFixedLengthVectors())
+    return BaseT::getExtendedReductionCost(Opcode, IsUnsigned, ResTy, ValTy,
+                                           FMF, CostKind);
+
+  // Skip if scalar size of ResTy is bigger than ELEN.
+  if (ResTy->getScalarSizeInBits() > ST->getELEN())
+    return BaseT::getExtendedReductionCost(Opcode, IsUnsigned, ResTy, ValTy,
+                                           FMF, CostKind);
+
+  if (Opcode != Instruction::Add && Opcode != Instruction::FAdd)
+    return BaseT::getExtendedReductionCost(Opcode, IsUnsigned, ResTy, ValTy,
+                                           FMF, CostKind);
+
+  std::pair<InstructionCost, MVT> LT = TLI->getTypeLegalizationCost(DL, ValTy);
+
+  if (ResTy->getScalarSizeInBits() != 2 * LT.second.getScalarSizeInBits())
+    return BaseT::getExtendedReductionCost(Opcode, IsUnsigned, ResTy, ValTy,
+                                           FMF, CostKind);
+
+  return (LT.first - 1) +
+         getArithmeticReductionCost(Opcode, ValTy, FMF, CostKind);
 }
 
 void RISCVTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,

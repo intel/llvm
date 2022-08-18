@@ -22,8 +22,8 @@
 #include <map>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class device;
 namespace detail {
@@ -54,7 +54,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const std::vector<cl::sycl::device> DeviceList,
+  context_impl(const std::vector<sycl::device> DeviceList,
                async_handler AsyncHandler, const property_list &PropList);
 
   /// Construct a context_impl using plug-in interoperability handle.
@@ -74,7 +74,7 @@ public:
   /// Checks if this context_impl has a property of type propertyT.
   ///
   /// \return true if this context_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 
@@ -112,9 +112,7 @@ public:
   /// Queries this context for information.
   ///
   /// The return type depends on information being queried.
-  template <info::context param>
-  typename info::param_traits<info::context, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -193,5 +191,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

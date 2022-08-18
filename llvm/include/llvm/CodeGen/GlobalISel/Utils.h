@@ -48,7 +48,6 @@ class TargetRegisterInfo;
 class TargetRegisterClass;
 class ConstantFP;
 class APFloat;
-class MachineIRBuilder;
 
 // Convenience macros for dealing with vector reduction opcodes.
 #define GISEL_VECREDUCE_CASES_ALL                                              \
@@ -506,6 +505,10 @@ void eraseInstrs(ArrayRef<MachineInstr *> DeadInstrs, MachineRegisterInfo &MRI,
                  LostDebugLocObserver *LocObserver = nullptr);
 void eraseInstr(MachineInstr &MI, MachineRegisterInfo &MRI,
                 LostDebugLocObserver *LocObserver = nullptr);
+
+/// Assuming the instruction \p MI is going to be deleted, attempt to salvage
+/// debug users of \p MI by writing the effect of \p MI in a DIExpression.
+void salvageDebugInfo(const MachineRegisterInfo &MRI, MachineInstr &MI);
 
 } // End namespace llvm.
 #endif

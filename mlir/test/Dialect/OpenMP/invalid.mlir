@@ -205,6 +205,16 @@ func.func @omp_simdloop(%lb : index, %ub : index, %step : i32) -> () {
 
 // -----
 
+func.func @omp_simdloop_pretty_simdlen(%lb : index, %ub : index, %step : index) -> () {
+  // expected-error @below {{op attribute 'simdlen' failed to satisfy constraint: 64-bit signless integer attribute whose value is positive}}
+  omp.simdloop simdlen(0) for (%iv): index = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  return
+}
+
+// -----
+
 // expected-error @below {{op expects initializer region with one argument of the reduction type}}
 omp.reduction.declare @add_f32 : f64
 init {
@@ -699,17 +709,6 @@ func.func @omp_atomic_update8(%x: memref<i32>, %expr: i32) {
   ^bb0(%xval: i32, %tmp: i32):
     %newval = llvm.add %xval, %expr : i32
     omp.yield (%newval : i32)
-  }
-  return
-}
-
-// -----
-
-func.func @omp_atomic_update9(%x: memref<i32>, %expr: i32) {
-  // expected-error @below {{the update region must have at least two operations (binop and terminator)}}
-  omp.atomic.update %x : memref<i32> {
-  ^bb0(%xval: i32):
-    omp.yield (%xval : i32)
   }
   return
 }
@@ -1419,3 +1418,14 @@ func.func @taskloop(%lb: i32, %ub: i32, %step: i32) {
   }
   return
 }
+
+// -----
+
+func.func @omp_threadprivate() {
+  %1 = llvm.mlir.addressof @_QFsubEx : !llvm.ptr<i32>
+  // expected-error @below {{op failed to verify that all of {sym_addr, tls_addr} have same type}}
+  %2 = omp.threadprivate %1 : !llvm.ptr<i32> -> memref<i32>
+  return
+}
+
+llvm.mlir.global internal @_QFsubEx() : i32

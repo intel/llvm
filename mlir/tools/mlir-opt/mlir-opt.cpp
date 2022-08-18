@@ -57,6 +57,7 @@ void registerTosaTestQuantUtilAPIPass();
 void registerVectorizerTestPass();
 
 namespace test {
+void registerCommutativityUtils();
 void registerConvertCallOpPass();
 void registerInliner();
 void registerMemRefBoundCheck();
@@ -86,14 +87,10 @@ void registerTestGenericIRVisitorsPass();
 void registerTestGenericIRVisitorsInterruptPass();
 void registerTestInterfaces();
 void registerTestLastModifiedPass();
-void registerTestLinalgCodegenStrategy();
+void registerTestLinalgDecomposeOps();
 void registerTestLinalgElementwiseFusion();
-void registerTestLinalgFusionTransforms();
-void registerTestLinalgTensorFusionTransforms();
-void registerTestLinalgTiledLoopFusionTransforms();
 void registerTestLinalgGreedyFusion();
 void registerTestLinalgHoisting();
-void registerTestLinalgTileAndFuseSequencePass();
 void registerTestLinalgTransforms();
 void registerTestLivenessPass();
 void registerTestLoopFusion();
@@ -116,6 +113,7 @@ void registerTestTensorTransforms();
 void registerTestTilingInterface();
 void registerTestTransformDialectInterpreterPass();
 void registerTestVectorLowerings();
+void registerTestNvgpuLowerings();
 } // namespace test
 } // namespace mlir
 
@@ -153,6 +151,7 @@ void registerTestPasses() {
   registerVectorizerTestPass();
   registerTosaTestQuantUtilAPIPass();
 
+  mlir::test::registerCommutativityUtils();
   mlir::test::registerConvertCallOpPass();
   mlir::test::registerInliner();
   mlir::test::registerMemRefBoundCheck();
@@ -185,14 +184,10 @@ void registerTestPasses() {
   mlir::test::registerTestGenericIRVisitorsPass();
   mlir::test::registerTestInterfaces();
   mlir::test::registerTestLastModifiedPass();
-  mlir::test::registerTestLinalgCodegenStrategy();
+  mlir::test::registerTestLinalgDecomposeOps();
   mlir::test::registerTestLinalgElementwiseFusion();
-  mlir::test::registerTestLinalgFusionTransforms();
-  mlir::test::registerTestLinalgTensorFusionTransforms();
-  mlir::test::registerTestLinalgTiledLoopFusionTransforms();
   mlir::test::registerTestLinalgGreedyFusion();
   mlir::test::registerTestLinalgHoisting();
-  mlir::test::registerTestLinalgTileAndFuseSequencePass();
   mlir::test::registerTestLinalgTransforms();
   mlir::test::registerTestLivenessPass();
   mlir::test::registerTestLoopFusion();
@@ -214,6 +209,7 @@ void registerTestPasses() {
   mlir::test::registerTestTilingInterface();
   mlir::test::registerTestTransformDialectInterpreterPass();
   mlir::test::registerTestVectorLowerings();
+  mlir::test::registerTestNvgpuLowerings();
 }
 #endif
 

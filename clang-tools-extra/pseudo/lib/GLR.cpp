@@ -182,9 +182,13 @@ void glrRecover(llvm::ArrayRef<const GSS::Node *> OldHeads,
   for (const PlaceholderRecovery *Option : BestOptions) {
     const ForestNode &Placeholder =
         Params.Forest.createOpaque(Option->Symbol, RecoveryRange->Begin);
-    const GSS::Node *NewHead = Params.GSStack.addNode(
-        *Lang.Table.getGoToState(Option->RecoveryNode->State, Option->Symbol),
-        &Placeholder, {Option->RecoveryNode});
+    LRTable::StateID OldState = Option->RecoveryNode->State;
+    LRTable::StateID NewState =
+        isToken(Option->Symbol)
+            ? *Lang.Table.getShiftState(OldState, Option->Symbol)
+            : *Lang.Table.getGoToState(OldState, Option->Symbol);
+    const GSS::Node *NewHead =
+        Params.GSStack.addNode(NewState, &Placeholder, {Option->RecoveryNode});
     NewHeads.push_back(NewHead);
   }
   TokenIndex = RecoveryRange->End;
@@ -416,12 +420,12 @@ public:
   }
 
 private:
-  bool canReduce(ExtensionID GuardID, RuleID RID,
+  bool canReduce(const Rule &R, RuleID RID,
                  llvm::ArrayRef<const ForestNode *> RHS) const {
-    if (!GuardID)
+    if (!R.Guarded)
       return true;
-    if (auto Guard = Lang.Guards.lookup(GuardID))
-      return Guard(RHS, Params.Code);
+    if (auto Guard = Lang.Guards.lookup(RID))
+      return Guard({RHS, Params.Code, Lookahead});
     LLVM_DEBUG(llvm::dbgs()
                << llvm::formatv("missing guard implementation for rule {0}\n",
                                 Lang.G.dumpRule(RID)));
@@ -441,7 +445,7 @@ private:
           for (const auto *B : N->parents())
             llvm::dbgs() << "    --> base at S" << B->State << "\n";
         });
-        if (!canReduce(Rule.Guard, RID, TempSequence))
+        if (!canReduce(Rule, RID, TempSequence))
           return;
         // Copy the chain to stable storage so it can be enqueued.
         if (SequenceStorageCount == SequenceStorage.size())
@@ -499,7 +503,7 @@ private:
       FamilySequences.emplace_back(Sequences.top().first.Rule, *Push.Seq);
       for (const GSS::Node *Base : Push.LastPop->parents()) {
         auto NextState = Lang.Table.getGoToState(Base->State, F.Symbol);
-        assert(NextState.hasValue() && "goto must succeed after reduce!");
+        assert(NextState.has_value() && "goto must succeed after reduce!");
         FamilyBases.emplace_back(*NextState, Base);
       }
 
@@ -555,7 +559,7 @@ private:
     const GSS::Node *Head = Heads->back();
     llvm::Optional<RuleID> RID;
     for (RuleID R : Lang.Table.getReduceRules(Head->State)) {
-      if (RID.hasValue())
+      if (RID.has_value())
         return false;
       RID = R;
     }
@@ -572,12 +576,12 @@ private:
       TempSequence[Rule.Size - 1 - I] = Base->Payload;
       Base = Base->parents().front();
     }
-    if (!canReduce(Rule.Guard, *RID, TempSequence))
+    if (!canReduce(Rule, *RID, TempSequence))
       return true; // reduction is not available
     const ForestNode *Parsed =
         &Params.Forest.createSequence(Rule.Target, *RID, TempSequence);
     auto NextState = Lang.Table.getGoToState(Base->State, Rule.Target);
-    assert(NextState.hasValue() && "goto must succeed after reduce!");
+    assert(NextState.has_value() && "goto must succeed after reduce!");
     Heads->push_back(Params.GSStack.addNode(*NextState, Parsed, {Base}));
     return true;
   }
@@ -642,7 +646,7 @@ const ForestNode &glrParse(const ParseParams &Params, SymbolID StartSymbol,
 
   // The parse was successful if we're in state `_ := start-symbol .`
   auto AcceptState = Lang.Table.getGoToState(StartState, StartSymbol);
-  assert(AcceptState.hasValue() && "goto must succeed after start symbol!");
+  assert(AcceptState.has_value() && "goto must succeed after start symbol!");
   auto SearchForAccept = [&](llvm::ArrayRef<const GSS::Node *> Heads) {
     const ForestNode *Result = nullptr;
     for (const auto *Head : Heads) {

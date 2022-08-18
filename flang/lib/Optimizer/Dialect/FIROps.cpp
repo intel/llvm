@@ -647,10 +647,10 @@ mlir::FunctionType fir::CallOp::getFunctionType() {
 }
 
 void fir::CallOp::print(mlir::OpAsmPrinter &p) {
-  bool isDirect = getCallee().hasValue();
+  bool isDirect = getCallee().has_value();
   p << ' ';
   if (isDirect)
-    p << getCallee().getValue();
+    p << *getCallee();
   else
     p << getOperand(0);
   p << '(' << (*this)->getOperands().drop_front(isDirect ? 0 : 1) << ')';
@@ -749,8 +749,8 @@ static void printCmpOp(mlir::OpAsmPrinter &p, OPTY op) {
       op->template getAttrOfType<mlir::IntegerAttr>(
             OPTY::getPredicateAttrName())
           .getInt());
-  assert(predSym.hasValue() && "invalid symbol value for predicate");
-  p << '"' << mlir::arith::stringifyCmpFPredicate(predSym.getValue()) << '"'
+  assert(predSym.has_value() && "invalid symbol value for predicate");
+  p << '"' << mlir::arith::stringifyCmpFPredicate(predSym.value()) << '"'
     << ", ";
   p.printOperand(op.getLhs());
   p << ", ";
@@ -808,8 +808,8 @@ void fir::buildCmpCOp(mlir::OpBuilder &builder, mlir::OperationState &result,
 mlir::arith::CmpFPredicate
 fir::CmpcOp::getPredicateByName(llvm::StringRef name) {
   auto pred = mlir::arith::symbolizeCmpFPredicate(name);
-  assert(pred.hasValue() && "invalid predicate name");
-  return pred.getValue();
+  assert(pred.has_value() && "invalid predicate name");
+  return pred.value();
 }
 
 void fir::CmpcOp::print(mlir::OpAsmPrinter &p) { printCmpOp(p, *this); }
@@ -1294,8 +1294,8 @@ mlir::ParseResult fir::GlobalOp::parse(mlir::OpAsmParser &parser,
 }
 
 void fir::GlobalOp::print(mlir::OpAsmPrinter &p) {
-  if (getLinkName().hasValue())
-    p << ' ' << getLinkName().getValue();
+  if (getLinkName())
+    p << ' ' << *getLinkName();
   p << ' ';
   p.printAttributeWithoutType(getSymrefAttr());
   if (auto val = getValueOrNull())

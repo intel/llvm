@@ -13,15 +13,25 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 
-#include <cstdint>
-
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
 #endif
+
+// As stated above, this header file cannot include any of the standard C++
+// headers. We need int64_t.  Here we are matching the exact definition used by
+// the SemaSYCL version of kernel_desc.hpp in the FE.
+template <bool Cond, typename TrueT, typename FalseT> struct conditional {
+  using type = TrueT;
+};
+template <typename TrueT, typename FalseT>
+struct conditional<false, TrueT, FalseT> {
+  using type = FalseT;
+};
+using int64_t = conditional<sizeof(long) == 8, long, long long>::type;
 
 // kernel parameter kinds
 enum class kernel_param_kind_t {
@@ -146,5 +156,5 @@ template <class KernelNameType> struct KernelInfo {
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

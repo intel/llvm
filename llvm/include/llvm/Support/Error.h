@@ -1141,7 +1141,7 @@ private:
 class ECError : public ErrorInfo<ECError> {
   friend Error errorCodeToError(std::error_code);
 
-  virtual void anchor() override;
+  void anchor() override;
 
 public:
   void setErrorCode(std::error_code EC) { this->EC = EC; }
@@ -1270,7 +1270,7 @@ public:
     assert(Err && "Trying to log after takeError().");
     OS << "'" << FileName << "': ";
     if (Line)
-      OS << "line " << Line.getValue() << ": ";
+      OS << "line " << Line.value() << ": ";
     Err->log(OS);
   }
 

@@ -64,10 +64,10 @@ public:
            UniqueAttributeValues.insert(KV.second);
       }
     }
-    llvm::for_each(UniqueNonterminals, [&T](llvm::StringRef Name) {
+    for (llvm::StringRef Name : UniqueNonterminals) {
       T->Nonterminals.emplace_back();
       T->Nonterminals.back().Name = Name.str();
-    });
+    }
     assert(T->Nonterminals.size() < (1 << (SymbolBits - 1)) &&
            "Too many nonterminals to fit in SymbolID bits!");
     llvm::sort(T->Nonterminals, [](const GrammarTable::Nonterminal &L,
@@ -76,10 +76,11 @@ public:
     });
     // Add an empty string for the corresponding sentinel unset attribute.
     T->AttributeValues.push_back("");
-    llvm::for_each(UniqueAttributeValues, [&T](llvm::StringRef Name) {
+    UniqueAttributeValues.erase("");
+    for (llvm::StringRef Name : UniqueAttributeValues) {
       T->AttributeValues.emplace_back();
       T->AttributeValues.back() = Name.str();
-    });
+    }
     llvm::sort(T->AttributeValues);
     assert(T->AttributeValues.front() == "");
 
@@ -258,7 +259,7 @@ private:
     for (unsigned I = 0; I < Spec.Sequence.size(); ++I) {
       for (const auto &KV : Spec.Sequence[I].Attributes) {
         if (KV.first == "guard") {
-          R.Guard = LookupExtensionID(KV.second);
+          R.Guarded = true;
         } else if (KV.first == "recover") {
           R.Recovery = LookupExtensionID(KV.second);
           R.RecoveryIndex = I;

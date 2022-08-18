@@ -47,9 +47,11 @@
 // 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 // 9.11 Use values of OpenCL enums directly, rather than including `<CL/cl.h>`;
 // NOTE that this results in a changed API for `piProgramGetBuildInfo`.
+// 10.12 Change enum value PI_MEM_ADVICE_UNKNOWN from 0 to 999, and set enum
+// PI_MEM_ADVISE_RESET to 0.
 
-#define _PI_H_VERSION_MAJOR 9
-#define _PI_H_VERSION_MINOR 11
+#define _PI_H_VERSION_MAJOR 10
+#define _PI_H_VERSION_MINOR 12
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -404,7 +406,7 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
-  PI_MEM_ADVICE_UNKNOWN,
+  PI_MEM_ADVICE_RESET = 0,
   PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
   PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
   PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 103,
@@ -415,6 +417,7 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 108,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 109,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 110,
+  PI_MEM_ADVICE_UNKNOWN = 999,
 } _pi_mem_advice;
 
 typedef enum {

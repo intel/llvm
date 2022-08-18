@@ -15,8 +15,8 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Forward declaration
@@ -60,8 +60,17 @@ struct DeviceGlobalMapEntry {
   void initialize(std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
     assert(DeviceGlobalTSize != 0 && "Device global initialized with 0 size.");
-    assert(MDeviceGlobalTSize == 0 &&
-           "Device global has already been initialized.");
+    if (MDeviceGlobalTSize != 0) {
+      // The device global entry has already been initialized. This can happen
+      // if multiple images contain the device-global. They must agree on the
+      // information.
+      assert(MDeviceGlobalTSize == DeviceGlobalTSize &&
+             "Device global intializations disagree on type size.");
+      assert(
+          MIsDeviceImageScopeDecorated == IsDeviceImageScopeDecorated &&
+          "Device global intializations disagree on image scope decoration.");
+      return;
+    }
     MDeviceGlobalTSize = DeviceGlobalTSize;
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
@@ -76,5 +85,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

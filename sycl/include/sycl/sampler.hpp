@@ -15,8 +15,8 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 enum class addressing_mode : unsigned int {
   mirrored_repeat = PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
   repeat = PI_SAMPLER_ADDRESSING_MODE_REPEAT,
@@ -88,7 +88,7 @@ public:
   /// Checks if this sampler has a property of type propertyT.
   ///
   /// \return true if this sampler has a property of type propertyT.
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   /// Gets the specified property of this sampler.
   ///
@@ -119,23 +119,23 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
-  template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-            cl::sycl::access::target AccessTarget,
+  template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+            sycl::access::target AccessTarget,
             access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::sampler> {
-  size_t operator()(const cl::sycl::sampler &s) const {
+template <> struct hash<sycl::sampler> {
+  size_t operator()(const sycl::sampler &s) const {
 #ifdef __SYCL_DEVICE_ONLY__
     (void)s;
     return 0;
 #else
-    return hash<std::shared_ptr<cl::sycl::detail::sampler_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(s));
+    return hash<std::shared_ptr<sycl::detail::sampler_impl>>()(
+        sycl::detail::getSyclObjImpl(s));
 #endif
   }
 };

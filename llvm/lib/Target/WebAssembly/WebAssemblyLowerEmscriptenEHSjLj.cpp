@@ -553,7 +553,7 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
     std::tie(SizeArg, NEltArg) = FnAttrs.getAllocSizeArgs();
     SizeArg += 1;
     if (NEltArg)
-      NEltArg = NEltArg.getValue() + 1;
+      NEltArg = NEltArg.value() + 1;
     FnAttrs.addAllocSizeAttr(SizeArg, NEltArg);
   }
   // In case the callee has 'noreturn' attribute, We need to remove it, because
@@ -1227,8 +1227,8 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
     // Create a call to __cxa_find_matching_catch_N function
     Function *FMCF = getFindMatchingCatch(M, FMCArgs.size());
     CallInst *FMCI = IRB.CreateCall(FMCF, FMCArgs, "fmc");
-    Value *Undef = UndefValue::get(LPI->getType());
-    Value *Pair0 = IRB.CreateInsertValue(Undef, FMCI, 0, "pair0");
+    Value *Poison = PoisonValue::get(LPI->getType());
+    Value *Pair0 = IRB.CreateInsertValue(Poison, FMCI, 0, "pair0");
     Value *TempRet0 = IRB.CreateCall(GetTempRet0F, None, "tempret0");
     Value *Pair1 = IRB.CreateInsertValue(Pair0, TempRet0, 1, "pair1");
 

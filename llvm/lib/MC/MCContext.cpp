@@ -468,24 +468,6 @@ MCSectionMachO *MCContext::getMachOSection(StringRef Segment, StringRef Section,
   return R.first->second;
 }
 
-void MCContext::renameELFSection(MCSectionELF *Section, StringRef Name) {
-  StringRef GroupName;
-  if (const MCSymbol *Group = Section->getGroup())
-    GroupName = Group->getName();
-
-  // This function is only used by .debug*, which should not have the
-  // SHF_LINK_ORDER flag.
-  unsigned UniqueID = Section->getUniqueID();
-  ELFUniquingMap.erase(
-      ELFSectionKey{Section->getName(), GroupName, "", UniqueID});
-  auto I = ELFUniquingMap
-               .insert(std::make_pair(
-                   ELFSectionKey{Name, GroupName, "", UniqueID}, Section))
-               .first;
-  StringRef CachedName = I->first.SectionName;
-  const_cast<MCSectionELF *>(Section)->setSectionName(CachedName);
-}
-
 MCSectionELF *MCContext::createELFSectionImpl(StringRef Section, unsigned Type,
                                               unsigned Flags, SectionKind K,
                                               unsigned EntrySize,
@@ -773,7 +755,7 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   // Do the lookup. If we have a hit, return it.
   auto IterBool = XCOFFUniquingMap.insert(std::make_pair(
       IsDwarfSec
-          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.getValue())
+          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.value())
           : XCOFFSectionKey(Section.str(), CsectProp->MappingClass),
       nullptr));
   auto &Entry = *IterBool.first;
@@ -806,7 +788,7 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   if (IsDwarfSec)
     Result = new (XCOFFAllocator.Allocate())
         MCSectionXCOFF(QualName->getUnqualifiedName(), Kind, QualName,
-                       DwarfSectionSubtypeFlags.getValue(), Begin, CachedName,
+                       DwarfSectionSubtypeFlags.value(), Begin, CachedName,
                        MultiSymbolsAllowed);
   else
     Result = new (XCOFFAllocator.Allocate())

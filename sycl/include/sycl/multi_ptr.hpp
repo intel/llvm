@@ -14,8 +14,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/type_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
@@ -30,7 +30,7 @@ template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =
       detail::conditional_t<std::is_same<ElementType, half>::value,
-                            cl::sycl::detail::half_impl::BIsRepresentationT,
+                            sycl::detail::half_impl::BIsRepresentationT,
                             ElementType>;
   using difference_type = std::ptrdiff_t;
 
@@ -718,5 +718,5 @@ bool operator<=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() == nullptr;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

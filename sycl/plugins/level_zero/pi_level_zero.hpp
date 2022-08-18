@@ -29,7 +29,6 @@
 #include <cassert>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
@@ -43,6 +42,7 @@
 
 #include <level_zero/ze_api.h>
 #include <level_zero/zes_api.h>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include "usm_allocator.hpp"
 
@@ -274,7 +274,10 @@ template <class T> struct ZeCache : private T {
 // thread can reach ref count equal to zero, i.e. only a single thread can pass
 // through this check.
 struct ReferenceCounter {
-  ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
+  ReferenceCounter() : RefCount{1} {}
+
+  // Reset the counter to the initial value.
+  void reset() { RefCount = 1; }
 
   // Used when retaining an object.
   void increment() { RefCount++; }
@@ -306,7 +309,7 @@ private:
 
 // Base class to store common data
 struct _pi_object {
-  _pi_object() : RefCount{1} {}
+  _pi_object() : RefCount{} {}
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
@@ -593,41 +596,6 @@ struct _pi_context : _pi_object {
         SingleRootDevice(getRootDevice()), ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
-
-    // Create USM allocator context for each pair (device, context).
-    for (uint32_t I = 0; I < NumDevices; I++) {
-      pi_device Device = Devs[I];
-      SharedMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(Device),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMSharedMemoryAlloc(this, Device))));
-      SharedReadOnlyMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(Device),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMSharedReadOnlyMemoryAlloc(this, Device))));
-      DeviceMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(Device),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMDeviceMemoryAlloc(this, Device))));
-    }
-    // Create USM allocator context for host. Device and Shared USM allocations
-    // are device-specific. Host allocations are not device-dependent therefore
-    // we don't need a map with device as key.
-    HostMemAllocContext = std::make_unique<USMAllocContext>(
-        std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
-
-    // We may allocate memory to this root device so create allocators.
-    if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
-                                DeviceMemAllocContexts.end()) {
-      SharedMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(SingleRootDevice),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMSharedMemoryAlloc(this, SingleRootDevice))));
-      DeviceMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(SingleRootDevice),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMDeviceMemoryAlloc(this, SingleRootDevice))));
-    }
   }
 
   // Initialize the PI context.
@@ -653,6 +621,17 @@ struct _pi_context : _pi_object {
   // This field is only set at _pi_context creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_context.
   const std::vector<pi_device> Devices;
+
+  // Checks if Device is covered by this context.
+  // For that the Device or its root devices need to be in the context.
+  bool isValidDevice(pi_device Device) const {
+    while (Device) {
+      if (std::find(Devices.begin(), Devices.end(), Device) != Devices.end())
+        return true;
+      Device = Device->RootDevice;
+    }
+    return false;
+  }
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
@@ -750,6 +729,12 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // Get pi_event from cache.
+  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
+
+  // Add pi_event to cache.
+  void addEventToCache(pi_event);
+
 private:
   // If context contains one device then return this device.
   // If context contains sub-devices of the same device, then return this parent
@@ -798,6 +783,20 @@ private:
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
   pi_mutex ZeEventPoolCacheMutex;
+
+  // Mutex to control operations on event caches.
+  pi_mutex EventCacheMutex;
+
+  // Caches for events.
+  std::vector<std::list<pi_event>> EventCaches{4};
+
+  // Get the cache of events for a provided scope and profiling mode.
+  auto getEventCache(bool HostVisible, bool WithProfiling) {
+    if (HostVisible)
+      return WithProfiling ? &EventCaches[0] : &EventCaches[1];
+    else
+      return WithProfiling ? &EventCaches[2] : &EventCaches[3];
+  }
 };
 
 struct _pi_queue : _pi_object {
@@ -1350,6 +1349,9 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Reset _pi_event object.
+  pi_result reset();
 };
 
 struct _pi_program : _pi_object {

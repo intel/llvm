@@ -22,7 +22,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int TestCounter = 0;
 int DeviceRetainCounter = 0;

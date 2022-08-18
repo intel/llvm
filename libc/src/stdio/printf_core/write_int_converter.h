@@ -9,7 +9,7 @@
 #ifndef LLVM_LIBC_SRC_STDIO_PRINTF_CORE_WRITE_INT_CONVERTER_H
 #define LLVM_LIBC_SRC_STDIO_PRINTF_CORE_WRITE_INT_CONVERTER_H
 
-#include "src/__support/CPP/Limits.h"
+#include "src/__support/CPP/limits.h"
 #include "src/stdio/printf_core/core_structs.h"
 #include "src/stdio/printf_core/writer.h"
 
@@ -25,7 +25,7 @@ int inline convert_write_int(Writer *writer, const FormatSection &to_conv) {
   // because printf uses negative return values for errors, and -1 and -2 are
   // already in use by the file_writer class for file errors.
   if (to_conv.conv_val_ptr == nullptr)
-    return -3;
+    return NULLPTR_WRITE_ERROR;
 
   int written = writer->get_chars_written();
 
@@ -56,7 +56,7 @@ int inline convert_write_int(Writer *writer, const FormatSection &to_conv) {
     *reinterpret_cast<uintmax_t *>(to_conv.conv_val_ptr) = written;
     break;
   }
-  return 0;
+  return WRITE_OK;
 }
 
 } // namespace printf_core

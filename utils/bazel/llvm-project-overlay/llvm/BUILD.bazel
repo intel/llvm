@@ -487,7 +487,7 @@ cc_library(
         "lib/DebugInfo/Symbolize/*.cpp",
         "lib/DebugInfo/Symbolize/*.h",
     ]),
-    hdrs = glob(["include/llvm/DebugInfo/Symbolize/*.h"]),
+    hdrs = glob(["include/llvm/DebugInfo/Symbolize/*.h", "include/llvm/Debuginfod/*.h"]),
     copts = llvm_copts,
     deps = [
         ":BinaryFormat",
@@ -2254,6 +2254,18 @@ cc_library(
     ],
 )
 
+gentbl(
+    name = "JITLinkTableGen",
+    strip_include_prefix = "lib/ExecutionEngine/JITLink",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "lib/ExecutionEngine/JITLink/COFFOptions.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "lib/ExecutionEngine/JITLink/COFFOptions.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
 cc_library(
     name = "JITLink",
     srcs = glob([
@@ -2266,7 +2278,9 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":ExecutionEngine",
+        ":JITLinkTableGen",
         ":Object",
+        ":Option",
         ":OrcTargetProcess",
         ":Support",
         ":config",
@@ -2308,6 +2322,14 @@ cc_library(
         "include/llvm-c/OrcEE.h",
     ],
     copts = llvm_copts,
+    linkopts = select({
+        "@bazel_tools//src/conditions:windows": [],
+        "@bazel_tools//src/conditions:freebsd": [],
+        "@bazel_tools//src/conditions:darwin": [],
+        "//conditions:default": [
+            "-lrt",
+        ],
+    }),
     deps = [
         ":BitReader",
         ":BitWriter",
@@ -2359,6 +2381,14 @@ cc_library(
         "include/llvm/ExecutionEngine/Orc/TargetProcess/*.h",
     ]),
     copts = llvm_copts,
+    linkopts = select({
+        "@bazel_tools//src/conditions:windows": [],
+        "@bazel_tools//src/conditions:freebsd": [],
+        "@bazel_tools//src/conditions:darwin": [],
+        "//conditions:default": [
+            "-lrt",
+        ],
+    }),
     deps = [
         ":BinaryFormat",
         ":CodeGen",
@@ -2972,6 +3002,40 @@ cc_binary(
         ":MC",
         ":Object",
         ":Support",
+    ],
+)
+
+gentbl(
+    name = "DwarfutilOptionsTableGen",
+    strip_include_prefix = "tools/llvm-dwarfutil",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-dwarfutil/Options.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-dwarfutil/Options.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+cc_binary(
+    name = "llvm-dwarfutil",
+    srcs = glob([
+        "tools/llvm-dwarfutil/*.cpp",
+        "tools/llvm-dwarfutil/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":AllTargetsAsmParsers",
+        ":AllTargetsCodeGens",
+        ":DWARFLinker",
+        ":DwarfutilOptionsTableGen",
+        ":MC",
+        ":ObjCopy",
+        ":Object",
+        ":Option",
+        ":Support",
+        ":Target",
     ],
 )
 

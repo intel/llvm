@@ -102,7 +102,7 @@ void saveLLVMModule(Module *M, const std::string &OutputFile) {
   Out.keep();
 }
 
-std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
+std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
   if (Ty->isHalfTy())
     return "half";
   if (Ty->isFloatTy())
@@ -147,6 +147,11 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
   // value of some SPIR-V instructions may be represented as pointer to a struct
   // in LLVM IR) we can mangle the type.
   BuiltinFuncMangleInfo MangleInfo;
+  if (Ty->isPointerTy()) {
+    assert(cast<PointerType>(const_cast<Type *>(Ty))
+               ->isOpaqueOrPointeeTypeMatches(PET));
+    MangleInfo.getTypeMangleInfo(0).PointerElementType.setPointer(PET);
+  }
   std::string MangledName =
       mangleBuiltin("", const_cast<Type *>(Ty), &MangleInfo);
   // Remove "_Z0"(3 characters) from the front of the name
@@ -283,7 +288,7 @@ bool isSYCLHalfType(llvm::Type *Ty) {
       return false;
     StringRef Name = ST->getName();
     Name.consume_front("class.");
-    if ((Name.startswith("cl::sycl::") ||
+    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::half")) {
       return true;
@@ -298,7 +303,7 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
       return false;
     StringRef Name = ST->getName();
     Name.consume_front("class.");
-    if ((Name.startswith("cl::sycl::") ||
+    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::bfloat16")) {
       return true;
@@ -403,9 +408,10 @@ std::string getSPIRVFuncName(Op OC, StringRef PostFix) {
   return prefixSPIRVName(getName(OC) + PostFix.str());
 }
 
-std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned) {
+std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned,
+                             Type *PET) {
   return prefixSPIRVName(getName(OC) + kSPIRVPostfix::Divider +
-                         getPostfixForReturnType(PRetTy, IsSigned));
+                         getPostfixForReturnType(PRetTy, IsSigned, PET));
 }
 
 std::string getSPIRVFuncName(SPIRVBuiltinVariableKind BVKind) {
@@ -463,9 +469,10 @@ std::string getPostfixForReturnType(CallInst *CI, bool IsSigned) {
   return getPostfixForReturnType(CI->getType(), IsSigned);
 }
 
-std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned) {
+std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned,
+                                    Type *PET) {
   return std::string(kSPIRVPostfix::Return) +
-         mapLLVMTypeToOCLType(PRetTy, IsSigned);
+         mapLLVMTypeToOCLType(PRetTy, IsSigned, PET);
 }
 
 // Enqueue kernel, kernel query, pipe and address space cast built-ins
@@ -752,6 +759,24 @@ void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys) {
   free(Buf);
 }
 
+// This is a transitional helper function to fill in mangling information for
+// mangleBuiltin while all the calls to mutateCallInst are being transitioned.
+static void typeMangle(BuiltinFuncMangleInfo *Mangle, ArrayRef<Value *> Args) {
+  if (!Mangle)
+    return;
+  for (unsigned I = 0; I < Args.size(); I++)
+    if (Args[I]->getType()->isPointerTy()) {
+      auto &PointeeTy = Mangle->getTypeMangleInfo(I).PointerElementType;
+      PointeeTy.setPointer(
+          Args[I]->getType()->getNonOpaquePointerElementType());
+      if (PointeeTy.getPointer()->isPointerTy()) {
+        PointeeTy.setPointer(
+            PointeeTy.getPointer()->getNonOpaquePointerElementType());
+        PointeeTy.setInt(true);
+      }
+    }
+}
+
 CallInst *mutateCallInst(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
@@ -765,6 +790,7 @@ CallInst *mutateCallInst(
     InstName = CI->getName().str();
     CI->setName(InstName + ".old");
   }
+  typeMangle(Mangle, Args);
   auto NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
                            InstName, TakeFuncName);
   NewCI->setDebugLoc(CI->getDebugLoc());
@@ -786,6 +812,7 @@ Instruction *mutateCallInst(
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
   StringRef InstName = CI->getName();
+  typeMangle(Mangle, Args);
   auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
                            TakeFuncName);
   auto NewI = RetMutate(NewCI);
@@ -859,8 +886,16 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
 
 CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
                            ArrayRef<Value *> Args, AttributeList *Attrs,
+                           ArrayRef<Type *> PointerElementTypes,
                            Instruction *Pos, StringRef InstName) {
   BuiltinFuncMangleInfo BtnInfo;
+  for (unsigned I = 0; I < PointerElementTypes.size(); I++) {
+    BtnInfo.getTypeMangleInfo(I).PointerElementType.setPointer(
+        PointerElementTypes[I]);
+    if (Args[I]->getType()->isPointerTy())
+      assert(cast<PointerType>(Args[I]->getType())
+                 ->isOpaqueOrPointeeTypeMatches(PointerElementTypes[I]));
+  }
   return addCallInst(M, FuncName, RetTy, Args, Attrs, Pos, &BtnInfo, InstName);
 }
 
@@ -1205,7 +1240,9 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
         transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
   }
   if (Ty->isArrayTy()) {
-    return transTypeDesc(PointerType::get(Ty->getArrayElementType(), 0), Info);
+    BuiltinArgTypeMangleInfo DTInfo = Info;
+    DTInfo.PointerElementType.setPointer(Ty->getArrayElementType());
+    return transTypeDesc(Ty->getArrayElementType()->getPointerTo(0), DTInfo);
   }
   if (Ty->isStructTy()) {
     auto Name = Ty->getStructName();
@@ -1233,7 +1270,16 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
   }
 
   if (Ty->isPointerTy()) {
-    auto ET = Ty->getPointerElementType();
+    auto *ET = Info.PointerElementType.getPointer();
+    if (!ET)
+      ET = Type::getInt8Ty(Ty->getContext());
+    BuiltinArgTypeMangleInfo DTInfo = Info;
+    if (Info.PointerElementType.getInt()) {
+      ET = DTInfo.PointerElementType.getPointer()->getPointerTo(0);
+      DTInfo.PointerElementType.setInt(false);
+    } else {
+      DTInfo.PointerElementType.setPointer(Type::getInt8Ty(Ty->getContext()));
+    }
     SPIR::ParamType *EPT = nullptr;
     if (isa<FunctionType>(ET)) {
       assert(isVoidFuncTy(cast<FunctionType>(ET)) && "Not supported");
@@ -1287,7 +1333,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 
     if (VoidPtr && ET->isIntegerTy(8))
       ET = Type::getVoidTy(ET->getContext());
-    auto PT = new SPIR::PointerType(transTypeDesc(ET, Info));
+    auto *PT = new SPIR::PointerType(transTypeDesc(ET, DTInfo));
     PT->setAddressSpace(static_cast<SPIR::TypeAttributeEnum>(
         Ty->getPointerAddressSpace() + (unsigned)SPIR::ATTR_ADDR_SPACE_FIRST));
     for (unsigned I = SPIR::ATTR_QUALIFIER_FIRST, E = SPIR::ATTR_QUALIFIER_LAST;
@@ -1893,7 +1939,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
   if (HasIndexArg)
     ArgTy.push_back(Type::getInt32Ty(C));
   std::string MangledName;
-  mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
+  mangleOpenClBuiltin(FuncName, ArgTy, {}, MangledName);
   Function *Func = M->getFunction(MangledName);
   if (!Func) {
     FunctionType *FT = FunctionType::get(ReturnTy, ArgTy, false);
@@ -2345,17 +2391,27 @@ private:
 } // namespace
 
 namespace SPIRV {
-std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys,
-                                           Type *RetTy) {
+void BuiltinFuncMangleInfo::fillPointerElementTypes(
+    ArrayRef<PointerIndirectPair> PointerElementTys) {
+  for (unsigned I = 0; I < PointerElementTys.size(); I++) {
+    getTypeMangleInfo(I).PointerElementType = PointerElementTys[I];
+  }
+}
+
+std::string
+getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId, ArrayRef<Type *> ArgTys,
+                               ArrayRef<PointerIndirectPair> PointerElementTys,
+                               Type *RetTy) {
   OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys, RetTy);
+  MangleInfo.fillPointerElementTypes(PointerElementTys);
   return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
 }
 
-std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC,
-                                           ArrayRef<Type *> ArgTys) {
+std::string getSPIRVFriendlyIRFunctionName(
+    const std::string &UniqName, spv::Op OC, ArrayRef<Type *> ArgTys,
+    ArrayRef<PointerIndirectPair> PointerElementTys) {
   SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
+  MangleInfo.fillPointerElementTypes(PointerElementTys);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
 

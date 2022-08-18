@@ -21,17 +21,17 @@
 #include <condition_variable>
 #include <optional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
-using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -66,17 +66,12 @@ public:
   /// \return true if this event is a SYCL host event.
   bool is_host();
 
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
-
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -86,13 +81,13 @@ public:
   /// pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Clean up the command associated with the event. Assumes that the task this
   /// event is associated with has been completed.
   ///
   /// \param Self is a pointer to this event.
-  void cleanupCommand(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void cleanupCommand(std::shared_ptr<sycl::detail::event_impl> Self) const;
 
   /// Queries this event for profiling information.
   ///
@@ -105,15 +100,12 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info();
+  template <typename Param> typename Param::return_type get_profiling_info();
 
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info();
+  template <typename Param> typename Param::return_type get_info();
 
   ~event_impl();
 
@@ -234,7 +226,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
@@ -264,10 +255,10 @@ private:
   std::condition_variable cv;
 
   friend std::vector<RT::PiEvent>
-  getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                  std::shared_ptr<cl::sycl::detail::context_impl> Context);
+  getOrWaitEvents(std::vector<sycl::event> DepEvents,
+                  std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

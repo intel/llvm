@@ -71,8 +71,6 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
           dlt.push_back(SparseTensorEncodingAttr::DimLevelType::Dense);
         } else if (strVal == "compressed") {
           dlt.push_back(SparseTensorEncodingAttr::DimLevelType::Compressed);
-        } else if (strVal == "singleton") {
-          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::Singleton);
         } else {
           parser.emitError(parser.getNameLoc(),
                            "unexpected dimension level type: ")
@@ -125,9 +123,6 @@ void SparseTensorEncodingAttr::print(AsmPrinter &printer) const {
       break;
     case DimLevelType::Compressed:
       printer << "\"compressed\"";
-      break;
-    case DimLevelType::Singleton:
-      printer << "\"singleton\"";
       break;
     }
     if (i != e - 1)
@@ -357,15 +352,31 @@ LogicalResult UnaryOp::verify() {
   return success();
 }
 
+LogicalResult ReduceOp::verify() {
+  Type inputType = getX().getType();
+  LogicalResult regionResult = success();
+
+  // Check correct number of block arguments and return type.
+  Region &formula = getRegion();
+  if (!formula.empty()) {
+    regionResult = verifyNumBlockArgs(
+        this, formula, "reduce", TypeRange{inputType, inputType}, inputType);
+    if (failed(regionResult))
+      return regionResult;
+  }
+
+  return success();
+}
+
 LogicalResult YieldOp::verify() {
   // Check for compatible parent.
   auto *parentOp = (*this)->getParentOp();
-  if (auto binaryOp = dyn_cast<BinaryOp>(parentOp))
-    return success();
-  if (auto unaryOp = dyn_cast<UnaryOp>(parentOp))
+  if (isa<BinaryOp>(parentOp) || isa<UnaryOp>(parentOp) ||
+      isa<ReduceOp>(parentOp))
     return success();
 
-  return emitOpError("expected parent op to be sparse_tensor binary or unary");
+  return emitOpError(
+      "expected parent op to be sparse_tensor unary, binary, or reduce");
 }
 
 //===----------------------------------------------------------------------===//
