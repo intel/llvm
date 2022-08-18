@@ -3,21 +3,12 @@ name: Update GPU driver
 on:
   schedule:
     - cron:  '0 3 * * 2'
-  push:
-    branches:
-    - driver-upgrade
-  pull_request:
-    branches:
-    - sycl
-    paths:
-    - .github/workflows/sycl_update_gpu_driver.yml
   workflow_dispatch:
 
 jobs:
   update_driver_linux:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
-    environment: deps_uplift
     steps:
     - uses: actions/checkout@v2
     - name: Update dependencies file
@@ -28,20 +19,12 @@ jobs:
       env:
         BRANCH: ci/update_gpu_driver-linux-${{ env.NEW_DRIVER_VERSION }}
         GITHUB_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
-        MYTOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       run: |
         cd $GITHUB_WORKSPACE
-        git config --global user.name "Buildbot for SYCL"
-        git config --global user.email "bb-sycl@github.com"
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
-        echo AAAA
-        echo ${#BRANCH}
-        echo AAAAA
-        echo ${#MYTOKEN}
-        echo AAAAAA
         git push https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
-        echo BBBB
-        gh pr create --head $BRANCH --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION"
-        echo CCCC
+        gh pr create --head $BRANCH --title "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" --body "Scheduled drivers uplift"
