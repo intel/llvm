@@ -27,6 +27,7 @@ module.exports = ({core, process}) => {
       const ltsConfigs = inputs.lts_config.split(';');
 
       const enabledLTSConfigs = [];
+      const enabledLTSAWSConfigs = [];
 
       testConfigs.lts.forEach(v => {
         if (ltsConfigs.includes(v.config)) {
@@ -44,22 +45,30 @@ module.exports = ({core, process}) => {
             v["env"] = {};
           }
           enabledLTSConfigs.push(v);
+          if (v["aws-type"]) enabledLTSAWSConfigs.push(v);
         }
       });
 
       let ltsString = JSON.stringify(enabledLTSConfigs);
+      let ltsAWSString = JSON.stringify(enabledLTSAWSConfigs);
       console.log(ltsString);
+      console.log(ltsAWSString)
 
       for (let [key, value] of Object.entries(inputs)) {
         ltsString = ltsString.replaceAll("${{ inputs." + key + " }}", value);
+        ltsAWSString = ltsAWSString.replaceAll("${{ inputs." + key + " }}", value);
       }
       if (needsDrivers) {
         ltsString = ltsString.replaceAll(
             "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
             "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+        ltsAWSString = ltsAWSString.replaceAll(
+            "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
+            "ghcr.io/intel/llvm/ubuntu2004_base:latest");
       }
 
       core.setOutput('lts_matrix', ltsString);
+      core.setOutput('lts_aws_matrix', ltsAWSString);
     }
   });
 }

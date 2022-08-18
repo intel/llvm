@@ -523,7 +523,7 @@ public:
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
   }
 
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return impl->template has_property<propertyT>();
   }
 

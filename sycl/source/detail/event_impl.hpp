@@ -66,11 +66,6 @@ public:
   /// \return true if this event is a SYCL host event.
   bool is_host();
 
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
-
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
@@ -231,7 +226,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
