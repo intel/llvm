@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-pseudo/Token.h"
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Lexer.h"
@@ -25,6 +26,8 @@ TokenStream lex(const std::string &Code, const clang::LangOptions &LangOpts) {
 
   TokenStream Result;
   clang::Token CT;
+  // Index into the token stream of original source code.
+  Token::Index TokenIndex = 0;
   unsigned LastOffset = 0;
   unsigned Line = 0;
   unsigned Indent = 0;
@@ -40,18 +43,18 @@ TokenStream lex(const std::string &Code, const clang::LangOptions &LangOpts) {
 
     // Update current line number and indentation from raw source code.
     unsigned NewLineStart = 0;
-    for (unsigned i = LastOffset; i < Offset; ++i) {
-      if (Code[i] == '\n') {
-        NewLineStart = i + 1;
+    for (unsigned I = LastOffset; I < Offset; ++I) {
+      if (Code[I] == '\n') {
+        NewLineStart = I + 1;
         ++Line;
       }
     }
     if (NewLineStart || !LastOffset) {
       Indent = 0;
-      for (char c : StringRef(Code).slice(NewLineStart, Offset)) {
-        if (c == ' ')
+      for (char C : StringRef(Code).slice(NewLineStart, Offset)) {
+        if (C == ' ')
           ++Indent;
-        else if (c == '\t')
+        else if (C == '\t')
           Indent += 8;
         else
           break;
@@ -65,6 +68,7 @@ TokenStream lex(const std::string &Code, const clang::LangOptions &LangOpts) {
     if (CT.needsCleaning() || CT.hasUCN())
       Tok.setFlag(LexFlags::NeedsCleaning);
 
+    Tok.OriginalIndex = TokenIndex++;
     Result.push(Tok);
     LastOffset = Offset;
   }
@@ -76,7 +80,7 @@ TokenStream cook(const TokenStream &Code, const LangOptions &LangOpts) {
   auto CleanedStorage = std::make_shared<llvm::BumpPtrAllocator>();
   clang::IdentifierTable Identifiers(LangOpts);
   TokenStream Result(CleanedStorage);
-
+  Result.addPayload(Code.getPayload());
   for (auto Tok : Code.tokens()) {
     if (Tok.flag(LexFlags::NeedsCleaning)) {
       // Remove escaped newlines and trigraphs.
@@ -89,12 +93,23 @@ TokenStream cook(const TokenStream &Code, const LangOptions &LangOpts) {
         assert(CharSize != 0 && "no progress!");
         Pos += CharSize;
       }
-      // Remove universal character names (UCN).
+      llvm::StringRef Text = CleanBuffer;
       llvm::SmallString<64> UCNBuffer;
-      clang::expandUCNs(UCNBuffer, CleanBuffer);
+      // A surface reading of the standard suggests UCNs might appear anywhere.
+      // But we need only decode them in raw_identifiers.
+      //  - they cannot appear in punctuation/keyword tokens, because UCNs
+      //    cannot encode basic characters outside of literals [lex.charset]
+      //  - they can appear in literals, but we need not unescape them now.
+      //    We treat them as escape sequences when evaluating the literal.
+      //  - comments are handled similarly to literals
+      // This is good fortune, because expandUCNs requires its input to be a
+      // reasonably valid identifier (e.g. without stray backslashes).
+      if (Tok.Kind == tok::raw_identifier) {
+        clang::expandUCNs(UCNBuffer, CleanBuffer);
+        Text = UCNBuffer;
+      }
 
-      llvm::StringRef Text = llvm::StringRef(UCNBuffer).copy(*CleanedStorage);
-      Tok.Data = Text.data();
+      Tok.Data = Text.copy(*CleanedStorage).data();
       Tok.Length = Text.size();
       Tok.Flags &= ~static_cast<decltype(Tok.Flags)>(LexFlags::NeedsCleaning);
     }

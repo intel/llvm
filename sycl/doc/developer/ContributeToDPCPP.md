@@ -57,7 +57,7 @@ end-to-end or SYCL-CTS tests.
 
 #### General guidelines
 
-- Use `sycl::` namespace instead of `cl::sycl::`
+- Use `sycl::` namespace instead of `sycl::`
 
 - Add a helpful comment describing what the test does at the beginning and
   other comments throughout the test as necessary.
@@ -85,7 +85,7 @@ end-to-end or SYCL-CTS tests.
   ```C++
   `#include "Inputs/sycl.hpp"`
   sycl::queue q;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
   h.single_task( { //code });
   });
   ```

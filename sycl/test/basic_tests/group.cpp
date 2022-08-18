@@ -8,24 +8,24 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace std;
-using cl::sycl::detail::Builder;
+using sycl::detail::Builder;
 
 int main() {
-  cl::sycl::group<1> one = Builder::createGroup<1>({8}, {4}, {1});
+  sycl::group<1> one = Builder::createGroup<1>({8}, {4}, {1});
   // one dimension group
-  cl::sycl::group<1> one_dim = Builder::createGroup<1>({8}, {4}, {1});
-  assert(one_dim.get_id() == cl::sycl::id<1>{1});
+  sycl::group<1> one_dim = Builder::createGroup<1>({8}, {4}, {1});
+  assert(one_dim.get_id() == sycl::id<1>{1});
   assert(one_dim.get_id(0) == 1);
-  assert((one_dim.get_global_range() == cl::sycl::range<1>{8}));
+  assert((one_dim.get_global_range() == sycl::range<1>{8}));
   assert(one_dim.get_global_range(0) == 8);
-  assert((one_dim.get_local_range() == cl::sycl::range<1>{4}));
+  assert((one_dim.get_local_range() == sycl::range<1>{4}));
   assert(one_dim.get_local_range(0) == 4);
-  assert((one_dim.get_group_range() == cl::sycl::range<1>{2}));
+  assert((one_dim.get_group_range() == sycl::range<1>{2}));
   assert(one_dim.get_group_range(0) == 2);
   assert(one_dim[0] == 1);
   assert(one_dim.get_linear_id() == 1);
@@ -33,28 +33,29 @@ int main() {
 
   try {
     one_dim.get_local_id();
+    assert(one_dim.get_local_id(0) == one_dim.get_local_id()[0]);
     assert(0); // get_local_id() is not implemented on host device
-  } catch (cl::sycl::runtime_error) {
+  } catch (sycl::runtime_error) {
   }
 
   try {
     one_dim.get_local_linear_id();
     assert(0); // get_local_id() is not implemented on host device
-  } catch (cl::sycl::runtime_error) {
+  } catch (sycl::runtime_error) {
   }
 
   // two dimension group
-  cl::sycl::group<2> two_dim = Builder::createGroup<2>({8, 4}, {4, 2}, {1, 1});
-  assert((two_dim.get_id() == cl::sycl::id<2>{1, 1}));
+  sycl::group<2> two_dim = Builder::createGroup<2>({8, 4}, {4, 2}, {1, 1});
+  assert((two_dim.get_id() == sycl::id<2>{1, 1}));
   assert(two_dim.get_id(0) == 1);
   assert(two_dim.get_id(1) == 1);
-  assert((two_dim.get_global_range() == cl::sycl::range<2>{8, 4}));
+  assert((two_dim.get_global_range() == sycl::range<2>{8, 4}));
   assert(two_dim.get_global_range(0) == 8);
   assert(two_dim.get_global_range(1) == 4);
-  assert((two_dim.get_local_range() == cl::sycl::range<2>{4, 2}));
+  assert((two_dim.get_local_range() == sycl::range<2>{4, 2}));
   assert(two_dim.get_local_range(0) == 4);
   assert(two_dim.get_local_range(1) == 2);
-  assert((two_dim.get_group_range() == cl::sycl::range<2>{2, 2}));
+  assert((two_dim.get_group_range() == sycl::range<2>{2, 2}));
   assert(two_dim.get_group_range(0) == 2);
   assert(two_dim.get_group_range(1) == 2);
   assert(two_dim[0] == 1);
@@ -64,32 +65,34 @@ int main() {
 
   try {
     two_dim.get_local_id();
+    assert(two_dim.get_local_id(0) == two_dim.get_local_id()[0]);
+    assert(two_dim.get_local_id(1) == two_dim.get_local_id()[1]);
     assert(0); // get_local_id() is not implemented on host device
-  } catch (cl::sycl::runtime_error) {
+  } catch (sycl::runtime_error) {
   }
 
   try {
     two_dim.get_local_linear_id();
     assert(0); // get_local_id() is not implemented on host device
-  } catch (cl::sycl::runtime_error) {
+  } catch (sycl::runtime_error) {
   }
 
   // three dimension group
-  cl::sycl::group<3> three_dim =
+  sycl::group<3> three_dim =
       Builder::createGroup<3>({16, 8, 4}, {8, 4, 2}, {1, 1, 1});
-  assert((three_dim.get_id() == cl::sycl::id<3>{1, 1, 1}));
+  assert((three_dim.get_id() == sycl::id<3>{1, 1, 1}));
   assert(three_dim.get_id(0) == 1);
   assert(three_dim.get_id(1) == 1);
   assert(three_dim.get_id(2) == 1);
-  assert((three_dim.get_global_range() == cl::sycl::range<3>{16, 8, 4}));
+  assert((three_dim.get_global_range() == sycl::range<3>{16, 8, 4}));
   assert(three_dim.get_global_range(0) == 16);
   assert(three_dim.get_global_range(1) == 8);
   assert(three_dim.get_global_range(2) == 4);
-  assert((three_dim.get_local_range() == cl::sycl::range<3>{8, 4, 2}));
+  assert((three_dim.get_local_range() == sycl::range<3>{8, 4, 2}));
   assert(three_dim.get_local_range(0) == 8);
   assert(three_dim.get_local_range(1) == 4);
   assert(three_dim.get_local_range(2) == 2);
-  assert((three_dim.get_group_range() == cl::sycl::range<3>{2, 2, 2}));
+  assert((three_dim.get_group_range() == sycl::range<3>{2, 2, 2}));
   assert(three_dim.get_group_range(0) == 2);
   assert(three_dim.get_group_range(1) == 2);
   assert(three_dim.get_group_range(2) == 2);
@@ -101,13 +104,16 @@ int main() {
 
   try {
     three_dim.get_local_id();
+    assert(three_dim.get_local_id(0) == three_dim.get_local_id()[0]);
+    assert(three_dim.get_local_id(1) == three_dim.get_local_id()[1]);
+    assert(three_dim.get_local_id(2) == three_dim.get_local_id()[2]);
     assert(0); // get_local_id() is not implemented on host device
-  } catch (cl::sycl::runtime_error) {
+  } catch (sycl::runtime_error) {
   }
 
   try {
     three_dim.get_local_linear_id();
     assert(0); // get_local_id() is not implemented on host device
-  } catch (cl::sycl::runtime_error) {
+  } catch (sycl::runtime_error) {
   }
 }

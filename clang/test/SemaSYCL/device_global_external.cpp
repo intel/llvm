@@ -54,7 +54,7 @@ SYCL_EXTERNAL extern device_global<int> Good;
 extern device_global<int> Bad;
 
 int main() {
-  cl::sycl::kernel_single_task<class KernelName1>([=]() {
+  sycl::kernel_single_task<class KernelName1>([=]() {
     Good.get();
     // expected-error@+1 {{SYCL device code cannot reference an external device_global variable not marked with SYCL_EXTERNAL}}
     Bad.get();

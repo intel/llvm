@@ -141,6 +141,12 @@ void mlir::LLVM::detail::printType(Type type, AsmPrinter &printer) {
   printer << getTypeKeyword(type);
 
   if (auto ptrType = type.dyn_cast<LLVMPointerType>()) {
+    if (ptrType.isOpaque()) {
+      if (ptrType.getAddressSpace() != 0)
+        printer << '<' << ptrType.getAddressSpace() << '>';
+      return;
+    }
+
     printer << '<';
     dispatchPrint(printer, ptrType.getElementType());
     if (ptrType.getAddressSpace() != 0)
@@ -215,13 +221,27 @@ static LLVMFunctionType parseFunctionType(AsmParser &parser) {
 
 /// Parses an LLVM dialect pointer type.
 ///   llvm-type ::= `ptr<` llvm-type (`,` integer)? `>`
+///               | `ptr` (`<` integer `>`)?
 static LLVMPointerType parsePointerType(AsmParser &parser) {
   SMLoc loc = parser.getCurrentLocation();
   Type elementType;
-  if (parser.parseLess() || dispatchParse(parser, elementType))
-    return LLVMPointerType();
+  if (parser.parseOptionalLess()) {
+    return parser.getChecked<LLVMPointerType>(loc, parser.getContext(),
+                                              /*addressSpace=*/0);
+  }
 
   unsigned addressSpace = 0;
+  OptionalParseResult opr = parser.parseOptionalInteger(addressSpace);
+  if (opr.hasValue()) {
+    if (failed(*opr) || parser.parseGreater())
+      return LLVMPointerType();
+    return parser.getChecked<LLVMPointerType>(loc, parser.getContext(),
+                                              addressSpace);
+  }
+
+  if (dispatchParse(parser, elementType))
+    return LLVMPointerType();
+
   if (succeeded(parser.parseOptionalComma()) &&
       failed(parser.parseInteger(addressSpace)))
     return LLVMPointerType();
@@ -291,8 +311,7 @@ static LLVMArrayType parseArrayType(AsmParser &parser) {
 /// error at `subtypesLoc` in case of failure.
 static LLVMStructType trySetStructBody(LLVMStructType type,
                                        ArrayRef<Type> subtypes, bool isPacked,
-                                       AsmParser &parser,
-                                       SMLoc subtypesLoc) {
+                                       AsmParser &parser, SMLoc subtypesLoc) {
   for (Type t : subtypes) {
     if (!LLVMStructType::isValidElementType(t)) {
       parser.emitError(subtypesLoc)

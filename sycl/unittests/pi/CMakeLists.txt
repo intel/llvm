@@ -4,6 +4,7 @@ add_sycl_unittest(PiTests OBJECT
   EnqueueMemTest.cpp
   PiMock.cpp
   PlatformTest.cpp
+  PiUtility.cpp
   pi_arguments_handler.cpp
   piInteropRetain.cpp
 )

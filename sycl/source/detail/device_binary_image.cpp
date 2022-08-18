@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <memory>
 
-#include <CL/sycl/detail/device_binary_image.hpp>
+#include <sycl/detail/device_binary_image.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
@@ -48,5 +48,5 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

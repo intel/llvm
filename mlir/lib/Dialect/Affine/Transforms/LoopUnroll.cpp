@@ -71,7 +71,7 @@ static bool isInnermostAffineForOp(AffineForOp op) {
 }
 
 /// Gathers loops that have no affine.for's nested within.
-static void gatherInnermostLoops(FuncOp f,
+static void gatherInnermostLoops(func::FuncOp f,
                                  SmallVectorImpl<AffineForOp> &loops) {
   f.walk([&](AffineForOp forOp) {
     if (isInnermostAffineForOp(forOp))
@@ -80,7 +80,7 @@ static void gatherInnermostLoops(FuncOp f,
 }
 
 void LoopUnroll::runOnOperation() {
-  FuncOp func = getOperation();
+  func::FuncOp func = getOperation();
   if (func.isExternal())
     return;
 
@@ -93,7 +93,7 @@ void LoopUnroll::runOnOperation() {
     // an outer one may delete gathered inner ones).
     getOperation().walk([&](AffineForOp forOp) {
       Optional<uint64_t> tripCount = getConstantTripCount(forOp);
-      if (tripCount.hasValue() && tripCount.getValue() <= unrollFullThreshold)
+      if (tripCount && *tripCount <= unrollFullThreshold)
         loops.push_back(forOp);
     });
     for (auto forOp : loops)
@@ -132,7 +132,7 @@ LogicalResult LoopUnroll::runOnAffineForOp(AffineForOp forOp) {
   return loopUnrollByFactor(forOp, unrollFactor);
 }
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLoopUnrollPass(
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLoopUnrollPass(
     int unrollFactor, bool unrollUpToFactor, bool unrollFull,
     const std::function<unsigned(AffineForOp)> &getUnrollFactor) {
   return std::make_unique<LoopUnroll>(

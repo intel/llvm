@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
-#include <CL/sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <CL/sycl/device.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/device.hpp>
 
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -108,7 +108,7 @@ public:
   /// can be different for different languages.
   /// Throws online_compile_error if compilation is not successful.
   template <typename... Tys>
-  std::vector<byte> compile(const std::string &src, const Tys &... args);
+  std::vector<byte> compile(const std::string &src, const Tys &...args);
 
   /// Sets the compiled code format of the compilation target and returns *this.
   online_compiler<Lang> &setOutputFormat(compiled_code_format fmt) {
@@ -219,13 +219,5 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-
-namespace ext {
-namespace __SYCL2020_DEPRECATED(
-    "use 'ext::intel::experimental' instead") intel {
-  using namespace ext::intel::experimental;
-} // namespace intel
-} // namespace ext
-
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

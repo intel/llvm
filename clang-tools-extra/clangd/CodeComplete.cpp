@@ -129,6 +129,8 @@ CompletionItemKind toCompletionItemKind(index::SymbolKind Kind) {
   case SK::TemplateTypeParm:
   case SK::TemplateTemplateParm:
     return CompletionItemKind::TypeParameter;
+  case SK::Concept:
+    return CompletionItemKind::Interface;
   }
   llvm_unreachable("Unhandled clang::index::SymbolKind.");
 }
@@ -190,7 +192,7 @@ struct CompletionCandidate {
   // 0 indicates it's not part of any overload set.
   size_t overloadSet(const CodeCompleteOptions &Opts, llvm::StringRef FileName,
                      IncludeInserter *Inserter) const {
-    if (!Opts.BundleOverloads.getValueOr(false))
+    if (!Opts.BundleOverloads.value_or(false))
       return 0;
 
     // Depending on the index implementation, we can see different header
@@ -301,6 +303,7 @@ struct CodeCompletionBuilder {
       assert(ASTCtx);
       Completion.Origin |= SymbolOrigin::AST;
       Completion.Name = std::string(llvm::StringRef(SemaCCS->getTypedText()));
+      Completion.FilterText = SemaCCS->getAllTypedText();
       if (Completion.Scope.empty()) {
         if ((C.SemaResult->Kind == CodeCompletionResult::RK_Declaration) ||
             (C.SemaResult->Kind == CodeCompletionResult::RK_Pattern))
@@ -333,6 +336,8 @@ struct CodeCompletionBuilder {
         Completion.Kind = toCompletionItemKind(C.IndexResult->SymInfo.Kind);
       if (Completion.Name.empty())
         Completion.Name = std::string(C.IndexResult->Name);
+      if (Completion.FilterText.empty())
+        Completion.FilterText = Completion.Name;
       // If the completion was visible to Sema, no qualifier is needed. This
       // avoids unneeded qualifiers in cases like with `using ns::X`.
       if (Completion.RequiredQualifier.empty() && !C.SemaResult) {
@@ -350,6 +355,7 @@ struct CodeCompletionBuilder {
       Completion.Origin |= SymbolOrigin::Identifier;
       Completion.Kind = CompletionItemKind::Text;
       Completion.Name = std::string(C.IdentifierResult->Name);
+      Completion.FilterText = Completion.Name;
     }
 
     // Turn absolute path into a literal string that can be #included.
@@ -369,7 +375,7 @@ struct CodeCompletionBuilder {
           std::move(*Spelled),
           Includes.shouldInsertInclude(*ResolvedDeclaring, *ResolvedInserted));
     };
-    bool ShouldInsert = C.headerToInsertIfAllowed(Opts).hasValue();
+    bool ShouldInsert = C.headerToInsertIfAllowed(Opts).has_value();
     // Calculate include paths and edits for all possible headers.
     for (const auto &Inc : C.RankedIncludeHeaders) {
       if (auto ToInclude = Inserted(Inc)) {
@@ -388,7 +394,7 @@ struct CodeCompletionBuilder {
     std::stable_partition(Completion.Includes.begin(),
                           Completion.Includes.end(),
                           [](const CodeCompletion::IncludeCandidate &I) {
-                            return !I.Insertion.hasValue();
+                            return !I.Insertion.has_value();
                           });
   }
 
@@ -642,7 +648,7 @@ getQueryScopes(CodeCompletionContext &CCContext, const Sema &CCSema,
   }
 
   const CXXScopeSpec *SemaSpecifier =
-      CCContext.getCXXScopeSpecifier().getValueOr(nullptr);
+      CCContext.getCXXScopeSpecifier().value_or(nullptr);
   // Case 1: unqualified completion.
   if (!SemaSpecifier) {
     // Case 2 (exception): sema saw no qualifier, but there appears to be one!
@@ -782,7 +788,7 @@ struct CompletionRecorder : public CodeCompleteConsumer {
 
   void ProcessCodeCompleteResults(class Sema &S, CodeCompletionContext Context,
                                   CodeCompletionResult *InResults,
-                                  unsigned NumResults) override final {
+                                  unsigned NumResults) final {
     // Results from recovery mode are generally useless, and the callback after
     // recovery (if any) is usually more interesting. To make sure we handle the
     // future callback from sema, we just ignore all callbacks in recovery mode,
@@ -829,7 +835,7 @@ struct CompletionRecorder : public CodeCompleteConsumer {
         continue;
       // Skip injected class name when no class scope is not explicitly set.
       // E.g. show injected A::A in `using A::A^` but not in "A^".
-      if (Result.Declaration && !Context.getCXXScopeSpecifier().hasValue() &&
+      if (Result.Declaration && !Context.getCXXScopeSpecifier() &&
           isInjectedClass(*Result.Declaration))
         continue;
       // We choose to never append '::' to completion results in clangd.
@@ -855,10 +861,18 @@ struct CompletionRecorder : public CodeCompleteConsumer {
     case CodeCompletionResult::RK_Macro:
       return Result.Macro->getName();
     case CodeCompletionResult::RK_Pattern:
-      return Result.Pattern->getTypedText();
+      break;
     }
     auto *CCS = codeCompletionString(Result);
-    return CCS->getTypedText();
+    const CodeCompletionString::Chunk *OnlyText = nullptr;
+    for (auto &C : *CCS) {
+      if (C.Kind != CodeCompletionString::CK_TypedText)
+        continue;
+      if (OnlyText)
+        return CCAllocator->CopyString(CCS->getAllTypedText());
+      OnlyText = &C;
+    }
+    return OnlyText ? OnlyText->Text : llvm::StringRef();
   }
 
   // Build a CodeCompletion string for R, which must be from Results.
@@ -1005,10 +1019,12 @@ public:
         auto KindPriority = [&](OC::CandidateKind K) {
           switch (K) {
           case OC::CK_Aggregate:
-            return 1;
+            return 0;
           case OC::CK_Function:
-            return 2;
+            return 1;
           case OC::CK_FunctionType:
+            return 2;
+          case OC::CK_FunctionProtoTypeLoc:
             return 3;
           case OC::CK_FunctionTemplate:
             return 4;
@@ -1425,7 +1441,7 @@ public:
     HeuristicPrefix = guessCompletionPrefix(SemaCCInput.ParseInput.Contents,
                                             SemaCCInput.Offset);
     populateContextWords(SemaCCInput.ParseInput.Contents);
-    if (Opts.Index && SpecFuzzyFind && SpecFuzzyFind->CachedReq.hasValue()) {
+    if (Opts.Index && SpecFuzzyFind && SpecFuzzyFind->CachedReq) {
       assert(!SpecFuzzyFind->Result.valid());
       SpecReq = speculativeFuzzyFindRequestForCompletion(
           *SpecFuzzyFind->CachedReq, HeuristicPrefix);
@@ -1659,6 +1675,14 @@ private:
     return Output;
   }
 
+  bool includeSymbolFromIndex(const Symbol &Sym) {
+    if (CCContextKind == CodeCompletionContext::CCC_ObjCProtocolName) {
+      return Sym.SymInfo.Lang == index::SymbolLanguage::ObjC &&
+          Sym.SymInfo.Kind == index::SymbolKind::Protocol;
+    }
+    return true;
+  }
+
   SymbolSlab queryIndex() {
     trace::Span Tracer("Query index");
     SPAN_ATTACH(Tracer, "limit", int64_t(Opts.Limit));
@@ -1692,8 +1716,10 @@ private:
 
     // Run the query against the index.
     SymbolSlab::Builder ResultsBuilder;
-    if (Opts.Index->fuzzyFind(
-            Req, [&](const Symbol &Sym) { ResultsBuilder.insert(Sym); }))
+    if (Opts.Index->fuzzyFind(Req, [&](const Symbol &Sym) {
+          if (includeSymbolFromIndex(Sym))
+            ResultsBuilder.insert(Sym);
+        }))
       Incomplete = true;
     return std::move(ResultsBuilder).build();
   }
@@ -1978,6 +2004,7 @@ CodeCompleteResult codeCompleteComment(PathRef FileName, unsigned Offset,
       continue;
     CodeCompletion Item;
     Item.Name = Name.str() + "=";
+    Item.FilterText = Item.Name;
     Item.Kind = CompletionItemKind::Text;
     Result.Completions.push_back(Item);
   }
@@ -2116,8 +2143,8 @@ CompletionItem CodeCompletion::render(const CodeCompleteOptions &Opts) const {
       Doc.append(*Documentation);
     LSP.documentation = renderDoc(Doc, Opts.DocumentationFormat);
   }
-  LSP.sortText = sortText(Score.Total, Name);
-  LSP.filterText = Name;
+  LSP.sortText = sortText(Score.Total, FilterText);
+  LSP.filterText = FilterText;
   LSP.textEdit = {CompletionTokenRange, RequiredQualifier + Name};
   // Merge continuous additionalTextEdits into main edit. The main motivation
   // behind this is to help LSP clients, it seems most of them are confused when

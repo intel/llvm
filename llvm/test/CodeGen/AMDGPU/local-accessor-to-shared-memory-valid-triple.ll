@@ -1,9 +1,7 @@
 ; This test checks that the Local Accessor to Shared Memory pass runs with the
 ; `amdgcn-amd-amdhsa` triple and does not if the option is not present.
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -sycl-enable-local-accessor < %s | FileCheck --check-prefix=CHECK-OPT %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -sycl-enable-local-accessor=true < %s | FileCheck --check-prefix=CHECK-OPT %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-NO-OPT %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -sycl-enable-local-accessor=false < %s | FileCheck --check-prefix=CHECK-NO-OPT %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
 
 ; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-valid-triple.ll"
@@ -16,17 +14,25 @@ target triple = "amdgcn-amd-amdhsa"
 ; CHECK-OPT-NEXT: .offset: 0
 ; CHECK-OPT-NEXT: .size: 4
 ; CHECK-OPT-NEXT: .value_kind:     by_value
-; CHECK-NO-OPT: .globl	_ZTS14example_kernel
-; CHECK-NO-OPT: - .args:
-; CHECK-NO-OPT-NEXT: .address_space: local
-; CHECK-NO-OPT-NEXT: .name: a
-; CHECK-NO-OPT-NEXT: .offset: 0
-; CHECK-NO-OPT-NEXT: .pointee_align: 1
-; CHECK-NO-OPT-NEXT: .size: 4
-; CHECK-NO-OPT-NEXT: .value_kind:     dynamic_shared_pointer
 ; Function Attrs: noinline
 define amdgpu_kernel void @_ZTS14example_kernel(i32 addrspace(3)* %a) {
 entry:
   %0 = load i32, i32 addrspace(3)* %a
   ret void
 }
+
+!amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
+!llvm.ident = !{!7, !8}
+!llvm.module.flags = !{!9, !10}
+
+!0 = distinct !{void (i32 addrspace(3)*)* @_ZTS14example_kernel, !"kernel", i32 1}
+!1 = !{null, !"align", i32 8}
+!2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
+!3 = !{null, !"align", i32 16}
+!4 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
+!5 = !{i32 1, i32 2}
+!6 = !{i32 4, i32 100000}
+!7 = !{!"clang version 9.0.0"}
+!8 = !{!"clang version 9.0.0"}
+!9 = !{i32 2, !"SDK Version", [2 x i32] [i32 10, i32 0]}
+!10 = !{i32 1, !"wchar_size", i32 4}

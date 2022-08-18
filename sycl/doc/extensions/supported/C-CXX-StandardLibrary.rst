@@ -115,24 +115,24 @@ Example of usage
 
 .. code: c++
    #include <assert.h>
-   #include <CL/sycl.hpp>
+   #include <sycl/sycl.hpp>
 
    template <typename T, size_t N>
    void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
                     std::array<T, N>& VC) {
      // ...
-     cl::sycl::range<1> numOfItems{N};
-     cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
-     cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
-     cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
+     sycl::range<1> numOfItems{N};
+     sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
+     sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
+     sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
 
-     deviceQueue.submit([&](cl::sycl::handler& cgh) {
+     deviceQueue.submit([&](sycl::handler& cgh) {
        auto accessorA = bufferA.template get_access<sycl_read>(cgh);
        auto accessorB = bufferB.template get_access<sycl_read>(cgh);
        auto accessorC = bufferC.template get_access<sycl_write>(cgh);
 
        cgh.parallel_for<class SimpleVadd<T>>(numOfItems,
-       [=](cl::sycl::id<1> wiID) {
+       [=](sycl::id<1> wiID) {
            accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
            assert(accessorC[wiID] > 0 && "Invalid value");
        });
@@ -143,17 +143,17 @@ Example of usage
 
 .. code: c++
    #include <math.h>
-   #include <CL/sycl.hpp>
+   #include <sycl/sycl.hpp>
 
    void device_sin_test() {
-     cl::sycl::queue deviceQueue;
-     cl::sycl::range<1> numOfItems{1};
+     sycl::queue deviceQueue;
+     sycl::range<1> numOfItems{1};
      float  result_f = -1.f;
      double result_d = -1.d;
      {
-       cl::sycl::buffer<float, 1> buffer1(&result_f, numOfItems);
-       cl::sycl::buffer<double, 1> buffer2(&result_d, numOfItems);
-       deviceQueue.submit([&](cl::sycl::handler &cgh) {
+       sycl::buffer<float, 1> buffer1(&result_f, numOfItems);
+       sycl::buffer<double, 1> buffer2(&result_d, numOfItems);
+       deviceQueue.submit([&](sycl::handler &cgh) {
          auto res_access1 = buffer1.get_access<sycl_write>(cgh);
          auto res_access2 = buffer2.get_access<sycl_write>(cgh);
          cgh.single_task<class DeviceSin>([=]() {

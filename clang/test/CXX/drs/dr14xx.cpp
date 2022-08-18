@@ -463,6 +463,10 @@ namespace dr1467 {  // dr1467: 3.7 c++11
 #endif
 } // dr1467
 
+namespace dr1479 { // dr1479: yes
+  int operator"" _a(const char*, std::size_t = 0); // expected-error {{literal operator cannot have a default argument}}
+}
+
 namespace dr1490 {  // dr1490: 3.7 c++11
   // List-initialization from a string literal
 
@@ -497,4 +501,16 @@ namespace dr1495 { // dr1495: 4
   template<typename ...Ts> int c<0, Ts...>; // expected-error {{not more specialized}}
 #endif
 }
+
+namespace dr1496 { // dr1496: no
+#if __cplusplus >= 201103L
+struct A {
+    A() = delete;
+};
+// FIXME: 'A' should not be trivial because the class lacks at least one
+// default constructor which is not deleted.
+static_assert(__is_trivial(A), "");
+#endif
+}
+
 #endif

@@ -544,8 +544,9 @@ TEST(ExternalIOTests, TestNonAvancingInput) {
         fmt.data(), fmt.length(), unit, __FILE__, __LINE__);
     IONAME(EnableHandlers)(io, true, false, false, false, false);
     ASSERT_TRUE(IONAME(SetAdvance)(io, "NO", 2)) << "SetAdvance(NO)" << j;
-    ASSERT_TRUE(
-        IONAME(InputAscii)(io, inputItem.item.data(), inputItem.item.length()))
+    bool result{
+        IONAME(InputAscii)(io, inputItem.item.data(), inputItem.item.length())};
+    ASSERT_EQ(result, inputItem.expectedIoStat == IostatOk)
         << "InputAscii() " << j;
     ASSERT_EQ(IONAME(EndIoStatement)(io), inputItem.expectedIoStat)
         << "EndIoStatement() for Read " << j;
@@ -894,4 +895,39 @@ TEST(ExternalIOTests, TestUCS) {
   ASSERT_TRUE(IONAME(SetStatus)(io, "DELETE", 6)) << "SetStatus(DELETE)";
   ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
       << "EndIoStatement() for second CLOSE";
+}
+
+TEST(ExternalIOTests, BigUnitNumbers) {
+  if (std::numeric_limits<ExternalUnit>::max() <
+      std::numeric_limits<std::int64_t>::max()) {
+    std::int64_t unit64Ok = std::numeric_limits<ExternalUnit>::max();
+    std::int64_t unit64Bad = unit64Ok + 1;
+    std::int64_t unit64Bad2 =
+        static_cast<std::int64_t>(std::numeric_limits<ExternalUnit>::min()) - 1;
+    EXPECT_EQ(IONAME(CheckUnitNumberInRange64)(unit64Ok, true), IostatOk);
+    EXPECT_EQ(IONAME(CheckUnitNumberInRange64)(unit64Ok, false), IostatOk);
+    EXPECT_EQ(
+        IONAME(CheckUnitNumberInRange64)(unit64Bad, true), IostatUnitOverflow);
+    EXPECT_EQ(
+        IONAME(CheckUnitNumberInRange64)(unit64Bad2, true), IostatUnitOverflow);
+    EXPECT_EQ(
+        IONAME(CheckUnitNumberInRange64)(unit64Bad, true), IostatUnitOverflow);
+    EXPECT_EQ(
+        IONAME(CheckUnitNumberInRange64)(unit64Bad2, true), IostatUnitOverflow);
+    constexpr std::size_t n{80};
+    char expectedMsg[n + 1];
+    expectedMsg[n] = '\0';
+    std::snprintf(expectedMsg, n, "UNIT number %jd is out of range",
+        static_cast<std::intmax_t>(unit64Bad));
+    EXPECT_DEATH(
+        IONAME(CheckUnitNumberInRange64)(2147483648, false), expectedMsg);
+    for (auto i{std::strlen(expectedMsg)}; i < n; ++i) {
+      expectedMsg[i] = ' ';
+    }
+    char msg[n + 1];
+    msg[n] = '\0';
+    EXPECT_EQ(IONAME(CheckUnitNumberInRange64)(unit64Bad, true, msg, n),
+        IostatUnitOverflow);
+    EXPECT_EQ(std::strncmp(msg, expectedMsg, n), 0);
+  }
 }

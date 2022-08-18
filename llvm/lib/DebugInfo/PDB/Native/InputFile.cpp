@@ -31,8 +31,8 @@ using namespace llvm::codeview;
 using namespace llvm::object;
 using namespace llvm::pdb;
 
-InputFile::InputFile() {}
-InputFile::~InputFile() {}
+InputFile::InputFile() = default;
+InputFile::~InputFile() = default;
 
 Expected<ModuleDebugStreamRef>
 llvm::pdb::getModuleDebugStream(PDBFile &File, StringRef &ModuleName,
@@ -525,7 +525,7 @@ SymbolGroupIterator &SymbolGroupIterator::operator++() {
 }
 
 void SymbolGroupIterator::scanToNextDebugS() {
-  assert(SectionIter.hasValue());
+  assert(SectionIter);
   auto End = Value.File->obj().section_end();
   auto &Iter = *SectionIter;
   assert(!isEnd());
@@ -551,7 +551,7 @@ bool SymbolGroupIterator::isEnd() const {
     return Index == Count;
   }
 
-  assert(SectionIter.hasValue());
+  assert(SectionIter);
   return *SectionIter == Value.File->obj().section_end();
 }
 
@@ -573,14 +573,15 @@ static bool isMyCode(const SymbolGroup &Group) {
   return true;
 }
 
-bool llvm::pdb::shouldDumpSymbolGroup(uint32_t Idx, const SymbolGroup &Group) {
-  if (llvm::pdb::Filters.JustMyCode && !isMyCode(Group))
+bool llvm::pdb::shouldDumpSymbolGroup(uint32_t Idx, const SymbolGroup &Group,
+                                      const FilterOptions &Filters) {
+  if (Filters.JustMyCode && !isMyCode(Group))
     return false;
 
   // If the arg was not specified on the command line, always dump all modules.
-  if (llvm::pdb::Filters.DumpModi == 0)
+  if (!Filters.DumpModi)
     return true;
 
   // Otherwise, only dump if this is the same module specified.
-  return (llvm::pdb::Filters.DumpModi == Idx);
+  return (Filters.DumpModi == Idx);
 }

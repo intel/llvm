@@ -14,6 +14,8 @@
 #ifndef PLATFORM_SUPPORT_H
 #define PLATFORM_SUPPORT_H
 
+#include "test_macros.h"
+
 // locale names
 #define LOCALE_en_US           "en_US"
 #define LOCALE_en_US_UTF_8     "en_US.UTF-8"
@@ -28,6 +30,7 @@
 #    define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO8859-1"
 #    define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO8859-2"
 #endif
+#define LOCALE_ja_JP_UTF_8     "ja_JP.UTF-8"
 #define LOCALE_ru_RU_UTF_8     "ru_RU.UTF-8"
 #define LOCALE_zh_CN_UTF_8     "zh_CN.UTF-8"
 
@@ -38,8 +41,14 @@
 #include <string>
 #if defined(_WIN32)
 #   include <io.h> // _mktemp_s
+#   include <fcntl.h> // _O_EXCL, ...
+#   include <sys/stat.h> // _S_IREAD, ...
 #else
 #   include <unistd.h> // close
+#endif
+
+#if defined(_CS_GNU_LIBC_VERSION)
+# include <string.h> // strverscmp
 #endif
 
 #if defined(_NEWLIB_VERSION) && defined(__STRICT_ANSI__)
@@ -53,25 +62,31 @@ inline
 std::string get_temp_file_name()
 {
 #if defined(_WIN32)
-    char Name[] = "libcxx.XXXXXX";
-    if (_mktemp_s(Name, sizeof(Name)) != 0) abort();
-    return Name;
-#else
-    std::string Name;
-    int FD = -1;
-    do {
-        Name = "libcxx.XXXXXX";
-        FD = mkstemp(&Name[0]);
-        if (FD == -1 && errno == EINVAL) {
-            perror("mkstemp");
-            abort();
+    while (true) {
+        char Name[] = "libcxx.XXXXXX";
+        if (_mktemp_s(Name, sizeof(Name)) != 0) abort();
+        int fd = _open(Name, _O_RDWR | _O_CREAT | _O_EXCL, _S_IREAD | _S_IWRITE);
+        if (fd != -1) {
+            _close(fd);
+            return Name;
         }
-    } while (FD == -1);
+        if (errno == EEXIST)
+            continue;
+        abort();
+    }
+#else
+    std::string Name = "libcxx.XXXXXX";
+    int FD = mkstemp(&Name[0]);
+    if (FD == -1) {
+        perror("mkstemp");
+        abort();
+    }
     close(FD);
     return Name;
 #endif
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 #ifdef _LIBCPP_HAS_OPEN_WITH_WCHAR
 inline
 std::wstring get_wide_temp_file_name()
@@ -80,6 +95,7 @@ std::wstring get_wide_temp_file_name()
         get_temp_file_name());
 }
 #endif // _LIBCPP_HAS_OPEN_WITH_WCHAR
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 #if defined(_CS_GNU_LIBC_VERSION)
 inline bool glibc_version_less_than(char const* version) {

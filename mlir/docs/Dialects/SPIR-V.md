@@ -79,7 +79,7 @@ The SPIR-V dialect adopts the following conventions for IR:
 *   The prefix for all SPIR-V types and operations are `spv.`.
 *   All instructions in an extended instruction set are further qualified with
     the extended instruction set's prefix. For example, all operations in the
-    GLSL extended instruction set have the prefix of `spv.GLSL.`.
+    GLSL extended instruction set have the prefix of `spv.GL.`.
 *   Ops that directly mirror instructions in the specification have `CamelCase`
     names that are the same as the instruction opnames (without the `Op`
     prefix). For example, `spv.FMul` is a direct mirror of `OpFMul` in the
@@ -422,7 +422,7 @@ the SPIR-V dialect. Instead, we reuse the builtin `func` op to express functions
 more concisely:
 
 ```mlir
-func @f(%arg: i32) -> i32 {
+func.func @f(%arg: i32) -> i32 {
   "spv.ReturnValue"(%arg) : (i32) -> (i32)
 }
 ```
@@ -508,8 +508,8 @@ proper name prefix. For example, for
 we can have
 
 ```mlir
-%1 = "spv.GLSL.Log"(%cst) : (f32) -> (f32)
-%2 = "spv.GLSL.Sqrt"(%cst) : (f32) -> (f32)
+%1 = "spv.GL.Log"(%cst) : (f32) -> (f32)
+%2 = "spv.GL.Sqrt"(%cst) : (f32) -> (f32)
 ```
 
 ## Control Flow
@@ -580,7 +580,7 @@ void loop(bool cond) {
 It will be represented as
 
 ```mlir
-func @selection(%cond: i1) -> () {
+func.func @selection(%cond: i1) -> () {
   %zero = spv.Constant 0: i32
   %one = spv.Constant 1: i32
   %two = spv.Constant 2: i32
@@ -668,7 +668,7 @@ void loop(int count) {
 It will be represented as
 
 ```mlir
-func @loop(%count : i32) -> () {
+func.func @loop(%count : i32) -> () {
   %zero = spv.Constant 0: i32
   %one = spv.Constant 1: i32
   %var = spv.Variable init(%zero) : !spv.ptr<i32, Function>
@@ -728,7 +728,7 @@ example, for the following SPIR-V function `foo`:
 It will be represented as:
 
 ```mlir
-func @foo() -> () {
+func.func @foo() -> () {
   %var = spv.Variable : !spv.ptr<i32, Function>
 
   spv.mlir.selection {

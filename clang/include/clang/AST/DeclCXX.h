@@ -1057,8 +1057,9 @@ public:
   ///
   /// \note No entries will be added for init-captures, as they do not capture
   /// variables.
-  void getCaptureFields(llvm::DenseMap<const VarDecl *, FieldDecl *> &Captures,
-                        FieldDecl *&ThisCapture) const;
+  void
+  getCaptureFields(llvm::DenseMap<const ValueDecl *, FieldDecl *> &Captures,
+                   FieldDecl *&ThisCapture) const;
 
   using capture_const_iterator = const LambdaCapture *;
   using capture_const_range = llvm::iterator_range<capture_const_iterator>;
@@ -1421,6 +1422,19 @@ public:
   bool isStructural() const {
     return isLiteral() && data().StructuralIfLiteral;
   }
+
+  /// Notify the class that this destructor is now selected.
+  /// 
+  /// Important properties of the class depend on destructor properties. Since
+  /// C++20, it is possible to have multiple destructor declarations in a class
+  /// out of which one will be selected at the end.
+  /// This is called separately from addedMember because it has to be deferred
+  /// to the completion of the class.
+  void addedSelectedDestructor(CXXDestructorDecl *DD);
+
+  /// Notify the class that an eligible SMF has been added.
+  /// This updates triviality and destructor based properties of the class accordingly.
+  void addedEligibleSpecialMemberFunction(const CXXMethodDecl *MD, unsigned SMKind);
 
   /// If this record is an instantiation of a member class,
   /// retrieves the member class from which it was instantiated.
@@ -1903,7 +1917,7 @@ public:
   ExplicitSpecifier getExplicitSpecifier() { return ExplicitSpec; }
   const ExplicitSpecifier getExplicitSpecifier() const { return ExplicitSpec; }
 
-  /// Return true if the declartion is already resolved to be explicit.
+  /// Return true if the declaration is already resolved to be explicit.
   bool isExplicit() const { return ExplicitSpec.isExplicit(); }
 
   /// Get the template for which this guide performs deduction.
@@ -2499,7 +2513,7 @@ public:
     return getCanonicalDecl()->getExplicitSpecifierInternal();
   }
 
-  /// Return true if the declartion is already resolved to be explicit.
+  /// Return true if the declaration is already resolved to be explicit.
   bool isExplicit() const { return getExplicitSpecifier().isExplicit(); }
 
   /// Iterates through the member/base initializer list.
@@ -2783,7 +2797,7 @@ public:
     return getCanonicalDecl()->ExplicitSpec;
   }
 
-  /// Return true if the declartion is already resolved to be explicit.
+  /// Return true if the declaration is already resolved to be explicit.
   bool isExplicit() const { return getExplicitSpecifier().isExplicit(); }
   void setExplicitSpecifier(ExplicitSpecifier ES) { ExplicitSpec = ES; }
 
@@ -4204,6 +4218,54 @@ public:
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == Decl::MSGuid; }
+};
+
+/// An artificial decl, representing a global anonymous constant value which is
+/// uniquified by value within a translation unit.
+///
+/// These is currently only used to back the LValue returned by
+/// __builtin_source_location, but could potentially be used for other similar
+/// situations in the future.
+class UnnamedGlobalConstantDecl : public ValueDecl,
+                                  public Mergeable<UnnamedGlobalConstantDecl>,
+                                  public llvm::FoldingSetNode {
+
+  // The constant value of this global.
+  APValue Value;
+
+  void anchor() override;
+
+  UnnamedGlobalConstantDecl(const ASTContext &C, DeclContext *DC, QualType T,
+                            const APValue &Val);
+
+  static UnnamedGlobalConstantDecl *Create(const ASTContext &C, QualType T,
+                                           const APValue &APVal);
+  static UnnamedGlobalConstantDecl *CreateDeserialized(ASTContext &C,
+                                                       unsigned ID);
+
+  // Only ASTContext::getUnnamedGlobalConstantDecl and deserialization create
+  // these.
+  friend class ASTContext;
+  friend class ASTReader;
+  friend class ASTDeclReader;
+
+public:
+  /// Print this in a human-readable format.
+  void printName(llvm::raw_ostream &OS) const override;
+
+  const APValue &getValue() const { return Value; }
+
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Ty,
+                      const APValue &APVal) {
+    Ty.Profile(ID);
+    APVal.Profile(ID);
+  }
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, getType(), getValue());
+  }
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == Decl::UnnamedGlobalConstant; }
 };
 
 /// Insertion operator for diagnostics.  This allows sending an AccessSpecifier

@@ -49,6 +49,19 @@ cl::opt<std::string>
     DebugifyExport("debugify-export",
                    cl::desc("Export per-pass debugify statistics to this file"),
                    cl::value_desc("filename"));
+
+cl::opt<bool> VerifyEachDebugInfoPreserve(
+    "verify-each-debuginfo-preserve",
+    cl::desc("Start each pass with collecting and end it with checking of "
+             "debug info preservation."));
+
+cl::opt<std::string>
+    VerifyDIPreserveExport("verify-di-preserve-export",
+                   cl::desc("Export debug info preservation failures into "
+                            "specified (JSON) file (should be abs path as we use"
+                            " append mode to insert new JSON objects)"),
+                   cl::value_desc("filename"), cl::init(""));
+
 } // namespace llvm
 
 enum class DebugLogging { None, Normal, Verbose, Quiet };
@@ -116,6 +129,11 @@ static cl::opt<std::string> PipelineEarlySimplificationEPPipeline(
     "passes-ep-pipeline-early-simplification",
     cl::desc("A textual description of the module pass pipeline inserted at "
              "the EarlySimplification extension point into default pipelines"),
+    cl::Hidden);
+static cl::opt<std::string> OptimizerEarlyEPPipeline(
+    "passes-ep-optimizer-early",
+    cl::desc("A textual description of the module pass pipeline inserted at "
+             "the OptimizerEarly extension point into default pipelines"),
     cl::Hidden);
 static cl::opt<std::string> OptimizerLastEPPipeline(
     "passes-ep-optimizer-last",
@@ -230,6 +248,12 @@ static void registerEPCallbacks(PassBuilder &PB) {
           ExitOnError Err("Unable to parse EarlySimplification pipeline: ");
           Err(PB.parsePassPipeline(PM, PipelineEarlySimplificationEPPipeline));
         });
+  if (tryParsePipelineText<ModulePassManager>(PB, OptimizerEarlyEPPipeline))
+    PB.registerOptimizerEarlyEPCallback(
+        [&PB](ModulePassManager &PM, OptimizationLevel) {
+          ExitOnError Err("Unable to parse OptimizerEarlyEP pipeline: ");
+          Err(PB.parsePassPipeline(PM, OptimizerEarlyEPPipeline));
+        });
   if (tryParsePipelineText<ModulePassManager>(PB, OptimizerLastEPPipeline))
     PB.registerOptimizerLastEPCallback(
         [&PB](ModulePassManager &PM, OptimizationLevel) {
@@ -269,7 +293,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
                            bool ShouldPreserveAssemblyUseListOrder,
                            bool ShouldPreserveBitcodeUseListOrder,
                            bool EmitSummaryIndex, bool EmitModuleHash,
-                           bool EnableDebugify) {
+                           bool EnableDebugify, bool VerifyDIPreserve) {
   bool VerifyEachPass = VK == VK_VerifyEachPass;
 
   Optional<PGOOptions> P;
@@ -326,8 +350,19 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
                               PrintPassOpts);
   SI.registerCallbacks(PIC, &FAM);
   DebugifyEachInstrumentation Debugify;
-  if (DebugifyEach)
+  DebugifyStatsMap DIStatsMap;
+  DebugInfoPerPass DebugInfoBeforePass;
+  if (DebugifyEach) {
+    Debugify.setDIStatsMap(DIStatsMap);
+    Debugify.setDebugifyMode(DebugifyMode::SyntheticDebugInfo);
     Debugify.registerCallbacks(PIC);
+  } else if (VerifyEachDebugInfoPreserve) {
+    Debugify.setDebugInfoBeforePass(DebugInfoBeforePass);
+    Debugify.setDebugifyMode(DebugifyMode::OriginalDebugInfo);
+    Debugify.setOrigDIVerifyBugsReportFilePath(
+      VerifyDIPreserveExport);
+    Debugify.registerCallbacks(PIC);
+  }
 
   PipelineTuningOptions PTO;
   // LoopUnrolling defaults on to true and DisableLoopUnrolling is initialized
@@ -346,8 +381,6 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
          ArrayRef<PassBuilder::PipelineElement>) {
         AddressSanitizerOptions Opts;
         if (Name == "asan-pipeline") {
-          MPM.addPass(
-              RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
           MPM.addPass(ModuleAddressSanitizerPass(Opts));
           return true;
         }
@@ -408,6 +441,9 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
     MPM.addPass(VerifierPass());
   if (EnableDebugify)
     MPM.addPass(NewPMDebugifyPass());
+  if (VerifyDIPreserve)
+    MPM.addPass(NewPMDebugifyPass(DebugifyMode::OriginalDebugInfo, "",
+                                  &DebugInfoBeforePass));
 
   // Add passes according to the -passes options.
   if (!PassPipeline.empty()) {
@@ -447,7 +483,11 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   if (VK > VK_NoVerifier)
     MPM.addPass(VerifierPass());
   if (EnableDebugify)
-    MPM.addPass(NewPMCheckDebugifyPass());
+    MPM.addPass(NewPMCheckDebugifyPass(false, "", &DIStatsMap));
+  if (VerifyDIPreserve)
+    MPM.addPass(NewPMCheckDebugifyPass(
+        false, "", nullptr, DebugifyMode::OriginalDebugInfo, &DebugInfoBeforePass,
+        VerifyDIPreserveExport));
 
   // Add any relevant output pass at the end of the pipeline.
   switch (OK) {
@@ -495,7 +535,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
     OptRemarkFile->keep();
 
   if (DebugifyEach && !DebugifyExport.empty())
-    exportDebugifyStats(DebugifyExport, Debugify.StatsMap);
+    exportDebugifyStats(DebugifyExport, Debugify.getDebugifyStatsMap());
 
   return true;
 }

@@ -233,8 +233,8 @@ bool AliasSet::aliasesUnknownInst(const Instruction *Inst,
   if (AliasAny)
     return true;
 
-  assert(Inst->mayReadOrWriteMemory() &&
-         "Instruction must either read or write memory.");
+  if (!Inst->mayReadOrWriteMemory())
+    return false;
 
   for (unsigned i = 0, e = UnknownInsts.size(); i != e; ++i) {
     if (auto *UnknownInst = getUnknownInst(i)) {
@@ -252,31 +252,6 @@ bool AliasSet::aliasesUnknownInst(const Instruction *Inst,
       return true;
 
   return false;
-}
-
-Instruction* AliasSet::getUniqueInstruction() {
-  if (AliasAny)
-    // May have collapses alias set
-    return nullptr;
-  if (begin() != end()) {
-    if (!UnknownInsts.empty())
-      // Another instruction found
-      return nullptr;
-    if (std::next(begin()) != end())
-      // Another instruction found
-      return nullptr;
-    Value *Addr = begin()->getValue();
-    assert(!Addr->user_empty() &&
-           "where's the instruction which added this pointer?");
-    if (std::next(Addr->user_begin()) != Addr->user_end())
-      // Another instruction found -- this is really restrictive
-      // TODO: generalize!
-      return nullptr;
-    return cast<Instruction>(*(Addr->user_begin()));
-  }
-  if (1 != UnknownInsts.size())
-    return nullptr;
-  return cast<Instruction>(UnknownInsts[0]);
 }
 
 void AliasSetTracker::clear() {
@@ -484,7 +459,7 @@ void AliasSetTracker::add(Instruction *I) {
       using namespace PatternMatch;
       if (Call->use_empty() &&
           match(Call, m_Intrinsic<Intrinsic::invariant_start>()))
-        CallMask = clearMod(CallMask);
+        CallMask &= ModRefInfo::Ref;
 
       for (auto IdxArgPair : enumerate(Call->args())) {
         int ArgIdx = IdxArgPair.index();
@@ -494,7 +469,7 @@ void AliasSetTracker::add(Instruction *I) {
         MemoryLocation ArgLoc =
             MemoryLocation::getForArgument(Call, ArgIdx, nullptr);
         ModRefInfo ArgMask = AA.getArgModRefInfo(Call, ArgIdx);
-        ArgMask = intersectModRef(CallMask, ArgMask);
+        ArgMask &= CallMask;
         if (!isNoModRef(ArgMask))
           addPointer(ArgLoc, getAccessFromModRef(ArgMask));
       }
@@ -604,7 +579,7 @@ AliasSet &AliasSetTracker::mergeAllAliasSets() {
   AliasAnyAS->Access = AliasSet::ModRefAccess;
   AliasAnyAS->AliasAny = true;
 
-  for (auto Cur : ASVector) {
+  for (auto *Cur : ASVector) {
     // If Cur was already forwarding, just forward to the new AS instead.
     AliasSet *FwdTo = Cur->Forward;
     if (FwdTo) {

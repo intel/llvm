@@ -9,16 +9,19 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Frontend/Utils.h"
 
-namespace clang {
-namespace tooling {
-namespace dependencies {
+using namespace clang;
+using namespace tooling;
+using namespace dependencies;
 
 std::vector<std::string> FullDependencies::getCommandLine(
-    std::function<StringRef(ModuleID)> LookupPCMPath) const {
+    llvm::function_ref<std::string(const ModuleID &, ModuleOutputKind)>
+        LookupModuleOutput) const {
   std::vector<std::string> Ret = getCommandLineWithoutModulePaths();
 
-  for (ModuleID MID : ClangModuleDeps)
-    Ret.push_back(("-fmodule-file=" + LookupPCMPath(MID)).str());
+  for (ModuleID MID : ClangModuleDeps) {
+    auto PCM = LookupModuleOutput(MID, ModuleOutputKind::ModuleFile);
+    Ret.push_back("-fmodule-file=" + PCM);
+  }
 
   return Ret;
 }
@@ -27,37 +30,29 @@ std::vector<std::string>
 FullDependencies::getCommandLineWithoutModulePaths() const {
   std::vector<std::string> Args = OriginalCommandLine;
 
-  std::vector<std::string> AdditionalArgs =
-      getAdditionalArgsWithoutModulePaths();
-  Args.insert(Args.end(), AdditionalArgs.begin(), AdditionalArgs.end());
-
-  // This argument is unused in explicit compiles.
-  llvm::erase_if(Args, [](const std::string &Arg) {
-    return Arg.find("-fmodules-cache-path=") == 0;
-  });
-
-  // TODO: Filter out the remaining implicit modules leftovers
-  // (e.g. "-fmodules-prune-interval=" or "-fmodules-prune-after=").
-
-  return Args;
-}
-
-std::vector<std::string>
-FullDependencies::getAdditionalArgsWithoutModulePaths() const {
-  std::vector<std::string> Args{
-      "-fno-implicit-modules",
-      "-fno-implicit-module-maps",
-  };
-
+  Args.push_back("-fno-implicit-modules");
+  Args.push_back("-fno-implicit-module-maps");
   for (const PrebuiltModuleDep &PMD : PrebuiltModuleDeps)
     Args.push_back("-fmodule-file=" + PMD.PCMFile);
+
+  // These arguments are unused in explicit compiles.
+  llvm::erase_if(Args, [](StringRef Arg) {
+    if (Arg.consume_front("-fmodules-")) {
+      return Arg.startswith("cache-path=") ||
+             Arg.startswith("prune-interval=") ||
+             Arg.startswith("prune-after=") ||
+             Arg == "validate-once-per-build-session";
+    }
+    return Arg.startswith("-fbuild-session-file=");
+  });
 
   return Args;
 }
 
 DependencyScanningTool::DependencyScanningTool(
-    DependencyScanningService &Service)
-    : Worker(Service) {}
+    DependencyScanningService &Service,
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
+    : Worker(Service, std::move(FS)) {}
 
 llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
     const std::vector<std::string> &CommandLine, StringRef CWD,
@@ -188,7 +183,7 @@ DependencyScanningTool::getFullDependencies(
   private:
     std::vector<std::string> Dependencies;
     std::vector<PrebuiltModuleDep> PrebuiltModuleDeps;
-    std::map<std::string, ModuleDeps> ClangModuleDeps;
+    llvm::MapVector<std::string, ModuleDeps, llvm::StringMap<unsigned>> ClangModuleDeps;
     std::string ContextHash;
     std::vector<std::string> OutputPaths;
     const llvm::StringSet<> &AlreadySeen;
@@ -201,7 +196,3 @@ DependencyScanningTool::getFullDependencies(
     return std::move(Result);
   return Consumer.getFullDependencies(CommandLine);
 }
-
-} // end namespace dependencies
-} // end namespace tooling
-} // end namespace clang
