@@ -201,15 +201,9 @@ struct _pi_context {
 
   bool is_primary() const noexcept { return kind_ == kind::primary; }
 
-  pi_uint32 increment_reference_count() noexcept {
-    std::lock_guard<std::mutex> guard(mutex_);
-    return ++refCount_;
-  }
+  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
-  pi_uint32 decrement_reference_count() noexcept {
-    std::lock_guard<std::mutex> guard(mutex_);
-    return --refCount_;
-  }
+  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
