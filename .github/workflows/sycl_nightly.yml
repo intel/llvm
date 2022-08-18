@@ -10,8 +10,8 @@ on:
       - '.github/workflows/sycl_nightly.yml'
 
 jobs:
-  testing_matrix:
-    name: Generate Testing Matrix
+  test_matrix:
+    name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "ocl_gen9;ocl_x64"
@@ -19,7 +19,7 @@ jobs:
   ubuntu2004_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: testing_matrix
+    needs: test_matrix
     secrets: inherit
     with:
       build_cache_root: "/__w/"
@@ -29,7 +29,7 @@ jobs:
   ubuntu2004_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: testing_matrix
+    needs: test_matrix
     secrets: inherit
     with:
       build_cache_root: "/__w/"
