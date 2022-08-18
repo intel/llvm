@@ -46,16 +46,21 @@ they are considered implementation details of DPC++.  We do not intend to
 support them as general attributes that customer code can use.
 
 ```
-template <typename name,
-          typename dataT,
-          typename propertiesT = properties<>>
+template <typename name, typename dataT, typename propertiesT = properties<>>
+class pipe {/*...*/};
+
+// Partial specialization to make propertiesT visible as a parameter pack
+// of properties.
+template <typename name, typename dataT, typename ...Props>
 class pipe
 { 
   struct
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_global_variable(
     "sycl-host-pipe",
-    nullptr
+    Props::meta_name...,
+    nullptr,
+    Props::meta_value...
     )]]
   [[__sycl_detail__::host_pipe]]
   [[__sycl_detail__::global_variable_allowed]] // may not be needed
