@@ -70,7 +70,7 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
 }
 
 bool isESIMD(const Function &F) {
-  return F.getMetadata(ATTR_ESIMD_KERNEL) != nullptr;
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
 
 bool isESIMDKernel(const Function &F) {

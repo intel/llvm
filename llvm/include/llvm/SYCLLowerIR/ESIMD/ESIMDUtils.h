@@ -16,7 +16,7 @@ namespace llvm {
 namespace esimd {
 
 constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
-constexpr char ATTR_ESIMD_KERNEL[] = "sycl_explicit_simd";
+constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 using CallGraphNodeAction = std::function<void(Function *)>;
 void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction NodeF,

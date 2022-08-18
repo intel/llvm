@@ -77,8 +77,8 @@ public:
 };
 
 // Fixes ESIMD Kernel attributes for wrapper functions for ESIMD kernels
-class SYCLLowerESIMDKernelAttrPass
-    : public PassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
+class SYCLFixupESIMDKernelWrapperAttrPass
+    : public PassInfoMixin<SYCLFixupESIMDKernelWrapperAttrPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

@@ -20,7 +20,8 @@ using namespace llvm;
 
 namespace llvm {
 PreservedAnalyses
-SYCLLowerESIMDKernelAttrPass::run(Module &M, ModuleAnalysisManager &MAM) {
+SYCLFixupESIMDKernelWrapperAttrPass::run(Module &M,
+                                         ModuleAnalysisManager &MAM) {
   bool Modified = false;
   for (Function &F : M) {
     if (llvm::esimd::isESIMD(F)) {
@@ -29,7 +30,7 @@ SYCLLowerESIMDKernelAttrPass::run(Module &M, ModuleAnalysisManager &MAM) {
           [&](Function *GraphNode) {
             if (!llvm::esimd::isESIMD(*GraphNode)) {
               GraphNode->setMetadata(
-                  llvm::esimd::ATTR_ESIMD_KERNEL,
+                  llvm::esimd::ESIMD_MARKER_MD,
                   llvm::MDNode::get(GraphNode->getContext(), {}));
               Modified = true;
             }

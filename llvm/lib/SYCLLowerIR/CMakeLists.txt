@@ -1,4 +1,4 @@
-if (${CMAKE_VERSION} VERSION_LESS 3.14)
+if(${CMAKE_VERSION} VERSION_LESS 3.14)
     macro(FetchContent_MakeAvailable NAME)
         FetchContent_GetProperties(${NAME})
         if(NOT ${NAME}_POPULATED)
@@ -8,14 +8,14 @@ if (${CMAKE_VERSION} VERSION_LESS 3.14)
     endmacro()
 endif()
 
-#Lowering of SYCL ESIMD kernels depends on vc - intrinsics
-#NOTE : could have been added earlier from llvm / projects
+# Lowering of SYCL ESIMD kernels depends on vc-intrinsics
+# NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-#Author : Haohai Wen < haohai.wen @intel.com>
-#Date : Fri Jun 10 03 : 46 : 22 2022 + 0000
-#Format InstructionSimplify names
+    # Author: Haohai Wen <haohai.wen@intel.com>
+    # Date:   Fri Jun 10 03:46:22 2022 +0000
+    # Format InstructionSimplify names
     set(LLVMGenXIntrinsics_GIT_TAG abce9184b7a3a7fe1b02289b9285610d9dc45465)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
@@ -30,7 +30,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
     set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
     set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
   else (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-#- DLLVMGenXIntrinsics_SOURCE_DIR is provided
+    # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
     message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
 
     set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
@@ -73,7 +73,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMGenXIntrinsics
   LLVMDemangle
   LLVMTransformUtils
-
   LINK_LIBS
   LLVMGenXIntrinsics
   LLVMDemangle
