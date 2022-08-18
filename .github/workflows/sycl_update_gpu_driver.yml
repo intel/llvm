@@ -34,6 +34,8 @@ jobs:
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
         echo AAAA
+        echo ${#BRANCH}
+        echo AAAAA
         echo ${#MYTOKEN}
         echo AAAAAA
         git push https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
