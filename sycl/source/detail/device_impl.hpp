@@ -29,6 +29,7 @@ namespace detail {
 
 // Forward declaration
 class platform_impl;
+class context_impl;
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
@@ -241,6 +242,10 @@ private:
 
   friend bool sameDev(const std::shared_ptr<device_impl> &LHS,
                       const std::shared_ptr<device_impl> &RHS);
+  friend memory_connection getMemoryConnection(const std::shared_ptr<device_impl> &Dev1, 
+                            const std::shared_ptr<context_impl> &Ctx1, 
+                            const std::shared_ptr<device_impl> &Dev2, 
+                            const std::shared_ptr<context_impl> &Ctx2);
 }; // class device_impl
 
 } // namespace detail

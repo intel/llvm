@@ -2400,6 +2400,16 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_ERROR_INVALID_VALUE;
 }
 
+__SYCL_EXPORT pi_result piextGetMemoryConnection(pi_device device1, pi_context context1, pi_device device2, pi_context context2, memory_connection* res){
+  (void) device1;
+  (void) device2;
+  if(context1 == context2){
+    *res = MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+  }
+  *res = MEMORY_CONNECTION_NONE;
+  return PI_SUCCESS;
+}
+
 // Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {

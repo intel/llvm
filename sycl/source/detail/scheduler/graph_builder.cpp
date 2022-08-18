@@ -54,6 +54,26 @@ bool sameDev(const DeviceImplPtr &LHS, const DeviceImplPtr &RHS) {
   return LHSroot == RHSroot;
 }
 
+memory_connection getMemoryConnection(const DeviceImplPtr &Dev1, const ContextImplPtr &Ctx1, const DeviceImplPtr &Dev2, const ContextImplPtr &Ctx2){
+  if(sameCtx(Ctx1, Ctx2) && sameDev(Dev1, Dev2)){
+    return MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+  }
+  if(Dev1->MIsHostDevice && Dev2->MIsHostDevice){
+    return MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+  }
+  if(Dev1->MIsHostDevice ^ Dev2->MIsHostDevice){
+    return MEMORY_CONNECTION_NONE;
+  }
+  auto plugin1 = Dev1->getPlugin();
+  auto plugin2 = Dev2->getPlugin();
+  if(plugin1.getBackend() != plugin2.getBackend()){
+    return MEMORY_CONNECTION_NONE;
+  }
+  memory_connection conn;
+  plugin1.call<PiApiKind::piextGetMemoryConnection>(Dev1->MDevice, Ctx1->MContext, Dev2->MDevice, Ctx2->MContext, &conn);
+  return conn;
+}
+
 /// Checks if current requirement is requirement for sub buffer.
 static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
@@ -353,10 +373,10 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = sameDev(AllocaCmd->getQueue()->getDeviceImplPtr(),
-                         Record->MCurDevice) &&
-                 sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
-                         Record->MCurContext) &&
+      bool Res = getMemoryConnection(AllocaCmd->getQueue()->getDeviceImplPtr(), 
+                                AllocaCmd->getQueue()->getContextImplPtr(), 
+                                Record->MCurDevice, 
+                                Record->MCurContext) == MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED &&
                  // Looking for a parent buffer alloca command
                  AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
@@ -605,10 +625,7 @@ std::set<Command *> Scheduler::GraphBuilder::findDepsForReq(
 
       // Going through copying memory between devices is not supported.
       if (Dep.MDepCommand)
-        CanBypassDep &=
-            sameCtx(Context,
-                    Dep.MDepCommand->getQueue()->getContextImplPtr()) &&
-            sameDev(Device, Dep.MDepCommand->getQueue()->getDeviceImplPtr());
+        CanBypassDep &= getMemoryConnection(Device, Context, Dep.MDepCommand->getQueue()->getDeviceImplPtr(), Dep.MDepCommand->getQueue()->getContextImplPtr()) == MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
 
       if (!CanBypassDep) {
         RetDeps.insert(DepCmd);
@@ -648,8 +665,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
   auto IsSuitableAlloca = [&Device, &Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
     auto &Queue = AllocaCmd->getQueue();
-    bool Res = sameCtx(Queue->getContextImplPtr(), Context) &&
-               sameDev(Queue->getDeviceImplPtr(), Device);
+    bool Res = getMemoryConnection(Queue->getDeviceImplPtr(), Queue->getContextImplPtr(), Device, Context) == MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
@@ -961,7 +977,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     MemObjRecord *Record = nullptr;
     AllocaCommandBase *AllocaCmd = nullptr;
 
-    bool isSameContextDevice = false;
+    bool needToCopyMemory = true;
 
     {
       const QueueImplPtr &QueueForAlloca =
@@ -975,14 +991,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       AllocaCmd =
           getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
 
-      isSameContextDevice =
-          sameCtx(QueueForAlloca->getContextImplPtr(), Record->MCurContext) &&
-          sameDev(QueueForAlloca->getDeviceImplPtr(), Record->MCurDevice);
+      needToCopyMemory = getMemoryConnection(QueueForAlloca->getDeviceImplPtr(), QueueForAlloca->getContextImplPtr(), Record->MCurDevice, Record->MCurContext) != MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
     }
 
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (isSameContextDevice) {
+    if (!needToCopyMemory) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
@@ -998,8 +1012,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
         const detail::CGHostTask &HT =
             static_cast<detail::CGHostTask &>(NewCmd->getCG());
 
-        if (HT.MQueue->getContextImplPtr() != Record->MCurContext ||
-            !sameDev(HT.MQueue->getDeviceImplPtr(), Record->MCurDevice)) {
+        if (getMemoryConnection(HT.MQueue->getDeviceImplPtr(), HT.MQueue->getContextImplPtr(), Record->MCurDevice, Record->MCurContext) != MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED) {
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }

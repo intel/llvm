@@ -916,6 +916,12 @@ typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
 using pi_mem_info = _pi_mem_info;
 
+typedef enum{
+  MEMORY_CONNECTION_NONE, // devices have distinct memory systems
+  MEMORY_CONNECTION_P2P_MIGRATABLE, // devices support peer to peer memory transfer
+  MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED // devices can directly use memory allocations allocated on the other device. They either have the same memory system or the backend/plugin manages transfers implicitly.
+} memory_connection;
+
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -1027,6 +1033,8 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);
+
+__SYCL_EXPORT pi_result piextGetMemoryConnection(pi_device dev1, pi_context ctx1, pi_device dev2, pi_context ctx2, memory_connection* res);
 
 //
 // Context
