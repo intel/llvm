@@ -136,63 +136,6 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
-// Represents a call graph between functions in a module. Nodes are functions,
-// edges are "calls" relation.
-class CallGraph {
-public:
-  using FunctionSet = SmallPtrSet<const Function *, 16>;
-
-private:
-  std::unordered_map<const Function *, FunctionSet> Graph;
-  SmallPtrSet<const Function *, 1> EmptySet;
-  FunctionSet AddrTakenFunctions;
-
-public:
-  CallGraph(const Module &M) {
-    for (const auto &F : M) {
-      for (const Value *U : F.users()) {
-        if (const auto *I = dyn_cast<CallInst>(U)) {
-          if (I->getCalledFunction() == &F) {
-            const Function *F1 = I->getFunction();
-            Graph[F1].insert(&F);
-          }
-        }
-      }
-      if (F.hasAddressTaken()) {
-        AddrTakenFunctions.insert(&F);
-      }
-    }
-  }
-
-  iterator_range<FunctionSet::const_iterator>
-  successors(const Function *F) const {
-    auto It = Graph.find(F);
-    return (It == Graph.end())
-               ? make_range(EmptySet.begin(), EmptySet.end())
-               : make_range(It->second.begin(), It->second.end());
-  }
-
-  iterator_range<FunctionSet::const_iterator> addrTakenFunctions() const {
-    return make_range(AddrTakenFunctions.begin(), AddrTakenFunctions.end());
-  }
-};
-
-bool isESIMDFunctionInCallChain(const Function *F, const CallGraph &Deps) {
-  if (isESIMDFunction(*F)) {
-    return true;
-  }
-  for (const Function *F1 : Deps.successors(F)) {
-    if (isESIMDFunctionInCallChain(F1, Deps)) {
-      return true;
-    }
-    // Optimization to reduce recursion depth.
-    // No need to check function calls beyond kernel function.
-    if (isEntryPoint(*F1, true)) {
-      return false;
-    }
-  }
-  return false;
-}
 
 // This function makes one or two groups depending on kernel types (SYCL, ESIMD)
 EntryPointGroupVec
@@ -208,7 +151,7 @@ groupEntryPointsByKernelType(const ModuleDesc &MD,
         !MD.isEntryPointCandidate(F))
       continue;
 
-    if (isESIMDFunctionInCallChain(&F, CallGraph{M}))
+    if (isESIMDFunction(F))
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
     else
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
@@ -336,6 +279,47 @@ groupEntryPointsByAttribute(const ModuleDesc &MD, StringRef AttrName,
   }
   return EntryPointGroups;
 }
+
+// Represents a call graph between functions in a module. Nodes are functions,
+// edges are "calls" relation.
+class CallGraph {
+public:
+  using FunctionSet = SmallPtrSet<const Function *, 16>;
+
+private:
+  std::unordered_map<const Function *, FunctionSet> Graph;
+  SmallPtrSet<const Function *, 1> EmptySet;
+  FunctionSet AddrTakenFunctions;
+
+public:
+  CallGraph(const Module &M) {
+    for (const auto &F : M) {
+      for (const Value *U : F.users()) {
+        if (const auto *I = dyn_cast<CallInst>(U)) {
+          if (I->getCalledFunction() == &F) {
+            const Function *F1 = I->getFunction();
+            Graph[F1].insert(&F);
+          }
+        }
+      }
+      if (F.hasAddressTaken()) {
+        AddrTakenFunctions.insert(&F);
+      }
+    }
+  }
+
+  iterator_range<FunctionSet::const_iterator>
+  successors(const Function *F) const {
+    auto It = Graph.find(F);
+    return (It == Graph.end())
+               ? make_range(EmptySet.begin(), EmptySet.end())
+               : make_range(It->second.begin(), It->second.end());
+  }
+
+  iterator_range<FunctionSet::const_iterator> addrTakenFunctions() const {
+    return make_range(AddrTakenFunctions.begin(), AddrTakenFunctions.end());
+  }
+};
 
 void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
                                const EntryPointGroup &ModuleEntryPoints,

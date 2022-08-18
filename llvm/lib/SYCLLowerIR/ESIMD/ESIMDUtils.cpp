@@ -69,9 +69,12 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
   }
 }
 
+bool isESIMD(const Function &F) {
+  return F.getMetadata(ATTR_ESIMD_KERNEL) != nullptr;
+}
+
 bool isESIMDKernel(const Function &F) {
-  return (F.getCallingConv() == CallingConv::SPIR_KERNEL) &&
-         (F.getMetadata("sycl_explicit_simd") != nullptr);
+  return (F.getCallingConv() == CallingConv::SPIR_KERNEL) && isESIMD(F);
 }
 
 } // namespace esimd
