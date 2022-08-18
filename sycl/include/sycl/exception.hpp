@@ -89,7 +89,7 @@ public:
 
   const char *what() const noexcept final;
 
-  bool has_context() const;
+  bool has_context() const noexcept;
 
   context get_context() const;
 
