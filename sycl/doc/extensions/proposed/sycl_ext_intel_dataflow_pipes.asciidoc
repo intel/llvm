@@ -281,13 +281,31 @@ template <typename name,
           typename propertiesT = properties<>>
 class pipe {
   // Blocking
-  static dataT read( const queue &q, memory_order order = memory_order::seq_cst );
-  static void write( const queue &q, const dataT &data, memory_order order = memory_order::seq_cst );
+  static dataT read( queue &q, memory_order order = memory_order::seq_cst );
+  static void write( queue &q, const dataT &data, memory_order order = memory_order::seq_cst );
 
   // Non-blocking
-  static dataT read( const queue &q, bool &success_code, memory_order order = memory_order::seq_cst );
-  static void write( const queue &q, const dataT &data, bool &success_code, memory_order order = memory_order::seq_cst );
+  static dataT read( queue &q, bool &success_code, memory_order order = memory_order::seq_cst );
+  static void write( queue &q, const dataT &data, bool &success_code, memory_order order = memory_order::seq_cst );
 }
+----
+
+== Simple example of host-to-device write
+
+[source,c++,First example,linenums]
+----
+int data = 3;
+using pipe_prop = decltype(experimental::properties{min_capacity<5>})
+using my_pipe = pipe<class some_pipe, int>;
+myQueue.submit([&](handler& cgh) {
+    // enqueue kernels
+});
+my_pipe::write( myQueue, data);
+
+myQueue.submit([&](handler& cgh) {
+    // enqueue a kernel that uses data previously written from host
+    int data = my_pipe::read();
+});
 ----
 
 == Host pipe map/unmap
