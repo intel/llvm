@@ -4,11 +4,11 @@
 // accessor/sampler as SYCL kernel parameter inside union.
 
 #include "Inputs/sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 
 union union_with_sampler {
-  cl::sycl::sampler smpl;
-  // expected-error@-1 {{'cl::sycl::sampler' cannot be used inside a union kernel parameter}}
+  sycl::sampler smpl;
+  // expected-error@-1 {{'sycl::sampler' cannot be used inside a union kernel parameter}}
 };
 
 template <typename name, typename Func>

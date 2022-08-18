@@ -28,15 +28,15 @@ public:
       : MockHandler(Queue, IsHost) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
-    std::shared_ptr<sycl::detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
+          std::move(MImpl->MKernelBundle),
           getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
           getRequirements(), getEvents(), getArgs(), getKernelName(),
-          getOSModuleHandle(), getStreamStorage(), Impl->MAuxiliaryResources,
+          getOSModuleHandle(), getStreamStorage(), MImpl->MAuxiliaryResources,
           getCGType(), getCodeLoc()));
       break;
     }

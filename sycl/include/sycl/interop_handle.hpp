@@ -18,8 +18,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 class AccessorBaseHost;
@@ -175,5 +175,5 @@ private:
   std::vector<ReqToMem> MMemObjs;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

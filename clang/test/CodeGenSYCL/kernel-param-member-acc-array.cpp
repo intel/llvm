@@ -4,7 +4,7 @@
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {
@@ -45,12 +45,12 @@ int main() {
 // CHECK: [[LOCAL_OBJECTA:%__SYCLKernel]] = alloca %class{{.*}}.anon, align 4
 
 // Check allocas for ranges
-// CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[MEM_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[OFFSET1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
-// CHECK: [[ACC_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[MEM_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[OFFSET2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
+// CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::range"
+// CHECK: [[MEM_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::range"
+// CHECK: [[OFFSET1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::id"
+// CHECK: [[ACC_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::range"
+// CHECK: [[MEM_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::range"
+// CHECK: [[OFFSET2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.sycl::_V1::id"
 
 // Check lambda object addrspacecast
 // CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast ptr %__SYCLKernel to ptr addrspace(4)

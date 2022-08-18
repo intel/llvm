@@ -14,8 +14,8 @@
 
 #include "ocloc_api.h"
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -235,13 +235,13 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
 namespace ext {
 namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") intel {
-  using namespace ext::intel::experimental;
-} // namespace intel
+using namespace ext::intel::experimental;
+}
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") INTEL {
-  using namespace ext::intel::experimental;
-} // namespace INTEL
+using namespace ext::intel::experimental;
+}
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

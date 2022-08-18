@@ -23,8 +23,8 @@
 #include <xpti/xpti_trace_framework.hpp>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -921,5 +921,5 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
   }
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

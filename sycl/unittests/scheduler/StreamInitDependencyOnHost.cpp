@@ -24,16 +24,16 @@ public:
   MockHandlerStreamInit(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
       : MockHandler(Queue, IsHost) {}
   std::unique_ptr<detail::CG> finalize() {
-    std::shared_ptr<detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<detail::CG> CommandGroup;
     switch (getType()) {
     case detail::CG::Kernel:
     case detail::CG::RunOnHostIntel: {
-      CommandGroup.reset(new sycl::detail::CGExecKernel(
+      CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
+          std::move(MImpl->MKernelBundle),
           getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
           getRequirements(), getEvents(), getArgs(), getKernelName(),
-          getOSModuleHandle(), getStreamStorage(), Impl->MAuxiliaryResources,
+          getOSModuleHandle(), getStreamStorage(), std::move(MImpl->MAuxiliaryResources),
           getCGType(), getCodeLoc()));
       break;
     }

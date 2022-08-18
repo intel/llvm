@@ -22,13 +22,13 @@
 
 sycl::detail::Requirement getMockRequirement();
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class Command;
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 class MockCommand : public sycl::detail::Command {
 public:
@@ -215,7 +215,7 @@ public:
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
       : sycl::handler(Queue, IsHost) {}
   // Methods
-  using sycl::handler::evictHandlerImpl;
+  using sycl::handler::MImpl;
   using sycl::handler::getType;
 
   sycl::detail::NDRDescT &getNDRDesc() { return MNDRDesc; }

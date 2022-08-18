@@ -36,8 +36,9 @@ const std::array<__ESIMD_NS::rgba_channel, 4> ChannelMaskArray{
 
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
@@ -77,8 +78,9 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
   return (1 << ElemsPerAddrEncoded);
 }
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 // flat_read does flat-address gather
 template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>

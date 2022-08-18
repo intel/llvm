@@ -16,8 +16,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 class handler;
 class queue;
@@ -523,7 +523,7 @@ public:
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
   }
 
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return impl->template has_property<propertyT>();
   }
 
@@ -667,8 +667,8 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
     -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>

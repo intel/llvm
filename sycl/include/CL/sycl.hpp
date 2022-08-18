@@ -9,3 +9,8 @@
 #pragma once
 
 #include <sycl/sycl.hpp>
+
+namespace __SYCL2020_DEPRECATED(
+    "cl::sycl is deprecated, use ::sycl instead.") cl {
+namespace sycl = ::sycl;
+}

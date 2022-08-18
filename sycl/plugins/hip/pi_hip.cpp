@@ -379,8 +379,8 @@ pi_result enqueueEventsWait(pi_queue command_queue, hipStream_t stream,
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -405,8 +405,8 @@ void assertion(bool Condition, const char *Message) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 //--------------
 // PI object implementation
@@ -1769,8 +1769,17 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    // TODO: Reconsider it when AMD supports SYCL_USE_NATIVE_FP_ATOMICS.
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   props.arch.hasGlobalInt64Atomics &&
+                       props.arch.hasSharedInt64Atomics);
+  }
+
   // TODO: Implement.
-  case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
