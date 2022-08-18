@@ -40,7 +40,7 @@ to generate the SPIR-V decoration `HostAccessINTEL` for each `__pipe` using the
 `sycl-unique-id` generated. 
 
 As these attributes are only needed for the device compiler, the `#ifdef __SYCL_DEVICE_ONLY__` 
-allows the customer to ue another host compiler, even if it does not recognize these attributes.
+allows the customer to use another host compiler, even if it does not recognize these attributes.
 Also note that these attributes are all in the `__sycl_detail__` namespace, so
 they are considered implementation details of DPC++.  We do not intend to
 support them as general attributes that customer code can use.
