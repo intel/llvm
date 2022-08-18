@@ -45,19 +45,12 @@ enum class placeholder { false_t = 0, true_t = 1 };
 enum class address_space : int {
   private_space = 0,
   global_space = 1,
-  constant_space = 2,
+  constant_space __SYCL2020_DEPRECATED("sycl::access::address_space::constant_"
+                                       "space is deprecated since SYCL 2020") =
+      2,
   local_space = 3,
   ext_intel_global_device_space = 4,
   ext_intel_global_host_space = 5,
-  global_device_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_device_space' instead") =
-      ext_intel_global_device_space,
-  global_host_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_host_space' instead") =
-      ext_intel_global_host_space,
-  ext_intel_host_device_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_host_space' instead") =
-      ext_intel_global_host_space,
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
