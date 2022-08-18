@@ -11,6 +11,8 @@
 
 #include <sycl/exception.hpp>
 
+namespace __ESIMD_DNS {
+
 // This function implements atomic update of pre-existing variable in the
 // absense of C++ 20's atomic_ref.
 
@@ -118,5 +120,7 @@ template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty expected, Ty desired) {
   return *ptr;
 #endif
 }
+
+} // namespace __ESIMD_DNS
 
 /// @endcond ESIMD_DETAIL

@@ -610,11 +610,11 @@ auto __esimd_emu_lsc_xatomic_offset_access_0(
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
         Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
         if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iinc) {
-          atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
-                               static_cast<Ty>(1));
+          __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            static_cast<Ty>(1));
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::idec) {
-          atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
-                               static_cast<Ty>(1));
+          __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            static_cast<Ty>(1));
         }
       }
     }
@@ -666,48 +666,62 @@ auto __esimd_emu_lsc_xatomic_offset_access_1(
         Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
         if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::store) {
-          atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iadd) {
-          atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::isub) {
-          atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smin) {
-          atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smax) {
-          atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umin) {
           if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+            __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
           }
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umax) {
           if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+            __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
           }
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fadd) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+            __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                              src0[VecIdx]);
           }
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fsub) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+            __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                              src0[VecIdx]);
           }
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmin) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+            __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
           }
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmax) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+            __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
           }
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_and) {
           // TODO : Type Check? Integral type only?
-          atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_or) {
           // TODO : Type Check? Integral type only?
-          atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                           src0[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_xor) {
           // TODO : Type Check? Integral type only?
-          atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
         }
       }
     }
@@ -760,12 +774,12 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
         Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
         if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::icas) {
-          atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance), src0[VecIdx],
-                         src1[VecIdx]);
+          __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx], src1[VecIdx]);
         } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fcas) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-            atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance), src0[VecIdx],
-                           src1[VecIdx]);
+            __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx], src1[VecIdx]);
           }
         }
       }
@@ -1631,11 +1645,11 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
       if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iinc) {
-        atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
-                             static_cast<Ty>(1));
+        __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          static_cast<Ty>(1));
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::idec) {
-        atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
-                             static_cast<Ty>(1));
+        __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          static_cast<Ty>(1));
       }
     }
   }
@@ -1704,48 +1718,62 @@ __esimd_lsc_xatomic_stateless_1(
       Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
       if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::store) {
-        atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::iadd) {
-        atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::isub) {
-        atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smin) {
-        atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                    src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::smax) {
-        atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                    src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umin) {
         if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
         }
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::umax) {
         if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
         }
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fadd) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
         }
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fsub) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
         }
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmin) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
         }
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fmax) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
         }
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_and) {
         // TODO : Type Check? Integral type only?
-        atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_or) {
         // TODO : Type Check? Integral type only?
-        atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                         src0[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::bit_xor) {
         // TODO : Type Check? Integral type only?
-        atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
       }
     }
   }
@@ -1815,12 +1843,12 @@ __esimd_lsc_xatomic_stateless_2(
       Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
 
       if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::icas) {
-        atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance), src0[VecIdx],
-                       src1[VecIdx]);
+        __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                    src0[VecIdx], src1[VecIdx]);
       } else if constexpr (Op == __ESIMD_EDNS::lsc_atomic_op::fcas) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-          atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance), src0[VecIdx],
-                         src1[VecIdx]);
+          __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx], src1[VecIdx]);
         }
       }
     }
