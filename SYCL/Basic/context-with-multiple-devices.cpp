@@ -1,6 +1,3 @@
-// UNSUPPORTED: windows || linux
-//   temporarily disabled
-
 // REQUIRES: accelerator, opencl-aot
 
 // RUN: %clangxx -fsycl -fintelfpga -fsycl-unnamed-lambda %s -o %t2.out

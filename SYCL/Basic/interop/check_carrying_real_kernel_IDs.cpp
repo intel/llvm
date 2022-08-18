@@ -1,6 +1,3 @@
-// UNSUPPORTED: windows || linux
-//   temporarily disabled
-
 // REQUIRES: opencl, opencl_icd
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %opencl_lib
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
