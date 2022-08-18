@@ -68,6 +68,13 @@ Bug Fixes
 - Fixed a crash-on-valid with consteval evaluation of a list-initialized
   constructor for a temporary object. This fixes
   `Issue 55871 <https://github.com/llvm/llvm-project/issues/55871>`_.
+- Fix `#57008 <https://github.com/llvm/llvm-project/issues/57008>`_ - Builtin
+  C++ language extension type traits instantiated by a template with unexpected
+  number of arguments cause an assertion fault.
+- Fix multi-level pack expansion of undeclared function parameters.
+  This fixes `Issue 56094 <https://github.com/llvm/llvm-project/issues/56094>`_.
+- Fix `#57151 <https://github.com/llvm/llvm-project/issues/57151>`_.
+  ``-Wcomma`` is emitted for void returning functions.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -91,13 +98,6 @@ Improvements to Clang's diagnostics
   language modes. It may be downgraded to a warning with
   ``-Wno-error=incompatible-function-pointer-types`` or disabled entirely with
   ``-Wno-implicit-function-pointer-types``.
-- When including a PCH from a GCC style directory with multiple alternative PCH
-  files, Clang now requires all defines set on the command line while generating
-  the PCH and when including it to match. This matches GCC's behaviour.
-  Previously Clang would tolerate defines to be set when creating the PCH but
-  missing when used, or vice versa. This makes sure that Clang picks the
-  correct one, where it previously would consider multiple ones as potentially
-  acceptable (and erroneously use whichever one is tried first).
 - Clang will now print more information about failed static assertions. In
   particular, simple static assertion expressions are evaluated to their
   compile-time value and printed out if the assertion fails.
@@ -139,8 +139,15 @@ C2x Feature Support
 C++ Language Changes in Clang
 -----------------------------
 
+- Implemented DR692, DR1395 and DR1432. Use the ``-fclang-abi-compat=14`` option
+  to get the old partial ordering behavior regarding packs.
+
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
+- Clang now correctly delays the instantiation of function constraints until
+  the time of checking, which should now allow the libstdc++ ranges implementation
+  to work for at least trivial examples.  This fixes
+  `Issue 44178 <https://github.com/llvm/llvm-project/issues/44178>`_.
 
 - Support capturing structured bindings in lambdas
   (`P1091R3 <https://wg21.link/p1091r3>`_ and `P1381R1 <https://wg21.link/P1381R1>`).
@@ -148,7 +155,10 @@ C++20 Feature Support
   `GH54300 <https://github.com/llvm/llvm-project/issues/54300>`_,
   `GH54301 <https://github.com/llvm/llvm-project/issues/54301>`_,
   and `GH49430 <https://github.com/llvm/llvm-project/issues/49430>`_.
-
+- Consider explicitly defaulted constexpr/consteval special member function
+  template instantiation to be constexpr/consteval even though a call to such
+  a function cannot appear in a constant expression.
+  (C++14 [dcl.constexpr]p6 (CWG DR647/CWG DR1358))
 
 
 

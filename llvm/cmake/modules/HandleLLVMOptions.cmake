@@ -351,8 +351,11 @@ if( LLVM_ENABLE_PIC )
   endif()
 endif()
 
-if(NOT WIN32 AND NOT CYGWIN AND NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX"))
-  # MinGW warns if -fvisibility-inlines-hidden is used.
+if((NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX")) AND
+   (NOT (WIN32 OR CYGWIN) OR (MINGW AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")))
+  # GCC for MinGW does nothing about -fvisibility-inlines-hidden, but warns
+  # about use of the attributes. As long as we don't use the attributes (to
+  # override the default) we shouldn't set the command line options either.
   # GCC on AIX warns if -fvisibility-inlines-hidden is used and Clang on AIX doesn't currently support visibility.
   check_cxx_compiler_flag("-fvisibility-inlines-hidden" SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG)
   append_if(SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG "-fvisibility-inlines-hidden" CMAKE_CXX_FLAGS)
@@ -791,6 +794,9 @@ if (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
 
   # Prevent bugs that can happen with llvm's brace style.
   add_flag_if_supported("-Wmisleading-indentation" MISLEADING_INDENTATION_FLAG)
+
+  # Enable -Wctad-maybe-unsupported to catch unintended use of CTAD.
+  add_flag_if_supported("-Wctad-maybe-unsupported" CTAD_MAYBE_UNSPPORTED_FLAG)
 endif (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
 
 if (LLVM_COMPILER_IS_GCC_COMPATIBLE AND NOT LLVM_ENABLE_WARNINGS)
@@ -909,10 +915,6 @@ if(LLVM_USE_SANITIZER)
     endif()
   else()
     message(FATAL_ERROR "LLVM_USE_SANITIZER is not supported on this platform.")
-  endif()
-  if (LLVM_USE_SANITIZER MATCHES "(Undefined;)?Address(;Undefined)?")
-    add_flag_if_supported("-fsanitize-address-use-after-scope"
-                          FSANITIZE_USE_AFTER_SCOPE_FLAG)
   endif()
   if (LLVM_USE_SANITIZE_COVERAGE)
     append("-fsanitize=fuzzer-no-link" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)

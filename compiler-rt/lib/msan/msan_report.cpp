@@ -37,17 +37,18 @@ class Decorator: public __sanitizer::SanitizerCommonDecorator {
 static void DescribeStackOrigin(const char *so, uptr pc) {
   Decorator d;
   Printf("%s", d.Origin());
-  Printf(
-      "  %sUninitialized value was created by an allocation of '%s%s%s'"
-      " in the stack frame%s\n",
-      d.Origin(), d.Name(), so, d.Origin(), d.Default());
-
-  if (pc) {
-    // For some reason function address in LLVM IR is 1 less then the address
-    // of the first instruction.
-    pc = StackTrace::GetNextInstructionPc(pc);
-    StackTrace(&pc, 1).Print();
+  if (so) {
+    Printf(
+        "  %sUninitialized value was created by an allocation of '%s%s%s'"
+        " in the stack frame%s\n",
+        d.Origin(), d.Name(), so, d.Origin(), d.Default());
+  } else {
+    Printf("  %sUninitialized value was created in the stack frame%s\n",
+           d.Origin(), d.Default());
   }
+
+  if (pc)
+    StackTrace(&pc, 1).Print();
 }
 
 static void DescribeOrigin(u32 id) {

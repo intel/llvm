@@ -1065,6 +1065,58 @@ OpFoldResult CstrRequireOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// DimOp
+//===----------------------------------------------------------------------===//
+
+Optional<int64_t> DimOp::getConstantIndex() {
+  if (auto constSizeOp = getIndex().getDefiningOp<ConstSizeOp>())
+    return constSizeOp.getValue().getLimitedValue();
+  if (auto constantOp = getIndex().getDefiningOp<arith::ConstantOp>())
+    return constantOp.getValue().cast<IntegerAttr>().getInt();
+  return llvm::None;
+}
+
+OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
+  Type valType = getValue().getType();
+  auto valShapedType = valType.dyn_cast<ShapedType>();
+  if (!valShapedType || !valShapedType.hasRank())
+    return nullptr;
+  Optional<int64_t> index = getConstantIndex();
+  if (!index.has_value())
+    return nullptr;
+  if (index.value() >= valShapedType.getRank())
+    return nullptr;
+  auto extent = valShapedType.getDimSize(*index);
+  if (ShapedType::isDynamic(extent))
+    return nullptr;
+  return IntegerAttr::get(IndexType::get(getContext()), extent);
+}
+
+LogicalResult mlir::shape::DimOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  DimOpAdaptor dimOp(operands);
+  inferredReturnTypes.assign({dimOp.getIndex().getType()});
+  return success();
+}
+
+bool mlir::shape::DimOp::isCompatibleReturnTypes(TypeRange l, TypeRange r) {
+  return eachHasOnlyOneOfTypes<SizeType, IndexType>(l, r);
+}
+
+LogicalResult mlir::shape::DimOp::verify() {
+  auto st = getValue().getType().cast<ShapedType>();
+  if (!st.hasRank())
+    return success();
+  if (auto index = getConstantIndex()) {
+    if (*index < 0 || *index >= st.getRank())
+      return emitOpError("index is out of range");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // DivOp
 //===----------------------------------------------------------------------===//
 

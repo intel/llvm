@@ -328,6 +328,41 @@ def Shape_ToExtentTensorOp : Shape_Op<"to_extent_tensor", [
   let hasFolder = 1;
 }
 
+def Shape_DimOp : Shape_Op<"dim",
+    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let summary = "Gets the specified extent from the shape of a shaped input";
+  let description = [{
+    Gets the extent indexed by `dim` from the shape of the `value` operand. If
+    the index is error or out-of-bound then it returns an invalid size if the
+    return type carries error information else the behavior is undefined.
+
+    This is a convenience op that performs the equivalent of getting the extent
+    of a shape (e.g., `dim(x, i) == get_extent(shape_of(x), i)`).
+  }];
+  let arguments = (ins AnyShaped:$value,
+                       Shape_SizeOrIndexType:$index);
+  let results = (outs Shape_SizeOrIndexType:$extent);
+  let assemblyFormat = "$value `,` $index attr-dict `:` type($value) `,` type($index) `->` "
+                       "type($extent)";
+
+  let builders = [
+    // Builder that allows passing a constant dimension as a simple integer.
+    OpBuilder<(ins "Value":$value, "int64_t":$index)>
+  ];
+
+  let extraClassDeclaration = [{
+    /// Get the `index` value as integer if it is constant.
+    Optional<int64_t> getConstantIndex();
+
+    /// Returns when two result types are compatible for this op; method used by
+    /// InferTypeOpInterface
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
+
+  let hasFolder = 1;
+  let hasVerifier = 1;
+}
+
 def Shape_GetExtentOp : Shape_Op<"get_extent",
     [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Gets the specified extent from a shape or extent tensor";

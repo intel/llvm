@@ -770,11 +770,6 @@ def LLVM_InsertValueOp : LLVM_Op<
                        DenseI64ArrayAttr:$position);
   let results = (outs LLVM_AnyAggregate:$res);
 
-  let builders = [
-    OpBuilder<(ins "Value":$container, "Value":$value,
-                   "ArrayRef<int64_t>":$position)>
-  ];
-
   let assemblyFormat = [{
     $value `,` $container `` $position attr-dict `:` type($container)
     custom<InsertExtractValueElementType>(type($value), ref(type($container)),
@@ -915,7 +910,7 @@ def LLVM_SwitchOp : LLVM_TerminatorOp<"switch",
     Variadic<AnyType>:$defaultOperands,
     VariadicOfVariadic<AnyType, "case_operand_segments">:$caseOperands,
     OptionalAttr<ElementsAttr>:$case_values,
-    ElementsAttr:$case_operand_segments,
+    DenseI32ArrayAttr:$case_operand_segments,
     OptionalAttr<ElementsAttr>:$branch_weights
   );
   let successors = (successor
@@ -1201,7 +1196,7 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
     UnitAttr:$thread_local_,
     OptionalAttr<AnyAttr>:$value,
     OptionalAttr<I64Attr>:$alignment,
-    DefaultValuedAttr<Confined<I32Attr, [IntNonNegative]>, "0">:$addr_space,
+    DefaultValuedAttr<ConfinedAttr<I32Attr, [IntNonNegative]>, "0">:$addr_space,
     OptionalAttr<UnnamedAddr>:$unnamed_addr,
     OptionalAttr<StrAttr>:$section
   );

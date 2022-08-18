@@ -4114,16 +4114,15 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
         switch (n_type) {
         case N_INDR: {
           const char *reexport_name_cstr = strtab_data.PeekCStr(nlist.n_value);
-          if (reexport_name_cstr && reexport_name_cstr[0]) {
+          if (reexport_name_cstr && reexport_name_cstr[0] && symbol_name) {
             type = eSymbolTypeReExported;
             ConstString reexport_name(reexport_name_cstr +
                                       ((reexport_name_cstr[0] == '_') ? 1 : 0));
             sym[sym_idx].SetReExportedSymbolName(reexport_name);
             set_value = false;
             reexport_shlib_needs_fixup[sym_idx] = reexport_name;
-            indirect_symbol_names.insert(ConstString(
-                symbol_name +
-                ((symbol_name && (symbol_name[0] == '_')) ? 1 : 0)));
+            indirect_symbol_names.insert(
+                ConstString(symbol_name + ((symbol_name[0] == '_') ? 1 : 0)));
           } else
             type = eSymbolTypeUndefined;
         } break;
@@ -6346,6 +6345,7 @@ static offset_t CreateAllImageInfosPayload(
         // The segment name in a Mach-O LC_SEGMENT/LC_SEGMENT_64 is char[16] and
         // is not guaranteed to be nul-terminated if all 16 characters are
         // used.
+        // coverity[buffer_size_warning]
         strncpy(seg_vmaddr.segname, name.AsCString(),
                 sizeof(seg_vmaddr.segname));
         seg_vmaddr.vmaddr = vmaddr;
@@ -6741,6 +6741,7 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
           // the right one, doesn't need to be nul terminated.
           // LC_NOTE name field is char[16] and is not guaranteed to be
           // nul-terminated.
+          // coverity[buffer_size_warning]
           strncpy(namebuf, lcnote->name.c_str(), sizeof(namebuf));
           buffer.PutRawBytes(namebuf, sizeof(namebuf));
           buffer.PutHex64(lcnote->payload_file_offset);
@@ -6898,10 +6899,9 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
         }
         uint32_t imgcount = m_data.GetU32(&offset);
         uint64_t entries_fileoff = m_data.GetU64(&offset);
-        /* leaving the following dead code as comments for spec documentation
-            offset += 4; // uint32_t entries_size;
-            offset += 4; // uint32_t unused;
-        */
+        // 'entries_size' is not used, nor is the 'unused' entry.
+        //  offset += 4; // uint32_t entries_size;
+        //  offset += 4; // uint32_t unused;
 
         offset = entries_fileoff;
         for (uint32_t i = 0; i < imgcount; i++) {

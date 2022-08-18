@@ -1048,11 +1048,11 @@ ParseResult InvokeOp::parse(OpAsmParser &parser, OperationState &result) {
   result.addOperands(normalOperands);
   result.addOperands(unwindOperands);
 
-  result.addAttribute(
-      InvokeOp::getOperandSegmentSizeAttr(),
-      builder.getI32VectorAttr({static_cast<int32_t>(operands.size()),
-                                static_cast<int32_t>(normalOperands.size()),
-                                static_cast<int32_t>(unwindOperands.size())}));
+  result.addAttribute(InvokeOp::getOperandSegmentSizeAttr(),
+                      builder.getDenseI32ArrayAttr(
+                          {static_cast<int32_t>(operands.size()),
+                           static_cast<int32_t>(normalOperands.size()),
+                           static_cast<int32_t>(unwindOperands.size())}));
   return success();
 }
 
@@ -1617,13 +1617,6 @@ LogicalResult InsertValueOp::verify() {
                          << getContainer().getType();
 
   return success();
-}
-
-void InsertValueOp::build(OpBuilder &builder, OperationState &state,
-                          Value container, Value value,
-                          ArrayRef<int64_t> position) {
-  build(builder, state, container.getType(), container, value,
-        builder.getAttr<DenseI64ArrayAttr>(position));
 }
 
 //===----------------------------------------------------------------------===//

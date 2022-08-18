@@ -72,6 +72,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 
 using namespace llvm;
 
@@ -4111,21 +4112,21 @@ SDValue DAGCombiner::visitMUL(SDNode *N) {
         DAG.getNode(ISD::MUL, SDLoc(N1), VT, N0.getOperand(1), N1));
 
   // Fold (mul (vscale * C0), C1) to (vscale * (C0 * C1)).
-  if (N0.getOpcode() == ISD::VSCALE)
-    if (ConstantSDNode *NC1 = isConstOrConstSplat(N1)) {
-      const APInt &C0 = N0.getConstantOperandAPInt(0);
-      const APInt &C1 = NC1->getAPIntValue();
-      return DAG.getVScale(DL, VT, C0 * C1);
-    }
+  ConstantSDNode *NC1 = isConstOrConstSplat(N1);
+  if (N0.getOpcode() == ISD::VSCALE && NC1) {
+    const APInt &C0 = N0.getConstantOperandAPInt(0);
+    const APInt &C1 = NC1->getAPIntValue();
+    return DAG.getVScale(DL, VT, C0 * C1);
+  }
 
   // Fold (mul step_vector(C0), C1) to (step_vector(C0 * C1)).
   APInt MulVal;
-  if (N0.getOpcode() == ISD::STEP_VECTOR)
-    if (ISD::isConstantSplatVector(N1.getNode(), MulVal)) {
-      const APInt &C0 = N0.getConstantOperandAPInt(0);
-      APInt NewStep = C0 * MulVal;
-      return DAG.getStepVector(DL, VT, NewStep);
-    }
+  if (N0.getOpcode() == ISD::STEP_VECTOR &&
+      ISD::isConstantSplatVector(N1.getNode(), MulVal)) {
+    const APInt &C0 = N0.getConstantOperandAPInt(0);
+    APInt NewStep = C0 * MulVal;
+    return DAG.getStepVector(DL, VT, NewStep);
+  }
 
   // Fold ((mul x, 0/undef) -> 0,
   //       (mul x, 1) -> x) -> x)
@@ -6157,6 +6158,43 @@ static SDValue foldLogicOfShifts(SDNode *N, SDValue LogicOp, SDValue ShiftOp,
   return DAG.getNode(LogicOpcode, DL, VT, NewShift, Z);
 }
 
+/// Given a tree of logic operations with shape like
+/// (LOGIC (LOGIC (X, Y), LOGIC (Z, Y)))
+/// try to match and fold shift operations with the same shift amount.
+/// For example:
+/// LOGIC (LOGIC (SH X0, Y), Z), (LOGIC (SH X1, Y), W) -->
+/// --> LOGIC (SH (LOGIC X0, X1), Y), (LOGIC Z, W)
+static SDValue foldLogicTreeOfShifts(SDNode *N, SDValue LeftHand,
+                                     SDValue RightHand, SelectionDAG &DAG) {
+  unsigned LogicOpcode = N->getOpcode();
+  assert((LogicOpcode == ISD::AND || LogicOpcode == ISD::OR ||
+          LogicOpcode == ISD::XOR));
+  if (LeftHand.getOpcode() != LogicOpcode ||
+      RightHand.getOpcode() != LogicOpcode)
+    return SDValue();
+  if (!LeftHand.hasOneUse() || !RightHand.hasOneUse())
+    return SDValue();
+
+  // Try to match one of following patterns:
+  // LOGIC (LOGIC (SH X0, Y), Z), (LOGIC (SH X1, Y), W)
+  // LOGIC (LOGIC (SH X0, Y), Z), (LOGIC W, (SH X1, Y))
+  // Note that foldLogicOfShifts will handle commuted versions of the left hand
+  // itself.
+  SDValue CombinedShifts, W;
+  SDValue R0 = RightHand.getOperand(0);
+  SDValue R1 = RightHand.getOperand(1);
+  if ((CombinedShifts = foldLogicOfShifts(N, LeftHand, R0, DAG)))
+    W = R1;
+  else if ((CombinedShifts = foldLogicOfShifts(N, LeftHand, R1, DAG)))
+    W = R0;
+  else
+    return SDValue();
+
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+  return DAG.getNode(LogicOpcode, DL, VT, CombinedShifts, W);
+}
+
 SDValue DAGCombiner::visitAND(SDNode *N) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
@@ -6529,6 +6567,12 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
   if (hasOperation(ISD::USUBSAT, VT))
     if (SDValue V = foldAndToUsubsat(N, DAG))
       return V;
+
+  // Postpone until legalization completed to avoid interference with bswap
+  // folding
+  if (LegalOperations || VT.isVector())
+    if (SDValue R = foldLogicTreeOfShifts(N, N0, N1, DAG))
+      return R;
 
   return SDValue();
 }
@@ -7129,6 +7173,12 @@ SDValue DAGCombiner::visitOR(SDNode *N) {
       DAG.haveNoCommonBitsSet(N0, N1))
     if (SDValue Combined = visitADDLike(N))
       return Combined;
+
+  // Postpone until legalization completed to avoid interference with bswap
+  // folding
+  if (LegalOperations || VT.isVector())
+    if (SDValue R = foldLogicTreeOfShifts(N, N0, N1, DAG))
+      return R;
 
   return SDValue();
 }
@@ -8614,6 +8664,8 @@ SDValue DAGCombiner::visitXOR(SDNode *N) {
     return R;
   if (SDValue R = foldLogicOfShifts(N, N1, N0, DAG))
     return R;
+  if (SDValue R = foldLogicTreeOfShifts(N, N0, N1, DAG))
+    return R;
 
   // Unfold  ((x ^ y) & m) ^ y  into  (x & m) | (y & ~m)  if profitable
   if (SDValue MM = unfoldMaskedMerge(N))
@@ -9127,23 +9179,22 @@ SDValue DAGCombiner::visitSHL(SDNode *N) {
       return NewSHL;
 
   // Fold (shl (vscale * C0), C1) to (vscale * (C0 << C1)).
-  if (N0.getOpcode() == ISD::VSCALE)
-    if (ConstantSDNode *NC1 = isConstOrConstSplat(N->getOperand(1))) {
-      const APInt &C0 = N0.getConstantOperandAPInt(0);
-      const APInt &C1 = NC1->getAPIntValue();
-      return DAG.getVScale(SDLoc(N), VT, C0 << C1);
-    }
+  if (N0.getOpcode() == ISD::VSCALE && N1C) {
+    const APInt &C0 = N0.getConstantOperandAPInt(0);
+    const APInt &C1 = N1C->getAPIntValue();
+    return DAG.getVScale(SDLoc(N), VT, C0 << C1);
+  }
 
   // Fold (shl step_vector(C0), C1) to (step_vector(C0 << C1)).
   APInt ShlVal;
-  if (N0.getOpcode() == ISD::STEP_VECTOR)
-    if (ISD::isConstantSplatVector(N1.getNode(), ShlVal)) {
-      const APInt &C0 = N0.getConstantOperandAPInt(0);
-      if (ShlVal.ult(C0.getBitWidth())) {
-        APInt NewStep = C0 << ShlVal;
-        return DAG.getStepVector(SDLoc(N), VT, NewStep);
-      }
+  if (N0.getOpcode() == ISD::STEP_VECTOR &&
+      ISD::isConstantSplatVector(N1.getNode(), ShlVal)) {
+    const APInt &C0 = N0.getConstantOperandAPInt(0);
+    if (ShlVal.ult(C0.getBitWidth())) {
+      APInt NewStep = C0 << ShlVal;
+      return DAG.getStepVector(SDLoc(N), VT, NewStep);
     }
+  }
 
   return SDValue();
 }
@@ -13161,6 +13212,26 @@ SDValue DAGCombiner::visitSIGN_EXTEND_INREG(SDNode *N) {
       return DAG.getNode(ISD::SIGN_EXTEND_INREG, SDLoc(N), VT, BSwap, N1);
   }
 
+  // Fold (iM_signext_inreg
+  //        (extract_subvector (zext|anyext|sext iN_v to _) _)
+  //        from iN)
+  //      -> (extract_subvector (signext iN_v to iM))
+  if (N0.getOpcode() == ISD::EXTRACT_SUBVECTOR && N0.hasOneUse() &&
+      ISD::isExtOpcode(N0.getOperand(0).getOpcode())) {
+    SDValue InnerExt = N0.getOperand(0);
+    EVT InnerExtVT = InnerExt->getValueType(0);
+    SDValue Extendee = InnerExt->getOperand(0);
+
+    if (ExtVTBits == Extendee.getValueType().getScalarSizeInBits() &&
+        (!LegalOperations ||
+         TLI.isOperationLegal(ISD::SIGN_EXTEND, InnerExtVT))) {
+      SDValue SignExtExtendee =
+          DAG.getNode(ISD::SIGN_EXTEND, SDLoc(N), InnerExtVT, Extendee);
+      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(N), VT, SignExtExtendee,
+                         N0.getOperand(1));
+    }
+  }
+
   return SDValue();
 }
 
@@ -13875,7 +13946,8 @@ SDValue DAGCombiner::visitFREEZE(SDNode *N) {
   // conditions 1) one-use, 2) does not produce poison, and 3) has all but one
   // guaranteed-non-poison operands then push the freeze through to the one
   // operand that is not guaranteed non-poison.
-  if (!DAG.canCreateUndefOrPoison(N0, /*PoisonOnly*/ false) &&
+  if (!DAG.canCreateUndefOrPoison(N0, /*PoisonOnly*/ false,
+                                  /*ConsiderFlags*/ true) &&
       N0->getNumValues() == 1 && N0->hasOneUse()) {
     SDValue MaybePoisonOperand;
     for (SDValue Op : N0->ops()) {
@@ -13892,6 +13964,7 @@ SDValue DAGCombiner::visitFREEZE(SDNode *N) {
     }
     if (MaybePoisonOperand) {
       // Recreate the node with the frozen maybe-poison operand.
+      // TODO: Disable ConsiderFlags and just strip poison generating flags?
       // TODO: Drop the isOnlyUserOf constraint and replace all users of
       // MaybePoisonOperand with FrozenMaybePoisonOperand
       // to match pushFreezeToPreventPoisonFromPropagating behavior.
@@ -14623,8 +14696,8 @@ SDValue DAGCombiner::visitFMULForFMADistributiveCombine(SDNode *N) {
 SDValue DAGCombiner::visitFADD(SDNode *N) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
-  bool N0CFP = DAG.isConstantFPBuildVectorOrConstantFP(N0);
-  bool N1CFP = DAG.isConstantFPBuildVectorOrConstantFP(N1);
+  SDNode *N0CFP = DAG.isConstantFPBuildVectorOrConstantFP(N0);
+  SDNode *N1CFP = DAG.isConstantFPBuildVectorOrConstantFP(N1);
   EVT VT = N->getValueType(0);
   SDLoc DL(N);
   const TargetOptions &Options = DAG.getTarget().Options;
@@ -14721,8 +14794,10 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
     // of rounding steps.
     if (TLI.isOperationLegalOrCustom(ISD::FMUL, VT) && !N0CFP && !N1CFP) {
       if (N0.getOpcode() == ISD::FMUL) {
-        bool CFP00 = DAG.isConstantFPBuildVectorOrConstantFP(N0.getOperand(0));
-        bool CFP01 = DAG.isConstantFPBuildVectorOrConstantFP(N0.getOperand(1));
+        SDNode *CFP00 =
+            DAG.isConstantFPBuildVectorOrConstantFP(N0.getOperand(0));
+        SDNode *CFP01 =
+            DAG.isConstantFPBuildVectorOrConstantFP(N0.getOperand(1));
 
         // (fadd (fmul x, c), x) -> (fmul x, c+1)
         if (CFP01 && !CFP00 && N0.getOperand(0) == N1) {
@@ -14742,8 +14817,10 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
       }
 
       if (N1.getOpcode() == ISD::FMUL) {
-        bool CFP10 = DAG.isConstantFPBuildVectorOrConstantFP(N1.getOperand(0));
-        bool CFP11 = DAG.isConstantFPBuildVectorOrConstantFP(N1.getOperand(1));
+        SDNode *CFP10 =
+            DAG.isConstantFPBuildVectorOrConstantFP(N1.getOperand(0));
+        SDNode *CFP11 =
+            DAG.isConstantFPBuildVectorOrConstantFP(N1.getOperand(1));
 
         // (fadd x, (fmul x, c)) -> (fmul x, c+1)
         if (CFP11 && !CFP10 && N1.getOperand(0) == N0) {
@@ -14763,7 +14840,8 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
       }
 
       if (N0.getOpcode() == ISD::FADD) {
-        bool CFP00 = DAG.isConstantFPBuildVectorOrConstantFP(N0.getOperand(0));
+        SDNode *CFP00 =
+            DAG.isConstantFPBuildVectorOrConstantFP(N0.getOperand(0));
         // (fadd (fadd x, x), x) -> (fmul x, 3.0)
         if (!CFP00 && N0.getOperand(0) == N0.getOperand(1) &&
             (N0.getOperand(0) == N1)) {
@@ -14773,7 +14851,8 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
       }
 
       if (N1.getOpcode() == ISD::FADD) {
-        bool CFP10 = DAG.isConstantFPBuildVectorOrConstantFP(N1.getOperand(0));
+        SDNode *CFP10 =
+            DAG.isConstantFPBuildVectorOrConstantFP(N1.getOperand(0));
         // (fadd x, (fadd x, x)) -> (fmul x, 3.0)
         if (!CFP10 && N1.getOperand(0) == N1.getOperand(1) &&
             N1.getOperand(0) == N0) {
@@ -22792,25 +22871,31 @@ SDValue DAGCombiner::visitVECTOR_SHUFFLE(SDNode *N) {
       SDLoc DL(N);
       EVT IntVT = VT.changeVectorElementTypeToInteger();
       EVT IntSVT = VT.getVectorElementType().changeTypeToInteger();
-      IntSVT = TLI.getTypeToTransformTo(*DAG.getContext(), IntSVT);
-      SDValue ZeroElt = DAG.getConstant(0, DL, IntSVT);
-      SDValue AllOnesElt = DAG.getAllOnesConstant(DL, IntSVT);
-      SmallVector<SDValue, 16> AndMask(NumElts, DAG.getUNDEF(IntSVT));
-      for (int I = 0; I != (int)NumElts; ++I)
-        if (0 <= Mask[I])
-          AndMask[I] = Mask[I] == I ? AllOnesElt : ZeroElt;
+      // Transform the type to a legal type so that the buildvector constant
+      // elements are not illegal. Make sure that the result is larger than the
+      // original type, incase the value is split into two (eg i64->i32).
+      if (!TLI.isTypeLegal(IntSVT) && LegalTypes)
+        IntSVT = TLI.getTypeToTransformTo(*DAG.getContext(), IntSVT);
+      if (IntSVT.getSizeInBits() >= IntVT.getScalarSizeInBits()) {
+        SDValue ZeroElt = DAG.getConstant(0, DL, IntSVT);
+        SDValue AllOnesElt = DAG.getAllOnesConstant(DL, IntSVT);
+        SmallVector<SDValue, 16> AndMask(NumElts, DAG.getUNDEF(IntSVT));
+        for (int I = 0; I != (int)NumElts; ++I)
+          if (0 <= Mask[I])
+            AndMask[I] = Mask[I] == I ? AllOnesElt : ZeroElt;
 
-      // See if a clear mask is legal instead of going via
-      // XformToShuffleWithZero which loses UNDEF mask elements.
-      if (TLI.isVectorClearMaskLegal(ClearMask, IntVT))
-        return DAG.getBitcast(
-            VT, DAG.getVectorShuffle(IntVT, DL, DAG.getBitcast(IntVT, N0),
-                                     DAG.getConstant(0, DL, IntVT), ClearMask));
+        // See if a clear mask is legal instead of going via
+        // XformToShuffleWithZero which loses UNDEF mask elements.
+        if (TLI.isVectorClearMaskLegal(ClearMask, IntVT))
+          return DAG.getBitcast(
+              VT, DAG.getVectorShuffle(IntVT, DL, DAG.getBitcast(IntVT, N0),
+                                      DAG.getConstant(0, DL, IntVT), ClearMask));
 
-      if (TLI.isOperationLegalOrCustom(ISD::AND, IntVT))
-        return DAG.getBitcast(
-            VT, DAG.getNode(ISD::AND, DL, IntVT, DAG.getBitcast(IntVT, N0),
-                            DAG.getBuildVector(IntVT, DL, AndMask)));
+        if (TLI.isOperationLegalOrCustom(ISD::AND, IntVT))
+          return DAG.getBitcast(
+              VT, DAG.getNode(ISD::AND, DL, IntVT, DAG.getBitcast(IntVT, N0),
+                              DAG.getBuildVector(IntVT, DL, AndMask)));
+      }
     }
   }
 
@@ -24892,13 +24977,6 @@ SDValue DAGCombiner::FindBetterChain(SDNode *N, SDValue OldChain) {
   return DAG.getTokenFactor(SDLoc(N), Aliases);
 }
 
-namespace {
-// TODO: Replace with with std::monostate when we move to C++17.
-struct UnitT { } Unit;
-bool operator==(const UnitT &, const UnitT &) { return true; }
-bool operator!=(const UnitT &, const UnitT &) { return false; }
-} // namespace
-
 // This function tries to collect a bunch of potentially interesting
 // nodes to improve the chains of, all at once. This might seem
 // redundant, as this function gets called when visiting every store
@@ -24919,8 +24997,8 @@ bool DAGCombiner::parallelizeChainedStores(StoreSDNode *St) {
   // the common case, every store writes to the immediately previous address
   // space and thus merged with the previous interval at insertion time.
 
-  using IMap =
-      llvm::IntervalMap<int64_t, UnitT, 8, IntervalMapHalfOpenInfo<int64_t>>;
+  using IMap = llvm::IntervalMap<int64_t, std::monostate, 8,
+                                 IntervalMapHalfOpenInfo<int64_t>>;
   IMap::Allocator A;
   IMap Intervals(A);
 
@@ -24947,7 +25025,8 @@ bool DAGCombiner::parallelizeChainedStores(StoreSDNode *St) {
     return false;
 
   // Add ST's interval.
-  Intervals.insert(0, (St->getMemoryVT().getSizeInBits() + 7) / 8, Unit);
+  Intervals.insert(0, (St->getMemoryVT().getSizeInBits() + 7) / 8,
+                   std::monostate{});
 
   while (StoreSDNode *Chain = dyn_cast<StoreSDNode>(STChain->getChain())) {
     if (Chain->getMemoryVT().isScalableVector())
@@ -24976,7 +25055,7 @@ bool DAGCombiner::parallelizeChainedStores(StoreSDNode *St) {
     // If there's a previous interval, we should start after it.
     if (I != Intervals.begin() && (--I).stop() <= Offset)
       break;
-    Intervals.insert(Offset, Offset + Length, Unit);
+    Intervals.insert(Offset, Offset + Length, std::monostate{});
 
     ChainedStores.push_back(Chain);
     STChain = Chain;

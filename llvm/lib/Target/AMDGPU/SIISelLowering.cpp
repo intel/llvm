@@ -12886,7 +12886,7 @@ static bool hasCFUser(const Value *V, SmallPtrSet<const Value *, 16> &Visited,
   if (!Visited.insert(V).second)
     return false;
   bool Result = false;
-  for (auto U : V->users()) {
+  for (const auto *U : V->users()) {
     if (const IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(U)) {
       if (V == U->getOperand(1)) {
         switch (Intrinsic->getIntrinsicID()) {
@@ -12945,22 +12945,6 @@ bool SITargetLowering::requiresUniformRegister(MachineFunction &MF,
   }
   SmallPtrSet<const Value *, 16> Visited;
   return hasCFUser(V, Visited, Subtarget->getWavefrontSize());
-}
-
-std::pair<InstructionCost, MVT>
-SITargetLowering::getTypeLegalizationCost(const DataLayout &DL,
-                                          Type *Ty) const {
-  std::pair<InstructionCost, MVT> Cost =
-      TargetLoweringBase::getTypeLegalizationCost(DL, Ty);
-  auto Size = DL.getTypeSizeInBits(Ty);
-  // Maximum load or store can handle 8 dwords for scalar and 4 for
-  // vector ALU. Let's assume anything above 8 dwords is expensive
-  // even if legal.
-  if (Size <= 256)
-    return Cost;
-
-  Cost.first += (Size + 255) / 256;
-  return Cost;
 }
 
 bool SITargetLowering::hasMemSDNodeUser(SDNode *N) const {

@@ -2065,6 +2065,11 @@ private:
     if (PreviousNotConst->isSimpleTypeSpecifier())
       return true;
 
+    // type[] a in Java
+    if (Style.Language == FormatStyle::LK_Java &&
+        PreviousNotConst->is(tok::r_square))
+      return true;
+
     // const a = in JavaScript.
     return Style.isJavaScript() && PreviousNotConst->is(tok::kw_const);
   }
@@ -2364,25 +2369,6 @@ private:
     if (PrevToken->is(tok::r_brace) && Tok.is(tok::star) &&
         !PrevToken->MatchingParen)
       return TT_PointerOrReference;
-
-    // For "} &&"
-    if (PrevToken->is(tok::r_brace) && Tok.is(tok::ampamp)) {
-      const FormatToken *MatchingLBrace = PrevToken->MatchingParen;
-
-      // We check whether there is a TemplateCloser(">") to indicate it's a
-      // template or not. If it's not a template, "&&" is likely a reference
-      // operator.
-      //   struct {} &&ref = {};
-      if (!MatchingLBrace)
-        return TT_PointerOrReference;
-      FormatToken *BeforeLBrace = MatchingLBrace->getPreviousNonComment();
-      if (!BeforeLBrace || BeforeLBrace->isNot(TT_TemplateCloser))
-        return TT_PointerOrReference;
-
-      // If it is a template, "&&" is a binary operator.
-      //   enable_if<>{} && ...
-      return TT_BinaryOperator;
-    }
 
     if (PrevToken->Tok.isLiteral() ||
         PrevToken->isOneOf(tok::r_paren, tok::r_square, tok::kw_true,
@@ -3351,9 +3337,11 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
   }
 
   // trailing return type 'auto': []() -> auto {}, auto foo() -> auto {}
-  if (Left.is(tok::kw_auto) &&
-      Right.isOneOf(TT_LambdaLBrace, TT_FunctionLBrace))
+  if (Left.is(tok::kw_auto) && Right.isOneOf(TT_LambdaLBrace, TT_FunctionLBrace,
+                                             // function return type 'auto'
+                                             TT_FunctionTypeLParen)) {
     return true;
+  }
 
   // auto{x} auto(x)
   if (Left.is(tok::kw_auto) && Right.isOneOf(tok::l_paren, tok::l_brace))
