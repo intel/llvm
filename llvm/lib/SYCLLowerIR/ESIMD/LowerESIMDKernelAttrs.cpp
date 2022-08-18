@@ -24,14 +24,17 @@ SYCLLowerESIMDKernelAttrPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Modified = false;
   for (Function &F : M) {
     if (llvm::esimd::isESIMD(F)) {
-      llvm::esimd::traverseCallgraphUp(&F, [&](Function *GraphNode) {
-        if (!llvm::esimd::isESIMD(*GraphNode)) {
-          GraphNode->setMetadata(
-              llvm::esimd::ATTR_ESIMD_KERNEL,
-              llvm::MDNode::get(GraphNode->getContext(), {}));
-          Modified = true;
-        }
-      });
+      llvm::esimd::traverseCallgraphUp(
+          &F,
+          [&](Function *GraphNode) {
+            if (!llvm::esimd::isESIMD(*GraphNode)) {
+              GraphNode->setMetadata(
+                  llvm::esimd::ATTR_ESIMD_KERNEL,
+                  llvm::MDNode::get(GraphNode->getContext(), {}));
+              Modified = true;
+            }
+          },
+          false);
     }
   }
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();
