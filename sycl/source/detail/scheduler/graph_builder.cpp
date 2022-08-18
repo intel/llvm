@@ -645,8 +645,8 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
     const DeviceImplPtr &Device, bool AllowConst) {
-  auto IsSuitableAlloca = [&Device, &Context,
-                           Req, AllowConst](AllocaCommandBase *AllocaCmd) {
+  auto IsSuitableAlloca = [&Device, &Context, Req,
+                           AllowConst](AllocaCommandBase *AllocaCmd) {
     auto &Queue = AllocaCmd->getQueue();
     bool Res = sameCtx(Queue->getContextImplPtr(), Context) &&
                sameDev(Queue->getDeviceImplPtr(), Device);
@@ -686,8 +686,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
     std::vector<Command *> &ToEnqueue) {
 
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(
-      Record, Req, Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), /*AllowConst=*/false);
+  AllocaCommandBase *AllocaCmd =
+      findAllocaForReq(Record, Req, Queue->getContextImplPtr(),
+                       Queue->getDeviceImplPtr(), /*AllowConst=*/false);
 
   if (!AllocaCmd) {
     std::vector<Command *> ToCleanUp;
@@ -774,8 +775,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
                                  : HostUnifiedMemory;
             if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
-              AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
-                  Record, Req, Record->MCurContext, Record->MCurDevice, /*AllowConst=*/false);
+              AllocaCommandBase *LinkedAllocaCmdCand =
+                  findAllocaForReq(Record, Req, Record->MCurContext,
+                                   Record->MCurDevice, /*AllowConst=*/false);
 
               // Cannot setup link if candidate is linked already
               if (LinkedAllocaCmdCand &&
