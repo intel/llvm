@@ -31,6 +31,7 @@
 extern "C" {
 // Forward declarartions.
 static pi_result piQueueReleaseInternal(pi_queue Queue);
+static pi_result piEventReleaseInternal(pi_event Event);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
@@ -685,12 +686,11 @@ inline static pi_result createEventAndAssociateQueue(
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
-  (*Event)->Internal = IsInternal;
 
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
     CommandList->second.append(*Event);
-    PI_CALL(piEventRetain(*Event));
+    (*Event)->RefCount.increment();
   }
 
   // We need to increment the reference counter here to avoid pi_queue
@@ -946,8 +946,7 @@ bool _pi_queue::isInOrderQueue() const {
 }
 
 bool _pi_queue::isDiscardEvents() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE) !=
-          0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
 }
 
 pi_result
@@ -1202,7 +1201,7 @@ CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
     PI_CALL(CleanupCompletedEvent(Event, QueueLocked));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
   }
   return PI_SUCCESS;
 }
@@ -1570,9 +1569,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
       // need to create host proxy event.
-      auto Result = std::find_if(CommandList->second.EventList.begin(),
-                                 CommandList->second.EventList.end(),
-                                 [](pi_event E) { return !E->Internal; });
+      auto Result =
+          std::find_if(CommandList->second.EventList.begin(),
+                       CommandList->second.EventList.end(),
+                       [](pi_event E) { return E->hasExternalRefs(); });
       if (Result != CommandList->second.EventList.end()) {
         // Create a "proxy" host-visible event.
         //
@@ -1588,12 +1588,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         for (auto &Event : CommandList->second.EventList) {
           std::scoped_lock EventLock(Event->Mutex);
           // Internal event doesn't need host-visible proxy.
-          if (Event->Internal)
+          if (!Event->hasExternalRefs())
             continue;
 
           if (!Event->HostVisibleEvent) {
             Event->HostVisibleEvent = HostVisibleEvent;
-            PI_CALL(piEventRetain(HostVisibleEvent));
+            HostVisibleEvent->RefCount.increment();
           }
         }
 
@@ -1605,8 +1605,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // we check that EventList of the command list is not empty above, i.e.
         // after createEventAndAssociateQueue ref count is 2 and then +1 for
         // each event in the EventList.
-        PI_CALL(piEventRelease(HostVisibleEvent));
-        PI_CALL(piEventRelease(HostVisibleEvent));
+        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
 
         // Indicate no cleanup is needed for this PI event as it is special.
         HostVisibleEvent->CleanedUp = true;
@@ -1825,7 +1825,7 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
   // We can now release all the active barriers and replace them with the ones
   // in the wait list.
   for (pi_event &BarrierEvent : ActiveBarriers)
-    PI_CALL(piEventRelease(BarrierEvent));
+    PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
   ActiveBarriers.insert(
       ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
@@ -1985,7 +1985,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   }
 
   for (pi_uint32 I = 0; I < this->Length; I++) {
-    PI_CALL(piEventRetain(this->PiEventList[I]));
+    this->PiEventList[I]->RefCount.increment();
   }
 
   return PI_SUCCESS;
@@ -3428,7 +3428,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
                              PI_QUEUE_ON_DEVICE_DEFAULT |
-                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE)),
+                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -3606,7 +3606,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     PI_CALL(CleanupCompletedEvent(Event));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
   }
   PI_CALL(piQueueReleaseInternal(Queue));
   return PI_SUCCESS;
@@ -5492,7 +5492,7 @@ pi_result _pi_event::reset() {
   CommandData = nullptr;
   CommandType = PI_COMMAND_TYPE_USER;
   WaitList = {};
-  Internal = false;
+  RefCountExternal = 0;
   RefCount.reset();
 
   if (!isHostVisible())
@@ -5586,7 +5586,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 
 // Exteral PI API entry
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
-  return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
+  pi_result Result =
+      EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
+  (*RetEvent)->RefCountExternal++;
+  return Result;
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5782,7 +5785,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
     // association with queue. Events which don't have associated queue doesn't
     // require this release because it means that they are not created using
     // createEventAndAssociateQueue, i.e. additional retain was not made.
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
   }
 
   // The list of dependent events will be appended to as we walk it so that this
@@ -5814,7 +5817,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
     }
     if (DepEventKernel)
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
-    PI_CALL(piEventRelease(DepEvent));
+    PI_CALL(piEventReleaseInternal(DepEvent));
   }
 
   return PI_SUCCESS;
@@ -5833,7 +5836,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     // thus proxy events can be waited without a deadlock.
     //
     for (uint32_t I = 0; I < NumEvents; I++) {
-      if (EventList[I]->Internal)
+      if (!EventList[I]->hasExternalRefs())
         die("piEventsWait must not be called for an internal event");
 
       ze_event_handle_t ZeHostVisibleEvent;
@@ -5857,7 +5860,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     {
       std::shared_lock EventLock(EventList[I]->Mutex);
-      if (EventList[I]->Internal)
+      if (!EventList[I]->hasExternalRefs())
         die("piEventsWait must not be called for an internal event");
 
       if (!EventList[I]->Completed) {
@@ -5906,11 +5909,20 @@ pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 }
 
 pi_result piEventRetain(pi_event Event) {
+  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
+  Event->RefCountExternal++;
   Event->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piEventRelease(pi_event Event) {
+  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
+  Event->RefCountExternal--;
+  PI_CALL(piEventReleaseInternal(Event));
+  return PI_SUCCESS;
+}
+
+static pi_result piEventReleaseInternal(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   if (!Event->RefCount.decrementAndTest())
@@ -5936,7 +5948,7 @@ pi_result piEventRelease(pi_event Event) {
   // and release a reference to it.
   if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
     // Decrement ref-count of the host-visible proxy event.
-    PI_CALL(piEventRelease(Event->HostVisibleEvent));
+    PI_CALL(piEventReleaseInternal(Event->HostVisibleEvent));
   }
 
   // We intentionally incremented the reference counter when an event is
@@ -6319,7 +6331,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
     if (UseMultipleCmdlistBarriers) {
       // Retain and save the resulting event for future commands.
-      PI_CALL(piEventRetain(*Event));
+      (*Event)->RefCount.increment();
       Queue->ActiveBarriers.push_back(*Event);
     }
     return PI_SUCCESS;
@@ -6331,7 +6343,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Doing it early prevents potential additional barriers from implicitly being
   // appended.
   for (pi_event &E : Queue->ActiveBarriers)
-    PI_CALL(piEventRelease(E));
+    PI_CALL(piEventReleaseInternal(E));
   Queue->ActiveBarriers.clear();
 
   // Get command lists for each command queue.
@@ -6397,7 +6409,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
             ConvergenceCmdList->second.isCopy(Queue)))
       return Res;
     for (pi_event &E : EventWaitVector)
-      PI_CALL(piEventRelease(E));
+      PI_CALL(piEventReleaseInternal(E));
 
     // Insert a barrier with the events from each command-queue into the
     // convergence command list. The resulting event signals the convergence of
@@ -6418,7 +6430,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
 
   // We must keep the event internally to use if new command lists are created.
-  PI_CALL(piEventRetain(*Event));
+  (*Event)->RefCount.increment();
   Queue->ActiveBarriers.push_back(*Event);
   return PI_SUCCESS;
 }
@@ -6496,7 +6508,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
     return PI_SUCCESS;
   };
 
@@ -6517,7 +6529,7 @@ pi_result _pi_queue::synchronize() {
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
   for (pi_event &BarrierEvent : ActiveBarriers)
-    PI_CALL(piEventRelease(BarrierEvent));
+    PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
 
   return PI_SUCCESS;
@@ -7054,7 +7066,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
     // Add the event to the command list.
     if (Event) {
       CommandList->second.append(*Event);
-      PI_CALL(piEventRetain(*Event));
+      (*Event)->RefCount.increment();
     }
 
     const auto &ZeCommandList = CommandList->first;
@@ -7170,7 +7182,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
     return Res;
 
   CommandList->second.append(*Event);
-  PI_CALL(piEventRetain(*Event));
+  (*Event)->RefCount.increment();
 
   const auto &ZeCommandList = CommandList->first;
 

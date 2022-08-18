@@ -311,12 +311,11 @@ public:
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
-    if (getPlugin().getBackend() == backend::ext_oneapi_level_zero &&
-        MPropList
+    if (MPropList
             .has_property<ext::oneapi::property::queue::discard_events>()) {
       // Pass this flag to the Level Zero plugin to be able to check it from
       // queue property.
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();

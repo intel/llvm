@@ -1377,9 +1377,23 @@ struct _pi_event : _pi_object {
   // being visible to the host at all.
   bool Completed = {false};
 
-  // Indicates that event is internal, i.e. it is visible inside the L0 plugin
-  // only.
-  bool Internal = {false};
+  // Besides each PI object keeping a total reference count in
+  // _pi_object::RefCount we keep special track of the event *external*
+  // references. This way we are able to tell when the event is not referenced
+  // externally anymore, i.e. it can't be passed as a dependency event to
+  // piEnqueue* functions and explicitly waited meaning that we can do some
+  // optimizations:
+  // 1. For in-order queues we can reset and reuse event if it was not yet
+  // completed by submitting a reset command to the queue (since there are no
+  // external references, we know that nobody can wait this event somewhere in
+  // parallel thread or pass it as a dependency which may lead to hang)
+  // 2. We can avoid creating host proxy event.
+  // This counter doesn't track the lifetime of a event object. Even if it
+  // reaches zero a event object may not be destroyed and can be used internally
+  // in the plugin.
+  std::atomic<pi_uint32> RefCountExternal{0};
+
+  bool hasExternalRefs() { return RefCountExternal != 0; }
 
   // Reset _pi_event object.
   pi_result reset();
