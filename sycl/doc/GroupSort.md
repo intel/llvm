@@ -100,6 +100,43 @@ However, we don't have an information how much memory is needed by backend compi
 That's why we need a Level Zero function that calls a function from the backend and
 provide actual value to the SYCL code.
 
+Required interfaces:
+```cpp
+    // Returns whether default work-group or sub-group sort is present in builtins
+    virtual bool DefaultGroupSortSupported(GroupSortMemoryScope::MemoryScope_t scope,
+                                           GroupSortKeyType::KeyType_t keyType,
+                                           bool isKeyValue,
+                                           bool isJointSort) const;
+
+    // Returns required amount of memory for default joint work-group or sub-group sort
+    // devicelib builtin function in bytes per workgroup (or sub-group), >= 0
+    // or -1 if the algorithm for the specified parameters is not implemented
+    //
+    // totalItems -- number of elements to sort
+    // rangeSize -- work-group or sub-group size respectively
+    //
+    // For key-only sort pass valueTypeSizeInBytes = 0
+    virtual long DefaultGroupJointSortMemoryRequired(GroupSortMemoryScope::MemoryScope_t scope,
+                                                     long totalItems,
+                                                     long rangeSize,
+                                                     long keyTypeSizeInBytes,
+                                                     long valueTypeSizeInBytes) const;
+
+    // Returns required amount of memory for default private memory work-group or sub-group sort
+    // devicelib builtin function in bytes per workgroup (or sub-group), >= 0
+    // or -1 if the algorithm for the specified parameters is not implemented
+    //
+    // itemsPerWorkItem -- number of elements in private array to sort
+    // rangeSize -- work-group or sub-group size respectively
+    //
+    // For key-only sort pass valueTypeSizeInBytes = 0
+    virtual long DefaultGroupPrivateSortMemoryRequired(GroupSortMemoryScope::MemoryScope_t scope,
+                                                       long itemsPerWorkItem,
+                                                       long rangeSize,
+                                                       long keyTypeSizeInBytes,
+                                                       long valueTypeSizeInBytes) const;
+```
+
 ### Fallback SPIR-V library
 
 If backend compilers can generate optimized implementations based on low-level instructions,
@@ -112,37 +149,54 @@ Interface for the library and backends:
 
 ```cpp
 // for default sorting algorithm
-void __devicelib_default_work_group_sort_ascending(T* first, T* last, T* temp_memory);
+void __devicelib_default_work_group_joint_sort_ascending_<encoded_param_types>(T* first, uint n, byte* scratch);
 
-void __devicelib_default_work_group_sort_descending(T* first, T* last, T* temp_memory);
+void __devicelib_default_work_group_joint_sort_descending_<encoded_param_types>(T* first, uint n, byte* scratch);
 
-void __devicelib_default_sub_group_sort_ascending(T* first, T* last, T* temp_memory);
+// for fixed-size arrays
+void __devicelib_default_work_group_private_sort_close_ascending_<encoded_param_types>(T* first, uint n, byte* scratch);
 
-void __devicelib_default_sub_group_sort_descending(T* first, T* last, T* temp_memory);
+void __devicelib_default_work_group_private_sort_close_descending_<encoded_param_types>(T* first, uint n, byte* scratch);
+
+void __devicelib_default_work_group_private_sort_spread_ascending_<encoded_param_types>(T* first, uint n, byte* scratch);
+
+void __devicelib_default_work_group_private_sort_spread_descending_<encoded_param_types>(T* first, uint n, byte* scratch);
+
+// for sub-groups
+T __devicelib_default_sub_group_private_sort_ascending_<encoded_scalar_param_type>(T value);
+
+T __devicelib_default_sub_group_private_sort_descending_<encoded_scalar_param_type>(T value);
 
 // for key value sorting using the default algorithm
-void __devicelib_default_work_group_sort_ascending(T* keys_first, T* keys_last,
-                                                   U* values_first, U* values_last,
-                                                   T* temp_memory);
+void __devicelib_default_work_group_joint_sort_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
 
-void __devicelib_default_work_group_sort_descending(T* keys_first, T* keys_last,
-                                                    U* values_first, U* values_last,
-                                                    T* temp_memory);
+void __devicelib_default_work_group_joint_sort_descending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
 
-void __devicelib_default_sub_group_sort_ascending(T* keys_first, T* keys_last,
-                                                  U* values_first, U* values_last,
-                                                  T* temp_memory);
+// for key value sorting using fixed-size arrays
+void __devicelib_default_work_group_private_sort_close_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
 
-void __devicelib_default_sub_group_sort_descending(T* keys_first, T* keys_last,
-                                                   U* values_first, U* values_last,
-                                                   T* temp_memory);
+void __devicelib_default_work_group_private_sort_close_descending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
+void __devicelib_default_work_group_private_sort_spread_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
+void __devicelib_default_work_group_private_sort_spread_descending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
 ```
 
 Notes:
-- `T`, `U` are arithmetic types or `sycl::half`.
-- `first`, `last` describe the range of actual data for sorting.
-- `keys_first`, `keys_last` describe the range of "keys" for key-value sorting. "Keys" are comparing
-and moving during the sorting.
-- `temp_memory` is a temporary storage (local or global) that can be used by backends
-- `values_first`, `values_last` describe the range of "values" for key-value sorting. "Keys" are
-only moving corresponding the "keys" order during the sorting.
+- `T`, `U` are from the following list `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f16`, `f32`, `f64`.
+- `encoded_param_types` is `T` prepended with `p1` for global/private address space and `p3` for shared local memory.
+- `first` is a pointer to the actual data for sorting.
+- The type of `n` (number of elements) is u32.
+- `keys_first` points to "keys" for key-value sorting. "Keys" are comparing and moving during the sorting.
+- `scratch` is a temporary storage (local or global) that can be used by backends. The type of `scratch` is always `byte*`.
+- `values_first` points to "values" for key-value sorting. "Keys" are only moving corresponding the "keys" order during the sorting.
+
+Examples:
+```cpp
+void __devicelib_default_work_group_joint_sort_ascending_p1i32_u32_p3i8(int* first, uint n, byte* scratch);
+void __devicelib_default_work_group_joint_sort_descending_p1u32_u32_p1i8(uint* first, uint n, byte* scratch);
+void __devicelib_default_work_group_joint_sort_ascending_p3u32_p3u32_u32_p1i8(uint* first_keys, uint* first_values, uint n, byte* scratch);
+void __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u32_u32_p1i8(uint* first_keys, uint* first_values, uint n, byte* scratch);
+double __devicelib_default_sub_group_private_sort_ascending_f64(double value);
+```
