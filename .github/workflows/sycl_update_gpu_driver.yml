@@ -3,6 +3,9 @@ name: Update GPU driver
 on:
   schedule:
     - cron:  '0 3 * * 2'
+  push:
+    branches:
+    - driver-upgrade
   pull_request:
     branches:
     - sycl
