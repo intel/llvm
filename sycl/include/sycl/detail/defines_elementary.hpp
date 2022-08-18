@@ -105,20 +105,6 @@
 #define __SYCL_WARNING(msg) __pragma(message(msg))
 #endif // __GNUC__
 
-// Define __SYCL_UNROLL to add pragma/attribute unroll to a loop.
-#ifndef __SYCL_UNROLL
-#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
-#elif defined(__clang__)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
-#elif (defined(__GNUC__) && __GNUC__ >= 8) ||                                  \
-    (defined(__GNUG__) && __GNUG__ >= 8)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(GCC unroll x))
-#else
-#define __SYCL_UNROLL(x)
-#endif // compiler switch
-#endif // __SYCL_UNROLL
-
 #if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_WARNING) && __cplusplus < 201703L
 
 #if defined(_MSC_VER) && !defined(__clang__)
