@@ -108,14 +108,14 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
 
   device Dev = Ctx.get_devices()[0];
 
-  if (!Dev.has(aspect::ext_intel_device_info_free_memory)) {
+  if (!Dev.has(aspect::ext_intel_free_memory)) {
     std::clog << "This test is only for the devices with "
-                 "ext_intel_device_info_free_memory extension support.\n";
+                 "ext_intel_free_memory extension support.\n";
     return;
   }
 
   auto FreeMemory =
-      Dev.get_info<info::device::ext_intel_device_info_free_memory>();
+      Dev.get_info<info::device::ext_intel_free_memory>();
 
   EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
       << "Expect piDeviceGetInfo to be "

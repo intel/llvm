@@ -209,7 +209,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          PI_DEVICE_INFO_IMAGE_SRGB)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
                          PI_DEVICE_INFO_UUID)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_free_memory, pi_uint64,
+__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_free_memory, pi_uint64,
                          PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)

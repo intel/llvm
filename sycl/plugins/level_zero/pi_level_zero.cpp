@@ -3141,12 +3141,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     std::vector<zes_mem_handle_t> MemHandles(MemCount);
     ZE_CALL(zesDeviceEnumMemoryModules,
             (ZeDevice, &MemCount, MemHandles.data()));
-    printf("# = %d\n", MemCount);
+
     for (auto &ZesMemHandle : MemHandles) {
       ZesStruct<zes_mem_state_t> ZeMemState;
       ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
       FreeMemory += ZeMemState.free;
-      printf("## += %lld\n", ZeMemState.free);
     }
     return ReturnValue(FreeMemory);
   }
