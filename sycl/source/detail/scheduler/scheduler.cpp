@@ -447,8 +447,12 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  if (Cmds.empty() && MDeferredCleanupCommands.empty())
-    return;
+  if (Cmds.empty())
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
+    if (MDeferredCleanupCommands.empty())
+      return;
+  }
 
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to blocked commands, defer cleanup if
