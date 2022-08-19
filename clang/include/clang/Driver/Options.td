@@ -4150,8 +4150,8 @@ def noprofilelib : Flag<["-"], "noprofilelib">;
 def noseglinkedit : Flag<["-"], "noseglinkedit">;
 def nostartfiles : Flag<["-"], "nostartfiles">, Group<Link_Group>;
 def nostdinc : Flag<["-"], "nostdinc">, Flags<[CoreOption]>;
-def nostdlibinc : Flag<["-"], "nostdlibinc">, Flags<[CoreOption]>;
-def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option, CoreOption]>,
+def nostdlibinc : Flag<["-"], "nostdlibinc">;
+def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
   HelpText<"Disable standard #include directories for the C++ standard library">,
   MarshallingInfoNegativeFlag<HeaderSearchOpts<"UseStandardCXXIncludes">>;
 def nostdlib : Flag<["-"], "nostdlib">, Group<Link_Group>;
