@@ -70,10 +70,10 @@ public:
   }
 };
 
-// class tf32 should not hold actual data. It is a tag type only, an empty
-// class with no member variables. Morally, it is equivalent to an
-// enumeration--it just uses the type system to communicate the desired
-// accuracy of arithmetic computations. Users can't construct a tf32
+// class tf32 should not hold actual data. It is a tag type only, an empty class
+// with no member variables. Morally, it is equivalent to an enumeration--it
+// just uses the type system to communicate the desired accuracy of arithmetic
+// computations. Users can't construct a tf32
 namespace precision {
 class tf32 {};
 } // namespace precision
@@ -260,10 +260,10 @@ public:
       : M(Mat), idx(i) {}
   operator storage_element_type() {
 #ifdef __SYCL_DEVICE_ONLY__
-    // TODO:  __spirv_VectorExtractDynamic should also return
-    // storage_element_type
-    T elem = __spirv_VectorExtractDynamic(M.spvm, idx);
-    return reinterpret_cast<storage_element_type &>(elem);
+    // __spirv_VectorExtractDynamic returns storage_element_type
+    storage_element_type elem =
+        __spirv_VectorExtractDynamic<T, storage_element_type>(M.spvm, idx);
+    return elem;
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -272,10 +272,9 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    // TODO:  __spirv_VectorExtractDynamic should also return
-    // storage_element_type
-    T elem = __spirv_VectorExtractDynamic(M.spvm, idx);
-    storage_element_type elems = reinterpret_cast<storage_element_type &>(elem);
+    // __spirv_VectorExtractDynamic returns storage_element_type
+    storage_element_type elems =
+        __spirv_VectorExtractDynamic<T, storage_element_type>(M.spvm, idx);
     return elems != static_cast<storage_element_type>(0);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
@@ -285,7 +284,9 @@ public:
 
   template <typename T2> wi_element &operator=(const T2 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(M.spvm, static_cast<T>(rhs), idx);
+    // __spirv_VectorInsertDynamic takes storage_element_type as argument
+    M.spvm = __spirv_VectorInsertDynamic(
+        M.spvm, static_cast<storage_element_type>(rhs), idx);
     return *this;
 #else
     (void)rhs;
@@ -310,12 +311,13 @@ public:
 #if __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
-    T elem = __spirv_VectorExtractDynamic(M.spvm, idx);                        \
     storage_element_type elems =                                               \
-        reinterpret_cast<storage_element_type &>(elem);                        \
+        __spirv_VectorExtractDynamic<T, storage_element_type>(M.spvm, idx);    \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
-        static_cast<storage_element_type>(elems op static_cast<T>(rhs)), idx); \
+        static_cast<storage_element_type>(                                     \
+            elems op static_cast<storage_element_type>(rhs)),                  \
+        idx);                                                                  \
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
@@ -335,10 +337,10 @@ public:
 
 // Note that similarly to the other matrix functions, uint16_t is used here to
 // represent bf16 type. Since the AMX and DPAS implementations don't support
-// uint16_t, this interpretation is possible. This design choice was made
-// before the introduction of SYCL experimental bfloat16 type. Our plan is to
-// move towards using the SYCL bfloat16. But since it is still experimental,
-// we will probably keep both uint16 interpretation and SYCL bfloat16.
+// uint16_t, this interpretation is possible. This design choice was made before
+// the introduction of SYCL experimental bfloat16 type. Our plan is to move
+// towards using the SYCL bfloat16. But since it is still experimental, we will
+// probably keep both uint16 interpretation and SYCL bfloat16.
 template <size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
 class wi_element<uint16_t, NumRows, NumCols, Layout, Group> {
   joint_matrix<uint16_t, NumRows, NumCols, Layout, Group> &M;
@@ -393,8 +395,8 @@ public:
 
   // We use here the following functions for conversion (bf16=>fp32 and
   // fp32=>bf16). This is a workaround until we are able to use
-  // __spirv_ConvertFToBF16INTEL and __spirv_ConvertBF16ToFINTEL once these
-  // are supported in the CPU backend
+  // __spirv_ConvertFToBF16INTEL and __spirv_ConvertBF16ToFINTEL once these are
+  // supported in the CPU backend
   static float make_fp32(uint16_t x) {
     unsigned int y = x;
     y = y << 16;

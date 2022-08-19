@@ -57,8 +57,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}), [=
-     ](nd_item<2> spmd_item)[[intel::reqd_sub_group_size(SG_SZ)]]
+         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -102,17 +102,14 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            auto wi_slice_a = sub_a.get_wi_data();
            for (int i = 0; i < wi_slice_a.length(); i++) {
              float elem = wi_slice_a[i];
-             // TODO: OP= is buggy: __spirv_VectorInsertDynamic should take
-             // storage element type as argument
-             // wi_slice_a[i] *= 2;
+             wi_slice_a[i] *= 2;
            }
            joint_matrix_store(sg, sub_c,
                               accC.get_pointer() + (sg_startx * TM) * N +
                                   sg_starty / SG_SZ * TN,
                               N, matrix_layout::row_major);
          }); // parallel for
-   })
-      .wait();
+   }).wait();
 }
 
 static constexpr size_t MATRIX_M = TM * 2;

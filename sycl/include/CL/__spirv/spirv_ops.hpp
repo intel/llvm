@@ -22,11 +22,11 @@
 #endif
 
 #ifdef __SYCL_DEVICE_ONLY__
-template <typename T, std::size_t R, std::size_t C,
+template <typename T, typename Ts, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
-__spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
+__spirv_JointMatrixLoadINTEL(Ts *Ptr, std::size_t Stride,
                              __spv::MatrixLayout Layout = L,
                              __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
@@ -97,16 +97,18 @@ template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
 extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
     __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+template <typename T, typename Ts, std::size_t R, std::size_t C,
+          __spv::MatrixLayout U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
+extern SYCL_EXTERNAL Ts __spirv_VectorExtractDynamic(
     __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *, size_t i);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+template <typename T, typename Ts, std::size_t R, std::size_t C,
+          __spv::MatrixLayout U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *,
-                            T val, size_t i);
+                            Ts val, size_t i);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
