@@ -46,7 +46,9 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete);
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
   ///

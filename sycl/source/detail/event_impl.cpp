@@ -117,10 +117,6 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(std::optional<HostEventState> State)
-    : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
-      MState(State.value_or(HES_Complete)) {}
-
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
