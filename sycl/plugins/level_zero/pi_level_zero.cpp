@@ -1035,8 +1035,8 @@ bool _pi_queue::isDiscardEvents() const {
 }
 
 void _pi_queue::setLastCommandEvent(pi_event Event) {
-  if (Event &&
-      supportsInOrderQueueOptimization(Event->isHostVisible(), Event->Internal))
+  if (Event && supportsInOrderQueueOptimization(Event->isHostVisible(),
+                                                !Event->hasExternalRefs()))
     ZeLastCommandEvent = std::make_pair(Event->ZeEvent, Event->ZeEventPool);
 
   LastCommandEvent = Event;
@@ -6089,8 +6089,9 @@ static pi_result piEventReleaseInternal(pi_event Event) {
   // for such event (in this case event we reuse only native handles, not
   // pi_event object itself).
   if (DisableEventsCaching || !Event->OwnZeEvent ||
-      (Event->Queue && Event->Queue->supportsInOrderQueueOptimization(
-                           Event->isHostVisible(), Event->Internal))) {
+      (Event->Queue &&
+       Event->Queue->supportsInOrderQueueOptimization(
+           Event->isHostVisible(), !Event->hasExternalRefs()))) {
     delete Event;
   } else {
     Event->Context->addEventToCache(Event);
