@@ -54,9 +54,10 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
       } else {
         auto *CI = cast<CallInst>(FCall);
 
-        if ((CI->getCalledFunction() != CurF) && ErrorOnNonCallUse) {
+        if ((CI->getCalledFunction() != CurF)) {
           // CurF is used in a call, but not as the callee.
-          llvm::report_fatal_error(ErrMsg);
+          if (ErrorOnNonCallUse)
+            llvm::report_fatal_error(ErrMsg);
         } else {
           auto FCaller = CI->getFunction();
 
