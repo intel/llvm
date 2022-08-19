@@ -1283,9 +1283,6 @@ private:
     kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
   }
 
-  std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
-  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
-
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
@@ -2568,6 +2565,7 @@ public:
   void mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
+  std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through

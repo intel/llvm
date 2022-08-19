@@ -18,6 +18,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -139,14 +140,14 @@ bool isESIMDFunction(const Function &F) {
 
 // This function makes one or two groups depending on kernel types (SYCL, ESIMD)
 EntryPointGroupVec
-groupEntryPointsByKernelType(const ModuleDesc &MD,
+groupEntryPointsByKernelType(ModuleDesc &MD,
                              bool EmitOnlyKernelsAsEntryPoints) {
-  const Module &M = MD.getModule();
+  Module &M = MD.getModule();
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
 
   // Only process module entry points:
-  for (const auto &F : M.functions()) {
+  for (Function &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
@@ -187,16 +188,16 @@ groupEntryPointsByKernelType(const ModuleDesc &MD,
 // which contains pairs of group id and entry points for that group. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-EntryPointGroupVec groupEntryPointsByScope(const ModuleDesc &MD,
+EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
                                            EntryPointsGroupScope EntryScope,
                                            bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec EntryPointGroups{};
   // Use MapVector for deterministic order of traversal (helps tests).
   MapVector<StringRef, EntryPointSet> EntryPointMap;
-  const Module &M = MD.getModule();
+  Module &M = MD.getModule();
 
   // Only process module entry points:
-  for (const auto &F : M.functions()) {
+  for (Function &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
@@ -246,15 +247,15 @@ EntryPointGroupVec groupEntryPointsByScope(const ModuleDesc &MD,
 
 template <class EntryPoinGroupFunc>
 EntryPointGroupVec
-groupEntryPointsByAttribute(const ModuleDesc &MD, StringRef AttrName,
+groupEntryPointsByAttribute(ModuleDesc &MD, StringRef AttrName,
                             bool EmitOnlyKernelsAsEntryPoints,
                             EntryPoinGroupFunc F) {
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
-  const Module &M = MD.getModule();
+  Module &M = MD.getModule();
 
   // Only process module entry points:
-  for (const auto &F : M.functions()) {
+  for (auto &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F)) {
       continue;
@@ -329,7 +330,9 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   // It is conservatively assumed that any address-taken function can be invoked
   // or otherwise used by any function in any module split from the initial one.
   // So such functions along with the call graphs they start are always
-  // extracted (and duplicated in each split module).
+  // extracted (and duplicated in each split module). They are not treated as
+  // entry points, as SYCL runtime requires that intersection of entry point
+  // sets of different device binaries (for the same target) must be empty.
   // TODO: try to determine which split modules really use address-taken
   // functions and only duplicate the functions in such modules. Note that usage
   // may include e.g. function address comparison w/o actual invocation.
@@ -385,19 +388,6 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
   return ModuleDesc{std::move(SubM), std::move(ModuleEntryPoints), MD.Props};
 }
 
-// TODO: try to move including all passes (cleanup, spec consts, compile time
-// properties) in one place and execute MPM.run() only once.
-void cleanupSplitModule(Module &SplitM) {
-  ModuleAnalysisManager MAM;
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  ModulePassManager MPM;
-  // Do cleanup.
-  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
-  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
-  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
-  MPM.run(SplitM, MAM);
-}
-
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
@@ -407,7 +397,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
   collectGlobalVarsToExtract(GVs, MD.getModule());
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
-  cleanupSplitModule(SplitM.getModule());
+  SplitM.cleanup();
 
   return SplitM;
 }
@@ -613,6 +603,55 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
   }
 }
 
+// Attribute to save current function linkage in before replacement.
+// See more comments in ModuleSplitter::fixupLinkageOfDirectInvokeSimdTargets
+// declaration.
+constexpr char SYCL_ORIG_LINKAGE_ATTR[] = "__sycl_orig_linkage";
+
+void ModuleDesc::fixupLinkageOfDirectInvokeSimdTargets() {
+  for (Function &F : *M) {
+    if (!F.hasFnAttribute(INVOKE_SIMD_DIRECT_TARGET_ATTR)) {
+      continue;
+    }
+    int L = static_cast<int>(F.getLinkage());
+    using LT = GlobalValue::LinkageTypes;
+
+    if (L == static_cast<int>(LT::LinkOnceODRLinkage)) {
+      F.addFnAttr(SYCL_ORIG_LINKAGE_ATTR, llvm::utostr(L));
+      F.setLinkage(LT::WeakODRLinkage);
+    } else if (L == static_cast<int>(LT::LinkOnceAnyLinkage)) {
+      F.addFnAttr(SYCL_ORIG_LINKAGE_ATTR, llvm::utostr(L));
+      F.setLinkage(LT::WeakAnyLinkage);
+    }
+  }
+}
+
+void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
+  for (Function &F : *M) {
+    Attribute A = F.getFnAttribute(SYCL_ORIG_LINKAGE_ATTR);
+
+    if (!A.isValid()) {
+      continue;
+    }
+    F.removeFnAttr(SYCL_ORIG_LINKAGE_ATTR);
+    int L = std::stoi(A.getValueAsString().str());
+    F.setLinkage(static_cast<GlobalValue::LinkageTypes>(L));
+  }
+}
+
+// TODO: try to move all passes (cleanup, spec consts, compile time properties)
+// in one place and execute MPM.run() only once.
+void ModuleDesc::cleanup() {
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  ModulePassManager MPM;
+  // Do cleanup.
+  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
+  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
+  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
+  MPM.run(*M, MAM);
+}
+
 #ifndef NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
   if (EntryPoints.Props.HasESIMD == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
@@ -669,25 +708,16 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   auto It0 = Names.cbegin();
   auto It1 = Names.cend();
   std::for_each(It0, It1, [&](const std::string &Name) {
-    const Function *F = M.getFunction(Name);
-    assert(F && "entry point lost");
-    Functions.insert(F);
+    // Sometimes functions considered entry points (those for which isEntryPoint
+    // returned true) may be dropped by optimizations, such as AlwaysInliner.
+    // For example, if a linkonce_odr function is inlined and there are no other
+    // uses, AlwaysInliner drops it. It is responsibility of the user to make an
+    // entry point not have internal linkage (such as linkonce_odr) to guarantee
+    // its availability in the resulting device binary image.
+    if (Function *F = M.getFunction(Name)) {
+      Functions.insert(F);
+    }
   });
-}
-
-void EntryPointGroup::rebuild(const Module &M) {
-  if (Functions.size() == 0) {
-    return;
-  }
-  EntryPointSet NewFunctions;
-  const auto It0 = Functions.begin();
-  const auto It1 = Functions.end();
-  std::for_each(It0, It1, [&](const Function *F) {
-    Function *NewF = M.getFunction(F->getName());
-    assert(NewF && "entry point lost");
-    NewFunctions.insert(NewF);
-  });
-  Functions = std::move(NewFunctions);
 }
 
 std::unique_ptr<ModuleSplitterBase>
