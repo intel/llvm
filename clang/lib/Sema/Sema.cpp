@@ -1716,7 +1716,7 @@ public:
           return;
         }
         if (!VD->hasInit() &&
-            S.isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+            S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
                 VD->getType()) &&
             !VD->hasAttr<SYCLDeviceAttr>())
           S.Diag(Loc, diag::err_sycl_external_global);

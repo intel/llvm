@@ -16,7 +16,7 @@ struct RandomStruct {
   int M;
 };
 
-// expected-error@+1{{'sycl_device' attribute can only appear on 'device_global' variables}}
+// expected-error@+1{{'sycl_device' attribute can only be applied to 'device_global' variables}}
 SYCL_EXTERNAL RandomStruct S;
 
 namespace {
@@ -24,7 +24,7 @@ namespace {
 SYCL_EXTERNAL device_global<int> same_name;
 } // namespace
 
-// expected-error@+1{{'sycl_device' attribute can only appear on 'device_global' variables}}
+// expected-error@+1{{'sycl_device' attribute can only be applied to 'device_global' variables}}
 SYCL_EXTERNAL int AAA;
 
 struct B {
@@ -43,12 +43,19 @@ template <typename T> struct NonDevGlob {
 
 template <typename T> struct TS {
   SYCL_EXTERNAL static device_global<T> D;
-  // expected-error@+1{{'sycl_device' attribute can only appear on 'device_global' variables}}
+  // expected-error@+1{{'sycl_device' attribute can only be applied to 'device_global' variables}}
   SYCL_EXTERNAL static NonDevGlob<T> ND;
 };
 
 // expected-note@+1 {{in instantiation of template class 'TS<int>' requested here}}
 TS<int> A;
+
+struct [[__sycl_detail__::global_variable_allowed]] GlobAllowedOnly {
+};
+
+// expected-error@+1{{'sycl_device' attribute can only be applied to 'device_global' variables}}
+SYCL_EXTERNAL GlobAllowedOnly GAO;
+
 
 SYCL_EXTERNAL extern device_global<int> Good;
 extern device_global<int> Bad;
@@ -56,8 +63,10 @@ extern device_global<int> Bad;
 int main() {
   sycl::kernel_single_task<class KernelName1>([=]() {
     Good.get();
-    // expected-error@+1 {{SYCL device code cannot reference an external device_global variable not marked with SYCL_EXTERNAL}}
+    // expected-error@+1 {{invalid reference to 'device_global' variable; external 'device_global' variable must be marked with SYCL_EXTERNAL macro}}
     Bad.get();
+
+    (void)GAO;
   });
   return 0;
 }

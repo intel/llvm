@@ -11725,8 +11725,8 @@ def err_sycl_restrict : Error<
   "nor constant-initialized"
   "}0">;
 def err_sycl_external_global : Error<
-  "SYCL device code cannot reference an external device_global variable not "
-  "marked with SYCL_EXTERNAL macro">;
+  "invalid reference to 'device_global' variable; external 'device_global'"
+  " variable must be marked with SYCL_EXTERNAL macro">;
 def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
@@ -11763,7 +11763,7 @@ def err_sycl_attribute_internal_decl
             "static %select{function|variable}1 or %select{function|variable}1 "
             "in an anonymous namespace">;
 def err_sycl_attribute_not_device_global
-    : Error<"%0 attribute can only appear on 'device_global' variables">;
+    : Error<"%0 attribute can only be applied to 'device_global' variables">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
