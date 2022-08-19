@@ -20,8 +20,7 @@ using namespace llvm;
 
 namespace llvm {
 PreservedAnalyses
-SYCLFixupESIMDKernelWrapperAttrPass::run(Module &M,
-                                         ModuleAnalysisManager &MAM) {
+SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Modified = false;
   for (Function &F : M) {
     if (llvm::esimd::isESIMD(F)) {

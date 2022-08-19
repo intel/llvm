@@ -77,7 +77,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMGenXIntrinsics
   LLVMDemangle
   LLVMTransformUtils
-
+  
   LINK_COMPONENTS
   Analysis
   Core

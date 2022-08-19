@@ -135,7 +135,7 @@ MODULE_PASS("SYCLMutatePrintfAddrspace", SYCLMutatePrintfAddrspacePass())
 MODULE_PASS("SPIRITTAnnotations", SPIRITTAnnotationsPass())
 MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
-MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperAttrPass())
+MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperMDPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
