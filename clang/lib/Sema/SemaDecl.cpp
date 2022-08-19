@@ -7678,9 +7678,20 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTSCSpec(TSCS);
   }
 
-  // Global variables with types decorated with device_global attribute must be
-  // static if they are declared in SYCL device code.
   if (getLangOpts().SYCLIsDevice) {
+    // device_global array is not allowed.
+    if (NewVD->getType()->isArrayType()) {
+      if (const Type *ArrayElementType =
+              NewVD->getType()->getPointeeOrArrayElementType()) {
+        QualType ElementQualType = QualType{ArrayElementType, 0};
+        if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+                ElementQualType))
+          Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
+      }
+    }
+
+    // Global variables with types decorated with device_global attribute must
+    // be static if they are declared in SYCL device code.
     if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             NewVD->getType())) {
       if (SCSpec == DeclSpec::SCS_static) {

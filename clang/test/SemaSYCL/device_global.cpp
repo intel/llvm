@@ -1,9 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -verify %s
 #include "Inputs/sycl.hpp"
 
-// Test cases below check for valid usage of device_global and
-// global_variable_allowed attributes, and that they are being correctly
-// generated in the AST.
+// Diagnostic tests for device_global and global_variable_allowed attribute.
 
 // Test that there are no errors when variables of type device_global are
 // decorated with global_variable_allowed attribute appropriately.
@@ -28,6 +26,9 @@ private:
 device_global<int> Baz::f;
 
 device_global<int[4]> not_array; // OK
+
+// expected-error@+1{{'device_global' array is not allowed}}
+device_global<int> array[4];
 
 device_global<int> same_name; // OK
 
