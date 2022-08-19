@@ -638,7 +638,7 @@ inline static pi_result createEventAndAssociateQueue(
     pi_command_list_ptr_t CommandList, bool ForceHostVisible = false) {
 
   if (!ForceHostVisible)
-    ForceHostVisible = Queue->Device->EventsScope() == AllHostVisible;
+    ForceHostVisible = Queue->Device->eventsScope() == AllHostVisible;
   PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
 
   (*Event)->Queue = Queue;
@@ -799,7 +799,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
 }
 
 // Controls whether device-scope events are used, and how.
-enum EventsScope _pi_device::EventsScope() {
+enum EventsScope _pi_device::eventsScope() {
   static const auto DeviceEventsStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
 
@@ -1597,7 +1597,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
-    if (Device->EventsScope() == LastCommandInBatchHostVisible &&
+    if (Device->eventsScope() == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // Create a "proxy" host-visible event.
       //
@@ -1964,7 +1964,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (CurQueue->Device->EventsScope() != AllHostVisible) {
+          if (CurQueue->Device->eventsScope() != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
@@ -5445,7 +5445,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   std::scoped_lock Lock(Queue->Mutex, this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (Queue->Device->EventsScope() != OnDemandHostVisibleProxy)
+    if (Queue->Device->eventsScope() != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -5823,7 +5823,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventList[I]->Queue->Device->EventsScope() ==
+    if (EventList[I]->Queue->Device->eventsScope() ==
         OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and

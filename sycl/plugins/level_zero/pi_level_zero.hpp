@@ -557,7 +557,7 @@ struct _pi_device : _pi_object {
   bool ImmCommandListsPreferred;
 
   // Return the Events scope to be used in for this device.
-  enum EventsScope EventsScope();
+  enum EventsScope eventsScope();
 
   // Return whether to use immediate commandlists for this device.
   bool UseImmediateCommandLists();
