@@ -327,12 +327,13 @@ static int canonicalize(mlir::MLIRContext &context,
       optPM.addPass(mlir::createAffineScalarReplacementPass());
   }
   if (mlir::failed(pm.run(module.get()))) {
-    llvm::errs() << "Canonicalization failed. Module: ***\n";
+    llvm::errs() << "*** Canonicalization failed. Module: ***\n";
     module->dump();
     return 4;
   }
   if (mlir::failed(mlir::verify(module.get()))) {
-    llvm::errs() << "Verification after canonicalization failed. Module: ***\n";    
+    llvm::errs()
+        << "*** Verification after canonicalization failed. Module: ***\n";
     module->dump();
     return 5;
   }
@@ -384,12 +385,12 @@ static int optimize(mlir::MLIRContext &context,
   }
 
   if (mlir::failed(pm.run(module.get()))) {
-    llvm::errs() << "Optimize failed. Module: ***\n";    
+    llvm::errs() << "*** Optimize failed. Module: ***\n";    
     module->dump();
     return 6;
   }
   if (mlir::failed(mlir::verify(module.get()))) {
-    llvm::errs() << "Verification after optimization failed. Module: ***\n";        
+    llvm::errs() << "** Verification after optimization failed. Module: ***\n";
     module->dump();
     return 7;
   }
@@ -462,12 +463,13 @@ static int optimizeCUDA(mlir::MLIRContext &context,
       noptPM2.addPass(mlir::createAffineScalarReplacementPass());
   }
   if (mlir::failed(pm.run(module.get()))) {
-    llvm::errs() << "Optimize CUDA failed. Module: ***\n";
+    llvm::errs() << "*** Optimize CUDA failed. Module: ***\n";
     module->dump();
     return 8;
   }
-  if (mlir::failed(mlir::verify(module.get()))) {  
-    llvm::errs() << "Verification after CUDA optimization failed. Module: ***\n";
+  if (mlir::failed(mlir::verify(module.get()))) {
+    llvm::errs()
+        << "*** Verification after CUDA optimization failed. Module: ***\n";
     module->dump();
     return 9;
   }
@@ -479,80 +481,89 @@ static int optimizeCUDA(mlir::MLIRContext &context,
   return 0;
 }
 
-static int finalize(mlir::MLIRContext &context,
-                    mlir::OwningOpRef<mlir::ModuleOp> &module,
-                    llvm::DataLayout &DL, bool &LinkOMP) {
+static void finalizeCUDA(mlir::PassManager &pm) {
+  if (!CudaLower)
+    return;
+
+  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+
   constexpr int unrollSize = 32;
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  mlir::PassManager pm(&context);
-  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(polygeist::createMem2RegPass());
+  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  optPM.addPass(polygeist::createCanonicalizeForPass());
+  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
-  if (CudaLower) {
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(polygeist::createMem2RegPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  if (RaiseToAffine) {
     optPM.addPass(polygeist::createCanonicalizeForPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-
-    if (RaiseToAffine) {
-      optPM.addPass(polygeist::createCanonicalizeForPass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (ParallelLICM)
-        optPM.addPass(polygeist::createParallelLICMPass());
-      else
-        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-      optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      optPM.addPass(polygeist::replaceAffineCFGPass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (ScalarReplacement)
-        optPM.addPass(mlir::createAffineScalarReplacementPass());
-    }
-    if (ToCPU == "continuation") {
-      optPM.addPass(polygeist::createBarrierRemovalContinuation());
-      // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
-    } else if (ToCPU.size() != 0) {
-      optPM.addPass(polygeist::createCPUifyPass(ToCPU));
-    }
+    if (ParallelLICM)
+      optPM.addPass(polygeist::createParallelLICMPass());
+    else
+      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    optPM.addPass(polygeist::replaceAffineCFGPass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    if (ScalarReplacement)
+      optPM.addPass(mlir::createAffineScalarReplacementPass());
+  }
+  if (ToCPU == "continuation") {
+    optPM.addPass(polygeist::createBarrierRemovalContinuation());
+    // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
+  } else if (ToCPU.size() != 0) {
+    optPM.addPass(polygeist::createCPUifyPass(ToCPU));
+  }
+  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(polygeist::createMem2RegPass());
+  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  optPM.addPass(mlir::createCSEPass());
+  if (RaiseToAffine) {
+    optPM.addPass(polygeist::createCanonicalizeForPass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    if (ParallelLICM)
+      optPM.addPass(polygeist::createParallelLICMPass());
+    else
+      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    optPM.addPass(polygeist::replaceAffineCFGPass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    if (LoopUnroll)
+      optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(mlir::createCSEPass());
     optPM.addPass(polygeist::createMem2RegPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(mlir::createCSEPass());
-    if (RaiseToAffine) {
-      optPM.addPass(polygeist::createCanonicalizeForPass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (ParallelLICM)
-        optPM.addPass(polygeist::createParallelLICMPass());
-      else
-        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-      optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      optPM.addPass(polygeist::replaceAffineCFGPass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (LoopUnroll)
-        optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      optPM.addPass(mlir::createCSEPass());
-      optPM.addPass(polygeist::createMem2RegPass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (ParallelLICM)
-        optPM.addPass(polygeist::createParallelLICMPass());
-      else
-        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-      optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      optPM.addPass(polygeist::replaceAffineCFGPass());
-      optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (ScalarReplacement)
-        optPM.addPass(mlir::createAffineScalarReplacementPass());
-    }
+    if (ParallelLICM)
+      optPM.addPass(polygeist::createParallelLICMPass());
+    else
+      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    optPM.addPass(polygeist::replaceAffineCFGPass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    if (ScalarReplacement)
+      optPM.addPass(mlir::createAffineScalarReplacementPass());
   }
+}
+
+static int finalize(mlir::MLIRContext &context,
+                    mlir::OwningOpRef<mlir::ModuleOp> &module,
+                    llvm::DataLayout &DL, bool &LinkOMP) {
+  mlir::PassManager pm(&context);                      
+  GreedyRewriteConfig canonicalizerConfig;
+  canonicalizerConfig.maxIterations = CanonicalizeIterations;
+
+  finalizeCUDA(pm);
+
   pm.addPass(mlir::createSymbolDCEPass());
 
   if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
@@ -562,10 +573,21 @@ static int finalize(mlir::MLIRContext &context,
 
     // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
     if (mlir::failed(pm.run(module.get()))) {
-      llvm::errs() << "Finalize failed. Module: ***\n";
+      llvm::errs() << "*** Finalize failed (phase 1). Module: ***\n";
       module->dump();
       return 10;
     }
+    if (mlir::failed(mlir::verify(module.get()))) {
+      llvm::errs() << "*** Verification after finalization failed (phase 1). "
+                      "Module: ***\n";
+      module->dump();
+      return 11;
+    }
+    LLVM_DEBUG({
+      llvm::dbgs() << "*** Module after finalize (phase 1) ***\n";
+      module->dump();
+    });
+
     mlir::PassManager pm2(&context);
     if (SCFOpenMP) {
       pm2.addPass(createConvertSCFToOpenMPPass());
@@ -579,10 +601,21 @@ static int finalize(mlir::MLIRContext &context,
     pm2.addPass(mlir::createCSEPass());
     pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     if (mlir::failed(pm2.run(module.get()))) {
-      llvm::errs() << "Finalize failed. Module: ***\n";
+      llvm::errs() << "*** Finalize failed (phase 2). Module: ***\n";
       module->dump();
-      return 11;
+      return 12;
     }
+    if (mlir::failed(mlir::verify(module.get()))) {
+      llvm::errs() << "*** Verification after finalization failed (phase 2). "
+                      "Module: ***\n";
+      module->dump();
+      return 13;
+    }
+    LLVM_DEBUG({
+      llvm::dbgs() << "*** Module after finalize (phase 2) ***\n";
+      module->dump();
+    });
+
     if (!EmitOpenMPIR) {
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
@@ -594,29 +627,38 @@ static int finalize(mlir::MLIRContext &context,
       // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
       pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm3.run(module.get()))) {
-        llvm::errs() << "Finalize failed. Module: ***\n";        
+        llvm::errs() << "*** Finalize failed (phase 3). Module: ***\n";        
         module->dump();
-        return 12;
+        return 14;
       }
+      if (mlir::failed(mlir::verify(module.get()))) {
+        llvm::errs() << "Verification after finalization failed (phase 3). "
+                        "Module: ***\n";
+        module->dump();
+        return 15;
+      }
+      LLVM_DEBUG({
+        llvm::dbgs() << "*** Module after finalize (phase 3) ***\n";
+        module->dump();
+      });
     }
   } else {
     if (mlir::failed(pm.run(module.get()))) {
-      llvm::errs() << "Finalize failed. Module: ***\n";
+      llvm::errs() << "*** Finalize failed. Module: ***\n";
       module->dump();
-      return 13;
+      return 16;
     }
+    if (mlir::failed(mlir::verify(module.get()))) {
+      llvm::errs() << "*** Verification after finalization failed. "
+                      "Module: ***\n";
+      module->dump();
+      return 17;
+    }
+    LLVM_DEBUG({
+      llvm::dbgs() << "*** Module after finalize ***\n";
+      module->dump();
+    });
   }
-  
-  if (mlir::failed(mlir::verify(module.get()))) {
-    llvm::errs() << "Verification after finalization failed. Module: ***\n";
-    module->dump();
-    return 14;
-  }
-
-  LLVM_DEBUG({
-    llvm::dbgs() << "*** Module after finalize ***\n";
-    module->dump();
-  });
 
   return 0;
 }
