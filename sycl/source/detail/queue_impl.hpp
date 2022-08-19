@@ -32,8 +32,8 @@
 
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -205,8 +205,7 @@ public:
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <info::queue Param>
-  typename info::param_traits<info::queue, Param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
@@ -311,12 +310,11 @@ public:
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
-    if (getPlugin().getBackend() == backend::ext_oneapi_level_zero &&
-        MPropList
+    if (MPropList
             .has_property<ext::oneapi::property::queue::discard_events>()) {
       // Pass this flag to the Level Zero plugin to be able to check it from
       // queue property.
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
@@ -382,7 +380,7 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 
@@ -630,5 +628,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -66,10 +66,6 @@ function(add_sycl_rt_library LIB_NAME)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
-    target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
     target_link_libraries(
         ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
     set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
@@ -175,7 +171,6 @@ set(SYCL_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
     "interop_handle.cpp"
     "interop_handler.cpp"
@@ -190,7 +185,6 @@ set(SYCL_SOURCES
     "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
-    "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
 if (MSVC)

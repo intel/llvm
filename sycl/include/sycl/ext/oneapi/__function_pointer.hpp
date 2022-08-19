@@ -16,8 +16,8 @@
 #include <sycl/program.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 __SYCL_EXPORT cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
                                                     const char *FuncName);
@@ -88,7 +88,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif

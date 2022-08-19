@@ -16,8 +16,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class device_selector;
@@ -69,9 +69,7 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
@@ -191,5 +189,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -12,8 +12,8 @@
 #include <detail/stream_impl.hpp>
 #include <sycl/queue.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
@@ -51,5 +51,5 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

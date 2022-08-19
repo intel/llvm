@@ -1662,6 +1662,16 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
 
+  // Use new offloading path for OpenMP.  This is disabled as the SYCL
+  // offloading path is not properly setup to use the updated device linking
+  // scheme.
+  if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
+       Args.hasFlag(options::OPT_fopenmp_new_driver,
+                    options::OPT_no_offload_new_driver, true)) ||
+      Args.hasFlag(options::OPT_offload_new_driver,
+                   options::OPT_no_offload_new_driver, false))
+    setUseNewOffloadingDriver();
+
   // Determine FPGA emulation status.
   if (C->hasOffloadToolChain<Action::OFK_SYCL>()) {
     auto SYCLTCRange = C->getOffloadToolChains<Action::OFK_SYCL>();
@@ -1818,10 +1828,35 @@ void Driver::generateCompilationDiagnostics(
   if (C.getArgs().hasArg(options::OPT_fno_crash_diagnostics))
     return;
 
-  // Don't try to generate diagnostics for link or dsymutil jobs.
-  if (FailingCommand.getCreator().isLinkJob() ||
-      FailingCommand.getCreator().isDsymutilJob())
+  unsigned Level = 1;
+  if (Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_EQ)) {
+    Level = llvm::StringSwitch<unsigned>(A->getValue())
+                .Case("off", 0)
+                .Case("compiler", 1)
+                .Case("all", 2)
+                .Default(1);
+  }
+  if (!Level)
     return;
+
+  // Don't try to generate diagnostics for dsymutil jobs.
+  if (FailingCommand.getCreator().isDsymutilJob())
+    return;
+
+  bool IsLLD = false;
+  TempFileList SavedTemps;
+  if (FailingCommand.getCreator().isLinkJob()) {
+    C.getDefaultToolChain().GetLinkerPath(&IsLLD);
+    if (!IsLLD || Level < 2)
+      return;
+
+    // If lld crashed, we will re-run the same command with the input it used
+    // to have. In that case we should not remove temp files in
+    // initCompilationForDiagnostics yet. They will be added back and removed
+    // later.
+    SavedTemps = std::move(C.getTempFiles());
+    assert(!C.getTempFiles().size());
+  }
 
   // Print the version of the compiler.
   PrintVersion(C, llvm::errs());
@@ -1916,6 +1951,18 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
+  // If lld failed, rerun it again with --reproduce.
+  if (IsLLD) {
+    const char *TmpName = CreateTempFile(C, "linker-crash", "tar");
+    Command NewLLDInvocation = Cmd;
+    llvm::opt::ArgStringList ArgList = NewLLDInvocation.getArguments();
+    ArgList.push_back(Saver.save(Twine{"--reproduce="} + TmpName).data());
+    NewLLDInvocation.replaceArguments(std::move(ArgList));
+
+    // Redirect stdout/stderr to /dev/null.
+    NewLLDInvocation.Execute({None, {""}, {""}}, nullptr, nullptr);
+  }
+
   const TempFileList &TempFiles = C.getTempFiles();
   if (TempFiles.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
@@ -1945,6 +1992,9 @@ void Driver::generateCompilationDiagnostics(
       llvm::sys::path::append(VFS, "vfs", "vfs.yaml");
     }
   }
+
+  for (auto &TempFile : SavedTemps)
+    C.addTempFile(TempFile.first);
 
   // Assume associated files are based off of the first temporary file.
   CrashReportInfo CrashInfo(TempFiles[0].first, VFS);
@@ -8077,6 +8127,36 @@ static bool HasPreprocessOutput(const Action &JA) {
   return false;
 }
 
+const char *Driver::CreateTempFile(Compilation &C, StringRef Prefix,
+                                   StringRef Suffix, bool MultipleArchs,
+                                   StringRef BoundArch,
+                                   types::ID Type) const {
+  SmallString<128> TmpName;
+  Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_dir);
+  if (CCGenDiagnostics && A) {
+    SmallString<128> CrashDirectory(A->getValue());
+    if (!getVFS().exists(CrashDirectory))
+      llvm::sys::fs::create_directories(CrashDirectory);
+    llvm::sys::path::append(CrashDirectory, Prefix);
+    const char *Middle = !Suffix.empty() ? "-%%%%%%." : "-%%%%%%";
+    std::error_code EC = llvm::sys::fs::createUniqueFile(
+        CrashDirectory + Middle + Suffix, TmpName);
+    if (EC) {
+      Diag(clang::diag::err_unable_to_make_temp) << EC.message();
+      return "";
+    }
+  } else {
+    if (MultipleArchs && !BoundArch.empty()) {
+      TmpName = GetTemporaryDirectory(Prefix);
+      llvm::sys::path::append(TmpName,
+                              Twine(Prefix) + "-" + BoundArch + "." + Suffix);
+    } else {
+      TmpName = GetTemporaryPath(Prefix, Suffix);
+    }
+  }
+  return C.addTempFile(C.getArgs().MakeArgString(TmpName), Type);
+}
+
 const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
                                        const char *BaseInput,
                                        StringRef OrigBoundArch, bool AtTopLevel,
@@ -8174,31 +8254,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
-    SmallString<128> TmpName;
     const char *Suffix = types::getTypeTempSuffix(JA.getType(), IsCLMode());
-    Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_dir);
-    if (CCGenDiagnostics && A) {
-      SmallString<128> CrashDirectory(A->getValue());
-      if (!getVFS().exists(CrashDirectory))
-        llvm::sys::fs::create_directories(CrashDirectory);
-      llvm::sys::path::append(CrashDirectory, Split.first);
-      const char *Middle = Suffix ? "-%%%%%%." : "-%%%%%%";
-      std::error_code EC = llvm::sys::fs::createUniqueFile(
-          CrashDirectory + Middle + Suffix, TmpName);
-      if (EC) {
-        Diag(clang::diag::err_unable_to_make_temp) << EC.message();
-        return "";
-      }
-    } else {
-      if (MultipleArchs && !BoundArch.empty()) {
-        TmpName = GetTemporaryDirectory(Split.first);
-        llvm::sys::path::append(TmpName,
-                                Split.first + "-" + BoundArch + "." + Suffix);
-      } else {
-        TmpName = GetTemporaryPath(Split.first, Suffix);
-      }
-    }
-    return C.addTempFile(C.getArgs().MakeArgString(TmpName), JA.getType());
+    return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
+                          JA.getType());
   }
 
   SmallString<128> BasePath(BaseInput);

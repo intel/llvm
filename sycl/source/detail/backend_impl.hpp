@@ -9,8 +9,8 @@
 #pragma once
 #include <sycl/backend_types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
@@ -24,5 +24,5 @@ template <class T> backend getImplBackend(const T &Impl) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

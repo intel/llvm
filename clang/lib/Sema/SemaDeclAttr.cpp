@@ -1952,8 +1952,7 @@ static void handleOwnershipAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     for (const auto *I : D->specific_attrs<OwnershipAttr>()) {
       // Cannot have two ownership attributes of different kinds for the same
       // index.
-      if (I->getOwnKind() != K && I->args_end() !=
-          std::find(I->args_begin(), I->args_end(), Idx)) {
+      if (I->getOwnKind() != K && llvm::is_contained(I->args(), Idx)) {
         S.Diag(AL.getLoc(), diag::err_attributes_are_not_compatible) << AL << I;
         return;
       } else if (K == OwnershipAttr::Returns &&
@@ -10426,8 +10425,8 @@ bool isDeviceAspectType(const QualType Ty) {
     return false;
 
   std::array<std::pair<Decl::Kind, StringRef>, 3> Scopes = {
-      MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       MakeDeclContextDesc(Decl::Kind::Enum, "aspect")};
 
   const auto *Ctx = cast<DeclContext>(ET->getDecl());

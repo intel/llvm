@@ -32,8 +32,8 @@ struct trace_event_data_t;
 }
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 class context;
 
@@ -441,7 +441,7 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
 // For shortness of using PI from the top-level sycl files.
 namespace RT = sycl::detail::pi;
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef _PI_API

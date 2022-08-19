@@ -4,7 +4,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.

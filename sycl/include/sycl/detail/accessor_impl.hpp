@@ -15,8 +15,8 @@
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename, int, access::mode, access::target, access::placeholder,
           typename>
 class accessor;
@@ -274,5 +274,5 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
 #endif
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

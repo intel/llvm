@@ -10,8 +10,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace access {
 
 enum class target {
@@ -192,9 +192,9 @@ template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
   // of emitting incorrect (in terms of OpenCL) address space casts from
-  // constant to generic (and vise-versa). So, global address space is used here
-  // instead of constant to avoid incorrect address space casts in the produced
-  // device code.
+  // constant to generic (and vise-versa). So, global address space is used
+  // here instead of constant to avoid incorrect address space casts in the
+  // produced device code.
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   using type = const __OPENCL_GLOBAL_AS__ ElementType;
 #else
@@ -280,5 +280,5 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_PRIVATE_AS__
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

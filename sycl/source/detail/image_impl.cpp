@@ -7,18 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <sycl/detail/image_impl.hpp>
-#include <sycl/detail/memory_manager.hpp>
 #include <sycl/image.hpp>
 
 #include <algorithm>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-template <info::device Param>
+template <typename Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
                                  const size_t Value) {
   return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
@@ -457,5 +457,5 @@ template class image_impl<2>;
 template class image_impl<3>;
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

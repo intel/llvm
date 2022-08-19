@@ -422,8 +422,20 @@ pi_result piQueueCreate(pi_context context, pi_device device,
     return cast<pi_result>(ret_err);
   }
 
+  // Check that unexpected bits are not set.
+  assert(!(properties &
+           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
+             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+
+  // Properties supported by OpenCL backend.
+  cl_command_queue_properties SupportByOpenCL =
+      CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
+      CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
+
   cl_queue_properties CreationFlagProperties[] = {
-      CL_QUEUE_PROPERTIES, cast<cl_command_queue_properties>(properties), 0};
+      CL_QUEUE_PROPERTIES,
+      cast<cl_command_queue_properties>(properties) & SupportByOpenCL, 0};
   *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
       cast<cl_context>(context), cast<cl_device_id>(device),
       CreationFlagProperties, &ret_err));

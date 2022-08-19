@@ -49,8 +49,7 @@
 // NOTE that this results in a changed API for `piProgramGetBuildInfo`.
 // 10.12 Change enum value PI_MEM_ADVICE_UNKNOWN from 0 to 999, and set enum
 // PI_MEM_ADVISE_RESET to 0.
-// 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE queue
-// property.
+// 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS queue property.
 
 #define _PI_H_VERSION_MAJOR 10
 #define _PI_H_VERSION_MINOR 13
@@ -566,8 +565,7 @@ constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
 constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE =
-    (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;

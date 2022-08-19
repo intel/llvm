@@ -10,8 +10,8 @@
 
 #include <sycl/accessor.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Interoperability handler
 //
@@ -71,5 +71,5 @@ private:
   __SYCL_EXPORT pi_native_handle GetNativeQueue() const;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

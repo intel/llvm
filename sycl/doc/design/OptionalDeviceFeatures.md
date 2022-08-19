@@ -876,7 +876,7 @@ a name of a device architecture. There are sub-keys under each device for
 the supported aspects and sub-group sizes.  For example:
 
 ```
-intel_gpu_11_1:
+intel_gpu_12_0_0:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
 intel_gpu_icl:
@@ -933,7 +933,7 @@ example set of targets used for the illustration is 4 targets
     - non-SPIR-V based
         - ptx64 (PTX)
     - SPIR-V based
-        - intel_gpu_12 (Intel Graphics)
+        - intel_gpu_12_0_0 (Intel Graphics)
         - x86_64_avx512 (AVX512)
 
 ![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
@@ -1009,20 +1009,40 @@ architectures need to be identified:
 In all such places architecture naming should be the same. In some cases aliases
 are allowed. Below is a list of target architectures supported by DPC++:
 
-| target/alias(es) | description |
-|-|-|
-| intel_gpu    | Generic Intel graphics architecture |
-| intel_gpu_tgl, intel_gpu_12_0 | Intel Tiger Lake (11th generation Core) integrated graphics architecture |
-| ptx64  | Generic 64-bit PTX target architecture |
-| spir64 | Generic 64-bit SPIR-V target |
-| x86_64 | Generic 64-bit x86 architecture |
+| target/alias(es)                     | description                               |
+|--------------------------------------|-------------------------------------------|
+| ptx64                                | Generic 64-bit PTX target architecture    |
+| spir64                               | Generic 64-bit SPIR-V target              |
+| x86_64                               | Generic 64-bit x86 architecture           |
+|                    intel_gpu_pvc     | Ponte Vecchio Intel graphics architecture |
+|                    intel_gpu_acm_g12 | Alchemist G12 Intel graphics architecture |
+|                    intel_gpu_acm_g11 | Alchemist G11 Intel graphics architecture |
+|                    intel_gpu_acm_g10 | Alchemist G10 Intel graphics architecture |
+| intel_gpu_12_10_0, intel_gpu_dg1     | DG1           Intel graphics architecture |
+|                    intel_gpu_adl_n   | Alder Lake N  Intel graphics architecture |
+|                    intel_gpu_adl_p   | Alder Lake P  Intel graphics architecture |
+|                    intel_gpu_rpl_s   | Raptor Lake   Intel graphics architecture |
+|                    intel_gpu_adl_s   | Alder Lake S  Intel graphics architecture |
+|                    intel_gpu_rkl     | Rocket Lake   Intel graphics architecture |
+|  intel_gpu_12_0_0, intel_gpu_tgllp   | Tiger Lake    Intel graphics architecture |
+|  intel_gpu_11_2_0, intel_gpu_ehl     | Elkhart Lake  Intel graphics architecture |
+|  intel_gpu_11_0_0, intel_gpu_icllp   | Ice Lake      Intel graphics architecture |
+|   intel_gpu_9_7_0, intel_gpu_cml     | Comet Lake    Intel graphics architecture |
+|   intel_gpu_9_6_0, intel_gpu_aml     | Amber Lake    Intel graphics architecture |
+|   intel_gpu_9_5_0, intel_gpu_whl     | Whiskey Lake  Intel graphics architecture |
+|   intel_gpu_9_4_0, intel_gpu_glk     | Gemini Lake   Intel graphics architecture |
+|   intel_gpu_9_3_0, intel_gpu_apl     | Apollo Lake   Intel graphics architecture |
+|   intel_gpu_9_2_9, intel_gpu_cfl     | Coffee Lake   Intel graphics architecture |
+|   intel_gpu_9_1_9, intel_gpu_kbl     | Kaby Lake     Intel graphics architecture |
+|   intel_gpu_9_0_9, intel_gpu_skl     | Skylake       Intel graphics architecture |
+|   intel_gpu_8_0_0, intel_gpu_bdw     | Broadwell     Intel graphics architecture |
 
 TODO: Provide full list of AOT targets supported by the identification
 mechanism.
 
 Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
-clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0,ptx64 ...
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0_0,ptx64 ...
 ```
 
 ### Changes to the DPC++ runtime
@@ -1059,7 +1079,7 @@ The exception's `what` string contains a message describing the reason the
 device image is incompatible.  For example:
 
 ```
-Kernel was compiled with '-fsycl-fixed-targets=intel_gpu_11_1' but was
+Kernel was compiled with '-fsycl-fixed-targets=intel_gpu_12_0_0' but was
 submitted to a different device.
 
 Kernel uses optional feature corresponding to 'aspect::fp16' but device does

@@ -21,8 +21,8 @@
 #include <condition_variable>
 #include <optional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 class plugin;
@@ -46,7 +46,9 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete);
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
   ///
@@ -65,11 +67,6 @@ public:
   //
   /// \return true if this event is a SYCL host event.
   bool is_host();
-
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
 
   /// Waits for the event.
   ///
@@ -105,15 +102,12 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info();
+  template <typename Param> typename Param::return_type get_profiling_info();
 
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info();
+  template <typename Param> typename Param::return_type get_info();
 
   ~event_impl();
 
@@ -234,7 +228,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
@@ -269,5 +262,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

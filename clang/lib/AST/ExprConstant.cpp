@@ -578,7 +578,7 @@ namespace {
 
     /// LambdaCaptureFields - Mapping from captured variables/this to
     /// corresponding data members in the closure class.
-    llvm::DenseMap<const VarDecl *, FieldDecl *> LambdaCaptureFields;
+    llvm::DenseMap<const ValueDecl *, FieldDecl *> LambdaCaptureFields;
     FieldDecl *LambdaThisCaptureField;
 
     CallStackFrame(EvalInfo &Info, SourceLocation CallLoc,
@@ -10851,6 +10851,9 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
     if (FinalSize == 0)
       return true;
 
+    bool HasTrivialConstructor = CheckTrivialDefaultConstructor(
+        Info, E->getExprLoc(), E->getConstructor(),
+        E->requiresZeroInitialization());
     LValue ArrayElt = Subobject;
     ArrayElt.addArray(Info, E, CAT);
     // We do the whole initialization in two passes, first for just one element,
@@ -10874,19 +10877,26 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
         for (unsigned I = OldElts; I < N; ++I)
           Value->getArrayInitializedElt(I) = Filler;
 
-      // Initialize the elements.
-      for (unsigned I = OldElts; I < N; ++I) {
-        if (!VisitCXXConstructExpr(E, ArrayElt,
-                                   &Value->getArrayInitializedElt(I),
-                                   CAT->getElementType()) ||
-            !HandleLValueArrayAdjustment(Info, E, ArrayElt,
-                                         CAT->getElementType(), 1))
-          return false;
-        // When checking for const initilization any diagnostic is considered
-        // an error.
-        if (Info.EvalStatus.Diag && !Info.EvalStatus.Diag->empty() &&
-            !Info.keepEvaluatingAfterFailure())
-          return false;
+      if (HasTrivialConstructor && N == FinalSize) {
+        // If we have a trivial constructor, only evaluate it once and copy
+        // the result into all the array elements.
+        APValue &FirstResult = Value->getArrayInitializedElt(0);
+        for (unsigned I = OldElts; I < FinalSize; ++I)
+          Value->getArrayInitializedElt(I) = FirstResult;
+      } else {
+        for (unsigned I = OldElts; I < N; ++I) {
+          if (!VisitCXXConstructExpr(E, ArrayElt,
+                                     &Value->getArrayInitializedElt(I),
+                                     CAT->getElementType()) ||
+              !HandleLValueArrayAdjustment(Info, E, ArrayElt,
+                                           CAT->getElementType(), 1))
+            return false;
+          // When checking for const initilization any diagnostic is considered
+          // an error.
+          if (Info.EvalStatus.Diag && !Info.EvalStatus.Diag->empty() &&
+              !Info.keepEvaluatingAfterFailure())
+            return false;
+        }
       }
     }
 
@@ -13567,14 +13577,15 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
         llvm::APInt Max;
 
         ED->getValueRange(Max, Min);
+        --Max;
 
         if (ED->getNumNegativeBits() &&
-            (Max.sle(Result.getInt().getSExtValue()) ||
+            (Max.slt(Result.getInt().getSExtValue()) ||
              Min.sgt(Result.getInt().getSExtValue())))
           CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
               << Result.getInt() << Min.getSExtValue() << Max.getSExtValue();
         else if (!ED->getNumNegativeBits() &&
-                 Max.ule(Result.getInt().getZExtValue()))
+                 Max.ult(Result.getInt().getZExtValue()))
           CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
               << Result.getInt() << Min.getZExtValue() << Max.getZExtValue();
       }

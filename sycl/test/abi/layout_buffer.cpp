@@ -79,7 +79,7 @@ void foo(sycl::buffer<int, 2>) {}
 // CHECK-NEXT:      | [sizeof=184, dsize=184, align=8,
 // CHECK-NEXT:      |  nvsize=184, nvalign=8]
 
-// CHECK: 0 | class sycl::buffer<int, 2, class sycl::detail::aligned_allocator<char>, void>
+// CHECK: 0 | class sycl::buffer<int, 2, class sycl::detail::aligned_allocator<int>, void>
 // CHECK-NEXT: 0 |   class std::shared_ptr<class sycl::detail::buffer_impl> impl
 // CHECK-NEXT: 0 |     class std::__shared_ptr<class sycl::detail::buffer_impl, __gnu_cxx::_S_atomic> (base)
 // CHECK-NEXT: 0 |       class std::__shared_ptr_access<class sycl::detail::buffer_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)

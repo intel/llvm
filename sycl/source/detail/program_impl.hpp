@@ -24,8 +24,8 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class kernel;
@@ -358,10 +358,10 @@ private:
   /// a feature_not_supported exception is thrown.
   ///
   /// \param Devices is a vector of SYCL devices.
-  template <info::device param>
+  template <typename Param>
   void check_device_feature_support(const std::vector<device> &Devices) {
     for (const auto &Device : Devices) {
-      if (!Device.get_info<param>()) {
+      if (!Device.get_info<Param>()) {
         throw feature_not_supported(
             "Online compilation is not supported by this device",
             PI_ERROR_COMPILER_NOT_AVAILABLE);
@@ -463,5 +463,5 @@ template <>
 std::vector<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
