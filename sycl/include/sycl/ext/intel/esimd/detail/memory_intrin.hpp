@@ -506,7 +506,7 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 
       switch (Op) {
       case __ESIMD_NS::atomic_op::add:
-        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
+        retv[i] = __ESIMD_DNS::atomic_add_fetch<Ty>(p, src0[i]);
         break;
       default:
         __ESIMD_UNSUPPORTED_ON_HOST;
@@ -849,7 +849,7 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
         switch (Op) {
         case __ESIMD_NS::atomic_op::inc:
-          retv[i] = atomic_add_fetch<Ty>(p, 1);
+          retv[i] = __ESIMD_DNS::atomic_add_fetch<Ty>(p, 1);
           break;
         default:
           __ESIMD_UNSUPPORTED_ON_HOST;
