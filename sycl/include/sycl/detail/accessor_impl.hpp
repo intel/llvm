@@ -156,7 +156,7 @@ using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 
 class AccessorBaseHost {
 public:
-  template <typename PropertyListT>
+  template <typename PropertyListT = property_list>
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
