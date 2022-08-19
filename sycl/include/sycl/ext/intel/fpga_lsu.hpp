@@ -11,8 +11,8 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/pointers.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
@@ -125,5 +125,5 @@ private:
 } // namespace intel
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

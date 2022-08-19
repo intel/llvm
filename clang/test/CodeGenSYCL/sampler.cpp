@@ -38,7 +38,7 @@
 #include "Inputs/sycl.hpp"
 
 struct sampler_wrapper {
-  cl::sycl::sampler smpl;
+  sycl::sampler smpl;
   int a;
 };
 
@@ -48,7 +48,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const KernelType &kernelFun
 }
 
 int main() {
-  cl::sycl::sampler smplr;
+  sycl::sampler smplr;
   kernel_single_task<class first_kernel>([=]() {
     smplr.use();
   });

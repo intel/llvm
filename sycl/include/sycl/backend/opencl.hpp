@@ -11,8 +11,8 @@
 
 #include <sycl/backend.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace opencl {
 // Implementation of various "make" functions resides in SYCL RT because
 // creating SYCL objects requires knowing details not accessible here.
@@ -73,5 +73,5 @@ T make(const context &Context,
   return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
 } // namespace opencl
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

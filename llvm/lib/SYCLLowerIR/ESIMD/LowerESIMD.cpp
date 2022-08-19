@@ -1374,11 +1374,11 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 //
 // ### Source-level intrinsic:
 //
-// sycl::ext::intel::experimental::esimd::__vector_type<int, 16>::type
+// sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type
 // __esimd_flat_read<int, 16>(
-//     sycl::ext::intel::experimental::esimd::__vector_type<unsigned long long,
-//     16>::type, sycl::ext::intel::experimental::esimd::__vector_type<int,
-//     16>::type)
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<unsigned long
+//     long, 16>::type,
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type)
 //
 // ### Itanium-mangled name:
 //
@@ -1619,14 +1619,15 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy || !GTy->getName()
                      .rtrim(".0123456789")
-                     .endswith("sycl::ext::intel::esimd::simd"))
+                     .endswith("sycl::_V1::ext::intel::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
     if ((GTy = dyn_cast<StructType>(VTy))) {
-      assert(GTy->getName()
-                 .rtrim(".0123456789")
-                 .endswith("sycl::ext::intel::esimd::detail::simd_obj_impl"));
+      assert(
+          GTy->getName()
+              .rtrim(".0123456789")
+              .endswith("sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());

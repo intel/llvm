@@ -35,7 +35,7 @@ enum IRSplitMode {
 };
 
 // A vector that contains all entry point functions in a split module.
-using EntryPointSet = SetVector<const Function *>;
+using EntryPointSet = SetVector<Function *>;
 
 enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
 
@@ -137,7 +137,7 @@ public:
   // Filters out functions which are not part of this module's entry point set.
   bool isEntryPointCandidate(const Function &F) const {
     if (EntryPoints.Functions.size() > 0) {
-      return EntryPoints.Functions.contains(&F);
+      return EntryPoints.Functions.contains(const_cast<Function *>(&F));
     }
     return IsTopLevel; // Top level module does not limit entry points set.
   }
@@ -160,6 +160,9 @@ public:
   // example, GenXSPIRVWriterAdaptor). Entry points need to be updated to
   // include the replacement function. save/rebuild pair of functions is
   // provided to automate this process.
+  // TODO: this scheme is unnecessarily complex. The simpler and easier
+  // maintainable one would be using a special function attribute for the
+  // duration of post-link transformations.
   void saveEntryPointNames(std::vector<std::string> &Dest) {
     EntryPoints.saveNames(Dest);
   }
@@ -171,6 +174,20 @@ public:
   void rebuildEntryPoints(const Module &M) { EntryPoints.rebuild(M); }
 
   void renameDuplicatesOf(const Module &M, StringRef Suff);
+
+  // Fixups an invoke_simd target linkage so that it is not dropped by global
+  // DCE performed on an ESIMD module after it splits out. If SimdF can't be
+  // deduced, then we have real function pointer, and user code is assumed to
+  // define proper linkage for the potential target functions.
+  // Also saves old linkage into a function attribute.
+  void fixupLinkageOfDirectInvokeSimdTargets();
+
+  // Restores original linkage of invoke_simd targets. This effectively
+  // re-enables DCE on invoke_simd targets with linkonce linkage.
+  void restoreLinkageOfDirectInvokeSimdTargets();
+
+  // Cleans up module IR - removes dead globals, debug info etc.
+  void cleanup();
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;

@@ -18,7 +18,7 @@ struct B {
 
 int main() {
   B Obj;
-  cl::sycl::kernel_single_task<class structs>(
+  sycl::kernel_single_task<class structs>(
       [=]() {
         (void)Obj;
       });
@@ -27,7 +27,7 @@ int main() {
   auto Lambda = [=]() {
     *Ptr += 1;
   };
-  cl::sycl::kernel_single_task<class lambdas>([=]() {
+  sycl::kernel_single_task<class lambdas>([=]() {
     Lambda();
   });
   return 0;

@@ -21,13 +21,16 @@ jobs:
     name: Linux Default
     needs: resolve_matrix
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
       build_cache_root: "/__w/llvm"
       build_artifact_suffix: "post_commit"
       lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
     name: Linux (no assert)
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: gcc_no_assertions

@@ -45,16 +45,16 @@
 // CHECK: %this1 = load ptr addrspace(4), ptr addrspace(4) [[ADDR1_CAST]], align 8
 // CHECK: ret void
 
-// CHECK: define dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E12kernel_name5()
+// CHECK: define dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E12kernel_name5()
 // CHECK: entry:
 // CHECK: [[H1:%.*]] = alloca [[H:%.*]], align 1
 // CHECK: [[H2:%.*]] = addrspacecast ptr [[H1]] to ptr addrspace(4)
 // CHECK: call void @llvm.lifetime.start.p0(i64 1, ptr [[H1]])
-// CHECK: call spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[H2]])
+// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[H2]])
 // CHECK: call void @llvm.lifetime.end.p0(i64 1, ptr [[H1]])
 // CHECK: ret void
 
-// CHECK: define {{.*}}spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEv
+// CHECK: define {{.*}}spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv
 // CHECK: entry:
 // CHECK: [[ADDR_1:%.*]] = alloca ptr addrspace(4), align 8
 // CHECK: [[ADDR1_CAST:%.*]] = addrspacecast ptr [[ADDR_1]] to ptr addrspace(4)
@@ -84,7 +84,7 @@ __attribute__((sycl_kernel)) void kernel_single_task_1(const Func &kernelFunc) {
   kernelFunc();
 }
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class Functor1 {
 public:

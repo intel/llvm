@@ -11,8 +11,8 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 class handler;
 
@@ -30,5 +30,5 @@ __SYCL_EXPORT void associateWithHandler(handler &, AccessorBaseHost *,
                                         access::target);
 #endif
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

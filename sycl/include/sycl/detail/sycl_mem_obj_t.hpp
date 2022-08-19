@@ -23,8 +23,8 @@
 #include <memory>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Forward declarations
@@ -63,11 +63,6 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
-  // For ABI compatibility
-  SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-              const size_t SizeInBytes, event AvailableEvent,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator);
-
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
@@ -75,7 +70,8 @@ public:
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
+      : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    /*SizeInBytes*/ (size_t)0, AvailableEvent,
                     std::move(Allocator)) {}
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
@@ -94,7 +90,8 @@ public:
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
-  template <typename propertyT> __SYCL_DLL_LOCAL bool has_property() const {
+  template <typename propertyT>
+  __SYCL_DLL_LOCAL bool has_property() const noexcept {
     return MProps.has_property<propertyT>();
   }
 
@@ -285,10 +282,6 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
-  // For ABI compatibility
-  static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     cl_mem MemObject);
-
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      pi_native_handle MemObject);
 
@@ -311,6 +304,8 @@ public:
   bool hasUserDataPtr() const { return MUserPtr != nullptr; };
 
   bool isInterop() const;
+
+  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
 
 protected:
   // An allocateMem helper that determines which host ptr to use
@@ -350,5 +345,5 @@ protected:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

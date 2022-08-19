@@ -2,9 +2,9 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-  namespace sycl {
-  namespace detail {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
@@ -56,6 +56,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
     static constexpr bool isESIMD() { return 0; }
     static constexpr int64_t getKernelSize() { return 0; }
   };
-  } // namespace detail
-  } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
