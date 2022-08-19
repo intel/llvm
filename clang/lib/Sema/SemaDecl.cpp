@@ -7681,11 +7681,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (getLangOpts().SYCLIsDevice) {
     // device_global array is not allowed.
     if (NewVD->getType()->isArrayType()) {
-      if (const Type *ArrayElementType =
-              NewVD->getType()->getPointeeOrArrayElementType()) {
-        QualType ElementQualType = QualType{ArrayElementType, 0};
+      if (const auto *AT = dyn_cast<ArrayType>(NewVD->getType())) {
         if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-                ElementQualType))
+                AT->getElementType()))
           Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
       }
     }
