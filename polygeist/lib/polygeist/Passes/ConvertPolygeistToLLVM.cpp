@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
+#include "SYCL/SYCLToLLVM.h"
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
@@ -630,6 +631,7 @@ struct ConvertPolygeistToLLVMPass
 
       LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
       RewritePatternSet patterns(&getContext());
+      sycl::populateSYCLToLLVMConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
       cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);

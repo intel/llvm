@@ -39,6 +39,7 @@ add_mlir_dialect_library(MLIRSYCLDialect
   SYCLOpsDialect.cpp
   SYCLOpsTypes.cpp
   SYCLOpsAlias.cpp
+  SYCLToLLVM.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/SYCL
