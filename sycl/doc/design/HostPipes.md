@@ -7,7 +7,7 @@ and write application programming interfaces (APIs), without the notion of a
 memory address/pointer to elements within the FIFO. A host pipe is a pipe that 
 links a device kernel with a host program.
 
-[1]: https://github.com/intel-sandbox/ip-authoring-specs/blob/main/Pipe/Spec/data_flow_pipes.asciidoc
+[1]: <../extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc>
 
 ## Requirements
 
@@ -51,7 +51,7 @@ class pipe {/*...*/};
 
 // Partial specialization to make propertiesT visible as a parameter pack
 // of properties.
-template <typename name, typename dataT, typename ...Props>
+template <typename Name, typename DataT, typename ...Props>
 class pipe
 { 
   struct
@@ -169,7 +169,7 @@ Several changes are needed to the DPC++ runtime
 * As we noted above, the front-end generates new content in the integration
   footer which calls the function `sycl::detail::host_pipe_map::add()`.
   The runtime defines this function and maintains information about all the
-  device global variables in the application.  This information includes:
+  host pipe variables in the application.  This information includes:
 
   - The host address of the variable.
   - The string which uniquely identifies the variable.
