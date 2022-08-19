@@ -2228,6 +2228,7 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
   case LangAS::opencl_constant:
     return "__constant";
   case LangAS::opencl_generic:
+  case LangAS::sycl_generic:
     return "__generic";
   case LangAS::opencl_global_device:
   case LangAS::sycl_global_device:

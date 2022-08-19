@@ -50,6 +50,7 @@ enum class LangAS : unsigned {
   sycl_global_host,
   sycl_local,
   sycl_private,
+  sycl_generic,
 
   // Pointer size and extension address spaces.
   ptr32_sptr,
@@ -99,6 +100,8 @@ inline LangAS asSYCLLangAS(LangAS AS) {
     return LangAS::sycl_local;
   case LangAS::opencl_private:
     return LangAS::sycl_private;
+  case LangAS::opencl_generic:
+    return LangAS::sycl_generic;
   default:
     return AS;
   }
@@ -116,6 +119,8 @@ inline LangAS asOpenCLLangAS(LangAS AS) {
     return LangAS::opencl_local;
   case LangAS::sycl_private:
     return LangAS::opencl_private;
+  case LangAS::sycl_generic:
+    return LangAS::opencl_generic;
   default:
     return AS;
   }

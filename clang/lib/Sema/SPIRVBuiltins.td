@@ -39,7 +39,7 @@ def PrivateAS    : AddressSpace<"clang::LangAS::sycl_private">;
 def GlobalAS     : AddressSpace<"clang::LangAS::sycl_global">;
 def ConstantAS   : AddressSpace<"clang::LangAS::opencl_constant">;
 def LocalAS      : AddressSpace<"clang::LangAS::sycl_local">;
-def GenericAS    : AddressSpace<"clang::LangAS::opencl_generic">;
+def GenericAS    : AddressSpace<"clang::LangAS::sycl_generic">;
 
 // TODO: Manage capabilities. Unused for now.
 class AbstractExtension<string _Ext> {

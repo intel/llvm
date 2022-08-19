@@ -22,6 +22,10 @@ int main() {
               access::address_space::private_space,
           "Unexpected address space");
       static_assert(
+          detail::deduce_AS<__attribute__((opencl_generic)) int>::value ==
+              access::address_space::generic_space,
+          "Unexpected address space");
+      static_assert(
           detail::deduce_AS<__attribute__((opencl_constant)) int>::value ==
               access::address_space::constant_space,
           "Unexpected address space");

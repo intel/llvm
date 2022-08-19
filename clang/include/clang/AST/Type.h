@@ -512,7 +512,7 @@ public:
            (A == LangAS::Default &&
             (B == LangAS::sycl_private || B == LangAS::sycl_local ||
              B == LangAS::sycl_global || B == LangAS::sycl_global_device ||
-             B == LangAS::sycl_global_host)) ||
+             B == LangAS::sycl_global_host || B == LangAS::sycl_generic)) ||
            // In HIP device compilation, any cuda address space is allowed
            // to implicitly cast into the default address space.
            (A == LangAS::Default &&

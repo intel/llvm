@@ -2230,6 +2230,9 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::sycl_private:
       Extra.mangleSourceName("_ASSYprivate");
       break;
+    case LangAS::sycl_generic:
+      Extra.mangleSourceName("_ASSYgeneric");
+      break;
     case LangAS::cuda_constant:
       Extra.mangleSourceName("_ASCUconstant");
       break;

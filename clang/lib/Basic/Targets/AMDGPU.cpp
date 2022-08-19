@@ -54,6 +54,7 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
     Global,   // sycl_global_host
     Local,    // sycl_local
     Private,  // sycl_private
+    Generic,  // sycl_generic
     Generic,  // ptr32_sptr
     Generic,  // ptr32_uptr
     Generic   // ptr64
@@ -77,6 +78,7 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
     Generic,  // sycl_global_host
     Generic,  // sycl_local
     Generic,  // sycl_private
+    Generic,  // sycl_generic
     Generic,  // ptr32_sptr
     Generic,  // ptr32_uptr
     Generic   // ptr64

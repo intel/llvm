@@ -352,7 +352,7 @@ struct DecoratedType<ElementType, access::address_space::private_space> {
 
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::generic_space> {
-  using type = ElementType;
+  using type = __attribute__((opencl_generic)) ElementType;
 };
 
 template <typename ElementType>

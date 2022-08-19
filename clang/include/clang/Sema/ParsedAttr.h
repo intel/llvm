@@ -718,6 +718,7 @@ public:
     case ParsedAttr::AT_OpenCLPrivateAddressSpace:
       return LangAS::sycl_private;
     case ParsedAttr::AT_OpenCLGenericAddressSpace:
+      return LangAS::sycl_generic;
     default:
       return LangAS::Default;
     }
