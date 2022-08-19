@@ -1,0 +1,288 @@
+:extension_name: SPV_INTEL_masked_gather_scatter
+:capability_name: MaskedGatherScatterINTEL
+:capability_token: 6427
+:OpMaskedGatherINTEL_token: 6428
+:OpMaskedScatterINTEL_token: 6429
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Dmitry Sidorov, Intel +
+- Ben Ashbaugh, Intel +
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2022-08-19
+| Revision           | A
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 5.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension allows *TypeVector* to have a <<Physical Pointer Type>> _Component Type_ and introduces gather/scatter instructions.
+It will be useful for explicitly vectorized kernels.
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Instructions
+
+Instructions added under the *{capability_name}* capability:
+
+----
+OpMaskedGatherINTEL
+OpMaskedScatterINTEL
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}*  | {capability_token}
+|*OpMaskedGatherINTEL*    | {OpMaskedGatherINTEL_token}
+|*OpMaskedScatterINTEL*    | {OpMaskedScatterINTEL_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5
+
+
+=== 2.16.1. Universal Validation Rules
+
+Modify Data rules section, replacing following segment:
+
+- Vector types must be parameterized only with numerical types or the <<OpTypeBool>> type.
+
+with:
+
+- Vector types must be parameterized only with numerical types or the <<OpTypeBool>> type. They can also
+ be parameterized with <<Physical Pointer Type>> types under *{capability_name}* capability.
+
+=== 2.2.2. Types
+
+Define _Vector_ as:
+An ordered homogeneous collection of two or more <<scalars>> or pointers of <<Physical Pointer Type>>.
+Vector sizes are quite restrictive and dependent on the execution model.
+
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_token}
+| *{capability_name}* +
+ +
+Allow *TypeVector* to have a <<Physical Pointer Type,Physical Pointer Type>> _Component Type_. +
+ +
+See also extension: *{extension_name}* +
+|
+*Kernel*
+|====
+--
+
+
+=== 3.42.6. Type-Declaration Instructions
+
+Modify <<OpTypeVector>>, expounding _Component Type_ as:
+  Component Type is the type of each component in the resulting type. It must be a <<scalar type>> or <<Physical Pointer Type>>.
+
+
+=== 3.42.8. Memory Instructions
+
+Allow <<vector>> with <<physical pointer type>> to be used by <<OpVariable>>, <<OpAccessChain>>, <<OpInBoundsAccessChain>>,
+<<OpPtrAccessChain>>, <<OpInBoundsPtrAccessChain>>, <<OpPtrEqual>>, <<OpPtrNotEqual>> and <<OpPtrDiff>> instructions. When <<vector>> with
+<<physical pointer type>> is allowed for <<OpVariable>> it is implicitly possible to be used by <<OpStore>> and <<OpLoad>> which can
+store/load through a pointer to this vector.
+
+Expound _Overview_ of <<OpVariable>> as:
+Allocate an object or a vector of objects in memory, resulting in a pointer or appropriately a vector of pointers to it,
+which can be used with OpLoad and OpStore.
+Expound _Result Type_ of <<OpVariable>> as:
+_Result Type_ must be an <<OpTypePointer>> a <<vector>> with <<physical pointer type>> _Component Type_.
+Its _Type_ operand is the type of object or vector of objects in memory.
+
+Modify <<OpAccessChain>> (implicitly modifies <<OpInBoundsAccessChain>>, <<OpPtrAccessChain>> and <<OpInBoundsPtrAccessChain>> instructions)
+Expound _Base_ as:
+_Base_ must be a pointer, pointing to the base of a composite object or a <<vector>> of <<physical pointer type>>.
+
+Allow <<vector>> of <<physical pointer type>> to be the type of _Operand 1_ and _Operand 2_ of <<OpPtrEqual>>, <<OpPtrNotEqual>> and
+<<OpPtrDiff>> instructions. If operands are vectors of pointers, then the _Result Type_ of <<OpPtrEqual>> and <<OpPtrNotEqual>> is and
+vector with boolean _Component Type_ and _Result Type_ of <<OpPtrDiff>> is a vector with integer _Component Type_.
+
+
+[cols="1,1,6*3",width="100%"]
+|=====
+7+|[[OpMaskedGatherINTEL]]*OpMaskedGatherINTEL* +
+ +
+Reads values from a vector of pointers gathering them into one vector. Returns the gathered vector. Memory access
+is specified by a mask instruction parameter. +
+ +
+'ResultType' is a type of the gathered vector. Its _Component Type_ must be the same as the base type of
+'PtrVector'.
+ +
+'PtrVector' is a <<vector>> with <<physical pointer type>> _Component Type_, from where the instruction reads. +
+ +
+'Alignment' must be a literal of 0 or a power of two value', it specifies an alignment of the source addresses +
+ +
+'Mask' is a vector of boolean values with the same number of elements as the _Result Type_. It specifies which elements of
+'PtrVector' should be gathered. +
+ +
+'FillEmpty' is used to fill the masked-off lanes of the result. It must be of the same type as the type of _Result Type_. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 7 | {OpMaskedGatherINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'PtrVector'
+| '<literal>' +
+'Alignment'
+| '<id>' +
+'Mask'
+| '<id>' +
+'FillEmpty'
+|=====
+
+[cols="1,1,4*3",width="100%"]
+|=====
+5+|[[OpMaskedScatterINTEL]]*OpMaskedScatterINTEL* +
+ +
+Writes values from a vector to the corresponding memory address of the given vector of pointers. Memory access
+is specified by a mask instruction parameter. +
+ +
+'InputVector' is a <<vector>> of values to scatter. +
+ +
+'PtrVector' is a <<vector>> with <<physical pointer type>> _Component Type_, where the instruction stores the scattered values. +
+ +
+'Alignment' must be a literal of 0 or a power of two value', it specifies an alignment of the destination addresses +
+ +
+'Mask' is a vector of boolean values with the same number of elements as the _InputVector_. It specifies which elements of
+'InputVector' should be scattered. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 5 | {OpMaskedScatterINTEL_token}
+| '<id>' +
+'InputVector'
+| '<id>' +
+'PtrVector'
+| '<literal>' +
+'Alignment'
+| '<id>' +
+'Mask'
+|=====
+
+
+=== 3.42.11. Conversion Instructions
+
+Allow <<vector type>> to be _Result Type_ and type of an input for <<OpConvertPtrToU>>, <<OpConvertUToPtr>> instructions:
+Expound _Result Type_ of <<OpConvertPtrToU>> as:
+_Result Type_ must be a scalar or vector of <<integer type>>, whose Signedness operand is 0.
+
+Expound _Pointer_ of <<OpConvertPtrToU>> as:
+_Pointer_ must be a <<physical pointer type>> or a <<vector>> with <<physical pointer type>> _Component Type_.
+If the bit width of _Pointer_ is smaller than that of _Result Type_, the conversion zero extends _Pointer_.
+If the bit width of _Pointer_ is larger than that of _Result Type_, the conversion truncates Pointer. For
+same bit width Pointer and _Result Type_, this is the same as <<OpBitcast>>.
+
+Expound _Result Type_ of <<OpConvertUToPtr>> as:
+_Result Type_ must be a <<physical pointer type>> or a <<vector>> with <<physical pointer type>> _Component Type_.
+
+Expound _Integer Value_ of <<OpConvertUToPtr>> as:
+_Integer Value_ must be a scalar or vector of <<integer type>>, whose Signedness operand is 0.
+If the bit width of _Integer Value_ is smaller than that of _Result Type_, the
+conversion zero extends _Integer Value_. If the bit width of _Integer Value_ is larger
+than that of _Result Type_, the conversion truncates Integer Value. For samewidth _Integer Value_ and _Result Type_,
+this is the same as <<OpBitcast>>.
+
+Allow <<vector>> of <<physical pointer type>> to be _Result Type_ and type of a _Pointer_ for
+<<OpPtrCastToGeneric>>, <<OpGenericCastToPtr>> and <<OpGenericCastToPtrExplicit>> instructions.
+
+Allow <<vector>> of <<physical pointer type>> to be _Result Type_ and type of an _Operand_ for <<OpBitcast>> instruction.
+
+
+=== 3.42.12. Composite Instructions
+
+Most of the Composite Instructions that are supposed to work with vector type doesn't have any restrictions about its _Component Type_.
+This extension allows these instructions to operate on <<vector>> of <<physical pointer type>>.
+
+Allow <<physical pointer type>> to be a _Result Type_ of <<OpVectorExtractDynamic>>.
+
+
+=== Issues
+
+None
+
+Revision History
+----------------
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-08-19|Dmitry Sidorov|Initial revision
+|========================================
+
