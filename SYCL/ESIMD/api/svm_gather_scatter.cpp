@@ -100,16 +100,12 @@ int main(void) {
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
 
-  if (Q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    /// TODO: Enable 'half' type support for esimd_emulator
-    Pass &= test<half, 1>(Q);
-    Pass &= test<half, 2>(Q);
-    Pass &= test<half, 4>(Q);
-    Pass &= test<half, 8>(Q);
-    Pass &= test<half, 16>(Q);
-    Pass &= test<half, 32>(Q);
-  }
-
+  Pass &= test<half, 1>(Q);
+  Pass &= test<half, 2>(Q);
+  Pass &= test<half, 4>(Q);
+  Pass &= test<half, 8>(Q);
+  Pass &= test<half, 16>(Q);
+  Pass &= test<half, 32>(Q);
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
   return Pass ? 0 : 1;
 }

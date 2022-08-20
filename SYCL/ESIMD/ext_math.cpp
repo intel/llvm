@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// TODO: esimd_emulator fails due to unimplemented 'half' type
-// XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -469,8 +467,11 @@ int main(void) {
   Pass &= testESIMD<half, 8>(Q);
   Pass &= testESIMD<float, 16>(Q);
   Pass &= testESIMD<float, 32>(Q);
-  Pass &= testSYCL<float, 8>(Q);
-  Pass &= testSYCL<float, 32>(Q);
+  if (Q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
+    // ESIMD_EMULATOR supports only ESIMD kernels
+    Pass &= testSYCL<float, 8>(Q);
+    Pass &= testSYCL<float, 32>(Q);
+  }
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);
   Pass &= testESIMDSqrtIEEE<double, 32>(Q);
   Pass &= testESIMDDivIEEE<float, 8>(Q);
