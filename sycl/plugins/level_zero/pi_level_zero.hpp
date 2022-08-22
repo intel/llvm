@@ -560,7 +560,7 @@ struct _pi_device : _pi_object {
   enum EventsScope eventsScope();
 
   // Return whether to use immediate commandlists for this device.
-  bool UseImmediateCommandLists();
+  bool useImmediateCommandLists();
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
