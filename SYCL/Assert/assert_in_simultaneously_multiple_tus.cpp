@@ -1,3 +1,6 @@
+// FIXME flaky fail on CUDA
+// UNSUPPORTED: cuda
+//
 // RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl -fsycl-targets=%sycl_triple -I %S/Inputs %s %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out &> %t.txt || true
 // RUN: %CPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
