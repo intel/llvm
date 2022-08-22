@@ -1,7 +1,5 @@
-// FIXME unsupported on level_zero until L0 Plugin support becomes available for
-// discard_queue_events
 // FIXME unsupported in HIP plugin
-// UNSUPPORTED: level_zero || hip
+// UNSUPPORTED: hip
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //

@@ -1,7 +1,3 @@
-// FIXME unsupported on level_zero until L0 Plugin support becomes available for
-// discard_queue_events
-// UNSUPPORTED: level_zero
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DNDEBUG -o %t.out
 //
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out &> %t.txt
