@@ -1794,6 +1794,8 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
+  // accessor::has_property for runtime properties is only available in host
+  // code
   template <typename Property>
   typename sycl::detail::enable_if_t<
       !ext::oneapi::is_compile_time_property<Property>::value, bool>
@@ -1805,6 +1807,8 @@ public:
 #endif
   }
 
+  // accessor::get_property for runtime properties is only available in host
+  // code
   template <typename Property,
             typename = typename sycl::detail::enable_if_t<
                 !ext::oneapi::is_compile_time_property<Property>::value>>
