@@ -349,9 +349,9 @@ Then the maximum memory bandwidth can be obtained using the standard get\_info()
       auto maxBW = dev.get_info<info::device::ext_intel_max_mem_bandwidth>();
     }
 
-# Free Memory #
+# Free Global Memory #
 
-A new device descriptor will be added which will provide the number of bytes of free memory for the device.
+A new device descriptor will be added which will provide the number of bytes of free global memory for the device.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform. NOTE: one may need to set
 ZES_ENABLE_SYSMAN=1 to fully enable this extension.

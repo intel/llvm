@@ -3132,8 +3132,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      zePrint("Set ZES_ENABLE_SYSMAN=1 to obtain free memory.\n");
-      return PI_ERROR_INVALID_VALUE;
+      setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
+                      PI_SUCCESS);
+      return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
