@@ -3129,6 +3129,28 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                   ZeDevicePciProperties.address.function);
     return ReturnValue(AddressBuffer);
   }
+
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
+      zePrint("Set ZES_ENABLE_SYSMAN=1 to obtain free memory.\n");
+      return PI_ERROR_INVALID_VALUE;
+    }
+    uint64_t FreeMemory = 0;
+    uint32_t MemCount = 0;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
+    std::vector<zes_mem_handle_t> MemHandles(MemCount);
+    ZE_CALL(zesDeviceEnumMemoryModules,
+            (ZeDevice, &MemCount, MemHandles.data()));
+    printf("# = %d\n", MemCount);
+    for (auto &ZesMemHandle : MemHandles) {
+      ZesStruct<zes_mem_state_t> ZeMemState;
+      ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
+      FreeMemory += ZeMemState.free;
+      printf("## += %lld\n", ZeMemState.free);
+    }
+    return ReturnValue(FreeMemory);
+  }
+
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
                       Device->ZeDeviceProperties->numSubslicesPerSlice *
