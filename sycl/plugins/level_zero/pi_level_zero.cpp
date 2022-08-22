@@ -669,11 +669,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 pi_result _pi_queue::getEventFromCache(pi_command_list_ptr_t CommandList,
                                        pi_event *Event) {
   if (ZeAvailableEvents.size() == 0 || CommandList == CommandListMap.end()) {
-    if (CommandList == CommandListMap.end()) {
-      std::cout
-          << "Can't recreate from the cache, because there is no command list "
-          << std::endl;
-    }
     *Event = nullptr;
     return PI_SUCCESS;
   }
