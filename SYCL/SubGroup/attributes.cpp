@@ -1,5 +1,3 @@
-// Test fails on Opencl CPU backend, disable temporarily to resolve the issue.
-// UNSUPPORTED: opencl && cpu
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
