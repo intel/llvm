@@ -26,8 +26,6 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.
-GitHub does not render image icons.
 
 This extension is written against the SYCL 2020 revision 4 specification. All
 references below to the "core SYCL specification" or to section numbers in the
