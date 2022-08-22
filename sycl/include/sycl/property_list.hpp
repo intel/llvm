@@ -61,6 +61,11 @@ public:
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
 private:
+  property_list(
+      std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
+      std::vector<std::shared_ptr<detail::PropertyWithDataBase>> PropsWithData)
+      : sycl::detail::PropertyListBase(DataLessProps, PropsWithData) {}
+
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
 };

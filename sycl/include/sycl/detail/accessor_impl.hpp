@@ -87,22 +87,6 @@ public:
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
         MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc),
         MPropertyList(PropertyList) {}
-  template <typename... Props>
-  AccessorImplHost(
-      id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-      access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject, int Dims,
-      int ElemSize, int OffsetInBytes = 0, bool IsSubBuffer = false,
-      bool IsESIMDAcc = false,
-      const ext::oneapi::accessor_property_list<Props...> &PropertyList = {})
-      : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
-        MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
-        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {
-    // TODO: need some proper solution for handling accessor_property_list,
-    // since there may be another runtime properties in future
-    if (PropertyList.template has_property<sycl::property::no_init>())
-      MPropertyList = property_list{sycl::no_init};
-  }
 
   ~AccessorImplHost();
 

@@ -1795,11 +1795,12 @@ public:
   }
 
   // accessor::has_property for runtime properties is only available in host
-  // code
+  // code. This restriction is not listed in the core spec and will be added in
+  // future versions.
   template <typename Property>
   typename sycl::detail::enable_if_t<
       !ext::oneapi::is_compile_time_property<Property>::value, bool>
-  has_property() const {
+  has_property() const noexcept {
 #ifndef __SYCL_DEVICE_ONLY__
     return AccessorBaseHost::impl->MPropertyList.has_property<Property>();
 #else
@@ -1808,7 +1809,8 @@ public:
   }
 
   // accessor::get_property for runtime properties is only available in host
-  // code
+  // code. This restriction is not listed in the core spec and will be added in
+  // future versions.
   template <typename Property,
             typename = typename sycl::detail::enable_if_t<
                 !ext::oneapi::is_compile_time_property<Property>::value>>

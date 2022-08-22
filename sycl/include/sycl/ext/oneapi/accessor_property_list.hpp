@@ -212,6 +212,10 @@ public:
   }
 #endif
 
+  operator sycl::property_list() const {
+    return property_list(MDataLessProps, MPropsWithData);
+  }
+
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
