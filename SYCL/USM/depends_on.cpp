@@ -4,6 +4,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
+// Temporarily disabled on Windows.
+// UNSUPPORTED: windows
+
 //==----------------- depends_on.cpp - depends_on test ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

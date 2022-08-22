@@ -1,6 +1,9 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
 
+// Temporarily disabled on Windows.
+// UNSUPPORTED: windows
+
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple  %s -o %t.out
 
 // Set batching to 4 explicitly
