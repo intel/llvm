@@ -426,9 +426,13 @@ template <typename T>
 struct select_cl_vector_or_scalar_or_ptr<
     T, typename detail::enable_if_t<!is_vgentype<T>::value &&
                                     std::is_pointer<T>::value>> {
-  using type =
-      typename select_cl_vector_or_scalar_or_ptr<std::remove_pointer_t<T>>::type
-          *;
+  using elem_ptr_type = typename select_cl_vector_or_scalar_or_ptr<
+      std::remove_pointer_t<T>>::type *;
+#ifdef __SYCL_DEVICE_ONLY__
+  using type = typename DecoratedType<elem_ptr_type, deduce_AS<T>::value>::type;
+#else
+  using type = elem_ptr_type;
+#endif
 };
 
 // select_cl_mptr_or_vector_or_scalar_or_ptr does cl_* type selection for type
