@@ -10,12 +10,14 @@ using namespace sycl;
 queue q;
 
 device_global<int> A;
+SYCL_EXTERNAL device_global<int> AExt;
 static device_global<int> B;
 
 struct Foo {
   static device_global<int> C;
 };
 device_global<int> Foo::C;
+// CHECK: @AExt = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[AEXT_ATTRS:[0-9]+]]
 // CHECK: @A = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
 // CHECK: @_ZL1B = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
 // CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
@@ -95,6 +97,7 @@ void bar() {
 // CHECK-SAME: @_ZL1B
 // CHECK-SAME: @_ZN12_GLOBAL__N_19same_nameE
 
+// CHECK: attributes #[[AEXT_ATTRS]] = { "sycl-unique-id"="_Z4AExt" }
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
 // CHECK: attributes #[[C_ATTRS]] = { "sycl-unique-id"="_ZN3Foo1CE" }
