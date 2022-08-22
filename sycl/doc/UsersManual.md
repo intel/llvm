@@ -223,6 +223,8 @@ and not recommended to use in production environment.
     32-bit PC relative relocations between surrounding ELF sections when device
     code is larger than 2GiB. This is disabled by default.
 
+    NOTE: This option is currently only supported on Linux.
+
 ## Intel FPGA specific options
 
 **`-fintelfpga`**
