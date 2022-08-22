@@ -75,7 +75,9 @@ public:
 // just uses the type system to communicate the desired accuracy of arithmetic
 // computations. Users can't construct a tf32
 namespace precision {
-class tf32 {};
+class tf32 {
+  tf32() = delete;
+};
 } // namespace precision
 
 // Differentiating between the "element type" and the "storage element type"
