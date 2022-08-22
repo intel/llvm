@@ -941,6 +941,9 @@ struct _pi_queue : _pi_object {
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
 
+  // Returns true if the queue has discard events property.
+  bool isDiscardEvents() const;
+
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
   // For copy commands, IsCopy is set to 'true'.
@@ -1349,6 +1352,24 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Besides each PI object keeping a total reference count in
+  // _pi_object::RefCount we keep special track of the event *external*
+  // references. This way we are able to tell when the event is not referenced
+  // externally anymore, i.e. it can't be passed as a dependency event to
+  // piEnqueue* functions and explicitly waited meaning that we can do some
+  // optimizations:
+  // 1. For in-order queues we can reset and reuse event even if it was not yet
+  // completed by submitting a reset command to the queue (since there are no
+  // external references, we know that nobody can wait this event somewhere in
+  // parallel thread or pass it as a dependency which may lead to hang)
+  // 2. We can avoid creating host proxy event.
+  // This counter doesn't track the lifetime of an event object. Even if it
+  // reaches zero an event object may not be destroyed and can be used
+  // internally in the plugin.
+  std::atomic<pi_uint32> RefCountExternal{0};
+
+  bool hasExternalRefs() { return RefCountExternal != 0; }
 
   // Reset _pi_event object.
   pi_result reset();
