@@ -301,7 +301,7 @@ Table 7. Helper functions of the `graph` class.
 ----
 graph<graph_state::modifiable> make_graph();
 ----
-|Creates a `graph` object. It's state is `graph_state::modifiable`.
+|Creates a `graph` object in the  `graph_state::modifiable` state.
 
 |===
 
