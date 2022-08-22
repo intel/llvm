@@ -39,7 +39,7 @@ public:
     return __spirv_ConvertFToBF16INTEL(a);
 #endif
 #else
-    // In case if float value is nan - propagate bfloat16's qnan
+    // In case of float value is nan - propagate bfloat16's qnan
     if (std::isnan(a))
       return 0xffc1;
     union {
