@@ -50,19 +50,26 @@ let TargetPrefix = "riscv" in {
     def _i64 : MaskedAtomicRMWFiveArg<llvm_i64_ty>;
   }
 
-  // @llvm.riscv.masked.atomicrmw.*.{i32,i64}.<p>(...)
+  // These intrinsics are intended only for internal compiler use (i.e. as
+  // part of AtomicExpandpass via the emitMaskedAtomic*Intrinsic hooks). Their
+  // names and semantics could change in the future.
+
+  // @llvm.riscv.masked.atomicrmw.*.{i32,i64}.<p>(
+  //   ptr addr, ixlen oparg, ixlen mask, ixlenimm ordering)
   defm int_riscv_masked_atomicrmw_xchg : MaskedAtomicRMWFourArgIntrinsics;
   defm int_riscv_masked_atomicrmw_add : MaskedAtomicRMWFourArgIntrinsics;
   defm int_riscv_masked_atomicrmw_sub : MaskedAtomicRMWFourArgIntrinsics;
   defm int_riscv_masked_atomicrmw_nand : MaskedAtomicRMWFourArgIntrinsics;
-  // Signed min and max need an extra operand to do sign extension with.
-  defm int_riscv_masked_atomicrmw_max : MaskedAtomicRMWFiveArgIntrinsics;
-  defm int_riscv_masked_atomicrmw_min : MaskedAtomicRMWFiveArgIntrinsics;
-  // Unsigned min and max don't need the extra operand.
   defm int_riscv_masked_atomicrmw_umax : MaskedAtomicRMWFourArgIntrinsics;
   defm int_riscv_masked_atomicrmw_umin : MaskedAtomicRMWFourArgIntrinsics;
+  // Signed min and max need an extra operand to do sign extension with.
+  // @llvm.riscv.masked.atomicrmw.{max,min}.{i32,i64}.<p>(
+  //   ptr addr, ixlen oparg, ixlen mask, ixlen shamt, ixlenimm ordering)
+  defm int_riscv_masked_atomicrmw_max : MaskedAtomicRMWFiveArgIntrinsics;
+  defm int_riscv_masked_atomicrmw_min : MaskedAtomicRMWFiveArgIntrinsics;
 
-  // @llvm.riscv.masked.cmpxchg.{i32,i64}.<p>(...)
+  // @llvm.riscv.masked.cmpxchg.{i32,i64}.<p>(
+  //   ptr addr, ixlen cmpval, ixlen newval, ixlen mask, ixlenimm ordering)
   defm int_riscv_masked_cmpxchg : MaskedAtomicRMWFiveArgIntrinsics;
 
 } // TargetPrefix = "riscv"
@@ -842,13 +849,14 @@ let TargetPrefix = "riscv" in {
   }
 
   // For unit stride segment load
-  // Input: (pointer, vl)
+  // Input: (passthru, pointer, vl)
   class RISCVUSSegLoad<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
-                    [LLVMPointerToElt<0>, llvm_anyint_ty],
-                    [NoCapture<ArgIndex<0>>, IntrReadMem]>, RISCVVIntrinsic {
-    let VLOperand = 1;
+                    !listconcat(!listsplat(LLVMMatchType<0>, nf),
+                                [LLVMPointerToElt<0>, llvm_anyint_ty]),
+                    [NoCapture<ArgIndex<nf>>, IntrReadMem]>, RISCVVIntrinsic {
+    let VLOperand = !add(nf, 1);
   }
   // For unit stride segment load with mask
   // Input: (maskedoff, pointer, mask, vl, policy)
@@ -865,16 +873,17 @@ let TargetPrefix = "riscv" in {
   }
 
   // For unit stride fault-only-first segment load
-  // Input: (pointer, vl)
+  // Input: (passthru, pointer, vl)
   // Output: (data, vl)
   // NOTE: We model this with default memory properties since we model writing
   // VL as a side effect. IntrReadMem, IntrHasSideEffects does not work.
   class RISCVUSSegLoadFF<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1)), [llvm_anyint_ty]),
-                    [LLVMPointerToElt<0>, LLVMMatchType<1>],
-                    [NoCapture<ArgIndex<0>>]>, RISCVVIntrinsic {
-    let VLOperand = 1;
+                    !listconcat(!listsplat(LLVMMatchType<0>, nf),
+                    [LLVMPointerToElt<0>, LLVMMatchType<1>]),
+                    [NoCapture<ArgIndex<nf>>]>, RISCVVIntrinsic {
+    let VLOperand = !add(nf, 1);
   }
   // For unit stride fault-only-first segment load with mask
   // Input: (maskedoff, pointer, mask, vl, policy)
@@ -894,13 +903,14 @@ let TargetPrefix = "riscv" in {
   }
 
   // For stride segment load
-  // Input: (pointer, offset, vl)
+  // Input: (passthru, pointer, offset, vl)
   class RISCVSSegLoad<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
-                    [LLVMPointerToElt<0>, llvm_anyint_ty, LLVMMatchType<1>],
-                    [NoCapture<ArgIndex<0>>, IntrReadMem]>, RISCVVIntrinsic {
-    let VLOperand = 2;
+                    !listconcat(!listsplat(LLVMMatchType<0>, nf),
+                    [LLVMPointerToElt<0>, llvm_anyint_ty, LLVMMatchType<1>]),
+                    [NoCapture<ArgIndex<nf>>, IntrReadMem]>, RISCVVIntrinsic {
+    let VLOperand = !add(nf, 2);
   }
   // For stride segment load with mask
   // Input: (maskedoff, pointer, offset, mask, vl, policy)
@@ -918,13 +928,14 @@ let TargetPrefix = "riscv" in {
   }
 
   // For indexed segment load
-  // Input: (pointer, index, vl)
+  // Input: (passthru, pointer, index, vl)
   class RISCVISegLoad<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
-                    [LLVMPointerToElt<0>, llvm_anyvector_ty, llvm_anyint_ty],
-                    [NoCapture<ArgIndex<0>>, IntrReadMem]>, RISCVVIntrinsic {
-    let VLOperand = 2;
+                    !listconcat(!listsplat(LLVMMatchType<0>, nf),
+                    [LLVMPointerToElt<0>, llvm_anyvector_ty, llvm_anyint_ty]),
+                    [NoCapture<ArgIndex<nf>>, IntrReadMem]>, RISCVVIntrinsic {
+    let VLOperand = !add(nf, 2);
   }
   // For indexed segment load with mask
   // Input: (maskedoff, pointer, index, mask, vl, policy)

@@ -258,7 +258,7 @@ static bool isVarAnInterestingCondition(const Expr *CondVarExpr,
 static bool isInterestingExpr(const Expr *E, const ExplodedNode *N,
                               const PathSensitiveBugReport *B) {
   if (Optional<SVal> V = getSValForVar(E, N))
-    return B->getInterestingnessKind(*V).hasValue();
+    return B->getInterestingnessKind(*V).has_value();
   return false;
 }
 
@@ -527,17 +527,11 @@ public:
     ID.AddPointer(RegionOfInterest);
   }
 
-  void *getTag() const {
-    static int Tag = 0;
-    return static_cast<void *>(&Tag);
-  }
-
 private:
   /// \return Whether \c RegionOfInterest was modified at \p CurrN compared to
   /// the value it holds in \p CallExitBeginN.
-  virtual bool
-  wasModifiedBeforeCallExit(const ExplodedNode *CurrN,
-                            const ExplodedNode *CallExitBeginN) override;
+  bool wasModifiedBeforeCallExit(const ExplodedNode *CurrN,
+                                 const ExplodedNode *CallExitBeginN) override;
 
   /// Attempts to find the region of interest in a given record decl,
   /// by either following the base classes or fields.
@@ -552,19 +546,17 @@ private:
 
   // Region of interest corresponds to an IVar, exiting a method
   // which could have written into that IVar, but did not.
-  virtual PathDiagnosticPieceRef
-  maybeEmitNoteForObjCSelf(PathSensitiveBugReport &R,
-                           const ObjCMethodCall &Call,
-                           const ExplodedNode *N) override final;
+  PathDiagnosticPieceRef maybeEmitNoteForObjCSelf(PathSensitiveBugReport &R,
+                                                  const ObjCMethodCall &Call,
+                                                  const ExplodedNode *N) final;
 
-  virtual PathDiagnosticPieceRef
-  maybeEmitNoteForCXXThis(PathSensitiveBugReport &R,
-                          const CXXConstructorCall &Call,
-                          const ExplodedNode *N) override final;
+  PathDiagnosticPieceRef maybeEmitNoteForCXXThis(PathSensitiveBugReport &R,
+                                                 const CXXConstructorCall &Call,
+                                                 const ExplodedNode *N) final;
 
-  virtual PathDiagnosticPieceRef
+  PathDiagnosticPieceRef
   maybeEmitNoteForParameters(PathSensitiveBugReport &R, const CallEvent &Call,
-                             const ExplodedNode *N) override final;
+                             const ExplodedNode *N) final;
 
   /// Consume the information on the no-store stack frame in order to
   /// either emit a note or suppress the report enirely.
@@ -919,7 +911,7 @@ public:
         const SVal V) {
     AnalyzerOptions &Options = N->getState()->getAnalysisManager().options;
     if (EnableNullFPSuppression && Options.ShouldSuppressNullReturnPaths &&
-        V.getAs<Loc>())
+        isa<Loc>(V))
       BR.addVisitor<MacroNullReturnSuppressionVisitor>(R->getAs<SubRegion>(),
                                                        V);
   }
@@ -1035,14 +1027,13 @@ public:
     if (RetE->isGLValue()) {
       if ((LValue = V.getAs<Loc>())) {
         SVal RValue = State->getRawSVal(*LValue, RetE->getType());
-        if (RValue.getAs<DefinedSVal>())
+        if (isa<DefinedSVal>(RValue))
           V = RValue;
       }
     }
 
     // Ignore aggregate rvalues.
-    if (V.getAs<nonloc::LazyCompoundVal>() ||
-        V.getAs<nonloc::CompoundVal>())
+    if (isa<nonloc::LazyCompoundVal, nonloc::CompoundVal>(V))
       return nullptr;
 
     RetE = RetE->IgnoreParenCasts();
@@ -1057,7 +1048,7 @@ public:
     bool WouldEventBeMeaningless = false;
 
     if (State->isNull(V).isConstrainedTrue()) {
-      if (V.getAs<Loc>()) {
+      if (isa<Loc>(V)) {
 
         // If we have counter-suppression enabled, make sure we keep visiting
         // future nodes. We want to emit a path note as well, in case
@@ -1087,10 +1078,7 @@ public:
         if (N->getCFG().size() == 3)
           WouldEventBeMeaningless = true;
 
-        if (V.getAs<Loc>())
-          Out << "Returning pointer";
-        else
-          Out << "Returning value";
+        Out << (isa<Loc>(V) ? "Returning pointer" : "Returning value");
       }
     }
 
@@ -1313,7 +1301,7 @@ static void showBRDiagnostics(llvm::raw_svector_ostream &OS, StoreInfo SI) {
     llvm_unreachable("Unexpected store kind");
   }
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
+  if (isa<loc::ConcreteInt>(SI.Value)) {
     OS << Action << (isObjCPointer(SI.Dest) ? "nil" : "a null pointer value");
 
   } else if (auto CVal = SI.Value.getAs<nonloc::ConcreteInt>()) {
@@ -1356,7 +1344,7 @@ static void showBRParamDiagnostics(llvm::raw_svector_ostream &OS,
 
   OS << "Passing ";
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
+  if (isa<loc::ConcreteInt>(SI.Value)) {
     OS << (isObjCPointer(Param) ? "nil object reference"
                                 : "null pointer value");
 
@@ -1387,7 +1375,7 @@ static void showBRDefaultDiagnostics(llvm::raw_svector_ostream &OS,
                                      StoreInfo SI) {
   const bool HasSuffix = SI.Dest->canPrintPretty();
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
+  if (isa<loc::ConcreteInt>(SI.Value)) {
     OS << (isObjCPointer(SI.Dest) ? "nil object reference stored"
                                   : (HasSuffix ? "Null pointer value stored"
                                                : "Storing null pointer value"));
@@ -1685,7 +1673,7 @@ PathDiagnosticPieceRef TrackConstraintBRVisitor::VisitNode(
     SmallString<64> sbuf;
     llvm::raw_svector_ostream os(sbuf);
 
-    if (Constraint.getAs<Loc>()) {
+    if (isa<Loc>(Constraint)) {
       os << "Assuming pointer value is ";
       os << (Assumption ? "non-null" : "null");
     }
@@ -2364,7 +2352,7 @@ public:
       // well. Try to use the correct type when looking up the value.
       SVal RVal;
       if (ExplodedGraph::isInterestingLValueExpr(Inner))
-        RVal = LVState->getRawSVal(L.getValue(), Inner->getType());
+        RVal = LVState->getRawSVal(*L, Inner->getType());
       else if (CanDereference)
         RVal = LVState->getSVal(L->getRegion());
 
@@ -2958,8 +2946,8 @@ PathDiagnosticPieceRef ConditionBRVisitor::VisitTrueTest(
 
   PathDiagnosticLocation Loc(Cond, SM, LCtx);
   auto event = std::make_shared<PathDiagnosticEventPiece>(Loc, Message);
-  if (shouldPrune.hasValue())
-    event->setPrunable(shouldPrune.getValue());
+  if (shouldPrune)
+    event->setPrunable(shouldPrune.value());
   return event;
 }
 
@@ -3086,16 +3074,16 @@ bool ConditionBRVisitor::printValue(const Expr *CondVarExpr, raw_ostream &Out,
   if (!IsAssuming)
     IntValue = getConcreteIntegerValue(CondVarExpr, N);
 
-  if (IsAssuming || !IntValue.hasValue()) {
+  if (IsAssuming || !IntValue) {
     if (Ty->isBooleanType())
       Out << (TookTrue ? "true" : "false");
     else
       Out << (TookTrue ? "not equal to 0" : "0");
   } else {
     if (Ty->isBooleanType())
-      Out << (IntValue.getValue()->getBoolValue() ? "true" : "false");
+      Out << (IntValue.value()->getBoolValue() ? "true" : "false");
     else
-      Out << *IntValue.getValue();
+      Out << *IntValue.value();
   }
 
   return true;
@@ -3288,10 +3276,10 @@ void FalsePositiveRefutationBRVisitor::finalizeVisitor(
 
   // And check for satisfiability
   Optional<bool> IsSAT = RefutationSolver->check();
-  if (!IsSAT.hasValue())
+  if (!IsSAT)
     return;
 
-  if (!IsSAT.getValue())
+  if (!IsSAT.value())
     BR.markInvalid("Infeasible constraints", EndPathNode->getLocationContext());
 }
 

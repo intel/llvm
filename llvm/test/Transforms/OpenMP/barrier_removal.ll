@@ -97,12 +97,11 @@ define void @neg_empty_2() {
 define void @pos_constant_loads() {
 ; CHECK-LABEL: define {{[^@]+}}@pos_constant_loads() {
 ; CHECK-NEXT:    [[ARG:%.*]] = load i32 addrspace(4)*, i32 addrspace(4)** addrspacecast (i32 addrspace(4)* addrspace(4)* @GPtr4 to i32 addrspace(4)**), align 8
-; CHECK-NEXT:    [[A:%.*]] = load i32, i32* @GC1, align 4
 ; CHECK-NEXT:    [[B:%.*]] = load i32, i32* addrspacecast (i32 addrspace(4)* @GC2 to i32*), align 4
 ; CHECK-NEXT:    [[ARGC:%.*]] = addrspacecast i32 addrspace(4)* [[ARG]] to i32*
 ; CHECK-NEXT:    [[C:%.*]] = load i32, i32* [[ARGC]], align 4
 ; CHECK-NEXT:    call void @aligned_barrier()
-; CHECK-NEXT:    [[D:%.*]] = add i32 [[A]], [[B]]
+; CHECK-NEXT:    [[D:%.*]] = add i32 42, [[B]]
 ; CHECK-NEXT:    [[E:%.*]] = add i32 [[D]], [[C]]
 ; CHECK-NEXT:    call void @useI32(i32 [[E]])
 ; CHECK-NEXT:    ret void
@@ -246,7 +245,7 @@ define void @pos_multiple() {
 !13 = !{i32 7, !"openmp-device", i32 50}
 ;.
 ; CHECK: attributes #[[ATTR0:[0-9]+]] = { "llvm.assume"="ompx_aligned_barrier" }
-; CHECK: attributes #[[ATTR1:[0-9]+]] = { convergent nounwind }
+; CHECK: attributes #[[ATTR1:[0-9]+]] = { convergent nocallback nounwind }
 ; CHECK: attributes #[[ATTR2:[0-9]+]] = { convergent nounwind willreturn }
 ;.
 ; CHECK: [[META0:![0-9]+]] = !{i32 7, !"openmp", i32 50}

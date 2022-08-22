@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/image_impl.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/image.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/memory_manager.hpp>
+#include <sycl/detail/image_impl.hpp>
+#include <sycl/image.hpp>
 
 #include <algorithm>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-template <info::device Param>
+template <typename Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
                                  const size_t Value) {
   return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
@@ -330,7 +330,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
     throw invalid_parameter_error(
         "For a 1D/2D image/image array, the width must be a Value >= 1 and "
         "<= info::device::image2d_max_width",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_width>(
@@ -338,7 +338,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
     throw invalid_parameter_error(
         "For a 3D image, the width must be a Value >= 1 and <= "
         "info::device::image3d_max_width",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
@@ -347,7 +347,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
     throw invalid_parameter_error("For a 2D image or image array, the height "
                                   "must be a Value >= 1 and <= "
                                   "info::device::image2d_max_height",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_height>(
@@ -355,7 +355,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
     throw invalid_parameter_error(
         "For a 3D image, the heightmust be a Value >= 1 and <= "
         "info::device::image3d_max_height",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_depth>(
@@ -363,7 +363,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
     throw invalid_parameter_error(
         "For a 3D image, the depth must be a Value >= 1 and <= "
         "info::device::image2d_max_depth",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
@@ -372,29 +372,31 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
     throw invalid_parameter_error(
         "For a 1D and 2D image array, the array_size must be a "
         "Value >= 1 and <= info::device::image_max_array_size.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
     throw invalid_parameter_error(
-        "The row_pitch must be 0 if host_ptr is nullptr.", PI_INVALID_VALUE);
+        "The row_pitch must be 0 if host_ptr is nullptr.",
+        PI_ERROR_INVALID_VALUE);
 
   if ((nullptr == UserPtr) && (0 != Desc.image_slice_pitch))
     throw invalid_parameter_error(
-        "The slice_pitch must be 0 if host_ptr is nullptr.", PI_INVALID_VALUE);
+        "The slice_pitch must be 0 if host_ptr is nullptr.",
+        PI_ERROR_INVALID_VALUE);
 
   if (0 != Desc.num_mip_levels)
     throw invalid_parameter_error("The mip_levels must be 0.",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
 
   if (0 != Desc.num_samples)
     throw invalid_parameter_error("The num_samples must be 0.",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
 
   if (nullptr != Desc.buffer)
     throw invalid_parameter_error(
         "The buffer must be nullptr, because SYCL does not support "
         "image creation from memory objects.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   return true;
 }
@@ -414,7 +416,7 @@ bool image_impl<Dimensions>::checkImageFormat(
         "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
         "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
         "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Format.image_channel_data_type,
                PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
@@ -427,7 +429,7 @@ bool image_impl<Dimensions>::checkImageFormat(
         "CL_UNORM_INT_101010."
         "These channel types can only be used with CL_RGB or CL_RGBx channel "
         "order.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
                PI_IMAGE_CHANNEL_ORDER_BGRA, PI_IMAGE_CHANNEL_ORDER_ABGR) &&
@@ -439,7 +441,7 @@ bool image_impl<Dimensions>::checkImageFormat(
         "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
         "channel data type = CL_UNORM_INT8, CL_SNORM_INT8, CL_SIGNED_INT8 "
         "or CL_UNSIGNED_INT8.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   return true;
 }
@@ -455,5 +457,5 @@ template class image_impl<2>;
 template class image_impl<3>;
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

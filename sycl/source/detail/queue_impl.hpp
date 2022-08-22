@@ -8,18 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/assert_happened.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/properties/queue_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -29,11 +17,23 @@
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/assert_happened.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/properties/context_properties.hpp>
+#include <sycl/properties/queue_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -62,10 +62,8 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-
-    if (DefaultContext->hasDevice(Device))
+    if (isValidDevice(DefaultContext, Device))
       return DefaultContext;
-
     return detail::getSyclObjImpl(
         context{createSyclObjFromImpl<device>(Device), {}, {}});
   }
@@ -98,22 +96,28 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(
-            MDiscardEvents &&
-            (MHostQueue ? true
-                        : (MIsInorder && getPlugin().getBackend() !=
-                                             backend::ext_oneapi_level_zero))) {
+        MHasDiscardEventsSupport(MDiscardEvents &&
+                                 (MHostQueue ? true : MIsInorder)) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_object_error(
+    if (!isValidDevice(Context, Device)) {
+      if (!Context->is_host() &&
+          Context->getPlugin().getBackend() == backend::opencl)
+        throw sycl::invalid_object_error(
+            "Queue cannot be constructed with the given context and device "
+            "since the device is not a member of the context (descendants of "
+            "devices from the context are not supported on OpenCL yet).",
+            PI_ERROR_INVALID_DEVICE);
+      throw sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
-          "as the context does not contain the given device.",
-          PI_INVALID_DEVICE);
+          "since the device is neither a member of the context nor a "
+          "descendant of its member.",
+          PI_ERROR_INVALID_DEVICE);
+    }
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
@@ -137,11 +141,8 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(
-            MDiscardEvents &&
-            (MHostQueue ? true
-                        : (MIsInorder && getPlugin().getBackend() !=
-                                             backend::ext_oneapi_level_zero))) {
+        MHasDiscardEventsSupport(MDiscardEvents &&
+                                 (MHostQueue ? true : MIsInorder)) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -151,13 +152,16 @@ public:
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
-    RT::PiDevice Device{};
+    RT::PiDevice DevicePI{};
     const detail::plugin &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piQueueGetInfo>(MQueues[0], PI_QUEUE_INFO_DEVICE,
-                                           sizeof(Device), &Device, nullptr);
-    MDevice =
-        DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
+    Plugin.call<PiApiKind::piQueueGetInfo>(
+        MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
+    MDevice = MContext->findMatchingDeviceImpl(DevicePI);
+    if (MDevice == nullptr)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Device provided by native Queue not found in Context.");
   }
 
   ~queue_impl() {
@@ -172,7 +176,7 @@ public:
     if (MHostQueue) {
       throw invalid_object_error(
           "This instance of queue doesn't support OpenCL interoperability",
-          PI_INVALID_QUEUE);
+          PI_ERROR_INVALID_QUEUE);
     }
     getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
     return pi::cast<cl_command_queue>(MQueues[0]);
@@ -201,8 +205,7 @@ public:
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <info::queue Param>
-  typename info::param_traits<info::queue, Param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
@@ -307,6 +310,12 @@ public:
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
+    if (MPropList
+            .has_property<ext::oneapi::property::queue::discard_events>()) {
+      // Pass this flag to the Level Zero plugin to be able to check it from
+      // queue property.
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
+    }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
@@ -318,8 +327,8 @@ public:
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // PI_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
+    // PI_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    if (MSupportOOO && Error == PI_ERROR_INVALID_QUEUE_PROPERTIES) {
       MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
@@ -371,7 +380,7 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 
@@ -476,6 +485,27 @@ protected:
   }
 
 private:
+  /// Helper function for checking whether a device is either a member of a
+  /// context or a descendnant of its member.
+  /// \return True iff the device or its parent is a member of the context.
+  static bool isValidDevice(const ContextImplPtr &Context,
+                            DeviceImplPtr Device) {
+    // OpenCL does not support creating a queue with a descendant of a device
+    // from the given context yet.
+    // TODO remove once this limitation is lifted
+    if (!Context->is_host() &&
+        Context->getPlugin().getBackend() == backend::opencl)
+      return Context->hasDevice(Device);
+
+    while (!Context->hasDevice(Device)) {
+      if (Device->isRootDevice())
+        return false;
+      Device = detail::getSyclObjImpl(
+          Device->get_info<info::device::parent_device>());
+    }
+    return true;
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -598,5 +628,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

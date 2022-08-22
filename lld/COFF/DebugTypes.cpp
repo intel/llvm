@@ -647,7 +647,7 @@ void TpiSource::mergeUniqueTypeRecords(ArrayRef<uint8_t> typeRecords,
                                        TypeIndex beginIndex) {
   // Re-sort the list of unique types by index.
   if (kind == PDB)
-    assert(std::is_sorted(uniqueTypes.begin(), uniqueTypes.end()));
+    assert(llvm::is_sorted(uniqueTypes));
   else
     llvm::sort(uniqueTypes);
 
@@ -1056,7 +1056,7 @@ void TypeMerger::mergeTypesWithGHash() {
   // position. Because the table does not rehash, the position will not change
   // under insertion. After insertion is done, the value of the cell can be read
   // to retrieve the final PDB type index.
-  parallelForEachN(0, ctx.tpiSourceList.size(), [&](size_t tpiSrcIdx) {
+  parallelFor(0, ctx.tpiSourceList.size(), [&](size_t tpiSrcIdx) {
     TpiSource *source = ctx.tpiSourceList[tpiSrcIdx];
     source->indexMapStorage.resize(source->ghashes.size());
     for (uint32_t i = 0, e = source->ghashes.size(); i < e; i++) {
@@ -1126,9 +1126,8 @@ void TypeMerger::mergeTypesWithGHash() {
   }
 
   // In parallel, remap all types.
-  for_each(dependencySources, [&](TpiSource *source) {
+  for (TpiSource *source : dependencySources)
     source->remapTpiWithGHashes(&ghashState);
-  });
   parallelForEach(objectSources, [&](TpiSource *source) {
     source->remapTpiWithGHashes(&ghashState);
   });

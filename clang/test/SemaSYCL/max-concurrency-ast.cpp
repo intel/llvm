@@ -3,7 +3,7 @@
 // Tests for AST of Intel FPGA max concurrency function attribute.
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
@@ -25,8 +25,8 @@ queue q;
 // CHECK: FunctionTemplateDecl {{.*}} func3
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK_NEXT: SYCLIntelFPGAMaxConcurrencyAttr
-// CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
+// CHECK-NEXT: SYCLIntelFPGAMaxConcurrencyAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
 // CHECK-NEXT: TemplateArgument integral 5
 // CHECK-NEXT: CompoundStmt

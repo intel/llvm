@@ -183,6 +183,18 @@ func.func @sqrt(%f: f32, %v: vector<4xf32>, %t: tensor<4x4x?xf32>) {
   return
 }
 
+// CHECK-LABEL: func @tan(
+// CHECK-SAME:             %[[F:.*]]: f32, %[[V:.*]]: vector<4xf32>, %[[T:.*]]: tensor<4x4x?xf32>)
+func.func @tan(%f: f32, %v: vector<4xf32>, %t: tensor<4x4x?xf32>) {
+  // CHECK: %{{.*}} = math.tan %[[F]] : f32
+  %0 = math.tan %f : f32
+  // CHECK: %{{.*}} = math.tan %[[V]] : vector<4xf32>
+  %1 = math.tan %v : vector<4xf32>
+  // CHECK: %{{.*}} = math.tan %[[T]] : tensor<4x4x?xf32>
+  %2 = math.tan %t : tensor<4x4x?xf32>
+  return
+}
+
 // CHECK-LABEL: func @tanh(
 // CHECK-SAME:             %[[F:.*]]: f32, %[[V:.*]]: vector<4xf32>, %[[T:.*]]: tensor<4x4x?xf32>)
 func.func @tanh(%f: f32, %v: vector<4xf32>, %t: tensor<4x4x?xf32>) {
@@ -192,5 +204,17 @@ func.func @tanh(%f: f32, %v: vector<4xf32>, %t: tensor<4x4x?xf32>) {
   %1 = math.tanh %v : vector<4xf32>
   // CHECK: %{{.*}} = math.tanh %[[T]] : tensor<4x4x?xf32>
   %2 = math.tanh %t : tensor<4x4x?xf32>
+  return
+}
+
+// CHECK-LABEL: func @round(
+// CHECK-SAME:             %[[F:.*]]: f32, %[[V:.*]]: vector<4xf32>, %[[T:.*]]: tensor<4x4x?xf32>)
+func.func @round(%f: f32, %v: vector<4xf32>, %t: tensor<4x4x?xf32>) {
+  // CHECK: %{{.*}} = math.round %[[F]] : f32
+  %0 = math.round %f : f32
+  // CHECK: %{{.*}} = math.round %[[V]] : vector<4xf32>
+  %1 = math.round %v : vector<4xf32>
+  // CHECK: %{{.*}} = math.round %[[T]] : tensor<4x4x?xf32>
+  %2 = math.round %t : tensor<4x4x?xf32>
   return
 }

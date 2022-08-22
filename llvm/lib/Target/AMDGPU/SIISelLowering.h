@@ -48,6 +48,7 @@ private:
   SDValue lowerKernArgParameterPtr(SelectionDAG &DAG, const SDLoc &SL,
                                    SDValue Chain, uint64_t Offset) const;
   SDValue getImplicitArgPtr(SelectionDAG &DAG, const SDLoc &SL) const;
+  SDValue getLDSKernelId(SelectionDAG &DAG, const SDLoc &SL) const;
   SDValue lowerKernargMemParameter(SelectionDAG &DAG, EVT VT, EVT MemVT,
                                    const SDLoc &SL, SDValue Chain,
                                    uint64_t Offset, Align Alignment,
@@ -235,7 +236,10 @@ public:
   /// Check if EXTRACT_VECTOR_ELT/INSERT_VECTOR_ELT (<n x e>, var-idx) should be
   /// expanded into a set of cmp/select instructions.
   static bool shouldExpandVectorDynExt(unsigned EltSize, unsigned NumElem,
-                                       bool IsDivergentIdx);
+                                       bool IsDivergentIdx,
+                                       const GCNSubtarget *Subtarget);
+
+  bool shouldExpandVectorDynExt(SDNode *N) const;
 
 private:
   // Analyze a combined offset from an amdgcn_buffer_ intrinsic and store the
@@ -318,6 +322,9 @@ public:
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
                                         Type *Ty) const override;
 
+  bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
+                               unsigned Index) const override;
+
   bool isTypeDesirableForOp(unsigned Op, EVT VT) const override;
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
@@ -388,6 +395,7 @@ public:
                               MachineBasicBlock *BB) const override;
 
   bool hasBitPreservingFPLogic(EVT VT) const override;
+  bool hasAtomicFaddRtnForTy(SDValue &Op) const;
   bool enableAggressiveFMAFusion(EVT VT) const override;
   bool enableAggressiveFMAFusion(LLT Ty) const override;
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
@@ -479,10 +487,10 @@ public:
   AtomicExpansionKind
   shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *AI) const override;
 
-  virtual const TargetRegisterClass *
-  getRegClassFor(MVT VT, bool isDivergent) const override;
-  virtual bool requiresUniformRegister(MachineFunction &MF,
-                                       const Value *V) const override;
+  const TargetRegisterClass *getRegClassFor(MVT VT,
+                                            bool isDivergent) const override;
+  bool requiresUniformRegister(MachineFunction &MF,
+                               const Value *V) const override;
   Align getPrefLoopAlignment(MachineLoop *ML) const override;
 
   void allocateHSAUserSGPRs(CCState &CCInfo,

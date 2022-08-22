@@ -495,8 +495,7 @@ public:
                              unsigned &SubIdx) const override;
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
 
@@ -745,6 +744,12 @@ public:
   // \p SeenIntermediate is set to true if uses between DefMI and \p MI exist.
   MachineInstr *getDefMIPostRA(unsigned Reg, MachineInstr &MI,
                                bool &SeenIntermediateUse) const;
+
+  // Materialize immediate after RA.
+  void materializeImmPostRA(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MBBI,
+                            const DebugLoc &DL, Register Reg,
+                            int64_t Imm) const;
 
   /// getRegNumForOperand - some operands use different numbering schemes
   /// for the same registers. For example, a VSX instruction may have any of

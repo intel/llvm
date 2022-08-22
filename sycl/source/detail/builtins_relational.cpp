@@ -10,14 +10,13 @@
 // in SYCL SPEC section - 4.13.7 Relational functions.
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
@@ -507,4 +506,3 @@ MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
 MAKE_SC_FSC_1V_2V_3V_FV(select, __vselect, s::cl_half, s::cl_half, s::cl_half,
                         s::cl_ushort)
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)

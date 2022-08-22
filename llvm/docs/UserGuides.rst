@@ -29,6 +29,7 @@ intermediate LLVM representation.
    CoverageMappingFormat
    CycleTerminology
    DebuggingJITedCode
+   DirectXUsage
    Docker
    ExtendingLLVM
    GoldPlugin
@@ -38,6 +39,7 @@ intermediate LLVM representation.
    HowToCrossCompileBuiltinsOnArm
    HowToCrossCompileLLVM
    HowToUpdateDebugInfo
+   InstrRefDebugInfo
    LinkTimeOptimization
    LoopTerminology
    MarkdownQuickstartTemplate
@@ -56,6 +58,7 @@ intermediate LLVM representation.
    ResponseGuide
    Remarks
    SourceLevelDebugging
+   SPIRVUsage
    StackSafetyAnalysis
    SupportLibrary
    TableGen/index
@@ -160,6 +163,15 @@ Optimizations
    This document describes the design and philosophy behind the LLVM
    source-level debugger.
 
+:doc:`How to Update Debug Info <HowToUpdateDebugInfo>`
+   This document specifies how to correctly update debug info in various kinds
+   of code transformations.
+
+:doc:`InstrRefDebugInfo`
+   This document explains how LLVM uses value tracking, or instruction
+   referencing, to determine variable locations for debug info in the final
+   stages of compilation.
+
 Code Generation
 ---------------
 
@@ -233,3 +245,10 @@ Additional Topics
    This document describes a DWARF extension to allow location descriptions on
    the DWARF expression stack. It is part of
    :doc:`AMDGPUDwarfExtensionsForHeterogeneousDebugging`.
+
+:doc:`SPIRVUsage`
+   This document describes using the SPIR-V target to compile GPU kernels.
+
+:doc:`DirectXUsage`
+   This document describes using the DirectX target to compile GPU code for the
+   DirectX runtime.

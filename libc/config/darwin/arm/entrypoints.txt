@@ -35,6 +35,8 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strcmp
     libc.src.string.strcpy
     libc.src.string.strcspn
+    libc.src.string.strlcat
+    libc.src.string.strlcpy
     libc.src.string.strlen
     libc.src.string.strncat
     libc.src.string.strncmp
@@ -52,6 +54,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strndup
 
     # inttypes.h entrypoints
+    libc.src.inttypes.imaxabs
     libc.src.inttypes.imaxdiv
     libc.src.inttypes.strtoimax
     libc.src.inttypes.strtoumax
@@ -108,6 +111,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ceil
     libc.src.math.ceilf
     libc.src.math.ceill
+    libc.src.math.coshf
     libc.src.math.cosf
     libc.src.math.expf
     libc.src.math.exp2f
@@ -129,6 +133,8 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.fmin
     libc.src.math.fminf
     libc.src.math.fminl
+    libc.src.math.fmod
+    libc.src.math.fmodf
     libc.src.math.frexp
     libc.src.math.frexpf
     libc.src.math.frexpl
@@ -181,10 +187,12 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.roundf
     libc.src.math.roundl
     libc.src.math.sincosf
+    libc.src.math.sinhf
     libc.src.math.sinf
     libc.src.math.sqrt
     libc.src.math.sqrtf
     libc.src.math.sqrtl
+    libc.src.math.tanhf
     libc.src.math.trunc
     libc.src.math.truncf
     libc.src.math.truncl

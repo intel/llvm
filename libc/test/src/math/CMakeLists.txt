@@ -1004,6 +1004,7 @@ add_fp_unittest(
   SRCS
     generic_sqrtf_test.cpp
   DEPENDS
+    libc.src.math.sqrtf
     libc.src.__support.FPUtil.fputil
     libc.src.__support.FPUtil.generic.sqrt
   COMPILE_OPTIONS
@@ -1018,6 +1019,7 @@ add_fp_unittest(
   SRCS
     generic_sqrt_test.cpp
   DEPENDS
+    libc.src.math.sqrt
     libc.src.__support.FPUtil.fputil
     libc.src.__support.FPUtil.generic.sqrt
   COMPILE_OPTIONS
@@ -1032,6 +1034,7 @@ add_fp_unittest(
   SRCS
     generic_sqrtl_test.cpp
   DEPENDS
+    libc.src.math.sqrtl
     libc.src.__support.FPUtil.fputil
     libc.src.__support.FPUtil.generic.sqrt
   COMPILE_OPTIONS
@@ -1151,6 +1154,8 @@ add_fp_unittest(
     libc.src.__support.FPUtil.fputil
 )
 
+# TODO(lntue): The current implementation of fputil::general::fma<float> is only
+# correctly rounded for the default rounding mode round-to-nearest tie-to-even.
 add_fp_unittest(
   fmaf_test
   NEED_MPFR
@@ -1162,6 +1167,8 @@ add_fp_unittest(
     libc.include.math
     libc.src.math.fmaf
     libc.src.__support.FPUtil.fputil
+  FLAGS
+    FMA_OPT__ONLY
 )
 
 add_fp_unittest(
@@ -1264,6 +1271,90 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.log1pf
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  fmodf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmodf_test.cpp
+  HDRS
+    FModTest.h
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmodf
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  fmod_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmod_test.cpp
+  HDRS
+    FModTest.h
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmod
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  expxf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    expxf_test.cpp
+  DEPENDS
+    libc.src.math.generic.common_constants
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  coshf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    coshf_test.cpp
+  HDRS
+    sdcomp26094.h
+  DEPENDS
+    libc.include.errno
+    libc.src.math.coshf
+    libc.src.__support.CPP.array
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  sinhf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    sinhf_test.cpp
+  HDRS
+    sdcomp26094.h
+  DEPENDS
+    libc.include.errno
+    libc.src.math.sinhf
+    libc.src.__support.CPP.array
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  tanhf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    tanhf_test.cpp
+  DEPENDS
+    libc.src.math.tanhf
     libc.src.__support.FPUtil.fputil
 )
 

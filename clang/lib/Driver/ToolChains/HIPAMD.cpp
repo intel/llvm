@@ -147,6 +147,9 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 
   addLinkerCompressDebugSectionsOption(TC, Args, LldArgs);
 
+  for (auto *Arg : Args.filtered(options::OPT_Xoffload_linker))
+    LldArgs.push_back(Arg->getValue(1));
+
   LldArgs.append({"-o", Output.getFilename()});
   for (auto Input : Inputs)
     LldArgs.push_back(Input.getFilename());
@@ -154,10 +157,12 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   // Look for archive of bundled bitcode in arguments, and add temporary files
   // for the extracted archive of bitcode to inputs.
   auto TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
-  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LldArgs, "amdgcn",
-                             TargetID,
-                             /*IsBitCodeSDL=*/true,
-                             /*PostClangLink=*/false);
+  if (C.getDriver().getUseNewOffloadingDriver() ||
+      JA.getOffloadingDeviceKind() != Action::OFK_SYCL)
+    AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LldArgs, "amdgcn",
+                               TargetID,
+                               /*IsBitCodeSDL=*/true,
+                               /*PostClangLink=*/false);
 
   const char *Lld = Args.MakeArgString(getToolChain().GetProgramPath("lld"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
@@ -301,12 +306,12 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
-  llvm::for_each(
-      getHIPDeviceLibs(DriverArgs, DeviceOffloadingKind), [&](auto BCFile) {
-        CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
-                                                   : "-mlink-bitcode-file");
-        CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
-      });
+  for (auto BCFile : getHIPDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
+    CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
+                                               : "-mlink-bitcode-file");
+    CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+  }
+
 }
 
 llvm::opt::DerivedArgList *
@@ -483,6 +488,6 @@ void HIPAMDToolChain::checkTargetID(
   auto PTID = getParsedTargetID(DriverArgs);
   if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
     getDriver().Diag(clang::diag::err_drv_bad_target_id)
-        << PTID.OptionalTargetID.getValue();
+        << *PTID.OptionalTargetID;
   }
 }

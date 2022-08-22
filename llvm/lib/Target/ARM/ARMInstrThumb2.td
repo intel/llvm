@@ -3951,6 +3951,7 @@ def t2Bcc : T2I<(outs), (ins brtarget:$target), IIC_Br,
 
 // Tail calls. The MachO version of thumb tail calls uses a t2 branch, so
 // it goes here.
+// Windows SEH unwinding also needs a strict t2 branch for tail calls.
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   // IOS version.
   let Uses = [SP] in
@@ -3958,7 +3959,7 @@ let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
                    (ins thumb_br_target:$dst, pred:$p),
                    4, IIC_Br, [],
                    (t2B thumb_br_target:$dst, pred:$p)>,
-                 Requires<[IsThumb2, IsMachO]>, Sched<[WriteBr]>;
+                 Requires<[IsThumb2]>, Sched<[WriteBr]>;
 }
 
 // IT block
@@ -5716,7 +5717,8 @@ let isBranch = 1, isTerminator = 1, isIndirectBranch = 1 in {
 
 
 class PACBTIHintSpaceInst<string asm, string ops, bits<8> imm>
-  : V8_1MI<(outs), (ins), AddrModeNone, NoItinerary, asm, ops, "", []> {
+  : Thumb2XI<(outs), (ins), AddrModeNone, 4, NoItinerary, !strconcat(asm, "\t", ops), "", []>,
+    Requires<[HasV7, IsMClass]> {
   let Inst{31-8} = 0b111100111010111110000000;
   let Inst{7-0}  = imm;
 

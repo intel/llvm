@@ -394,7 +394,6 @@ void LinkageComputer::mergeTemplateLV(
     shouldConsiderTemplateVisibility(fn, specInfo);
 
   FunctionTemplateDecl *temp = specInfo->getTemplate();
-
   // Merge information from the template declaration.
   LinkageInfo tempLV = getLVForDecl(temp, computation);
   // The linkage of the specialization should be consistent with the
@@ -468,11 +467,16 @@ void LinkageComputer::mergeTemplateLV(
 
   // Merge information from the template parameters, but ignore
   // visibility if we're only considering template arguments.
-
   ClassTemplateDecl *temp = spec->getSpecializedTemplate();
-  LinkageInfo tempLV =
+  // Merge information from the template declaration.
+  LinkageInfo tempLV = getLVForDecl(temp, computation);
+  // The linkage of the specialization should be consistent with the
+  // template declaration.
+  LV.setLinkage(tempLV.getLinkage());
+
+  LinkageInfo paramsLV =
     getLVForTemplateParameterList(temp->getTemplateParameters(), computation);
-  LV.mergeMaybeWithVisibility(tempLV,
+  LV.mergeMaybeWithVisibility(paramsLV,
            considerVisibility && !hasExplicitVisibilityAlready(computation));
 
   // Merge information from the template arguments.  We ignore
@@ -520,7 +524,6 @@ void LinkageComputer::mergeTemplateLV(LinkageInfo &LV,
 
   // Merge information from the template parameters, but ignore
   // visibility if we're only considering template arguments.
-
   VarTemplateDecl *temp = spec->getSpecializedTemplate();
   LinkageInfo tempLV =
     getLVForTemplateParameterList(temp->getTemplateParameters(), computation);
@@ -588,6 +591,7 @@ static bool isExportedFromModuleInterfaceUnit(const NamedDecl *D) {
   // FIXME: Handle isModulePrivate.
   switch (D->getModuleOwnershipKind()) {
   case Decl::ModuleOwnershipKind::Unowned:
+  case Decl::ModuleOwnershipKind::ReachableWhenImported:
   case Decl::ModuleOwnershipKind::ModulePrivate:
     return false;
   case Decl::ModuleOwnershipKind::Visible:
@@ -1076,7 +1080,6 @@ LinkageComputer::getLVForClassMember(const NamedDecl *D,
 
   // Finally, merge in information from the class.
   LV.mergeMaybeWithVisibility(classLV, considerClassVisibility);
-
   return LV;
 }
 
@@ -1855,7 +1858,7 @@ bool NamedDecl::hasLinkage() const {
 
 NamedDecl *NamedDecl::getUnderlyingDeclImpl() {
   NamedDecl *ND = this;
-  while (auto *UD = dyn_cast<UsingShadowDecl>(ND))
+  if (auto *UD = dyn_cast<UsingShadowDecl>(ND))
     ND = UD->getTargetDecl();
 
   if (auto *AD = dyn_cast<ObjCCompatibleAliasDecl>(ND))
@@ -2871,7 +2874,8 @@ Expr *ParmVarDecl::getDefaultArg() {
 
   Expr *Arg = getInit();
   if (auto *E = dyn_cast_or_null<FullExpr>(Arg))
-    return E->getSubExpr();
+    if (!isa<ConstantExpr>(E))
+      return E->getSubExpr();
 
   return Arg;
 }
@@ -2958,6 +2962,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
   FunctionDeclBits.IsDefaulted = false;
   FunctionDeclBits.IsExplicitlyDefaulted = false;
   FunctionDeclBits.HasDefaultedFunctionInfo = false;
+  FunctionDeclBits.IsIneligibleOrNotSelected = false;
   FunctionDeclBits.HasImplicitReturnZero = false;
   FunctionDeclBits.IsLateTemplateParsed = false;
   FunctionDeclBits.ConstexprKind = static_cast<uint64_t>(ConstexprKind);
@@ -3733,8 +3738,13 @@ const IdentifierInfo *FunctionDecl::getLiteralIdentifier() const {
 FunctionDecl::TemplatedKind FunctionDecl::getTemplatedKind() const {
   if (TemplateOrSpecialization.isNull())
     return TK_NonTemplate;
-  if (TemplateOrSpecialization.is<FunctionTemplateDecl *>())
+  if (const auto *ND = TemplateOrSpecialization.dyn_cast<NamedDecl *>()) {
+    if (isa<FunctionDecl>(ND))
+      return TK_DependentNonTemplate;
+    assert(isa<FunctionTemplateDecl>(ND) &&
+           "No other valid types in NamedDecl");
     return TK_FunctionTemplate;
+  }
   if (TemplateOrSpecialization.is<MemberSpecializationInfo *>())
     return TK_MemberSpecialization;
   if (TemplateOrSpecialization.is<FunctionTemplateSpecializationInfo *>())
@@ -3775,13 +3785,26 @@ FunctionDecl::setInstantiationOfMemberFunction(ASTContext &C,
 }
 
 FunctionTemplateDecl *FunctionDecl::getDescribedFunctionTemplate() const {
-  return TemplateOrSpecialization.dyn_cast<FunctionTemplateDecl *>();
+  return dyn_cast_or_null<FunctionTemplateDecl>(
+      TemplateOrSpecialization.dyn_cast<NamedDecl *>());
 }
 
-void FunctionDecl::setDescribedFunctionTemplate(FunctionTemplateDecl *Template) {
+void FunctionDecl::setDescribedFunctionTemplate(
+    FunctionTemplateDecl *Template) {
   assert(TemplateOrSpecialization.isNull() &&
          "Member function is already a specialization");
   TemplateOrSpecialization = Template;
+}
+
+void FunctionDecl::setInstantiatedFromDecl(FunctionDecl *FD) {
+  assert(TemplateOrSpecialization.isNull() &&
+         "Function is already a specialization");
+  TemplateOrSpecialization = FD;
+}
+
+FunctionDecl *FunctionDecl::getInstantiatedFromDecl() const {
+  return dyn_cast_or_null<FunctionDecl>(
+      TemplateOrSpecialization.dyn_cast<NamedDecl *>());
 }
 
 bool FunctionDecl::isImplicitlyInstantiable() const {
@@ -4602,6 +4625,21 @@ SourceRange EnumDecl::getSourceRange() const {
   return Res;
 }
 
+void EnumDecl::getValueRange(llvm::APInt &Max, llvm::APInt &Min) const {
+  unsigned Bitwidth = getASTContext().getIntWidth(getIntegerType());
+  unsigned NumNegativeBits = getNumNegativeBits();
+  unsigned NumPositiveBits = getNumPositiveBits();
+
+  if (NumNegativeBits) {
+    unsigned NumBits = std::max(NumNegativeBits, NumPositiveBits + 1);
+    Max = llvm::APInt(Bitwidth, 1) << (NumBits - 1);
+    Min = -Max;
+  } else {
+    Max = llvm::APInt(Bitwidth, 1) << NumPositiveBits;
+    Min = llvm::APInt::getZero(Bitwidth);
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // RecordDecl Implementation
 //===----------------------------------------------------------------------===//
@@ -4947,6 +4985,12 @@ bool ValueDecl::isWeak() const {
   auto *MostRecent = getMostRecentDecl();
   return MostRecent->hasAttr<WeakAttr>() ||
          MostRecent->hasAttr<WeakRefAttr>() || isWeakImported();
+}
+
+bool ValueDecl::isInitCapture() const {
+  if (auto *Var = llvm::dyn_cast<VarDecl>(this))
+    return Var->isInitCapture();
+  return false;
 }
 
 void ImplicitParamDecl::anchor() {}

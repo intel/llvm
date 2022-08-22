@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <cstring>
 #include <string_view>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 std::vector<std::string_view> tokenize(const std::string &Filter,
@@ -94,7 +94,7 @@ device_filter::device_filter(const std::string &FilterString) {
           "{host,opencl,level_zero,cuda,hip,esimd_emulator,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
-      throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);
+      throw sycl::invalid_parameter_error(Message, PI_ERROR_INVALID_VALUE);
     }
   }
 }
@@ -171,5 +171,5 @@ bool device_filter_list::containsHost() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

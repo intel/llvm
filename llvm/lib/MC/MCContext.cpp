@@ -26,6 +26,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCLabel.h"
 #include "llvm/MC/MCSectionCOFF.h"
+#include "llvm/MC/MCSectionDXContainer.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSectionGOFF.h"
 #include "llvm/MC/MCSectionMachO.h"
@@ -145,6 +146,7 @@ void MCContext::reset() {
 
   // Call the destructors so the fragments are freed
   COFFAllocator.DestroyAll();
+  DXCAllocator.DestroyAll();
   ELFAllocator.DestroyAll();
   GOFFAllocator.DestroyAll();
   MachOAllocator.DestroyAll();
@@ -176,6 +178,7 @@ void MCContext::reset() {
   COFFUniquingMap.clear();
   WasmUniquingMap.clear();
   XCOFFUniquingMap.clear();
+  DXCUniquingMap.clear();
 
   ELFEntrySizeMap.clear();
   ELFSeenGenericMergeableSections.clear();
@@ -465,24 +468,6 @@ MCSectionMachO *MCContext::getMachOSection(StringRef Segment, StringRef Section,
   return R.first->second;
 }
 
-void MCContext::renameELFSection(MCSectionELF *Section, StringRef Name) {
-  StringRef GroupName;
-  if (const MCSymbol *Group = Section->getGroup())
-    GroupName = Group->getName();
-
-  // This function is only used by .debug*, which should not have the
-  // SHF_LINK_ORDER flag.
-  unsigned UniqueID = Section->getUniqueID();
-  ELFUniquingMap.erase(
-      ELFSectionKey{Section->getName(), GroupName, "", UniqueID});
-  auto I = ELFUniquingMap
-               .insert(std::make_pair(
-                   ELFSectionKey{Name, GroupName, "", UniqueID}, Section))
-               .first;
-  StringRef CachedName = I->first.SectionName;
-  const_cast<MCSectionELF *>(Section)->setSectionName(CachedName);
-}
-
 MCSectionELF *MCContext::createELFSectionImpl(StringRef Section, unsigned Type,
                                               unsigned Flags, SectionKind K,
                                               unsigned EntrySize,
@@ -634,11 +619,14 @@ Optional<unsigned> MCContext::getELFUniqueIDForEntsize(StringRef SectionName,
   return (I != ELFEntrySizeMap.end()) ? Optional<unsigned>(I->second) : None;
 }
 
-MCSectionGOFF *MCContext::getGOFFSection(StringRef Section, SectionKind Kind) {
+MCSectionGOFF *MCContext::getGOFFSection(StringRef Section, SectionKind Kind,
+                                         MCSection *Parent,
+                                         const MCExpr *SubsectionId) {
   // Do the lookup. If we don't have a hit, return a new section.
   auto &GOFFSection = GOFFUniquingMap[Section.str()];
   if (!GOFFSection)
-    GOFFSection = new (GOFFAllocator.Allocate()) MCSectionGOFF(Section, Kind);
+    GOFFSection = new (GOFFAllocator.Allocate())
+        MCSectionGOFF(Section, Kind, Parent, SubsectionId);
 
   return GOFFSection;
 }
@@ -761,13 +749,13 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
     Optional<XCOFF::CsectProperties> CsectProp, bool MultiSymbolsAllowed,
     const char *BeginSymName,
     Optional<XCOFF::DwarfSectionSubtypeFlags> DwarfSectionSubtypeFlags) {
-  bool IsDwarfSec = DwarfSectionSubtypeFlags.hasValue();
-  assert((IsDwarfSec != CsectProp.hasValue()) && "Invalid XCOFF section!");
+  bool IsDwarfSec = DwarfSectionSubtypeFlags.has_value();
+  assert((IsDwarfSec != CsectProp.has_value()) && "Invalid XCOFF section!");
 
   // Do the lookup. If we have a hit, return it.
   auto IterBool = XCOFFUniquingMap.insert(std::make_pair(
       IsDwarfSec
-          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.getValue())
+          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.value())
           : XCOFFSectionKey(Section.str(), CsectProp->MappingClass),
       nullptr));
   auto &Entry = *IterBool.first;
@@ -800,7 +788,7 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   if (IsDwarfSec)
     Result = new (XCOFFAllocator.Allocate())
         MCSectionXCOFF(QualName->getUnqualifiedName(), Kind, QualName,
-                       DwarfSectionSubtypeFlags.getValue(), Begin, CachedName,
+                       DwarfSectionSubtypeFlags.value(), Begin, CachedName,
                        MultiSymbolsAllowed);
   else
     Result = new (XCOFFAllocator.Allocate())
@@ -833,6 +821,29 @@ MCSectionSPIRV *MCContext::getSPIRVSection() {
     Begin->setFragment(F);
 
   return Result;
+}
+
+MCSectionDXContainer *MCContext::getDXContainerSection(StringRef Section,
+                                                       SectionKind K) {
+  // Do the lookup, if we have a hit, return it.
+  auto ItInsertedPair = DXCUniquingMap.try_emplace(Section);
+  if (!ItInsertedPair.second)
+    return ItInsertedPair.first->second;
+
+  auto MapIt = ItInsertedPair.first;
+  // Grab the name from the StringMap. Since the Section is going to keep a
+  // copy of this StringRef we need to make sure the underlying string stays
+  // alive as long as we need it.
+  StringRef Name = MapIt->first();
+  MapIt->second =
+      new (DXCAllocator.Allocate()) MCSectionDXContainer(Name, K, nullptr);
+
+  // The first fragment will store the header
+  auto *F = new MCDataFragment();
+  MapIt->second->getFragmentList().insert(MapIt->second->begin(), F);
+  F->setParent(MapIt->second);
+
+  return MapIt->second;
 }
 
 MCSubtargetInfo &MCContext::getSubtargetCopy(const MCSubtargetInfo &STI) {
@@ -873,6 +884,12 @@ void MCContext::RemapDebugPaths() {
 //===----------------------------------------------------------------------===//
 // Dwarf Management
 //===----------------------------------------------------------------------===//
+
+EmitDwarfUnwindType MCContext::emitDwarfUnwindInfo() const {
+  if (!TargetOptions)
+    return EmitDwarfUnwindType::Default;
+  return TargetOptions->EmitDwarfUnwind;
+}
 
 void MCContext::setGenDwarfRootFile(StringRef InputFileName, StringRef Buffer) {
   // MCDwarf needs the root file as well as the compilation directory.

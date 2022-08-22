@@ -88,7 +88,7 @@ public:
       : StopInfo(thread, break_id), m_should_stop(false),
         m_should_stop_is_valid(false), m_should_perform_action(true),
         m_address(LLDB_INVALID_ADDRESS), m_break_id(LLDB_INVALID_BREAK_ID),
-        m_was_one_shot(false) {
+        m_was_all_internal(false), m_was_one_shot(false) {
     StoreBPInfo();
   }
 
@@ -96,7 +96,7 @@ public:
       : StopInfo(thread, break_id), m_should_stop(should_stop),
         m_should_stop_is_valid(true), m_should_perform_action(true),
         m_address(LLDB_INVALID_ADDRESS), m_break_id(LLDB_INVALID_BREAK_ID),
-        m_was_one_shot(false) {
+        m_was_all_internal(false), m_was_one_shot(false) {
     StoreBPInfo();
   }
 
@@ -108,11 +108,22 @@ public:
       BreakpointSiteSP bp_site_sp(
           thread_sp->GetProcess()->GetBreakpointSiteList().FindByID(m_value));
       if (bp_site_sp) {
-        if (bp_site_sp->GetNumberOfOwners() == 1) {
+        uint32_t num_owners = bp_site_sp->GetNumberOfOwners();
+        if (num_owners == 1) {
           BreakpointLocationSP bp_loc_sp = bp_site_sp->GetOwnerAtIndex(0);
           if (bp_loc_sp) {
-            m_break_id = bp_loc_sp->GetBreakpoint().GetID();
-            m_was_one_shot = bp_loc_sp->GetBreakpoint().IsOneShot();
+            Breakpoint & bkpt = bp_loc_sp->GetBreakpoint();
+            m_break_id = bkpt.GetID();
+            m_was_one_shot = bkpt.IsOneShot();
+            m_was_all_internal = bkpt.IsInternal();
+          }
+        } else {
+          m_was_all_internal = true;
+          for (uint32_t i = 0; i < num_owners; i++) {
+            if (!bp_site_sp->GetOwnerAtIndex(i)->GetBreakpoint().IsInternal()) {
+              m_was_all_internal = false;
+              break;
+            }
           }
         }
         m_address = bp_site_sp->GetLoadAddress();
@@ -163,23 +174,7 @@ public:
   }
 
   bool DoShouldNotify(Event *event_ptr) override {
-    ThreadSP thread_sp(m_thread_wp.lock());
-    if (thread_sp) {
-      BreakpointSiteSP bp_site_sp(
-          thread_sp->GetProcess()->GetBreakpointSiteList().FindByID(m_value));
-      if (bp_site_sp) {
-        bool all_internal = true;
-
-        for (uint32_t i = 0; i < bp_site_sp->GetNumberOfOwners(); i++) {
-          if (!bp_site_sp->GetOwnerAtIndex(i)->GetBreakpoint().IsInternal()) {
-            all_internal = false;
-            break;
-          }
-        }
-        return !all_internal;
-      }
-    }
-    return true;
+    return !m_was_all_internal;
   }
 
   const char *GetDescription() override {
@@ -280,7 +275,13 @@ protected:
       BreakpointSiteSP bp_site_sp(
           thread_sp->GetProcess()->GetBreakpointSiteList().FindByID(m_value));
       std::unordered_set<break_id_t> precondition_breakpoints;
-
+      // Breakpoints that fail their condition check are not considered to
+      // have been hit.  If the only locations at this site have failed their
+      // conditions, we should change the stop-info to none.  Otherwise, if we
+      // hit another breakpoint on a different thread which does stop, users
+      // will see a breakpont hit with a failed condition, which is wrong.
+      // Use this variable to tell us if that is true.
+      bool actually_hit_any_locations = false;
       if (bp_site_sp) {
         // Let's copy the owners list out of the site and store them in a local
         // list.  That way if one of the breakpoint actions changes the site,
@@ -290,6 +291,8 @@ protected:
 
         if (num_owners == 0) {
           m_should_stop = true;
+          actually_hit_any_locations = true;  // We're going to stop, don't 
+                                              // change the stop info.
         } else {
           // We go through each location, and test first its precondition -
           // this overrides everything.  Note, we only do this once per
@@ -445,12 +448,17 @@ protected:
             // should stop, then we'll run the callback for the breakpoint.  If
             // the callback says we shouldn't stop that will win.
 
-            if (bp_loc_sp->GetConditionText() != nullptr) {
+            if (bp_loc_sp->GetConditionText() == nullptr)
+              actually_hit_any_locations = true;
+            else {
               Status condition_error;
               bool condition_says_stop =
                   bp_loc_sp->ConditionSaysStop(exe_ctx, condition_error);
 
               if (!condition_error.Success()) {
+                // If the condition fails to evaluate, we are going to stop 
+                // at it, so the location was hit.
+                actually_hit_any_locations = true;
                 const char *err_str =
                     condition_error.AsCString("<unknown error>");
                 LLDB_LOGF(log, "Error evaluating condition: \"%s\"\n", err_str);
@@ -472,7 +480,9 @@ protected:
                           loc_desc.GetData(),
                           static_cast<unsigned long long>(thread_sp->GetID()),
                           condition_says_stop);
-                if (!condition_says_stop) {
+                if (condition_says_stop) 
+                  actually_hit_any_locations = true;
+                else {
                   // We don't want to increment the hit count of breakpoints if
                   // the condition fails. We've already bumped it by the time
                   // we get here, so undo the bump:
@@ -564,6 +574,7 @@ protected:
       } else {
         m_should_stop = true;
         m_should_stop_is_valid = true;
+        actually_hit_any_locations = true;
         Log *log_process(GetLog(LLDBLog::Process));
 
         LLDB_LOGF(log_process,
@@ -583,6 +594,12 @@ protected:
         // show the breakpoint stop, so compute the public stop info immediately
         // here.
         thread_sp->CalculatePublicStopInfo();
+      } else if (!actually_hit_any_locations) {
+        // In the end, we didn't actually have any locations that passed their
+        // "was I hit" checks.  So say we aren't stopped.
+        GetThread()->ResetStopInfo();
+        LLDB_LOGF(log, "Process::%s all locations failed condition checks.",
+          __FUNCTION__);
       }
 
       LLDB_LOGF(log,
@@ -603,6 +620,7 @@ private:
   // in case somebody deletes it between the time the StopInfo is made and the
   // description is asked for.
   lldb::break_id_t m_break_id;
+  bool m_was_all_internal;
   bool m_was_one_shot;
 };
 

@@ -2021,7 +2021,7 @@ DEF_TRAVERSE_DECL(RecordDecl, { TRY_TO(TraverseRecordHelper(D)); })
 
 DEF_TRAVERSE_DECL(CXXRecordDecl, { TRY_TO(TraverseCXXRecordHelper(D)); })
 
-#define DEF_TRAVERSE_TMPL_SPEC_DECL(TMPLDECLKIND)                              \
+#define DEF_TRAVERSE_TMPL_SPEC_DECL(TMPLDECLKIND, DECLKIND)                    \
   DEF_TRAVERSE_DECL(TMPLDECLKIND##TemplateSpecializationDecl, {                \
     /* For implicit instantiations ("set<int> x;"), we don't want to           \
        recurse at all, since the instatiated template isn't written in         \
@@ -2034,18 +2034,23 @@ DEF_TRAVERSE_DECL(CXXRecordDecl, { TRY_TO(TraverseCXXRecordHelper(D)); })
     if (TypeSourceInfo *TSI = D->getTypeAsWritten())                           \
       TRY_TO(TraverseTypeLoc(TSI->getTypeLoc()));                              \
                                                                                \
-    TRY_TO(TraverseNestedNameSpecifierLoc(D->getQualifierLoc()));              \
-    if (!getDerived().shouldVisitTemplateInstantiations() &&                   \
-        D->getTemplateSpecializationKind() != TSK_ExplicitSpecialization)      \
+    if (getDerived().shouldVisitTemplateInstantiations() ||                    \
+        D->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {    \
+      /* Traverse base definition for explicit specializations */              \
+      TRY_TO(Traverse##DECLKIND##Helper(D));                                   \
+    } else {                                                                   \
+      TRY_TO(TraverseNestedNameSpecifierLoc(D->getQualifierLoc()));            \
+                                                                               \
       /* Returning from here skips traversing the                              \
          declaration context of the *TemplateSpecializationDecl                \
          (embedded in the DEF_TRAVERSE_DECL() macro)                           \
          which contains the instantiated members of the template. */           \
       return true;                                                             \
+    }                                                                          \
   })
 
-DEF_TRAVERSE_TMPL_SPEC_DECL(Class)
-DEF_TRAVERSE_TMPL_SPEC_DECL(Var)
+DEF_TRAVERSE_TMPL_SPEC_DECL(Class, CXXRecord)
+DEF_TRAVERSE_TMPL_SPEC_DECL(Var, Var)
 
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseTemplateArgumentLocsHelper(
@@ -3004,6 +3009,9 @@ DEF_TRAVERSE_STMT(OMPParallelForSimdDirective,
 DEF_TRAVERSE_STMT(OMPParallelMasterDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
+DEF_TRAVERSE_STMT(OMPParallelMaskedDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
 DEF_TRAVERSE_STMT(OMPParallelSectionsDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
@@ -3083,6 +3091,18 @@ DEF_TRAVERSE_STMT(OMPParallelMasterTaskLoopDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
 DEF_TRAVERSE_STMT(OMPParallelMasterTaskLoopSimdDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPMaskedTaskLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPMaskedTaskLoopSimdDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPParallelMaskedTaskLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPParallelMaskedTaskLoopSimdDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
 DEF_TRAVERSE_STMT(OMPDistributeDirective,

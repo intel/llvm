@@ -22,6 +22,7 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
+#include "llvm/Transforms/Vectorize/LoopVectorizationLegality.h"
 #include <algorithm>
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -37,6 +38,74 @@ static cl::opt<unsigned> SVEGatherOverhead("sve-gather-overhead", cl::init(10),
 static cl::opt<unsigned> SVEScatterOverhead("sve-scatter-overhead",
                                             cl::init(10), cl::Hidden);
 
+class TailFoldingKind {
+private:
+  uint8_t Bits = 0; // Currently defaults to disabled.
+
+public:
+  enum TailFoldingOpts {
+    TFDisabled = 0x0,
+    TFReductions = 0x01,
+    TFRecurrences = 0x02,
+    TFSimple = 0x80,
+    TFAll = TFReductions | TFRecurrences | TFSimple
+  };
+
+  void operator=(const std::string &Val) {
+    if (Val.empty())
+      return;
+    SmallVector<StringRef, 6> TailFoldTypes;
+    StringRef(Val).split(TailFoldTypes, '+', -1, false);
+    for (auto TailFoldType : TailFoldTypes) {
+      if (TailFoldType == "disabled")
+        Bits = 0;
+      else if (TailFoldType == "all")
+        Bits = TFAll;
+      else if (TailFoldType == "default")
+        Bits = 0; // Currently defaults to never tail-folding.
+      else if (TailFoldType == "simple")
+        add(TFSimple);
+      else if (TailFoldType == "reductions")
+        add(TFReductions);
+      else if (TailFoldType == "recurrences")
+        add(TFRecurrences);
+      else if (TailFoldType == "noreductions")
+        remove(TFReductions);
+      else if (TailFoldType == "norecurrences")
+        remove(TFRecurrences);
+      else {
+        errs()
+            << "invalid argument " << TailFoldType.str()
+            << " to -sve-tail-folding=; each element must be one of: disabled, "
+               "all, default, simple, reductions, noreductions, recurrences, "
+               "norecurrences\n";
+      }
+    }
+  }
+
+  operator uint8_t() const { return Bits; }
+
+  void add(uint8_t Flag) { Bits |= Flag; }
+  void remove(uint8_t Flag) { Bits &= ~Flag; }
+};
+
+TailFoldingKind TailFoldingKindLoc;
+
+cl::opt<TailFoldingKind, true, cl::parser<std::string>> SVETailFolding(
+    "sve-tail-folding",
+    cl::desc(
+        "Control the use of vectorisation using tail-folding for SVE:"
+        "\ndisabled    No loop types will vectorize using tail-folding"
+        "\ndefault     Uses the default tail-folding settings for the target "
+        "CPU"
+        "\nall         All legal loop types will vectorize using tail-folding"
+        "\nsimple      Use tail-folding for simple loops (not reductions or "
+        "recurrences)"
+        "\nreductions  Use tail-folding for loops containing reductions"
+        "\nrecurrences Use tail-folding for loops containing first order "
+        "recurrences"),
+    cl::location(TailFoldingKindLoc));
+
 bool AArch64TTIImpl::areInlineCompatible(const Function *Caller,
                                          const Function *Callee) const {
   const TargetMachine &TM = getTLI()->getTargetMachine();
@@ -49,6 +118,12 @@ bool AArch64TTIImpl::areInlineCompatible(const Function *Caller,
   // Inline a callee if its target-features are a subset of the callers
   // target-features.
   return (CallerBits & CalleeBits) == CalleeBits;
+}
+
+bool AArch64TTIImpl::shouldMaximizeVectorBandwidth(
+    TargetTransformInfo::RegisterKind K) const {
+  assert(K != TargetTransformInfo::RGK_Scalar);
+  return K == TargetTransformInfo::RGK_FixedWidthVector;
 }
 
 /// Calculate the cost of materializing a 64-bit value. This helper
@@ -646,8 +721,7 @@ static Optional<Instruction *> instCombineSVECmpNE(InstCombiner &IC,
     return None;
 
   auto *VecIns = dyn_cast<IntrinsicInst>(DupQLane->getArgOperand(0));
-  if (!VecIns ||
-      VecIns->getIntrinsicID() != Intrinsic::experimental_vector_insert)
+  if (!VecIns || VecIns->getIntrinsicID() != Intrinsic::vector_insert)
     return None;
 
   // Where the vector insert is a fixed constant vector insert into undef at
@@ -789,6 +863,50 @@ static Optional<Instruction *> instCombineSVELast(InstCombiner &IC,
   Extract->insertBefore(&II);
   Extract->takeName(&II);
   return IC.replaceInstUsesWith(II, Extract);
+}
+
+static Optional<Instruction *> instCombineSVECondLast(InstCombiner &IC,
+                                                      IntrinsicInst &II) {
+  // The SIMD&FP variant of CLAST[AB] is significantly faster than the scalar
+  // integer variant across a variety of micro-architectures. Replace scalar
+  // integer CLAST[AB] intrinsic with optimal SIMD&FP variant. A simple
+  // bitcast-to-fp + clast[ab] + bitcast-to-int will cost a cycle or two more
+  // depending on the micro-architecture, but has been observed as generally
+  // being faster, particularly when the CLAST[AB] op is a loop-carried
+  // dependency.
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+  Value *Pg = II.getArgOperand(0);
+  Value *Fallback = II.getArgOperand(1);
+  Value *Vec = II.getArgOperand(2);
+  Type *Ty = II.getType();
+
+  if (!Ty->isIntegerTy())
+    return None;
+
+  Type *FPTy;
+  switch (cast<IntegerType>(Ty)->getBitWidth()) {
+  default:
+    return None;
+  case 16:
+    FPTy = Builder.getHalfTy();
+    break;
+  case 32:
+    FPTy = Builder.getFloatTy();
+    break;
+  case 64:
+    FPTy = Builder.getDoubleTy();
+    break;
+  }
+
+  Value *FPFallBack = Builder.CreateBitCast(Fallback, FPTy);
+  auto *FPVTy = VectorType::get(
+      FPTy, cast<VectorType>(Vec->getType())->getElementCount());
+  Value *FPVec = Builder.CreateBitCast(Vec, FPVTy);
+  auto *FPII = Builder.CreateIntrinsic(II.getIntrinsicID(), {FPVec->getType()},
+                                       {Pg, FPFallBack, FPVec});
+  Value *FPIItoInt = Builder.CreateBitCast(FPII, II.getType());
+  return IC.replaceInstUsesWith(II, FPIItoInt);
 }
 
 static Optional<Instruction *> instCombineRDFFR(InstCombiner &IC,
@@ -1219,6 +1337,52 @@ static Optional<Instruction *> instCombineSVESDIV(InstCombiner &IC,
   return None;
 }
 
+static Optional<Instruction *> instCombineMaxMinNM(InstCombiner &IC,
+                                                   IntrinsicInst &II) {
+  Value *A = II.getArgOperand(0);
+  Value *B = II.getArgOperand(1);
+  if (A == B)
+    return IC.replaceInstUsesWith(II, A);
+
+  return None;
+}
+
+static Optional<Instruction *> instCombineSVESrshl(InstCombiner &IC,
+                                                   IntrinsicInst &II) {
+  IRBuilder<> Builder(&II);
+  Value *Pred = II.getOperand(0);
+  Value *Vec = II.getOperand(1);
+  Value *Shift = II.getOperand(2);
+
+  // Convert SRSHL into the simpler LSL intrinsic when fed by an ABS intrinsic.
+  Value *AbsPred, *MergedValue;
+  if (!match(Vec, m_Intrinsic<Intrinsic::aarch64_sve_sqabs>(
+                      m_Value(MergedValue), m_Value(AbsPred), m_Value())) &&
+      !match(Vec, m_Intrinsic<Intrinsic::aarch64_sve_abs>(
+                      m_Value(MergedValue), m_Value(AbsPred), m_Value())))
+
+    return None;
+
+  // Transform is valid if any of the following are true:
+  // * The ABS merge value is an undef or non-negative
+  // * The ABS predicate is all active
+  // * The ABS predicate and the SRSHL predicates are the same
+  if (!isa<UndefValue>(MergedValue) &&
+      !match(MergedValue, m_NonNegative()) &&
+      AbsPred != Pred && !isAllActivePredicate(AbsPred))
+    return None;
+
+  // Only valid when the shift amount is non-negative, otherwise the rounding
+  // behaviour of SRSHL cannot be ignored.
+  if (!match(Shift, m_NonNegative()))
+    return None;
+
+  auto LSL = Builder.CreateIntrinsic(Intrinsic::aarch64_sve_lsl, {II.getType()},
+                                     {Pred, Vec, Shift});
+
+  return IC.replaceInstUsesWith(II, LSL);
+}
+
 Optional<Instruction *>
 AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
                                      IntrinsicInst &II) const {
@@ -1226,6 +1390,9 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
   switch (IID) {
   default:
     break;
+  case Intrinsic::aarch64_neon_fmaxnm:
+  case Intrinsic::aarch64_neon_fminnm:
+    return instCombineMaxMinNM(IC, II);
   case Intrinsic::aarch64_sve_convert_from_svbool:
     return instCombineConvertFromSVBool(IC, II);
   case Intrinsic::aarch64_sve_dup:
@@ -1240,6 +1407,9 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
   case Intrinsic::aarch64_sve_lasta:
   case Intrinsic::aarch64_sve_lastb:
     return instCombineSVELast(IC, II);
+  case Intrinsic::aarch64_sve_clasta_n:
+  case Intrinsic::aarch64_sve_clastb_n:
+    return instCombineSVECondLast(IC, II);
   case Intrinsic::aarch64_sve_cntd:
     return instCombineSVECntElts(IC, II, 2);
   case Intrinsic::aarch64_sve_cntw:
@@ -1283,6 +1453,8 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
     return instCombineSVESDIV(IC, II);
   case Intrinsic::aarch64_sve_sel:
     return instCombineSVESel(IC, II);
+  case Intrinsic::aarch64_sve_srshl:
+    return instCombineSVESrshl(IC, II);
   }
 
   return None;
@@ -1511,6 +1683,9 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::UINT_TO_FP, MVT::v2f64, MVT::v2i16, 4 },
     { ISD::UINT_TO_FP, MVT::v2f64, MVT::v2i32, 2 },
 
+    // Complex: to v4f64
+    { ISD::SINT_TO_FP, MVT::v4f64, MVT::v4i32,  4 },
+    { ISD::UINT_TO_FP, MVT::v4f64, MVT::v4i32,  4 },
 
     // LowerVectorFP_TO_INT
     { ISD::FP_TO_SINT, MVT::v2i32, MVT::v2f32, 1 },
@@ -2024,6 +2199,10 @@ AArch64TTIImpl::enableMemCmpExpansion(bool OptSize, bool IsZeroCmp) const {
   return Options;
 }
 
+bool AArch64TTIImpl::prefersVectorizedAddressing() const {
+  return ST->hasSVE();
+}
+
 InstructionCost
 AArch64TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
                                       Align Alignment, unsigned AddressSpace,
@@ -2530,6 +2709,7 @@ AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
       {ISD::ADD, MVT::v4i16,  2},
       {ISD::ADD, MVT::v8i16,  2},
       {ISD::ADD, MVT::v4i32,  2},
+      {ISD::ADD, MVT::v2i64,  2},
       {ISD::OR,  MVT::v8i8,  15},
       {ISD::OR,  MVT::v16i8, 17},
       {ISD::OR,  MVT::v4i16,  7},
@@ -2782,6 +2962,12 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
       { TTI::SK_Reverse, MVT::v2f32, 1 }, // mov.
       { TTI::SK_Reverse, MVT::v4f32, 2 }, // REV64; EXT
       { TTI::SK_Reverse, MVT::v2f64, 1 }, // mov.
+      { TTI::SK_Reverse, MVT::v8f16, 2 }, // REV64; EXT
+      { TTI::SK_Reverse, MVT::v8i16, 2 }, // REV64; EXT
+      { TTI::SK_Reverse, MVT::v16i8, 2 }, // REV64; EXT
+      { TTI::SK_Reverse, MVT::v4f16, 1 }, // REV64
+      { TTI::SK_Reverse, MVT::v4i16, 1 }, // REV64
+      { TTI::SK_Reverse, MVT::v8i8, 1 }, // REV64
       // Broadcast shuffle kinds for scalable vectors
       { TTI::SK_Broadcast, MVT::nxv16i8,  1 },
       { TTI::SK_Broadcast, MVT::nxv8i16,  1 },
@@ -2841,4 +3027,28 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
   }
 
   return BaseT::getShuffleCost(Kind, Tp, Mask, Index, SubTp);
+}
+
+bool AArch64TTIImpl::preferPredicateOverEpilogue(
+    Loop *L, LoopInfo *LI, ScalarEvolution &SE, AssumptionCache &AC,
+    TargetLibraryInfo *TLI, DominatorTree *DT, LoopVectorizationLegality *LVL,
+    InterleavedAccessInfo *IAI) {
+  if (!ST->hasSVE() || TailFoldingKindLoc == TailFoldingKind::TFDisabled)
+    return false;
+
+  // We don't currently support vectorisation with interleaving for SVE - with
+  // such loops we're better off not using tail-folding. This gives us a chance
+  // to fall back on fixed-width vectorisation using NEON's ld2/st2/etc.
+  if (IAI->hasGroups())
+    return false;
+
+  TailFoldingKind Required; // Defaults to 0.
+  if (LVL->getReductionVars().size())
+    Required.add(TailFoldingKind::TFReductions);
+  if (LVL->getFirstOrderRecurrences().size())
+    Required.add(TailFoldingKind::TFRecurrences);
+  if (!Required)
+    Required.add(TailFoldingKind::TFSimple);
+
+  return (TailFoldingKindLoc & Required) == Required;
 }

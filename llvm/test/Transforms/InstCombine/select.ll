@@ -41,12 +41,12 @@ define <2 x i1> @trueval_is_true_vec(<2 x i1> %C, <2 x i1> %X) {
   ret <2 x i1> %R
 }
 
-define <2 x i1> @trueval_is_true_vec_undef_elt(<2 x i1> %C, <2 x i1> %X) {
-; CHECK-LABEL: @trueval_is_true_vec_undef_elt(
-; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[C:%.*]], <2 x i1> <i1 undef, i1 true>, <2 x i1> [[X:%.*]]
+define <2 x i1> @trueval_is_true_vec_poison_elt(<2 x i1> %C, <2 x i1> %X) {
+; CHECK-LABEL: @trueval_is_true_vec_poison_elt(
+; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[C:%.*]], <2 x i1> <i1 poison, i1 true>, <2 x i1> [[X:%.*]]
 ; CHECK-NEXT:    ret <2 x i1> [[R]]
 ;
-  %R = select <2 x i1> %C, <2 x i1> <i1 undef, i1 true>, <2 x i1> %X
+  %R = select <2 x i1> %C, <2 x i1> <i1 poison, i1 true>, <2 x i1> %X
   ret <2 x i1> %R
 }
 
@@ -958,10 +958,10 @@ define i32 @test61(i32* %ptr) {
 }
 
 ; PR14131
-define void @test64(i32 %p, i16 %b) noreturn {
+define void @test64(i32 %p, i16 %b, i1 %c1) noreturn {
 ; CHECK-LABEL: @test64(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    br i1 undef, label [[LOR_RHS:%.*]], label [[LOR_END:%.*]]
+; CHECK-NEXT:    br i1 [[C1:%.*]], label [[LOR_RHS:%.*]], label [[LOR_END:%.*]]
 ; CHECK:       lor.rhs:
 ; CHECK-NEXT:    br label [[LOR_END]]
 ; CHECK:       lor.end:
@@ -976,7 +976,7 @@ define void @test64(i32 %p, i16 %b) noreturn {
 entry:
   %p.addr.0.insert.mask = and i32 %p, -65536
   %conv2 = and i32 %p, 65535
-  br i1 undef, label %lor.rhs, label %lor.end
+  br i1 %c1, label %lor.rhs, label %lor.end
 
 lor.rhs:
   %p.addr.0.extract.trunc = trunc i32 %p.addr.0.insert.mask to i16
@@ -1689,18 +1689,37 @@ define float @copysign3(float %x) {
   ret float %r
 }
 
-; TODO: Allow undefs when matching vectors.
-
-define <2 x float> @copysign4(<2 x float> %x) {
-; CHECK-LABEL: @copysign4(
-; CHECK-NEXT:    [[I:%.*]] = bitcast <2 x float> [[X:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[ISNEG:%.*]] = icmp slt <2 x i32> [[I]], zeroinitializer
-; CHECK-NEXT:    [[R:%.*]] = select nnan arcp <2 x i1> [[ISNEG]], <2 x float> <float 4.200000e+01, float undef>, <2 x float> <float -4.200000e+01, float -4.200000e+01>
+define <2 x float> @copysign_vec_undef(<2 x float> %x) {
+; CHECK-LABEL: @copysign_vec_undef(
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg <2 x float> [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x float> @llvm.copysign.v2f32(<2 x float> <float 4.200000e+01, float 4.200000e+01>, <2 x float> [[TMP1]])
 ; CHECK-NEXT:    ret <2 x float> [[R]]
 ;
   %i = bitcast <2 x float> %x to <2 x i32>
   %isneg = icmp ugt <2 x i32> %i, <i32 2147483647, i32 2147483647>
   %r = select arcp nnan <2 x i1> %isneg, <2 x float> <float 42.0, float undef>, <2 x float> <float -42.0, float -42.0>
+  ret <2 x float> %r
+}
+
+define <2 x float> @copysign_vec_undef1(<2 x float> %x) {
+; CHECK-LABEL: @copysign_vec_undef1(
+; CHECK-NEXT:    [[R:%.*]] = call <2 x float> @llvm.copysign.v2f32(<2 x float> <float 4.200000e+01, float 4.200000e+01>, <2 x float> [[X:%.*]])
+; CHECK-NEXT:    ret <2 x float> [[R]]
+;
+  %i = bitcast <2 x float> %x to <2 x i32>
+  %isneg = icmp ult <2 x i32> %i, <i32 2147483648, i32 2147483648>
+  %r = select arcp nnan <2 x i1> %isneg, <2 x float> <float 42.0, float 42.0>, <2 x float> <float undef, float -42.0>
+  ret <2 x float> %r
+}
+
+define <2 x float> @copysign_vec_undef3(<2 x float> %x) {
+; CHECK-LABEL: @copysign_vec_undef3(
+; CHECK-NEXT:    [[R:%.*]] = call <2 x float> @llvm.copysign.v2f32(<2 x float> <float 4.200000e+01, float 4.200000e+01>, <2 x float> [[X:%.*]])
+; CHECK-NEXT:    ret <2 x float> [[R]]
+;
+  %i = bitcast <2 x float> %x to <2 x i32>
+  %isneg = icmp ugt <2 x i32> %i, <i32 2147483647, i32 2147483647>
+  %r = select arcp nnan <2 x i1> %isneg, <2 x float> <float -42.0, float undef>, <2 x float> <float +42.0, float undef>
   ret <2 x float> %r
 }
 
@@ -3163,6 +3182,28 @@ define <2 x i8> @ne0_is_all_ones_swap_vec_poison(<2 x i8> %x) {
   %ult2 = icmp ult <2 x i8> %x, <i8 2, i8 poison>
   %r = select <2 x i1> %ult2, <2 x i8> %negx, <2 x i8> <i8 -1, i8 poison>
   ret <2 x i8> %r
+}
+
+define i64 @udiv_of_select_constexpr(i1 %c, i64 %x) {
+; CHECK-LABEL: @udiv_of_select_constexpr(
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C:%.*]], i64 [[X:%.*]], i64 ptrtoint (i32* @glbl to i64)
+; CHECK-NEXT:    [[OP:%.*]] = udiv i64 [[SEL]], 3
+; CHECK-NEXT:    ret i64 [[OP]]
+;
+  %sel = select i1 %c, i64 %x, i64 ptrtoint (i32* @glbl to i64)
+  %op = udiv i64 %sel, 3
+  ret i64 %op
+}
+
+define i64 @udiv_of_select_constexpr_commuted(i1 %c, i64 %x) {
+; CHECK-LABEL: @udiv_of_select_constexpr_commuted(
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C:%.*]], i64 ptrtoint (i32* @glbl to i64), i64 [[X:%.*]]
+; CHECK-NEXT:    [[OP:%.*]] = udiv i64 [[SEL]], 3
+; CHECK-NEXT:    ret i64 [[OP]]
+;
+  %sel = select i1 %c, i64 ptrtoint (i32* @glbl to i64), i64 %x
+  %op = udiv i64 %sel, 3
+  ret i64 %op
 }
 
 declare void @use(i1)

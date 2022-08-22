@@ -11,6 +11,7 @@
 
 #include "lld/Common/ErrorHandler.h"
 #include "llvm/ADT/CachedHashString.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -29,6 +30,10 @@ namespace lld {
 namespace elf {
 
 class InputFile;
+class BinaryFile;
+class BitcodeFile;
+class ELFFileBase;
+class SharedFile;
 class InputSectionBase;
 class Symbol;
 
@@ -137,16 +142,16 @@ struct Configuration {
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
   std::string rpath;
-  std::vector<VersionDefinition> versionDefinitions;
-  std::vector<llvm::StringRef> auxiliaryList;
-  std::vector<llvm::StringRef> filterList;
-  std::vector<llvm::StringRef> passPlugins;
-  std::vector<llvm::StringRef> searchPaths;
-  std::vector<llvm::StringRef> symbolOrderingFile;
-  std::vector<llvm::StringRef> thinLTOModulesToCompile;
-  std::vector<llvm::StringRef> undefined;
-  std::vector<SymbolVersion> dynamicList;
-  std::vector<uint8_t> buildIdVector;
+  llvm::SmallVector<VersionDefinition, 0> versionDefinitions;
+  llvm::SmallVector<llvm::StringRef, 0> auxiliaryList;
+  llvm::SmallVector<llvm::StringRef, 0> filterList;
+  llvm::SmallVector<llvm::StringRef, 0> passPlugins;
+  llvm::SmallVector<llvm::StringRef, 0> searchPaths;
+  llvm::SmallVector<llvm::StringRef, 0> symbolOrderingFile;
+  llvm::SmallVector<llvm::StringRef, 0> thinLTOModulesToCompile;
+  llvm::SmallVector<llvm::StringRef, 0> undefined;
+  llvm::SmallVector<SymbolVersion, 0> dynamicList;
+  llvm::SmallVector<uint8_t, 0> buildIdVector;
   llvm::MapVector<std::pair<const InputSectionBase *, const InputSectionBase *>,
                   uint64_t>
       callGraphProfile;
@@ -162,7 +167,8 @@ struct Configuration {
   bool checkDynamicRelocs;
   bool compressDebugSections;
   bool cref;
-  std::vector<std::pair<llvm::GlobPattern, uint64_t>> deadRelocInNonAlloc;
+  llvm::SmallVector<std::pair<llvm::GlobPattern, uint64_t>, 0>
+      deadRelocInNonAlloc;
   bool demangle = true;
   bool dependentLibraries;
   bool disableVerify;
@@ -198,6 +204,7 @@ struct Configuration {
   bool nostdlib;
   bool oFormatBinary;
   bool omagic;
+  bool opaquePointers;
   bool optEB = false;
   bool optEL = false;
   bool optimizeBBJumps;
@@ -210,8 +217,8 @@ struct Configuration {
   bool relocatable;
   bool relrGlibc = false;
   bool relrPackDynRelocs = false;
-  bool saveTemps;
-  std::vector<std::pair<llvm::GlobPattern, uint32_t>> shuffleSections;
+  llvm::DenseSet<llvm::StringRef> saveTempsArgs;
+  llvm::SmallVector<std::pair<llvm::GlobPattern, uint32_t>, 0> shuffleSections;
   bool singleRoRx;
   bool shared;
   bool symbolic;
@@ -220,6 +227,7 @@ struct Configuration {
   bool target1Rel;
   bool trace;
   bool thinLTOEmitImportsFiles;
+  bool thinLTOEmitIndexFiles;
   bool thinLTOIndexOnly;
   bool timeTraceEnabled;
   bool tocOptimize;
@@ -228,7 +236,7 @@ struct Configuration {
   bool unique;
   bool useAndroidRelrTags = false;
   bool warnBackrefs;
-  std::vector<llvm::GlobPattern> warnBackrefsExclude;
+  llvm::SmallVector<llvm::GlobPattern, 0> warnBackrefsExclude;
   bool warnCommon;
   bool warnMissingEntry;
   bool warnSymbolOrdering;
@@ -371,6 +379,12 @@ struct DuplicateSymbol {
 };
 
 struct Ctx {
+  SmallVector<std::unique_ptr<MemoryBuffer>> memoryBuffers;
+  SmallVector<ELFFileBase *, 0> objectFiles;
+  SmallVector<SharedFile *, 0> sharedFiles;
+  SmallVector<BinaryFile *, 0> binaryFiles;
+  SmallVector<BitcodeFile *, 0> bitcodeFiles;
+  SmallVector<BitcodeFile *, 0> lazyBitcodeFiles;
   // Duplicate symbol candidates.
   SmallVector<DuplicateSymbol, 0> duplicates;
   // Symbols in a non-prevailing COMDAT group which should be changed to an
@@ -378,6 +392,14 @@ struct Ctx {
   SmallVector<std::pair<Symbol *, unsigned>, 0> nonPrevailingSyms;
   // True if SHT_LLVM_SYMPART is used.
   std::atomic<bool> hasSympart{false};
+  // A tuple of (reference, extractedFile, sym). Used by --why-extract=.
+  SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
+      whyExtractRecords;
+  // A mapping from a symbol to an InputFile referencing it backward. Used by
+  // --warn-backrefs.
+  llvm::DenseMap<const Symbol *,
+                 std::pair<const InputFile *, const InputFile *>>
+      backwardReferences;
 };
 
 // The only instance of Ctx struct.

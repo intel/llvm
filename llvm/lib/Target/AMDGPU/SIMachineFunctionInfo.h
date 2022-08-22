@@ -15,6 +15,7 @@
 
 #include "AMDGPUArgumentUsageInfo.h"
 #include "AMDGPUMachineFunction.h"
+#include "AMDGPUTargetMachine.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIInstrInfo.h"
 #include "llvm/ADT/SetVector.h"
@@ -39,8 +40,8 @@ public:
   };
 
 protected:
-  AMDGPUPseudoSourceValue(unsigned Kind, const TargetInstrInfo &TII)
-      : PseudoSourceValue(Kind, TII) {}
+  AMDGPUPseudoSourceValue(unsigned Kind, const AMDGPUTargetMachine &TM)
+      : PseudoSourceValue(Kind, TM) {}
 
 public:
   bool isConstant(const MachineFrameInfo *) const override {
@@ -60,8 +61,8 @@ public:
 
 class AMDGPUBufferPseudoSourceValue final : public AMDGPUPseudoSourceValue {
 public:
-  explicit AMDGPUBufferPseudoSourceValue(const TargetInstrInfo &TII)
-      : AMDGPUPseudoSourceValue(PSVBuffer, TII) {}
+  explicit AMDGPUBufferPseudoSourceValue(const AMDGPUTargetMachine &TM)
+      : AMDGPUPseudoSourceValue(PSVBuffer, TM) {}
 
   static bool classof(const PseudoSourceValue *V) {
     return V->kind() == PSVBuffer;
@@ -73,8 +74,8 @@ public:
 class AMDGPUImagePseudoSourceValue final : public AMDGPUPseudoSourceValue {
 public:
   // TODO: Is the img rsrc useful?
-  explicit AMDGPUImagePseudoSourceValue(const TargetInstrInfo &TII)
-      : AMDGPUPseudoSourceValue(PSVImage, TII) {}
+  explicit AMDGPUImagePseudoSourceValue(const AMDGPUTargetMachine &TM)
+      : AMDGPUPseudoSourceValue(PSVImage, TM) {}
 
   static bool classof(const PseudoSourceValue *V) {
     return V->kind() == PSVImage;
@@ -85,8 +86,8 @@ public:
 
 class AMDGPUGWSResourcePseudoSourceValue final : public AMDGPUPseudoSourceValue {
 public:
-  explicit AMDGPUGWSResourcePseudoSourceValue(const TargetInstrInfo &TII)
-      : AMDGPUPseudoSourceValue(GWSResource, TII) {}
+  explicit AMDGPUGWSResourcePseudoSourceValue(const AMDGPUTargetMachine &TM)
+      : AMDGPUPseudoSourceValue(GWSResource, TM) {}
 
   static bool classof(const PseudoSourceValue *V) {
     return V->kind() == GWSResource;
@@ -190,6 +191,7 @@ struct SIArgumentInfo {
   Optional<SIArgument> WorkGroupIDY;
   Optional<SIArgument> WorkGroupIDZ;
   Optional<SIArgument> WorkGroupInfo;
+  Optional<SIArgument> LDSKernelId;
   Optional<SIArgument> PrivateSegmentWaveByteOffset;
 
   Optional<SIArgument> ImplicitArgPtr;
@@ -214,6 +216,7 @@ template <> struct MappingTraits<SIArgumentInfo> {
     YamlIO.mapOptional("workGroupIDY", AI.WorkGroupIDY);
     YamlIO.mapOptional("workGroupIDZ", AI.WorkGroupIDZ);
     YamlIO.mapOptional("workGroupInfo", AI.WorkGroupInfo);
+    YamlIO.mapOptional("LDSKernelId", AI.LDSKernelId);
     YamlIO.mapOptional("privateSegmentWaveByteOffset",
                        AI.PrivateSegmentWaveByteOffset);
 
@@ -269,7 +272,7 @@ template <> struct MappingTraits<SIMode> {
 
 struct SIMachineFunctionInfo final : public yaml::MachineFunctionInfo {
   uint64_t ExplicitKernArgSize = 0;
-  unsigned MaxKernArgAlign = 0;
+  Align MaxKernArgAlign;
   uint32_t LDSSize = 0;
   uint32_t GDSSize = 0;
   Align DynLDSAlign;
@@ -311,7 +314,7 @@ template <> struct MappingTraits<SIMachineFunctionInfo> {
   static void mapping(IO &YamlIO, SIMachineFunctionInfo &MFI) {
     YamlIO.mapOptional("explicitKernArgSize", MFI.ExplicitKernArgSize,
                        UINT64_C(0));
-    YamlIO.mapOptional("maxKernArgAlign", MFI.MaxKernArgAlign, 0u);
+    YamlIO.mapOptional("maxKernArgAlign", MFI.MaxKernArgAlign);
     YamlIO.mapOptional("ldsSize", MFI.LDSSize, 0u);
     YamlIO.mapOptional("gdsSize", MFI.GDSSize, 0u);
     YamlIO.mapOptional("dynLDSAlign", MFI.DynLDSAlign, Align());
@@ -388,9 +391,9 @@ class SIMachineFunctionInfo final : public AMDGPUMachineFunction {
   // unit. Minimum - first, maximum - second.
   std::pair<unsigned, unsigned> WavesPerEU = {0, 0};
 
-  std::unique_ptr<const AMDGPUBufferPseudoSourceValue> BufferPSV;
-  std::unique_ptr<const AMDGPUImagePseudoSourceValue> ImagePSV;
-  std::unique_ptr<const AMDGPUGWSResourcePseudoSourceValue> GWSResourcePSV;
+  const AMDGPUBufferPseudoSourceValue BufferPSV;
+  const AMDGPUImagePseudoSourceValue ImagePSV;
+  const AMDGPUGWSResourcePseudoSourceValue GWSResourcePSV;
 
 private:
   unsigned NumUserSGPRs = 0;
@@ -417,6 +420,7 @@ private:
   bool WorkGroupIDY : 1;
   bool WorkGroupIDZ : 1;
   bool WorkGroupInfo : 1;
+  bool LDSKernelId : 1;
   bool PrivateSegmentWaveByteOffset : 1;
 
   bool WorkItemIDX : 1; // Always initialized.
@@ -451,17 +455,6 @@ private:
   MCPhysReg getNextSystemSGPR() const;
 
 public:
-  struct SpilledReg {
-    Register VGPR;
-    int Lane = -1;
-
-    SpilledReg() = default;
-    SpilledReg(Register R, int L) : VGPR (R), Lane (L) {}
-
-    bool hasLane() { return Lane != -1;}
-    bool hasReg() { return VGPR != 0;}
-  };
-
   struct SGPRSpillVGPR {
     // VGPR used for SGPR spills
     Register VGPR;
@@ -500,7 +493,7 @@ public:
 private:
   // Track VGPR + wave index for each subregister of the SGPR spilled to
   // frameindex key.
-  DenseMap<int, std::vector<SpilledReg>> SGPRToVGPRSpills;
+  DenseMap<int, std::vector<SIRegisterInfo::SpilledReg>> SGPRToVGPRSpills;
   unsigned NumVGPRSpillLanes = 0;
   SmallVector<SGPRSpillVGPR, 2> SpillVGPRs;
 
@@ -543,6 +536,12 @@ public: // FIXME
 
 public:
   SIMachineFunctionInfo(const MachineFunction &MF);
+  SIMachineFunctionInfo(const SIMachineFunctionInfo &MFI) = default;
+
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
 
   bool initializeBaseYamlFields(const yaml::SIMachineFunctionInfo &YamlMFI,
                                 const MachineFunction &MF,
@@ -553,10 +552,12 @@ public:
     WWMReservedRegs.insert(Reg);
   }
 
-  ArrayRef<SpilledReg> getSGPRToVGPRSpills(int FrameIndex) const {
+  ArrayRef<SIRegisterInfo::SpilledReg>
+  getSGPRToVGPRSpills(int FrameIndex) const {
     auto I = SGPRToVGPRSpills.find(FrameIndex);
-    return (I == SGPRToVGPRSpills.end()) ?
-      ArrayRef<SpilledReg>() : makeArrayRef(I->second);
+    return (I == SGPRToVGPRSpills.end())
+               ? ArrayRef<SIRegisterInfo::SpilledReg>()
+               : makeArrayRef(I->second);
   }
 
   ArrayRef<SGPRSpillVGPR> getSGPRSpillVGPRs() const { return SpillVGPRs; }
@@ -610,6 +611,14 @@ public:
   Register addDispatchID(const SIRegisterInfo &TRI);
   Register addFlatScratchInit(const SIRegisterInfo &TRI);
   Register addImplicitBufferPtr(const SIRegisterInfo &TRI);
+  Register addLDSKernelId();
+
+  /// Increment user SGPRs used for padding the argument list only.
+  Register addReservedUserSGPR() {
+    Register Next = getNextUserSGPR();
+    ++NumUserSGPRs;
+    return Next;
+  }
 
   // Add system SGPRs.
   Register addWorkGroupIDX() {
@@ -699,6 +708,8 @@ public:
   bool hasWorkGroupInfo() const {
     return WorkGroupInfo;
   }
+
+  bool hasLDSKernelId() const { return LDSKernelId; }
 
   bool hasPrivateSegmentWaveByteOffset() const {
     return PrivateSegmentWaveByteOffset;
@@ -929,27 +940,19 @@ public:
     llvm_unreachable("unexpected dimension");
   }
 
-  const AMDGPUBufferPseudoSourceValue *getBufferPSV(const SIInstrInfo &TII) {
-    if (!BufferPSV)
-      BufferPSV = std::make_unique<AMDGPUBufferPseudoSourceValue>(TII);
-
-    return BufferPSV.get();
+  const AMDGPUBufferPseudoSourceValue *
+  getBufferPSV(const AMDGPUTargetMachine &TM) {
+    return &BufferPSV;
   }
 
-  const AMDGPUImagePseudoSourceValue *getImagePSV(const SIInstrInfo &TII) {
-    if (!ImagePSV)
-      ImagePSV = std::make_unique<AMDGPUImagePseudoSourceValue>(TII);
-
-    return ImagePSV.get();
+  const AMDGPUImagePseudoSourceValue *
+  getImagePSV(const AMDGPUTargetMachine &TM) {
+    return &ImagePSV;
   }
 
-  const AMDGPUGWSResourcePseudoSourceValue *getGWSPSV(const SIInstrInfo &TII) {
-    if (!GWSResourcePSV) {
-      GWSResourcePSV =
-          std::make_unique<AMDGPUGWSResourcePseudoSourceValue>(TII);
-    }
-
-    return GWSResourcePSV.get();
+  const AMDGPUGWSResourcePseudoSourceValue *
+  getGWSPSV(const AMDGPUTargetMachine &TM) {
+    return &GWSResourcePSV;
   }
 
   unsigned getOccupancy() const {

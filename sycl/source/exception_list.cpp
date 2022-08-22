@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // 4.9.2 Exception Class Interface
-#include <CL/sycl/exception_list.hpp>
+#include <sycl/exception_list.hpp>
 
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 exception_list::size_type exception_list::size() const { return MList.size(); }
 
@@ -20,11 +20,15 @@ exception_list::iterator exception_list::begin() const { return MList.begin(); }
 
 exception_list::iterator exception_list::end() const { return MList.cend(); }
 
-void exception_list::PushBack(const_reference Value) { MList.emplace_back(Value); }
+void exception_list::PushBack(const_reference Value) {
+  MList.emplace_back(Value);
+}
 
-void exception_list::PushBack(value_type&& Value) { MList.emplace_back(std::move(Value)); }
+void exception_list::PushBack(value_type &&Value) {
+  MList.emplace_back(std::move(Value));
+}
 
 void exception_list::Clear() noexcept { MList.clear(); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -34,6 +34,8 @@ MakeRangeList(const PdbIndex &index, const LocalVariableAddrRange &range,
               llvm::ArrayRef<LocalVariableAddrGap> gaps) {
   lldb::addr_t start =
       index.MakeVirtualAddress(range.ISectStart, range.OffsetStart);
+  if (start == LLDB_INVALID_ADDRESS)
+    return {};
   lldb::addr_t end = start + range.Range;
 
   Variable::RangeList result;
@@ -59,11 +61,9 @@ struct FindMembersSize : public TypeVisitorCallbacks {
   TpiStream &tpi;
   llvm::Error visitKnownMember(CVMemberRecord &cvr,
                                DataMemberRecord &member) override {
-    auto it = members_info.insert(
+    members_info.insert(
         {member.getFieldOffset(),
          {llvm::codeview::RegisterId::NONE, GetSizeOfType(member.Type, tpi)}});
-    if (!it.second)
-      return llvm::make_error<CodeViewError>(cv_error_code::corrupt_record);
     return llvm::Error::success();
   }
 };
@@ -475,7 +475,7 @@ llvm::StringRef lldb_private::npdb::DropNameScope(llvm::StringRef name) {
 }
 
 VariableInfo lldb_private::npdb::GetVariableNameInfo(CVSymbol sym) {
-  VariableInfo result;
+  VariableInfo result = {};
 
   if (sym.kind() == S_REGREL32) {
     RegRelativeSym reg(SymbolRecordKind::RegRelativeSym);
@@ -586,7 +586,8 @@ static RegisterId GetBaseFrameRegister(PdbIndex &index,
                                        PdbCompilandSymId frame_proc_id,
                                        bool is_parameter) {
   CVSymbol frame_proc_cvs = index.ReadSymbolRecord(frame_proc_id);
-  lldbassert(frame_proc_cvs.kind() == S_FRAMEPROC);
+  if (frame_proc_cvs.kind() != S_FRAMEPROC)
+    return RegisterId::NONE;
 
   FrameProcSym frame_proc(SymbolRecordKind::FrameProcSym);
   cantFail(SymbolDeserializer::deserializeAs<FrameProcSym>(frame_proc_cvs,
@@ -601,7 +602,7 @@ static RegisterId GetBaseFrameRegister(PdbIndex &index,
 }
 
 VariableInfo lldb_private::npdb::GetVariableLocationInfo(
-    PdbIndex &index, PdbCompilandSymId var_id, Block &block,
+    PdbIndex &index, PdbCompilandSymId var_id, Block &func_block,
     lldb::ModuleSP module) {
 
   CVSymbol sym = index.ReadSymbolRecord(var_id);
@@ -641,14 +642,8 @@ VariableInfo lldb_private::npdb::GetVariableLocationInfo(
 
       Variable::RangeList ranges = MakeRangeList(index, loc.Range, loc.Gaps);
 
-      // TODO: may be better to pass function scope and not lookup it every
-      // time? find nearest parent function block
-      Block *cur = &block;
-      while (cur->GetParent()) {
-        cur = cur->GetParent();
-      }
       PdbCompilandSymId func_scope_id =
-          PdbSymUid(cur->GetID()).asCompilandSym();
+          PdbSymUid(func_block.GetID()).asCompilandSym();
       CVSymbol func_block_cvs = index.ReadSymbolRecord(func_scope_id);
       lldbassert(func_block_cvs.kind() == S_GPROC32 ||
                  func_block_cvs.kind() == S_LPROC32);
@@ -658,7 +653,8 @@ VariableInfo lldb_private::npdb::GetVariableLocationInfo(
 
       RegisterId base_reg =
           GetBaseFrameRegister(index, frame_proc_id, result.is_param);
-
+      if (base_reg == RegisterId::NONE)
+        break;
       if (base_reg == RegisterId::VFRAME) {
         llvm::StringRef program;
         if (GetFrameDataProgram(index, ranges, program)) {
@@ -719,12 +715,34 @@ VariableInfo lldb_private::npdb::GetVariableLocationInfo(
       bool is_simple_type = result.type.isSimple();
       if (!is_simple_type) {
         CVType class_cvt = index.tpi().getType(result.type);
-        ClassRecord class_record = CVTagRecord::create(class_cvt).asClass();
-        CVType field_list = index.tpi().getType(class_record.FieldList);
-        FindMembersSize find_members_size(members_info, index.tpi());
-        if (llvm::Error err =
-                visitMemberRecordStream(field_list.data(), find_members_size)) {
-          llvm::consumeError(std::move(err));
+        TypeIndex class_id = result.type;
+        if (class_cvt.kind() == LF_MODIFIER)
+          class_id = LookThroughModifierRecord(class_cvt);
+        if (IsForwardRefUdt(class_id, index.tpi())) {
+          auto expected_full_ti =
+              index.tpi().findFullDeclForForwardRef(class_id);
+          if (!expected_full_ti) {
+            llvm::consumeError(expected_full_ti.takeError());
+            break;
+          }
+          class_cvt = index.tpi().getType(*expected_full_ti);
+        }
+        if (IsTagRecord(class_cvt)) {
+          TagRecord tag_record = CVTagRecord::create(class_cvt).asTag();
+          CVType field_list_cvt = index.tpi().getType(tag_record.FieldList);
+          FieldListRecord field_list;
+          if (llvm::Error error =
+                  TypeDeserializer::deserializeAs<FieldListRecord>(
+                      field_list_cvt, field_list))
+            llvm::consumeError(std::move(error));
+          FindMembersSize find_members_size(members_info, index.tpi());
+          if (llvm::Error err = visitMemberRecordStream(field_list.Data,
+                                                        find_members_size)) {
+            llvm::consumeError(std::move(err));
+            break;
+          }
+        } else {
+          // TODO: Handle poiner type.
           break;
         }
       }

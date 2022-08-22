@@ -244,7 +244,7 @@ GDBRemoteCommunicationServerPlatform::Handle_qLaunchGDBServer(
     else if (name.equals("port")) {
       // Make the Optional valid so we can use its value
       port = 0;
-      value.getAsInteger(0, port.getValue());
+      value.getAsInteger(0, *port);
     }
   }
 
@@ -587,7 +587,8 @@ GDBRemoteCommunicationServerPlatform::GetDomainSocketPath(const char *prefix) {
   FileSpec socket_path_spec(GetDomainSocketDir());
   socket_path_spec.AppendPathComponent(socket_name.c_str());
 
-  llvm::sys::fs::createUniqueFile(socket_path_spec.GetCString(), socket_path);
+  llvm::sys::fs::createUniqueFile(socket_path_spec.GetPath().c_str(),
+                                  socket_path);
   return FileSpec(socket_path.c_str());
 }
 

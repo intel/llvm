@@ -12,16 +12,16 @@
 
 #include <gtest/gtest.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 pi_result piProgramBuildRedefine(pi_program, pi_uint32, const pi_device *,
                                  const char *, void (*)(pi_program, void *),
                                  void *) {
-  return PI_INVALID_BINARY;
+  return PI_ERROR_INVALID_BINARY;
 }
 
 pi_result piKernelCreateRedefine(pi_program, const char *, pi_kernel *) {
-  return PI_INVALID_DEVICE;
+  return PI_ERROR_INVALID_DEVICE;
 }
 
 TEST(PiMockTest, ConstructFromQueue) {
@@ -67,7 +67,7 @@ TEST(PiMockTest, ConstructFromPlatform) {
 }
 
 TEST(PiMockTest, RedefineAPI) {
-  cl::sycl::default_selector Selector{};
+  sycl::default_selector Selector{};
   if (Selector.select_device().is_host()) {
     std::cerr << "Not run due to host-only environment\n";
     return;

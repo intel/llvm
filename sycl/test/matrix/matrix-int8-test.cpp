@@ -4,7 +4,7 @@
 // CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL.[[#]]" = type { [12 x [12 x [1 x [4 x i32]]]] addrspace(4)* }
 // CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL.[[#]]" = type { [48 x [12 x [4 x [4 x i8]]]] addrspace(4)* }
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <iostream>
 

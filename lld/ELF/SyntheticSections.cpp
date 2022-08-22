@@ -29,6 +29,7 @@
 #include "lld/Common/DWARF.h"
 #include "lld/Common/Strings.h"
 #include "lld/Common/Version.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -404,27 +405,17 @@ Defined *EhFrameSection::isFdeLive(EhSectionPiece &fde, ArrayRef<RelTy> rels) {
 template <class ELFT, class RelTy>
 void EhFrameSection::addRecords(EhInputSection *sec, ArrayRef<RelTy> rels) {
   offsetToCie.clear();
-  for (EhSectionPiece &piece : sec->pieces) {
-    // The empty record is the end marker.
-    if (piece.size == 4)
-      return;
-
-    size_t offset = piece.inputOff;
-    const uint32_t id =
-        endian::read32<ELFT::TargetEndianness>(piece.data().data() + 4);
-    if (id == 0) {
-      offsetToCie[offset] = addCie<ELFT>(piece, rels);
-      continue;
-    }
-
-    uint32_t cieOffset = offset + 4 - id;
-    CieRecord *rec = offsetToCie[cieOffset];
+  for (EhSectionPiece &cie : sec->cies)
+    offsetToCie[cie.inputOff] = addCie<ELFT>(cie, rels);
+  for (EhSectionPiece &fde : sec->fdes) {
+    uint32_t id = endian::read32<ELFT::TargetEndianness>(fde.data().data() + 4);
+    CieRecord *rec = offsetToCie[fde.inputOff + 4 - id];
     if (!rec)
       fatal(toString(sec) + ": invalid CIE reference");
 
-    if (!isFdeLive<ELFT>(piece, rels))
+    if (!isFdeLive<ELFT>(fde, rels))
       continue;
-    rec->fdes.push_back(&piece);
+    rec->fdes.push_back(&fde);
     numFdes++;
   }
 }
@@ -440,41 +431,22 @@ void EhFrameSection::addSectionAux(EhInputSection *sec) {
     addRecords<ELFT>(sec, rels.relas);
 }
 
-void EhFrameSection::addSection(EhInputSection *sec) {
-  sec->parent = this;
-
-  alignment = std::max(alignment, sec->alignment);
-  sections.push_back(sec);
-
-  for (auto *ds : sec->dependentSections)
-    dependentSections.push_back(ds);
-}
-
 // Used by ICF<ELFT>::handleLSDA(). This function is very similar to
 // EhFrameSection::addRecords().
 template <class ELFT, class RelTy>
 void EhFrameSection::iterateFDEWithLSDAAux(
     EhInputSection &sec, ArrayRef<RelTy> rels, DenseSet<size_t> &ciesWithLSDA,
     llvm::function_ref<void(InputSection &)> fn) {
-  for (EhSectionPiece &piece : sec.pieces) {
-    // Skip ZERO terminator.
-    if (piece.size == 4)
-      continue;
-
-    size_t offset = piece.inputOff;
-    uint32_t id =
-        endian::read32<ELFT::TargetEndianness>(piece.data().data() + 4);
-    if (id == 0) {
-      if (hasLSDA(piece))
-        ciesWithLSDA.insert(offset);
-      continue;
-    }
-    uint32_t cieOffset = offset + 4 - id;
-    if (ciesWithLSDA.count(cieOffset) == 0)
+  for (EhSectionPiece &cie : sec.cies)
+    if (hasLSDA(cie))
+      ciesWithLSDA.insert(cie.inputOff);
+  for (EhSectionPiece &fde : sec.fdes) {
+    uint32_t id = endian::read32<ELFT::TargetEndianness>(fde.data().data() + 4);
+    if (!ciesWithLSDA.contains(fde.inputOff + 4 - id))
       continue;
 
     // The CIE has a LSDA argument. Call fn with d's section.
-    if (Defined *d = isFdeLive<ELFT>(piece, rels))
+    if (Defined *d = isFdeLive<ELFT>(fde, rels))
       if (auto *s = dyn_cast_or_null<InputSection>(d->section))
         fn(*s);
   }
@@ -496,13 +468,8 @@ void EhFrameSection::iterateFDEWithLSDA(
 
 static void writeCieFde(uint8_t *buf, ArrayRef<uint8_t> d) {
   memcpy(buf, d.data(), d.size());
-
-  size_t aligned = alignTo(d.size(), config->wordsize);
-  assert(std::all_of(buf + d.size(), buf + aligned,
-                     [](uint8_t c) { return c == 0; }));
-
   // Fix the size field. -4 since size does not include the size field itself.
-  write32(buf, aligned - 4);
+  write32(buf, d.size() - 4);
 }
 
 void EhFrameSection::finalizeContents() {
@@ -532,11 +499,11 @@ void EhFrameSection::finalizeContents() {
   size_t off = 0;
   for (CieRecord *rec : cieRecords) {
     rec->cie->outputOff = off;
-    off += alignTo(rec->cie->size, config->wordsize);
+    off += rec->cie->size;
 
     for (EhSectionPiece *fde : rec->fdes) {
       fde->outputOff = off;
-      off += alignTo(fde->size, config->wordsize);
+      off += fde->size;
     }
   }
 
@@ -918,7 +885,7 @@ void MipsGotSection::build() {
       for (SectionCommand *cmd : os->commands) {
         if (auto *isd = dyn_cast<InputSectionDescription>(cmd))
           for (InputSection *isec : isd->sections) {
-            uint64_t off = alignTo(secSize, isec->alignment);
+            uint64_t off = alignToPowerOf2(secSize, isec->alignment);
             secSize = off + isec->getSize();
           }
       }
@@ -1336,7 +1303,7 @@ DynamicSection<ELFT>::computeContents() {
     addInt(config->enableNewDtags ? DT_RUNPATH : DT_RPATH,
            part.dynStrTab->addString(config->rpath));
 
-  for (SharedFile *file : sharedFiles)
+  for (SharedFile *file : ctx->sharedFiles)
     if (file->isNeeded)
       addInt(DT_NEEDED, part.dynStrTab->addString(file->soName));
 
@@ -1505,7 +1472,7 @@ DynamicSection<ELFT>::computeContents() {
   if (part.verNeed && part.verNeed->isNeeded()) {
     addInSec(DT_VERNEED, *part.verNeed);
     unsigned needNum = 0;
-    for (SharedFile *f : sharedFiles)
+    for (SharedFile *f : ctx->sharedFiles)
       if (!f->vernauxs.empty())
         ++needNum;
     addInt(DT_VERNEEDNUM, needNum);
@@ -1593,7 +1560,7 @@ uint32_t DynamicReloc::getSymIndex(SymbolTableBaseSection *symTab) const {
     return 0;
 
   size_t index = symTab->getSymbolIndex(sym);
-  assert((index != 0 || type != target->gotRel && type != target->pltRel ||
+  assert((index != 0 || (type != target->gotRel && type != target->pltRel) ||
           !mainPart->dynSymTab->getParent()) &&
          "GOT or PLT relocation must refer to symbol in dynamic symbol table");
   return index;
@@ -1703,7 +1670,7 @@ void RelocationBaseSection::computeRels() {
     parallelSort(relocs.begin(), nonRelative,
                  [&](auto &a, auto &b) { return a.r_offset < b.r_offset; });
     // Non-relative relocations are few, so don't bother with parallelSort.
-    std::sort(nonRelative, relocs.end(), [&](auto &a, auto &b) {
+    llvm::sort(nonRelative, relocs.end(), [&](auto &a, auto &b) {
       return std::tie(a.r_sym, a.r_offset) < std::tie(b.r_sym, b.r_offset);
     });
   }
@@ -2039,7 +2006,7 @@ template <class ELFT> bool RelrSection<ELFT>::updateAllocSize() {
   std::unique_ptr<uint64_t[]> offsets(new uint64_t[relocs.size()]);
   for (auto it : llvm::enumerate(relocs))
     offsets[it.index()] = it.value().getOffset();
-  std::sort(offsets.get(), offsets.get() + relocs.size());
+  llvm::sort(offsets.get(), offsets.get() + relocs.size());
 
   // For each leading relocation, find following ones that can be folded
   // as a bitmap and fold them.
@@ -2841,7 +2808,7 @@ static SmallVector<GdbIndexSection::GdbSymbol, 0> createSymbols(
   // Instantiate GdbSymbols while uniqufying them by name.
   auto symbols = std::make_unique<SmallVector<GdbSymbol, 0>[]>(numShards);
 
-  parallelForEachN(0, concurrency, [&](size_t threadId) {
+  parallelFor(0, concurrency, [&](size_t threadId) {
     uint32_t i = 0;
     for (ArrayRef<NameAttrEntry> entries : nameAttrs) {
       for (const NameAttrEntry &ent : entries) {
@@ -2921,7 +2888,7 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
   SmallVector<GdbChunk, 0> chunks(files.size());
   SmallVector<SmallVector<NameAttrEntry, 0>, 0> nameAttrs(files.size());
 
-  parallelForEachN(0, files.size(), [&](size_t i) {
+  parallelFor(0, files.size(), [&](size_t i) {
     // To keep memory usage low, we don't want to keep cached DWARFContext, so
     // avoid getDwarf() here.
     ObjFile<ELFT> *file = cast<ObjFile<ELFT>>(files[i]);
@@ -3179,7 +3146,7 @@ VersionNeedSection<ELFT>::VersionNeedSection()
                        ".gnu.version_r") {}
 
 template <class ELFT> void VersionNeedSection<ELFT>::finalizeContents() {
-  for (SharedFile *f : sharedFiles) {
+  for (SharedFile *f : ctx->sharedFiles) {
     if (f->vernauxs.empty())
       continue;
     verneeds.emplace_back();
@@ -3287,8 +3254,8 @@ void MergeTailSection::finalizeContents() {
 }
 
 void MergeNoTailSection::writeTo(uint8_t *buf) {
-  parallelForEachN(0, numShards,
-                   [&](size_t i) { shards[i].write(buf + shardOffsets[i]); });
+  parallelFor(0, numShards,
+              [&](size_t i) { shards[i].write(buf + shardOffsets[i]); });
 }
 
 // This function is very hot (i.e. it can take several seconds to finish)
@@ -3312,7 +3279,7 @@ void MergeNoTailSection::finalizeContents() {
                        numShards));
 
   // Add section pieces to the builders.
-  parallelForEachN(0, concurrency, [&](size_t threadId) {
+  parallelFor(0, concurrency, [&](size_t threadId) {
     for (MergeInputSection *sec : sections) {
       for (size_t i = 0, e = sec->pieces.size(); i != e; ++i) {
         if (!sec->pieces[i].live)
@@ -3329,7 +3296,7 @@ void MergeNoTailSection::finalizeContents() {
   for (size_t i = 0; i < numShards; ++i) {
     shards[i].finalizeInOrder();
     if (shards[i].getSize() > 0)
-      off = alignTo(off, alignment);
+      off = alignToPowerOf2(off, alignment);
     shardOffsets[i] = off;
     off += shards[i].getSize();
   }
@@ -3349,7 +3316,7 @@ template <class ELFT> void elf::splitSections() {
   llvm::TimeTraceScope timeScope("Split sections");
   // splitIntoPieces needs to be called on each MergeInputSection
   // before calling finalizeContents().
-  parallelForEach(objectFiles, [](ELFFileBase *file) {
+  parallelForEach(ctx->objectFiles, [](ELFFileBase *file) {
     for (InputSectionBase *sec : file->getSections()) {
       if (!sec)
         continue;
@@ -3358,6 +3325,29 @@ template <class ELFT> void elf::splitSections() {
       else if (auto *eh = dyn_cast<EhInputSection>(sec))
         eh->split<ELFT>();
     }
+  });
+}
+
+void elf::combineEhSections() {
+  llvm::TimeTraceScope timeScope("Combine EH sections");
+  for (EhInputSection *sec : ehInputSections) {
+    EhFrameSection &eh = *sec->getPartition().ehFrame;
+    sec->parent = &eh;
+    eh.alignment = std::max(eh.alignment, sec->alignment);
+    eh.sections.push_back(sec);
+    llvm::append_range(eh.dependentSections, sec->dependentSections);
+  }
+
+  if (!mainPart->armExidx)
+    return;
+  llvm::erase_if(inputSections, [](InputSectionBase *s) {
+    // Ignore dead sections and the partition end marker (.part.end),
+    // whose partition number is out of bounds.
+    if (!s->isLive() || s->partition == 255)
+      return false;
+    Partition &part = s->getPartition();
+    return s->kind() == SectionBase::Regular && part.armExidx &&
+           part.armExidx->addSection(cast<InputSection>(s));
   });
 }
 
@@ -3611,7 +3601,7 @@ InputSection *ThunkSection::getTargetInputSection() const {
 bool ThunkSection::assignOffsets() {
   uint64_t off = 0;
   for (Thunk *t : thunks) {
-    off = alignTo(off, t->alignment);
+    off = alignToPowerOf2(off, t->alignment);
     t->setOffset(off);
     uint32_t size = t->size();
     t->getThunkTargetSym()->size = size;
@@ -3717,9 +3707,9 @@ static uint8_t getAbiVersion() {
     return 0;
   }
 
-  if (config->emachine == EM_AMDGPU && !objectFiles.empty()) {
-    uint8_t ver = objectFiles[0]->abiVersion;
-    for (InputFile *file : makeArrayRef(objectFiles).slice(1))
+  if (config->emachine == EM_AMDGPU && !ctx->objectFiles.empty()) {
+    uint8_t ver = ctx->objectFiles[0]->abiVersion;
+    for (InputFile *file : makeArrayRef(ctx->objectFiles).slice(1))
       if (file->abiVersion != ver)
         error("incompatible ABI version: " + toString(file));
     return ver;
@@ -3855,7 +3845,8 @@ void InStruct::reset() {
 
 constexpr char kMemtagAndroidNoteName[] = "Android";
 void MemtagAndroidNote::writeTo(uint8_t *buf) {
-  assert(sizeof(kMemtagAndroidNoteName) == 8); // ABI check for Android 11 & 12.
+  static_assert(sizeof(kMemtagAndroidNoteName) == 8,
+                "ABI check for Android 11 & 12.");
   assert((config->androidMemtagStack || config->androidMemtagHeap) &&
          "Should only be synthesizing a note if heap || stack is enabled.");
 

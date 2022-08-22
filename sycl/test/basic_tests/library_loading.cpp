@@ -3,9 +3,9 @@
 // RUN: env SYCL_PI_TRACE=-1 %t.out 2>&1 | FileCheck %s
 
 // Checks pi traces on library loading
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   // CHECK: {{(SYCL_PI_TRACE\[-1\]: dlopen\(libpi_cuda.so\) failed with)|(SYCL_PI_TRACE\[basic\]: Plugin found and successfully loaded: libpi_cuda.so)}}

@@ -485,6 +485,10 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
   Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
 
+  // Allow detection of fast FMA support.
+  Builder.defineMacro("__FP_FAST_FMA", "1");
+  Builder.defineMacro("__FP_FAST_FMAF", "1");
+
   if (Opts.VScaleMin && Opts.VScaleMin == Opts.VScaleMax) {
     Builder.defineMacro("__ARM_FEATURE_SVE_BITS", Twine(Opts.VScaleMin * 128));
     Builder.defineMacro("__ARM_FEATURE_SVE_VECTOR_OPERATORS");
@@ -676,6 +680,7 @@ AArch64TargetInfo::checkCallingConvention(CallingConv CC) const {
   case CC_PreserveAll:
   case CC_OpenCLKernel:
   case CC_AArch64VectorCall:
+  case CC_AArch64SVEPCS:
   case CC_Win64:
     return CCCR_OK;
   default:

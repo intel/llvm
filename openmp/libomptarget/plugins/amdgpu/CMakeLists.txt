@@ -43,10 +43,6 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions(-DDEBUG)
 endif()
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/impl
-)
-
 set(LIBOMPTARGET_DLOPEN_LIBHSA OFF)
 option(LIBOMPTARGET_FORCE_DLOPEN_LIBHSA "Build with dlopened libhsa" ${LIBOMPTARGET_DLOPEN_LIBHSA})
 
@@ -61,23 +57,6 @@ else()
   set(LIBOMPTARGET_DEP_LIBRARIES)
 endif()
 
-add_library(omptarget.rtl.amdgpu SHARED
-      impl/impl.cpp
-      impl/interop_hsa.cpp
-      impl/data.cpp
-      impl/get_elf_mach_gfx_name.cpp
-      impl/system.cpp
-      impl/msgpack.cpp
-      src/rtl.cpp
-      ${LIBOMPTARGET_EXTRA_SOURCE}
-      )
-add_dependencies(omptarget.rtl.amdgpu omptarget.devicertl.amdgpu)
-
-# Install plugin under the lib destination folder.
-# When we build for debug, OPENMP_LIBDIR_SUFFIX get set to -debug
-install(TARGETS omptarget.rtl.amdgpu LIBRARY DESTINATION "lib${OPENMP_LIBDIR_SUFFIX}")
-set_property(TARGET omptarget.rtl.amdgpu PROPERTY INSTALL_RPATH_USE_LINK_PATH ON)
-
 if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
   # On FreeBSD, the 'environ' symbol is undefined at link time, but resolved by
   # the dynamic linker at runtime. Therefore, allow the symbol to be undefined
@@ -87,8 +66,21 @@ else()
   set(LDFLAGS_UNDEFINED "-Wl,-z,defs")
 endif()
 
-target_link_libraries(
-  omptarget.rtl.amdgpu
+add_llvm_library(omptarget.rtl.amdgpu SHARED
+  impl/impl.cpp
+  impl/interop_hsa.cpp
+  impl/data.cpp
+  impl/get_elf_mach_gfx_name.cpp
+  impl/system.cpp
+  impl/msgpack.cpp
+  src/rtl.cpp
+  ${LIBOMPTARGET_EXTRA_SOURCE}
+
+  ADDITIONAL_HEADER_DIRS
+  ${LIBOMPTARGET_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/impl
+
+  LINK_LIBS 
   PRIVATE
   elf_common
   ${LIBOMPTARGET_DEP_LIBRARIES}
@@ -97,7 +89,23 @@ target_link_libraries(
   ${OPENMP_PTHREAD_LIB}
   "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../exports"
   ${LDFLAGS_UNDEFINED}
-  )
+
+  NO_INSTALL_RPATH
+)
+add_dependencies(omptarget.rtl.amdgpu omptarget.devicertl.amdgpu)
+
+target_include_directories(
+  omptarget.rtl.amdgpu
+  PRIVATE
+  ${LIBOMPTARGET_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/impl
+)
+
+
+# Install plugin under the lib destination folder.
+install(TARGETS omptarget.rtl.amdgpu LIBRARY DESTINATION "${OPENMP_INSTALL_LIBDIR}")
+set_target_properties(omptarget.rtl.amdgpu PROPERTIES 
+  INSTALL_RPATH "$ORIGIN" BUILD_RPATH "$ORIGIN:${CMAKE_CURRENT_BINARY_DIR}/..")
 
 # in case of amdgcn, skip running tests if amdgpu-arch was not built or fails
 if (NOT TARGET amdgpu-arch)
@@ -114,6 +122,7 @@ if (${amdgpu_arch_result})
 else()
   # Report to the parent scope that we are building a plugin for amdgpu
   set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-oldDriver" PARENT_SCOPE)
+  set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-LTO" PARENT_SCOPE)
   list(APPEND LIBOMPTARGET_TESTED_PLUGINS "omptarget.rtl.amdgpu")
   set(LIBOMPTARGET_TESTED_PLUGINS "${LIBOMPTARGET_TESTED_PLUGINS}" PARENT_SCOPE)
 endif()

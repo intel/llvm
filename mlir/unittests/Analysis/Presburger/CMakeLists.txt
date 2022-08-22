@@ -1,7 +1,9 @@
 add_mlir_unittest(MLIRPresburgerTests
   IntegerPolyhedronTest.cpp
+  IntegerRelationTest.cpp
   LinearTransformTest.cpp
   MatrixTest.cpp
+  MPIntTest.cpp
   PresburgerSetTest.cpp
   PresburgerSpaceTest.cpp
   PWMAFunctionTest.cpp

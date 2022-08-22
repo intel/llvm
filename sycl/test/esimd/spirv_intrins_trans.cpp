@@ -6,8 +6,8 @@
 // are correctly translated into GenX counterparts (implemented in
 // LowerESIMD.cpp)
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
@@ -20,7 +20,7 @@ size_t caller() {
   uint32_t DoNotOpt32[1];
   size_t DoNotOptXYZ[3];
 
-  cl::sycl::queue().submit([&](cl::sycl::handler &cgh) {
+  sycl::queue().submit([&](sycl::handler &cgh) {
     auto DoNotOptimize = &DoNotOpt[0];
     auto DoNotOptimize32 = &DoNotOpt32[0];
 

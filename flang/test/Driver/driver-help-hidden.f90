@@ -11,9 +11,6 @@
 ! RUN: not %flang_fc1 --help-hidden 2>&1 | FileCheck %s --check-prefix=ERROR-FLANG-FC1
 ! RUN: not %flang_fc1  -help-hidden 2>&1 | FileCheck %s --check-prefix=ERROR-FLANG-FC1
 
-!----------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG DRIVER (flang-new)
-!----------------------------------------------------
 ! CHECK:USAGE: flang-new
 ! CHECK-EMPTY:
 ! CHECK-NEXT:OPTIONS:
@@ -44,6 +41,7 @@
 ! CHECK-NEXT: -flogical-abbreviations Enable logical abbreviations
 ! CHECK-NEXT: -fno-automatic         Implies the SAVE attribute for non-automatic local objects in subprograms unless RECURSIVE
 ! CHECK-NEXT: -fno-color-diagnostics  Disable colors in diagnostics
+! CHECK-NEXT: -fno-integrated-as     Disable the integrated assembler
 ! CHECK-NEXT: -fopenacc              Enable OpenACC
 ! CHECK-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! CHECK-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
@@ -58,6 +56,8 @@
 ! CHECK-NEXT: -print-effective-triple Print the effective target triple
 ! CHECK-NEXT: -print-target-triple    Print the normalized target triple
 ! CHECK-NEXT: -P                     Disable linemarker output in -E mode
+! CHECK-NEXT: -save-temps=<value>    Save intermediate compilation results.
+! CHECK-NEXT: -save-temps            Save intermediate compilation results
 ! CHECK-NEXT: -std=<value>           Language standard to compile for
 ! CHECK-NEXT: -S                     Only run preprocess and compilation steps
 ! CHECK-NEXT: --target=<value>        Generate code for the given target
@@ -66,14 +66,8 @@
 ! CHECK-NEXT: -W<warning>            Enable the specified warning
 ! CHECK-NEXT: -Xflang <arg>          Pass <arg> to the flang compiler
 
-!-------------------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG DRIVER (flang-new)
-!-------------------------------------------------------------
 ! ERROR-FLANG: error: unknown argument '-help-hidden'; did you mean '--help-hidden'?
 
-!-------------------------------------------------------------
-! EXPECTED OUTPUT FOR FLANG FRONTEND DRIVER (flang-new -fc1)
-!-------------------------------------------------------------
 ! Frontend driver -help-hidden is not supported
 ! ERROR-FLANG-FC1: error: unknown argument: '{{.*}}'
 

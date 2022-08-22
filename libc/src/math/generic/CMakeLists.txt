@@ -62,10 +62,17 @@ add_entrypoint_object(
     cosf.cpp
   HDRS
     ../cosf.h
+    range_reduction.h
+    range_reduction_fma.h
   DEPENDS
-    .sincosf_utils
+    .common_constants
     libc.include.math
     libc.src.errno.errno
+    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fma
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
+    libc.src.__support.FPUtil.polyeval
   COMPILE_OPTIONS
     -O3
 )
@@ -76,11 +83,17 @@ add_entrypoint_object(
     sinf.cpp
   HDRS
     ../sinf.h
+    range_reduction.h
+    range_reduction_fma.h
   DEPENDS
-    .sincosf_utils
+    .common_constants
     libc.include.math
     libc.src.errno.errno
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fma
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
+    libc.src.__support.FPUtil.polyeval
   COMPILE_OPTIONS
     -O3
 )
@@ -478,11 +491,12 @@ add_entrypoint_object(
   DEPENDS
     .common_constants
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
     libc.src.__support.FPUtil.polyeval
     libc.include.math
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -492,12 +506,14 @@ add_entrypoint_object(
   HDRS
     ../exp2f.h
   DEPENDS
+    .common_constants
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
     libc.src.__support.FPUtil.polyeval
     libc.include.math
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -510,11 +526,11 @@ add_entrypoint_object(
     .common_constants
     libc.src.__support.FPUtil.fputil
     libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
     libc.src.__support.FPUtil.polyeval
     libc.include.math
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -682,7 +698,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.polyeval
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -698,7 +713,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.polyeval
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -713,7 +727,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.polyeval
     COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -729,7 +742,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.polyeval
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -1091,7 +1103,90 @@ add_object_library(
   HDRS
     dp_trig.h
   DEPENDS
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil #FPBits and ManipulationFunction
+    libc.src.__support.FPUtil.xfloat
+    libc.src.__support.CPP.uint
   COMPILE_OPTIONS
    -O3
 )
+
+add_entrypoint_object(
+  fmod
+  SRCS
+    fmod.cpp
+  HDRS
+    ../fmod.h
+  DEPENDS
+    libc.include.math
+    libc.src.__support.FPUtil.generic.fmod
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  fmodf
+  SRCS
+    fmodf.cpp
+  HDRS
+    ../fmodf.h
+  DEPENDS
+    libc.include.math
+    libc.src.__support.FPUtil.generic.fmod
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  coshf
+  SRCS
+    coshf.cpp
+  HDRS
+    ../coshf.h
+    expxf.h
+  DEPENDS
+    .common_constants
+    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
+    libc.src.__support.FPUtil.polyeval
+    libc.include.math
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  sinhf
+  SRCS
+    sinhf.cpp
+  HDRS
+    ../sinhf.h
+    expxf.h
+  DEPENDS
+    .common_constants
+    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
+    libc.src.__support.FPUtil.polyeval
+    libc.include.math
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  tanhf
+  SRCS
+    tanhf.cpp
+  HDRS
+    ../tanhf.h
+    expxf.h 
+  DEPENDS
+    .common_constants
+    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.nearest_integer
+    libc.src.__support.FPUtil.polyeval
+    libc.include.math
+  COMPILE_OPTIONS
+    -O3
+)
+

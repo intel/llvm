@@ -186,10 +186,10 @@ uint64_t TextOutputSection::estimateStubsInRangeVA(size_t callIdx) const {
   log("thunks = " + std::to_string(thunkMap.size()) +
       ", potential = " + std::to_string(maxPotentialThunks) +
       ", stubs = " + std::to_string(in.stubs->getSize()) + ", isecVA = " +
-      to_hexString(isecVA) + ", threshold = " + to_hexString(stubsInRangeVA) +
-      ", isecEnd = " + to_hexString(isecEnd) +
-      ", tail = " + to_hexString(isecEnd - isecVA) +
-      ", slop = " + to_hexString(forwardBranchRange - (isecEnd - isecVA)));
+      utohexstr(isecVA) + ", threshold = " + utohexstr(stubsInRangeVA) +
+      ", isecEnd = " + utohexstr(isecEnd) +
+      ", tail = " + utohexstr(isecEnd - isecVA) +
+      ", slop = " + utohexstr(forwardBranchRange - (isecEnd - isecVA)));
   return stubsInRangeVA;
 }
 
@@ -328,8 +328,8 @@ void TextOutputSection::finalize() {
                                          std::to_string(thunkInfo.sequence++));
       if (!isa<Defined>(funcSym) || cast<Defined>(funcSym)->isExternal()) {
         r.referent = thunkInfo.sym = symtab->addDefined(
-            thunkName, /*file=*/nullptr, thunkInfo.isec, /*value=*/0,
-            thunkSize, /*isWeakDef=*/false, /*isPrivateExtern=*/true,
+            thunkName, /*file=*/nullptr, thunkInfo.isec, /*value=*/0, thunkSize,
+            /*isWeakDef=*/false, /*isPrivateExtern=*/true,
             /*isThumb=*/false, /*isReferencedDynamically=*/false,
             /*noDeadStrip=*/false, /*isWeakDefCanBeHidden=*/false);
       } else {

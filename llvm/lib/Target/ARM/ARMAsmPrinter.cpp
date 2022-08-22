@@ -161,10 +161,10 @@ bool ARMAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
                                             : COFF::IMAGE_SYM_CLASS_EXTERNAL;
     int Type = COFF::IMAGE_SYM_DTYPE_FUNCTION << COFF::SCT_COMPLEX_TYPE_SHIFT;
 
-    OutStreamer->BeginCOFFSymbolDef(CurrentFnSym);
-    OutStreamer->EmitCOFFSymbolStorageClass(Scl);
-    OutStreamer->EmitCOFFSymbolType(Type);
-    OutStreamer->EndCOFFSymbolDef();
+    OutStreamer->beginCOFFSymbolDef(CurrentFnSym);
+    OutStreamer->emitCOFFSymbolStorageClass(Scl);
+    OutStreamer->emitCOFFSymbolType(Type);
+    OutStreamer->endCOFFSymbolDef();
   }
 
   // Emit the rest of the function body.
@@ -535,27 +535,27 @@ void ARMAsmPrinter::emitEndOfAsmFile(Module &M) {
 
     if (!Stubs.empty()) {
       // Switch with ".non_lazy_symbol_pointer" directive.
-      OutStreamer->SwitchSection(TLOFMacho.getNonLazySymbolPointerSection());
+      OutStreamer->switchSection(TLOFMacho.getNonLazySymbolPointerSection());
       emitAlignment(Align(4));
 
       for (auto &Stub : Stubs)
         emitNonLazySymbolPointer(*OutStreamer, Stub.first, Stub.second);
 
       Stubs.clear();
-      OutStreamer->AddBlankLine();
+      OutStreamer->addBlankLine();
     }
 
     Stubs = MMIMacho.GetThreadLocalGVStubList();
     if (!Stubs.empty()) {
       // Switch with ".non_lazy_symbol_pointer" directive.
-      OutStreamer->SwitchSection(TLOFMacho.getThreadLocalPointerSection());
+      OutStreamer->switchSection(TLOFMacho.getThreadLocalPointerSection());
       emitAlignment(Align(4));
 
       for (auto &Stub : Stubs)
         emitNonLazySymbolPointer(*OutStreamer, Stub.first, Stub.second);
 
       Stubs.clear();
-      OutStreamer->AddBlankLine();
+      OutStreamer->addBlankLine();
     }
 
     // Funny Darwin hack: This flag tells the linker that no global symbols
@@ -1337,6 +1337,10 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
 #include "ARMGenMCPseudoLowering.inc"
 
 void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  // TODOD FIXME: Enable feature predicate checks once all the test pass.
+  // ARM_MC::verifyInstructionPredicates(MI->getOpcode(),
+  //                                   getSubtargetInfo().getFeatureBits());
+
   const DataLayout &DL = getDataLayout();
   MCTargetStreamer &TS = *OutStreamer->getTargetStreamer();
   ARMTargetStreamer &ATS = static_cast<ARMTargetStreamer &>(TS);
@@ -2274,6 +2278,47 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitToStreamer(*OutStreamer, TmpInstSB);
     return;
   }
+
+  case ARM::SEH_StackAlloc:
+    ATS.emitARMWinCFIAllocStack(MI->getOperand(0).getImm(),
+                                MI->getOperand(1).getImm());
+    return;
+
+  case ARM::SEH_SaveRegs:
+  case ARM::SEH_SaveRegs_Ret:
+    ATS.emitARMWinCFISaveRegMask(MI->getOperand(0).getImm(),
+                                 MI->getOperand(1).getImm());
+    return;
+
+  case ARM::SEH_SaveSP:
+    ATS.emitARMWinCFISaveSP(MI->getOperand(0).getImm());
+    return;
+
+  case ARM::SEH_SaveFRegs:
+    ATS.emitARMWinCFISaveFRegs(MI->getOperand(0).getImm(),
+                               MI->getOperand(1).getImm());
+    return;
+
+  case ARM::SEH_SaveLR:
+    ATS.emitARMWinCFISaveLR(MI->getOperand(0).getImm());
+    return;
+
+  case ARM::SEH_Nop:
+  case ARM::SEH_Nop_Ret:
+    ATS.emitARMWinCFINop(MI->getOperand(0).getImm());
+    return;
+
+  case ARM::SEH_PrologEnd:
+    ATS.emitARMWinCFIPrologEnd(/*Fragment=*/false);
+    return;
+
+  case ARM::SEH_EpilogStart:
+    ATS.emitARMWinCFIEpilogStart(ARMCC::AL);
+    return;
+
+  case ARM::SEH_EpilogEnd:
+    ATS.emitARMWinCFIEpilogEnd();
+    return;
   }
 
   MCInst TmpInst;

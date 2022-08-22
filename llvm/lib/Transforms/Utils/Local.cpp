@@ -439,6 +439,10 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     return true;
   }
 
+  if (auto *CB = dyn_cast<CallBase>(I))
+    if (isRemovableAlloc(CB, TLI))
+      return true;
+
   if (!I->willReturn())
     return false;
 
@@ -485,20 +489,17 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
 
     if (auto *FPI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
       Optional<fp::ExceptionBehavior> ExBehavior = FPI->getExceptionBehavior();
-      return ExBehavior.getValue() != fp::ebStrict;
+      return *ExBehavior != fp::ebStrict;
     }
   }
 
-  if (isAllocationFn(I, TLI) && isAllocRemovable(cast<CallBase>(I), TLI))
-    return true;
-
-  if (CallInst *CI = isFreeCall(I, TLI))
-    if (Constant *C = dyn_cast<Constant>(CI->getArgOperand(0)))
-      return C->isNullValue() || isa<UndefValue>(C);
-
-  if (auto *Call = dyn_cast<CallBase>(I))
+  if (auto *Call = dyn_cast<CallBase>(I)) {
+    if (Value *FreedOp = getFreedOperand(Call, TLI))
+      if (Constant *C = dyn_cast<Constant>(FreedOp))
+        return C->isNullValue() || isa<UndefValue>(C);
     if (isMathLibCallNoop(Call, TLI))
       return true;
+  }
 
   // Non-volatile atomic loads from constants can be removed.
   if (auto *LI = dyn_cast<LoadInst>(I))
@@ -637,7 +638,7 @@ bool llvm::RecursivelyDeleteDeadPHINode(PHINode *PN,
     // won't prove fruitful.
     if (!Visited.insert(I).second) {
       // Break the cycle and delete the instruction and its operands.
-      I->replaceAllUsesWith(UndefValue::get(I->getType()));
+      I->replaceAllUsesWith(PoisonValue::get(I->getType()));
       (void)RecursivelyDeleteTriviallyDeadInstructions(I, TLI, MSSAU);
       return true;
     }
@@ -675,7 +676,7 @@ simplifyAndDCEInstruction(Instruction *I,
     return true;
   }
 
-  if (Value *SimpleV = SimplifyInstruction(I, DL)) {
+  if (Value *SimpleV = simplifyInstruction(I, DL)) {
     // Add the users to the worklist. CAREFUL: an instruction can use itself,
     // in the case of a phi node.
     for (User *U : I->users()) {
@@ -750,8 +751,8 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
   // If BB has single-entry PHI nodes, fold them.
   while (PHINode *PN = dyn_cast<PHINode>(DestBB->begin())) {
     Value *NewVal = PN->getIncomingValue(0);
-    // Replace self referencing PHI with undef, it must be dead.
-    if (NewVal == PN) NewVal = UndefValue::get(PN->getType());
+    // Replace self referencing PHI with poison, it must be dead.
+    if (NewVal == PN) NewVal = PoisonValue::get(PN->getType());
     PN->replaceAllUsesWith(NewVal);
     PN->eraseFromParent();
   }
@@ -1126,7 +1127,7 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
     // If there is more than one pred of succ, and there are PHI nodes in
     // the successor, then we need to add incoming edges for the PHI nodes
     //
-    const PredBlockVector BBPreds(pred_begin(BB), pred_end(BB));
+    const PredBlockVector BBPreds(predecessors(BB));
 
     // Loop over all of the PHI nodes in the successor of BB.
     for (BasicBlock::iterator I = Succ->begin(); isa<PHINode>(I); ++I) {
@@ -1734,8 +1735,8 @@ void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
           replaceOneDbgValueForAlloca(DVI, NewAllocaAddress, Builder, Offset);
 }
 
-/// Where possible to salvage debug information for \p I do so
-/// and return True. If not possible mark undef and return False.
+/// Where possible to salvage debug information for \p I do so.
+/// If not possible mark undef.
 void llvm::salvageDebugInfo(Instruction &I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
   findDbgUsers(DbgUsers, &I);
@@ -2105,7 +2106,7 @@ llvm::removeAllNonTerminatorAndEHPadInstructions(BasicBlock *BB) {
     // Delete the next to last instruction.
     Instruction *Inst = &*--EndInst->getIterator();
     if (!Inst->use_empty() && !Inst->getType()->isTokenTy())
-      Inst->replaceAllUsesWith(UndefValue::get(Inst->getType()));
+      Inst->replaceAllUsesWith(PoisonValue::get(Inst->getType()));
     if (Inst->isEHPad() || Inst->getType()->isTokenTy()) {
       EndInst = Inst;
       continue;
@@ -2144,7 +2145,7 @@ unsigned llvm::changeToUnreachable(Instruction *I, bool PreserveLCSSA,
   BasicBlock::iterator BBI = I->getIterator(), BBE = BB->end();
   while (BBI != BBE) {
     if (!BBI->use_empty())
-      BBI->replaceAllUsesWith(UndefValue::get(BBI->getType()));
+      BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));
     BB->getInstList().erase(BBI++);
     ++NumInstrsRemoved;
   }
@@ -2233,6 +2234,7 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
   II->setDebugLoc(CI->getDebugLoc());
   II->setCallingConv(CI->getCallingConv());
   II->setAttributes(CI->getAttributes());
+  II->setMetadata(LLVMContext::MD_prof, CI->getMetadata(LLVMContext::MD_prof));
 
   if (DTU)
     DTU->applyUpdates({{DominatorTree::Insert, BB, UnwindEdge}});
@@ -2365,7 +2367,7 @@ static bool markAliveBlocks(Function &F,
           Changed = true;
         }
         if (II->doesNotThrow() && canSimplifyInvokeNoUnwind(&F)) {
-          if (II->use_empty() && II->onlyReadsMemory()) {
+          if (II->use_empty() && !II->mayHaveSideEffects()) {
             // jump to the normal destination branch.
             BasicBlock *NormalDestBB = II->getNormalDest();
             BasicBlock *UnwindDestBB = II->getUnwindDest();

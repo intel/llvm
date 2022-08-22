@@ -10,10 +10,10 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 
@@ -34,7 +34,9 @@ public:
     return TempData;
 #else
     (void)_Success;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -49,7 +51,9 @@ public:
 #else
     (void)_Success;
     (void)_Data;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -64,7 +68,9 @@ public:
     __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -77,7 +83,9 @@ public:
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
     (void)_Data;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -128,7 +136,9 @@ public:
     return TempData;
 #else
     (void)_Success;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -143,7 +153,9 @@ public:
     __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -174,7 +186,9 @@ public:
 #else
     (void)_Data;
     (void)_Success;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -188,7 +202,9 @@ public:
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
     (void)_Data;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -205,5 +221,5 @@ private:
 } // namespace intel
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

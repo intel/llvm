@@ -75,7 +75,7 @@ def testTraverseOpRegionBlockIterators():
   # CHECK:       REGION 0:
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
-  # CHECK:           OP 1: return
+  # CHECK:           OP 1: func.return
   walk_operations("", op)
 
 
@@ -114,7 +114,7 @@ def testTraverseOpRegionBlockIndices():
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
   # CHECK:           OP 0: parent func.func
-  # CHECK:           OP 1: return
+  # CHECK:           OP 1: func.return
   # CHECK:           OP 1: parent func.func
   walk_operations("", module.operation)
 
@@ -184,6 +184,19 @@ def testBlockArgumentList():
     # CHECK: Type: i24
     for t in entry_block.arguments.types:
       print("Type: ", t)
+
+    # Check that slicing and type access compose.
+    # CHECK: Sliced type: i16
+    # CHECK: Sliced type: i24
+    for t in entry_block.arguments[1:].types:
+      print("Sliced type: ", t)
+
+    # Check that slice addition works as expected.
+    # CHECK: Argument 2, type i24
+    # CHECK: Argument 0, type i8
+    restructured = entry_block.arguments[-1:] + entry_block.arguments[:1]
+    for arg in restructured:
+      print(f"Argument {arg.arg_number}, type {arg.type}")
 
 
 # CHECK-LABEL: TEST: testOperationOperands
@@ -535,7 +548,7 @@ def testOperationPrint():
   module = Module.parse(
       r"""
     func.func @f1(%arg0: i32) -> i32 {
-      %0 = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32>
+      %0 = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32> loc("nom")
       return %arg0 : i32
     }
   """, ctx)
@@ -562,8 +575,12 @@ def testOperationPrint():
   print(bytes_value.__class__)
   print(bytes_value)
 
+  # Test get_asm local_scope.
+  # CHECK: constant dense<[1, 2, 3, 4]> : tensor<4xi32> loc("nom")
+  module.operation.print(enable_debug_info=True, use_local_scope=True)
+
   # Test get_asm with options.
-  # CHECK: value = opaque<"elided_large_const", "0xDEADBEEF"> : tensor<4xi32>
+  # CHECK: value = dense_resource<__elided__> : tensor<4xi32>
   # CHECK: "func.return"(%arg0) : (i32) -> () -:4:7
   module.operation.print(
       large_elements_limit=2,
@@ -803,7 +820,7 @@ def testOperationLoc():
 @run
 def testModuleMerge():
   with Context():
-    m1 = Module.parse("func private @foo()")
+    m1 = Module.parse("func.func private @foo()")
     m2 = Module.parse("""
       func.func private @bar()
       func.func private @qux()
@@ -829,8 +846,8 @@ def testModuleMerge():
 @run
 def testAppendMoveFromAnotherBlock():
   with Context():
-    m1 = Module.parse("func private @foo()")
-    m2 = Module.parse("func private @bar()")
+    m1 = Module.parse("func.func private @foo()")
+    m2 = Module.parse("func.func private @bar()")
     func = m1.body.operations[0]
     m2.body.append(func)
 
@@ -848,7 +865,7 @@ def testAppendMoveFromAnotherBlock():
 @run
 def testDetachFromParent():
   with Context():
-    m1 = Module.parse("func private @foo()")
+    m1 = Module.parse("func.func private @foo()")
     func = m1.body.operations[0].detach_from_parent()
 
     try:

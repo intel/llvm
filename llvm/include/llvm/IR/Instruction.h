@@ -172,10 +172,6 @@ public:
   /// its operands.
   bool isOnlyUserOfAnyOperand();
 
-  bool isIndirectTerminator() const {
-    return isIndirectTerminator(getOpcode());
-  }
-
   static const char* getOpcodeName(unsigned OpCode);
 
   static inline bool isTerminator(unsigned OpCode) {
@@ -236,17 +232,6 @@ public:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  /// Returns true if the OpCode is a terminator with indirect targets.
-  static inline bool isIndirectTerminator(unsigned OpCode) {
-    switch (OpCode) {
-    case Instruction::IndirectBr:
-    case Instruction::CallBr:
       return true;
     default:
       return false;
@@ -349,11 +334,6 @@ public:
 
   /// Sets the AA metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
-
-  /// Retrieve the raw weight values of a conditional branch or select.
-  /// Returns true on success with profile weights filled in.
-  /// Returns false if no metadata or invalid metadata was found.
-  bool extractProfMetadata(uint64_t &TrueVal, uint64_t &FalseVal) const;
 
   /// Retrieve total raw weight values of a branch.
   /// Returns true on success with profile total weights filled in.

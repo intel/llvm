@@ -164,8 +164,28 @@ static inline bool isRVVWideningReduction(uint64_t TSFlags) {
   return TSFlags & IsRVVWideningReductionMask;
 }
 /// \returns true if mask policy is valid for the instruction.
-static inline bool UsesMaskPolicy(uint64_t TSFlags) {
+static inline bool usesMaskPolicy(uint64_t TSFlags) {
   return TSFlags & UsesMaskPolicyMask;
+}
+
+static inline unsigned getVLOpNum(const MCInstrDesc &Desc) {
+  const uint64_t TSFlags = Desc.TSFlags;
+  // This method is only called if we expect to have a VL operand, and all
+  // instructions with VL also have SEW.
+  assert(hasSEWOp(TSFlags) && hasVLOp(TSFlags));
+  unsigned Offset = 2;
+  if (hasVecPolicyOp(TSFlags))
+    Offset = 3;
+  return Desc.getNumOperands() - Offset;
+}
+
+static inline unsigned getSEWOpNum(const MCInstrDesc &Desc) {
+  const uint64_t TSFlags = Desc.TSFlags;
+  assert(hasSEWOp(TSFlags));
+  unsigned Offset = 1;
+  if (hasVecPolicyOp(TSFlags))
+    Offset = 2;
+  return Desc.getNumOperands() - Offset;
 }
 
 // RISC-V Specific Machine Operand Flags
@@ -201,6 +221,7 @@ enum OperandType : unsigned {
   OPERAND_UIMM7,
   OPERAND_UIMM12,
   OPERAND_SIMM12,
+  OPERAND_SIMM12_LSB00000,
   OPERAND_UIMM20,
   OPERAND_UIMMLOG2XLEN,
   OPERAND_RVKRNUM,

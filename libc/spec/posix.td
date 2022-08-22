@@ -10,6 +10,17 @@ def ConstStructSigactionPtr : ConstType<StructSigactionPtr>;
 def RestrictedStructSigactionPtr : RestrictedPtrType<StructSigaction>;
 def ConstRestrictedStructSigactionPtr : ConstType<RestrictedStructSigactionPtr>;
 
+def PThreadStartT : NamedType<"__pthread_start_t">;
+
+def InoT : NamedType<"ino_t">;
+def DIR : NamedType<"DIR">;
+def DIRPtr : PtrType<DIR>;
+def DIRRestrictedPtr : RestrictedPtrType<DIR>;
+def StructDirent : NamedType<"struct dirent">;
+def StructDirentPtr : PtrType<StructDirent>;
+def StructDirentPtrPtr : PtrType<StructDirentPtr>;
+def ConstStructDirentPtrPtr : ConstType<StructDirentPtrPtr>;
+
 def POSIX : StandardSpec<"POSIX"> {
   PtrType CharPtr = PtrType<CharType>;
   RestrictedPtrType RestrictedCharPtr = RestrictedPtrType<CharType>;
@@ -32,6 +43,15 @@ def POSIX : StandardSpec<"POSIX"> {
   RestrictedPtrType RestrictedPThreadMutexAttrTPtr = RestrictedPtrType<PThreadMutexAttrTType>;
   ConstType ConstPThreadMutexAttrTPtr = ConstType<PThreadMutexAttrTPtr>;
   ConstType ConstRestrictedPThreadMutexAttrTPtr = ConstType<RestrictedPThreadMutexAttrTPtr>;
+
+  NamedType PThreadMutexTType = NamedType<"pthread_mutex_t">;
+  PtrType PThreadMutexTPtr = PtrType<PThreadMutexTType>;
+  RestrictedPtrType RestrictedPThreadMutexTPtr = RestrictedPtrType<PThreadMutexTType>;
+  ConstType ConstPThreadMutexTPtr = ConstType<PThreadMutexTPtr>;
+  ConstType ConstRestrictedPThreadMutexTPtr = ConstType<RestrictedPThreadMutexTPtr>;
+
+  PtrType PThreadTPtr = PtrType<PThreadTType>;
+  RestrictedPtrType RestrictedPThreadTPtr = RestrictedPtrType<PThreadTType>;
 
   HeaderSpec Errno = HeaderSpec<
       "errno.h",
@@ -386,7 +406,7 @@ def POSIX : StandardSpec<"POSIX"> {
   HeaderSpec PThread = HeaderSpec<
     "pthread.h",
     [], // Macros
-    [PThreadAttrTType, PThreadMutexAttrTType], // Types
+    [PThreadAttrTType, PThreadMutexAttrTType, PThreadMutexTType, PThreadStartT, PThreadTType], // Types
     [], // Enumerations
     [
       FunctionSpec<
@@ -438,6 +458,31 @@ def POSIX : StandardSpec<"POSIX"> {
           "pthread_attr_setstack",
           RetValSpec<IntType>,
           [ArgSpec<PThreadAttrTPtr>, ArgSpec<VoidPtr>, ArgSpec<SizeTType>]
+      >,
+      FunctionSpec<
+          "pthread_create",
+          RetValSpec<IntType>,
+          [ArgSpec<RestrictedPThreadTPtr>, ArgSpec<ConstRestrictedPThreadAttrTPtr>, ArgSpec<PThreadStartT>, ArgSpec<VoidPtr>]
+      >,
+      FunctionSpec<
+          "pthread_join",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadTType>, ArgSpec<VoidPtrPtr>]
+      >,
+      FunctionSpec<
+          "pthread_detach",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadTType>]
+      >,
+      FunctionSpec<
+          "pthread_self",
+          RetValSpec<PThreadTType>,
+          [ArgSpec<VoidType>]
+      >,
+      FunctionSpec<
+          "pthread_equal",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadTType>, ArgSpec<PThreadTType>]
       >,
       FunctionSpec<
           "pthread_mutexattr_init",
@@ -499,6 +544,26 @@ def POSIX : StandardSpec<"POSIX"> {
           RetValSpec<IntType>,
           [ArgSpec<RestrictedPThreadMutexAttrTPtr>, ArgSpec<IntType>]
       >,
+      FunctionSpec<
+          "pthread_mutex_init",
+          RetValSpec<IntType>,
+          [ArgSpec<RestrictedPThreadMutexTPtr>, ArgSpec<ConstRestrictedPThreadMutexAttrTPtr>]
+      >,
+      FunctionSpec<
+          "pthread_mutex_destroy",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadMutexTPtr>]
+      >,
+      FunctionSpec<
+          "pthread_mutex_lock",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadMutexTPtr>]
+      >,
+      FunctionSpec<
+          "pthread_mutex_unlock",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadMutexTPtr>]
+      >,
     ]
   >;
 
@@ -521,8 +586,48 @@ def POSIX : StandardSpec<"POSIX"> {
       ]
   >;
 
+  HeaderSpec Dirent = HeaderSpec<
+      "dirent.h",
+      [], // Macros
+      [InoT, StructDirent, DIR], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "alphasort",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstStructDirentPtrPtr>, ArgSpec<ConstStructDirentPtrPtr>]
+          >,
+          FunctionSpec<
+              "closedir",
+              RetValSpec<IntType>,
+              [ArgSpec<DIRPtr>]
+          >,
+          FunctionSpec<
+              "dirfd",
+              RetValSpec<IntType>,
+              [ArgSpec<DIRPtr>]
+          >,
+          FunctionSpec<
+              "fdopendir",
+              RetValSpec<DIRPtr>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "opendir",
+              RetValSpec<DIRPtr>,
+              [ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "readdir",
+              RetValSpec<StructDirentPtr>,
+              [ArgSpec<DIRPtr>]
+          >,
+      ]
+  >;
+
   let Headers = [
     CType,
+    Dirent,
     Errno,
     FCntl,
     PThread,

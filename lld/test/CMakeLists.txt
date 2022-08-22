@@ -1,4 +1,5 @@
 llvm_canonicalize_cmake_booleans(
+  ENABLE_BACKTRACES
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_LIBXML2
   LLD_DEFAULT_LD_LLD_IS_MINGW
@@ -13,12 +14,6 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
-  )
-configure_lit_site_cfg(
-  ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py
-  MAIN_CONFIG
-  ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
   )
 
 set(LLD_TEST_DEPS lld)

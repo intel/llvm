@@ -176,7 +176,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_boyer_moore_searcher",
     "values": { "c++17": 201603 },
     "headers": ["functional"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_byte",
     "values": { "c++17": 201603 },
@@ -187,7 +186,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["bit"],
   }, {
     "name": "__cpp_lib_char8_t",
-    "values": { "c++20": 201811 },
+    "values": { "c++20": 201907 },
     "headers": ["atomic", "filesystem", "istream", "limits", "locale", "ostream", "string", "string_view"],
     "test_suite_guard": "defined(__cpp_char8_t)",
     "libcxx_guard": "!defined(_LIBCPP_HAS_NO_CHAR8_T)",
@@ -310,11 +309,15 @@ feature_test_macros = [ add_version_header(x) for x in [
     "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)"
   }, {
     "name": "__cpp_lib_format",
+    # P2508, P2286, and P2419 were accepted in the same plenary and modify this
+    # feature-test macro. We expect to see an LWG issue soon. For now keep the
+    # value as is.
+    # TODO FMT Set P2508's feature-test macro.
+    #"values": { "c++20": 202106, "c++23": 202207" },
     "values": { "c++20": 202106 },
     "headers": ["format"],
-    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
-    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
-    "unimplemented": True,
+    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)",
+    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)",
   }, {
     "name": "__cpp_lib_gcd_lcm",
     "values": { "c++17": 201606 },
@@ -330,8 +333,9 @@ feature_test_macros = [ add_version_header(x) for x in [
   }, {
     "name": "__cpp_lib_hardware_interference_size",
     "values": { "c++17": 201703 },
+    "test_suite_guard": "defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)",
+    "libcxx_guard": "defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)",
     "headers": ["new"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_has_unique_object_representations",
     "values": { "c++17": 201606 },
@@ -471,10 +475,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["memory_resource"],
     "unimplemented": True,
   }, {
-    "name": "__cpp_lib_monadic_optional",
-    "values": { "c++2b": 202110 },
-    "headers": ["optional"],
-  }, {
     "name": "__cpp_lib_move_only_function",
     "values": { "c++2b": 202110 },
     "headers": ["functional"],
@@ -497,7 +497,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["iterator"],
   }, {
     "name": "__cpp_lib_optional",
-    "values": { "c++17": 201606 },
+    "values": { "c++17": 201606, "c++2b": 202110 },
     "headers": ["optional"],
   }, {
     "name": "__cpp_lib_out_ptr",
@@ -658,7 +658,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_stdatomic_h",
     "values": { "c++2b": 202011 },
     "headers": ["stdatomic.h"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_string_contains",
     "values": { "c++2b": 202011 },
@@ -765,22 +764,23 @@ assert all(all(key in ["name", "values", "headers", "libcxx_guard", "test_suite_
 # <thread> should be marked as UNSUPPORTED, because including <thread>
 # is a hard error in that case.
 lit_markup = {
-  "barrier": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "filesystem": ["UNSUPPORTED: libcpp-has-no-filesystem-library"],
+  "barrier": ["UNSUPPORTED: no-threads"],
+  "filesystem": ["UNSUPPORTED: no-filesystem"],
   "format": ["UNSUPPORTED: libcpp-has-no-incomplete-format"],
-  "iomanip": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "ios": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "iostream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "istream": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "latch": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "locale": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "ostream": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "iomanip": ["UNSUPPORTED: no-localization"],
+  "ios": ["UNSUPPORTED: no-localization"],
+  "iostream": ["UNSUPPORTED: no-localization"],
+  "istream": ["UNSUPPORTED: no-localization"],
+  "latch": ["UNSUPPORTED: no-threads"],
+  "locale": ["UNSUPPORTED: no-localization"],
+  "mutex": ["UNSUPPORTED: no-threads"],
+  "ostream": ["UNSUPPORTED: no-localization"],
   "ranges": ["UNSUPPORTED: libcpp-has-no-incomplete-ranges"],
-  "regex": ["UNSUPPORTED: libcpp-has-no-localization"],
-  "semaphore": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "shared_mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "thread": ["UNSUPPORTED: libcpp-has-no-threads"]
+  "regex": ["UNSUPPORTED: no-localization"],
+  "semaphore": ["UNSUPPORTED: no-threads"],
+  "shared_mutex": ["UNSUPPORTED: no-threads"],
+  "stdatomic.h": ["UNSUPPORTED: no-threads"],
+  "thread": ["UNSUPPORTED: no-threads"],
 }
 
 def get_std_dialects():

@@ -20,8 +20,8 @@
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/ImmutableSet.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -1213,11 +1213,19 @@ public:
   }
 
   RangeSet VisitSymExpr(SymbolRef Sym) {
-    // If we got to this function, the actual type of the symbolic
+    if (Optional<RangeSet> RS = getRangeForNegatedSym(Sym))
+      return *RS;
+    // If we've reached this line, the actual type of the symbolic
     // expression is not supported for advanced inference.
     // In this case, we simply backoff to the default "let's simply
     // infer the range from the expression's type".
     return infer(Sym->getType());
+  }
+
+  RangeSet VisitUnarySymExpr(const UnarySymExpr *USE) {
+    if (Optional<RangeSet> RS = getRangeForNegatedUnarySym(USE))
+      return *RS;
+    return infer(USE->getType());
   }
 
   RangeSet VisitSymIntExpr(const SymIntExpr *Sym) {
@@ -1228,14 +1236,25 @@ public:
     return VisitBinaryOperator(Sym);
   }
 
-  RangeSet VisitSymSymExpr(const SymSymExpr *Sym) {
+  RangeSet VisitSymSymExpr(const SymSymExpr *SSE) {
     return intersect(
         RangeFactory,
+        // If Sym is a difference of symbols A - B, then maybe we have range
+        // set stored for B - A.
+        //
+        // If we have range set stored for both A - B and B - A then
+        // calculate the effective range set by intersecting the range set
+        // for A - B and the negated range set of B - A.
+        getRangeForNegatedSymSym(SSE),
+        // If Sym is a comparison expression (except <=>),
+        // find any other comparisons with the same operands.
+        // See function description.
+        getRangeForComparisonSymbol(SSE),
         // If Sym is (dis)equality, we might have some information
         // on that in our equality classes data structure.
-        getRangeForEqualities(Sym),
+        getRangeForEqualities(SSE),
         // And we should always check what we can get from the operands.
-        VisitBinaryOperator(Sym));
+        VisitBinaryOperator(SSE));
   }
 
 private:
@@ -1264,25 +1283,13 @@ private:
   }
 
   RangeSet infer(SymbolRef Sym) {
-    return intersect(
-        RangeFactory,
-        // Of course, we should take the constraint directly associated with
-        // this symbol into consideration.
-        getConstraint(State, Sym),
-        // If Sym is a difference of symbols A - B, then maybe we have range
-        // set stored for B - A.
-        //
-        // If we have range set stored for both A - B and B - A then
-        // calculate the effective range set by intersecting the range set
-        // for A - B and the negated range set of B - A.
-        getRangeForNegatedSub(Sym),
-        // If Sym is a comparison expression (except <=>),
-        // find any other comparisons with the same operands.
-        // See function description.
-        getRangeForComparisonSymbol(Sym),
-        // Apart from the Sym itself, we can infer quite a lot if we look
-        // into subexpressions of Sym.
-        Visit(Sym));
+    return intersect(RangeFactory,
+                     // Of course, we should take the constraint directly
+                     // associated with this symbol into consideration.
+                     getConstraint(State, Sym),
+                     // Apart from the Sym itself, we can infer quite a lot if
+                     // we look into subexpressions of Sym.
+                     Visit(Sym));
   }
 
   RangeSet infer(EquivalenceClass Class) {
@@ -1443,31 +1450,51 @@ private:
     return RangeFactory.deletePoint(Domain, IntType.getZeroValue());
   }
 
-  // FIXME: Once SValBuilder supports unary minus, we should use SValBuilder to
-  //        obtain the negated symbolic expression instead of constructing the
-  //        symbol manually. This will allow us to support finding ranges of not
-  //        only negated SymSymExpr-type expressions, but also of other, simpler
-  //        expressions which we currently do not know how to negate.
-  Optional<RangeSet> getRangeForNegatedSub(SymbolRef Sym) {
-    if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(Sym)) {
-      if (SSE->getOpcode() == BO_Sub) {
-        QualType T = Sym->getType();
+  template <typename ProduceNegatedSymFunc>
+  Optional<RangeSet> getRangeForNegatedExpr(ProduceNegatedSymFunc F,
+                                            QualType T) {
+    // Do not negate if the type cannot be meaningfully negated.
+    if (!T->isUnsignedIntegerOrEnumerationType() &&
+        !T->isSignedIntegerOrEnumerationType())
+      return llvm::None;
 
-        // Do not negate unsigned ranges
-        if (!T->isUnsignedIntegerOrEnumerationType() &&
-            !T->isSignedIntegerOrEnumerationType())
-          return llvm::None;
+    if (SymbolRef NegatedSym = F())
+      if (const RangeSet *NegatedRange = getConstraint(State, NegatedSym))
+        return RangeFactory.negate(*NegatedRange);
 
-        SymbolManager &SymMgr = State->getSymbolManager();
-        SymbolRef NegatedSym =
-            SymMgr.getSymSymExpr(SSE->getRHS(), BO_Sub, SSE->getLHS(), T);
-
-        if (const RangeSet *NegatedRange = getConstraint(State, NegatedSym)) {
-          return RangeFactory.negate(*NegatedRange);
-        }
-      }
-    }
     return llvm::None;
+  }
+
+  Optional<RangeSet> getRangeForNegatedUnarySym(const UnarySymExpr *USE) {
+    // Just get the operand when we negate a symbol that is already negated.
+    // -(-a) == a
+    return getRangeForNegatedExpr(
+        [USE]() -> SymbolRef {
+          if (USE->getOpcode() == UO_Minus)
+            return USE->getOperand();
+          return nullptr;
+        },
+        USE->getType());
+  }
+
+  Optional<RangeSet> getRangeForNegatedSymSym(const SymSymExpr *SSE) {
+    return getRangeForNegatedExpr(
+        [SSE, State = this->State]() -> SymbolRef {
+          if (SSE->getOpcode() == BO_Sub)
+            return State->getSymbolManager().getSymSymExpr(
+                SSE->getRHS(), BO_Sub, SSE->getLHS(), SSE->getType());
+          return nullptr;
+        },
+        SSE->getType());
+  }
+
+  Optional<RangeSet> getRangeForNegatedSym(SymbolRef Sym) {
+    return getRangeForNegatedExpr(
+        [Sym, State = this->State]() {
+          return State->getSymbolManager().getUnarySymExpr(Sym, UO_Minus,
+                                                           Sym->getType());
+        },
+        Sym->getType());
   }
 
   // Returns ranges only for binary comparison operators (except <=>)
@@ -1480,11 +1507,7 @@ private:
   // It covers all possible combinations (see CmpOpTable description).
   // Note that `x` and `y` can also stand for subexpressions,
   // not only for actual symbols.
-  Optional<RangeSet> getRangeForComparisonSymbol(SymbolRef Sym) {
-    const auto *SSE = dyn_cast<SymSymExpr>(Sym);
-    if (!SSE)
-      return llvm::None;
-
+  Optional<RangeSet> getRangeForComparisonSymbol(const SymSymExpr *SSE) {
     const BinaryOperatorKind CurrentOP = SSE->getOpcode();
 
     // We currently do not support <=> (C++20).
@@ -1796,6 +1819,8 @@ public:
 
   void printJson(raw_ostream &Out, ProgramStateRef State, const char *NL = "\n",
                  unsigned int Space = 0, bool IsDot = false) const override;
+  void printValue(raw_ostream &Out, ProgramStateRef State,
+                  SymbolRef Sym) override;
   void printConstraints(raw_ostream &Out, ProgramStateRef State,
                         const char *NL = "\n", unsigned int Space = 0,
                         bool IsDot = false) const;
@@ -2508,12 +2533,6 @@ EquivalenceClass::removeMember(ProgramStateRef State, const SymbolRef Old) {
   SymbolSet ClsMembers = getClassMembers(State);
   assert(ClsMembers.contains(Old));
 
-  // We don't remove `Old`'s Sym->Class relation for two reasons:
-  // 1) This way constraints for the old symbol can still be found via it's
-  // equivalence class that it used to be the member of.
-  // 2) Performance and resource reasons. We can spare one removal and thus one
-  // additional tree in the forest of `ClassMap`.
-
   // Remove `Old`'s Class->Sym relation.
   SymbolSet::Factory &F = getMembersFactory(State);
   ClassMembersTy::Factory &EMFactory = State->get_context<ClassMembers>();
@@ -2526,6 +2545,12 @@ EquivalenceClass::removeMember(ProgramStateRef State, const SymbolRef Old) {
   ClassMembersTy ClassMembersMap = State->get<ClassMembers>();
   ClassMembersMap = EMFactory.add(ClassMembersMap, *this, ClsMembers);
   State = State->set<ClassMembers>(ClassMembersMap);
+
+  // Remove `Old`'s Sym->Class relation.
+  ClassMapTy Classes = State->get<ClassMap>();
+  ClassMapTy::Factory &CMF = State->get_context<ClassMap>();
+  Classes = CMF.remove(Classes, Old);
+  State = State->set<ClassMap>(Classes);
 
   return State;
 }
@@ -3147,6 +3172,13 @@ void RangeConstraintManager::printJson(raw_ostream &Out, ProgramStateRef State,
   printConstraints(Out, State, NL, Space, IsDot);
   printEquivalenceClasses(Out, State, NL, Space, IsDot);
   printDisequalities(Out, State, NL, Space, IsDot);
+}
+
+void RangeConstraintManager::printValue(raw_ostream &Out, ProgramStateRef State,
+                                        SymbolRef Sym) {
+  const RangeSet RS = getRange(State, Sym);
+  Out << RS.getBitWidth() << (RS.isUnsigned() ? "u:" : "s:");
+  RS.dump(Out);
 }
 
 static std::string toString(const SymbolRef &Sym) {

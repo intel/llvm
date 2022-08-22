@@ -8,6 +8,8 @@ to account for the semantics of every operation, or be overly conservative.
 Without care, this can result in code with special-cases for each supported
 operation type. To combat this, MLIR provides a concept of `interfaces`.
 
+[TOC]
+
 ## Motivation
 
 Interfaces provide a generic way of interacting with the IR. The goal is to be
@@ -459,7 +461,7 @@ operation if the operation specifies the interface with
 
 Examples:
 
-~~~tablegen
+```tablegen
 def MyInterface : OpInterface<"MyInterface"> {
   let description = [{
     This is the description of the interface. It provides concrete information
@@ -630,7 +632,7 @@ def OpWithInferTypeInterfaceOp : Op<...
 // the generation of a declaration for those methods.
 def OpWithOverrideInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
-~~~
+```
 
 Note: Existing operation interfaces defined in C++ can be accessed in the ODS
 framework via the `OpInterfaceTrait` class.

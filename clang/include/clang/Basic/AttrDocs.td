@@ -257,6 +257,28 @@ applies to copies of the block. For example:
   }];
 }
 
+def MaybeUndefDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``maybe_undef`` attribute can be placed on a function parameter. It indicates
+that the parameter is allowed to use undef values. It informs the compiler
+to insert a freeze LLVM IR instruction on the function parameter.
+Please note that this is an attribute that is used as an internal
+implementation detail and not intended to be used by external users.
+
+In languages HIP, CUDA etc., some functions have multi-threaded semantics and
+it is enough for only one or some threads to provide defined arguments.
+Depending on semantics, undef arguments in some threads don't produce
+undefined results in the function call. Since, these functions accept undefined
+arguments, ``maybe_undef`` attribute can be placed.
+
+Sample usage:
+.. code-block:: c
+
+  void maybeundeffunc(int __attribute__((maybe_undef))param);
+  }];
+}
+
 def CarriesDependencyDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -356,7 +378,7 @@ outlining job:
 
   int foo(int x) { return ++x; }
 
-  using namespace cl::sycl;
+  using namespace sycl;
   queue Q;
   buffer<int, 1> a(range<1>{1024});
   Q.submit([&](handler& cgh) {
@@ -590,6 +612,10 @@ of the function.
 spellings of the attribute are not supported on statements. If a statement is
 marked ``[[clang::noinline]]`` and contains calls, those calls inside the
 statement will not be inlined by the compiler.
+
+``__noinline__`` can be used as a keyword in CUDA/HIP languages. This is to
+avoid diagnostics due to usage of ``__attribute__((__noinline__))``
+with ``__noinline__`` defined as a macro as ``__attribute__((noinline))``.
 
 .. code-block:: c
 
@@ -1604,6 +1630,10 @@ attributes are ignored. Supported platforms are:
 ``watchos``
   Apple's watchOS operating system. The minimum deployment target is specified by
   the ``-mwatchos-version-min=*version*`` command-line argument.
+  
+``driverkit``
+  Apple's DriverKit userspace kernel extensions. The minimum deployment target
+  is specified as part of the triple.
 
 A declaration can typically be used even when deploying back to a platform
 version prior to when the declaration was introduced. When this happens, the
@@ -3153,6 +3183,9 @@ is unspecified and is therefore considered infinite.
 In case of ivdep being applied both w/o an array variable and for a particular
 array, the array variables that were not designated a separate ivdep will receive
 the no-array ivdep's safelen, with the correspondent treatment by the backend.
+The ``[[intel::ivdep]]`` attribute applies a safelen value of 0 or 1 that has
+no effect on the loop and emits a suppressible warning when safelen value of 0
+or 1 is used.
 
 .. code-block:: c++
 
@@ -3705,7 +3738,7 @@ cannot be optimized out due to reachability analysis or by any other
 optimization.
 
 This attribute allows to pass name and address of the function to a special
-``cl::sycl::intel::get_device_func_ptr`` API call which extracts the device
+``sycl::intel::get_device_func_ptr`` API call which extracts the device
 function pointer for the specified function.
 
 .. code-block:: c++
@@ -4030,6 +4063,32 @@ For more information, see the documentation for `aarch64_vector_pcs`_ on
 the Arm Developer website.
 
 .. _`aarch64_vector_pcs`: https://developer.arm.com/products/software-development-tools/hpc/arm-compiler-for-hpc/vector-function-abi
+  }];
+}
+
+def AArch64SVEPcsDocs : Documentation {
+  let Category = DocCatCallingConvs;
+  let Content = [{
+On AArch64 targets, this attribute changes the calling convention of a
+function to preserve additional Scalable Vector registers and Scalable
+Predicate registers relative to the default calling convention used for
+AArch64.
+
+This means it is more efficient to call such functions from code that performs
+extensive scalable vector and scalable predicate calculations, because fewer
+live SVE registers need to be saved. This property makes it well-suited for SVE
+math library functions, which are typically leaf functions that require a small
+number of registers.
+
+However, using this attribute also means that it is more expensive to call
+a function that adheres to the default calling convention from within such
+a function. Therefore, it is recommended that this attribute is only used
+for leaf functions.
+
+For more information, see the documentation for `aarch64_sve_pcs` in the
+ARM C Language Extension (ACLE) documentation.
+
+.. _`aarch64_sve_pcs`: https://github.com/ARM-software/acle/blob/main/main/acle.md#scalable-vector-extension-procedure-call-standard-attribute
   }];
 }
 
@@ -4540,8 +4599,8 @@ def FormatDocs : Documentation {
   let Content = [{
 
 Clang supports the ``format`` attribute, which indicates that the function
-accepts a ``printf`` or ``scanf``-like format string and corresponding
-arguments or a ``va_list`` that contains these arguments.
+accepts (among other possibilities) a ``printf`` or ``scanf``-like format string
+and corresponding arguments or a ``va_list`` that contains these arguments.
 
 Please see `GCC documentation about format attribute
 <http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html>`_ to find details
@@ -4595,6 +4654,27 @@ Clang implements two kinds of checks with this attribute.
    In this case Clang does not warn because the format string ``s`` and
    the corresponding arguments are annotated. If the arguments are
    incorrect, the caller of ``foo`` will receive a warning.
+
+As an extension to GCC's behavior, Clang accepts the ``format`` attribute on
+non-variadic functions. Clang checks non-variadic format functions for the same
+classes of issues that can be found on variadic functions, as controlled by the
+same warning flags, except that the types of formatted arguments is forced by
+the function signature. For example:
+
+.. code-block:: c
+
+  __attribute__((__format__(__printf__, 1, 2)))
+  void fmt(const char *s, const char *a, int b);
+
+  void bar(void) {
+    fmt("%s %i", "hello", 123); // OK
+    fmt("%i %g", "hello", 123); // warning: arguments don't match format
+    extern const char *fmt;
+    fmt(fmt, "hello", 123); // warning: format string is not a string literal
+  }
+
+Using the ``format`` attribute on a non-variadic function emits a GCC
+compatibility diagnostic.
   }];
 }
 
@@ -5874,6 +5954,7 @@ Clang provides the following context selector extensions, used via
     match_none
     disable_implicit_base
     allow_templates
+    bind_to_declaration
 
 The match extensions change when the *entire* context selector is considered a
 match for an OpenMP context. The default is ``all``, with ``none`` no trait in the
@@ -5889,8 +5970,9 @@ The allow extensions change when the ``begin declare variant`` effect is
 applied to a definition. If ``allow_templates`` is given, template function
 definitions are considered as specializations of existing or assumed template
 declarations with the same name. The template parameters for the base functions
-are used to instantiate the specialization.
-
+are used to instantiate the specialization. If ``bind_to_declaration`` is given,
+apply the same variant rules to function declarations. This allows the user to
+override declarations with only a function declaration.
   }];
 }
 
@@ -6561,6 +6643,12 @@ general this requires the template to be declared at least twice. For example:
                                 clang::preferred_name(wstring)]] basic_string {
     // ...
   };
+
+
+Note that the ``preferred_name`` attribute will be ignored when the compiler
+writes a C++20 Module interface now. This is due to a compiler issue
+(https://github.com/llvm/llvm-project/issues/56490) that blocks users to modularize
+declarations with `preferred_name`. This is intended to be fixed in the future.
   }];
 }
 
@@ -7377,6 +7465,15 @@ attribute can also be written using C++11 syntax: ``[[mig::server_routine]]``.
 }];
 }
 
+def MinSizeDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This function attribute indicates that optimization passes and code generator passes
+make choices that keep the function code size as small as possible. Optimizations may
+also sacrifice runtime performance in order to minimize the size of the generated code.
+  }];
+}
+
 def MSAllocatorDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -7544,9 +7641,6 @@ attribute `clang_builtin_alias`.
 def NoBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-.. Note:: This attribute is not yet fully implemented, it is validated but has
-          no effect on the generated code.
-
 The ``__attribute__((no_builtin))`` is similar to the ``-fno-builtin`` flag
 except it is specific to the body of a function. The attribute may also be
 applied to a virtual function but has no effect on the behavior of overriding
@@ -7593,7 +7687,7 @@ deferring any errors to the point of use. For instance:
 
   does_not_exist x; // error: use of unresolved 'using_if_exists'
 
-The C++ spelling of the attribte (`[[clang::using_if_exists]]`) is also
+The C++ spelling of the attribute (`[[clang::using_if_exists]]`) is also
 supported as a clang extension, since ISO C++ doesn't support attributes in this
 position. If the entity referred to by the using-declaration is found by name
 lookup, the attribute has no effect. This attribute is useful for libraries
@@ -7931,7 +8025,7 @@ of the call-used registers to be zeroed:
   command-line arguments.
 - ``used`` only zeros call-used registers used in the function. By ``used``, we
   mean a register whose contents have been set or referenced in the function.
-- ``used-gpr`` only zeros call-used GPR registers used in the funciton.
+- ``used-gpr`` only zeros call-used GPR registers used in the function.
 - ``used-arg`` only zeros call-used registers used to pass arguments to the
   function.
 - ``used-gpr-arg`` only zeros call-used GPR registers used to pass arguments to
@@ -7943,7 +8037,7 @@ of the call-used registers to be zeroed:
 - ``all-gpr-arg`` zeros all call-used GPR registers used to pass arguments to
   the function.
 
-The default for the attribute is contolled by the ``-fzero-call-used-regs``
+The default for the attribute is controlled by the ``-fzero-call-used-regs``
 flag.
 
 .. _Return-Oriented Programming: https://en.wikipedia.org/wiki/Return-oriented_programming
@@ -8022,5 +8116,127 @@ data binding to map the group index to the specified parameter. This attribute
 is only supported in compute shaders.
 
 The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-groupindex
+  }];
+}
+
+def AnnotateTypeDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "annotate_type";
+  let Content = [{
+This attribute is used to add annotations to types, typically for use by static
+analysis tools that are not integrated into the core Clang compiler (e.g.,
+Clang-Tidy checks or out-of-tree Clang-based tools). It is a counterpart to the
+`annotate` attribute, which serves the same purpose, but for declarations.
+
+The attribute takes a mandatory string literal argument specifying the
+annotation category and an arbitrary number of optional arguments that provide
+additional information specific to the annotation category. The optional
+arguments must be constant expressions of arbitrary type.
+
+For example:
+
+.. code-block:: c++
+
+  int* [[clang::annotate("category1", "foo", 1)]] f(int[[clang::annotate("category2")]] *);
+
+The attribute does not have any effect on the semantics of the type system,
+neither type checking rules, nor runtime semantics. In particular:
+
+- ``std::is_same<T, T [[clang::annotate_type("foo")]]>`` is true for all types
+  ``T``.
+
+- It is not permissible for overloaded functions or template specializations
+  to differ merely by an ``annotate_type`` attribute.
+
+- The presence of an ``annotate_type`` attribute will not affect name
+  mangling.
+  }];
+}
+
+def WeakDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+
+In supported output formats the ``weak`` attribute can be used to
+specify that a variable or function should be emitted as a symbol with
+``weak`` (if a definition) or ``extern_weak`` (if a declaration of an
+external symbol) `linkage
+<https://llvm.org/docs/LangRef.html#linkage-types>`_.
+
+If there is a non-weak definition of the symbol the linker will select
+that over the weak. They must have same type and alignment (variables
+must also have the same size), but may have a different value.
+
+If there are multiple weak definitions of same symbol, but no non-weak
+definition, they should have same type, size, alignment and value, the
+linker will select one of them (see also selectany_ attribute).
+
+If the ``weak`` attribute is applied to a ``const`` qualified variable
+definition that variable is no longer consider a compiletime constant
+as its value can change during linking (or dynamic linking). This
+means that it can e.g no longer be part of an initializer expression.
+
+.. code-block:: c
+
+  const int ANSWER __attribute__ ((weak)) = 42;
+
+  /* This function may be replaced link-time */
+  __attribute__ ((weak)) void debug_log(const char *msg)
+  {
+      fprintf(stderr, "DEBUG: %s\n", msg);
+  }
+
+  int main(int argc, const char **argv)
+  {
+      debug_log ("Starting up...");
+
+      /* This may print something else than "6 * 7 = 42",
+         if there is a non-weak definition of "ANSWER" in
+	 an object linked in */
+      printf("6 * 7 = %d\n", ANSWER);
+
+      return 0;
+   }
+
+If an external declaration is marked weak and that symbol does not
+exist during linking (possibly dynamic) the address of the symbol will
+evaluate to NULL.
+
+.. code-block:: c
+
+  void may_not_exist(void) __attribute__ ((weak));
+
+  int main(int argc, const char **argv)
+  {
+      if (may_not_exist) {
+          may_not_exist();
+      } else {
+          printf("Function did not exist\n");
+      }
+      return 0;
+  }
+  }];
+}
+
+def FunctionReturnThunksDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The attribute ``function_return`` can replace return instructions with jumps to
+target-specific symbols. This attribute supports 2 possible values,
+corresponding to the values supported by the ``-mfunction-return=`` command
+line flag:
+
+* ``__attribute__((function_return("keep")))`` to disable related transforms.
+  This is useful for undoing global setting from ``-mfunction-return=`` locally
+  for individual functions.
+* ``__attribute__((function_return("thunk-extern")))`` to replace returns with
+  jumps, while NOT emitting the thunk.
+
+The values ``thunk`` and ``thunk-inline`` from GCC are not supported.
+
+The symbol used for ``thunk-extern`` is target specific:
+* X86: ``__x86_return_thunk``
+
+As such, this function attribute is currently only supported on X86 targets.
   }];
 }

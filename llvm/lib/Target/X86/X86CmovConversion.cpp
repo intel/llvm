@@ -67,6 +67,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/CGPassBuilderOption.h"
 #include <algorithm>
 #include <cassert>
 #include <iterator>
@@ -167,6 +168,10 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableCmovConverter)
     return false;
 
+  // If the SelectOptimize pass is enabled, cmovs have already been optimized.
+  if (!getCGPassBuilderOption().DisableSelectOptimize)
+    return false;
+
   LLVM_DEBUG(dbgs() << "********** " << getPassName() << " : " << MF.getName()
                     << "**********\n");
 
@@ -210,7 +215,7 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
   //===--------------------------------------------------------------------===//
   // Register-operand Conversion Algorithm
   // ---------
-  //   For each inner most loop
+  //   For each innermost loop
   //     collectCmovCandidates() {
   //       Find all CMOV-group-candidates.
   //     }
@@ -239,7 +244,7 @@ bool X86CmovConverterPass::runOnMachineFunction(MachineFunction &MF) {
       Loops.push_back(Child);
 
   for (MachineLoop *CurrLoop : Loops) {
-    // Optimize only inner most loops.
+    // Optimize only innermost loops.
     if (!CurrLoop->getSubLoops().empty())
       continue;
 
@@ -529,7 +534,7 @@ bool X86CmovConverterPass::checkForProfitableCmovCandidates(
   //===--------------------------------------------------------------------===//
   // Step 3: Check for each CMOV-group-candidate if it worth to be optimized.
   // Worth-Optimize-Group:
-  //   Iff it worths to optimize all CMOV instructions in the group.
+  //   Iff it is worth to optimize all CMOV instructions in the group.
   //
   // Worth-Optimize-CMOV:
   //   Predicted branch is faster than CMOV by the difference between depth of

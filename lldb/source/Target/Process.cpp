@@ -433,7 +433,8 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
       m_profile_data_comm_mutex(), m_profile_data(), m_iohandler_sync(0),
       m_memory_cache(*this), m_allocated_memory_cache(*this),
       m_should_detach(false), m_next_event_action_up(), m_public_run_lock(),
-      m_private_run_lock(), m_finalizing(false),
+      m_private_run_lock(), m_currently_handling_do_on_removals(false),
+      m_resume_requested(false), m_finalizing(false),
       m_clear_thread_plans_on_stop(false), m_force_next_event_delivery(false),
       m_last_broadcast_state(eStateInvalid), m_destroy_in_process(false),
       m_can_interpret_function_calls(false), m_run_thread_plan_lock(),
@@ -1919,6 +1920,9 @@ Status Process::DisableSoftwareBreakpoint(BreakpointSite *bp_site) {
 //#define VERIFY_MEMORY_READS
 
 size_t Process::ReadMemory(addr_t addr, void *buf, size_t size, Status &error) {
+  if (ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+
   error.Clear();
   if (!GetDisableMemoryCache()) {
 #if defined(VERIFY_MEMORY_READS)
@@ -2031,6 +2035,9 @@ size_t Process::ReadMemoryFromInferior(addr_t addr, void *buf, size_t size,
                                        Status &error) {
   LLDB_SCOPED_TIMER();
 
+  if (ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+
   if (buf == nullptr || size == 0)
     return 0;
 
@@ -2113,6 +2120,9 @@ size_t Process::WriteMemoryPrivate(addr_t addr, const void *buf, size_t size,
 
 size_t Process::WriteMemory(addr_t addr, const void *buf, size_t size,
                             Status &error) {
+  if (ABISP abi_sp = GetABI())
+    addr = abi_sp->FixAnyAddress(addr);
+
 #if defined(ENABLE_MEMORY_CACHING)
   m_memory_cache.Flush(addr, size);
 #endif
@@ -2558,6 +2568,13 @@ Status Process::LaunchPrivate(ProcessLaunchInfo &launch_info, StateType &state,
   if (state == eStateStopped || state == eStateCrashed) {
     DidLaunch();
 
+    // Now that we know the process type, update its signal responses from the
+    // ones stored in the Target:
+    if (m_unix_signals_sp) {
+      StreamSP warning_strm = GetTarget().GetDebugger().GetAsyncErrorStream();
+      GetTarget().UpdateSignalsFromDummy(m_unix_signals_sp, warning_strm);
+    }
+
     DynamicLoader *dyld = GetDynamicLoader();
     if (dyld)
       dyld->DidLaunch();
@@ -2888,9 +2905,9 @@ void Process::CompleteAttach() {
   ArchSpec process_host_arch = GetSystemArchitecture();
   if (platform_sp) {
     const ArchSpec &target_arch = GetTarget().GetArchitecture();
-    if (target_arch.IsValid() &&
-        !platform_sp->IsCompatibleArchitecture(target_arch, process_host_arch,
-                                               false, nullptr)) {
+    if (target_arch.IsValid() && !platform_sp->IsCompatibleArchitecture(
+                                     target_arch, process_host_arch,
+                                     ArchSpec::CompatibleMatch, nullptr)) {
       ArchSpec platform_arch;
       platform_sp = GetTarget().GetDebugger().GetPlatformList().GetOrCreate(
           target_arch, process_host_arch, &platform_arch);
@@ -2918,6 +2935,12 @@ void Process::CompleteAttach() {
                   GetID());
       }
     }
+  }
+  // Now that we know the process type, update its signal responses from the
+  // ones stored in the Target:
+  if (m_unix_signals_sp) {
+    StreamSP warning_strm = GetTarget().GetDebugger().GetAsyncErrorStream();
+    GetTarget().UpdateSignalsFromDummy(m_unix_signals_sp, warning_strm);
   }
 
   // We have completed the attach, now it is time to find the dynamic loader
@@ -4528,9 +4551,9 @@ public:
 private:
   lldb::ThreadPlanSP m_thread_plan_sp;
   bool m_already_reset = false;
-  bool m_private;
-  bool m_is_controlling;
-  bool m_okay_to_discard;
+  bool m_private = false;
+  bool m_is_controlling = false;
+  bool m_okay_to_discard = false;
 };
 } // anonymous namespace
 

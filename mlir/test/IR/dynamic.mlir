@@ -6,19 +6,19 @@
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: func @succeededDynamicTypeVerifier
-func @succeededDynamicTypeVerifier() {
+func.func @succeededDynamicTypeVerifier() {
   // CHECK: %{{.*}} = "unregistered_op"() : () -> !test.dynamic_singleton
   "unregistered_op"() : () -> !test.dynamic_singleton
   // CHECK-NEXT: "unregistered_op"() : () -> !test.dynamic_pair<i32, f64>
   "unregistered_op"() : () -> !test.dynamic_pair<i32, f64>
-  // CHECK_NEXT: %{{.*}} = "unregistered_op"() : () -> !test.dynamic_pair<!test.dynamic_pair<i32, f64>, !test.dynamic_singleton>
+  // CHECK-NEXT: %{{.*}} = "unregistered_op"() : () -> !test.dynamic_pair<!test.dynamic_pair<i32, f64>, !test.dynamic_singleton>
   "unregistered_op"() : () -> !test.dynamic_pair<!test.dynamic_pair<i32, f64>, !test.dynamic_singleton>
   return
 }
 
 // -----
 
-func @failedDynamicTypeVerifier() {
+func.func @failedDynamicTypeVerifier() {
   // expected-error@+1 {{expected 0 type arguments, but had 1}}
   "unregistered_op"() : () -> !test.dynamic_singleton<f64>
   return
@@ -26,7 +26,7 @@ func @failedDynamicTypeVerifier() {
 
 // -----
 
-func @failedDynamicTypeVerifier2() {
+func.func @failedDynamicTypeVerifier2() {
   // expected-error@+1 {{expected 2 type arguments, but had 1}}
   "unregistered_op"() : () -> !test.dynamic_pair<f64>
   return
@@ -35,7 +35,7 @@ func @failedDynamicTypeVerifier2() {
 // -----
 
 // CHECK-LABEL: func @customTypeParserPrinter
-func @customTypeParserPrinter() {
+func.func @customTypeParserPrinter() {
   // CHECK: "unregistered_op"() : () -> !test.dynamic_custom_assembly_format<f32:f64>
   "unregistered_op"() : () -> !test.dynamic_custom_assembly_format<f32 : f64>
   return
@@ -48,19 +48,19 @@ func @customTypeParserPrinter() {
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: func @succeededDynamicAttributeVerifier
-func @succeededDynamicAttributeVerifier() {
+func.func @succeededDynamicAttributeVerifier() {
   // CHECK: "unregistered_op"() {test_attr = #test.dynamic_singleton} : () -> ()
   "unregistered_op"() {test_attr = #test.dynamic_singleton} : () -> ()
   // CHECK-NEXT: "unregistered_op"() {test_attr = #test.dynamic_pair<3 : i32, 5 : i32>} : () -> ()
   "unregistered_op"() {test_attr = #test.dynamic_pair<3 : i32, 5 : i32>} : () -> ()
-  // CHECK_NEXT: "unregistered_op"() {test_attr = #test.dynamic_pair<3 : i32, 5 : i32>} : () -> ()
+  // CHECK-NEXT: "unregistered_op"() {test_attr = #test.dynamic_pair<#test.dynamic_pair<3 : i32, 5 : i32>, f64>} : () -> ()
   "unregistered_op"() {test_attr = #test.dynamic_pair<#test.dynamic_pair<3 : i32, 5 : i32>, f64>} : () -> ()
   return
 }
 
 // -----
 
-func @failedDynamicAttributeVerifier() {
+func.func @failedDynamicAttributeVerifier() {
   // expected-error@+1 {{expected 0 attribute arguments, but had 1}}
   "unregistered_op"() {test_attr = #test.dynamic_singleton<f64>} : () -> ()
   return
@@ -68,7 +68,7 @@ func @failedDynamicAttributeVerifier() {
 
 // -----
 
-func @failedDynamicAttributeVerifier2() {
+func.func @failedDynamicAttributeVerifier2() {
   // expected-error@+1 {{expected 2 attribute arguments, but had 1}}
   "unregistered_op"() {test_attr = #test.dynamic_pair<f64>} : () -> ()
   return
@@ -77,7 +77,7 @@ func @failedDynamicAttributeVerifier2() {
 // -----
 
 // CHECK-LABEL: func @customAttributeParserPrinter
-func @customAttributeParserPrinter() {
+func.func @customAttributeParserPrinter() {
   // CHECK: "unregistered_op"() {test_attr = #test.dynamic_custom_assembly_format<f32:f64>} : () -> ()
   "unregistered_op"() {test_attr = #test.dynamic_custom_assembly_format<f32:f64>} : () -> ()
   return
@@ -90,7 +90,7 @@ func @customAttributeParserPrinter() {
 // -----
 
 // CHECK-LABEL: func @succeededDynamicOpVerifier
-func @succeededDynamicOpVerifier(%a: f32) {
+func.func @succeededDynamicOpVerifier(%a: f32) {
   // CHECK: "test.dynamic_generic"() : () -> ()
   // CHECK-NEXT: %{{.*}} = "test.dynamic_generic"(%{{.*}}) : (f32) -> f64
   // CHECK-NEXT: %{{.*}}:2 = "test.dynamic_one_operand_two_results"(%{{.*}}) : (f32) -> (f64, f64)
@@ -102,7 +102,7 @@ func @succeededDynamicOpVerifier(%a: f32) {
 
 // -----
 
-func @failedDynamicOpVerifier() {
+func.func @failedDynamicOpVerifier() {
   // expected-error@+1 {{expected 1 operand, but had 0}}
   "test.dynamic_one_operand_two_results"() : () -> (f64, f64)
   return
@@ -110,7 +110,7 @@ func @failedDynamicOpVerifier() {
 
 // -----
 
-func @failedDynamicOpVerifier2(%a: f32) {
+func.func @failedDynamicOpVerifier2(%a: f32) {
   // expected-error@+1 {{expected 2 results, but had 0}}
   "test.dynamic_one_operand_two_results"(%a) : (f32) -> ()
   return
@@ -119,7 +119,7 @@ func @failedDynamicOpVerifier2(%a: f32) {
 // -----
 
 // CHECK-LABEL: func @customOpParserPrinter
-func @customOpParserPrinter() {
+func.func @customOpParserPrinter() {
   // CHECK: test.dynamic_custom_parser_printer custom_keyword
   test.dynamic_custom_parser_printer custom_keyword
   return

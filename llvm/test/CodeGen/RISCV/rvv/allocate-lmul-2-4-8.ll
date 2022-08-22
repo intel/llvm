@@ -8,8 +8,10 @@ define void @lmul1() nounwind {
 ; CHECK-LABEL: lmul1:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 1
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 1
 ; CHECK-NEXT:    add sp, sp, a0
 ; CHECK-NEXT:    ret
   %v = alloca <vscale x 1 x i64>
@@ -33,18 +35,18 @@ define void @lmul2() nounwind {
 define void @lmul4() nounwind {
 ; CHECK-LABEL: lmul4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -32
-; CHECK-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 32
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
 ; CHECK-NEXT:    csrr a0, vlenb
 ; CHECK-NEXT:    slli a0, a0, 2
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -32
-; CHECK-NEXT:    addi sp, s0, -32
-; CHECK-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 32
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
 ; CHECK-NEXT:    ret
   %v = alloca <vscale x 4 x i64>
   ret void
@@ -53,45 +55,33 @@ define void @lmul4() nounwind {
 define void @lmul8() nounwind {
 ; CHECK-LABEL: lmul8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -64
-; CHECK-NEXT:    sd ra, 56(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 48(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 64
+; CHECK-NEXT:    addi sp, sp, -80
+; CHECK-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 80
 ; CHECK-NEXT:    csrr a0, vlenb
 ; CHECK-NEXT:    slli a0, a0, 3
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -64
-; CHECK-NEXT:    addi sp, s0, -64
-; CHECK-NEXT:    ld ra, 56(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 48(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 64
+; CHECK-NEXT:    addi sp, s0, -80
+; CHECK-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 80
 ; CHECK-NEXT:    ret
   %v = alloca <vscale x 8 x i64>
   ret void
 }
 
 define void @lmul1_and_2() nounwind {
-; NOZBA-LABEL: lmul1_and_2:
-; NOZBA:       # %bb.0:
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 1
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    sub sp, sp, a0
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 1
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    add sp, sp, a0
-; NOZBA-NEXT:    ret
-;
-; ZBA-LABEL: lmul1_and_2:
-; ZBA:       # %bb.0:
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh1add a0, a0, a0
-; ZBA-NEXT:    sub sp, sp, a0
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh1add a0, a0, a0
-; ZBA-NEXT:    add sp, sp, a0
-; ZBA-NEXT:    ret
+; CHECK-LABEL: lmul1_and_2:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 2
+; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 2
+; CHECK-NEXT:    add sp, sp, a0
+; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 1 x i64>
   %v2 = alloca <vscale x 2 x i64>
   ret void
@@ -100,19 +90,18 @@ define void @lmul1_and_2() nounwind {
 define void @lmul2_and_4() nounwind {
 ; CHECK-LABEL: lmul2_and_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -32
-; CHECK-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 32
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
 ; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    li a1, 6
-; CHECK-NEXT:    mul a0, a0, a1
+; CHECK-NEXT:    slli a0, a0, 3
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -32
-; CHECK-NEXT:    addi sp, s0, -32
-; CHECK-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 32
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
 ; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 2 x i64>
   %v2 = alloca <vscale x 4 x i64>
@@ -120,103 +109,57 @@ define void @lmul2_and_4() nounwind {
 }
 
 define void @lmul1_and_4() nounwind {
-; NOZBA-LABEL: lmul1_and_4:
-; NOZBA:       # %bb.0:
-; NOZBA-NEXT:    addi sp, sp, -32
-; NOZBA-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; NOZBA-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; NOZBA-NEXT:    addi s0, sp, 32
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 2
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    sub sp, sp, a0
-; NOZBA-NEXT:    andi sp, sp, -32
-; NOZBA-NEXT:    addi sp, s0, -32
-; NOZBA-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; NOZBA-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; NOZBA-NEXT:    addi sp, sp, 32
-; NOZBA-NEXT:    ret
-;
-; ZBA-LABEL: lmul1_and_4:
-; ZBA:       # %bb.0:
-; ZBA-NEXT:    addi sp, sp, -32
-; ZBA-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; ZBA-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; ZBA-NEXT:    addi s0, sp, 32
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh2add a0, a0, a0
-; ZBA-NEXT:    sub sp, sp, a0
-; ZBA-NEXT:    andi sp, sp, -32
-; ZBA-NEXT:    addi sp, s0, -32
-; ZBA-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; ZBA-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; ZBA-NEXT:    addi sp, sp, 32
-; ZBA-NEXT:    ret
+; CHECK-LABEL: lmul1_and_4:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 3
+; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    andi sp, sp, -32
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
+; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 1 x i64>
   %v2 = alloca <vscale x 4 x i64>
   ret void
 }
 
 define void @lmul2_and_1() nounwind {
-; NOZBA-LABEL: lmul2_and_1:
-; NOZBA:       # %bb.0:
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 1
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    sub sp, sp, a0
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 1
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    add sp, sp, a0
-; NOZBA-NEXT:    ret
-;
-; ZBA-LABEL: lmul2_and_1:
-; ZBA:       # %bb.0:
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh1add a0, a0, a0
-; ZBA-NEXT:    sub sp, sp, a0
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh1add a0, a0, a0
-; ZBA-NEXT:    add sp, sp, a0
-; ZBA-NEXT:    ret
+; CHECK-LABEL: lmul2_and_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 2
+; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 2
+; CHECK-NEXT:    add sp, sp, a0
+; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 2 x i64>
   %v2 = alloca <vscale x 1 x i64>
   ret void
 }
 
 define void @lmul4_and_1() nounwind {
-; NOZBA-LABEL: lmul4_and_1:
-; NOZBA:       # %bb.0:
-; NOZBA-NEXT:    addi sp, sp, -32
-; NOZBA-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; NOZBA-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; NOZBA-NEXT:    addi s0, sp, 32
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 2
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    sub sp, sp, a0
-; NOZBA-NEXT:    andi sp, sp, -32
-; NOZBA-NEXT:    addi sp, s0, -32
-; NOZBA-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; NOZBA-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; NOZBA-NEXT:    addi sp, sp, 32
-; NOZBA-NEXT:    ret
-;
-; ZBA-LABEL: lmul4_and_1:
-; ZBA:       # %bb.0:
-; ZBA-NEXT:    addi sp, sp, -32
-; ZBA-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; ZBA-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; ZBA-NEXT:    addi s0, sp, 32
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh2add a0, a0, a0
-; ZBA-NEXT:    sub sp, sp, a0
-; ZBA-NEXT:    andi sp, sp, -32
-; ZBA-NEXT:    addi sp, s0, -32
-; ZBA-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; ZBA-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; ZBA-NEXT:    addi sp, sp, 32
-; ZBA-NEXT:    ret
+; CHECK-LABEL: lmul4_and_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 3
+; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    andi sp, sp, -32
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
+; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 4 x i64>
   %v2 = alloca <vscale x 1 x i64>
   ret void
@@ -225,19 +168,18 @@ define void @lmul4_and_1() nounwind {
 define void @lmul4_and_2() nounwind {
 ; CHECK-LABEL: lmul4_and_2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -32
-; CHECK-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 32
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
 ; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    li a1, 6
-; CHECK-NEXT:    mul a0, a0, a1
+; CHECK-NEXT:    slli a0, a0, 3
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -32
-; CHECK-NEXT:    addi sp, s0, -32
-; CHECK-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 32
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
 ; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 4 x i64>
   %v2 = alloca <vscale x 2 x i64>
@@ -247,19 +189,18 @@ define void @lmul4_and_2() nounwind {
 define void @lmul4_and_2_x2_0() nounwind {
 ; CHECK-LABEL: lmul4_and_2_x2_0:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -32
-; CHECK-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 32
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
 ; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    li a1, 12
-; CHECK-NEXT:    mul a0, a0, a1
+; CHECK-NEXT:    slli a0, a0, 4
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -32
-; CHECK-NEXT:    addi sp, s0, -32
-; CHECK-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 32
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
 ; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 4 x i64>
   %v2 = alloca <vscale x 2 x i64>
@@ -269,22 +210,39 @@ define void @lmul4_and_2_x2_0() nounwind {
 }
 
 define void @lmul4_and_2_x2_1() nounwind {
-; CHECK-LABEL: lmul4_and_2_x2_1:
-; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -32
-; CHECK-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 32
-; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    li a1, 12
-; CHECK-NEXT:    mul a0, a0, a1
-; CHECK-NEXT:    sub sp, sp, a0
-; CHECK-NEXT:    andi sp, sp, -32
-; CHECK-NEXT:    addi sp, s0, -32
-; CHECK-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 32
-; CHECK-NEXT:    ret
+; NOZBA-LABEL: lmul4_and_2_x2_1:
+; NOZBA:       # %bb.0:
+; NOZBA-NEXT:    addi sp, sp, -48
+; NOZBA-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; NOZBA-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; NOZBA-NEXT:    addi s0, sp, 48
+; NOZBA-NEXT:    csrr a0, vlenb
+; NOZBA-NEXT:    li a1, 12
+; NOZBA-NEXT:    mul a0, a0, a1
+; NOZBA-NEXT:    sub sp, sp, a0
+; NOZBA-NEXT:    andi sp, sp, -32
+; NOZBA-NEXT:    addi sp, s0, -48
+; NOZBA-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; NOZBA-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; NOZBA-NEXT:    addi sp, sp, 48
+; NOZBA-NEXT:    ret
+;
+; ZBA-LABEL: lmul4_and_2_x2_1:
+; ZBA:       # %bb.0:
+; ZBA-NEXT:    addi sp, sp, -48
+; ZBA-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; ZBA-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; ZBA-NEXT:    addi s0, sp, 48
+; ZBA-NEXT:    csrr a0, vlenb
+; ZBA-NEXT:    slli a0, a0, 2
+; ZBA-NEXT:    sh1add a0, a0, a0
+; ZBA-NEXT:    sub sp, sp, a0
+; ZBA-NEXT:    andi sp, sp, -32
+; ZBA-NEXT:    addi sp, s0, -48
+; ZBA-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; ZBA-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; ZBA-NEXT:    addi sp, sp, 48
+; ZBA-NEXT:    ret
   %v1 = alloca <vscale x 4 x i64>
   %v3 = alloca <vscale x 4 x i64>
   %v2 = alloca <vscale x 2 x i64>
@@ -294,35 +252,19 @@ define void @lmul4_and_2_x2_1() nounwind {
 
 
 define void @gpr_and_lmul1_and_2() nounwind {
-; NOZBA-LABEL: gpr_and_lmul1_and_2:
-; NOZBA:       # %bb.0:
-; NOZBA-NEXT:    addi sp, sp, -16
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 1
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    sub sp, sp, a0
-; NOZBA-NEXT:    li a0, 3
-; NOZBA-NEXT:    sd a0, 8(sp)
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 1
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    add sp, sp, a0
-; NOZBA-NEXT:    addi sp, sp, 16
-; NOZBA-NEXT:    ret
-;
-; ZBA-LABEL: gpr_and_lmul1_and_2:
-; ZBA:       # %bb.0:
-; ZBA-NEXT:    addi sp, sp, -16
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh1add a0, a0, a0
-; ZBA-NEXT:    sub sp, sp, a0
-; ZBA-NEXT:    li a0, 3
-; ZBA-NEXT:    sd a0, 8(sp)
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh1add a0, a0, a0
-; ZBA-NEXT:    add sp, sp, a0
-; ZBA-NEXT:    addi sp, sp, 16
-; ZBA-NEXT:    ret
+; CHECK-LABEL: gpr_and_lmul1_and_2:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi sp, sp, -16
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 2
+; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    li a0, 3
+; CHECK-NEXT:    sd a0, 8(sp)
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 2
+; CHECK-NEXT:    add sp, sp, a0
+; CHECK-NEXT:    addi sp, sp, 16
+; CHECK-NEXT:    ret
   %x1 = alloca i64
   %v1 = alloca <vscale x 1 x i64>
   %v2 = alloca <vscale x 2 x i64>
@@ -331,42 +273,23 @@ define void @gpr_and_lmul1_and_2() nounwind {
 }
 
 define void @gpr_and_lmul1_and_4() nounwind {
-; NOZBA-LABEL: gpr_and_lmul1_and_4:
-; NOZBA:       # %bb.0:
-; NOZBA-NEXT:    addi sp, sp, -32
-; NOZBA-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; NOZBA-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; NOZBA-NEXT:    addi s0, sp, 32
-; NOZBA-NEXT:    csrr a0, vlenb
-; NOZBA-NEXT:    slli a1, a0, 2
-; NOZBA-NEXT:    add a0, a1, a0
-; NOZBA-NEXT:    sub sp, sp, a0
-; NOZBA-NEXT:    andi sp, sp, -32
-; NOZBA-NEXT:    li a0, 3
-; NOZBA-NEXT:    sd a0, 8(sp)
-; NOZBA-NEXT:    addi sp, s0, -32
-; NOZBA-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; NOZBA-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; NOZBA-NEXT:    addi sp, sp, 32
-; NOZBA-NEXT:    ret
-;
-; ZBA-LABEL: gpr_and_lmul1_and_4:
-; ZBA:       # %bb.0:
-; ZBA-NEXT:    addi sp, sp, -32
-; ZBA-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
-; ZBA-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
-; ZBA-NEXT:    addi s0, sp, 32
-; ZBA-NEXT:    csrr a0, vlenb
-; ZBA-NEXT:    sh2add a0, a0, a0
-; ZBA-NEXT:    sub sp, sp, a0
-; ZBA-NEXT:    andi sp, sp, -32
-; ZBA-NEXT:    li a0, 3
-; ZBA-NEXT:    sd a0, 8(sp)
-; ZBA-NEXT:    addi sp, s0, -32
-; ZBA-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
-; ZBA-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
-; ZBA-NEXT:    addi sp, sp, 32
-; ZBA-NEXT:    ret
+; CHECK-LABEL: gpr_and_lmul1_and_4:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi sp, sp, -48
+; CHECK-NEXT:    sd ra, 40(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 32(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 48
+; CHECK-NEXT:    csrr a0, vlenb
+; CHECK-NEXT:    slli a0, a0, 3
+; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    andi sp, sp, -32
+; CHECK-NEXT:    li a0, 3
+; CHECK-NEXT:    sd a0, 8(sp)
+; CHECK-NEXT:    addi sp, s0, -48
+; CHECK-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 48
+; CHECK-NEXT:    ret
   %x1 = alloca i64
   %v1 = alloca <vscale x 1 x i64>
   %v2 = alloca <vscale x 4 x i64>
@@ -377,19 +300,18 @@ define void @gpr_and_lmul1_and_4() nounwind {
 define void @lmul_1_2_4_8() nounwind {
 ; CHECK-LABEL: lmul_1_2_4_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -64
-; CHECK-NEXT:    sd ra, 56(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 48(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 64
+; CHECK-NEXT:    addi sp, sp, -80
+; CHECK-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 80
 ; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    slli a1, a0, 4
-; CHECK-NEXT:    sub a0, a1, a0
+; CHECK-NEXT:    slli a0, a0, 4
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -64
-; CHECK-NEXT:    addi sp, s0, -64
-; CHECK-NEXT:    ld ra, 56(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 48(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 64
+; CHECK-NEXT:    addi sp, s0, -80
+; CHECK-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 80
 ; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 1 x i64>
   %v2 = alloca <vscale x 2 x i64>
@@ -401,19 +323,18 @@ define void @lmul_1_2_4_8() nounwind {
 define void @lmul_1_2_4_8_x2_0() nounwind {
 ; CHECK-LABEL: lmul_1_2_4_8_x2_0:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -64
-; CHECK-NEXT:    sd ra, 56(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 48(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 64
+; CHECK-NEXT:    addi sp, sp, -80
+; CHECK-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 80
 ; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    li a1, 30
-; CHECK-NEXT:    mul a0, a0, a1
+; CHECK-NEXT:    slli a0, a0, 5
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -64
-; CHECK-NEXT:    addi sp, s0, -64
-; CHECK-NEXT:    ld ra, 56(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 48(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 64
+; CHECK-NEXT:    addi sp, s0, -80
+; CHECK-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 80
 ; CHECK-NEXT:    ret
   %v1 = alloca <vscale x 1 x i64>
   %v2 = alloca <vscale x 1 x i64>
@@ -429,19 +350,18 @@ define void @lmul_1_2_4_8_x2_0() nounwind {
 define void @lmul_1_2_4_8_x2_1() nounwind {
 ; CHECK-LABEL: lmul_1_2_4_8_x2_1:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    addi sp, sp, -64
-; CHECK-NEXT:    sd ra, 56(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    sd s0, 48(sp) # 8-byte Folded Spill
-; CHECK-NEXT:    addi s0, sp, 64
+; CHECK-NEXT:    addi sp, sp, -80
+; CHECK-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; CHECK-NEXT:    addi s0, sp, 80
 ; CHECK-NEXT:    csrr a0, vlenb
-; CHECK-NEXT:    li a1, 30
-; CHECK-NEXT:    mul a0, a0, a1
+; CHECK-NEXT:    slli a0, a0, 5
 ; CHECK-NEXT:    sub sp, sp, a0
 ; CHECK-NEXT:    andi sp, sp, -64
-; CHECK-NEXT:    addi sp, s0, -64
-; CHECK-NEXT:    ld ra, 56(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    ld s0, 48(sp) # 8-byte Folded Reload
-; CHECK-NEXT:    addi sp, sp, 64
+; CHECK-NEXT:    addi sp, s0, -80
+; CHECK-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; CHECK-NEXT:    addi sp, sp, 80
 ; CHECK-NEXT:    ret
   %v8 = alloca <vscale x 8 x i64>
   %v7 = alloca <vscale x 8 x i64>
@@ -468,5 +388,93 @@ define void @masks() nounwind {
   %v2 = alloca <vscale x 2 x i1>
   %v4 = alloca <vscale x 4 x i1>
   %v8 = alloca <vscale x 8 x i1>
+  ret void
+}
+
+define void @lmul_8_x5() nounwind {
+; NOZBA-LABEL: lmul_8_x5:
+; NOZBA:       # %bb.0:
+; NOZBA-NEXT:    addi sp, sp, -80
+; NOZBA-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; NOZBA-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; NOZBA-NEXT:    addi s0, sp, 80
+; NOZBA-NEXT:    csrr a0, vlenb
+; NOZBA-NEXT:    li a1, 40
+; NOZBA-NEXT:    mul a0, a0, a1
+; NOZBA-NEXT:    sub sp, sp, a0
+; NOZBA-NEXT:    andi sp, sp, -64
+; NOZBA-NEXT:    addi sp, s0, -80
+; NOZBA-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; NOZBA-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; NOZBA-NEXT:    addi sp, sp, 80
+; NOZBA-NEXT:    ret
+;
+; ZBA-LABEL: lmul_8_x5:
+; ZBA:       # %bb.0:
+; ZBA-NEXT:    addi sp, sp, -80
+; ZBA-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; ZBA-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; ZBA-NEXT:    addi s0, sp, 80
+; ZBA-NEXT:    csrr a0, vlenb
+; ZBA-NEXT:    slli a0, a0, 3
+; ZBA-NEXT:    sh2add a0, a0, a0
+; ZBA-NEXT:    sub sp, sp, a0
+; ZBA-NEXT:    andi sp, sp, -64
+; ZBA-NEXT:    addi sp, s0, -80
+; ZBA-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; ZBA-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; ZBA-NEXT:    addi sp, sp, 80
+; ZBA-NEXT:    ret
+  %v1 = alloca <vscale x 8 x i64>
+  %v2 = alloca <vscale x 8 x i64>
+  %v3 = alloca <vscale x 8 x i64>
+  %v4 = alloca <vscale x 8 x i64>
+  %v5 = alloca <vscale x 8 x i64>
+  ret void
+}
+
+define void @lmul_8_x9() nounwind {
+; NOZBA-LABEL: lmul_8_x9:
+; NOZBA:       # %bb.0:
+; NOZBA-NEXT:    addi sp, sp, -80
+; NOZBA-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; NOZBA-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; NOZBA-NEXT:    addi s0, sp, 80
+; NOZBA-NEXT:    csrr a0, vlenb
+; NOZBA-NEXT:    li a1, 72
+; NOZBA-NEXT:    mul a0, a0, a1
+; NOZBA-NEXT:    sub sp, sp, a0
+; NOZBA-NEXT:    andi sp, sp, -64
+; NOZBA-NEXT:    addi sp, s0, -80
+; NOZBA-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; NOZBA-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; NOZBA-NEXT:    addi sp, sp, 80
+; NOZBA-NEXT:    ret
+;
+; ZBA-LABEL: lmul_8_x9:
+; ZBA:       # %bb.0:
+; ZBA-NEXT:    addi sp, sp, -80
+; ZBA-NEXT:    sd ra, 72(sp) # 8-byte Folded Spill
+; ZBA-NEXT:    sd s0, 64(sp) # 8-byte Folded Spill
+; ZBA-NEXT:    addi s0, sp, 80
+; ZBA-NEXT:    csrr a0, vlenb
+; ZBA-NEXT:    slli a0, a0, 3
+; ZBA-NEXT:    sh3add a0, a0, a0
+; ZBA-NEXT:    sub sp, sp, a0
+; ZBA-NEXT:    andi sp, sp, -64
+; ZBA-NEXT:    addi sp, s0, -80
+; ZBA-NEXT:    ld ra, 72(sp) # 8-byte Folded Reload
+; ZBA-NEXT:    ld s0, 64(sp) # 8-byte Folded Reload
+; ZBA-NEXT:    addi sp, sp, 80
+; ZBA-NEXT:    ret
+  %v1 = alloca <vscale x 8 x i64>
+  %v2 = alloca <vscale x 8 x i64>
+  %v3 = alloca <vscale x 8 x i64>
+  %v4 = alloca <vscale x 8 x i64>
+  %v5 = alloca <vscale x 8 x i64>
+  %v6 = alloca <vscale x 8 x i64>
+  %v7 = alloca <vscale x 8 x i64>
+  %v8 = alloca <vscale x 8 x i64>
+  %v9 = alloca <vscale x 8 x i64>
   ret void
 }

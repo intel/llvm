@@ -25,7 +25,9 @@ def Bufferization_Dialect : Dialect {
     found in [bufferization](/docs/Bufferization/) and [buffer
     deallocation](/docs/BufferDeallocationInternals/).
   }];
-  let dependentDialects = ["memref::MemRefDialect", "tensor::TensorDialect"];
+  let dependentDialects = [
+    "AffineDialect", "memref::MemRefDialect", "tensor::TensorDialect"
+  ];
 
   let extraClassDeclaration = [{
     /// An attribute that can override writability of buffers of tensor function
@@ -37,8 +39,19 @@ def Bufferization_Dialect : Dialect {
     /// arguments during One-Shot Module Bufferize.
     constexpr const static ::llvm::StringLiteral
         kBufferLayoutAttrName = "bufferization.buffer_layout";
+
+    /// Attribute name used to mark escaping behavior of buffer allocations.
+    /// Escaping allocations cannot be deallocated in the same block and must
+    /// be treated specially: They are currently deallocated with the
+    /// BufferDeallocation pass.
+    ///
+    /// Note: Only ops with at least one OpResult that bufferizes to a buffer
+    /// allocation (as per BufferizableOpInterface) may have this attribute.
+    constexpr const static ::llvm::StringLiteral
+        kEscapeAttrName = "bufferization.escape";
   }];
   let hasOperationAttrVerify = 1;
+  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 }
 
 #endif // BUFFERIZATION_BASE

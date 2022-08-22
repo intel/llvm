@@ -77,16 +77,59 @@ supports.
 
 == Examples
 
+.Device allocation example
 [source,c++]
 ----
-array = (int *)sycl::malloc_device<int>(
-        N, q,
-        sycl::property_list{sycl::ext::intel::experimental::property::usm::buffer_location(2)});
+using namespace sycl;
+using namespace sycl::ext::intel::experimental;
+...
+queue q;
 
-sycl::queue q;
-q.parallel_for(sycl::range<1>(N), [=] (sycl::id<1> i){
-  data[i] *= 2;
+auto device_array = malloc_device<int>(kN, q, property_list{property::usm::buffer_location(2)});
+
+int host_array[kN];
+
+for(int i=0; i<kN; i++) {
+  host_array[i] = ...
+}
+
+q.copy(host_array, device_array, kN).wait();
+ 
+q.submit([=] {
+  ...
+  ... = device_array[index];
+  device_array[index] = ...;
+  ...
 }).wait();
+
+q.copy(device_array, host_array, kN).wait();
+
+...
+... = host_array[index];
+----
+
+.Shared allocation example
+[source,c++]
+----
+using namespace sycl;
+using namespace sycl::ext::intel::experimental;
+...
+queue q;
+
+auto array = malloc_shared<int>(kN, q, property_list{property::usm::buffer_location(2)});
+for(int i=0; i<kN; i++) {
+  array = ...
+}
+ 
+q.submit([=] {
+  ...
+  ... = array[index];
+  array[index] = ...;
+  ...
+}).wait();
+
+...
+... = array[index];
 ----
 
 
@@ -96,9 +139,7 @@ This extension adds the new property
 `sycl::ext::intel::experimental::property::usm::buffer_location` which 
 applications can pass in the property_list parameter to all overloads of the 
 `sycl::malloc_device()`, `sycl::malloc_shared()`, and `sycl::malloc_host()` 
-functions. However, this property has no effect when passed to 
-`sycl::malloc_shared()` or `sycl::malloc_host()`. Following is a synopsis of
- this property.
+functions. Following is a synopsis of this property.
 
 [source,c++]
 ----
@@ -114,13 +155,12 @@ class buffer_location {
 ----
 
 On targets that provide more than one type of global memory, `buffer_location` 
-allows user to specify which of the global memory to allocate memory to. This 
-provide user the flexibility to choose the global memory that satisfy 
+allows users to specify which global memory to allocate memory to. This 
+provides users the flexibility to choose the global memory that satisfies their
 requirements for bandwidth and throughput.
 
-This property is ignored for non-FPGA devices. Attempting to use this 
+This property is ignored for non-FPGA devices. Attempting to use this
 extension on other devices or backends will result in no effect.
-
 
 == Issues
 
@@ -132,4 +172,5 @@ extension on other devices or backends will result in no effect.
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-03-01|Sherry Yuan|*Initial public draft*
+|2|2022-05-31|Abhishek Tiwari|*Updates for shared/host malloc*
 |========================================

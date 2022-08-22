@@ -26,9 +26,11 @@ include(AddSYCL)
 include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 6)
+set(SYCL_MINOR_VERSION 7)
 set(SYCL_PATCH_VERSION 0)
-set(SYCL_DEV_ABI_VERSION 0)
+# Don't forget to re-enable sycl_symbols_windows.dump once we leave ABI-breaking
+# window!
+set(SYCL_DEV_ABI_VERSION 10)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -154,9 +156,9 @@ set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
-set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
+set(version_header "${sycl_inc_dir}/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
-set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
+set(feature_header "${sycl_inc_dir}/sycl/feature_test.hpp")
 configure_file("${feature_header}.in" "${feature_header}")
 
 include(AddBoostMp11Headers)
@@ -403,6 +405,12 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
+
+  # On AMD platform lld is also needed
+  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    add_dependencies(sycl-toolchain lld)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
+  endif()
 endif()
 
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)

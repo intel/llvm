@@ -40,6 +40,8 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strcmp
     libc.src.string.strcpy
     libc.src.string.strcspn
+    libc.src.string.strlcat
+    libc.src.string.strlcpy
     libc.src.string.strlen
     libc.src.string.strncat
     libc.src.string.strncmp
@@ -57,6 +59,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strndup
 
     # inttypes.h entrypoints
+    libc.src.inttypes.imaxabs
     libc.src.inttypes.imaxdiv
     libc.src.inttypes.strtoimax
     libc.src.inttypes.strtoumax
@@ -133,6 +136,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ceilf
     libc.src.math.ceill
     libc.src.math.cos
+    libc.src.math.coshf
     libc.src.math.cosf
     libc.src.math.expf
     libc.src.math.exp2f
@@ -154,6 +158,8 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.fmax
     libc.src.math.fmaxf
     libc.src.math.fmaxl
+    libc.src.math.fmod
+    libc.src.math.fmodf
     libc.src.math.frexp
     libc.src.math.frexpf
     libc.src.math.frexpl
@@ -207,11 +213,13 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.roundl
     libc.src.math.sin
     libc.src.math.sincosf
+    libc.src.math.sinhf
     libc.src.math.sinf
     libc.src.math.sqrt
     libc.src.math.sqrtf
     libc.src.math.sqrtl
     libc.src.math.tan
+    libc.src.math.tanhf
     libc.src.math.trunc
     libc.src.math.truncf
     libc.src.math.truncl
@@ -221,6 +229,12 @@ if(LLVM_LIBC_FULL_BUILD)
   list(APPEND TARGET_LIBC_ENTRYPOINTS
     # assert.h entrypoints
     # libc.src.assert.__assert_fail
+
+    # dirent.h entrypoints
+    libc.src.dirent.closedir
+    libc.src.dirent.dirfd
+    libc.src.dirent.opendir
+    libc.src.dirent.readdir
 
     # pthread.h entrypoints
     libc.src.pthread.pthread_attr_destroy
@@ -234,6 +248,17 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.pthread.pthread_attr_setstack
     libc.src.pthread.pthread_attr_setstacksize
     libc.src.pthread.pthread_attr_init
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_detach
+    libc.src.pthread.pthread_equal
+    libc.src.pthread.pthread_getname_np
+    libc.src.pthread.pthread_join
+    libc.src.pthread.pthread_self
+    libc.src.pthread.pthread_setname_np
+    libc.src.pthread.pthread_mutex_destroy
+    libc.src.pthread.pthread_mutex_init
+    libc.src.pthread.pthread_mutex_lock
+    libc.src.pthread.pthread_mutex_unlock
     libc.src.pthread.pthread_mutexattr_destroy
     libc.src.pthread.pthread_mutexattr_init
     libc.src.pthread.pthread_mutexattr_getpshared
@@ -245,7 +270,6 @@ if(LLVM_LIBC_FULL_BUILD)
 
     # stdlib.h entrypoints
     libc.src.stdlib._Exit
-    # libc.src.stdlib.abort
     libc.src.stdlib.atexit
     libc.src.stdlib.exit
     libc.src.stdlib.getenv
@@ -268,6 +292,12 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.stdio.funlockfile
     libc.src.stdio.fwrite
     libc.src.stdio.fwrite_unlocked
+    libc.src.stdio.sprintf
+    libc.src.stdio.snprintf
+    libc.src.stdio.fprintf
+    libc.src.stdio.printf
+    libc.src.stdio.stderr
+    libc.src.stdio.stdout
 
     # signal.h entrypoints
     # TODO: Enable signal.h entrypoints after fixing signal.h
@@ -292,6 +322,9 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.threads.mtx_lock
     libc.src.threads.mtx_unlock
     libc.src.threads.thrd_create
+    libc.src.threads.thrd_current
+    libc.src.threads.thrd_detach
+    libc.src.threads.thrd_equal
     libc.src.threads.thrd_join
 
     # time.h entrypoints

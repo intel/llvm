@@ -578,7 +578,7 @@ namespace {
 
     /// LambdaCaptureFields - Mapping from captured variables/this to
     /// corresponding data members in the closure class.
-    llvm::DenseMap<const VarDecl *, FieldDecl *> LambdaCaptureFields;
+    llvm::DenseMap<const ValueDecl *, FieldDecl *> LambdaCaptureFields;
     FieldDecl *LambdaThisCaptureField;
 
     CallStackFrame(EvalInfo &Info, SourceLocation CallLoc,
@@ -2552,18 +2552,15 @@ static bool HandleFloatToIntCast(EvalInfo &Info, const Expr *E,
   return true;
 }
 
-/// Get rounding mode used for evaluation of the specified expression.
-/// \param[out] DynamicRM Is set to true is the requested rounding mode is
-///                       dynamic.
+/// Get rounding mode to use in evaluation of the specified expression.
+///
 /// If rounding mode is unknown at compile time, still try to evaluate the
 /// expression. If the result is exact, it does not depend on rounding mode.
 /// So return "tonearest" mode instead of "dynamic".
-static llvm::RoundingMode getActiveRoundingMode(EvalInfo &Info, const Expr *E,
-                                                bool &DynamicRM) {
+static llvm::RoundingMode getActiveRoundingMode(EvalInfo &Info, const Expr *E) {
   llvm::RoundingMode RM =
       E->getFPFeaturesInEffect(Info.Ctx.getLangOpts()).getRoundingMode();
-  DynamicRM = (RM == llvm::RoundingMode::Dynamic);
-  if (DynamicRM)
+  if (RM == llvm::RoundingMode::Dynamic)
     RM = llvm::RoundingMode::NearestTiesToEven;
   return RM;
 }
@@ -2587,14 +2584,14 @@ static bool checkFloatingPointResult(EvalInfo &Info, const Expr *E,
 
   if ((St != APFloat::opOK) &&
       (FPO.getRoundingMode() == llvm::RoundingMode::Dynamic ||
-       FPO.getFPExceptionMode() != LangOptions::FPE_Ignore ||
+       FPO.getExceptionMode() != LangOptions::FPE_Ignore ||
        FPO.getAllowFEnvAccess())) {
     Info.FFDiag(E, diag::note_constexpr_float_arithmetic_strict);
     return false;
   }
 
   if ((St & APFloat::opStatus::opInvalidOp) &&
-      FPO.getFPExceptionMode() != LangOptions::FPE_Ignore) {
+      FPO.getExceptionMode() != LangOptions::FPE_Ignore) {
     // There is no usefully definable result.
     Info.FFDiag(E);
     return false;
@@ -2613,8 +2610,7 @@ static bool HandleFloatToFloatCast(EvalInfo &Info, const Expr *E,
                                    QualType SrcType, QualType DestType,
                                    APFloat &Result) {
   assert(isa<CastExpr>(E) || isa<CompoundAssignOperator>(E));
-  bool DynamicRM;
-  llvm::RoundingMode RM = getActiveRoundingMode(Info, E, DynamicRM);
+  llvm::RoundingMode RM = getActiveRoundingMode(Info, E);
   APFloat::opStatus St;
   APFloat Value = Result;
   bool ignored;
@@ -2849,8 +2845,7 @@ static bool handleIntIntBinOp(EvalInfo &Info, const Expr *E, const APSInt &LHS,
 static bool handleFloatFloatBinOp(EvalInfo &Info, const BinaryOperator *E,
                                   APFloat &LHS, BinaryOperatorKind Opcode,
                                   const APFloat &RHS) {
-  bool DynamicRM;
-  llvm::RoundingMode RM = getActiveRoundingMode(Info, E, DynamicRM);
+  llvm::RoundingMode RM = getActiveRoundingMode(Info, E);
   APFloat::opStatus St;
   switch (Opcode) {
   default:
@@ -4259,9 +4254,33 @@ handleLValueToRValueConversion(EvalInfo &Info, const Expr *Conv, QualType Type,
         Info.FFDiag(Conv);
         return false;
       }
+
       APValue Lit;
       if (!Evaluate(Lit, Info, CLE->getInitializer()))
         return false;
+
+      // According to GCC info page:
+      //
+      // 6.28 Compound Literals
+      //
+      // As an optimization, G++ sometimes gives array compound literals longer
+      // lifetimes: when the array either appears outside a function or has a
+      // const-qualified type. If foo and its initializer had elements of type
+      // char *const rather than char *, or if foo were a global variable, the
+      // array would have static storage duration. But it is probably safest
+      // just to avoid the use of array compound literals in C++ code.
+      //
+      // Obey that rule by checking constness for converted array types.
+
+      QualType CLETy = CLE->getType();
+      if (CLETy->isArrayType() && !Type->isArrayType()) {
+        if (!CLETy.isConstant(Info.Ctx)) {
+          Info.FFDiag(Conv);
+          Info.Note(CLE->getExprLoc(), diag::note_declared_at);
+          return false;
+        }
+      }
+
       CompleteObject LitObj(LVal.Base, &Lit, Base->getType());
       return extractSubobject(Info, Conv, LitObj, LVal.Designator, RVal, AK);
     } else if (isa<StringLiteral>(Base) || isa<PredefinedExpr>(Base)) {
@@ -5247,10 +5266,14 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
       }
     }
     bool Cond;
-    if (IS->isConsteval())
+    if (IS->isConsteval()) {
       Cond = IS->isNonNegatedConsteval();
-    else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
-                           Cond))
+      // If we are not in a constant context, if consteval should not evaluate
+      // to true.
+      if (!Info.InConstantContext)
+        Cond = !Cond;
+    } else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
+                             Cond))
       return ESR_Failed;
 
     if (const Stmt *SubStmt = Cond ? IS->getThen() : IS->getElse()) {
@@ -6536,7 +6559,7 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
 
   // We don't have a good way to iterate fields in reverse, so collect all the
   // fields first and then walk them backwards.
-  SmallVector<FieldDecl*, 16> Fields(RD->field_begin(), RD->field_end());
+  SmallVector<FieldDecl*, 16> Fields(RD->fields());
   for (const FieldDecl *FD : llvm::reverse(Fields)) {
     if (FD->isUnnamedBitfield())
       continue;
@@ -8572,7 +8595,7 @@ static bool getBytesReturnedByAllocSizeCall(const ASTContext &Ctx,
     Into = ExprResult.Val.getInt();
     if (Into.isNegative() || !Into.isIntN(BitsInSizeT))
       return false;
-    Into = Into.zextOrSelf(BitsInSizeT);
+    Into = Into.zext(BitsInSizeT);
     return true;
   };
 
@@ -8764,7 +8787,7 @@ public:
                                                      ArrayType::Normal, 0);
 
     StringLiteral *SL =
-        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ascii,
+        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ordinary,
                               /*Pascal*/ false, ArrayTy, E->getLocation());
 
     evaluateLValue(SL, Result);
@@ -8782,7 +8805,7 @@ public:
                                                      ArrayType::Normal, 0);
 
     StringLiteral *SL =
-        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ascii,
+        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ordinary,
                               /*Pascal*/ false, ArrayTy, E->getLocation());
 
     evaluateLValue(SL, Result);
@@ -9576,8 +9599,8 @@ bool PointerExprEvaluator::VisitCXXNewExpr(const CXXNewExpr *E) {
 
       unsigned Bits =
           std::max(CAT->getSize().getBitWidth(), ArrayBound.getBitWidth());
-      llvm::APInt InitBound = CAT->getSize().zextOrSelf(Bits);
-      llvm::APInt AllocBound = ArrayBound.zextOrSelf(Bits);
+      llvm::APInt InitBound = CAT->getSize().zext(Bits);
+      llvm::APInt AllocBound = ArrayBound.zext(Bits);
       if (InitBound.ugt(AllocBound)) {
         if (IsNothrow)
           return ZeroInitialization(E);
@@ -10371,9 +10394,9 @@ bool VectorExprEvaluator::VisitCastExpr(const CastExpr *E) {
       for (unsigned i = 0; i < NElts; i++) {
         llvm::APInt Elt;
         if (BigEndian)
-          Elt = SValInt.rotl(i*EltSize+FloatEltSize).truncOrSelf(FloatEltSize);
+          Elt = SValInt.rotl(i * EltSize + FloatEltSize).trunc(FloatEltSize);
         else
-          Elt = SValInt.rotr(i*EltSize).truncOrSelf(FloatEltSize);
+          Elt = SValInt.rotr(i * EltSize).trunc(FloatEltSize);
         Elts.push_back(APValue(APFloat(Sem, Elt)));
       }
     } else if (EltTy->isIntegerType()) {
@@ -10828,6 +10851,9 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
     if (FinalSize == 0)
       return true;
 
+    bool HasTrivialConstructor = CheckTrivialDefaultConstructor(
+        Info, E->getExprLoc(), E->getConstructor(),
+        E->requiresZeroInitialization());
     LValue ArrayElt = Subobject;
     ArrayElt.addArray(Info, E, CAT);
     // We do the whole initialization in two passes, first for just one element,
@@ -10851,19 +10877,26 @@ bool ArrayExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
         for (unsigned I = OldElts; I < N; ++I)
           Value->getArrayInitializedElt(I) = Filler;
 
-      // Initialize the elements.
-      for (unsigned I = OldElts; I < N; ++I) {
-        if (!VisitCXXConstructExpr(E, ArrayElt,
-                                   &Value->getArrayInitializedElt(I),
-                                   CAT->getElementType()) ||
-            !HandleLValueArrayAdjustment(Info, E, ArrayElt,
-                                         CAT->getElementType(), 1))
-          return false;
-        // When checking for const initilization any diagnostic is considered
-        // an error.
-        if (Info.EvalStatus.Diag && !Info.EvalStatus.Diag->empty() &&
-            !Info.keepEvaluatingAfterFailure())
-          return false;
+      if (HasTrivialConstructor && N == FinalSize) {
+        // If we have a trivial constructor, only evaluate it once and copy
+        // the result into all the array elements.
+        APValue &FirstResult = Value->getArrayInitializedElt(0);
+        for (unsigned I = OldElts; I < FinalSize; ++I)
+          Value->getArrayInitializedElt(I) = FirstResult;
+      } else {
+        for (unsigned I = OldElts; I < N; ++I) {
+          if (!VisitCXXConstructExpr(E, ArrayElt,
+                                     &Value->getArrayInitializedElt(I),
+                                     CAT->getElementType()) ||
+              !HandleLValueArrayAdjustment(Info, E, ArrayElt,
+                                           CAT->getElementType(), 1))
+            return false;
+          // When checking for const initilization any diagnostic is considered
+          // an error.
+          if (Info.EvalStatus.Diag && !Info.EvalStatus.Diag->empty() &&
+              !Info.keepEvaluatingAfterFailure())
+            return false;
+        }
       }
     }
 
@@ -11603,9 +11636,15 @@ static bool isUserWritingOffTheEnd(const ASTContext &Ctx, const LValue &LVal) {
   //   conservative with the last element in structs (if it's an array), so our
   //   current behavior is more compatible than an explicit list approach would
   //   be.
+  int StrictFlexArraysLevel = Ctx.getLangOpts().StrictFlexArrays;
   return LVal.InvalidBase &&
          Designator.Entries.size() == Designator.MostDerivedPathLength &&
          Designator.MostDerivedIsArrayElement &&
+         (Designator.isMostDerivedAnUnsizedArray() ||
+          Designator.getMostDerivedArraySize() == 0 ||
+          (Designator.getMostDerivedArraySize() == 1 &&
+           StrictFlexArraysLevel < 2) ||
+          StrictFlexArraysLevel == 0) &&
          isDesignatorAtObjectEnd(Ctx, LVal);
 }
 
@@ -13520,6 +13559,38 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
       return Info.Ctx.getTypeSize(DestType) == Info.Ctx.getTypeSize(SrcType);
     }
 
+    if (DestType->isEnumeralType()) {
+      const EnumType *ET = dyn_cast<EnumType>(DestType.getCanonicalType());
+      const EnumDecl *ED = ET->getDecl();
+      // Check that the value is within the range of the enumeration values.
+      //
+      // This corressponds to [expr.static.cast]p10 which says:
+      // A value of integral or enumeration type can be explicitly converted
+      // to a complete enumeration type ... If the enumeration type does not
+      // have a fixed underlying type, the value is unchanged if the original
+      // value is within the range of the enumeration values ([dcl.enum]), and
+      // otherwise, the behavior is undefined.
+      //
+      // This was resolved as part of DR2338 which has CD5 status.
+      if (!ED->isFixed()) {
+        llvm::APInt Min;
+        llvm::APInt Max;
+
+        ED->getValueRange(Max, Min);
+        --Max;
+
+        if (ED->getNumNegativeBits() &&
+            (Max.slt(Result.getInt().getSExtValue()) ||
+             Min.sgt(Result.getInt().getSExtValue())))
+          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
+              << Result.getInt() << Min.getSExtValue() << Max.getSExtValue();
+        else if (!ED->getNumNegativeBits() &&
+                 Max.ult(Result.getInt().getZExtValue()))
+          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
+              << Result.getInt() << Min.getZExtValue() << Max.getZExtValue();
+      }
+    }
+
     return Success(HandleIntToIntCast(Info, E, DestType, SrcType,
                                       Result.getInt()), E);
   }
@@ -13886,10 +13957,12 @@ bool FloatExprEvaluator::VisitCallExpr(const CallExpr *E) {
   case Builtin::BI__builtin_huge_val:
   case Builtin::BI__builtin_huge_valf:
   case Builtin::BI__builtin_huge_vall:
+  case Builtin::BI__builtin_huge_valf16:
   case Builtin::BI__builtin_huge_valf128:
   case Builtin::BI__builtin_inf:
   case Builtin::BI__builtin_inff:
   case Builtin::BI__builtin_infl:
+  case Builtin::BI__builtin_inff16:
   case Builtin::BI__builtin_inff128: {
     const llvm::fltSemantics &Sem =
       Info.Ctx.getFloatTypeSemantics(E->getType());
@@ -13900,6 +13973,7 @@ bool FloatExprEvaluator::VisitCallExpr(const CallExpr *E) {
   case Builtin::BI__builtin_nans:
   case Builtin::BI__builtin_nansf:
   case Builtin::BI__builtin_nansl:
+  case Builtin::BI__builtin_nansf16:
   case Builtin::BI__builtin_nansf128:
     if (!TryEvaluateBuiltinNaN(Info.Ctx, E->getType(), E->getArg(0),
                                true, Result))
@@ -13909,6 +13983,7 @@ bool FloatExprEvaluator::VisitCallExpr(const CallExpr *E) {
   case Builtin::BI__builtin_nan:
   case Builtin::BI__builtin_nanf:
   case Builtin::BI__builtin_nanl:
+  case Builtin::BI__builtin_nanf16:
   case Builtin::BI__builtin_nanf128:
     // If this is __builtin_nan() turn this into a nan, otherwise we
     // can't constant fold it.

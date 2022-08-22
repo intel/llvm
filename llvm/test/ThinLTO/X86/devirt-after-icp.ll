@@ -46,6 +46,7 @@
 
 ; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
+; RUN:   -opaque-pointers \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,_Z3bazP1A,px \
 ; RUN:   -r=%t.o,_ZN1A3fooEv, \
@@ -100,7 +101,7 @@ if.true.direct_targ:                              ; preds = %entry
   %8 = load i32 (%class.B*)*, i32 (%class.B*)** %vfn.i, align 8
 ; Call to bar() can be devirtualized to call to B::bar(), since it was
 ; inlined from B::foo() after ICP introduced the guarded promotion.
-; CHECK-IR: %call.i = tail call i32 @_ZN1B3barEv(%class.B* %3)
+; CHECK-IR: %call.i = tail call i32 @_ZN1B3barEv(ptr nonnull %a)
   %call.i = tail call i32 %8(%class.B* %5)
   br label %if.end.icp
 

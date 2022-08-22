@@ -17,8 +17,15 @@
 #include "DeltaManager.h"
 #include "ReducerWorkItem.h"
 #include "TestRunner.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/Analysis/ModuleSummaryAnalysis.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
@@ -30,6 +37,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO.h"
 #include <system_error>
 #include <vector>
 
@@ -58,7 +66,7 @@ static cl::opt<std::string>
                  cl::cat(LLVMReduceOptions));
 
 static cl::list<std::string>
-    TestArguments("test-arg", cl::ZeroOrMore,
+    TestArguments("test-arg",
                   cl::desc("Arguments passed onto the interesting-ness test"),
                   cl::cat(LLVMReduceOptions));
 
@@ -87,17 +95,10 @@ static cl::opt<InputLanguages>
 static cl::opt<int>
     MaxPassIterations("max-pass-iterations",
                       cl::desc("Maximum number of times to run the full set "
-                               "of delta passes (default=1)"),
-                      cl::init(1), cl::cat(LLVMReduceOptions));
+                               "of delta passes (default=5)"),
+                      cl::init(5), cl::cat(LLVMReduceOptions));
 
 static codegen::RegisterCodeGenFlags CGF;
-
-static void initializeTargetInfo() {
-  InitializeAllTargets();
-  InitializeAllTargetMCs();
-  InitializeAllAsmPrinters();
-  InitializeAllAsmParsers();
-}
 
 void writeOutput(ReducerWorkItem &M, StringRef Message) {
   if (ReplaceInput) // In-place
@@ -112,6 +113,39 @@ void writeOutput(ReducerWorkItem &M, StringRef Message) {
   }
   M.print(Out, /*AnnotationWriter=*/nullptr);
   errs() << Message << OutputFilename << "\n";
+}
+
+void writeBitcode(ReducerWorkItem &M, llvm::raw_ostream &OutStream) {
+  if (M.LTOInfo && M.LTOInfo->IsThinLTO && M.LTOInfo->EnableSplitLTOUnit) {
+    legacy::PassManager PM;
+    PM.add(llvm::createWriteThinLTOBitcodePass(OutStream));
+    PM.run(*(M.M));
+  } else {
+    std::unique_ptr<ModuleSummaryIndex> Index;
+    if (M.LTOInfo && M.LTOInfo->HasSummary) {
+      ProfileSummaryInfo PSI(M);
+      Index = std::make_unique<ModuleSummaryIndex>(
+          buildModuleSummaryIndex(M, nullptr, &PSI));
+    }
+    WriteBitcodeToFile(M, OutStream, Index.get());
+  }
+}
+
+void readBitcode(ReducerWorkItem &M, MemoryBufferRef Data, LLVMContext &Ctx, const char *ToolName) {
+  Expected<BitcodeFileContents> IF = llvm::getBitcodeFileContents(Data);
+  if (!IF) {
+    WithColor::error(errs(), ToolName) << IF.takeError();
+    exit(1);
+  }
+  BitcodeModule BM = IF->Mods[0];
+  Expected<BitcodeLTOInfo> LI = BM.getLTOInfo();
+  Expected<std::unique_ptr<Module>> MOrErr = BM.parseModule(Ctx);
+  if (!LI || !MOrErr) {
+    WithColor::error(errs(), ToolName) << IF.takeError();
+    exit(1);
+  }
+  M.LTOInfo = std::make_unique<BitcodeLTOInfo>(*LI);
+  M.M = std::move(MOrErr.get());
 }
 
 int main(int Argc, char **Argv) {
@@ -133,9 +167,6 @@ int main(int Argc, char **Argv) {
     return 0;
   }
 
-  if (ReduceModeMIR)
-    initializeTargetInfo();
-
   LLVMContext Context;
   std::unique_ptr<TargetMachine> TM;
 
@@ -147,7 +178,7 @@ int main(int Argc, char **Argv) {
 
   // Initialize test environment
   TestRunner Tester(TestFilename, TestArguments, std::move(OriginalProgram),
-                    std::move(TM));
+                    std::move(TM), Argv[0]);
 
   // Try to reduce code
   runDeltaPasses(Tester, MaxPassIterations);

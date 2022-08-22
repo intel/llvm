@@ -6,15 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
@@ -24,7 +15,16 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/spec_constant.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -37,11 +37,11 @@
 #include <sstream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -315,11 +315,11 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   // perform minimal sanity checks on the device image and the descriptor
   if (RawImg.BinaryEnd < RawImg.BinaryStart) {
     throw runtime_error("Malformed device program image descriptor",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
   }
   if (RawImg.BinaryEnd == RawImg.BinaryStart) {
     throw runtime_error("Invalid device program image: size is zero",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
   }
   size_t ImgSize = Img.getSize();
 
@@ -339,7 +339,7 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw feature_not_supported(
         "SPIR-V online compilation is not supported in this context",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
 
   // Get program metadata from properties
   auto ProgMetadata = Img.getProgramMetadata();
@@ -380,6 +380,12 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
   }
 }
 
+static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
+                                const char *PropName) {
+  pi_device_binary_property Prop = Img.getProperty(PropName);
+  return Prop && (pi::DeviceBinaryProperty(Prop).asUint32() != 0);
+}
+
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img) {
   // Build options are overridden if environment variables are present.
@@ -387,7 +393,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
   // Update only if compile options are not overwritten by environment
   // variable
   if (!CompileOptsEnv) {
@@ -397,9 +402,14 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (TemporaryStr != nullptr)
       CompileOpts += std::string(TemporaryStr);
   }
+  bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
+  bool isDoubleGRFEsimdImage =
+      getUint32PropAsBool(Img, "isDoubleGRFEsimdImage");
+  assert((!isDoubleGRFEsimdImage || isEsimdImage) &&
+         "doubleGRF applies only to ESIMD binary images");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
-  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+  if (isEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     CompileOpts += "-vc-codegen";
@@ -407,6 +417,10 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // level is at least 1.
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
+  }
+  if (isDoubleGRFEsimdImage) {
+    assert(!CompileOpts.empty()); // -vc-codegen must be present
+    CompileOpts += " -doubleGRF";
   }
 }
 
@@ -689,12 +703,12 @@ std::string ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
     std::string DeviceBuildInfoString;
     size_t DeviceBuildInfoStrSize = 0;
     Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+        Program, Device, PI_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
         &DeviceBuildInfoStrSize);
     if (DeviceBuildInfoStrSize > 0) {
       std::vector<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
       Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-          Program, Device, CL_PROGRAM_BUILD_LOG, DeviceBuildInfoStrSize,
+          Program, Device, PI_PROGRAM_BUILD_INFO_LOG, DeviceBuildInfoStrSize,
           DeviceBuildInfo.data(), nullptr);
       DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
     }
@@ -754,9 +768,13 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
     return "libsycl-fallback-complex-fp64.spv";
   case DeviceLibExt::cl_intel_devicelib_cstring:
     return "libsycl-fallback-cstring.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf:
+    return "libsycl-fallback-imf.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
+    return "libsycl-fallback-imf-fp64.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
-                              PI_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
 }
 
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
@@ -773,9 +791,13 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
     return "cl_intel_devicelib_complex_fp64";
   case DeviceLibExt::cl_intel_devicelib_cstring:
     return "cl_intel_devicelib_cstring";
+  case DeviceLibExt::cl_intel_devicelib_imf:
+    return "cl_intel_devicelib_imf";
+  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
+    return "cl_intel_devicelib_imf_fp64";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
-                              PI_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
 }
 
 static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
@@ -798,7 +820,7 @@ static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
   if (!loadDeviceLib(Context, LibFileName, LibProg)) {
     CachedLibPrograms.erase(LibProgIt);
     throw compile_program_error(std::string("Failed to load ") + LibFileName,
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   const detail::plugin &Plugin = Context->getPlugin();
@@ -833,7 +855,7 @@ ProgramManager::ProgramManager() {
     if (!File.is_open())
       throw runtime_error(std::string("Can't open file specified via ") +
                               UseSpvEnv + ": " + SpvFile,
-                          PI_INVALID_VALUE);
+                          PI_ERROR_INVALID_VALUE);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
     std::unique_ptr<char[]> Data(new char[Size]);
@@ -843,7 +865,7 @@ ProgramManager::ProgramManager() {
     if (!File.good())
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
-                          PI_INVALID_VALUE);
+                          PI_ERROR_INVALID_VALUE);
     auto ImgPtr = make_unique_ptr<DynRTDeviceBinaryImage>(
         std::move(Data), Size, OSUtil::DummyModuleHandle);
 
@@ -879,7 +901,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
 
-  // TODO: There may be cases with cl::sycl::program class usage in source code
+  // TODO: There may be cases with sycl::program class usage in source code
   // that will result in a multi-device context. This case needs to be handled
   // here or at the program_impl class level
 
@@ -891,7 +913,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-      (cl_uint)RawImgs.size(), &ImgInd);
+      (pi_uint32)RawImgs.size(), &ImgInd);
 
   if (JITCompilationIsRequired) {
     // If the image is already compiled with AOT, throw an exception.
@@ -903,7 +925,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
         (strcmp(RawImg.DeviceTargetSpec,
                 __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
       throw feature_not_supported("Recompiling AOT image is not supported",
-                                  PI_INVALID_OPERATION);
+                                  PI_ERROR_INVALID_OPERATION);
     }
   }
 
@@ -935,13 +957,15 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       {DeviceLibExt::cl_intel_devicelib_math_fp64, false},
       {DeviceLibExt::cl_intel_devicelib_complex, false},
       {DeviceLibExt::cl_intel_devicelib_complex_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_cstring, false}};
+      {DeviceLibExt::cl_intel_devicelib_cstring, false},
+      {DeviceLibExt::cl_intel_devicelib_imf, false},
+      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
-  std::string DevExtList =
-      get_device_info<std::string, info::device::extensions>::get(
-          Device, Context->getPlugin());
+  std::string DevExtList = get_device_info_string(
+      Device, PiInfoCode<info::device::extensions>::value,
+      Context->getPlugin());
   const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not
@@ -992,6 +1016,16 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
               << ")\n";
   }
 
+  // TODO: old sycl compiler always marks cassert fallback device library as
+  // "required", this will lead to compatibilty issue when we enable online
+  // link in SYCL runtime. If users compile their code with old compiler and run
+  // their executable with latest SYCL runtime, cassert fallback spv file will
+  // always be loaded which is not expected, cassert device library development
+  // is still in progress, the unexpected loading may lead to runtime problem.
+  // So, we clear bit 0 in device library require mask to avoid loading cassert
+  // fallback device library and will revert this when cassert development is
+  // done.
+  DeviceLibReqMask &= 0xFFFFFFFE;
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
@@ -1285,7 +1319,7 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
     return ModuleKSIdIt->second;
 
   throw runtime_error("No kernel named " + KernelName + " was found",
-                      PI_INVALID_KERNEL_NAME);
+                      PI_ERROR_INVALID_KERNEL_NAME);
 }
 
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
@@ -1336,7 +1370,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
       if (It == NativePrograms.end())
         throw sycl::ext::oneapi::experimental::spec_const_error(
             "spec constant is set in a program w/o a binary image",
-            PI_INVALID_OPERATION);
+            PI_ERROR_INVALID_OPERATION);
       Img = It->second;
     }
     if (!Img->supportsSpecConstants()) {
@@ -1432,9 +1466,10 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       const_cast<pi_device_binary>(&BinImage->getRawData());
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextDeviceSelectBinary>(
       PIDeviceHandle, &DevBin,
-      /*num bin images = */ (cl_uint)1, &SuitableImageID);
-  if (Error != PI_SUCCESS && Error != PI_INVALID_BINARY)
-    throw runtime_error("Invalid binary image or device", PI_INVALID_VALUE);
+      /*num bin images = */ (pi_uint32)1, &SuitableImageID);
+  if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
+    throw runtime_error("Invalid binary image or device",
+                        PI_ERROR_INVALID_VALUE);
 
   return (0 == SuitableImageID);
 }
@@ -1445,9 +1480,19 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
   if (KernelID == m_KernelName2KernelIDs.end())
     throw runtime_error("No kernel found with the specified name",
-                        PI_INVALID_KERNEL_NAME);
+                        PI_ERROR_INVALID_KERNEL_NAME);
 
   return KernelID->second;
+}
+
+bool ProgramManager::hasCompatibleImage(const device &Dev) {
+  std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
+
+  return std::any_of(
+      m_BinImg2KernelIDs.cbegin(), m_BinImg2KernelIDs.cend(),
+      [&](std::pair<RTDeviceBinaryImage *,
+                    std::shared_ptr<std::vector<kernel_id>>>
+              Elem) { return compatibleWithDevice(Elem.first, Dev); });
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
@@ -1688,7 +1733,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
     sycl::runtime_error(
         "Creating a program from AOT binary for multiple device is not "
         "supported",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
 
   // Device is not used when creating program from SPIRV, so passing only one
   // device is OK.
@@ -1848,7 +1893,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       sycl::runtime_error(
           "Creating a program from AOT binary for multiple device is not "
           "supported",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
@@ -2001,11 +2046,11 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
-  cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
+  sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization

@@ -18,8 +18,9 @@
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/IR/IntrinsicsSPIRV.h"
 
-using namespace llvm;
+namespace llvm {
 
 // The following functions are used to add these string literals as a series of
 // 32-bit integer operands with the correct format, and unpack them if necessary
@@ -42,6 +43,14 @@ static uint32_t convertCharsToWord(const StringRef &Str, unsigned i) {
 static size_t getPaddedLen(const StringRef &Str) {
   const size_t Len = Str.size() + 1;
   return (Len % 4 == 0) ? Len : Len + (4 - (Len % 4));
+}
+
+void addStringImm(const StringRef &Str, MCInst &Inst) {
+  const size_t PaddedLen = getPaddedLen(Str);
+  for (unsigned i = 0; i < PaddedLen; i += 4) {
+    // Add an operand for the 32-bits of chars or padding.
+    Inst.addOperand(MCOperand::createImm(convertCharsToWord(Str, i)));
+  }
 }
 
 void addStringImm(const StringRef &Str, MachineInstrBuilder &MIB) {
@@ -105,7 +114,7 @@ static void finishBuildOpDecorate(MachineInstrBuilder &MIB,
 }
 
 void buildOpDecorate(Register Reg, MachineIRBuilder &MIRBuilder,
-                     llvm::SPIRV::Decoration Dec,
+                     SPIRV::Decoration::Decoration Dec,
                      const std::vector<uint32_t> &DecArgs, StringRef StrImm) {
   auto MIB = MIRBuilder.buildInstr(SPIRV::OpDecorate)
                  .addUse(Reg)
@@ -114,7 +123,7 @@ void buildOpDecorate(Register Reg, MachineIRBuilder &MIRBuilder,
 }
 
 void buildOpDecorate(Register Reg, MachineInstr &I, const SPIRVInstrInfo &TII,
-                     llvm::SPIRV::Decoration Dec,
+                     SPIRV::Decoration::Decoration Dec,
                      const std::vector<uint32_t> &DecArgs, StringRef StrImm) {
   MachineBasicBlock &MBB = *I.getParent();
   auto MIB = BuildMI(MBB, I, I.getDebugLoc(), TII.get(SPIRV::OpDecorate))
@@ -125,7 +134,7 @@ void buildOpDecorate(Register Reg, MachineInstr &I, const SPIRVInstrInfo &TII,
 
 // TODO: maybe the following two functions should be handled in the subtarget
 // to allow for different OpenCL vs Vulkan handling.
-unsigned storageClassToAddressSpace(SPIRV::StorageClass SC) {
+unsigned storageClassToAddressSpace(SPIRV::StorageClass::StorageClass SC) {
   switch (SC) {
   case SPIRV::StorageClass::Function:
     return 0;
@@ -144,7 +153,8 @@ unsigned storageClassToAddressSpace(SPIRV::StorageClass SC) {
   }
 }
 
-SPIRV::StorageClass addressSpaceToStorageClass(unsigned AddrSpace) {
+SPIRV::StorageClass::StorageClass
+addressSpaceToStorageClass(unsigned AddrSpace) {
   switch (AddrSpace) {
   case 0:
     return SPIRV::StorageClass::Function;
@@ -163,7 +173,8 @@ SPIRV::StorageClass addressSpaceToStorageClass(unsigned AddrSpace) {
   }
 }
 
-SPIRV::MemorySemantics getMemSemanticsForStorageClass(SPIRV::StorageClass SC) {
+SPIRV::MemorySemantics::MemorySemantics
+getMemSemanticsForStorageClass(SPIRV::StorageClass::StorageClass SC) {
   switch (SC) {
   case SPIRV::StorageClass::StorageBuffer:
   case SPIRV::StorageClass::Uniform:
@@ -180,3 +191,51 @@ SPIRV::MemorySemantics getMemSemanticsForStorageClass(SPIRV::StorageClass SC) {
     return SPIRV::MemorySemantics::None;
   }
 }
+
+SPIRV::MemorySemantics::MemorySemantics getMemSemantics(AtomicOrdering Ord) {
+  switch (Ord) {
+  case AtomicOrdering::Acquire:
+    return SPIRV::MemorySemantics::Acquire;
+  case AtomicOrdering::Release:
+    return SPIRV::MemorySemantics::Release;
+  case AtomicOrdering::AcquireRelease:
+    return SPIRV::MemorySemantics::AcquireRelease;
+  case AtomicOrdering::SequentiallyConsistent:
+    return SPIRV::MemorySemantics::SequentiallyConsistent;
+  case AtomicOrdering::Unordered:
+  case AtomicOrdering::Monotonic:
+  case AtomicOrdering::NotAtomic:
+  default:
+    return SPIRV::MemorySemantics::None;
+  }
+}
+
+MachineInstr *getDefInstrMaybeConstant(Register &ConstReg,
+                                       const MachineRegisterInfo *MRI) {
+  MachineInstr *ConstInstr = MRI->getVRegDef(ConstReg);
+  if (ConstInstr->getOpcode() == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS &&
+      ConstInstr->getIntrinsicID() == Intrinsic::spv_track_constant) {
+    ConstReg = ConstInstr->getOperand(2).getReg();
+    ConstInstr = MRI->getVRegDef(ConstReg);
+  } else if (ConstInstr->getOpcode() == SPIRV::ASSIGN_TYPE) {
+    ConstReg = ConstInstr->getOperand(1).getReg();
+    ConstInstr = MRI->getVRegDef(ConstReg);
+  }
+  return ConstInstr;
+}
+
+uint64_t getIConstVal(Register ConstReg, const MachineRegisterInfo *MRI) {
+  const MachineInstr *MI = getDefInstrMaybeConstant(ConstReg, MRI);
+  assert(MI && MI->getOpcode() == TargetOpcode::G_CONSTANT);
+  return MI->getOperand(1).getCImm()->getValue().getZExtValue();
+}
+
+bool isSpvIntrinsic(MachineInstr &MI, Intrinsic::ID IntrinsicID) {
+  return MI.getOpcode() == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS &&
+         MI.getIntrinsicID() == IntrinsicID;
+}
+
+Type *getMDOperandAsType(const MDNode *N, unsigned I) {
+  return cast<ValueAsMetadata>(N->getOperand(I))->getType();
+}
+} // namespace llvm

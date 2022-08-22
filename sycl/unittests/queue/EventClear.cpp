@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};
@@ -31,7 +31,7 @@ pi_result redefinedQueueCreate(pi_context context, pi_device device,
   // Use in-order queues to force storing events for calling wait on them,
   // rather than calling piQueueFinish.
   if (properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    return PI_INVALID_QUEUE_PROPERTIES;
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;
 }

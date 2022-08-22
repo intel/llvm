@@ -299,8 +299,6 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::BinaryConditionalOperatorClass:
   case Stmt::TypeTraitExprClass:
   case Stmt::CoawaitExprClass:
-  case Stmt::ConceptSpecializationExprClass:
-  case Stmt::RequiresExprClass:
   case Stmt::DependentCoawaitExprClass:
   case Stmt::CoyieldExprClass:
   case Stmt::CXXBindTemporaryExprClass:
@@ -642,6 +640,14 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     return getSelectorIdentifierCursor(SelectorIdIndex, C);
   }
 
+  case Stmt::ConceptSpecializationExprClass:
+    K = CXCursor_ConceptSpecializationExpr;
+    break;
+
+  case Stmt::RequiresExprClass:
+    K = CXCursor_RequiresExpr;
+    break;
+
   case Stmt::MSDependentExistsStmtClass:
     K = CXCursor_UnexposedStmt;
     break;
@@ -692,6 +698,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OMPParallelMasterDirectiveClass:
     K = CXCursor_OMPParallelMasterDirective;
+    break;
+  case Stmt::OMPParallelMaskedDirectiveClass:
+    K = CXCursor_OMPParallelMaskedDirective;
     break;
   case Stmt::OMPParallelSectionsDirectiveClass:
     K = CXCursor_OMPParallelSectionsDirective;
@@ -765,14 +774,26 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::OMPMasterTaskLoopDirectiveClass:
     K = CXCursor_OMPMasterTaskLoopDirective;
     break;
+  case Stmt::OMPMaskedTaskLoopDirectiveClass:
+    K = CXCursor_OMPMaskedTaskLoopDirective;
+    break;
   case Stmt::OMPMasterTaskLoopSimdDirectiveClass:
     K = CXCursor_OMPMasterTaskLoopSimdDirective;
+    break;
+  case Stmt::OMPMaskedTaskLoopSimdDirectiveClass:
+    K = CXCursor_OMPMaskedTaskLoopSimdDirective;
     break;
   case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
     K = CXCursor_OMPParallelMasterTaskLoopDirective;
     break;
+  case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
+    K = CXCursor_OMPParallelMaskedTaskLoopDirective;
+    break;
   case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
     K = CXCursor_OMPParallelMasterTaskLoopSimdDirective;
+    break;
+  case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
+    K = CXCursor_OMPParallelMaskedTaskLoopSimdDirective;
     break;
   case Stmt::OMPDistributeDirectiveClass:
     K = CXCursor_OMPDistributeDirective;

@@ -171,6 +171,10 @@ const MCExpr *AMDGPUAsmPrinter::lowerConstant(const Constant *CV) {
 }
 
 void AMDGPUAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  // FIXME: Enable feature predicate checks once all the test pass.
+  // AMDGPU_MC::verifyInstructionPredicates(MI->getOpcode(),
+  //                                        getSubtargetInfo().getFeatureBits());
+
   if (emitPseudoExpansionLowering(*OutStreamer, MI))
     return;
 
@@ -204,6 +208,29 @@ void AMDGPUAsmPrinter::emitInstruction(const MachineInstr *MI) {
     if (MI->getOpcode() == AMDGPU::WAVE_BARRIER) {
       if (isVerbose())
         OutStreamer->emitRawComment(" wave barrier");
+      return;
+    }
+
+    if (MI->getOpcode() == AMDGPU::SCHED_BARRIER) {
+      if (isVerbose()) {
+        std::string HexString;
+        raw_string_ostream HexStream(HexString);
+        HexStream << format_hex(MI->getOperand(0).getImm(), 10, true);
+        OutStreamer->emitRawComment(" sched_barrier mask(" + HexString + ")");
+      }
+      return;
+    }
+
+    if (MI->getOpcode() == AMDGPU::SCHED_GROUP_BARRIER) {
+      if (isVerbose()) {
+        std::string HexString;
+        raw_string_ostream HexStream(HexString);
+        HexStream << format_hex(MI->getOperand(0).getImm(), 10, true);
+        OutStreamer->emitRawComment(
+            " sched_group_barrier mask(" + HexString + ") size(" +
+            Twine(MI->getOperand(1).getImm()) + ") SyncID(" +
+            Twine(MI->getOperand(2).getImm()) + ")");
+      }
       return;
     }
 

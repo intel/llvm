@@ -148,6 +148,7 @@ namespace clang {
 
   public:
     BackendConsumer(BackendAction Action, DiagnosticsEngine &Diags,
+                    IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                     const HeaderSearchOptions &HeaderSearchOpts,
                     const PreprocessorOptions &PPOpts,
                     const CodeGenOptions &CodeGenOpts,
@@ -161,8 +162,8 @@ namespace clang {
           AsmOutStream(std::move(OS)), Context(nullptr),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
           LLVMIRGenerationRefCount(0),
-          Gen(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
-                                CodeGenOpts, C, CoverageInfo)),
+          Gen(CreateLLVMCodeGen(Diags, InFile, std::move(FS), HeaderSearchOpts,
+                                PPOpts, CodeGenOpts, C, CoverageInfo)),
           LinkModules(std::move(LinkModules)) {
       TimerIsEnabled = CodeGenOpts.TimePasses;
       llvm::TimePassesIsEnabled = CodeGenOpts.TimePasses;
@@ -173,6 +174,7 @@ namespace clang {
     // to use the clang diagnostic handler for IR input files. It avoids
     // initializing the OS field.
     BackendConsumer(BackendAction Action, DiagnosticsEngine &Diags,
+                    IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                     const HeaderSearchOptions &HeaderSearchOpts,
                     const PreprocessorOptions &PPOpts,
                     const CodeGenOptions &CodeGenOpts,
@@ -185,8 +187,8 @@ namespace clang {
           Context(nullptr),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
           LLVMIRGenerationRefCount(0),
-          Gen(CreateLLVMCodeGen(Diags, "", HeaderSearchOpts, PPOpts,
-                                CodeGenOpts, C, CoverageInfo)),
+          Gen(CreateLLVMCodeGen(Diags, "", std::move(FS), HeaderSearchOpts,
+                                PPOpts, CodeGenOpts, C, CoverageInfo)),
           LinkModules(std::move(LinkModules)), CurLinkModule(Module) {
       TimerIsEnabled = CodeGenOpts.TimePasses;
       llvm::TimePassesIsEnabled = CodeGenOpts.TimePasses;
@@ -1021,8 +1023,7 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
   if (BA != Backend_EmitNothing && !OS)
     return nullptr;
 
-  if (CI.getCodeGenOpts().OpaquePointers)
-    VMContext->setOpaquePointers(true);
+  VMContext->setOpaquePointers(CI.getCodeGenOpts().OpaquePointers);
 
   // Load bitcode modules to link with, if we need to.
   if (LinkModules.empty())
@@ -1057,10 +1058,10 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
         CI.getPreprocessor());
 
   std::unique_ptr<BackendConsumer> Result(new BackendConsumer(
-      BA, CI.getDiagnostics(), CI.getHeaderSearchOpts(),
-      CI.getPreprocessorOpts(), CI.getCodeGenOpts(), CI.getTargetOpts(),
-      CI.getLangOpts(), std::string(InFile), std::move(LinkModules),
-      std::move(OS), *VMContext, CoverageInfo));
+      BA, CI.getDiagnostics(), &CI.getVirtualFileSystem(),
+      CI.getHeaderSearchOpts(), CI.getPreprocessorOpts(), CI.getCodeGenOpts(),
+      CI.getTargetOpts(), CI.getLangOpts(), std::string(InFile),
+      std::move(LinkModules), std::move(OS), *VMContext, CoverageInfo));
   BEConsumer = Result.get();
 
   // Enable generating macro debug info only when debug info is not disabled and
@@ -1232,9 +1233,10 @@ void CodeGenAction::ExecuteAction() {
 
   // Set clang diagnostic handler. To do this we need to create a fake
   // BackendConsumer.
-  BackendConsumer Result(BA, CI.getDiagnostics(), CI.getHeaderSearchOpts(),
-                         CI.getPreprocessorOpts(), CI.getCodeGenOpts(),
-                         CI.getTargetOpts(), CI.getLangOpts(), TheModule.get(),
+  BackendConsumer Result(BA, CI.getDiagnostics(), &CI.getVirtualFileSystem(),
+                         CI.getHeaderSearchOpts(), CI.getPreprocessorOpts(),
+                         CI.getCodeGenOpts(), CI.getTargetOpts(),
+                         CI.getLangOpts(), TheModule.get(),
                          std::move(LinkModules), *VMContext, nullptr);
   // PR44896: Force DiscardValueNames as false. DiscardValueNames cannot be
   // true here because the valued names are needed for reading textual IR.

@@ -7,7 +7,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 // simd constructor
 template <typename T, int N>

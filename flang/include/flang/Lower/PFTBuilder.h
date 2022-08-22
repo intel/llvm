@@ -668,8 +668,6 @@ struct FunctionLikeUnit : public ProgramUnit {
       entryPointList{std::pair{nullptr, nullptr}};
   /// Current index into entryPointList.  Index 0 is the primary entry point.
   int activeEntry = 0;
-  /// Dummy arguments that are not universal across entry points.
-  llvm::SmallVector<const semantics::Symbol *, 1> nonUniversalDummyArguments;
   /// Primary result for function subprograms with alternate entries.  This
   /// is one of the largest result values, not necessarily the first one.
   const semantics::Symbol *primaryResult{nullptr};
@@ -782,6 +780,11 @@ ParentType *getAncestor(A &node) {
 /// Call the provided \p callBack on all symbols that are referenced inside \p
 /// funit.
 void visitAllSymbols(const FunctionLikeUnit &funit,
+                     std::function<void(const semantics::Symbol &)> callBack);
+
+/// Call the provided \p callBack on all symbols that are referenced inside \p
+/// eval region.
+void visitAllSymbols(const Evaluation &eval,
                      std::function<void(const semantics::Symbol &)> callBack);
 
 } // namespace Fortran::lower::pft

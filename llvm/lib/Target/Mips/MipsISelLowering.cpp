@@ -950,6 +950,14 @@ static SDValue performMADD_MSUBCombine(SDNode *ROOTNode, SelectionDAG &CurDAG,
       ROOTNode->getOperand(1).getOpcode() != ISD::MUL)
     return SDValue();
 
+  // In the case where we have a multiplication as the left operand of
+  // of a subtraction, we can't combine into a MipsISD::MSub node as the
+  // the instruction definition of msub(u) places the multiplication on
+  // on the right.
+  if (ROOTNode->getOpcode() == ISD::SUB &&
+      ROOTNode->getOperand(0).getOpcode() == ISD::MUL)
+    return SDValue();
+
   // We don't handle vector types here.
   if (ROOTNode->getValueType(0).isVector())
     return SDValue();
@@ -1184,6 +1192,12 @@ bool MipsTargetLowering::hasBitTest(SDValue X, SDValue Y) const {
 
 bool MipsTargetLowering::shouldFoldConstantShiftPairToMask(
     const SDNode *N, CombineLevel Level) const {
+  assert(((N->getOpcode() == ISD::SHL &&
+           N->getOperand(0).getOpcode() == ISD::SRL) ||
+          (N->getOpcode() == ISD::SRL &&
+           N->getOperand(0).getOpcode() == ISD::SHL)) &&
+         "Expected shift-shift mask");
+
   if (N->getOperand(0).getValueType().isVector())
     return false;
   return true;
@@ -2670,7 +2684,7 @@ SDValue MipsTargetLowering::lowerLOAD(SDValue Op, SelectionDAG &DAG) const {
     return Op;
 
   // Return if load is aligned or if MemVT is neither i32 nor i64.
-  if ((LD->getAlignment() >= MemVT.getSizeInBits() / 8) ||
+  if ((LD->getAlign().value() >= (MemVT.getSizeInBits() / 8)) ||
       ((MemVT != MVT::i32) && (MemVT != MVT::i64)))
     return SDValue();
 
@@ -2784,7 +2798,7 @@ static SDValue lowerFP_TO_SINT_STORE(StoreSDNode *SD, SelectionDAG &DAG,
   SDValue Tr = DAG.getNode(MipsISD::TruncIntFP, SDLoc(Val), FPTy,
                            Val.getOperand(0));
   return DAG.getStore(SD->getChain(), SDLoc(SD), Tr, SD->getBasePtr(),
-                      SD->getPointerInfo(), SD->getAlignment(),
+                      SD->getPointerInfo(), SD->getAlign(),
                       SD->getMemOperand()->getFlags());
 }
 
@@ -2794,7 +2808,7 @@ SDValue MipsTargetLowering::lowerSTORE(SDValue Op, SelectionDAG &DAG) const {
 
   // Lower unaligned integer stores.
   if (!Subtarget.systemSupportsUnalignedAccess() &&
-      (SD->getAlignment() < MemVT.getSizeInBits() / 8) &&
+      (SD->getAlign().value() < (MemVT.getSizeInBits() / 8)) &&
       ((MemVT == MVT::i32) || (MemVT == MVT::i64)))
     return lowerUnalignedIntStore(SD, DAG, Subtarget.isLittle());
 

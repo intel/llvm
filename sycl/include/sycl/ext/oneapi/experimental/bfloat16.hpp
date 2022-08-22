@@ -9,13 +9,12 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/half_type.hpp>
+#include <sycl/half_type.hpp>
 
 #if !defined(__SYCL_DEVICE_ONLY__)
 #include <cmath>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
@@ -182,5 +181,5 @@ public:
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

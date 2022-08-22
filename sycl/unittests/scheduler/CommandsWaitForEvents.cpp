@@ -10,7 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 #include <helpers/PiMock.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   queue &Q1;

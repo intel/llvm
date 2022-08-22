@@ -758,6 +758,10 @@ public:
     Walk(std::get<CharLiteralConstant>(x.t));
     Put('('), Walk(std::get<SubstringRange>(x.t)), Put(')');
   }
+  void Unparse(const SubstringInquiry &x) {
+    Walk(x.v);
+    Put(x.source.end()[-1] == 'n' ? "%LEN" : "%KIND");
+  }
   void Unparse(const SubstringRange &x) { // R910
     Walk(x.t, ":");
   }
@@ -2021,6 +2025,11 @@ public:
     Walk(":", x.step);
   }
   void Unparse(const OmpReductionClause &x) {
+    Walk(std::get<OmpReductionOperator>(x.t));
+    Put(":");
+    Walk(std::get<OmpObjectList>(x.t));
+  }
+  void Unparse(const OmpInReductionClause &x) {
     Walk(std::get<OmpReductionOperator>(x.t));
     Put(":");
     Walk(std::get<OmpObjectList>(x.t));

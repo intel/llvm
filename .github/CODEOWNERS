@@ -18,6 +18,9 @@ opencl/ @intel/llvm-reviewers-runtime
 # OpenCL "offline" compiler
 opencl/opencl-aot/ @intel/dpcpp-tools-reviewers
 
+# libclc library
+libclc/ @intel/llvm-reviewers-cuda
+
 # Device library
 libdevice/ @intel/llvm-reviewers-runtime
 

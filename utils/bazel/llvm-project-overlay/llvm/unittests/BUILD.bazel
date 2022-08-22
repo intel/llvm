@@ -38,6 +38,7 @@ cc_test(
         exclude = [
             # TODO: Add this file to the build.
             "Analysis/TFUtilsTest.cpp",
+            "Analysis/TrainingLoggerTest.cpp",
             "Analysis/MLModelRunnerTest.cpp",
         ],
     ),
@@ -45,6 +46,7 @@ cc_test(
         "//llvm:Analysis",
         "//llvm:AsmParser",
         "//llvm:Core",
+        "//llvm:Passes",
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",

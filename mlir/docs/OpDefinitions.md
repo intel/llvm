@@ -16,6 +16,8 @@ for the latter.
 In addition to detailing each mechanism, this manual also tries to capture best
 practices. They are rendered as quoted bullet points.
 
+[TOC]
+
 ## Motivation
 
 MLIR allows pluggable dialects, and dialects contain, among others, a list of
@@ -1530,7 +1532,7 @@ mlir-tblgen --gen-op-interface-doc -I /path/to/mlir/include /path/to/input/td/fi
 Classes/defs can be marked as deprecated by using the `Deprecate` helper class,
 e.g.,
 
-```td
+```tablegen
 def OpTraitA : NativeOpTrait<"OpTraitA">, Deprecated<"use `bar` instead">;
 ```
 

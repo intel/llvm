@@ -83,12 +83,13 @@
 
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
-#include <CL/sycl/half_type.hpp>
+#include <sycl/half_type.hpp>
 
 /// @cond ESIMD_DETAIL
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 // Primitive C++ operations supported by simd objects and templated upon by some
 // of the functions/classes.
@@ -166,8 +167,20 @@ __esimd_convertvector_to(vector_type_t<StdTy, N> Val)
       // element_type_traits<WrapperTy>::use_native_cpp_ops is false.
 #else
 {
-  // TODO implement for host
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  vector_type_t<__raw_t<WrapperTy>, N> Output = 0;
+
+  if constexpr (std::is_same_v<WrapperTy, sycl::half>) {
+    for (int i = 0; i < N; i += 1) {
+      // 1. Convert Val[i] to float (x) using c++ static_cast
+      // 2. Convert x to half (using float2half)
+      // 3. Output[i] = half_of(x)
+      Output[i] = ::sycl::detail::float2Half(static_cast<float>(Val[i]));
+    }
+  } else {
+    __ESIMD_UNSUPPORTED_ON_HOST;
+  }
+
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -179,8 +192,20 @@ __esimd_convertvector_from(vector_type_t<__raw_t<WrapperTy>, N> Val)
       // element_type_traits<WrapperTy>::use_native_cpp_ops is false.
 #else
 {
-  // TODO implement for host
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  vector_type_t<StdTy, N> Output;
+
+  if constexpr (std::is_same_v<WrapperTy, sycl::half>) {
+    for (int i = 0; i < N; i += 1) {
+      // 1. Convert Val[i] to float y(using half2float)
+      // 2. Convert y to StdTy using c++ static_cast
+      // 3. Store in Output[i]
+      Output[i] = static_cast<StdTy>(::sycl::detail::half2Float(Val[i]));
+    }
+  } else {
+    __ESIMD_UNSUPPORTED_ON_HOST;
+  }
+
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -557,7 +582,7 @@ public:
   template <class T = sycl::half>
   static inline T bitcast_to_half(__raw_t<T> Bits) {
 #ifndef __SYCL_DEVICE_ONLY__
-    return sycl::half{Bits};
+    return sycl::half(::sycl::detail::host_half_impl::half(Bits));
 #else
     sycl::half Res;
     Res.Data = Bits;
@@ -631,13 +656,26 @@ private:
   using Ty1 = element_type_t<T1>;
   using Ty2 = element_type_t<T2>;
   using EltTy = typename computation_type<Ty1, Ty2>::type;
-  static constexpr int N1 = is_simd_like_type_v<T1> ? T1::length : 0;
-  static constexpr int N2 = is_simd_like_type_v<T2> ? T2::length : 0;
-  static_assert((N1 == N2) || ((N1 & N2) == 0), "size mismatch");
+
+  static constexpr int N1 = [] {
+    if constexpr (is_simd_like_type_v<T1>) {
+      return T1::length;
+    } else {
+      return 0;
+    }
+  }();
+  static constexpr int N2 = [] {
+    if constexpr (is_simd_like_type_v<T2>) {
+      return T2::length;
+    } else {
+      return 0;
+    }
+  }();
+  static_assert((N1 == N2) || (N1 == 0) || (N2 == 0), "size mismatch");
   static constexpr int N = N1 ? N1 : N2;
 
 public:
-  using type = simd<EltTy, N1>;
+  using type = simd<EltTy, N>;
 };
 
 template <class T1, class T2 = T1>
@@ -710,7 +748,8 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 ////////////////////////////////////////////////////////////////////////////////
 // TODO
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @endcond ESIMD_DETAIL

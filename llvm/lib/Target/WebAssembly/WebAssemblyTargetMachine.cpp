@@ -63,7 +63,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
   initializeWebAssemblyArgumentMovePass(PR);
   initializeWebAssemblySetP2AlignOperandsPass(PR);
   initializeWebAssemblyReplacePhysRegsPass(PR);
-  initializeWebAssemblyPrepareForLiveIntervalsPass(PR);
   initializeWebAssemblyOptimizeLiveIntervalsPass(PR);
   initializeWebAssemblyMemIntrinsicResultsPass(PR);
   initializeWebAssemblyRegStackifyPass(PR);
@@ -88,7 +87,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM,
                                            const Triple &TT) {
-  if (!RM.hasValue()) {
+  if (!RM) {
     // Default to static relocation model.  This should always be more optimial
     // than PIC since the static linker can determine all global addresses and
     // assume direct function calls.
@@ -204,11 +203,12 @@ public:
     bool StrippedAtomics = false;
     bool StrippedTLS = false;
 
-    if (!Features[WebAssembly::FeatureAtomics])
+    if (!Features[WebAssembly::FeatureAtomics]) {
       StrippedAtomics = stripAtomics(M);
-
-    if (!Features[WebAssembly::FeatureBulkMemory])
       StrippedTLS = stripThreadLocals(M);
+    } else if (!Features[WebAssembly::FeatureBulkMemory]) {
+      StrippedTLS |= stripThreadLocals(M);
+    }
 
     if (StrippedAtomics && !StrippedTLS)
       stripThreadLocals(M);
@@ -523,9 +523,6 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Preparations and optimizations related to register stackification.
   if (getOptLevel() != CodeGenOpt::None) {
-    // LiveIntervals isn't commonly run this late. Re-establish preconditions.
-    addPass(createWebAssemblyPrepareForLiveIntervals());
-
     // Depend on LiveIntervals and perform some optimizations on it.
     addPass(createWebAssemblyOptimizeLiveIntervals());
 

@@ -329,7 +329,7 @@ public:
   /// the target triple contained within.
   virtual bool IsCompatibleArchitecture(const ArchSpec &arch,
                                         const ArchSpec &process_host_arch,
-                                        bool exact_arch_match,
+                                        ArchSpec::MatchType match,
                                         ArchSpec *compatible_arch_ptr);
 
   /// Not all platforms will support debugging a process by spawning somehow
@@ -847,6 +847,8 @@ public:
   }
 
   virtual CompilerType GetSiginfoType(const llvm::Triple &triple);
+  
+  virtual Args GetExtraStartupCommands();
 
 protected:
   /// Create a list of ArchSpecs with the given OS and a architectures. The
@@ -943,7 +945,7 @@ private:
 
 class PlatformList {
 public:
-  PlatformList() {}
+  PlatformList() = default;
 
   ~PlatformList() = default;
 

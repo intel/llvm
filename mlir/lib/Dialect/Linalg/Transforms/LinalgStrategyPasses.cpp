@@ -23,7 +23,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/IR/AffineExpr.h"
@@ -230,14 +230,14 @@ struct LinalgStrategyInterchangePass
   LinalgTransformationFilter filter;
 };
 
-/// Configurable pass to apply pattern-based linalg promotion.
-struct LinalgStrategyPromotePass
-    : public LinalgStrategyPromotePassBase<LinalgStrategyPromotePass> {
+/// Configurable pass to apply pattern-based linalg peeling.
+struct LinalgStrategyPeelPass
+    : public LinalgStrategyPeelPassBase<LinalgStrategyPeelPass> {
 
-  LinalgStrategyPromotePass() = default;
+  LinalgStrategyPeelPass() = default;
 
-  LinalgStrategyPromotePass(StringRef opName, LinalgPromotionOptions opt,
-                            LinalgTransformationFilter filt)
+  LinalgStrategyPeelPass(StringRef opName, LinalgPeelOptions opt,
+                         LinalgTransformationFilter filt)
       : options(std::move(opt)), filter(std::move(filt)) {
     this->anchorOpName.setValue(opName.str());
   }
@@ -247,18 +247,20 @@ struct LinalgStrategyPromotePass
     if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
       return;
 
-    RewritePatternSet promotionPattern(funcOp.getContext());
+    RewritePatternSet peelingPatterns(funcOp.getContext());
     if (!anchorOpName.empty()) {
-      promotionPattern.add<LinalgBasePromotionPattern>(
+      peelingPatterns.add<LinalgPeelingPattern>(
           anchorOpName, funcOp.getContext(), options, filter);
     } else {
-      promotionPattern.add<LinalgBasePromotionPattern>(funcOp.getContext(),
-                                                       filter, options);
+      peelingPatterns.add<LinalgPeelingPattern>(funcOp.getContext(), filter,
+                                                options);
     }
-    (void)applyPatternsAndFoldGreedily(funcOp, std::move(promotionPattern));
+    if (failed(
+            applyPatternsAndFoldGreedily(funcOp, std::move(peelingPatterns))))
+      return signalPassFailure();
   }
 
-  LinalgPromotionOptions options;
+  LinalgPeelOptions options;
   LinalgTransformationFilter filter;
 };
 
@@ -474,14 +476,6 @@ mlir::createLinalgStrategyPadPass(StringRef opName,
   return std::make_unique<LinalgStrategyPadPass>(opName, opt, filter);
 }
 
-/// Create a LinalgStrategyPromotePass.
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::createLinalgStrategyPromotePass(
-    StringRef opName, const LinalgPromotionOptions &opt,
-    const LinalgTransformationFilter &filter) {
-  return std::make_unique<LinalgStrategyPromotePass>(opName, opt, filter);
-}
-
 /// Create a LinalgStrategyGeneralizePass.
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createLinalgStrategyGeneralizePass(
@@ -504,6 +498,14 @@ mlir::createLinalgStrategyInterchangePass(
     const LinalgTransformationFilter &filter) {
   return std::make_unique<LinalgStrategyInterchangePass>(iteratorInterchange,
                                                          filter);
+}
+
+/// Create a LinalgStrategyPeelPass.
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createLinalgStrategyPeelPass(StringRef opName,
+                                   const LinalgPeelOptions &opt,
+                                   const LinalgTransformationFilter &filter) {
+  return std::make_unique<LinalgStrategyPeelPass>(opName, opt, filter);
 }
 
 /// Create a LinalgStrategyVectorizePass.

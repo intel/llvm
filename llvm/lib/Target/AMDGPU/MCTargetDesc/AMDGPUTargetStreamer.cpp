@@ -301,7 +301,7 @@ bool AMDGPUTargetAsmStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -367,6 +367,8 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
     PRINT_FIELD(OS, ".amdhsa_wavefront_size32", KD,
                 kernel_code_properties,
                 amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32);
+  PRINT_FIELD(OS, ".amdhsa_uses_dynamic_stack", KD, kernel_code_properties,
+              amdhsa::KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK);
   PRINT_FIELD(OS,
               (hasArchitectedFlatScratch(STI)
                    ? ".amdhsa_enable_private_segment"
@@ -456,7 +458,7 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
                 compute_pgm_rsrc1,
                 amdhsa::COMPUTE_PGM_RSRC1_FWD_PROGRESS);
     PRINT_FIELD(OS, ".amdhsa_shared_vgpr_count", KD, compute_pgm_rsrc3,
-                amdhsa::COMPUTE_PGM_RSRC3_GFX10_SHARED_VGPR_COUNT);
+                amdhsa::COMPUTE_PGM_RSRC3_GFX10_PLUS_SHARED_VGPR_COUNT);
   }
   PRINT_FIELD(
       OS, ".amdhsa_exception_fp_ieee_invalid_op", KD,
@@ -533,8 +535,8 @@ void AMDGPUTargetELFStreamer::EmitNote(
   if (STI.getTargetTriple().getOS() == Triple::AMDHSA)
     NoteFlags = ELF::SHF_ALLOC;
 
-  S.PushSection();
-  S.SwitchSection(
+  S.pushSection();
+  S.switchSection(
       Context.getELFSection(ElfNote::SectionName, ELF::SHT_NOTE, NoteFlags));
   S.emitInt32(NameSZ);                                        // namesz
   S.emitValue(DescSZ, 4);                                     // descz
@@ -543,7 +545,7 @@ void AMDGPUTargetELFStreamer::EmitNote(
   S.emitValueToAlignment(4, 0, 1, 0);                         // padding 0
   EmitDesc(S);                                                // desc
   S.emitValueToAlignment(4, 0, 1, 0);                         // padding 0
-  S.PopSection();
+  S.popSection();
 }
 
 unsigned AMDGPUTargetELFStreamer::getEFlags() {
@@ -717,9 +719,9 @@ void
 AMDGPUTargetELFStreamer::EmitAMDKernelCodeT(const amd_kernel_code_t &Header) {
 
   MCStreamer &OS = getStreamer();
-  OS.PushSection();
+  OS.pushSection();
   OS.emitBytes(StringRef((const char*)&Header, sizeof(Header)));
-  OS.PopSection();
+  OS.popSection();
 }
 
 void AMDGPUTargetELFStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
@@ -824,7 +826,7 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -836,11 +838,11 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   }
 
   MCStreamer &OS = getStreamer();
-  OS.PushSection();
+  OS.pushSection();
   OS.emitValueToAlignment(CacheLineSize, Encoded_pad, 4);
   for (unsigned I = 0; I < FillSize; I += 4)
     OS.emitInt32(Encoded_pad);
-  OS.PopSection();
+  OS.popSection();
   return true;
 }
 

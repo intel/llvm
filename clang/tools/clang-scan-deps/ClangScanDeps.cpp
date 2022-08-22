@@ -116,15 +116,15 @@ static llvm::cl::opt<ScanningMode> ScanMode(
     "mode",
     llvm::cl::desc("The preprocessing mode used to compute the dependencies"),
     llvm::cl::values(
-        clEnumValN(ScanningMode::MinimizedSourcePreprocessing,
-                   "preprocess-minimized-sources",
-                   "The set of dependencies is computed by preprocessing the "
-                   "source files that were minimized to only include the "
-                   "contents that might affect the dependencies"),
+        clEnumValN(ScanningMode::DependencyDirectivesScan,
+                   "preprocess-dependency-directives",
+                   "The set of dependencies is computed by preprocessing with "
+                   "special lexing after scanning the source files to get the "
+                   "directives that might affect the dependencies"),
         clEnumValN(ScanningMode::CanonicalPreprocessing, "preprocess",
                    "The set of dependencies is computed by preprocessing the "
-                   "unmodified source files")),
-    llvm::cl::init(ScanningMode::MinimizedSourcePreprocessing),
+                   "source files")),
+    llvm::cl::init(ScanningMode::DependencyDirectivesScan),
     llvm::cl::cat(DependencyScannerCategory));
 
 static llvm::cl::opt<ScanningOutputFormat> Format(
@@ -194,6 +194,12 @@ llvm::cl::opt<bool> ReuseFileManager(
 llvm::cl::opt<std::string> ModuleName(
     "module-name", llvm::cl::Optional,
     llvm::cl::desc("the module of which the dependencies are to be computed"),
+    llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::list<std::string> ModuleDepTargets(
+    "dependency-target",
+    llvm::cl::desc("With '-generate-modules-path-args', the names of "
+                   "dependency targets for the dependency file"),
     llvm::cl::cat(DependencyScannerCategory));
 
 enum ResourceDirRecipeKind {
@@ -288,11 +294,12 @@ public:
       Modules.insert(I, {{MD.ID, InputIndex}, std::move(MD)});
     }
 
-    ID.CommandLine = GenerateModulesPathArgs
-                         ? FD.getCommandLine(
-                               [&](ModuleID MID) { return lookupPCMPath(MID); })
-                         : FD.getCommandLineWithoutModulePaths();
-
+    ID.CommandLine =
+        GenerateModulesPathArgs
+            ? FD.getCommandLine([&](const ModuleID &MID, ModuleOutputKind MOK) {
+                return lookupModuleOutput(MID, MOK);
+              })
+            : FD.getCommandLineWithoutModulePaths();
     Inputs.push_back(std::move(ID));
   }
 
@@ -325,7 +332,9 @@ public:
           {"command-line",
            GenerateModulesPathArgs
                ? MD.getCanonicalCommandLine(
-                     [&](ModuleID MID) { return lookupPCMPath(MID); })
+                     [&](const ModuleID &MID, ModuleOutputKind MOK) {
+                       return lookupModuleOutput(MID, MOK);
+                     })
                : MD.getCanonicalCommandLineWithoutModulePaths()},
       };
       OutModules.push_back(std::move(O));
@@ -352,11 +361,24 @@ public:
   }
 
 private:
-  StringRef lookupPCMPath(ModuleID MID) {
+  std::string lookupModuleOutput(const ModuleID &MID, ModuleOutputKind MOK) {
+    // Cache the PCM path, since it will be queried repeatedly for each module.
+    // The other outputs are only queried once during getCanonicalCommandLine.
     auto PCMPath = PCMPaths.insert({MID, ""});
     if (PCMPath.second)
       PCMPath.first->second = constructPCMPath(MID);
-    return PCMPath.first->second;
+    switch (MOK) {
+    case ModuleOutputKind::ModuleFile:
+      return PCMPath.first->second;
+    case ModuleOutputKind::DependencyFile:
+      return PCMPath.first->second + ".d";
+    case ModuleOutputKind::DependencyTargets:
+      // Null-separate the list of targets.
+      return join(ModuleDepTargets, StringRef("\0", 1));
+    case ModuleOutputKind::DiagnosticSerializationFile:
+      return PCMPath.first->second + ".diag";
+    }
+    llvm_unreachable("Fully covered switch above!");
   }
 
   /// Construct a path for the explicitly built PCM.

@@ -10,6 +10,7 @@
 #define LLVM_LIBC_SRC_STDIO_PRINTF_CORE_CORE_STRUCTS_H
 
 #include "src/__support/CPP/StringView.h"
+#include "src/__support/FPUtil/FPBits.h"
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -45,7 +46,8 @@ struct FormatSection {
   int min_width = 0;
   int precision = -1;
 
-  __uint128_t conv_val_raw; // Needs to be large enough to hold a long double.
+  // Needs to be large enough to hold a long double.
+  fputil::FPBits<long double>::UIntType conv_val_raw;
   void *conv_val_ptr;
 
   char conv_name;
@@ -76,6 +78,14 @@ struct FormatSection {
     return true;
   }
 };
+
+// This is the value to be returned by conversions when no error has occurred.
+constexpr int WRITE_OK = 0;
+// These are the printf return values for when an error has occurred. They are
+// all negative, and should be distinct.
+constexpr int FILE_WRITE_ERROR = -1;
+constexpr int FILE_STATUS_ERROR = -2;
+constexpr int NULLPTR_WRITE_ERROR = -3;
 
 } // namespace printf_core
 } // namespace __llvm_libc

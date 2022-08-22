@@ -1,6 +1,6 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   // expected-warning@+1 {{'this_group<1>' is deprecated: use sycl::ext::oneapi::experimental::this_group() instead}}

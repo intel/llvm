@@ -15,8 +15,6 @@ from lldbsuite.test import lldbutil
 
 class TargetAPITestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -120,7 +118,7 @@ class TargetAPITestCase(TestBase):
 
         abi_pre_launch = target.GetABIName()
         self.assertTrue(len(abi_pre_launch) != 0, "Got an ABI string")
-        
+
         breakpoint = target.BreakpointCreateByLocation(
             "main.c", self.line_main)
         self.assertTrue(breakpoint, VALID_BREAKPOINT)
@@ -180,7 +178,7 @@ class TargetAPITestCase(TestBase):
         process = target.LaunchSimple(
             ['foo', 'bar'], ['baz'], self.get_process_working_directory())
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateExited)
+        self.assertState(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertIn('arg: foo', output)
         self.assertIn('arg: bar', output)
@@ -191,7 +189,7 @@ class TargetAPITestCase(TestBase):
         process = target.LaunchSimple(None, None,
                                       self.get_process_working_directory())
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateExited)
+        self.assertState(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertIn('arg: foo', output)
         self.assertIn('env: bar=baz', output)
@@ -200,7 +198,7 @@ class TargetAPITestCase(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateExited)
+        self.assertState(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertEqual(output, "")
 
@@ -428,7 +426,7 @@ class TargetAPITestCase(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         # Frame #0 should be on self.line1.
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -443,7 +441,7 @@ class TargetAPITestCase(TestBase):
 
         # Continue the inferior, the breakpoint 2 should be hit.
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(

@@ -59,8 +59,8 @@ YieldOp::getMutableSuccessorOperands(Optional<unsigned> index) {
 
 constexpr char kOperandSegmentSizesAttr[] = "operand_segment_sizes";
 
-OperandRange ExecuteOp::getSuccessorEntryOperands(unsigned index) {
-  assert(index == 0 && "invalid region index");
+OperandRange ExecuteOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+  assert(index && *index == 0 && "invalid region index");
   return operands();
 }
 
@@ -77,7 +77,7 @@ void ExecuteOp::getSuccessorRegions(Optional<unsigned> index,
                                     ArrayRef<Attribute>,
                                     SmallVectorImpl<RegionSuccessor> &regions) {
   // The `body` region branch back to the parent operation.
-  if (index.hasValue()) {
+  if (index) {
     assert(*index == 0 && "invalid region index");
     regions.push_back(RegionSuccessor(results()));
     return;
@@ -210,17 +210,15 @@ ParseResult ExecuteOp::parse(OpAsmParser &parser, OperationState &result) {
 
   // Parse the types of results returned from the async execute op.
   SmallVector<Type, 4> resultTypes;
-  if (parser.parseOptionalArrowTypeList(resultTypes))
-    return failure();
-
-  // Async execute first result is always a completion token.
-  parser.addTypeToList(tokenTy, result.types);
-  parser.addTypesToList(resultTypes, result.types);
-
-  // Parse operation attributes.
   NamedAttrList attrs;
-  if (parser.parseOptionalAttrDictWithKeyword(attrs))
+  if (parser.parseOptionalArrowTypeList(resultTypes) ||
+      // Async execute first result is always a completion token.
+      parser.addTypeToList(tokenTy, result.types) ||
+      parser.addTypesToList(resultTypes, result.types) ||
+      // Parse operation attributes.
+      parser.parseOptionalAttrDictWithKeyword(attrs))
     return failure();
+
   result.addAttributes(attrs);
 
   // Parse asynchronous region.

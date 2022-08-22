@@ -480,10 +480,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     CTContext->setASTContext(&Clang->getASTContext());
     CTContext->setCurrentFile(Filename);
     CTContext->setSelfContainedDiags(true);
-    CTChecks = CTFactories.createChecks(CTContext.getPointer());
-    llvm::erase_if(CTChecks, [&](const auto &Check) {
-      return !Check->isLanguageVersionSupported(CTContext->getLangOpts());
-    });
+    CTChecks = CTFactories.createChecksForLanguage(CTContext.getPointer());
     Preprocessor *PP = &Clang->getPreprocessor();
     for (const auto &Check : CTChecks) {
       Check->registerPPCallbacks(Clang->getSourceManager(), PP, PP);
@@ -668,10 +665,11 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
       Diags->insert(Diags->end(), D.begin(), D.end());
     }
   }
-  ParsedAST Result(Inputs.Version, std::move(Preamble), std::move(Clang),
-                   std::move(Action), std::move(Tokens), std::move(Macros),
-                   std::move(Marks), std::move(ParsedDecls), std::move(Diags),
-                   std::move(Includes), std::move(CanonIncludes));
+  ParsedAST Result(Filename, Inputs.Version, std::move(Preamble),
+                   std::move(Clang), std::move(Action), std::move(Tokens),
+                   std::move(Macros), std::move(Marks), std::move(ParsedDecls),
+                   std::move(Diags), std::move(Includes),
+                   std::move(CanonIncludes));
   if (Result.Diags) {
     auto UnusedHeadersDiags =
         issueUnusedIncludesDiagnostics(Result, Inputs.Contents);
@@ -762,7 +760,7 @@ const CanonicalIncludes &ParsedAST::getCanonicalIncludes() const {
   return CanonIncludes;
 }
 
-ParsedAST::ParsedAST(llvm::StringRef Version,
+ParsedAST::ParsedAST(PathRef TUPath, llvm::StringRef Version,
                      std::shared_ptr<const PreambleData> Preamble,
                      std::unique_ptr<CompilerInstance> Clang,
                      std::unique_ptr<FrontendAction> Action,
@@ -771,10 +769,10 @@ ParsedAST::ParsedAST(llvm::StringRef Version,
                      std::vector<Decl *> LocalTopLevelDecls,
                      llvm::Optional<std::vector<Diag>> Diags,
                      IncludeStructure Includes, CanonicalIncludes CanonIncludes)
-    : Version(Version), Preamble(std::move(Preamble)), Clang(std::move(Clang)),
-      Action(std::move(Action)), Tokens(std::move(Tokens)),
-      Macros(std::move(Macros)), Marks(std::move(Marks)),
-      Diags(std::move(Diags)),
+    : TUPath(TUPath), Version(Version), Preamble(std::move(Preamble)),
+      Clang(std::move(Clang)), Action(std::move(Action)),
+      Tokens(std::move(Tokens)), Macros(std::move(Macros)),
+      Marks(std::move(Marks)), Diags(std::move(Diags)),
       LocalTopLevelDecls(std::move(LocalTopLevelDecls)),
       Includes(std::move(Includes)), CanonIncludes(std::move(CanonIncludes)) {
   Resolver = std::make_unique<HeuristicResolver>(getASTContext());

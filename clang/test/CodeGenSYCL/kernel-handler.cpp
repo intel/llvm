@@ -7,7 +7,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void test(int val) {
   queue q;
@@ -24,7 +24,7 @@ void test(int val) {
 
 // ALL: define dso_local{{ spir_kernel | }}void @{{.*}}test_kernel_handler{{[^(]*}}
 // ALL-SAME: (i32 noundef %_arg_a, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
-// ALL: %kh = alloca %"class.cl::sycl::kernel_handler", align 1
+// ALL: %kh = alloca %"class.sycl::_V1::kernel_handler", align 1
 
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load ptr addrspace(1), ptr %_arg__specialization_constants_buffer.addr, align 8
 // NONATIVESUPPORT: %[[ADDRSPACECAST:[0-9]+]] = addrspacecast ptr addrspace(1) %[[KH]] to ptr
@@ -35,4 +35,4 @@ void test(int val) {
 // NATIVESUPPORT-NOT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(ptr noundef align 4 nonnull align 1 dereferenceable(1) %kh, ptr noundef align 4 %{{[0-9]+}})
 
 // ALL: call{{ spir_func | }}void @{{[a-zA-Z0-9_$]+}}kernel_handler{{[a-zA-Z0-9_$]+}}
-// ALL-SAME: noundef byval(%"class.cl::sycl::kernel_handler")
+// ALL-SAME: noundef byval(%"class.sycl::_V1::kernel_handler")

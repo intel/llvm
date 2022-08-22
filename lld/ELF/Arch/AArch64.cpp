@@ -35,6 +35,7 @@ public:
   RelType getDynRel(RelType type) const override;
   int64_t getImplicitAddend(const uint8_t *buf, RelType type) const override;
   void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
+  void writeIgotPlt(uint8_t *buf, const Symbol &s) const override;
   void writePltHeader(uint8_t *buf) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
                 uint64_t pltEntryAddr) const override;
@@ -197,11 +198,16 @@ int64_t AArch64::getImplicitAddend(const uint8_t *buf, RelType type) const {
   case R_AARCH64_TLSDESC:
     return read64(buf + 8);
   case R_AARCH64_NONE:
+  case R_AARCH64_GLOB_DAT:
+  case R_AARCH64_JUMP_SLOT:
     return 0;
   case R_AARCH64_PREL32:
     return SignExtend64<32>(read32(buf));
   case R_AARCH64_ABS64:
   case R_AARCH64_PREL64:
+  case R_AARCH64_RELATIVE:
+  case R_AARCH64_IRELATIVE:
+  case R_AARCH64_TLS_TPREL64:
     return read64(buf);
   default:
     internalLinkerError(getErrorLocation(buf),
@@ -212,6 +218,11 @@ int64_t AArch64::getImplicitAddend(const uint8_t *buf, RelType type) const {
 
 void AArch64::writeGotPlt(uint8_t *buf, const Symbol &) const {
   write64(buf, in.plt->getVA());
+}
+
+void AArch64::writeIgotPlt(uint8_t *buf, const Symbol &s) const {
+  if (config->writeAddends)
+    write64(buf, s.getVA());
 }
 
 void AArch64::writePltHeader(uint8_t *buf) const {
@@ -693,6 +704,11 @@ bool AArch64Relaxer::tryRelaxAdrpLdr(const Relocation &adrpRel,
     return false;
 
   Symbol &sym = *adrpRel.sym;
+  // GOT references to absolute symbols can't be relaxed to use ADRP/ADD in
+  // position-independent code because these instructions produce a relative
+  // address.
+  if (config->isPic && !cast<Defined>(sym).section)
+    return false;
   // Check if the address difference is within 4GB range.
   int64_t val =
       getAArch64Page(sym.getVA()) - getAArch64Page(secAddr + adrpRel.offset);

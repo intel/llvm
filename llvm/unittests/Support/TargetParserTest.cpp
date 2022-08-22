@@ -395,13 +395,19 @@ INSTANTIATE_TEST_SUITE_P(
                              ARM::AEK_FP | ARM::AEK_RAS | ARM::AEK_LOB |
                              ARM::AEK_FP16,
                          "8.1-M.Mainline"),
+        ARMCPUTestParams("cortex-m85", "armv8.1-m.main",
+                         "fp-armv8-fullfp16-d16",
+                         ARM::AEK_HWDIVTHUMB | ARM::AEK_DSP | ARM::AEK_SIMD |
+                             ARM::AEK_FP | ARM::AEK_RAS | ARM::AEK_LOB |
+                             ARM::AEK_FP16 | ARM::AEK_PACBTI,
+                         "8.1-M.Mainline"),
         ARMCPUTestParams("iwmmxt", "iwmmxt", "none", ARM::AEK_NONE, "iwmmxt"),
         ARMCPUTestParams("xscale", "xscale", "none", ARM::AEK_NONE, "xscale"),
         ARMCPUTestParams("swift", "armv7s", "neon-vfpv4",
                          ARM::AEK_HWDIVARM | ARM::AEK_HWDIVTHUMB | ARM::AEK_DSP,
                          "7-S")));
 
-static constexpr unsigned NumARMCPUArchs = 88;
+static constexpr unsigned NumARMCPUArchs = 89;
 
 TEST(TargetParserTest, testARMCPUArchList) {
   SmallVector<StringRef, NumARMCPUArchs> List;
@@ -1201,7 +1207,7 @@ INSTANTIATE_TEST_SUITE_P(
                              AArch64::AEK_RDM  | AArch64::AEK_RCPC | AArch64::AEK_DOTPROD |
                              AArch64::AEK_SM4  | AArch64::AEK_SHA3 | AArch64::AEK_BF16    |
                              AArch64::AEK_SHA2 | AArch64::AEK_AES  | AArch64::AEK_I8MM    |
-                             AArch64::AEK_MTE  | AArch64::AEK_SSBS | AArch64::AEK_SB,
+                             AArch64::AEK_SSBS | AArch64::AEK_SB,
                          "8.6-A"),
         ARMCPUTestParams(
             "neoverse-512tvb", "armv8.4-a", "crypto-neon-fp-armv8",

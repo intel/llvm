@@ -381,6 +381,8 @@ MLIR_CAPI_EXPORTED MlirAttribute mlirDenseElementsAttrDoubleGet(
     MlirType shapedType, intptr_t numElements, const double *elements);
 MLIR_CAPI_EXPORTED MlirAttribute mlirDenseElementsAttrBFloat16Get(
     MlirType shapedType, intptr_t numElements, const uint16_t *elements);
+MLIR_CAPI_EXPORTED MlirAttribute mlirDenseElementsAttrFloat16Get(
+    MlirType shapedType, intptr_t numElements, const uint16_t *elements);
 
 /// Creates a dense elements attribute with the given shaped type from string
 /// elements.
@@ -452,15 +454,6 @@ mlirDenseElementsAttrGetStringValue(MlirAttribute attr, intptr_t pos);
 /// Returns the raw data of the given dense elements attribute.
 MLIR_CAPI_EXPORTED const void *
 mlirDenseElementsAttrGetRawData(MlirAttribute attr);
-
-//===----------------------------------------------------------------------===//
-// Opaque elements attribute.
-//===----------------------------------------------------------------------===//
-
-// TODO: expose Dialect to the bindings and implement accessors here.
-
-/// Checks whether the given attribute is an opaque elements attribute.
-MLIR_CAPI_EXPORTED bool mlirAttributeIsAOpaqueElements(MlirAttribute attr);
 
 //===----------------------------------------------------------------------===//
 // Sparse elements attribute.

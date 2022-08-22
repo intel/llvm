@@ -187,7 +187,7 @@ bool AtomicExpand::runOnFunction(Function &F) {
       AtomicInsts.push_back(&I);
 
   bool MadeChange = false;
-  for (auto I : AtomicInsts) {
+  for (auto *I : AtomicInsts) {
     auto LI = dyn_cast<LoadInst>(I);
     auto SI = dyn_cast<StoreInst>(I);
     auto RMWI = dyn_cast<AtomicRMWInst>(I);
@@ -254,7 +254,8 @@ bool AtomicExpand::runOnFunction(Function &F) {
     }
 
     if (LI) {
-      if (LI->getType()->isFloatingPointTy()) {
+      if (TLI->shouldCastAtomicLoadInIR(LI) ==
+          TargetLoweringBase::AtomicExpansionKind::CastToInteger) {
         // TODO: add a TLI hook to control this so that each target can
         // convert to lowering the original type one at a time.
         LI = convertAtomicLoadToIntegerType(LI);
@@ -264,7 +265,8 @@ bool AtomicExpand::runOnFunction(Function &F) {
 
       MadeChange |= tryExpandAtomicLoad(LI);
     } else if (SI) {
-      if (SI->getValueOperand()->getType()->isFloatingPointTy()) {
+      if (TLI->shouldCastAtomicStoreInIR(SI) ==
+          TargetLoweringBase::AtomicExpansionKind::CastToInteger) {
         // TODO: add a TLI hook to control this so that each target can
         // convert to lowering the original type one at a time.
         SI = convertAtomicStoreToIntegerType(SI);
@@ -285,8 +287,8 @@ bool AtomicExpand::runOnFunction(Function &F) {
         MadeChange = true;
       } else {
         AtomicRMWInst::BinOp Op = RMWI->getOperation();
-        if (Op == AtomicRMWInst::Xchg &&
-            RMWI->getValOperand()->getType()->isFloatingPointTy()) {
+        if (TLI->shouldCastAtomicRMWIInIR(RMWI) ==
+            TargetLoweringBase::AtomicExpansionKind::CastToInteger) {
           // TODO: add a TLI hook to control this so that each target can
           // convert to lowering the original type one at a time.
           RMWI = convertAtomicXchgToIntegerType(RMWI);
@@ -385,7 +387,9 @@ AtomicExpand::convertAtomicXchgToIntegerType(AtomicRMWInst *RMWI) {
   Value *Val = RMWI->getValOperand();
   Type *PT = PointerType::get(NewTy, RMWI->getPointerAddressSpace());
   Value *NewAddr = Builder.CreateBitCast(Addr, PT);
-  Value *NewVal = Builder.CreateBitCast(Val, NewTy);
+  Value *NewVal = Val->getType()->isPointerTy()
+                      ? Builder.CreatePtrToInt(Val, NewTy)
+                      : Builder.CreateBitCast(Val, NewTy);
 
   auto *NewRMWI =
       Builder.CreateAtomicRMW(AtomicRMWInst::Xchg, NewAddr, NewVal,
@@ -393,7 +397,9 @@ AtomicExpand::convertAtomicXchgToIntegerType(AtomicRMWInst *RMWI) {
   NewRMWI->setVolatile(RMWI->isVolatile());
   LLVM_DEBUG(dbgs() << "Replaced " << *RMWI << " with " << *NewRMWI << "\n");
 
-  Value *NewRVal = Builder.CreateBitCast(NewRMWI, RMWI->getType());
+  Value *NewRVal = RMWI->getType()->isPointerTy()
+                       ? Builder.CreateIntToPtr(NewRMWI, RMWI->getType())
+                       : Builder.CreateBitCast(NewRMWI, RMWI->getType());
   RMWI->replaceAllUsesWith(NewRVal);
   RMWI->eraseFromParent();
   return NewRMWI;
@@ -509,9 +515,14 @@ void AtomicExpand::expandAtomicStore(StoreInst *SI) {
   // It is the responsibility of the target to only signal expansion via
   // shouldExpandAtomicRMW in cases where this is required and possible.
   IRBuilder<> Builder(SI);
+  AtomicOrdering Ordering = SI->getOrdering();
+  assert(Ordering != AtomicOrdering::NotAtomic);
+  AtomicOrdering RMWOrdering = Ordering == AtomicOrdering::Unordered
+                                   ? AtomicOrdering::Monotonic
+                                   : Ordering;
   AtomicRMWInst *AI = Builder.CreateAtomicRMW(
       AtomicRMWInst::Xchg, SI->getPointerOperand(), SI->getValueOperand(),
-      SI->getAlign(), SI->getOrdering());
+      SI->getAlign(), RMWOrdering);
   SI->eraseFromParent();
 
   // Now we have an appropriate swap instruction, lower it as usual.
@@ -525,6 +536,7 @@ static void createCmpXchgInstFun(IRBuilder<> &Builder, Value *Addr,
   Type *OrigTy = NewVal->getType();
 
   // This code can go away when cmpxchg supports FP types.
+  assert(!OrigTy->isPointerTy());
   bool NeedBitcast = OrigTy->isFloatingPointTy();
   if (NeedBitcast) {
     IntegerType *IntTy = Builder.getIntNTy(OrigTy->getPrimitiveSizeInBits());
@@ -1364,7 +1376,7 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
   // Look for any users of the cmpxchg that are just comparing the loaded value
   // against the desired one, and replace them with the CFG-derived version.
   SmallVector<ExtractValueInst *, 2> PrunedInsts;
-  for (auto User : CI->users()) {
+  for (auto *User : CI->users()) {
     ExtractValueInst *EV = dyn_cast<ExtractValueInst>(User);
     if (!EV)
       continue;
@@ -1381,7 +1393,7 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
   }
 
   // We can remove the instructions now we're no longer iterating through them.
-  for (auto EV : PrunedInsts)
+  for (auto *EV : PrunedInsts)
     EV->eraseFromParent();
 
   if (!CI->use_empty()) {
@@ -1639,6 +1651,8 @@ static ArrayRef<RTLIB::Libcall> GetRMWLibcall(AtomicRMWInst::BinOp Op) {
   case AtomicRMWInst::Min:
   case AtomicRMWInst::UMax:
   case AtomicRMWInst::UMin:
+  case AtomicRMWInst::FMax:
+  case AtomicRMWInst::FMin:
   case AtomicRMWInst::FAdd:
   case AtomicRMWInst::FSub:
     // No atomic libcalls are available for max/min/umax/umin.

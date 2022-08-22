@@ -49,6 +49,7 @@ Using Clang as a Compiler
    HLSLSupport
    ThinLTO
    APINotes
+   DebuggingCoroutines
    CommandGuide/index
    FAQ
 
@@ -88,6 +89,7 @@ Using Clang Tools
    ClangNvlinkWrapper
    ClangOffloadBundler
    ClangOffloadWrapper
+   ClangOffloadPackager
 
 Design Documents
 ================

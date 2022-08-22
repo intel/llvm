@@ -3,17 +3,17 @@
 
 struct Base {
   int A, B;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> AccField;
+  sycl::accessor<char, 1, sycl::access::mode::read> AccField;
 };
 
 struct Captured : Base,
-                  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> {
+                  sycl::accessor<char, 1, sycl::access::mode::read> {
   int C;
 };
 
 int main() {
   Captured Obj;
-  cl::sycl::kernel_single_task<class kernel>(
+  sycl::kernel_single_task<class kernel>(
       [=]() {
         Obj.use();
       });
@@ -21,8 +21,8 @@ int main() {
 }
 
 // Check kernel parameters
-// CHECK: %[[RANGE_TYPE:"struct.*cl::sycl::range"]]
-// CHECK: %[[ID_TYPE:"struct.*cl::sycl::id"]]
+// CHECK: %[[RANGE_TYPE:"struct.*sycl::_V1::range"]]
+// CHECK: %[[ID_TYPE:"struct.*sycl::_V1::id"]]
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
 // CHECK-SAME: i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 noundef [[ARG_B:%[a-zA-Z0-9_]+]],
@@ -50,7 +50,7 @@ int main() {
 // CHECK: [[ARG_C]].addr.ascast = addrspacecast ptr [[ARG_C]].addr to ptr addrspace(4)
 //
 // Lambda object alloca
-// CHECK: [[KERNEL_OBJ:%[a-zA-Z0-9_]+]] = addrspacecast ptr [[KERNEL]] to ptr addrspace(4)
+// CHECK: [[KERNEL_OBJ:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[KERNEL]] to ptr addrspace(4)
 //
 // Kernel argument stores
 // CHECK: store i32 [[ARG_A]], ptr addrspace(4) [[ARG_A]].addr.ascast
@@ -71,10 +71,10 @@ int main() {
 // Check accessors initialization
 // CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 2
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) {{[^,]*}} [[ACC_FIELD]])
+// CHECK: call spir_func void @_ZN4sycl3_V18accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) {{[^,]*}} [[ACC_FIELD]])
 // CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, ptr addrspace(4) [[GEP]], i64 20
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev(ptr addrspace(4) {{[^,]*}} [[GEP1]])
+// CHECK: call spir_func void @_ZN4sycl3_V18accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev(ptr addrspace(4) {{[^,]*}} [[GEP1]])
 
 // CHECK C field initialization
 // CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Captured, ptr addrspace(4) [[GEP]], i32 0, i32 2

@@ -22,11 +22,12 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
-namespace experimental::matrix {
+namespace experimental {
+namespace matrix {
 
 enum class tpu {
   dpas,
@@ -416,8 +417,9 @@ struct tpu_params<
   scope_t scope = scope_t::sub_group;
 };
 #endif
-} // namespace experimental::matrix
+} // namespace matrix
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

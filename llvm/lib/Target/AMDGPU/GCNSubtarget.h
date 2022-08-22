@@ -30,10 +30,9 @@ class GCNTargetMachine;
 
 class GCNSubtarget final : public AMDGPUGenSubtargetInfo,
                            public AMDGPUSubtarget {
-
+public:
   using AMDGPUSubtarget::getMaxWavesPerEU;
 
-public:
   // Following 2 enums are documented at:
   //   - https://llvm.org/docs/AMDGPUUsage.html#trap-handler-abi
   enum class TrapHandlerAbi {
@@ -72,6 +71,7 @@ protected:
   // Dynamically set bits that enable features.
   bool FlatForGlobal = false;
   bool AutoWaitcntBeforeBarrier = false;
+  bool BackOffBarrier = false;
   bool UnalignedScratchAccess = false;
   bool UnalignedAccessMode = false;
   bool HasApertureRegs = false;
@@ -103,9 +103,11 @@ protected:
   bool GFX90AInsts = false;
   bool GFX940Insts = false;
   bool GFX10Insts = false;
+  bool GFX11Insts = false;
   bool GFX10_3Insts = false;
   bool GFX7GFX8GFX9Insts = false;
   bool SGPRInitBug = false;
+  bool UserSGPRInit16Bug = false;
   bool NegativeScratchOffsetBug = false;
   bool NegativeUnalignedScratchOffsetBug = false;
   bool HasSMemRealTime = false;
@@ -141,7 +143,9 @@ protected:
   bool HasDot5Insts = false;
   bool HasDot6Insts = false;
   bool HasDot7Insts = false;
+  bool HasDot8Insts = false;
   bool HasMAIInsts = false;
+  bool HasFP8Insts = false;
   bool HasPkFmacF16Inst = false;
   bool HasAtomicFaddRtnInsts = false;
   bool HasAtomicFaddNoRtnInsts = false;
@@ -187,6 +191,7 @@ protected:
   bool HasFlatSegmentOffsetBug = false;
   bool HasImageStoreD16Bug = false;
   bool HasImageGather4D16Bug = false;
+  bool HasVOPDInsts = false;
 
   // Dummy feature to use for assembler in tablegen.
   bool FeatureDisable = false;
@@ -198,9 +203,6 @@ private:
   SIFrameLowering FrameLowering;
 
 public:
-  // See COMPUTE_TMPRING_SIZE.WAVESIZE, 13-bit field in units of 256-dword.
-  static const unsigned MaxWaveScratchSize = (256 * 4) * ((1 << 13) - 1);
-
   GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
                const GCNTargetMachine &TM);
   ~GCNSubtarget() override;
@@ -263,9 +265,19 @@ public:
     return (Generation)Gen;
   }
 
+  unsigned getMaxWaveScratchSize() const {
+    // See COMPUTE_TMPRING_SIZE.WAVESIZE.
+    if (getGeneration() < GFX11) {
+      // 13-bit field in units of 256-dword.
+      return (256 * 4) * ((1 << 13) - 1);
+    }
+    // 15-bit field in units of 64-dword.
+    return (64 * 4) * ((1 << 15) - 1);
+  }
+
   /// Return the number of high bits known to be zero for a frame index.
   unsigned getKnownHighZeroBitsForFrameIndex() const {
-    return countLeadingZeros(MaxWaveScratchSize) + getWavefrontSizeLog2();
+    return countLeadingZeros(getMaxWaveScratchSize()) + getWavefrontSizeLog2();
   }
 
   int getLDSBankCount() const {
@@ -495,6 +507,12 @@ public:
     return AutoWaitcntBeforeBarrier;
   }
 
+  /// \returns true if the target supports backing off of s_barrier instructions
+  /// when an exception is raised.
+  bool supportsBackOffBarrier() const {
+    return BackOffBarrier;
+  }
+
   bool hasUnalignedBufferAccess() const {
     return UnalignedBufferAccess;
   }
@@ -566,7 +584,7 @@ public:
     return hasFlatScratchInsts() && (hasGFX10_3Insts() || hasGFX940Insts());
   }
 
-  bool hasFlatScratchSVSMode() const { return GFX940Insts; }
+  bool hasFlatScratchSVSMode() const { return GFX940Insts || GFX11Insts; }
 
   bool hasScalarFlatScratchInsts() const {
     return ScalarFlatScratchInsts;
@@ -702,8 +720,16 @@ public:
     return HasDot7Insts;
   }
 
+  bool hasDot8Insts() const {
+    return HasDot8Insts;
+  }
+
   bool hasMAIInsts() const {
     return HasMAIInsts;
+  }
+
+  bool hasFP8Insts() const {
+    return HasFP8Insts;
   }
 
   bool hasPkFmacF16Inst() const {
@@ -821,6 +847,9 @@ public:
   /// \returns true if the subtarget has the v_permlanex16_b32 instruction.
   bool hasPermLaneX16() const { return getGeneration() >= GFX10; }
 
+  /// \returns true if the subtarget has the v_permlane64_b32 instruction.
+  bool hasPermLane64() const { return getGeneration() >= GFX11; }
+
   bool hasDPP() const {
     return HasDPP;
   }
@@ -909,6 +938,10 @@ public:
 
   bool hasSGPRInitBug() const {
     return SGPRInitBug;
+  }
+
+  bool hasUserSGPRInit16Bug() const {
+    return UserSGPRInit16Bug && isWave32();
   }
 
   bool hasNegativeScratchOffsetBug() const { return NegativeScratchOffsetBug; }
@@ -1001,8 +1034,36 @@ public:
 
   bool hasGFX90AInsts() const { return GFX90AInsts; }
 
+  bool hasVOP3DPP() const { return getGeneration() >= GFX11; }
+
+  bool hasLdsDirect() const { return getGeneration() >= GFX11; }
+
+  bool hasVALUPartialForwardingHazard() const {
+    return getGeneration() >= GFX11;
+  }
+
+  bool hasVALUTransUseHazard() const { return getGeneration() >= GFX11; }
+
   /// Return if operations acting on VGPR tuples require even alignment.
   bool needsAlignedVGPRs() const { return GFX90AInsts; }
+
+  /// Return true if the target has the S_PACK_HL_B32_B16 instruction.
+  bool hasSPackHL() const { return GFX11Insts; }
+
+  /// Return true if the target's EXP instruction has the COMPR flag, which
+  /// affects the meaning of the EN (enable) bits.
+  bool hasCompressedExport() const { return !GFX11Insts; }
+
+  /// Return true if the target's EXP instruction supports the NULL export
+  /// target.
+  bool hasNullExportTarget() const { return !GFX11Insts; }
+
+  bool hasVOPDInsts() const { return HasVOPDInsts; }
+
+  bool hasFlatScratchSVSSwizzleBug() const { return getGeneration() == GFX11; }
+
+  /// Return true if the target has the S_DELAY_ALU instruction.
+  bool hasDelayAlu() const { return GFX11Insts; }
 
   bool hasPackedTID() const { return HasPackedTID; }
 
@@ -1040,6 +1101,9 @@ public:
   bool hasMergedShaders() const {
     return getGeneration() >= GFX9;
   }
+
+  // \returns true if the target supports the pre-NGG legacy geometry path.
+  bool hasLegacyGeometry() const { return getGeneration() < GFX11; }
 
   /// \returns SGPR allocation granularity supported by the subtarget.
   unsigned getSGPRAllocGranule() const {
@@ -1221,6 +1285,10 @@ public:
 
   void adjustSchedDependency(SUnit *Def, int DefOpIdx, SUnit *Use, int UseOpIdx,
                              SDep &Dep) const override;
+
+  // \returns true if it's beneficial on this subtarget for the scheduler to
+  // cluster stores as well as loads.
+  bool shouldClusterStores() const { return getGeneration() >= GFX11; }
 };
 
 } // end namespace llvm

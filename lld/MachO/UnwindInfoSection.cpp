@@ -28,6 +28,7 @@
 
 using namespace llvm;
 using namespace llvm::MachO;
+using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::macho;
 
@@ -210,7 +211,7 @@ void UnwindInfoSection::addSymbol(const Defined *d) {
   // we use that as the key here.
   auto p = symbols.insert({{d->isec, d->value}, d});
   // If we have multiple symbols at the same address, only one of them can have
-  // an associated CUE.
+  // an associated unwind entry.
   if (!p.second && d->unwindEntry) {
     assert(!p.first->second->unwindEntry);
     p.first->second = d;
@@ -222,7 +223,8 @@ void UnwindInfoSectionImpl::prepareRelocations() {
   // entries to the GOT. Hence the use of a MapVector for
   // UnwindInfoSection::symbols.
   for (const Defined *d : make_second_range(symbols))
-    if (d->unwindEntry)
+    if (d->unwindEntry &&
+        d->unwindEntry->getName() == section_names::compactUnwind)
       prepareRelocations(d->unwindEntry);
 }
 
@@ -271,7 +273,7 @@ void UnwindInfoSectionImpl::prepareRelocations(ConcatInputSection *isec) {
               r.referent = s = sym;
       }
       if (auto *undefined = dyn_cast<Undefined>(s)) {
-        treatUndefinedSymbol(*undefined);
+        treatUndefinedSymbol(*undefined, isec, r.offset);
         // treatUndefinedSymbol() can replace s with a DylibSymbol; re-check.
         if (isa<Undefined>(s))
           continue;
@@ -309,6 +311,7 @@ void UnwindInfoSectionImpl::prepareRelocations(ConcatInputSection *isec) {
                           /*includeInSymtab=*/true,
                           /*isThumb=*/false, /*isReferencedDynamically=*/false,
                           /*noDeadStrip=*/false);
+        s->used = true;
         in.got->addEntry(s);
       }
       r.referent = s;
@@ -323,12 +326,24 @@ void UnwindInfoSectionImpl::prepareRelocations(ConcatInputSection *isec) {
 // is no source address to make a relative location meaningful.
 void UnwindInfoSectionImpl::relocateCompactUnwind(
     std::vector<CompactUnwindEntry> &cuEntries) {
-  parallelForEachN(0, symbolsVec.size(), [&](size_t i) {
+  parallelFor(0, symbolsVec.size(), [&](size_t i) {
     CompactUnwindEntry &cu = cuEntries[i];
     const Defined *d = symbolsVec[i].second;
     cu.functionAddress = d->getVA();
     if (!d->unwindEntry)
       return;
+
+    // If we have DWARF unwind info, create a CU entry that points to it.
+    if (d->unwindEntry->getName() == section_names::ehFrame) {
+      cu.encoding = target->modeDwarfEncoding | d->unwindEntry->outSecOff;
+      const FDE &fde = cast<ObjFile>(d->getFile())->fdes[d->unwindEntry];
+      cu.functionLength = fde.funcLength;
+      cu.personality = fde.personality;
+      cu.lsda = fde.lsda;
+      return;
+    }
+
+    assert(d->unwindEntry->getName() == section_names::compactUnwind);
 
     auto buf = reinterpret_cast<const uint8_t *>(d->unwindEntry->data.data()) -
                target->wordSize;
@@ -386,8 +401,12 @@ static bool canFoldEncoding(compact_unwind_encoding_t encoding) {
   // of the unwind info's unwind address, two functions that have identical
   // unwind info can't be folded if it's using this encoding since both
   // entries need unique addresses.
-  static_assert(UNWIND_X86_64_MODE_MASK == UNWIND_X86_MODE_MASK, "");
-  static_assert(UNWIND_X86_64_MODE_STACK_IND == UNWIND_X86_MODE_STACK_IND, "");
+  static_assert(static_cast<uint32_t>(UNWIND_X86_64_MODE_MASK) ==
+                    static_cast<uint32_t>(UNWIND_X86_MODE_MASK),
+                "");
+  static_assert(static_cast<uint32_t>(UNWIND_X86_64_MODE_STACK_IND) ==
+                    static_cast<uint32_t>(UNWIND_X86_MODE_STACK_IND),
+                "");
   if ((target->cpuType == CPU_TYPE_X86_64 || target->cpuType == CPU_TYPE_X86) &&
       (encoding & UNWIND_X86_64_MODE_MASK) == UNWIND_X86_64_MODE_STACK_IND) {
     // FIXME: Consider passing in the two function addresses and getting
@@ -491,7 +510,7 @@ void UnwindInfoSectionImpl::finalize() {
     secondLevelPages.emplace_back();
     SecondLevelPage &page = secondLevelPages.back();
     page.entryIndex = i;
-    uintptr_t functionAddressMax =
+    uint64_t functionAddressMax =
         cuEntries[idx].functionAddress + COMPRESSED_ENTRY_FUNC_OFFSET_MASK;
     size_t n = commonEncodings.size();
     size_t wordsRemaining =

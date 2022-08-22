@@ -80,33 +80,23 @@ extern cl::list<std::string> ReorderData;
 extern cl::opt<bolt::ReorderFunctions::ReorderType> ReorderFunctions;
 extern cl::opt<bool> TimeBuild;
 
-static cl::opt<bool>
-ForceToDataRelocations("force-data-relocations",
-  cl::desc("force relocations to data sections to always be processed"),
-  cl::init(false),
-  cl::Hidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+static cl::opt<bool> ForceToDataRelocations(
+    "force-data-relocations",
+    cl::desc("force relocations to data sections to always be processed"),
+
+    cl::Hidden, cl::cat(BoltCategory));
 
 cl::opt<std::string>
-BoltID("bolt-id",
-  cl::desc("add any string to tag this execution in the "
-           "output binary via bolt info section"),
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+    BoltID("bolt-id",
+           cl::desc("add any string to tag this execution in the "
+                    "output binary via bolt info section"),
+           cl::cat(BoltCategory));
 
-cl::opt<bool>
-AllowStripped("allow-stripped",
-  cl::desc("allow processing of stripped binaries"),
-  cl::Hidden,
-  cl::cat(BoltCategory));
-
-cl::opt<bool>
-DumpDotAll("dump-dot-all",
-  cl::desc("dump function CFGs to graphviz format after each stage"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+cl::opt<bool> DumpDotAll(
+    "dump-dot-all",
+    cl::desc("dump function CFGs to graphviz format after each stage;"
+             "enable '-print-loops' for color-coded blocks"),
+    cl::Hidden, cl::cat(BoltCategory));
 
 static cl::list<std::string>
 ForceFunctionNames("funcs",
@@ -138,12 +128,8 @@ KeepTmp("keep-tmp",
   cl::Hidden,
   cl::cat(BoltCategory));
 
-cl::opt<bool>
-Lite("lite",
-  cl::desc("skip processing of cold functions"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+cl::opt<bool> Lite("lite", cl::desc("skip processing of cold functions"),
+                   cl::cat(BoltCategory));
 
 static cl::opt<unsigned>
 LiteThresholdPct("lite-threshold-pct",
@@ -156,72 +142,49 @@ LiteThresholdPct("lite-threshold-pct",
   cl::Hidden,
   cl::cat(BoltOptCategory));
 
-static cl::opt<unsigned>
-LiteThresholdCount("lite-threshold-count",
-  cl::desc("similar to '-lite-threshold-pct' but specify threshold using "
-           "absolute function call count. I.e. limit processing to functions "
-           "executed at least the specified number of times."),
-  cl::init(0),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
+static cl::opt<unsigned> LiteThresholdCount(
+    "lite-threshold-count",
+    cl::desc("similar to '-lite-threshold-pct' but specify threshold using "
+             "absolute function call count. I.e. limit processing to functions "
+             "executed at least the specified number of times."),
+    cl::init(0), cl::Hidden, cl::cat(BoltOptCategory));
 
 static cl::opt<unsigned>
-MaxFunctions("max-funcs",
-  cl::desc("maximum number of functions to process"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+    MaxFunctions("max-funcs",
+                 cl::desc("maximum number of functions to process"), cl::Hidden,
+                 cl::cat(BoltCategory));
 
-static cl::opt<unsigned>
-MaxDataRelocations("max-data-relocations",
-  cl::desc("maximum number of data relocations to process"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static cl::opt<unsigned> MaxDataRelocations(
+    "max-data-relocations",
+    cl::desc("maximum number of data relocations to process"), cl::Hidden,
+    cl::cat(BoltCategory));
 
-cl::opt<bool>
-PrintAll("print-all",
-  cl::desc("print functions after each stage"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+cl::opt<bool> PrintAll("print-all",
+                       cl::desc("print functions after each stage"), cl::Hidden,
+                       cl::cat(BoltCategory));
 
-cl::opt<bool>
-PrintCFG("print-cfg",
-  cl::desc("print functions after CFG construction"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+cl::opt<bool> PrintCFG("print-cfg",
+                       cl::desc("print functions after CFG construction"),
+                       cl::Hidden, cl::cat(BoltCategory));
 
 cl::opt<bool> PrintDisasm("print-disasm",
-  cl::desc("print function after disassembly"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+                          cl::desc("print function after disassembly"),
+                          cl::Hidden, cl::cat(BoltCategory));
 
 static cl::opt<bool>
-PrintGlobals("print-globals",
-  cl::desc("print global symbols after disassembly"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+    PrintGlobals("print-globals",
+                 cl::desc("print global symbols after disassembly"), cl::Hidden,
+                 cl::cat(BoltCategory));
 
 extern cl::opt<bool> PrintSections;
 
-static cl::opt<bool>
-PrintLoopInfo("print-loops",
-  cl::desc("print loop related information"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static cl::opt<bool> PrintLoopInfo("print-loops",
+                                   cl::desc("print loop related information"),
+                                   cl::Hidden, cl::cat(BoltCategory));
 
-static cl::opt<bool>
-PrintSDTMarkers("print-sdt",
-  cl::desc("print all SDT markers"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static cl::opt<bool> PrintSDTMarkers("print-sdt",
+                                     cl::desc("print all SDT markers"),
+                                     cl::Hidden, cl::cat(BoltCategory));
 
 enum PrintPseudoProbesOptions {
   PPP_None = 0,
@@ -243,11 +206,9 @@ cl::opt<PrintPseudoProbesOptions> PrintPseudoProbes(
                clEnumValN(PPP_All, "all", "enable all debugging printout")),
     cl::ZeroOrMore, cl::Hidden, cl::cat(BoltCategory));
 
-static cl::opt<cl::boolOrDefault>
-RelocationMode("relocs",
-  cl::desc("use relocations in the binary (default=autodetect)"),
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+static cl::opt<cl::boolOrDefault> RelocationMode(
+    "relocs", cl::desc("use relocations in the binary (default=autodetect)"),
+    cl::cat(BoltCategory));
 
 static cl::opt<std::string>
 SaveProfile("w",
@@ -276,8 +237,8 @@ TrapOldCode("trap-old-code",
 
 static cl::opt<std::string> DWPPathName("dwp",
                                         cl::desc("Path and name to DWP file."),
-                                        cl::Hidden, cl::ZeroOrMore,
-                                        cl::init(""), cl::cat(BoltCategory));
+                                        cl::Hidden, cl::init(""),
+                                        cl::cat(BoltCategory));
 
 static cl::opt<bool>
 UseGnuStack("use-gnu-stack",
@@ -287,11 +248,9 @@ UseGnuStack("use-gnu-stack",
   cl::cat(BoltCategory));
 
 static cl::opt<bool>
-TimeRewrite("time-rewrite",
-  cl::desc("print time spent in rewriting passes"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+    TimeRewrite("time-rewrite",
+                cl::desc("print time spent in rewriting passes"), cl::Hidden,
+                cl::cat(BoltCategory));
 
 static cl::opt<bool>
 SequentialDisassembly("sequential-disassembly",
@@ -299,13 +258,9 @@ SequentialDisassembly("sequential-disassembly",
   cl::init(false),
   cl::cat(BoltOptCategory));
 
-static cl::opt<bool>
-WriteBoltInfoSection("bolt-info",
-  cl::desc("write bolt info section in the output binary"),
-  cl::init(true),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOutputCategory));
+static cl::opt<bool> WriteBoltInfoSection(
+    "bolt-info", cl::desc("write bolt info section in the output binary"),
+    cl::init(true), cl::Hidden, cl::cat(BoltOutputCategory));
 
 } // namespace opts
 
@@ -346,12 +301,9 @@ MCPlusBuilder *createMCPlusBuilder(const Triple::ArchType Arch,
 namespace {
 
 bool refersToReorderedSection(ErrorOr<BinarySection &> Section) {
-  auto Itr =
-      std::find_if(opts::ReorderData.begin(), opts::ReorderData.end(),
-                   [&](const std::string &SectionName) {
-                     return (Section && Section->getName() == SectionName);
-                   });
-  return Itr != opts::ReorderData.end();
+  return llvm::any_of(opts::ReorderData, [&](const std::string &SectionName) {
+    return Section && Section->getName() == SectionName;
+  });
 }
 
 } // anonymous namespace
@@ -402,7 +354,7 @@ RewriteInstance::RewriteInstance(ELFObjectFileBase *File, const int Argc,
   BC->initializeTarget(std::unique_ptr<MCPlusBuilder>(createMCPlusBuilder(
       BC->TheTriple->getArch(), BC->MIA.get(), BC->MII.get(), BC->MRI.get())));
 
-  BAT = std::make_unique<BoltAddressTranslation>(*BC);
+  BAT = std::make_unique<BoltAddressTranslation>();
 
   if (opts::UpdateDebugSections)
     DebugInfoRewriter = std::make_unique<DWARFRewriter>(*BC);
@@ -878,49 +830,94 @@ void RewriteInstance::discoverFileObjects() {
     return Section.isAllocatable();
   };
   std::vector<SymbolRef> SortedFileSymbols;
-  std::copy_if(InputFile->symbol_begin(), InputFile->symbol_end(),
-               std::back_inserter(SortedFileSymbols), isSymbolInMemory);
+  llvm::copy_if(InputFile->symbols(), std::back_inserter(SortedFileSymbols),
+                isSymbolInMemory);
+  auto CompareSymbols = [this](const SymbolRef &A, const SymbolRef &B) {
+    // Marker symbols have the highest precedence, while
+    // SECTIONs have the lowest.
+    auto AddressA = cantFail(A.getAddress());
+    auto AddressB = cantFail(B.getAddress());
+    if (AddressA != AddressB)
+      return AddressA < AddressB;
 
-  std::stable_sort(
-      SortedFileSymbols.begin(), SortedFileSymbols.end(),
-      [](const SymbolRef &A, const SymbolRef &B) {
-        // FUNC symbols have the highest precedence, while SECTIONs
-        // have the lowest.
-        uint64_t AddressA = cantFail(A.getAddress());
-        uint64_t AddressB = cantFail(B.getAddress());
-        if (AddressA != AddressB)
-          return AddressA < AddressB;
+    bool AMarker = BC->isMarker(A);
+    bool BMarker = BC->isMarker(B);
+    if (AMarker || BMarker) {
+      return AMarker && !BMarker;
+    }
 
-        SymbolRef::Type AType = cantFail(A.getType());
-        SymbolRef::Type BType = cantFail(B.getType());
-        if (AType == SymbolRef::ST_Function && BType != SymbolRef::ST_Function)
-          return true;
-        if (BType == SymbolRef::ST_Debug && AType != SymbolRef::ST_Debug)
-          return true;
+    auto AType = cantFail(A.getType());
+    auto BType = cantFail(B.getType());
+    if (AType == SymbolRef::ST_Function && BType != SymbolRef::ST_Function)
+      return true;
+    if (BType == SymbolRef::ST_Debug && AType != SymbolRef::ST_Debug)
+      return true;
 
-        return false;
-      });
+    return false;
+  };
+
+  llvm::stable_sort(SortedFileSymbols, CompareSymbols);
+
+  auto LastSymbol = SortedFileSymbols.end();
+  if (!SortedFileSymbols.empty())
+    --LastSymbol;
 
   // For aarch64, the ABI defines mapping symbols so we identify data in the
   // code section (see IHI0056B). $d identifies data contents.
-  auto LastSymbol = SortedFileSymbols.end() - 1;
+  // Compilers usually merge multiple data objects in a single $d-$x interval,
+  // but we need every data object to be marked with $d. Because of that we
+  // create a vector of MarkerSyms with all locations of data objects.
+
+  struct MarkerSym {
+    uint64_t Address;
+    MarkerSymType Type;
+  };
+
+  std::vector<MarkerSym> SortedMarkerSymbols;
+  auto addExtraDataMarkerPerSymbol =
+      [this](const std::vector<SymbolRef> &SortedFileSymbols,
+             std::vector<MarkerSym> &SortedMarkerSymbols) {
+        bool IsData = false;
+        uint64_t LastAddr = 0;
+        for (auto Sym = SortedFileSymbols.begin();
+             Sym < SortedFileSymbols.end(); ++Sym) {
+          uint64_t Address = cantFail(Sym->getAddress());
+          if (LastAddr == Address) // don't repeat markers
+            continue;
+
+          MarkerSymType MarkerType = BC->getMarkerType(*Sym);
+          if (MarkerType != MarkerSymType::NONE) {
+            SortedMarkerSymbols.push_back(MarkerSym{Address, MarkerType});
+            LastAddr = Address;
+            IsData = MarkerType == MarkerSymType::DATA;
+            continue;
+          }
+
+          if (IsData) {
+            SortedMarkerSymbols.push_back(
+                MarkerSym{cantFail(Sym->getAddress()), MarkerSymType::DATA});
+            LastAddr = Address;
+          }
+        }
+      };
+
   if (BC->isAArch64()) {
+    addExtraDataMarkerPerSymbol(SortedFileSymbols, SortedMarkerSymbols);
     LastSymbol = std::stable_partition(
         SortedFileSymbols.begin(), SortedFileSymbols.end(),
-        [](const SymbolRef &Symbol) {
-          StringRef Name = cantFail(Symbol.getName());
-          return !(cantFail(Symbol.getType()) == SymbolRef::ST_Unknown &&
-                   (Name == "$d" || Name.startswith("$d.") || Name == "$x" ||
-                    Name.startswith("$x.")));
-        });
-    --LastSymbol;
+        [this](const SymbolRef &Symbol) { return !BC->isMarker(Symbol); });
+    if (!SortedFileSymbols.empty())
+      --LastSymbol;
   }
 
   BinaryFunction *PreviousFunction = nullptr;
   unsigned AnonymousId = 0;
 
-  const auto MarkersBegin = std::next(LastSymbol);
-  for (auto ISym = SortedFileSymbols.begin(); ISym != MarkersBegin; ++ISym) {
+  const auto SortedSymbolsEnd = LastSymbol == SortedFileSymbols.end()
+                                    ? LastSymbol
+                                    : std::next(LastSymbol);
+  for (auto ISym = SortedFileSymbols.begin(); ISym != SortedSymbolsEnd;
+       ++ISym) {
     const SymbolRef &Symbol = *ISym;
     // Keep undefined symbols for pretty printing?
     if (cantFail(Symbol.getFlags()) & SymbolRef::SF_Undefined)
@@ -1213,25 +1210,24 @@ void RewriteInstance::discoverFileObjects() {
   adjustFunctionBoundaries();
 
   // Annotate functions with code/data markers in AArch64
-  for (auto ISym = MarkersBegin; ISym != SortedFileSymbols.end(); ++ISym) {
-    const SymbolRef &Symbol = *ISym;
-    uint64_t Address =
-        cantFail(Symbol.getAddress(), "cannot get symbol address");
-    uint64_t SymbolSize = ELFSymbolRef(Symbol).getSize();
-    BinaryFunction *BF =
-        BC->getBinaryFunctionContainingAddress(Address, true, true);
+  for (auto ISym = SortedMarkerSymbols.begin();
+       ISym != SortedMarkerSymbols.end(); ++ISym) {
+
+    auto *BF =
+        BC->getBinaryFunctionContainingAddress(ISym->Address, true, true);
+
     if (!BF) {
       // Stray marker
       continue;
     }
-    const uint64_t EntryOffset = Address - BF->getAddress();
-    if (BF->isCodeMarker(Symbol, SymbolSize)) {
+    const auto EntryOffset = ISym->Address - BF->getAddress();
+    if (ISym->Type == MarkerSymType::CODE) {
       BF->markCodeAtOffset(EntryOffset);
       continue;
     }
-    if (BF->isDataMarker(Symbol, SymbolSize)) {
+    if (ISym->Type == MarkerSymType::DATA) {
       BF->markDataAtOffset(EntryOffset);
-      BC->AddressToConstantIslandMap[Address] = BF;
+      BC->AddressToConstantIslandMap[ISym->Address] = BF;
       continue;
     }
     llvm_unreachable("Unknown marker");
@@ -1558,6 +1554,7 @@ Error RewriteInstance::readSpecialSections() {
                      TimerGroupName, TimerGroupDesc, opts::TimeRewrite);
 
   bool HasTextRelocations = false;
+  bool HasSymbolTable = false;
   bool HasDebugInfo = false;
 
   // Process special sections.
@@ -1589,6 +1586,7 @@ Error RewriteInstance::readSpecialSections() {
   }
 
   HasTextRelocations = (bool)BC->getUniqueSectionByName(".rela.text");
+  HasSymbolTable = (bool)BC->getUniqueSectionByName(".symtab");
   LSDASection = BC->getUniqueSectionByName(".gcc_except_table");
   EHFrameSection = BC->getUniqueSectionByName(".eh_frame");
   GOTPLTSection = BC->getUniqueSectionByName(".got.plt");
@@ -1625,6 +1623,8 @@ Error RewriteInstance::readSpecialSections() {
   BC->HasRelocations =
       HasTextRelocations && (opts::RelocationMode != cl::BOU_FALSE);
 
+  BC->IsStripped = !HasSymbolTable;
+
   // Force non-relocation mode for heatmap generation
   if (opts::HeatmapMode)
     BC->HasRelocations = false;
@@ -1632,6 +1632,10 @@ Error RewriteInstance::readSpecialSections() {
   if (BC->HasRelocations)
     outs() << "BOLT-INFO: enabling " << (opts::StrictMode ? "strict " : "")
            << "relocation mode\n";
+
+  if (BC->IsStripped)
+    outs() << "BOLT-INFO: input binary is stripped. The support is limited and "
+           << "is considered experimental.\n";
 
   // Read EH frame for function boundaries info.
   Expected<const DWARFDebugFrame *> EHFrameOrError = BC->DwCtx->getEHFrame();
@@ -1682,11 +1686,6 @@ void RewriteInstance::adjustCommandLineOptions() {
 
   if (opts::SplitEH && !BC->HasRelocations) {
     errs() << "BOLT-WARNING: disabling -split-eh in non-relocation mode\n";
-    opts::SplitEH = false;
-  }
-
-  if (opts::SplitEH && !BC->HasFixedLoadAddress) {
-    errs() << "BOLT-WARNING: disabling -split-eh for shared object\n";
     opts::SplitEH = false;
   }
 
@@ -2331,7 +2330,7 @@ void RewriteInstance::readRelocations(const SectionRef &Section) {
     SmallString<16> TypeName;
     Rel.getTypeName(TypeName);
     uint64_t RType = Rel.getType();
-    if (Relocation::isNone(RType))
+    if (Relocation::skipRelocationType(RType))
       continue;
 
     // Adjust the relocation type as the linker might have skewed it.
@@ -2706,11 +2705,10 @@ void RewriteInstance::selectFunctionsToProcess() {
       if (ProfileReader->mayHaveProfileData(Function))
         TopFunctions.push_back(&Function);
     }
-    std::sort(TopFunctions.begin(), TopFunctions.end(),
-              [](const BinaryFunction *A, const BinaryFunction *B) {
-                return
-                    A->getKnownExecutionCount() < B->getKnownExecutionCount();
-              });
+    llvm::sort(
+        TopFunctions, [](const BinaryFunction *A, const BinaryFunction *B) {
+          return A->getKnownExecutionCount() < B->getKnownExecutionCount();
+        });
 
     size_t Index = TopFunctions.size() * opts::LiteThresholdPct / 100;
     if (Index)
@@ -2739,7 +2737,7 @@ void RewriteInstance::selectFunctionsToProcess() {
           Function.forEachName([&ForceFunctionsNR](StringRef Name) {
             return ForceFunctionsNR.count(Name.str());
           });
-      return Match.hasValue();
+      return Match.has_value();
     }
 
     for (std::string &Name : opts::SkipFunctionNames)
@@ -2807,13 +2805,11 @@ void RewriteInstance::preprocessProfileData() {
   if (Error E = ProfileReader->preprocessProfile(*BC.get()))
     report_error("cannot pre-process profile", std::move(E));
 
-  if (!BC->hasSymbolsWithFileName() && ProfileReader->hasLocalsWithFileName() &&
-      !opts::AllowStripped) {
+  if (!BC->hasSymbolsWithFileName() && ProfileReader->hasLocalsWithFileName()) {
     errs() << "BOLT-ERROR: input binary does not have local file symbols "
               "but profile data includes function names with embedded file "
               "names. It appears that the input binary was stripped while a "
-              "profiled binary was not. If you know what you are doing and "
-              "wish to proceed, use -allow-stripped option.\n";
+              "profiled binary was not\n";
     exit(1);
   }
 }
@@ -2898,12 +2894,10 @@ void RewriteInstance::disassembleFunctions() {
 
     if (opts::PrintAll || opts::PrintDisasm)
       Function.print(outs(), "after disassembly", true);
-
-    BC->processInterproceduralReferences(Function);
   }
 
+  BC->processInterproceduralReferences();
   BC->populateJumpTables();
-  BC->skipMarkedFragments();
 
   for (auto &BFI : BC->getBinaryFunctions()) {
     BinaryFunction &Function = BFI.second;
@@ -2915,6 +2909,7 @@ void RewriteInstance::disassembleFunctions() {
     Function.postProcessJumpTables();
   }
 
+  BC->clearJumpTableTempData();
   BC->adjustCodePadding();
 
   for (auto &BFI : BC->getBinaryFunctions()) {
@@ -2924,7 +2919,8 @@ void RewriteInstance::disassembleFunctions() {
       continue;
 
     if (!Function.isSimple()) {
-      assert((!BC->HasRelocations || Function.getSize() == 0) &&
+      assert((!BC->HasRelocations || Function.getSize() == 0 ||
+              Function.hasIndirectTargetToSplitFragment()) &&
              "unexpected non-simple function in relocation mode");
       continue;
     }
@@ -2942,7 +2938,8 @@ void RewriteInstance::disassembleFunctions() {
     }
 
     // Parse LSDA.
-    if (Function.getLSDAAddress() != 0)
+    if (Function.getLSDAAddress() != 0 &&
+        !BC->getFragmentsToSkip().count(&Function))
       Function.parseLSDA(getLSDAData(), getLSDAAddress());
   }
 }
@@ -2980,6 +2977,11 @@ void RewriteInstance::buildFunctionsCFG() {
 }
 
 void RewriteInstance::postProcessFunctions() {
+  // We mark fragments as non-simple here, not during disassembly,
+  // So we can build their CFGs.
+  BC->skipMarkedFragments();
+  BC->clearFragmentsToSkip();
+
   BC->TotalScore = 0;
   BC->SumExecutionCount = 0;
   for (auto &BFI : BC->getBinaryFunctions()) {
@@ -3115,7 +3117,7 @@ void RewriteInstance::emitAndLink() {
 
   emitBinaryContext(*Streamer, *BC, getOrgSecPrefix());
 
-  Streamer->Finish();
+  Streamer->finish();
   if (Streamer->getContext().hadError()) {
     errs() << "BOLT-ERROR: Emission failed.\n";
     exit(1);
@@ -3297,7 +3299,7 @@ void RewriteInstance::updatePseudoProbes() {
     std::vector<uint64_t> Addresses;
     for (auto &Entry : Address2ProbesMap)
       Addresses.push_back(Entry.first);
-    std::sort(Addresses.begin(), Addresses.end());
+    llvm::sort(Addresses);
     for (uint64_t Key : Addresses) {
       for (MCDecodedPseudoProbe &Probe : Address2ProbesMap[Key]) {
         if (Probe.getAddress() == INT64_MAX)
@@ -3571,7 +3573,7 @@ std::vector<BinarySection *> RewriteInstance::getCodeSections() {
   };
 
   // Determine the order of sections.
-  std::stable_sort(CodeSections.begin(), CodeSections.end(), compareSections);
+  llvm::stable_sort(CodeSections, compareSections);
 
   return CodeSections;
 }
@@ -3603,12 +3605,9 @@ void RewriteInstance::mapCodeSections(RuntimeDyld &RTDyld) {
     std::vector<BinarySection *> CodeSections = getCodeSections();
 
     // Remove sections that were pre-allocated (patch sections).
-    CodeSections.erase(
-        std::remove_if(CodeSections.begin(), CodeSections.end(),
-                       [](BinarySection *Section) {
-                         return Section->getOutputAddress();
-                       }),
-        CodeSections.end());
+    llvm::erase_if(CodeSections, [](BinarySection *Section) {
+      return Section->getOutputAddress();
+    });
     LLVM_DEBUG(dbgs() << "Code sections in the order of output:\n";
       for (const BinarySection *Section : CodeSections)
         dbgs() << Section->getName() << '\n';
@@ -4048,6 +4047,7 @@ void RewriteInstance::rewriteNoteSections() {
 
       if (BSec->getAllocAddress()) {
         assert(!DataWritten && "Writing section twice.");
+        (void)DataWritten;
         SectionData = BSec->getOutputData();
 
         LLVM_DEBUG(dbgs() << "BOLT-DEBUG: " << (Size ? "appending" : "writing")
@@ -4161,7 +4161,7 @@ void RewriteInstance::encodeBATSection() {
   std::string DescStr;
   raw_string_ostream DescOS(DescStr);
 
-  BAT->write(DescOS);
+  BAT->write(*BC, DescOS);
   DescOS.flush();
 
   const std::string BoltInfo =
@@ -4264,11 +4264,11 @@ RewriteInstance::getOutputSections(ELFObjectFile<ELFT> *File,
   }
 
   // Sort all allocatable sections by their offset.
-  std::stable_sort(OutputSections.begin(), OutputSections.end(),
-      [] (const std::pair<std::string, ELFShdrTy> &A,
-          const std::pair<std::string, ELFShdrTy> &B) {
-        return A.second.sh_offset < B.second.sh_offset;
-      });
+  llvm::stable_sort(OutputSections,
+                    [](const std::pair<std::string, ELFShdrTy> &A,
+                       const std::pair<std::string, ELFShdrTy> &B) {
+                      return A.second.sh_offset < B.second.sh_offset;
+                    });
 
   // Fix section sizes to prevent overlapping.
   ELFShdrTy *PrevSection = nullptr;
@@ -4377,11 +4377,10 @@ RewriteInstance::getOutputSections(ELFObjectFile<ELFT> *File,
   }
 
   std::vector<ELFShdrTy> SectionsOnly(OutputSections.size());
-  std::transform(OutputSections.begin(), OutputSections.end(),
-                 SectionsOnly.begin(),
-                 [](std::pair<std::string, ELFShdrTy> &SectionInfo) {
-                   return SectionInfo.second;
-                 });
+  llvm::transform(OutputSections, SectionsOnly.begin(),
+                  [](std::pair<std::string, ELFShdrTy> &SectionInfo) {
+                    return SectionInfo.second;
+                  });
 
   return SectionsOnly;
 }
@@ -4469,6 +4468,14 @@ void RewriteInstance::updateELFSymbolTable(
   std::vector<ELFSymTy> Symbols;
 
   auto getNewSectionIndex = [&](uint32_t OldIndex) {
+    // For dynamic symbol table, the section index could be wrong on the input,
+    // and its value is ignored by the runtime if it's different from
+    // SHN_UNDEF and SHN_ABS.
+    // However, we still need to update dynamic symbol table, so return a
+    // section index, even though the index is broken.
+    if (IsDynSym && OldIndex >= NewSectionIndex.size())
+      return OldIndex;
+
     assert(OldIndex < NewSectionIndex.size() && "section index out of bounds");
     const uint32_t NewIndex = NewSectionIndex[OldIndex];
 
@@ -4778,13 +4785,11 @@ void RewriteInstance::updateELFSymbolTable(
   }
 
   // Put local symbols at the beginning.
-  std::stable_sort(Symbols.begin(), Symbols.end(),
-                   [](const ELFSymTy &A, const ELFSymTy &B) {
-                     if (A.getBinding() == ELF::STB_LOCAL &&
-                         B.getBinding() != ELF::STB_LOCAL)
-                       return true;
-                     return false;
-                   });
+  llvm::stable_sort(Symbols, [](const ELFSymTy &A, const ELFSymTy &B) {
+    if (A.getBinding() == ELF::STB_LOCAL && B.getBinding() != ELF::STB_LOCAL)
+      return true;
+    return false;
+  });
 
   for (const ELFSymTy &Symbol : Symbols)
     Write(0, Symbol);
@@ -5047,7 +5052,7 @@ void RewriteInstance::patchELFDynamic(ELFObjectFile<ELFT> *File) {
 
   // Locate DYNAMIC by looking through program headers.
   uint64_t DynamicOffset = 0;
-  const Elf_Phdr *DynamicPhdr = 0;
+  const Elf_Phdr *DynamicPhdr = nullptr;
   for (const Elf_Phdr &Phdr : cantFail(Obj.program_headers())) {
     if (Phdr.p_type == ELF::PT_DYNAMIC) {
       DynamicOffset = Phdr.p_offset;
@@ -5132,7 +5137,7 @@ Error RewriteInstance::readELFDynamic(ELFObjectFile<ELFT> *File) {
   using Elf_Dyn = typename ELFFile<ELFT>::Elf_Dyn;
 
   // Locate DYNAMIC by looking through program headers.
-  const Elf_Phdr *DynamicPhdr = 0;
+  const Elf_Phdr *DynamicPhdr = nullptr;
   for (const Elf_Phdr &Phdr : cantFail(Obj.program_headers())) {
     if (Phdr.p_type == ELF::PT_DYNAMIC) {
       DynamicPhdr = &Phdr;
@@ -5202,8 +5207,6 @@ uint64_t RewriteInstance::getNewFunctionAddress(uint64_t OldAddress) {
   const BinaryFunction *Function = BC->getBinaryFunctionAtAddress(OldAddress);
   if (!Function)
     return 0;
-
-  assert(!Function->isFragment() && "cannot get new address for a fragment");
 
   return Function->getOutputAddress();
 }

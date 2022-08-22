@@ -83,13 +83,13 @@ def shfl_uimm : Operand<XLenVT>, ImmLeaf<XLenVT, [{
 
 def BCLRXForm : SDNodeXForm<imm, [{
   // Find the lowest 0.
-  return CurDAG->getTargetConstant(N->getAPIntValue().countTrailingOnes(),
+  return CurDAG->getTargetConstant(countTrailingOnes(N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
 }]>;
 
 def BSETINVXForm : SDNodeXForm<imm, [{
   // Find the lowest 1.
-  return CurDAG->getTargetConstant(N->getAPIntValue().countTrailingZeros(),
+  return CurDAG->getTargetConstant(countTrailingZeros(N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
 }]>;
 
@@ -206,20 +206,48 @@ def C9LeftShift : PatLeaf<(imm), [{
   return C > 9 && ((C % 9) == 0) && isPowerOf2_64(C / 9);
 }]>;
 
+// Constant of the form (3 << C) where C is less than 32.
+def C3LeftShiftUW : PatLeaf<(imm), [{
+  uint64_t C = N->getZExtValue();
+  if (C <= 3 || (C % 3) != 0)
+    return false;
+  C /= 3;
+  return isPowerOf2_64(C) && C < (1ULL << 32);
+}]>;
+
+// Constant of the form (5 << C) where C is less than 32.
+def C5LeftShiftUW : PatLeaf<(imm), [{
+  uint64_t C = N->getZExtValue();
+  if (C <= 5 || (C % 5) != 0)
+    return false;
+  C /= 5;
+  return isPowerOf2_64(C) && C < (1ULL << 32);
+}]>;
+
+// Constant of the form (9 << C) where C is less than 32.
+def C9LeftShiftUW : PatLeaf<(imm), [{
+  uint64_t C = N->getZExtValue();
+  if (C <= 9 || (C % 9) != 0)
+    return false;
+  C /= 9;
+  return isPowerOf2_64(C) && C < (1ULL << 32);
+}]>;
+
 def CSImm12MulBy4 : PatLeaf<(imm), [{
   if (!N->hasOneUse())
     return false;
   int64_t C = N->getSExtValue();
   // Skip if C is simm12 or can be optimized by the PatLeaf AddiPair.
-  return !isInt<13>(C) && isInt<14>(C) && (C & 3) == 0;
+  return !isInt<13>(C) && isShiftedInt<12, 2>(C);
 }]>;
 
 def CSImm12MulBy8 : PatLeaf<(imm), [{
   if (!N->hasOneUse())
     return false;
   int64_t C = N->getSExtValue();
-  // Skip if C is simm12 or can be optimized by the PatLeaf AddiPair.
-  return !isInt<13>(C) && isInt<15>(C) && (C & 7) == 0;
+  // Skip if C is simm12 or can be optimized by the PatLeaf AddiPair or
+  // CSImm12MulBy4.
+  return !isInt<14>(C) && isShiftedInt<12, 3>(C);
 }]>;
 
 def SimmShiftRightBy2XForm : SDNodeXForm<imm, [{
@@ -237,6 +265,10 @@ def non_imm12 : PatLeaf<(XLenVT GPR:$a), [{
   auto *C = dyn_cast<ConstantSDNode>(N);
   return !C || !isInt<12>(C->getSExtValue());
 }]>;
+
+def sh1add_op : ComplexPattern<XLenVT, 1, "selectSH1ADDOp", [], [], 6>;
+def sh2add_op : ComplexPattern<XLenVT, 1, "selectSH2ADDOp", [], [], 6>;
+def sh3add_op : ComplexPattern<XLenVT, 1, "selectSH3ADDOp", [], [], 6>;
 
 //===----------------------------------------------------------------------===//
 // Instruction class templates
@@ -817,8 +849,8 @@ def : Pat<(xor GPR:$rs1, (not GPR:$rs2)), (XNOR GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbbOrZbpOrZbkb]
 
 let Predicates = [HasStdExtZbbOrZbpOrZbkb] in {
-def : PatGprGpr<rotl, ROL>;
-def : PatGprGpr<rotr, ROR>;
+def : PatGprGpr<shiftop<rotl>, ROL>;
+def : PatGprGpr<shiftop<rotr>, ROR>;
 
 def : PatGprImm<rotr, RORI, uimmlog2xlen>;
 // There's no encoding for roli in the the 'B' extension as it can be
@@ -828,8 +860,8 @@ def : Pat<(rotl GPR:$rs1, uimmlog2xlen:$shamt),
 } // Predicates = [HasStdExtZbbOrZbpOrZbkb]
 
 let Predicates = [HasStdExtZbbOrZbpOrZbkb, IsRV64] in {
-def : PatGprGpr<riscv_rolw, ROLW>;
-def : PatGprGpr<riscv_rorw, RORW>;
+def : PatGprGpr<shiftopw<riscv_rolw>, ROLW>;
+def : PatGprGpr<shiftopw<riscv_rorw>, RORW>;
 def : PatGprImm<riscv_rorw, RORIW, uimm5>;
 def : Pat<(riscv_rolw GPR:$rs1, uimm5:$rs2),
           (RORIW GPR:$rs1, (ImmSubFrom32 uimm5:$rs2))>;
@@ -1094,6 +1126,14 @@ def : Pat<(add (shl GPR:$rs1, (XLenVT 2)), non_imm12:$rs2),
 def : Pat<(add (shl GPR:$rs1, (XLenVT 3)), non_imm12:$rs2),
           (SH3ADD GPR:$rs1, GPR:$rs2)>;
 
+// More complex cases use a ComplexPattern.
+def : Pat<(add sh1add_op:$rs1, non_imm12:$rs2),
+          (SH1ADD sh1add_op:$rs1, GPR:$rs2)>;
+def : Pat<(add sh2add_op:$rs1, non_imm12:$rs2),
+          (SH2ADD sh2add_op:$rs1, GPR:$rs2)>;
+def : Pat<(add sh3add_op:$rs1, non_imm12:$rs2),
+          (SH3ADD sh3add_op:$rs1, GPR:$rs2)>;
+
 def : Pat<(add (mul_oneuse GPR:$rs1, (XLenVT 6)), GPR:$rs2),
           (SH1ADD (SH1ADD GPR:$rs1, GPR:$rs1), GPR:$rs2)>;
 def : Pat<(add (mul_oneuse GPR:$rs1, (XLenVT 10)), GPR:$rs2),
@@ -1174,6 +1214,31 @@ def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 2)), 0x3FFFFFFFF), non_imm12:$rs2))
           (SH2ADD_UW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 3)), 0x7FFFFFFFF), non_imm12:$rs2)),
           (SH3ADD_UW GPR:$rs1, GPR:$rs2)>;
+
+def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFE), non_imm12:$rs2)),
+          (SH1ADD (SRLIW GPR:$rs1, 1), GPR:$rs2)>;
+def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFC), non_imm12:$rs2)),
+          (SH2ADD (SRLIW GPR:$rs1, 2), GPR:$rs2)>;
+def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFF8), non_imm12:$rs2)),
+          (SH3ADD (SRLIW GPR:$rs1, 3), GPR:$rs2)>;
+
+// Use SRLI to clear the LSBs and SHXADD_UW to mask and shift.
+def : Pat<(i64 (add (and GPR:$rs1, 0x1FFFFFFFE), non_imm12:$rs2)),
+          (SH1ADD_UW (SRLI GPR:$rs1, 1), GPR:$rs2)>;
+def : Pat<(i64 (add (and GPR:$rs1, 0x3FFFFFFFC), non_imm12:$rs2)),
+          (SH2ADD_UW (SRLI GPR:$rs1, 2), GPR:$rs2)>;
+def : Pat<(i64 (add (and GPR:$rs1, 0x7FFFFFFF8), non_imm12:$rs2)),
+          (SH3ADD_UW (SRLI GPR:$rs1, 3), GPR:$rs2)>;
+
+def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C3LeftShiftUW:$i),
+          (SH1ADD (SLLI_UW GPR:$r, (TrailingZerosXForm C3LeftShiftUW:$i)),
+                  (SLLI_UW GPR:$r, (TrailingZerosXForm C3LeftShiftUW:$i)))>;
+def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C5LeftShiftUW:$i),
+          (SH2ADD (SLLI_UW GPR:$r, (TrailingZerosXForm C5LeftShiftUW:$i)),
+                  (SLLI_UW GPR:$r, (TrailingZerosXForm C5LeftShiftUW:$i)))>;
+def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C9LeftShiftUW:$i),
+          (SH3ADD (SLLI_UW GPR:$r, (TrailingZerosXForm C9LeftShiftUW:$i)),
+                  (SLLI_UW GPR:$r, (TrailingZerosXForm C9LeftShiftUW:$i)))>;
 } // Predicates = [HasStdExtZba, IsRV64]
 
 let Predicates = [HasStdExtZbcOrZbkc] in {

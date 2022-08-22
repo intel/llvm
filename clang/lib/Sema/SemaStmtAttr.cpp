@@ -221,10 +221,11 @@ static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
 
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
                                            Expr *E) {
-  if (!Value.isStrictlyPositive())
+  // This attribute requires a non-negative value.
+  if (!Value.isNonNegative())
     return S.Diag(E->getExprLoc(),
                   diag::err_attribute_requires_positive_integer)
-           << "'ivdep'" << /* positive */ 0;
+           << "'ivdep'" << /*non-negative*/ 1;
   return false;
 }
 
@@ -249,6 +250,12 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
     if (checkSYCLIntelFPGAIVDepSafeLen(S, *ArgVal, E))
       return IVDepExprResult::Invalid;
     SafelenValue = ArgVal->getZExtValue();
+    // ivdep attribute allows both safelen = 0 and safelen = 1 with a warning.
+    if (SafelenValue == 0 || SafelenValue == 1) {
+      S.Diag(E->getExprLoc(), diag::warn_ivdep_attribute_argument)
+          << SafelenValue;
+      return IVDepExprResult::Invalid;
+    }
     return IVDepExprResult::SafeLen;
   }
 

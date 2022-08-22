@@ -21,6 +21,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCDisassembler/MCSymbolizer.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrAnalysis.h"
@@ -44,6 +45,7 @@ class MCSymbol;
 class raw_ostream;
 
 namespace bolt {
+class BinaryFunction;
 
 /// Different types of indirect branches encountered during disassembly.
 enum class IndirectBranchType : char {
@@ -284,6 +286,12 @@ public:
     MaxAllocatorId++;
     // Build alias map
     initAliases();
+  }
+
+  /// Create and return target-specific MC symbolizer for the \p Function.
+  virtual std::unique_ptr<MCSymbolizer>
+  createTargetSymbolizer(BinaryFunction &Function) const {
+    return nullptr;
   }
 
   /// Initialize a new annotation allocator and return its id
@@ -909,12 +917,22 @@ public:
     return false;
   }
 
-  /// Use \p Input1 or Input2 as the current value for the input register and
-  /// put in \p Output the changes incurred by executing \p Inst. Return false
-  /// if it was not possible to perform the evaluation.
-  virtual bool evaluateSimple(const MCInst &Inst, int64_t &Output,
-                              std::pair<MCPhysReg, int64_t> Input1,
-                              std::pair<MCPhysReg, int64_t> Input2) const {
+  /// Use \p Input1 or Input2 as the current value for the input
+  /// register and put in \p Output the changes incurred by executing
+  /// \p Inst. Return false if it was not possible to perform the
+  /// evaluation. evaluateStackOffsetExpr is restricted to operations
+  /// that have associativity with addition. Its intended usage is for
+  /// evaluating stack offset changes. In these cases, expressions
+  /// appear in the form of (x + offset) OP constant, where x is an
+  /// unknown base (such as stack base) but offset and constant are
+  /// known. In these cases, \p Output represents the new stack offset
+  /// after executing \p Inst. Because we don't know x, we can't
+  /// evaluate operations such as multiply or AND/OR, e.g. (x +
+  /// offset) OP constant is not the same as x + (offset OP constant).
+  virtual bool
+  evaluateStackOffsetExpr(const MCInst &Inst, int64_t &Output,
+                          std::pair<MCPhysReg, int64_t> Input1,
+                          std::pair<MCPhysReg, int64_t> Input2) const {
     llvm_unreachable("not implemented");
     return false;
   }
@@ -1028,8 +1046,13 @@ public:
   /// Return handler and action info for invoke instruction if present.
   Optional<MCPlus::MCLandingPad> getEHInfo(const MCInst &Inst) const;
 
-  // Add handler and action info for call instruction.
+  /// Add handler and action info for call instruction.
   void addEHInfo(MCInst &Inst, const MCPlus::MCLandingPad &LP);
+
+  /// Update exception-handling info for the invoke instruction \p Inst.
+  /// Return true on success and false otherwise, e.g. if the instruction is
+  /// not an invoke.
+  bool updateEHInfo(MCInst &Inst, const MCPlus::MCLandingPad &LP);
 
   /// Return non-negative GNU_args_size associated with the instruction
   /// or -1 if there's no associated info.
@@ -1361,7 +1384,7 @@ public:
     llvm_unreachable("not implemented");
   }
 
-  /// Return true if the instruction CurInst, in combination with the recent
+  /// Return not 0 if the instruction CurInst, in combination with the recent
   /// history of disassembled instructions supplied by [Begin, End), is a linker
   /// generated veneer/stub that needs patching. This happens in AArch64 when
   /// the code is large and the linker needs to generate stubs, but it does
@@ -1371,11 +1394,14 @@ public:
   /// is put in TgtLowBits, and its pair in TgtHiBits. If the instruction in
   /// TgtHiBits does not have an immediate operand, but an expression, then
   /// this expression is put in TgtHiSym and Tgt only contains the lower bits.
-  virtual bool matchLinkerVeneer(InstructionIterator Begin,
-                                 InstructionIterator End, uint64_t Address,
-                                 const MCInst &CurInst, MCInst *&TargetHiBits,
-                                 MCInst *&TargetLowBits,
-                                 uint64_t &Target) const {
+  /// Return value is a total number of instructions that were used to create
+  /// a veneer.
+  virtual uint64_t matchLinkerVeneer(InstructionIterator Begin,
+                                     InstructionIterator End, uint64_t Address,
+                                     const MCInst &CurInst,
+                                     MCInst *&TargetHiBits,
+                                     MCInst *&TargetLowBits,
+                                     uint64_t &Target) const {
     llvm_unreachable("not implemented");
   }
 

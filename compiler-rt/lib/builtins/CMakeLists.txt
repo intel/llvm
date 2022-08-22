@@ -165,8 +165,10 @@ set(GENERIC_SOURCES
   subvsi3.c
   subvti3.c
   trampoline_setup.c
+  truncdfbf2.c
   truncdfhf2.c
   truncdfsf2.c
+  truncsfbf2.c
   truncsfhf2.c
   ucmpdi2.c
   ucmpti2.c
@@ -572,6 +574,10 @@ set(avr_SOURCES
   avr/mulqi3.S
   avr/mulhi3.S
   avr/exit.S
+  avr/divmodhi4.S
+  avr/udivmodhi4.S
+  avr/divmodqi4.S
+  avr/udivmodqi4.S
   ${GENERIC_SOURCES}
 )
 
@@ -615,11 +621,9 @@ set(mips64_SOURCES ${GENERIC_TF_SOURCES}
 set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
                      ${mips_SOURCES})
 
-set(powerpc_SOURCES ${GENERIC_SOURCES})
-
 set(powerpcspe_SOURCES ${GENERIC_SOURCES})
 
-set(powerpc64_SOURCES
+set(powerpc_SOURCES
   ppc/divtc3.c
   ppc/fixtfdi.c
   ppc/fixunstfdi.c
@@ -634,14 +638,15 @@ set(powerpc64_SOURCES
 )
 # These routines require __int128, which isn't supported on AIX.
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-  set(powerpc64_SOURCES
+  set(powerpc_SOURCES
     ppc/floattitf.c
     ppc/fixtfti.c
     ppc/fixunstfti.c
-    ${powerpc64_SOURCES}
+    ${powerpc_SOURCES}
   )
 endif()
-set(powerpc64le_SOURCES ${powerpc64_SOURCES})
+set(powerpc64le_SOURCES ${powerpc_SOURCES})
+set(powerpc64_SOURCES ${powerpc_SOURCES})
 
 set(riscv_SOURCES
   riscv/save.S
@@ -748,9 +753,8 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fomit-frame-pointer -DCOMPILER_RT_ARMHF_TARGET)
       endif()
 
-      # For RISCV32, we must force enable int128 for compiling long
-      # double routines.
-      if("${arch}" STREQUAL "riscv32")
+      # For some arches, force enable int128 for compiling long double routines.
+      if("${arch}" STREQUAL "powerpc" OR "${arch}" STREQUAL "riscv32")
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 

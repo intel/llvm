@@ -43,13 +43,16 @@ def version: Flag<["--"], "version">,
 def no_lto_legacy_pass_manager : Flag<["--"], "no-lto-legacy-pass-manager">,
     HelpText<"Use the new pass manager in LLVM">,
     Group<grp_lld>;
-def time_trace: Flag<["--"], "time-trace">, HelpText<"Record time trace">,
+def time_trace_eq: Joined<["--"], "time-trace=">,
+    HelpText<"Record time trace to <file>">,
+    MetaVarName<"<file>">,
+    Group<grp_lld>;
+def : Flag<["--"], "time-trace">,
+    Alias<time_trace_eq>,
+    HelpText<"Record time trace to file next to output">,
     Group<grp_lld>;
 def time_trace_granularity_eq: Joined<["--"], "time-trace-granularity=">,
     HelpText<"Minimum time granularity (in microseconds) traced by time profiler">,
-    Group<grp_lld>;
-def time_trace_file_eq: Joined<["--"], "time-trace-file=">,
-    HelpText<"Specify time trace output file">,
     Group<grp_lld>;
 def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
     HelpText<"Enable literal deduplication. This is implied by --icf={safe,all}">,
@@ -237,6 +240,14 @@ def force_load : Separate<["-"], "force_load">,
 def force_load_swift_libs : Flag<["-"], "force_load_swift_libs">,
     HelpText<"Apply -force_load to libraries listed in LC_LINKER_OPTIONS whose names start with 'swift'">,
     Group<grp_libs>;
+def load_hidden : Separate<["-"], "load_hidden">,
+    MetaVarName<"<path>">,
+    HelpText<"Load all symbols from static library with hidden visibility">,
+    Group<grp_libs>;
+def hidden_l : Joined<["-"], "hidden-l">,
+    MetaVarName<"<name>">,
+    HelpText<"Like -l<name>, but load all symbols with hidden visibility">,
+    Group<grp_libs>;
 
 def grp_content : OptionGroup<"content">, HelpText<"ADDITIONAL CONTENT">;
 
@@ -312,7 +323,7 @@ def no_branch_islands : Flag<["-"], "no_branch_islands">,
     Flags<[HelpHidden]>,
     Group<grp_opts>;
 def no_deduplicate : Flag<["-"], "no_deduplicate">,
-    HelpText<"Disable code deduplicaiton (synonym for `--icf=none')">,
+    HelpText<"Disable code deduplication (synonym for `--icf=none')">,
     Alias<icf_eq>, AliasArgs<["none"]>,
     Group<grp_opts>;
 
@@ -483,6 +494,9 @@ def exported_symbols_list : Separate<["-"], "exported_symbols_list">,
     MetaVarName<"<file>">,
     HelpText<"Symbols specified in <file> remain global, while others become private externs">,
     Group<grp_resolve>;
+def no_exported_symbols : Flag<["-"], "no_exported_symbols">,
+    HelpText<"Don't export any symbols from the binary, useful for main executables that don't have plugins">,
+    Group<grp_resolve>;
 def unexported_symbol : Separate<["-"], "unexported_symbol">,
     MetaVarName<"<symbol>">,
     HelpText<"Global <symbol> becomes private extern">,
@@ -499,7 +513,6 @@ def reexported_symbols_list : Separate<["-"], "reexported_symbols_list">,
 def alias : MultiArg<["-"], "alias", 2>,
     MetaVarName<"<symbol_name> <alternate_name>">,
     HelpText<"Create a symbol alias with default global visibility">,
-    Flags<[HelpHidden]>,
     Group<grp_resolve>;
 def alias_list : Separate<["-"], "alias_list">,
     MetaVarName<"<file>">,
@@ -581,17 +594,14 @@ def S : Flag<["-"], "S">,
     Group<grp_symtab>;
 def x : Flag<["-"], "x">,
     HelpText<"Exclude non-global symbols from the output symbol table">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def non_global_symbols_strip_list : Separate<["-"], "non_global_symbols_strip_list">,
     MetaVarName<"<path>">,
     HelpText<"Specify in <path> the non-global symbols that should be removed from the output symbol table">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def non_global_symbols_no_strip_list : Separate<["-"], "non_global_symbols_no_strip_list">,
     MetaVarName<"<path>">,
     HelpText<"Specify in <path> the non-global symbols that should remain in the output symbol table">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def oso_prefix : Separate<["-"], "oso_prefix">,
     MetaVarName<"<path>">,
@@ -890,7 +900,6 @@ def e : Separate<["-"], "e">,
     Group<grp_rare>;
 def w : Flag<["-"], "w">,
     HelpText<"Suppress all warnings">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def final_output : Separate<["-"], "final_output">,
     MetaVarName<"<name>">,
@@ -1173,7 +1182,7 @@ def allow_simulator_linking_to_macosx_dylibs : Flag<["-"], "allow_simulator_link
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def bitcode_process_mode : Flag<["-"], "bitcode_process_mode">,
+def bitcode_process_mode : Separate<["-"], "bitcode_process_mode">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
@@ -1255,8 +1264,7 @@ def ignore_auto_link : Flag<["-"], "ignore_auto_link">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
 def ignore_optimization_hints : Flag<["-"], "ignore_optimization_hints">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Ignore Linker Optimization Hints">,
     Group<grp_undocumented>;
 def init_offsets : Flag<["-"], "init_offsets">,
     HelpText<"This option is undocumented in ld64">,

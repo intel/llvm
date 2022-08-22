@@ -64,12 +64,12 @@ bool isLegalShaderModel(Triple &T) {
   return false;
 }
 
-std::string tryParseProfile(StringRef Profile) {
+llvm::Optional<std::string> tryParseProfile(StringRef Profile) {
   // [ps|vs|gs|hs|ds|cs|ms|as]_[major]_[minor]
   SmallVector<StringRef, 3> Parts;
   Profile.split(Parts, "_");
   if (Parts.size() != 3)
-    return "";
+    return NoneType();
 
   Triple::EnvironmentType Kind =
       StringSwitch<Triple::EnvironmentType>(Parts[0])
@@ -84,17 +84,17 @@ std::string tryParseProfile(StringRef Profile) {
           .Case("as", Triple::EnvironmentType::Amplification)
           .Default(Triple::EnvironmentType::UnknownEnvironment);
   if (Kind == Triple::EnvironmentType::UnknownEnvironment)
-    return "";
+    return NoneType();
 
   unsigned long long Major = 0;
   if (llvm::getAsUnsignedInteger(Parts[1], 0, Major))
-    return "";
+    return NoneType();
 
   unsigned long long Minor = 0;
   if (Parts[2] == "x" && Kind == Triple::EnvironmentType::Library)
     Minor = OfflineLibMinor;
   else if (llvm::getAsUnsignedInteger(Parts[2], 0, Minor))
-    return "";
+    return NoneType();
 
   // dxil-unknown-shadermodel-hull
   llvm::Triple T;
@@ -105,7 +105,7 @@ std::string tryParseProfile(StringRef Profile) {
   if (isLegalShaderModel(T))
     return T.getTriple();
   else
-    return "";
+    return NoneType();
 }
 
 bool isLegalValidatorVersion(StringRef ValVersionStr, const Driver &D) {
@@ -118,7 +118,7 @@ bool isLegalValidatorVersion(StringRef ValVersionStr, const Driver &D) {
   }
 
   uint64_t Major = Version.getMajor();
-  uint64_t Minor = Version.getMinor().getValue();
+  uint64_t Minor = *Version.getMinor();
   if (Major == 0 && Minor != 0) {
     D.Diag(diag::err_drv_invalid_empty_dxil_validator_version) << ValVersionStr;
     return false;
@@ -138,21 +138,10 @@ HLSLToolChain::HLSLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : ToolChain(D, Triple, Args) {}
 
-std::string
-HLSLToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
-                                           types::ID InputType) const {
-  if (Arg *A = Args.getLastArg(options::OPT_target_profile)) {
-    StringRef Profile = A->getValue();
-    std::string Triple = tryParseProfile(Profile);
-    if (Triple == "") {
-      getDriver().Diag(diag::err_drv_invalid_directx_shader_module) << Profile;
-      Triple = ToolChain::ComputeEffectiveClangTriple(Args, InputType);
-    }
-    A->claim();
-    return Triple;
-  } else {
-    return ToolChain::ComputeEffectiveClangTriple(Args, InputType);
-  }
+llvm::Optional<std::string>
+clang::driver::toolchains::HLSLToolChain::parseTargetProfile(
+    StringRef TargetProfile) {
+  return tryParseProfile(TargetProfile);
 }
 
 DerivedArgList *
@@ -169,6 +158,15 @@ HLSLToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
       if (!isLegalValidatorVersion(ValVerStr, getDriver()))
         continue;
     }
+    if (A->getOption().getID() == options::OPT_emit_pristine_llvm) {
+      // Translate fcgl into -S -emit-llvm and -disable-llvm-passes.
+      DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_S));
+      DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_emit_llvm));
+      DAL->AddFlagArg(nullptr,
+                      Opts.getOption(options::OPT_disable_llvm_passes));
+      A->claim();
+      continue;
+    }
     DAL->append(A);
   }
   // Add default validator version if not set.
@@ -179,5 +177,7 @@ HLSLToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
                         Opts.getOption(options::OPT_dxil_validator_version),
                         DefaultValidatorVer);
   }
+  // FIXME: add validation for enable_16bit_types should be after HLSL 2018 and
+  // shader model 6.2.
   return DAL;
 }

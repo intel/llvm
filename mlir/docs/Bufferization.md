@@ -30,40 +30,38 @@ and with aggressive in-place bufferization.
 
 One-Shot Bufferize is:
 
-* **Monolithic**: A single MLIR pass does the entire
-work, whereas the previous bufferization in MLIR was split across multiple
-passes residing in different dialects. In One-Shot Bufferize,
-`BufferizableOpInterface` implementations are spread across different dialects.
+*   **Monolithic**: A single MLIR pass does the entire work, whereas the
+    previous bufferization in MLIR was split across multiple passes residing in
+    different dialects. In One-Shot Bufferize, `BufferizableOpInterface`
+    implementations are spread across different dialects.
 
-* A **whole-function at a time analysis**. In-place bufferization decisions are
-made by analyzing SSA use-def chains on tensors. Op interface implementations
-not only provide the rewrite logic from tensor ops to memref ops, but also
-helper methods for One-Shot Bufferize's analysis to query information about an
-op's bufferization/memory semantics.
+*   A **whole-function at a time analysis**. In-place bufferization decisions
+    are made by analyzing SSA use-def chains on tensors. Op interface
+    implementations not only provide the rewrite logic from tensor ops to memref
+    ops, but also helper methods for One-Shot Bufferize's analysis to query
+    information about an op's bufferization/memory semantics.
 
-* **Extensible** via an op interface: All
-ops that implement `BufferizableOpInterface` can be bufferized.
+*   **Extensible** via an op interface: All ops that implement
+    `BufferizableOpInterface` can be bufferized.
 
-* **2-Pass**:
-Bufferization is internally broken down into 2 steps: First, analyze the entire
-IR and make bufferization decisions. Then, bufferize (rewrite) the IR. The
-analysis has access to exact SSA use-def information. It incrementally builds
-alias and equivalence sets and does not rely on a posteriori-alias analysis from
-preallocated memory.
+*   **2-Pass**: Bufferization is internally broken down into 2 steps: First,
+    analyze the entire IR and make bufferization decisions. Then, bufferize
+    (rewrite) the IR. The analysis has access to exact SSA use-def information.
+    It incrementally builds alias and equivalence sets and does not rely on a
+    posteriori-alias analysis from preallocated memory.
 
-* **Greedy**: Operations are analyzed one-by-one and it is
-decided on the spot whether a tensor OpOperand must be copied or not. Heuristics
-determine the order of analysis.
+*   **Greedy**: Operations are analyzed one-by-one and it is decided on the spot
+    whether a tensor OpOperand must be copied or not. Heuristics determine the
+    order of analysis.
 
-* **Modular**: The current One-Shot Analysis
-can be replaced with a different analysis. The result of the analysis are
-queried by the bufferization via `BufferizationState`, in particular
-`BufferizationState::isInPlace`. Any derived class of `BufferizationState` that
-implements a small number virtual functions can serve as a custom analysis. It
-is even possible to run One-Shot Bufferize without any analysis
-(`AlwaysCopyBufferizationState`), in which case One-Shot Bufferize behaves
-exactly like the old dialect conversion-based bufferization (i.e., copy every
-buffer before writing to it).
+*   **Modular**: The current One-Shot Analysis can be replaced with a different
+    analysis. The result of the analysis are queried by the bufferization via
+    `AnalysisState`, in particular `AnalysisState::isInPlace`. Any derived class
+    of `AnalysisState` that implements a small number virtual functions can
+    serve as a custom analysis. It is even possible to run One-Shot Bufferize
+    without any analysis (`AlwaysCopyAnalysisState`), in which case One-Shot
+    Bufferize behaves exactly like the old dialect conversion-based
+    bufferization (i.e., copy every buffer before writing to it).
 
 To reduce complexity, One-Shot Bufferize should be
 [run after other transformations](https://llvm.discourse.group/t/rfc-linalg-on-tensors-update-and-comprehensive-bufferization-rfc/3373),
@@ -270,9 +268,11 @@ the block. Deallocation of such buffers is tricky and not currently implemented
 in an efficient way. For this reason, One-Shot Bufferize must be explicitly
 configured with `allow-return-allocs` to support such IR.
 
-When running with `allow-return-allocs`, One-Shot Bufferize resolves yields of
-newly allocated buffers with copies. E.g., the `scf.if` example above would
-bufferize to IR similar to the following:
+When running with `allow-return-allocs`, One-Shot Bufferize may introduce
+allocations that cannot be deallocated by One-Shot Bufferize yet. For that
+reason, `-buffer-deallocation` must be run after One-Shot Bufferize. This buffer
+deallocation pass resolves yields of newly allocated buffers with copies. E.g.,
+the `scf.if` example above would bufferize to IR similar to the following:
 
 ```mlir
 %0 = scf.if %c -> (memref<?xf32>) {
@@ -291,15 +291,10 @@ not matter which if-branch was taken. In both cases, the resulting buffer `%0`
 must be deallocated at some point after the `scf.if` (unless the `%0` is
 returned/yielded from its block).
 
-One-Shot Bufferize internally utilizes functionality from the
-[Buffer Deallocation](https://mlir.llvm.org/docs/BufferDeallocationInternals/)
-pass to deallocate yielded buffers. Therefore, ops with regions must implement
-the `RegionBranchOpInterface` when `allow-return-allocs`.
-
-Note: Buffer allocations that are returned from a function are not deallocated.
-It is the caller's responsibility to deallocate the buffer. In the future, this
-could be automated with allocation hoisting (across function boundaries) or
-reference counting.
+Note: Buffer allocations that are returned from a function are not deallocated,
+not even with `-buffer-deallocation`. It is the caller's responsibility to
+deallocate the buffer. In the future, this could be automated with allocation
+hoisting (across function boundaries) or reference counting.
 
 One-Shot Bufferize can be configured to leak all memory and not generate any
 buffer deallocations with `create-deallocs=0`. This can be useful for
@@ -336,16 +331,29 @@ simpler memref type (e.g., identity layout map), we expect that canonicalization
 patterns would clean up unnecessarily dynamic layout maps. (Some of these
 canonicalization patterns may not be implemented yet.)
 
-Note that One-Shot Bufferize always generates the most specific memref type when
-the entire IR is bufferizable. In that case, we do not have to rely on
-canonicalization patterns to clean up the bufferized IR.
+One-Shot Bufferize tries to infer the most precise memref type when bufferizing
+an op. If the entire IR is bufferizable, we do not have to resort to
+conservatively use fully dynamic layout maps. In that case, we also do not have
+to rely on canonicalization patterns to clean up the bufferized IR.
 
-One-Shot Bufferize can be configured to always generate memref types with
-identity layout when the exact target memref type is not known via
-`fully-dynamic-layout-maps=0`. This can be useful for legacy code that cannot
-handle memref types with layout maps. Note that this leads to additional buffer
-copies when folding a `to_tensor`/`to_memref` pair with memref types that are
-not cast-compatible.
+Note: There are some bufferizable ops for which a percise layout map cannot be
+inferred. E.g., a `tensor.cast` from a `tensor<*xf32>` to a `tensor<?x?xf32>`
+must be bufferized to a `memref.cast` with a memref type that has a fully
+dynamic layout map.
+
+One-Shot Bufferize has an option `unknown-type-conversion` to control the
+generation of layout maps when no precise layout can be inferred:
+
+*   `fully-dynamic-layout-map` uses fully dynamic layout maps and is the default
+    behavior. This composes well when IR is partially bufferized.
+*   `identity-layout-map` uses static identity layout maps. This option can be
+    useful for legacy code that cannot handle memref types with layout maps.
+    Note that this setting can lead to additional buffer copies when folding a
+    `to_tensor`/`to_memref` pair with memref types that are not cast-compatible.
+
+Note: The `unknown-type-conversion` option does not affect layout maps of
+function signatures. There is a separate `function-signature-type-conversion`
+option that controls layout maps of function parameters and function results.
 
 ## Extending One-Shot Bufferize
 

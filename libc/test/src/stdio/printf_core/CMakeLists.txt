@@ -4,12 +4,13 @@ add_libc_unittest(
     libc_stdio_unittests
   SRCS
     parser_test.cpp
+  LINK_LIBRARIES
+    LibcPrintfHelpers
   DEPENDS
     libc.src.stdio.printf_core.parser
+    libc.src.stdio.printf_core.core_structs
     libc.src.__support.arg_list
 )
-
-target_link_libraries(libc.test.src.stdio.printf_core.parser_test PRIVATE LibcPrintfHelpers)
 
 add_libc_unittest(
   string_writer_test
@@ -20,4 +21,17 @@ add_libc_unittest(
   DEPENDS
     libc.src.stdio.printf_core.writer
     libc.src.stdio.printf_core.string_writer
+)
+
+add_libc_unittest(
+  converter_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    converter_test.cpp
+  DEPENDS
+    libc.src.stdio.printf_core.converter
+    libc.src.stdio.printf_core.writer
+    libc.src.stdio.printf_core.string_writer
+    libc.src.stdio.printf_core.core_structs
 )

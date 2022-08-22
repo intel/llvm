@@ -13,7 +13,7 @@ one FPGA board installed in their system (one device per platform).
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 ...
 // force FPGA hardware device
-cl::sycl::queue deviceQueue{cl::sycl::ext::intel::fpga_selector{}};
+sycl::queue deviceQueue{sycl::ext::intel::fpga_selector{}};
 ...
 ```
 
@@ -22,7 +22,7 @@ cl::sycl::queue deviceQueue{cl::sycl::ext::intel::fpga_selector{}};
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 ...
 // force FPGA emulation device
-cl::sycl::queue deviceQueue{cl::sycl::ext::intel::fpga_emulator_selector{}};
+sycl::queue deviceQueue{sycl::ext::intel::fpga_emulator_selector{}};
 ...
 ```
 

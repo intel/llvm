@@ -112,6 +112,7 @@ std::pair<Symbol *, bool> SymbolTable::insertName(StringRef name) {
   sym->canInline = true;
   sym->traced = trace;
   sym->forceExport = false;
+  sym->referenced = !config->gcSections;
   symVector.emplace_back(sym);
   return {sym, true};
 }
@@ -854,7 +855,7 @@ void SymbolTable::replaceWithUndefined(Symbol *sym) {
 // the call instruction that passes Wasm validation.
 void SymbolTable::handleWeakUndefines() {
   for (Symbol *sym : getSymbols()) {
-    if (sym->isUndefWeak()) {
+    if (sym->isUndefWeak() && sym->isUsedInRegularObj) {
       if (sym->getSignature()) {
         replaceWithUndefined(sym);
       } else {

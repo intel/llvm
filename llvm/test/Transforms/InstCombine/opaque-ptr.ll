@@ -211,8 +211,7 @@ define ptr @geps_combinable_different_elem_type3(ptr %a) {
 
 define ptr @geps_combinable_different_elem_type4(ptr %a) {
 ; CHECK-LABEL: @geps_combinable_different_elem_type4(
-; CHECK-NEXT:    [[A2:%.*]] = getelementptr { i32, i32 }, ptr [[A:%.*]], i64 0, i32 1
-; CHECK-NEXT:    [[A3:%.*]] = getelementptr i8, ptr [[A2]], i64 10
+; CHECK-NEXT:    [[A3:%.*]] = getelementptr i8, ptr [[A:%.*]], i64 14
 ; CHECK-NEXT:    ret ptr [[A3]]
 ;
   %a2 = getelementptr { i32, i32 }, ptr %a, i32 0, i32 1
@@ -332,6 +331,19 @@ define i1 @compare_geps_same_indices_different_types(ptr %a, ptr %b, i64 %idx) {
   %b2 = getelementptr i64, ptr %b, i64 %idx
   %c = icmp eq ptr %a2, %b2
   ret i1 %c
+}
+
+define <4 x i1> @compare_geps_same_indices_scalar_vector_base_mismatch(ptr %ptr, <4 x ptr> %ptrs) {
+; CHECK-LABEL: @compare_geps_same_indices_scalar_vector_base_mismatch(
+; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr i16, <4 x ptr> [[PTRS:%.*]], <4 x i64> <i64 1, i64 2, i64 3, i64 4>
+; CHECK-NEXT:    [[GEP2:%.*]] = getelementptr i16, ptr [[PTR:%.*]], <4 x i64> <i64 1, i64 2, i64 3, i64 4>
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <4 x ptr> [[GEP1]], [[GEP2]]
+; CHECK-NEXT:    ret <4 x i1> [[CMP]]
+;
+  %gep1 = getelementptr i16, <4 x ptr> %ptrs, <4 x i64> <i64 1, i64 2, i64 3, i64 4>
+  %gep2 = getelementptr i16, ptr %ptr, <4 x i64> <i64 1, i64 2, i64 3, i64 4>
+  %cmp = icmp eq <4 x ptr> %gep1, %gep2
+  ret <4 x i1> %cmp
 }
 
 define ptr @indexed_compare(ptr %A, i64 %offset) {

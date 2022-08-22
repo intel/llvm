@@ -1328,7 +1328,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
   if (AfterFirstStdConv) {
     LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Standard "
                                "Pre-Conversion found!\n");
-    ImplicitSeq.AfterFirstStandard = AfterFirstStdConv.getValue();
+    ImplicitSeq.AfterFirstStandard = *AfterFirstStdConv;
     WorkType = ImplicitSeq.AfterFirstStandard;
   }
 
@@ -1348,7 +1348,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
       if (ConversionOperatorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
                                    "conversion operator.\n");
-        ImplicitSeq.update(ConversionOperatorResult.getValue());
+        ImplicitSeq.update(*ConversionOperatorResult);
         WorkType = ImplicitSeq.getTypeAfterUserDefinedConversion();
         FoundConversionOperator = true;
       }
@@ -1363,7 +1363,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
       if (ConvCtorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
                                    "converting constructor.\n");
-        ImplicitSeq.update(ConvCtorResult.getValue());
+        ImplicitSeq.update(*ConvCtorResult);
         WorkType = ImplicitSeq.getTypeAfterUserDefinedConversion();
         FoundConvertingCtor = true;
       }
@@ -1552,7 +1552,7 @@ static bool isIgnoredParameter(const TheCheck &Check, const ParmVarDecl *Node) {
   LLVM_DEBUG(llvm::dbgs() << "\tType name is '" << NodeTypeName << "'\n");
   if (!NodeTypeName.empty()) {
     if (llvm::any_of(Check.IgnoredParameterTypeSuffixes,
-                     [NodeTypeName](const std::string &E) {
+                     [NodeTypeName](StringRef E) {
                        return !E.empty() && NodeTypeName.endswith(E);
                      })) {
       LLVM_DEBUG(llvm::dbgs() << "\tType suffix ignored.\n");
@@ -1683,7 +1683,7 @@ public:
         if (CalledFn->getParamDecl(Idx) == PassedToParam)
           TargetIdx.emplace(Idx);
 
-      assert(TargetIdx.hasValue() && "Matched, but didn't find index?");
+      assert(TargetIdx && "Matched, but didn't find index?");
       TargetParams[PassedParamOfThisFn].insert(
           {CalledFn->getCanonicalDecl(), *TargetIdx});
     }

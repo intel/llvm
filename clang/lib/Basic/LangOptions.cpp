@@ -62,7 +62,7 @@ unsigned LangOptions::getOpenCLCompatibleVersion() const {
   llvm_unreachable("Unknown OpenCL version");
 }
 
-void LangOptions::remapPathPrefix(SmallString<256> &Path) const {
+void LangOptions::remapPathPrefix(SmallVectorImpl<char> &Path) const {
   for (const auto &Entry : MacroPrefixMap)
     if (llvm::sys::path::replace_path_prefix(Path, Entry.first, Entry.second))
       break;
@@ -117,6 +117,8 @@ void LangOptions::setLangDefaults(LangOptions &Opts, Language Lang,
   Opts.Digraphs = Std.hasDigraphs();
 
   Opts.HLSL = Lang == Language::HLSL;
+  if (Opts.HLSL && Opts.IncludeDefaultHeader)
+    Includes.push_back("hlsl.h");
 
   // Set OpenCL Version.
   Opts.OpenCL = Std.isOpenCL();
@@ -193,13 +195,22 @@ void LangOptions::setLangDefaults(LangOptions &Opts, Language Lang,
   // OpenCL, C++ and C2x have bool, true, false keywords.
   Opts.Bool = Opts.OpenCL || Opts.CPlusPlus || Opts.C2x;
 
-  // OpenCL has half keyword
-  Opts.Half = Opts.OpenCL;
+  // OpenCL and HLSL have half keyword
+  Opts.Half = Opts.OpenCL || Opts.HLSL;
 }
 
 FPOptions FPOptions::defaultWithoutTrailingStorage(const LangOptions &LO) {
   FPOptions result(LO);
   return result;
+}
+
+FPOptionsOverride FPOptions::getChangesSlow(const FPOptions &Base) const {
+  FPOptions::storage_type OverrideMask = 0;
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  if (get##NAME() != Base.get##NAME())                                         \
+    OverrideMask |= NAME##Mask;
+#include "clang/Basic/FPOptions.def"
+  return FPOptionsOverride(*this, OverrideMask);
 }
 
 LLVM_DUMP_METHOD void FPOptions::dump() {

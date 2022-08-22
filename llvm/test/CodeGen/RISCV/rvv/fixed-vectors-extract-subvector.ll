@@ -11,7 +11,7 @@ define void @extract_v2i8_v4i8_0(<4 x i8>* %x, <2 x i8>* %y) {
 ; CHECK-NEXT:    vse8.v v8, (a1)
 ; CHECK-NEXT:    ret
   %a = load <4 x i8>, <4 x i8>* %x
-  %c = call <2 x i8> @llvm.experimental.vector.extract.v2i8.v4i8(<4 x i8> %a, i64 0)
+  %c = call <2 x i8> @llvm.vector.extract.v2i8.v4i8(<4 x i8> %a, i64 0)
   store <2 x i8> %c, <2 x i8>* %y
   ret void
 }
@@ -27,7 +27,7 @@ define void @extract_v2i8_v4i8_2(<4 x i8>* %x, <2 x i8>* %y) {
 ; CHECK-NEXT:    vse8.v v8, (a1)
 ; CHECK-NEXT:    ret
   %a = load <4 x i8>, <4 x i8>* %x
-  %c = call <2 x i8> @llvm.experimental.vector.extract.v2i8.v4i8(<4 x i8> %a, i64 2)
+  %c = call <2 x i8> @llvm.vector.extract.v2i8.v4i8(<4 x i8> %a, i64 2)
   store <2 x i8> %c, <2 x i8>* %y
   ret void
 }
@@ -41,7 +41,7 @@ define void @extract_v2i8_v8i8_0(<8 x i8>* %x, <2 x i8>* %y) {
 ; CHECK-NEXT:    vse8.v v8, (a1)
 ; CHECK-NEXT:    ret
   %a = load <8 x i8>, <8 x i8>* %x
-  %c = call <2 x i8> @llvm.experimental.vector.extract.v2i8.v8i8(<8 x i8> %a, i64 0)
+  %c = call <2 x i8> @llvm.vector.extract.v2i8.v8i8(<8 x i8> %a, i64 0)
   store <2 x i8> %c, <2 x i8>* %y
   ret void
 }
@@ -57,7 +57,7 @@ define void @extract_v2i8_v8i8_6(<8 x i8>* %x, <2 x i8>* %y) {
 ; CHECK-NEXT:    vse8.v v8, (a1)
 ; CHECK-NEXT:    ret
   %a = load <8 x i8>, <8 x i8>* %x
-  %c = call <2 x i8> @llvm.experimental.vector.extract.v2i8.v8i8(<8 x i8> %a, i64 6)
+  %c = call <2 x i8> @llvm.vector.extract.v2i8.v8i8(<8 x i8> %a, i64 6)
   store <2 x i8> %c, <2 x i8>* %y
   ret void
 }
@@ -79,7 +79,7 @@ define void @extract_v2i32_v8i32_0(<8 x i32>* %x, <2 x i32>* %y) {
 ; LMULMAX1-NEXT:    vse32.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <8 x i32>, <8 x i32>* %x
-  %c = call <2 x i32> @llvm.experimental.vector.extract.v2i32.v8i32(<8 x i32> %a, i64 0)
+  %c = call <2 x i32> @llvm.vector.extract.v2i32.v8i32(<8 x i32> %a, i64 0)
   store <2 x i32> %c, <2 x i32>* %y
   ret void
 }
@@ -105,7 +105,7 @@ define void @extract_v2i32_v8i32_2(<8 x i32>* %x, <2 x i32>* %y) {
 ; LMULMAX1-NEXT:    vse32.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <8 x i32>, <8 x i32>* %x
-  %c = call <2 x i32> @llvm.experimental.vector.extract.v2i32.v8i32(<8 x i32> %a, i64 2)
+  %c = call <2 x i32> @llvm.vector.extract.v2i32.v8i32(<8 x i32> %a, i64 2)
   store <2 x i32> %c, <2 x i32>* %y
   ret void
 }
@@ -132,7 +132,7 @@ define void @extract_v2i32_v8i32_6(<8 x i32>* %x, <2 x i32>* %y) {
 ; LMULMAX1-NEXT:    vse32.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <8 x i32>, <8 x i32>* %x
-  %c = call <2 x i32> @llvm.experimental.vector.extract.v2i32.v8i32(<8 x i32> %a, i64 6)
+  %c = call <2 x i32> @llvm.vector.extract.v2i32.v8i32(<8 x i32> %a, i64 6)
   store <2 x i32> %c, <2 x i32>* %y
   ret void
 }
@@ -143,7 +143,7 @@ define void @extract_v2i32_nxv16i32_0(<vscale x 16 x i32> %x, <2 x i32>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 2, e32, mf2, ta, mu
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i32> @llvm.experimental.vector.extract.v2i32.nxv16i32(<vscale x 16 x i32> %x, i64 0)
+  %c = call <2 x i32> @llvm.vector.extract.v2i32.nxv16i32(<vscale x 16 x i32> %x, i64 0)
   store <2 x i32> %c, <2 x i32>* %y
   ret void
 }
@@ -156,7 +156,7 @@ define void @extract_v2i32_nxv16i32_8(<vscale x 16 x i32> %x, <2 x i32>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 2, e32, mf2, ta, mu
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i32> @llvm.experimental.vector.extract.v2i32.nxv16i32(<vscale x 16 x i32> %x, i64 6)
+  %c = call <2 x i32> @llvm.vector.extract.v2i32.nxv16i32(<vscale x 16 x i32> %x, i64 6)
   store <2 x i32> %c, <2 x i32>* %y
   ret void
 }
@@ -167,7 +167,7 @@ define void @extract_v2i8_nxv2i8_0(<vscale x 2 x i8> %x, <2 x i8>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 2, e8, mf8, ta, mu
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i8> @llvm.experimental.vector.extract.v2i8.nxv2i8(<vscale x 2 x i8> %x, i64 0)
+  %c = call <2 x i8> @llvm.vector.extract.v2i8.nxv2i8(<vscale x 2 x i8> %x, i64 0)
   store <2 x i8> %c, <2 x i8>* %y
   ret void
 }
@@ -180,7 +180,7 @@ define void @extract_v2i8_nxv2i8_2(<vscale x 2 x i8> %x, <2 x i8>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 2, e8, mf8, ta, mu
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i8> @llvm.experimental.vector.extract.v2i8.nxv2i8(<vscale x 2 x i8> %x, i64 2)
+  %c = call <2 x i8> @llvm.vector.extract.v2i8.nxv2i8(<vscale x 2 x i8> %x, i64 2)
   store <2 x i8> %c, <2 x i8>* %y
   ret void
 }
@@ -204,7 +204,7 @@ define void @extract_v8i32_nxv16i32_8(<vscale x 16 x i32> %x, <8 x i32>* %y) {
 ; LMULMAX1-NEXT:    vse32.v v8, (a1)
 ; LMULMAX1-NEXT:    vse32.v v16, (a0)
 ; LMULMAX1-NEXT:    ret
-  %c = call <8 x i32> @llvm.experimental.vector.extract.v8i32.nxv16i32(<vscale x 16 x i32> %x, i64 8)
+  %c = call <8 x i32> @llvm.vector.extract.v8i32.nxv16i32(<vscale x 16 x i32> %x, i64 8)
   store <8 x i32> %c, <8 x i32>* %y
   ret void
 }
@@ -227,7 +227,7 @@ define void @extract_v8i1_v64i1_0(<64 x i1>* %x, <8 x i1>* %y) {
 ; LMULMAX1-NEXT:    vsm.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <64 x i1>, <64 x i1>* %x
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.v64i1(<64 x i1> %a, i64 0)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.v64i1(<64 x i1> %a, i64 0)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -254,7 +254,7 @@ define void @extract_v8i1_v64i1_8(<64 x i1>* %x, <8 x i1>* %y) {
 ; LMULMAX1-NEXT:    vsm.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <64 x i1>, <64 x i1>* %x
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.v64i1(<64 x i1> %a, i64 8)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.v64i1(<64 x i1> %a, i64 8)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -281,7 +281,7 @@ define void @extract_v8i1_v64i1_48(<64 x i1>* %x, <8 x i1>* %y) {
 ; LMULMAX1-NEXT:    vsm.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <64 x i1>, <64 x i1>* %x
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.v64i1(<64 x i1> %a, i64 48)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.v64i1(<64 x i1> %a, i64 48)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -292,7 +292,7 @@ define void @extract_v8i1_nxv2i1_0(<vscale x 2 x i1> %x, <8 x i1>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vsm.v v0, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv2i1(<vscale x 2 x i1> %x, i64 0)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.nxv2i1(<vscale x 2 x i1> %x, i64 0)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -303,7 +303,7 @@ define void @extract_v8i1_nxv64i1_0(<vscale x 64 x i1> %x, <8 x i1>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vsm.v v0, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %x, i64 0)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %x, i64 0)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -316,7 +316,7 @@ define void @extract_v8i1_nxv64i1_8(<vscale x 64 x i1> %x, <8 x i1>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %x, i64 8)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %x, i64 8)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -329,7 +329,7 @@ define void @extract_v8i1_nxv64i1_48(<vscale x 64 x i1> %x, <8 x i1>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %x, i64 48)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %x, i64 48)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
@@ -346,7 +346,7 @@ define void @extract_v2i1_v64i1_0(<64 x i1>* %x, <2 x i1>* %y) {
 ; LMULMAX2-NEXT:    vmerge.vim v8, v8, 1, v0
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX2-NEXT:    vmv.v.i v9, 0
-; LMULMAX2-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; LMULMAX2-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; LMULMAX2-NEXT:    vslideup.vi v9, v8, 0
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX2-NEXT:    vmsne.vi v8, v9, 0
@@ -362,14 +362,14 @@ define void @extract_v2i1_v64i1_0(<64 x i1>* %x, <2 x i1>* %y) {
 ; LMULMAX1-NEXT:    vmerge.vim v8, v8, 1, v0
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX1-NEXT:    vmv.v.i v9, 0
-; LMULMAX1-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; LMULMAX1-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; LMULMAX1-NEXT:    vslideup.vi v9, v8, 0
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX1-NEXT:    vmsne.vi v8, v9, 0
 ; LMULMAX1-NEXT:    vsm.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <64 x i1>, <64 x i1>* %x
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.v64i1(<64 x i1> %a, i64 0)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.v64i1(<64 x i1> %a, i64 0)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -390,7 +390,7 @@ define void @extract_v2i1_v64i1_2(<64 x i1>* %x, <2 x i1>* %y) {
 ; LMULMAX2-NEXT:    vmerge.vim v8, v8, 1, v0
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX2-NEXT:    vmv.v.i v9, 0
-; LMULMAX2-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; LMULMAX2-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; LMULMAX2-NEXT:    vslideup.vi v9, v8, 0
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX2-NEXT:    vmsne.vi v8, v9, 0
@@ -411,14 +411,14 @@ define void @extract_v2i1_v64i1_2(<64 x i1>* %x, <2 x i1>* %y) {
 ; LMULMAX1-NEXT:    vmerge.vim v8, v8, 1, v0
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX1-NEXT:    vmv.v.i v9, 0
-; LMULMAX1-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; LMULMAX1-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; LMULMAX1-NEXT:    vslideup.vi v9, v8, 0
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX1-NEXT:    vmsne.vi v8, v9, 0
 ; LMULMAX1-NEXT:    vsm.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <64 x i1>, <64 x i1>* %x
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.v64i1(<64 x i1> %a, i64 2)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.v64i1(<64 x i1> %a, i64 2)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -440,7 +440,7 @@ define void @extract_v2i1_v64i1_42(<64 x i1>* %x, <2 x i1>* %y) {
 ; LMULMAX2-NEXT:    vmerge.vim v8, v8, 1, v0
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX2-NEXT:    vmv.v.i v9, 0
-; LMULMAX2-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; LMULMAX2-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; LMULMAX2-NEXT:    vslideup.vi v9, v8, 0
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX2-NEXT:    vmsne.vi v8, v9, 0
@@ -462,14 +462,14 @@ define void @extract_v2i1_v64i1_42(<64 x i1>* %x, <2 x i1>* %y) {
 ; LMULMAX1-NEXT:    vmerge.vim v8, v8, 1, v0
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX1-NEXT:    vmv.v.i v9, 0
-; LMULMAX1-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; LMULMAX1-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; LMULMAX1-NEXT:    vslideup.vi v9, v8, 0
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; LMULMAX1-NEXT:    vmsne.vi v8, v9, 0
 ; LMULMAX1-NEXT:    vsm.v v8, (a1)
 ; LMULMAX1-NEXT:    ret
   %a = load <64 x i1>, <64 x i1>* %x
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.v64i1(<64 x i1> %a, i64 42)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.v64i1(<64 x i1> %a, i64 42)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -482,13 +482,13 @@ define void @extract_v2i1_nxv2i1_0(<vscale x 2 x i1> %x, <2 x i1>* %y) {
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv.v.i v9, 0
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmsne.vi v8, v9, 0
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv2i1(<vscale x 2 x i1> %x, i64 0)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.nxv2i1(<vscale x 2 x i1> %x, i64 0)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -507,13 +507,13 @@ define void @extract_v2i1_nxv2i1_2(<vscale x 2 x i1> %x, <2 x i1>* %y) {
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv.v.i v9, 0
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmsne.vi v8, v9, 0
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv2i1(<vscale x 2 x i1> %x, i64 2)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.nxv2i1(<vscale x 2 x i1> %x, i64 2)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -526,13 +526,13 @@ define void @extract_v2i1_nxv64i1_0(<vscale x 64 x i1> %x, <2 x i1>* %y) {
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv.v.i v9, 0
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmsne.vi v8, v9, 0
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %x, i64 0)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %x, i64 0)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -551,13 +551,13 @@ define void @extract_v2i1_nxv64i1_2(<vscale x 64 x i1> %x, <2 x i1>* %y) {
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv.v.i v9, 0
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmsne.vi v8, v9, 0
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %x, i64 2)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %x, i64 2)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -577,13 +577,13 @@ define void @extract_v2i1_nxv64i1_42(<vscale x 64 x i1> %x, <2 x i1>* %y) {
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv.v.i v9, 0
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmsne.vi v8, v9, 0
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %x, i64 42)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %x, i64 42)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -602,13 +602,13 @@ define void @extract_v2i1_nxv32i1_26(<vscale x 32 x i1> %x, <2 x i1>* %y) {
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmv.v.i v9, 0
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vmsne.vi v8, v9, 0
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv32i1(<vscale x 32 x i1> %x, i64 26)
+  %c = call <2 x i1> @llvm.vector.extract.v2i1.nxv32i1(<vscale x 32 x i1> %x, i64 26)
   store <2 x i1> %c, <2 x i1>* %y
   ret void
 }
@@ -621,28 +621,28 @@ define void @extract_v8i1_nxv32i1_16(<vscale x 32 x i1> %x, <8 x i1>* %y) {
 ; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vsm.v v8, (a0)
 ; CHECK-NEXT:    ret
-  %c = call <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv32i1(<vscale x 32 x i1> %x, i64 16)
+  %c = call <8 x i1> @llvm.vector.extract.v8i1.nxv32i1(<vscale x 32 x i1> %x, i64 16)
   store <8 x i1> %c, <8 x i1>* %y
   ret void
 }
 
-declare <2 x i1> @llvm.experimental.vector.extract.v2i1.v64i1(<64 x i1> %vec, i64 %idx)
-declare <8 x i1> @llvm.experimental.vector.extract.v8i1.v64i1(<64 x i1> %vec, i64 %idx)
+declare <2 x i1> @llvm.vector.extract.v2i1.v64i1(<64 x i1> %vec, i64 %idx)
+declare <8 x i1> @llvm.vector.extract.v8i1.v64i1(<64 x i1> %vec, i64 %idx)
 
-declare <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv2i1(<vscale x 2 x i1> %vec, i64 %idx)
-declare <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv2i1(<vscale x 2 x i1> %vec, i64 %idx)
+declare <2 x i1> @llvm.vector.extract.v2i1.nxv2i1(<vscale x 2 x i1> %vec, i64 %idx)
+declare <8 x i1> @llvm.vector.extract.v8i1.nxv2i1(<vscale x 2 x i1> %vec, i64 %idx)
 
-declare <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv32i1(<vscale x 32 x i1> %vec, i64 %idx)
-declare <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv32i1(<vscale x 32 x i1> %vec, i64 %idx)
+declare <2 x i1> @llvm.vector.extract.v2i1.nxv32i1(<vscale x 32 x i1> %vec, i64 %idx)
+declare <8 x i1> @llvm.vector.extract.v8i1.nxv32i1(<vscale x 32 x i1> %vec, i64 %idx)
 
-declare <2 x i1> @llvm.experimental.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %vec, i64 %idx)
-declare <8 x i1> @llvm.experimental.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %vec, i64 %idx)
+declare <2 x i1> @llvm.vector.extract.v2i1.nxv64i1(<vscale x 64 x i1> %vec, i64 %idx)
+declare <8 x i1> @llvm.vector.extract.v8i1.nxv64i1(<vscale x 64 x i1> %vec, i64 %idx)
 
-declare <2 x i8> @llvm.experimental.vector.extract.v2i8.v4i8(<4 x i8> %vec, i64 %idx)
-declare <2 x i8> @llvm.experimental.vector.extract.v2i8.v8i8(<8 x i8> %vec, i64 %idx)
-declare <2 x i32> @llvm.experimental.vector.extract.v2i32.v8i32(<8 x i32> %vec, i64 %idx)
+declare <2 x i8> @llvm.vector.extract.v2i8.v4i8(<4 x i8> %vec, i64 %idx)
+declare <2 x i8> @llvm.vector.extract.v2i8.v8i8(<8 x i8> %vec, i64 %idx)
+declare <2 x i32> @llvm.vector.extract.v2i32.v8i32(<8 x i32> %vec, i64 %idx)
 
-declare <2 x i8> @llvm.experimental.vector.extract.v2i8.nxv2i8(<vscale x 2 x i8> %vec, i64 %idx)
+declare <2 x i8> @llvm.vector.extract.v2i8.nxv2i8(<vscale x 2 x i8> %vec, i64 %idx)
 
-declare <2 x i32> @llvm.experimental.vector.extract.v2i32.nxv16i32(<vscale x 16 x i32> %vec, i64 %idx)
-declare <8 x i32> @llvm.experimental.vector.extract.v8i32.nxv16i32(<vscale x 16 x i32> %vec, i64 %idx)
+declare <2 x i32> @llvm.vector.extract.v2i32.nxv16i32(<vscale x 16 x i32> %vec, i64 %idx)
+declare <8 x i32> @llvm.vector.extract.v8i32.nxv16i32(<vscale x 16 x i32> %vec, i64 %idx)

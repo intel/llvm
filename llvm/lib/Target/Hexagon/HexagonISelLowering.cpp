@@ -72,41 +72,41 @@ static cl::opt<bool> EmitJumpTables("hexagon-emit-jump-tables",
   cl::init(true), cl::Hidden,
   cl::desc("Control jump table emission on Hexagon target"));
 
-static cl::opt<bool> EnableHexSDNodeSched("enable-hexagon-sdnode-sched",
-  cl::Hidden, cl::ZeroOrMore, cl::init(false),
-  cl::desc("Enable Hexagon SDNode scheduling"));
+static cl::opt<bool>
+    EnableHexSDNodeSched("enable-hexagon-sdnode-sched", cl::Hidden,
+                         cl::desc("Enable Hexagon SDNode scheduling"));
 
-static cl::opt<bool> EnableFastMath("ffast-math",
-  cl::Hidden, cl::ZeroOrMore, cl::init(false),
-  cl::desc("Enable Fast Math processing"));
+static cl::opt<bool> EnableFastMath("ffast-math", cl::Hidden,
+                                    cl::desc("Enable Fast Math processing"));
 
-static cl::opt<int> MinimumJumpTables("minimum-jump-tables",
-  cl::Hidden, cl::ZeroOrMore, cl::init(5),
-  cl::desc("Set minimum jump tables"));
+static cl::opt<int> MinimumJumpTables("minimum-jump-tables", cl::Hidden,
+                                      cl::init(5),
+                                      cl::desc("Set minimum jump tables"));
 
-static cl::opt<int> MaxStoresPerMemcpyCL("max-store-memcpy",
-  cl::Hidden, cl::ZeroOrMore, cl::init(6),
-  cl::desc("Max #stores to inline memcpy"));
+static cl::opt<int>
+    MaxStoresPerMemcpyCL("max-store-memcpy", cl::Hidden, cl::init(6),
+                         cl::desc("Max #stores to inline memcpy"));
 
-static cl::opt<int> MaxStoresPerMemcpyOptSizeCL("max-store-memcpy-Os",
-  cl::Hidden, cl::ZeroOrMore, cl::init(4),
-  cl::desc("Max #stores to inline memcpy"));
+static cl::opt<int>
+    MaxStoresPerMemcpyOptSizeCL("max-store-memcpy-Os", cl::Hidden, cl::init(4),
+                                cl::desc("Max #stores to inline memcpy"));
 
-static cl::opt<int> MaxStoresPerMemmoveCL("max-store-memmove",
-  cl::Hidden, cl::ZeroOrMore, cl::init(6),
-  cl::desc("Max #stores to inline memmove"));
+static cl::opt<int>
+    MaxStoresPerMemmoveCL("max-store-memmove", cl::Hidden, cl::init(6),
+                          cl::desc("Max #stores to inline memmove"));
 
-static cl::opt<int> MaxStoresPerMemmoveOptSizeCL("max-store-memmove-Os",
-  cl::Hidden, cl::ZeroOrMore, cl::init(4),
-  cl::desc("Max #stores to inline memmove"));
+static cl::opt<int>
+    MaxStoresPerMemmoveOptSizeCL("max-store-memmove-Os", cl::Hidden,
+                                 cl::init(4),
+                                 cl::desc("Max #stores to inline memmove"));
 
-static cl::opt<int> MaxStoresPerMemsetCL("max-store-memset",
-  cl::Hidden, cl::ZeroOrMore, cl::init(8),
-  cl::desc("Max #stores to inline memset"));
+static cl::opt<int>
+    MaxStoresPerMemsetCL("max-store-memset", cl::Hidden, cl::init(8),
+                         cl::desc("Max #stores to inline memset"));
 
-static cl::opt<int> MaxStoresPerMemsetOptSizeCL("max-store-memset-Os",
-  cl::Hidden, cl::ZeroOrMore, cl::init(4),
-  cl::desc("Max #stores to inline memset"));
+static cl::opt<int>
+    MaxStoresPerMemsetOptSizeCL("max-store-memset-Os", cl::Hidden, cl::init(4),
+                                cl::desc("Max #stores to inline memset"));
 
 static cl::opt<bool> AlignLoads("hexagon-align-loads",
   cl::Hidden, cl::init(false),
@@ -1396,10 +1396,9 @@ HexagonTargetLowering::LowerToTLSGeneralDynamicModel(GlobalAddressSDNode *GA,
   Chain = DAG.getCopyToReg(DAG.getEntryNode(), dl, Hexagon::R0, Chain, InFlag);
   InFlag = Chain.getValue(1);
 
-  unsigned Flags =
-      static_cast<const HexagonSubtarget &>(DAG.getSubtarget()).useLongCalls()
-          ? HexagonII::MO_GDPLT | HexagonII::HMOTF_ConstExtended
-          : HexagonII::MO_GDPLT;
+  unsigned Flags = DAG.getSubtarget<HexagonSubtarget>().useLongCalls()
+                       ? HexagonII::MO_GDPLT | HexagonII::HMOTF_ConstExtended
+                       : HexagonII::MO_GDPLT;
 
   return GetDynamicTLSAddr(DAG, Chain, GA, InFlag, PtrVT,
                            Hexagon::R0, Flags);
@@ -2163,6 +2162,11 @@ HexagonTargetLowering::getPreferredVectorAction(MVT VT) const {
 
   // Always widen (remaining) vectors of i1.
   if (ElemTy == MVT::i1)
+    return TargetLoweringBase::TypeWidenVector;
+  // Widen non-power-of-2 vectors. Such types cannot be split right now,
+  // and computeRegisterProperties will override "split" with "widen",
+  // which can cause other issues.
+  if (!isPowerOf2_32(VecLen))
     return TargetLoweringBase::TypeWidenVector;
 
   return TargetLoweringBase::TypeSplitVector;

@@ -238,6 +238,16 @@ Expr<SomeReal> GetComplexPart(const Expr<SomeComplex> &z, bool isImaginary) {
       z.u);
 }
 
+Expr<SomeReal> GetComplexPart(Expr<SomeComplex> &&z, bool isImaginary) {
+  return common::visit(
+      [&](auto &&zk) {
+        static constexpr int kind{ResultType<decltype(zk)>::kind};
+        return AsCategoryExpr(
+            ComplexComponent<kind>{isImaginary, std::move(zk)});
+      },
+      z.u);
+}
+
 // Convert REAL to COMPLEX of the same kind. Preserving the real operand kind
 // and then applying complex operand promotion rules allows the result to have
 // the highest precision of REAL and COMPLEX operands as required by Fortran
@@ -929,26 +939,14 @@ std::optional<std::string> FindImpureCall(
   return FindImpureCallHelper{context}(proc);
 }
 
-// Compare procedure characteristics for equality except that rhs may be
-// Pure or Elemental when lhs is not.
-static bool CharacteristicsMatch(const characteristics::Procedure &lhs,
-    const characteristics::Procedure &rhs) {
-  using Attr = characteristics::Procedure::Attr;
-  auto lhsAttrs{lhs.attrs};
-  lhsAttrs.set(
-      Attr::Pure, lhs.attrs.test(Attr::Pure) || rhs.attrs.test(Attr::Pure));
-  lhsAttrs.set(Attr::Elemental,
-      lhs.attrs.test(Attr::Elemental) || rhs.attrs.test(Attr::Elemental));
-  return lhsAttrs == rhs.attrs && lhs.functionResult == rhs.functionResult &&
-      lhs.dummyArguments == rhs.dummyArguments;
-}
-
 // Common handling for procedure pointer compatibility of left- and right-hand
 // sides.  Returns nullopt if they're compatible.  Otherwise, it returns a
 // message that needs to be augmented by the names of the left and right sides
+// and the content of the "whyNotCompatible" string.
 std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
     const std::optional<characteristics::Procedure> &lhsProcedure,
-    const characteristics::Procedure *rhsProcedure) {
+    const characteristics::Procedure *rhsProcedure,
+    const SpecificIntrinsic *specificIntrinsic, std::string &whyNotCompatible) {
   std::optional<parser::MessageFixedText> msg;
   if (!lhsProcedure) {
     msg = "In assignment to object %s, the target '%s' is a procedure"
@@ -956,25 +954,26 @@ std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
   } else if (!rhsProcedure) {
     msg = "In assignment to procedure %s, the characteristics of the target"
           " procedure '%s' could not be determined"_err_en_US;
-  } else if (CharacteristicsMatch(*lhsProcedure, *rhsProcedure)) {
+  } else if (lhsProcedure->IsCompatibleWith(
+                 *rhsProcedure, &whyNotCompatible, specificIntrinsic)) {
     // OK
   } else if (isCall) {
     msg = "Procedure %s associated with result of reference to function '%s'"
-          " that is an incompatible procedure pointer"_err_en_US;
+          " that is an incompatible procedure pointer: %s"_err_en_US;
   } else if (lhsProcedure->IsPure() && !rhsProcedure->IsPure()) {
     msg = "PURE procedure %s may not be associated with non-PURE"
           " procedure designator '%s'"_err_en_US;
-  } else if (lhsProcedure->IsFunction() && !rhsProcedure->IsFunction()) {
+  } else if (lhsProcedure->IsFunction() && rhsProcedure->IsSubroutine()) {
     msg = "Function %s may not be associated with subroutine"
           " designator '%s'"_err_en_US;
-  } else if (!lhsProcedure->IsFunction() && rhsProcedure->IsFunction()) {
+  } else if (lhsProcedure->IsSubroutine() && rhsProcedure->IsFunction()) {
     msg = "Subroutine %s may not be associated with function"
           " designator '%s'"_err_en_US;
   } else if (lhsProcedure->HasExplicitInterface() &&
       !rhsProcedure->HasExplicitInterface()) {
     // Section 10.2.2.4, paragraph 3 prohibits associating a procedure pointer
-    // with an explicit interface with a procedure whose characteristics don't
-    // match.  That's the case if the target procedure has an implicit
+    // that has an explicit interface with a procedure whose characteristics
+    // don't match.  That's the case if the target procedure has an implicit
     // interface.  But this case is allowed by several other compilers as long
     // as the explicit interface can be called via an implicit interface.
     if (!lhsProcedure->CanBeCalledViaImplicitInterface()) {
@@ -985,14 +984,15 @@ std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
   } else if (!lhsProcedure->HasExplicitInterface() &&
       rhsProcedure->HasExplicitInterface()) {
     // OK if the target can be called via an implicit interface
-    if (!rhsProcedure->CanBeCalledViaImplicitInterface()) {
+    if (!rhsProcedure->CanBeCalledViaImplicitInterface() &&
+        !specificIntrinsic) {
       msg = "Procedure %s with implicit interface may not be associated "
             "with procedure designator '%s' with explicit interface that "
             "cannot be called via an implicit interface"_err_en_US;
     }
   } else {
     msg = "Procedure %s associated with incompatible procedure"
-          " designator '%s'"_err_en_US;
+          " designator '%s': %s"_err_en_US;
   }
   return msg;
 }
@@ -1115,6 +1115,25 @@ bool MayBePassedAsAbsentOptional(
       IsAllocatableOrPointerObject(expr, context);
 }
 
+std::optional<Expr<SomeType>> HollerithToBOZ(FoldingContext &context,
+    const Expr<SomeType> &expr, const DynamicType &type) {
+  if (std::optional<std::string> chValue{GetScalarConstantValue<Ascii>(expr)}) {
+    // Pad on the right with spaces when short, truncate the right if long.
+    // TODO: big-endian targets
+    auto bytes{static_cast<std::size_t>(
+        ToInt64(type.MeasureSizeInBytes(context, false)).value())};
+    BOZLiteralConstant bits{0};
+    for (std::size_t j{0}; j < bytes; ++j) {
+      char ch{j >= chValue->size() ? ' ' : chValue->at(j)};
+      BOZLiteralConstant chBOZ{static_cast<unsigned char>(ch)};
+      bits = bits.IOR(chBOZ.SHIFTL(8 * j));
+    }
+    return ConvertToType(type, Expr<SomeType>{bits});
+  } else {
+    return std::nullopt;
+  }
+}
+
 } // namespace Fortran::evaluate
 
 namespace Fortran::semantics {
@@ -1184,7 +1203,7 @@ bool IsPureProcedure(const Symbol &original) {
   const Symbol &symbol{DEREF(GetMainEntry(&original.GetUltimate()))};
   if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
     if (const Symbol * procInterface{procDetails->interface().symbol()}) {
-      // procedure component with a pure interface
+      // procedure with a pure interface
       return IsPureProcedure(*procInterface);
     }
   } else if (const auto *details{symbol.detailsIf<ProcBindingDetails>()}) {
@@ -1217,23 +1236,42 @@ bool IsPureProcedure(const Scope &scope) {
   return symbol && IsPureProcedure(*symbol);
 }
 
+bool IsElementalProcedure(const Symbol &original) {
+  // An ENTRY is elemental if its containing subprogram is
+  const Symbol &symbol{DEREF(GetMainEntry(&original.GetUltimate()))};
+  if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
+    if (const Symbol * procInterface{procDetails->interface().symbol()}) {
+      // procedure with an elemental interface, ignoring the elemental
+      // aspect of intrinsic functions
+      return !procInterface->attrs().test(Attr::INTRINSIC) &&
+          IsElementalProcedure(*procInterface);
+    }
+  } else if (const auto *details{symbol.detailsIf<ProcBindingDetails>()}) {
+    return IsElementalProcedure(details->symbol());
+  } else if (!IsProcedure(symbol)) {
+    return false;
+  }
+  return symbol.attrs().test(Attr::ELEMENTAL);
+}
+
 bool IsFunction(const Symbol &symbol) {
   const Symbol &ultimate{symbol.GetUltimate()};
   return ultimate.test(Symbol::Flag::Function) ||
-      common::visit(
-          common::visitors{
-              [](const SubprogramDetails &x) { return x.isFunction(); },
-              [](const ProcEntityDetails &x) {
-                const auto &ifc{x.interface()};
-                return ifc.type() ||
-                    (ifc.symbol() && IsFunction(*ifc.symbol()));
+      (!ultimate.test(Symbol::Flag::Subroutine) &&
+          common::visit(
+              common::visitors{
+                  [](const SubprogramDetails &x) { return x.isFunction(); },
+                  [](const ProcEntityDetails &x) {
+                    const auto &ifc{x.interface()};
+                    return ifc.type() ||
+                        (ifc.symbol() && IsFunction(*ifc.symbol()));
+                  },
+                  [](const ProcBindingDetails &x) {
+                    return IsFunction(x.symbol());
+                  },
+                  [](const auto &) { return false; },
               },
-              [](const ProcBindingDetails &x) {
-                return IsFunction(x.symbol());
-              },
-              [](const auto &) { return false; },
-          },
-          ultimate.details());
+              ultimate.details()));
 }
 
 bool IsFunction(const Scope &scope) {
@@ -1266,7 +1304,7 @@ const Symbol *FindCommonBlockContaining(const Symbol &original) {
 
 bool IsProcedurePointer(const Symbol &original) {
   const Symbol &symbol{GetAssociationRoot(original)};
-  return symbol.has<ProcEntityDetails>() && IsPointer(symbol);
+  return IsPointer(symbol) && IsProcedure(symbol);
 }
 
 // 3.11 automatic data object
@@ -1349,7 +1387,7 @@ bool IsSaved(const Symbol &original) {
   } else if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
              object && object->init()) {
     return true;
-  } else if (IsProcedurePointer(symbol) &&
+  } else if (IsProcedurePointer(symbol) && symbol.has<ProcEntityDetails>() &&
       symbol.get<ProcEntityDetails>().init()) {
     return true;
   } else if (scope.hasSAVE()) {
@@ -1388,10 +1426,14 @@ bool IsDeferredShape(const Symbol &symbol) {
 
 bool IsFunctionResult(const Symbol &original) {
   const Symbol &symbol{GetAssociationRoot(original)};
-  return (symbol.has<ObjectEntityDetails>() &&
-             symbol.get<ObjectEntityDetails>().isFuncResult()) ||
-      (symbol.has<ProcEntityDetails>() &&
-          symbol.get<ProcEntityDetails>().isFuncResult());
+  return common::visit(
+      common::visitors{
+          [](const EntityDetails &x) { return x.isFuncResult(); },
+          [](const ObjectEntityDetails &x) { return x.isFuncResult(); },
+          [](const ProcEntityDetails &x) { return x.isFuncResult(); },
+          [](const auto &) { return false; },
+      },
+      symbol.details());
 }
 
 bool IsKindTypeParameter(const Symbol &symbol) {

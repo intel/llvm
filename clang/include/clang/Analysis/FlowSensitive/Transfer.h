@@ -20,6 +20,15 @@
 namespace clang {
 namespace dataflow {
 
+struct TransferOptions {
+  /// Determines whether to analyze function bodies when present in the
+  /// translation unit. Note: this is currently only meant to be used for
+  /// inlining of specialized model code, not for context-sensitive analysis of
+  /// arbitrary subject code. In particular, some fundamentals such as recursion
+  /// are explicitly unsupported.
+  bool ContextSensitive = false;
+};
+
 /// Maps statements to the environments of basic blocks that contain them.
 class StmtToEnvMap {
 public:
@@ -36,7 +45,8 @@ public:
 /// Requirements:
 ///
 ///  `S` must not be `ParenExpr` or `ExprWithCleanups`.
-void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env);
+void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env,
+              TransferOptions Options);
 
 } // namespace dataflow
 } // namespace clang

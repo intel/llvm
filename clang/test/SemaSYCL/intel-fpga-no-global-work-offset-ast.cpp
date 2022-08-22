@@ -4,7 +4,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 struct FuncObj {
@@ -29,8 +29,8 @@ public:
 // CHECK: FunctionTemplateDecl {{.*}} func1
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK_NEXT: SYCLIntelNoGlobalWorkOffsetAttr
-// CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
+// CHECK-NEXT: SYCLIntelNoGlobalWorkOffsetAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
 // CHECK-NEXT: TemplateArgument integral 1
 // CHECK-NEXT: CompoundStmt

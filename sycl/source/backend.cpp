@@ -13,20 +13,20 @@
 #include "detail/platform_impl.hpp"
 #include "detail/plugin.hpp"
 #include "detail/queue_impl.hpp"
-#include <CL/sycl/backend.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 static const plugin &getPlugin(backend Backend) {
@@ -35,8 +35,11 @@ static const plugin &getPlugin(backend Backend) {
     return pi::getPlugin<backend::opencl>();
   case backend::ext_oneapi_level_zero:
     return pi::getPlugin<backend::ext_oneapi_level_zero>();
+  case backend::ext_oneapi_cuda:
+    return pi::getPlugin<backend::ext_oneapi_cuda>();
   default:
-    throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
+    throw sycl::runtime_error{"Unsupported backend",
+                              PI_ERROR_INVALID_OPERATION};
   }
 }
 
@@ -179,7 +182,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
         // TODO SYCL2020 exception
         throw sycl::runtime_error(errc::invalid,
                                   "Program and kernel_bundle state mismatch",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
       if (State == bundle_state::executable)
         Plugin.call<errc::build, PiApiKind::piProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
@@ -190,7 +193,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
         // TODO SYCL2020 exception
         throw sycl::runtime_error(errc::invalid,
                                   "Program and kernel_bundle state mismatch",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
       break;
     }
   }
@@ -246,7 +249,7 @@ kernel make_kernel(const context &TargetContext,
     if (KernelBundleImpl->size() != 1)
       throw sycl::runtime_error{
           "make_kernel: kernel_bundle must have single program image",
-          PI_INVALID_PROGRAM};
+          PI_ERROR_INVALID_PROGRAM};
 
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();
@@ -277,5 +280,5 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

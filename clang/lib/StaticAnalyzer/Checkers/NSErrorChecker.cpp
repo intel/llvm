@@ -214,7 +214,7 @@ void NSOrCFErrorDerefChecker::checkLocation(SVal loc, bool isLoad,
                                             CheckerContext &C) const {
   if (!isLoad)
     return;
-  if (loc.isUndef() || !loc.getAs<Loc>())
+  if (loc.isUndef() || !isa<Loc>(loc))
     return;
 
   ASTContext &Ctx = C.getASTContext();
@@ -266,7 +266,7 @@ void NSOrCFErrorDerefChecker::checkEvent(ImplicitNullDerefEvent event) const {
   SmallString<128> Buf;
   llvm::raw_svector_ostream os(Buf);
 
-  os << "Potential null dereference.  According to coding standards ";
+  os << "Potential null dereference. According to coding standards ";
   os << (isNSError
          ? "in 'Creating and Returning NSError Objects' the parameter"
          : "documented in CoreFoundation/CFError.h the parameter");

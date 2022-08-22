@@ -2,9 +2,9 @@
 // This test checks that even under -O0 the entire call chain starting from
 // kh.get_specialization_constant and ending with
 // __sycl_getScalar2020SpecConstantValue gets inlined.
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr specialization_id<unsigned int> SPEC_CONST(1024);
 
