@@ -172,7 +172,6 @@ set(SYCL_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
     "image.cpp"
     "interop_handle.cpp"
