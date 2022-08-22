@@ -283,11 +283,23 @@ static void registerDialects(MLIRContext &context, const bool syclKernelsOnly) {
   loadDialects(context, syclKernelsOnly);
 }
 
+// Enable various options for the passmanager
+static void enableOptionsPM(mlir::PassManager &pm) {
+  DefaultTimingManager tm;
+  applyDefaultTimingManagerCLOptions(tm);
+  TimingScope timing = tm.getRootScope();
+
+  pm.enableVerifier(EarlyVerifier);
+  applyPassManagerCLOptions(pm);
+  pm.enableTiming(timing);
+}
+
 // MLIR canonicalization & cleanup.
 static int canonicalize(mlir::MLIRContext &context,
                         mlir::OwningOpRef<mlir::ModuleOp> &module) {
   mlir::PassManager pm(&context);
-  pm.enableVerifier(EarlyVerifier);
+  enableOptionsPM(pm);
+
   mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -349,6 +361,8 @@ static int canonicalize(mlir::MLIRContext &context,
 static int optimize(mlir::MLIRContext &context,
                     mlir::OwningOpRef<mlir::ModuleOp> &module) {
   mlir::PassManager pm(&context);
+  enableOptionsPM(pm);
+
   mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -413,6 +427,8 @@ static int optimizeCUDA(mlir::MLIRContext &context,
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   mlir::PassManager pm(&context);
+  enableOptionsPM(pm);
+
   mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   optPM.addPass(mlir::createLowerAffinePass());
   optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -558,7 +574,9 @@ static void finalizeCUDA(mlir::PassManager &pm) {
 static int finalize(mlir::MLIRContext &context,
                     mlir::OwningOpRef<mlir::ModuleOp> &module,
                     llvm::DataLayout &DL, bool &LinkOMP) {
-  mlir::PassManager pm(&context);                      
+  mlir::PassManager pm(&context);
+  enableOptionsPM(pm);
+
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
@@ -899,6 +917,10 @@ int main(int argc, char **argv) {
   SmallVector<const char *> LinkageArgs, MLIRArgs;
   bool syclKernelsOnly = splitCommandLineOptions(argc, argv, LinkageArgs, MLIRArgs);
   assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
+
+  // Register any command line options.
+  registerPassManagerCLOptions();
+  registerDefaultTimingManagerCLOptions();
 
   // Parse command line options.
   llvm::cl::list<std::string> inputFileNames(
