@@ -121,8 +121,8 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
       << "Expect piDeviceGetInfo to be "
       << "called with PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY";
 
-  EXPECT_EQ(sizeof(FreeMemory), size_t)
-      << "Expect free_memory to be of size_t size";
+  EXPECT_EQ(sizeof(FreeMemory), sizeof(uint64_t))
+      << "Expect free_memory to be of uint64_t size";
 }
 
 TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
