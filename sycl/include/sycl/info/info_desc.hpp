@@ -204,7 +204,28 @@ template <typename T, T param> struct compatibility_param_traits {};
 #endif
 
 #undef __SYCL_PARAM_TRAITS_SPEC
-
 } // namespace info
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  namespace Namespace::info::DescType {                                        \
+  struct Desc {                                                                \
+    using return_type = ReturnT;                                               \
+  };                                                                           \
+  }
+
+#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
+                                          PiCode)                              \
+  namespace Namespace::info::DescType {                                        \
+  template <> struct Desc { using return_type = ReturnT; };                    \
+  }
+namespace ext {
+namespace oneapi::experimental::info::device {
+template <int Dimensions> struct max_work_groups;
+} // namespace oneapi::experimental::info::device
+} // namespace ext
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
