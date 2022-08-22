@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
+#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>

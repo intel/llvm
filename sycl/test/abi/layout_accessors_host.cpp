@@ -8,6 +8,46 @@
 
 using namespace sycl;
 
+// CHECK:        0 | class sycl::detail::AccessorImplHost
+// CHECK-NEXT:   0 |   class sycl::id<3> MOffset
+// CHECK-NEXT:   0 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT:   0 |       size_t[3] common_array
+// CHECK-NEXT:  24 |   class sycl::range<3> MAccessRange
+// CHECK-NEXT:  24 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT:  24 |       size_t[3] common_array
+// CHECK-NEXT:  48 |   class sycl::range<3> MMemoryRange
+// CHECK-NEXT:  48 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT:  48 |       size_t[3] common_array
+// CHECK-NEXT:  72 |   access::mode MAccessMode
+// CHECK-NEXT:  80 |   detail::SYCLMemObjI * MSYCLMemObj
+// CHECK-NEXT:  88 |   unsigned int MDims
+// CHECK-NEXT:  92 |   unsigned int MElemSize
+// CHECK-NEXT:  96 |   unsigned int MOffsetInBytes
+// CHECK-NEXT: 100 |   _Bool MIsSubBuffer
+// CHECK-NEXT: 104 |   void * MData
+// CHECK-NEXT: 112 |   Command * MBlockedCmd
+// CHECK-NEXT: 120 |   _Bool PerWI
+// CHECK-NEXT: 121 |   _Bool MIsESIMDAcc
+// CHECK-NEXT:     | [sizeof=128, dsize=122, align=8,
+// CHECK-NEXT:     |  nvsize=122, nvalign=8]
+
+// CHECK:       0 | class sycl::detail::LocalAccessorImplHost
+// CHECK-NEXT:  0 |   class sycl::range<3> MSize
+// CHECK-NEXT:  0 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT:  0 |       size_t[3] common_array
+// CHECK-NEXT: 24 |   int MDims
+// CHECK-NEXT: 28 |   int MElemSize
+// CHECK-NEXT: 32 |   class std::vector<char> MMem
+// CHECK-NEXT: 32 |     struct std::_Vector_base<char, class std::allocator<char> > (base)
+// CHECK-NEXT: 32 |       struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl _M_impl
+// CHECK-NEXT: 32 |         class std::allocator<char> (base) (empty)
+// CHECK-NEXT: 32 |           class __gnu_cxx::new_allocator<char> (base) (empty)
+// CHECK:      32 |           pointer _M_start
+// CHECK-NEXT: 40 |           pointer _M_finish
+// CHECK-NEXT: 48 |           pointer _M_end_of_storage
+// CHECK-NEXT:    | [sizeof=56, dsize=56, align=8,
+// CHECK-NEXT:    |  nvsize=56, nvalign=8]
+
 //----------------------------------------------------------------------------//
 // Host buffer accessor.
 //----------------------------------------------------------------------------//
