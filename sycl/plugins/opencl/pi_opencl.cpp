@@ -413,15 +413,6 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
-  if (platVer.find("OpenCL 1.0") != std::string::npos ||
-      platVer.find("OpenCL 1.1") != std::string::npos ||
-      platVer.find("OpenCL 1.2") != std::string::npos) {
-    *queue = cast<pi_queue>(clCreateCommandQueue(
-        cast<cl_context>(context), cast<cl_device_id>(device),
-        cast<cl_command_queue_properties>(properties), &ret_err));
-    return cast<pi_result>(ret_err);
-  }
-
   // Check that unexpected bits are not set.
   assert(!(properties &
            ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -432,6 +423,16 @@ pi_result piQueueCreate(pi_context context, pi_device device,
   cl_command_queue_properties SupportByOpenCL =
       CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
       CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
+
+  if (platVer.find("OpenCL 1.0") != std::string::npos ||
+      platVer.find("OpenCL 1.1") != std::string::npos ||
+      platVer.find("OpenCL 1.2") != std::string::npos) {
+    *queue = cast<pi_queue>(clCreateCommandQueue(
+        cast<cl_context>(context), cast<cl_device_id>(device),
+        cast<cl_command_queue_properties>(properties) & SupportByOpenCL,
+        &ret_err));
+    return cast<pi_result>(ret_err);
+  }
 
   cl_queue_properties CreationFlagProperties[] = {
       CL_QUEUE_PROPERTIES,
