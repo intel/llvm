@@ -36,6 +36,8 @@ namespace detail {
 
 class Command;
 
+enum class PromotionTarget { None, Private, Local };
+
 // The class describes a requirement to access a SYCL memory object such as
 // sycl::buffer and sycl::image. For example, each accessor used in a kernel,
 // except one with access target "local", adds such requirement for the command
@@ -79,11 +81,14 @@ public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false, bool IsESIMDAcc = false)
+                   bool IsSubBuffer = false,
+                   PromotionTarget Promotion = PromotionTarget::None,
+                   bool IsESIMDAcc = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {}
+        MIsSubBuffer(IsSubBuffer), MPromotionTarget(Promotion),
+        MIsESIMDAcc(IsESIMDAcc) {}
 
   ~AccessorImplHost();
 
@@ -92,7 +97,9 @@ public:
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
-        MIsSubBuffer(Other.MIsSubBuffer), MIsESIMDAcc(Other.MIsESIMDAcc) {}
+        MIsSubBuffer(Other.MIsSubBuffer),
+        MPromotionTarget(Other.MPromotionTarget),
+        MIsESIMDAcc(Other.MIsESIMDAcc) {}
 
   // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
@@ -125,6 +132,8 @@ public:
 
   bool PerWI = false;
 
+  PromotionTarget MPromotionTarget;
+
   // Outdated, leaving to preserve ABI.
   // TODO: Remove during next major release.
   bool MIsESIMDAcc;
@@ -137,10 +146,11 @@ public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false) {
+                   bool IsSubBuffer = false,
+                   PromotionTarget Promotion = PromotionTarget::None) {
     impl = std::shared_ptr<AccessorImplHost>(new AccessorImplHost(
         Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer));
+        ElemSize, OffsetInBytes, IsSubBuffer, Promotion));
   }
 
 protected:

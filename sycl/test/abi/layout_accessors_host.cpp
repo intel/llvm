@@ -27,9 +27,10 @@ using namespace sycl;
 // CHECK-NEXT: 104 |   void * MData
 // CHECK-NEXT: 112 |   Command * MBlockedCmd
 // CHECK-NEXT: 120 |   _Bool PerWI
-// CHECK-NEXT: 121 |   _Bool MIsESIMDAcc
-// CHECK-NEXT:     | [sizeof=128, dsize=122, align=8,
-// CHECK-NEXT:     |  nvsize=122, nvalign=8]
+// CHECK-NEXT: 124 |   PromotionTarget MPromotionTarget
+// CHECK-NEXT: 128 |   _Bool MIsESIMDAcc
+// CHECK-NEXT:     | [sizeof=136, dsize=129, align=8,
+// CHECK-NEXT:     |  nvsize=129, nvalign=8]
 
 // CHECK:       0 | class sycl::detail::LocalAccessorImplHost
 // CHECK-NEXT:  0 |   class sycl::range<3> MSize

@@ -21,6 +21,7 @@
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/feature_test.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
 #include <sycl/pointers.hpp>
@@ -28,6 +29,9 @@
 #include <sycl/property_list.hpp>
 #include <sycl/property_list_conversion.hpp>
 #include <sycl/sampler.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <sycl/ext/codeplay/fusion_properties.hpp>
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
 
 #include <type_traits>
 
@@ -887,6 +891,21 @@ protected:
     return AdjustedMode;
   }
 
+  static detail::PromotionTarget
+  getPromotionTarget(const PropertyListT &PropertyList) {
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    if (PropertyList.template has_property<
+            ext::codeplay::property::promote_private>()) {
+      return detail::PromotionTarget::Private;
+    }
+    if (PropertyList
+            .template has_property<ext::codeplay::property::promote_local>()) {
+      return detail::PromotionTarget::Local;
+    }
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    return detail::PromotionTarget::None;
+  }
+
 #if __cplusplus >= 201703L
 
   template <typename TagT> static constexpr bool IsValidTag() {
@@ -1025,7 +1044,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1056,7 +1076,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1086,7 +1107,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1117,7 +1139,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1147,7 +1170,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1180,7 +1204,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1243,7 +1268,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1275,7 +1301,8 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
+            getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1461,7 +1488,8 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer,
+                         getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1502,7 +1530,8 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer,
+                         getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1574,7 +1603,8 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer,
+                         getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1614,7 +1644,8 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer,
+                         getPromotionTarget(PropertyList)) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -2161,7 +2192,7 @@ public:
         template <int Dims = Dimensions,
                   typename = detail::enable_if_t<(Dims > 0)>>
         accessor(range<Dimensions> AllocationSize, handler &,
-                 const property_list &propList,
+      const property_list &propList,
                  const detail::code_location CodeLoc =
                      detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
