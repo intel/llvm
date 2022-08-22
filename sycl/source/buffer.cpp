@@ -1,4 +1,3 @@
-
 #include <detail/buffer_impl.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
@@ -9,6 +8,7 @@
 #include <memory>
 
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 buffer_plain::buffer_plain(
@@ -128,4 +128,5 @@ void buffer_plain::addOrReplaceAccessorProperties(
 size_t buffer_plain::getSize() const { return impl->getSize(); }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -9,6 +9,7 @@
 #include <memory>
 
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 image_plain::image_plain(image_channel_order Order, image_channel_type Type,
@@ -146,4 +147,5 @@ image_channel_type image_plain::getChannelType() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
