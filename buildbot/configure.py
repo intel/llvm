@@ -27,7 +27,7 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    llvm_targets_to_build = 'X86'
+    llvm_targets_to_build = args.host_target
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
@@ -43,10 +43,6 @@ def do_configure(args):
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
-
-    # replace not append, so ARM ^ X86
-    if args.arm:
-        llvm_targets_to_build = 'ARM;AArch64'
 
     if args.enable_esimd_emulator:
         sycl_enabled_plugins.append("esimd_emulator")
@@ -213,7 +209,7 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
-    parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--host-target", default='X86', help="host LLVM target architecture, defaults to X86")
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
