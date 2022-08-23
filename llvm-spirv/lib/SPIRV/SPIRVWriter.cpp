@@ -4572,7 +4572,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), SLMSize)));
       } break;
-      case spv::internal::ExecutionModeNamedBarrierCountINTEL: {
+      case spv::ExecutionModeNamedBarrierCountINTEL: {
         if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
           break;
         unsigned NBarrierCnt = 0;
