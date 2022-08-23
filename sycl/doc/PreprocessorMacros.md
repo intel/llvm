@@ -55,24 +55,7 @@ This file describes macros that have effect on SYCL compiler and run-time.
 - **SYCL2020_CONFORMANT_APIS**
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
   implementations may be widespread and not conform to it.
-  Description of what it changes:
-  1) According to spec, `backend_return_t` for opencl event 
-  should be `std::vector<cl_event>` instead of `cl_event`. Defining this macro 
-  will change the behavior of `sycl::get_native()` function and using types for 
-  next structs: `interop<backend::opencl, event>`, `BackendInput<backend::opencl, event>`, 
-  `BackendReturn<backend::opencl, event>` to be in line with the spec.
-  2) According to spec, `backend_return_t` for opencl buffer 
-  should be `std::vector<cl_mem>` instead of `cl_mem`. Defining this macro 
-  will change the behavior of `interop_handle::get_native_mem()` and `sycl::get_native()` functions
-  and using type for `BackendReturn<backend::opencl, buffer>` to be in line with the spec.
-  3) According to spec, `sycl::buffer_allocator` should be a template class taking a single
-  type parameter denoting the data type of the associated buffer. Likewise, `sycl::buffer`
-  with that take an allocator as a constructor argument should use
-  `sycl::buffer_allocator<std::remove_const_t<T>>`  by default, where `T` is the data type of
-  that buffer. Defining this macro will change the definition of `sycl::buffer_allocator` to
-  be templated and `sycl::buffer` will be using `sycl::buffer_allocator<std::remove_const_t<T>>`
-  by default, where `T` is the data type of that buffer, if it is not explicitly given an
-  allocator.
+  Defining this macro currently has no effect on the API.
 
 ## Version macros
 

@@ -13,8 +13,8 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/sycl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace opencl {
 using namespace detail;
 
@@ -56,5 +56,5 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 } // namespace opencl
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

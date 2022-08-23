@@ -1,13 +1,14 @@
 name: SYCL
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
     - sycl
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
+    - '.github/workflows/sycl_update_gpu_driver.yml'
     - 'devops/containers/**'
     - 'devops/scripts/install_drivers.sh'
     - 'devops/scripts/install_build_tools.sh'
@@ -17,6 +18,9 @@ on:
     - '**.md'
     - '**.rst'
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -25,20 +29,32 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
         fetch-depth: 2
     - name: Run clang-format
       uses: ./devops/actions/clang-format
+
+  # This job generates matrix of tests for LLVM Test Suite
+  resolve_matrix:
+    name: Resolve Test Matrix
+    uses: ./.github/workflows/sycl_resolve_test_matrix.yml
+    with:
+      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda"
 
   linux_default:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: lint
+    needs: [lint, resolve_matrix]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
+      build_ref: ${{ github.event.pull_request.head.sha }}
       build_cache_root: "/__w/"
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda"
+      lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}

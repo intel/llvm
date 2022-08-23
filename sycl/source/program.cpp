@@ -14,8 +14,8 @@
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 program::program(const context &context, const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(
@@ -159,5 +159,5 @@ void program::set_spec_constant_impl(const char *Name, void *Data,
   impl->set_spec_constant_impl(Name, Data, Size);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

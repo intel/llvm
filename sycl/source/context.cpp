@@ -24,8 +24,8 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 context::context(const property_list &PropList)
     : context(default_selector().select_device(), PropList) {}
 
@@ -88,18 +88,23 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
       detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template <>                                                                  \
-  __SYCL_EXPORT ret_type context::get_info<info::param_type::param>() const {  \
-    return impl->get_info<info::param_type::param>();                          \
-  }
+template <typename Param>
+typename detail::is_context_info_desc<Param>::return_type
+context::get_info() const {
+  return impl->template get_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT context::get_info<info::DescType::Desc>()     \
+      const;
 
 #include <sycl/info/context_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <> __SYCL_EXPORT bool context::has_property<param_type>() const {   \
+  template <>                                                                  \
+  __SYCL_EXPORT bool context::has_property<param_type>() const noexcept {      \
     return impl->has_property<param_type>();                                   \
   }
 #include <sycl/detail/properties_traits.def>
@@ -133,5 +138,5 @@ context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

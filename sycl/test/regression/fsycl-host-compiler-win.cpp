@@ -18,7 +18,7 @@
 #error predefined macro not set
 #endif // DEFINE_CHECK
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int data[] = {0, 0, 0};

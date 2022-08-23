@@ -12,8 +12,8 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, typename Group>
 __SYCL_DEPRECATED(
     "use sycl::ext::oneapi::group_local_memory_for_overwrite instead")
@@ -33,5 +33,5 @@ std::enable_if_t<
   return sycl::ext::oneapi::group_local_memory<T, Group, Args...>(
       g, std::forward<Args>(args)...);
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

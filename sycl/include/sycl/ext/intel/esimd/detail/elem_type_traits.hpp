@@ -87,8 +87,9 @@
 
 /// @cond ESIMD_DETAIL
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 // Primitive C++ operations supported by simd objects and templated upon by some
 // of the functions/classes.
@@ -581,7 +582,7 @@ public:
   template <class T = sycl::half>
   static inline T bitcast_to_half(__raw_t<T> Bits) {
 #ifndef __SYCL_DEVICE_ONLY__
-    return sycl::half{Bits};
+    return sycl::half(::sycl::detail::host_half_impl::half(Bits));
 #else
     sycl::half Res;
     Res.Data = Bits;
@@ -655,13 +656,26 @@ private:
   using Ty1 = element_type_t<T1>;
   using Ty2 = element_type_t<T2>;
   using EltTy = typename computation_type<Ty1, Ty2>::type;
-  static constexpr int N1 = is_simd_like_type_v<T1> ? T1::length : 0;
-  static constexpr int N2 = is_simd_like_type_v<T2> ? T2::length : 0;
-  static_assert((N1 == N2) || ((N1 & N2) == 0), "size mismatch");
+
+  static constexpr int N1 = [] {
+    if constexpr (is_simd_like_type_v<T1>) {
+      return T1::length;
+    } else {
+      return 0;
+    }
+  }();
+  static constexpr int N2 = [] {
+    if constexpr (is_simd_like_type_v<T2>) {
+      return T2::length;
+    } else {
+      return 0;
+    }
+  }();
+  static_assert((N1 == N2) || (N1 == 0) || (N2 == 0), "size mismatch");
   static constexpr int N = N1 ? N1 : N2;
 
 public:
-  using type = simd<EltTy, N1>;
+  using type = simd<EltTy, N>;
 };
 
 template <class T1, class T2 = T1>
@@ -734,7 +748,8 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 ////////////////////////////////////////////////////////////////////////////////
 // TODO
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @endcond ESIMD_DETAIL

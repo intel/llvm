@@ -402,7 +402,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '0'
@@ -423,7 +423,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '1'
@@ -444,7 +444,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '2'
@@ -465,7 +465,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '3'
@@ -486,7 +486,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '4'
@@ -507,7 +507,7 @@ int main() {
 // NVPTX: Name:{{.*}}Region
 // NVPTX: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // NVPTX: Line: 53, Column: 9 }
-// NVPTX-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
+// NVPTX-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // NVPTX-NEXT: Args:
 // NVPTX-NEXT: String:          'Arg '
 // NVPTX: Argument:        '5'

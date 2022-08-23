@@ -1,6 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
   BitWriter
+  Core
   IRReader
   MC
   Object

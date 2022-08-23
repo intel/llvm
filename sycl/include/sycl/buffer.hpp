@@ -16,33 +16,17 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 class handler;
 class queue;
 template <int dimensions> class range;
 
-// Guard SYCL 2020 buffer_allocator with template arguments behind the
-// SYCL2020_CONFORMANT_APIS macro.
-#ifdef SYCL2020_CONFORMANT_APIS
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
-#else
-using buffer_allocator = detail::sycl_memory_object_allocator<char>;
-#endif
 
 namespace detail {
-
-// Generalized implementation of the default allocator used by buffers.
-// TODO: When the SYCL 1.2.1 version of buffer_allocator is removed, this should
-//       be removed.
-#ifdef SYCL2020_CONFORMANT_APIS
-template <typename DataT>
-using default_buffer_allocator = buffer_allocator<std::remove_const_t<DataT>>;
-#else
-template <typename> using default_buffer_allocator = buffer_allocator;
-#endif
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
@@ -59,7 +43,7 @@ auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
                         buffer<DataT, Dimensions, Allocator, void>>;
 
 template <backend Backend, typename DataT, int Dimensions,
-          typename AllocatorT = detail::default_buffer_allocator<DataT>>
+          typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
 struct BufferInterop;
 } // namespace detail
 
@@ -72,7 +56,7 @@ struct BufferInterop;
 ///
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
-          typename AllocatorT = detail::default_buffer_allocator<T>,
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
           typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
                                                             (dimensions <= 3)>>
 class buffer {
@@ -492,7 +476,9 @@ public:
   bool is_sub_buffer() const { return IsSubBuffer; }
 
   template <typename ReinterpretT, int ReinterpretDim>
-  buffer<ReinterpretT, ReinterpretDim, AllocatorT>
+  buffer<ReinterpretT, ReinterpretDim,
+         typename std::allocator_traits<AllocatorT>::template rebind_alloc<
+             ReinterpretT>>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
       throw sycl::invalid_object_error(
@@ -501,16 +487,22 @@ public:
           "represented by the type and range of this SYCL buffer",
           PI_ERROR_INVALID_VALUE);
 
-    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+    return buffer<ReinterpretT, ReinterpretDim,
+                  typename std::allocator_traits<
+                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
   typename std::enable_if<
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+      buffer<ReinterpretT, ReinterpretDim,
+             typename std::allocator_traits<AllocatorT>::template rebind_alloc<
+                 ReinterpretT>>>::type
   reinterpret() const {
-    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+    return buffer<ReinterpretT, ReinterpretDim,
+                  typename std::allocator_traits<
+                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
         impl, get_range(), OffsetInBytes, IsSubBuffer);
   }
 
@@ -531,7 +523,7 @@ public:
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
   }
 
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return impl->template has_property<propertyT>();
   }
 
@@ -675,8 +667,8 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
     -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>

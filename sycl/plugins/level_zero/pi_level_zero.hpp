@@ -274,7 +274,10 @@ template <class T> struct ZeCache : private T {
 // thread can reach ref count equal to zero, i.e. only a single thread can pass
 // through this check.
 struct ReferenceCounter {
-  ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
+  ReferenceCounter() : RefCount{1} {}
+
+  // Reset the counter to the initial value.
+  void reset() { RefCount = 1; }
 
   // Used when retaining an object.
   void increment() { RefCount++; }
@@ -306,7 +309,7 @@ private:
 
 // Base class to store common data
 struct _pi_object {
-  _pi_object() : RefCount{1} {}
+  _pi_object() : RefCount{} {}
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
@@ -593,41 +596,6 @@ struct _pi_context : _pi_object {
         SingleRootDevice(getRootDevice()), ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
-
-    // Create USM allocator context for each pair (device, context).
-    for (uint32_t I = 0; I < NumDevices; I++) {
-      pi_device Device = Devs[I];
-      SharedMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(Device),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMSharedMemoryAlloc(this, Device))));
-      SharedReadOnlyMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(Device),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMSharedReadOnlyMemoryAlloc(this, Device))));
-      DeviceMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(Device),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMDeviceMemoryAlloc(this, Device))));
-    }
-    // Create USM allocator context for host. Device and Shared USM allocations
-    // are device-specific. Host allocations are not device-dependent therefore
-    // we don't need a map with device as key.
-    HostMemAllocContext = std::make_unique<USMAllocContext>(
-        std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
-
-    // We may allocate memory to this root device so create allocators.
-    if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
-                                DeviceMemAllocContexts.end()) {
-      SharedMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(SingleRootDevice),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMSharedMemoryAlloc(this, SingleRootDevice))));
-      DeviceMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(SingleRootDevice),
-          std::make_tuple(std::unique_ptr<SystemMemory>(
-              new USMDeviceMemoryAlloc(this, SingleRootDevice))));
-    }
   }
 
   // Initialize the PI context.
@@ -653,6 +621,17 @@ struct _pi_context : _pi_object {
   // This field is only set at _pi_context creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_context.
   const std::vector<pi_device> Devices;
+
+  // Checks if Device is covered by this context.
+  // For that the Device or its root devices need to be in the context.
+  bool isValidDevice(pi_device Device) const {
+    while (Device) {
+      if (std::find(Devices.begin(), Devices.end(), Device) != Devices.end())
+        return true;
+      Device = Device->RootDevice;
+    }
+    return false;
+  }
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
@@ -750,6 +729,12 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // Get pi_event from cache.
+  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
+
+  // Add pi_event to cache.
+  void addEventToCache(pi_event);
+
 private:
   // If context contains one device then return this device.
   // If context contains sub-devices of the same device, then return this parent
@@ -798,6 +783,20 @@ private:
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
   pi_mutex ZeEventPoolCacheMutex;
+
+  // Mutex to control operations on event caches.
+  pi_mutex EventCacheMutex;
+
+  // Caches for events.
+  std::vector<std::list<pi_event>> EventCaches{4};
+
+  // Get the cache of events for a provided scope and profiling mode.
+  auto getEventCache(bool HostVisible, bool WithProfiling) {
+    if (HostVisible)
+      return WithProfiling ? &EventCaches[0] : &EventCaches[1];
+    else
+      return WithProfiling ? &EventCaches[2] : &EventCaches[3];
+  }
 };
 
 struct _pi_queue : _pi_object {
@@ -941,6 +940,9 @@ struct _pi_queue : _pi_object {
 
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
+
+  // Returns true if the queue has discard events property.
+  bool isDiscardEvents() const;
 
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
@@ -1350,6 +1352,27 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Besides each PI object keeping a total reference count in
+  // _pi_object::RefCount we keep special track of the event *external*
+  // references. This way we are able to tell when the event is not referenced
+  // externally anymore, i.e. it can't be passed as a dependency event to
+  // piEnqueue* functions and explicitly waited meaning that we can do some
+  // optimizations:
+  // 1. For in-order queues we can reset and reuse event even if it was not yet
+  // completed by submitting a reset command to the queue (since there are no
+  // external references, we know that nobody can wait this event somewhere in
+  // parallel thread or pass it as a dependency which may lead to hang)
+  // 2. We can avoid creating host proxy event.
+  // This counter doesn't track the lifetime of an event object. Even if it
+  // reaches zero an event object may not be destroyed and can be used
+  // internally in the plugin.
+  std::atomic<pi_uint32> RefCountExternal{0};
+
+  bool hasExternalRefs() { return RefCountExternal != 0; }
+
+  // Reset _pi_event object.
+  pi_result reset();
 };
 
 struct _pi_program : _pi_object {

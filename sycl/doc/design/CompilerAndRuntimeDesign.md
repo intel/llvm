@@ -90,7 +90,7 @@ work:
 int foo(int x) { return ++x; }
 int bar(int x) { throw std::exception{"CPU code only!"}; }
 ...
-using namespace cl::sycl;
+using namespace sycl;
 queue Q;
 buffer<int, 1> a{range<1>{1024}};
 Q.submit([&](handler& cgh) {
@@ -103,17 +103,17 @@ Q.submit([&](handler& cgh) {
 ```
 
 In this example, the compiler needs to compile the lambda expression passed
-to the `cl::sycl::handler::parallel_for` method, as well as the function `foo`
+to the `sycl::handler::parallel_for` method, as well as the function `foo`
 called from the lambda expression for the device.
 
 The compiler must also ignore the `bar` function when we compile the
 "device" part of the single source code, as it's unused inside the device
 portion of the source code (the contents of the lambda expression passed to the
-`cl::sycl::handler::parallel_for` and any function called from this lambda
+`sycl::handler::parallel_for` and any function called from this lambda
 expression).
 
 The current approach is to use the SYCL kernel attribute in the runtime to
-mark code passed to `cl::sycl::handler::parallel_for` as "kernel functions".
+mark code passed to `sycl::handler::parallel_for` as "kernel functions".
 The runtime library can't mark foo as "device" code - this is a compiler
 job: to traverse all symbols accessible from kernel functions and add them to
 the "device part" of the code marking them with the new SYCL device attribute.

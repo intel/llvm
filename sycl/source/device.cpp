@@ -16,8 +16,8 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
@@ -142,15 +142,14 @@ bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }
 
-template <info::device param>
-typename info::param_traits<info::device, param>::return_type
+template <typename Param>
+typename detail::is_device_info_desc<Param>::return_type
 device::get_info() const {
-  return impl->template get_info<param>();
+  return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
 #include <sycl/info/device_traits.def>
 
@@ -162,5 +161,5 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -4,8 +4,8 @@
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/properties/property_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 
 namespace oneapi {
@@ -50,5 +50,5 @@ template <>
 struct is_property<ext::intel::experimental::property::usm::buffer_location>
     : std::true_type {};
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -128,7 +128,7 @@ C:\Program Files (x86)\Windows Kits\10\include\10.0.18362.0\ucrt\crtdbg.h(607,26
 >  beyond those explicitly mentioned as usable in kernels in this spec.
 
 Replace usage of STD built-ins with SYCL-defined math built-ins. Please, note
-that you have to explicitly specify built-in namespace (i.e. `cl::sycl::fmin`).
+that you have to explicitly specify built-in namespace (i.e. `sycl::fmin`).
 The full list of SYCL math built-ins is provided in section 4.13.3 of the
 specification.
 

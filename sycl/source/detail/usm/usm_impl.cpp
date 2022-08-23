@@ -24,21 +24,22 @@
 // traces using the trace framework
 #include "xpti/xpti_trace_framework.hpp"
 
-#define XPTI_CREATE_TRACEPOINT(CL)                                             \
+#define XPTI_CREATE_TRACEPOINT(CodeLoc)                                        \
   std::unique_ptr<xpti::framework::tracepoint_t> _TP(nullptr);                 \
   if (xptiTraceEnabled()) {                                                    \
-    xpti::payload_t Payload{CL.functionName(), CL.fileName(),                  \
-                            static_cast<int>(CL.lineNumber()),                 \
-                            static_cast<int>(CL.columnNumber()), nullptr};     \
+    xpti::payload_t Payload{CodeLoc.functionName(), CodeLoc.fileName(),        \
+                            static_cast<int>(CodeLoc.lineNumber()),            \
+                            static_cast<int>(CodeLoc.columnNumber()),          \
+                            nullptr};                                          \
     _TP = std::make_unique<xpti::framework::tracepoint_t>(&Payload);           \
   }                                                                            \
   (void)_TP;
 #else
-#define XPTI_CREATE_TRACEPOINT(CL)
+#define XPTI_CREATE_TRACEPOINT(CodeLoc)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 using alloc = sycl::usm::alloc;
 
@@ -46,9 +47,9 @@ namespace detail {
 namespace usm {
 
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
-                       alloc Kind, const detail::code_location &CL,
-                       const property_list &PropList = {}) {
-  XPTI_CREATE_TRACEPOINT(CL);
+                       alloc Kind, const property_list &PropList,
+                       const detail::code_location &CodeLoc) {
+  XPTI_CREATE_TRACEPOINT(CodeLoc);
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
@@ -113,10 +114,9 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 }
 
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
-                   const device &Dev, alloc Kind,
-                   const detail::code_location &CL,
-                   const property_list &PropList = {}) {
-  XPTI_CREATE_TRACEPOINT(CL);
+                   const device &Dev, alloc Kind, const property_list &PropList,
+                   const detail::code_location &CodeLoc) {
+  XPTI_CREATE_TRACEPOINT(CodeLoc);
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
@@ -217,8 +217,9 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   return RetVal;
 }
 
-void free(void *Ptr, const context &Ctxt, const detail::code_location &CL) {
-  XPTI_CREATE_TRACEPOINT(CL);
+void free(void *Ptr, const context &Ctxt,
+          const detail::code_location &CodeLoc) {
+  XPTI_CREATE_TRACEPOINT(CodeLoc);
   if (Ptr == nullptr)
     return;
   if (Ctxt.is_host()) {
@@ -232,240 +233,278 @@ void free(void *Ptr, const context &Ctxt, const detail::code_location &CL) {
   }
 }
 
-// For ABI compatibility
-// TODO remove once ABI breakages are allowed.
-__SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Size,
-                                     const context &Ctxt, alloc Kind) {
-  return alignedAllocHost(Alignment, Size, Ctxt, Kind, detail::code_location{});
-}
-
-__SYCL_EXPORT void free(void *Ptr, const context &Ctxt) {
-  detail::usm::free(Ptr, Ctxt, detail::code_location{});
-}
-
-__SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Size,
-                                 const context &Ctxt, const device &Dev,
-                                 alloc Kind) {
-  return alignedAlloc(Alignment, Size, Ctxt, Dev, Kind,
-                      detail::code_location{});
-}
-
 } // namespace usm
 } // namespace detail
 
-void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
-                    const detail::code_location CL) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device, CL);
+void *malloc_device(size_t Size, const device &Dev,
+                    const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device,
+                                   property_list{}, CodeLoc);
 }
 
 void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &PropList,
-                    const detail::code_location CL) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device, CL,
-                                   PropList);
+                    const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device, PropList,
+                                   CodeLoc);
+}
+
+void *malloc_device(size_t Size, const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
+                                   alloc::device, property_list{}, CodeLoc);
 }
 
 void *malloc_device(size_t Size, const queue &Q,
-                    const detail::code_location CL) {
-  return malloc_device(Size, Q.get_device(), Q.get_context(), CL);
-}
-
-void *malloc_device(size_t Size, const queue &Q, const property_list &PropList,
-                    const detail::code_location CL) {
-  return malloc_device(Size, Q.get_device(), Q.get_context(), PropList, CL);
+                    const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
+                                   alloc::device, PropList, CodeLoc);
 }
 
 void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
-                           const context &Ctxt,
-                           const detail::code_location CL) {
+                           const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::device,
-                                   CL);
+                                   property_list{}, CodeLoc);
 }
 
-void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
-                           const context &Ctxt, const property_list &,
-                           const detail::code_location CL) {
-  return aligned_alloc_device(Alignment, Size, Dev, Ctxt, CL);
+void *
+aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
+                     const context &Ctxt,
+                     const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::device,
+                                   PropList, CodeLoc);
 }
 
-void *aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q,
-                           const detail::code_location CL) {
-  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context(),
-                              CL);
+void *aligned_alloc_device(size_t Alignment, size_t Size,
+                           const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
+                                   Q.get_device(), alloc::device,
+                                   property_list{}, CodeLoc);
 }
 
-void *aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q,
-                           const property_list &PropList,
-                           const detail::code_location CL) {
-  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context(),
-                              PropList, CL);
+void *
+aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q,
+                     const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
+                                   Q.get_device(), alloc::device, PropList,
+                                   CodeLoc);
 }
 
-void free(void *ptr, const context &Ctxt, const detail::code_location CL) {
-  return detail::usm::free(ptr, Ctxt, CL);
+void free(void *ptr, const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::free(ptr, Ctxt, CodeLoc);
 }
 
-void free(void *ptr, const queue &Q, const detail::code_location CL) {
-  return free(ptr, Q.get_context(), CL);
+void free(void *ptr, const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::free(ptr, Q.get_context(), CodeLoc);
 }
 
-///
-// Restricted USM
-///
+void *malloc_host(size_t Size, const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host,
+                                       property_list{}, CodeLoc);
+}
+
 void *malloc_host(size_t Size, const context &Ctxt,
-                  const detail::code_location CL) {
-  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host, CL);
+                  const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host, PropList,
+                                       CodeLoc);
 }
 
-void *malloc_host(size_t Size, const context &Ctxt,
-                  const property_list &PropList,
-                  const detail::code_location CL) {
-  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host, CL,
-                                       PropList);
+void *malloc_host(size_t Size, const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(0, Size, Q.get_context(), alloc::host,
+                                       property_list{}, CodeLoc);
 }
 
-void *malloc_host(size_t Size, const queue &Q, const detail::code_location CL) {
-  return malloc_host(Size, Q.get_context(), CL);
+void *malloc_host(size_t Size, const queue &Q,
+                  const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(0, Size, Q.get_context(), alloc::host,
+                                       PropList, CodeLoc);
 }
 
-void *malloc_host(size_t Size, const queue &Q, const property_list &PropList,
-                  const detail::code_location CL) {
-  return malloc_host(Size, Q.get_context(), PropList, CL);
+void *malloc_shared(size_t Size, const device &Dev,
+                    const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared,
+                                   property_list{}, CodeLoc);
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
-                    const detail::code_location CL) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared, CL);
+                    const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared, PropList,
+                                   CodeLoc);
 }
 
-void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
-                    const property_list &PropList,
-                    const detail::code_location CL) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared, CL,
-                                   PropList);
+void *malloc_shared(size_t Size, const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
+                                   alloc::shared, property_list{}, CodeLoc);
 }
 
 void *malloc_shared(size_t Size, const queue &Q,
-                    const detail::code_location CL) {
-  return malloc_shared(Size, Q.get_device(), Q.get_context(), CL);
+                    const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
+                                   alloc::shared, PropList, CodeLoc);
 }
 
-void *malloc_shared(size_t Size, const queue &Q, const property_list &PropList,
-                    const detail::code_location CL) {
-  return malloc_shared(Size, Q.get_device(), Q.get_context(), PropList, CL);
+void *aligned_alloc_host(size_t Alignment, size_t Size,
+                         const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host,
+                                       property_list{}, CodeLoc);
 }
 
-void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
-                         const detail::code_location CL) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host, CL);
+void *
+aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
+                   const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host,
+                                       PropList, CodeLoc);
 }
 
-void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
-                         const property_list &PropList,
-                         const detail::code_location CL) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host, CL,
-                                       PropList);
+void *aligned_alloc_host(size_t Alignment, size_t Size,
+                         const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(),
+                                       alloc::host, property_list{}, CodeLoc);
 }
 
-void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
-                         const detail::code_location CL) {
-  return aligned_alloc_host(Alignment, Size, Q.get_context(), CL);
-}
-
-void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
-                         const property_list &PropList,
-                         const detail::code_location CL) {
-  return aligned_alloc_host(Alignment, Size, Q.get_context(), PropList, CL);
-}
-
-void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
-                           const context &Ctxt,
-                           const detail::code_location CL) {
-  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared,
-                                   CL);
+void *
+aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
+                   const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(),
+                                       alloc::host, PropList, CodeLoc);
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
-                           const context &Ctxt, const property_list &PropList,
-                           const detail::code_location CL) {
+                           const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared,
-                                   CL, PropList);
+                                   property_list{}, CodeLoc);
 }
 
-void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q,
-                           const detail::code_location CL) {
-  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context(),
-                              CL);
+void *
+aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
+                     const context &Ctxt,
+                     const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared,
+                                   PropList, CodeLoc);
 }
 
-void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q,
-                           const property_list &PropList,
-                           const detail::code_location CL) {
-  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context(),
-                              PropList, CL);
+void *aligned_alloc_shared(size_t Alignment, size_t Size,
+                           const queue &Q _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
+                                   Q.get_device(), alloc::shared,
+                                   property_list{}, CodeLoc);
+}
+
+void *
+aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q,
+                     const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
+                                   Q.get_device(), alloc::shared, PropList,
+                                   CodeLoc);
 }
 
 // single form
 
 void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind,
-             const detail::code_location CL) {
-  void *RetVal = nullptr;
-
-  if (Kind == alloc::host) {
-    RetVal = detail::usm::alignedAllocHost(0, Size, Ctxt, Kind, CL);
-  } else {
-    RetVal = detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind, CL);
-  }
-
-  return RetVal;
+             const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(0, Size, Ctxt, Kind, PropList,
+                                         CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind, PropList, CodeLoc);
 }
 
-void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind,
-             const property_list &, const detail::code_location CL) {
-  return malloc(Size, Dev, Ctxt, Kind, CL);
+void *malloc(size_t Size, const device &Dev, const context &Ctxt,
+             alloc Kind _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(0, Size, Ctxt, Kind, property_list{},
+                                         CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind, property_list{},
+                                   CodeLoc);
+}
+
+void *malloc(size_t Size, const queue &Q,
+             alloc Kind _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(0, Size, Q.get_context(), Kind,
+                                         property_list{}, CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
+                                   Kind, property_list{}, CodeLoc);
 }
 
 void *malloc(size_t Size, const queue &Q, alloc Kind,
-             const detail::code_location CL) {
-  return malloc(Size, Q.get_device(), Q.get_context(), Kind, CL);
+             const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(0, Size, Q.get_context(), Kind,
+                                         PropList, CodeLoc);
+  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
+                                   Kind, PropList, CodeLoc);
 }
 
-void *malloc(size_t Size, const queue &Q, alloc Kind,
-             const property_list &PropList, const detail::code_location CL) {
-  return malloc(Size, Q.get_device(), Q.get_context(), Kind, PropList, CL);
+void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
+                    const context &Ctxt,
+                    alloc Kind _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind,
+                                         property_list{}, CodeLoc);
+
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind,
+                                   property_list{}, CodeLoc);
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const context &Ctxt, alloc Kind,
-                    const detail::code_location CL) {
-  void *RetVal = nullptr;
-
-  if (Kind == alloc::host) {
-    RetVal = detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind, CL);
-  } else {
-    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind, CL);
-  }
-
-  return RetVal;
+                    const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind, PropList,
+                                         CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind, PropList,
+                                   CodeLoc);
 }
 
-void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
-                    const context &Ctxt, alloc Kind, const property_list &,
-                    const detail::code_location CL) {
-  return aligned_alloc(Alignment, Size, Dev, Ctxt, Kind, CL);
-}
-
-void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
-                    const detail::code_location CL) {
-  return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
-                       CL);
+void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q,
+                    alloc Kind _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(), Kind,
+                                         property_list{}, CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
+                                   Q.get_device(), Kind, property_list{},
+                                   CodeLoc);
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
-                    const property_list &PropList,
-                    const detail::code_location CL) {
-  return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
-                       PropList, CL);
+                    const property_list &PropList _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  if (Kind == alloc::host)
+    return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(), Kind,
+                                         PropList, CodeLoc);
+  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
+                                   Q.get_device(), Kind, PropList, CodeLoc);
 }
 
 // Pointer queries
@@ -564,228 +603,5 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   throw runtime_error("Cannot find device associated with USM allocation!",
                       PI_ERROR_INVALID_OPERATION);
 }
-
-// For ABI compatibility
-
-__SYCL_EXPORT void *malloc_device(size_t Size, const device &Dev,
-                                  const context &Ctxt) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device,
-                                   detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_device(size_t Size, const device &Dev,
-                                  const context &Ctxt, const property_list &) {
-  return malloc_device(Size, Dev, Ctxt, detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_device(size_t Size, const queue &Q) {
-  return malloc_device(Size, Q.get_device(), Q.get_context(),
-                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_device(size_t Size, const queue &Q,
-                                  const property_list &PropList) {
-  return malloc_device(Size, Q.get_device(), Q.get_context(), PropList,
-                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_device(size_t Alignment, size_t Size,
-                                         const device &Dev,
-                                         const context &Ctxt) {
-  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::device,
-                                   detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_device(size_t Alignment, size_t Size,
-                                         const device &Dev, const context &Ctxt,
-                                         const property_list &) {
-  return aligned_alloc_device(Alignment, Size, Dev, Ctxt,
-                              detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_device(size_t Alignment, size_t Size,
-                                         const queue &Q) {
-  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context(),
-                              detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_device(size_t Alignment, size_t Size,
-                                         const queue &Q,
-                                         const property_list &PropList) {
-  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context(),
-                              PropList, detail::code_location{});
-}
-
-__SYCL_EXPORT void free(void *ptr, const context &Ctxt) {
-  return detail::usm::free(ptr, Ctxt, detail::code_location{});
-}
-
-__SYCL_EXPORT void free(void *ptr, const queue &Q) {
-  return free(ptr, Q.get_context(), detail::code_location{});
-}
-
-///
-// Restricted USM
-///
-__SYCL_EXPORT void *malloc_host(size_t Size, const context &Ctxt) {
-  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host,
-                                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_host(size_t Size, const context &Ctxt,
-                                const property_list &) {
-  return malloc_host(Size, Ctxt, detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_host(size_t Size, const queue &Q) {
-  return malloc_host(Size, Q.get_context(), detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_host(size_t Size, const queue &Q,
-                                const property_list &PropList) {
-  return malloc_host(Size, Q.get_context(), PropList, detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_shared(size_t Size, const device &Dev,
-                                  const context &Ctxt) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared,
-                                   detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_shared(size_t Size, const device &Dev,
-                                  const context &Ctxt, const property_list &) {
-  return malloc_shared(Size, Dev, Ctxt, detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_shared(size_t Size, const queue &Q) {
-  return malloc_shared(Size, Q.get_device(), Q.get_context(),
-                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc_shared(size_t Size, const queue &Q,
-                                  const property_list &PropList) {
-  return malloc_shared(Size, Q.get_device(), Q.get_context(), PropList,
-                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_host(size_t Alignment, size_t Size,
-                                       const context &Ctxt) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host,
-                                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_host(size_t Alignment, size_t Size,
-                                       const context &Ctxt,
-                                       const property_list &) {
-  return aligned_alloc_host(Alignment, Size, Ctxt, detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_host(size_t Alignment, size_t Size,
-                                       const queue &Q) {
-  return aligned_alloc_host(Alignment, Size, Q.get_context(),
-                            detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_host(size_t Alignment, size_t Size,
-                                       const queue &Q,
-                                       const property_list &PropList) {
-  return aligned_alloc_host(Alignment, Size, Q.get_context(), PropList,
-                            detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_shared(size_t Alignment, size_t Size,
-                                         const device &Dev,
-                                         const context &Ctxt) {
-  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared,
-                                   detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_shared(size_t Alignment, size_t Size,
-                                         const device &Dev, const context &Ctxt,
-                                         const property_list &) {
-  return aligned_alloc_shared(Alignment, Size, Dev, Ctxt,
-                              detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_shared(size_t Alignment, size_t Size,
-                                         const queue &Q) {
-  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context(),
-                              detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc_shared(size_t Alignment, size_t Size,
-                                         const queue &Q,
-                                         const property_list &PropList) {
-  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context(),
-                              PropList, detail::code_location{});
-}
-
-// single form
-
-__SYCL_EXPORT void *malloc(size_t Size, const device &Dev, const context &Ctxt,
-                           alloc Kind) {
-  void *RetVal = nullptr;
-
-  if (Kind == alloc::host) {
-    RetVal = detail::usm::alignedAllocHost(0, Size, Ctxt, Kind,
-                                           detail::code_location{});
-  } else {
-    RetVal = detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind,
-                                       detail::code_location{});
-  }
-
-  return RetVal;
-}
-
-__SYCL_EXPORT void *malloc(size_t Size, const device &Dev, const context &Ctxt,
-                           alloc Kind, const property_list &) {
-  return malloc(Size, Dev, Ctxt, Kind, detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc(size_t Size, const queue &Q, alloc Kind) {
-  return malloc(Size, Q.get_device(), Q.get_context(), Kind,
-                detail::code_location{});
-}
-
-__SYCL_EXPORT void *malloc(size_t Size, const queue &Q, alloc Kind,
-                           const property_list &PropList) {
-  return malloc(Size, Q.get_device(), Q.get_context(), Kind, PropList,
-                detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size,
-                                  const device &Dev, const context &Ctxt,
-                                  alloc Kind) {
-  void *RetVal = nullptr;
-
-  if (Kind == alloc::host) {
-    RetVal = detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind,
-                                           detail::code_location{});
-  } else {
-    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind,
-                                       detail::code_location{});
-  }
-
-  return RetVal;
-}
-
-__SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size,
-                                  const device &Dev, const context &Ctxt,
-                                  alloc Kind, const property_list &) {
-  return aligned_alloc(Alignment, Size, Dev, Ctxt, Kind,
-                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q,
-                                  alloc Kind) {
-  return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
-                       detail::code_location{});
-}
-
-__SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q,
-                                  alloc Kind, const property_list &PropList) {
-  return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
-                       PropList, detail::code_location{});
-}
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

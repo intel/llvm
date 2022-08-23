@@ -4,7 +4,7 @@
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 union MyUnion {
   int FldInt;

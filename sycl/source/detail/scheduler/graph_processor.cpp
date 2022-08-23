@@ -13,8 +13,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 static Command *getCommand(const EventImplPtr &Event) {
@@ -26,7 +26,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
     return;
@@ -98,5 +98,5 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

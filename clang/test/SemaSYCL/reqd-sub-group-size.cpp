@@ -4,7 +4,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 [[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
