@@ -3733,7 +3733,8 @@ pi_result piQueueFinish(pi_queue Queue) {
   }
   // Reset signalled command lists and return them back to the cache of
   // available command lists.
-  resetCommandLists(Queue);
+  if (!Queue->Device->useImmediateCommandLists())
+    resetCommandLists(Queue);
   return PI_SUCCESS;
 }
 
@@ -6525,7 +6526,7 @@ pi_result _pi_queue::synchronize() {
 
     pi_event Event;
     pi_result Res = createEventAndAssociateQueue(
-        Queue, &Event, PI_COMMAND_TYPE_USER, ImmCmdList, true);
+        Queue, &Event, PI_COMMAND_TYPE_USER, ImmCmdList, false);
     if (Res != PI_SUCCESS)
       return Res;
     auto zeEvent = Event->ZeEvent;
@@ -6533,7 +6534,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(piEventReleaseInternal(Event));
+    PI_CALL(piEventRelease(Event));
     return PI_SUCCESS;
   };
 
