@@ -1623,6 +1623,11 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
         return nullptr;
       }
 
+      if (Var->getAccess() == AS_private)
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_not_publicly_accessible)
+            << Var;
+
       if (Var->isStaticLocal()) {
         const DeclContext *DC = Var->getDeclContext();
         while (!DC->isTranslationUnit()) {

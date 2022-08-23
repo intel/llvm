@@ -65,6 +65,7 @@ template <typename T> void fooBar() {
 
 template <typename T> struct TS {
 private:
+  // expected-error@+1 {{'device_global' member variable 'a' should be publicly accessible from namespace scope}}
   static device_global<T> a;
   // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<T> b;
@@ -82,6 +83,12 @@ public:
 
 // expected-note@+1 {{in instantiation of template class 'TS<int>' requested here}}
 TS<int> AAAA;
+
+template <typename T> void templFoo () {
+  TS<T> Var;
+}
+
+template<> void templFoo<int>();
 
 // expected-error@+2{{'device_global' attribute only applies to classes}}
 // expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
