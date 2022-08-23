@@ -27,7 +27,7 @@ trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
 
-This extension is written against the SYCL 2020 revision 4 specification. All
+This extension is written against the SYCL 2020 revision 5 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
