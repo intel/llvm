@@ -61,7 +61,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
      ](nd_item<2> spmd_item)[[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
-           // The submatrix API has to be accessed by all the workitems in a
+           // The matrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
            const auto global_idx = spmd_item.get_global_id(0);
