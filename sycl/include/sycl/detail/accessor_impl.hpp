@@ -79,8 +79,8 @@ public:
 class __SYCL_EXPORT AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false, bool IsESIMDAcc = false,
                    const property_list &PropertyList = {})
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
@@ -144,15 +144,16 @@ class AccessorBaseHost {
 public:
   template <typename PropertyListT = property_list>
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const PropertyListT &PropertyList = {}) {
-    impl = std::shared_ptr<AccessorImplHost>(new AccessorImplHost(
-        Offset, AccessRange, MemoryRange, AccessMode,
-        (detail::SYCLMemObjI *)SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer, /* IsESIMDAcc = */ false,
-        PropertyList));
+    impl = std::shared_ptr<AccessorImplHost>(
+        new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
+                             (detail::SYCLMemObjI *)SYCLMemObject, Dims,
+                             ElemSize, OffsetInBytes, IsSubBuffer,
+                             /* IsESIMDAcc = */ false,
+                             PropertyList));
   }
 
 protected:
