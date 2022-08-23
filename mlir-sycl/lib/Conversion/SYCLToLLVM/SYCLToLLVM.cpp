@@ -30,39 +30,88 @@ using namespace mlir;
 // Utility functions
 //===----------------------------------------------------------------------===//
 
-// Get the LLVM type of "class.cl::sycl::detail::array" with number of
-// dimentions \p dimNum and element type \p type.
-static Type getSYCLArrayTy(MLIRContext &context, unsigned dimNum, Type type) {
+// Get LLVM type of "class.cl::sycl::detail::array" with \p dimNum number of
+// dimensions and element type \p type.
+static Optional<Type> getArrayTy(MLIRContext &context, unsigned dimNum,
+                                 Type type) {
   assert((dimNum == 1 || dimNum == 2 || dimNum == 3) &&
          "Expecting number of dimensions to be 1, 2, or 3.");
   auto structTy = LLVM::LLVMStructType::getIdentified(
       &context, "class.cl::sycl::detail::array." + std::to_string(dimNum));
   if (!structTy.isInitialized()) {
     auto arrayTy = LLVM::LLVMArrayType::get(type, dimNum);
-    auto res = structTy.setBody({arrayTy}, /*isPacked=*/false);
-    assert(succeeded(res) &&
-           "Unexpected failure from LLVMStructType::setBody.");
+    if (failed(structTy.setBody(arrayTy, /*isPacked=*/false)))
+      return llvm::None;
   }
   return structTy;
 }
 
-// Get the LLVM type of a SYCL range or id type, given \p type - the type in
-// SYCL, \p name - the expected LLVM type name, \p converter - LLVM type
-// converter.
-template <typename T>
-static Type getSYCLRangeOrIDTy(T type, StringRef name,
-                               LLVMTypeConverter &converter) {
-  unsigned dimNum = type.getDimension();
-  auto structTy = LLVM::LLVMStructType::getIdentified(
+//===----------------------------------------------------------------------===//
+// Type conversion
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCL range or id type to LLVM type, given \p dimNum - number of
+/// dimensions, \p name - the expected LLVM type name, \p converter - LLVM type
+/// converter.
+static Optional<Type> convertRangeOrIDTy(unsigned dimNum, StringRef name,
+                                         LLVMTypeConverter &converter) {
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
       &converter.getContext(), name.str() + "." + std::to_string(dimNum));
-  if (!structTy.isInitialized()) {
-    auto res = structTy.setBody(getSYCLArrayTy(converter.getContext(), dimNum,
-                                               converter.getIndexType()),
-                                /*isPacked=*/false);
-    assert(succeeded(res) &&
-           "Unexpected failure from LLVMStructType::setBody.");
+  if (!convertedTy.isInitialized()) {
+    auto arrayTy =
+        getArrayTy(converter.getContext(), dimNum, converter.getIndexType());
+    if (!arrayTy.hasValue())
+      return llvm::None;
+    if (failed(convertedTy.setBody(arrayTy.getValue(), /*isPacked=*/false)))
+      return llvm::None;
   }
-  return LLVM::LLVMPointerType::get(structTy);
+  return convertedTy;
+}
+
+/// Converts SYCL id type to LLVM type.
+static Optional<Type> convertIDType(sycl::IDType type,
+                                    LLVMTypeConverter &converter) {
+  return convertRangeOrIDTy(type.getDimension(), "class.cl::sycl::id",
+                            converter);
+}
+
+/// Converts SYCL range type to LLVM type.
+static Optional<Type> convertRangeType(sycl::RangeType type,
+                                       LLVMTypeConverter &converter) {
+  return convertRangeOrIDTy(type.getDimension(), "class.cl::sycl::range",
+                            converter);
+}
+
+/// Converts SYCL accessor implement device type to LLVM type.
+static Optional<Type>
+convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
+                              LLVMTypeConverter &converter) {
+  SmallVector<Type> convertedElemTypes;
+  convertedElemTypes.reserve(type.getBody().size());
+  if (failed(converter.convertTypes(type.getBody(), convertedElemTypes)))
+    return llvm::None;
+
+  return LLVM::LLVMStructType::getNewIdentified(
+      &converter.getContext(), "class.cl::sycl::detail::AccessorImplDevice",
+      convertedElemTypes, /*isPacked=*/false);
+}
+
+/// Converts SYCL accessor type to LLVM type.
+static Optional<Type> convertAccessorType(sycl::AccessorType type,
+                                          LLVMTypeConverter &converter) {
+  SmallVector<Type> convertedElemTypes;
+  convertedElemTypes.reserve(type.getBody().size());
+  if (failed(converter.convertTypes(type.getBody(), convertedElemTypes)))
+    return llvm::None;
+
+  auto ptrTy = LLVM::LLVMPointerType::get(type.getType(), /*addressSpace=*/1);
+  auto structTy =
+      LLVM::LLVMStructType::getLiteral(&converter.getContext(), ptrTy);
+  convertedElemTypes.push_back(structTy);
+
+  return LLVM::LLVMStructType::getNewIdentified(
+      &converter.getContext(), "class.cl::sycl::accessor", convertedElemTypes,
+      /*isPacked=*/false);
 }
 
 //===----------------------------------------------------------------------===//
@@ -71,17 +120,40 @@ static Type getSYCLRangeOrIDTy(T type, StringRef name,
 
 void mlir::sycl::populateSYCLToLLVMTypeConversion(
     LLVMTypeConverter &typeConverter) {
-  typeConverter.addConversion([&](mlir::sycl::IDType type) {
-    return getSYCLRangeOrIDTy<mlir::sycl::IDType>(type, "class.cl::sycl::id",
-                                                  typeConverter);
+  typeConverter.addConversion([&](sycl::AccessorImplDeviceType type) {
+    return convertAccessorImplDeviceType(type, typeConverter);
   });
-  typeConverter.addConversion([&](mlir::sycl::RangeType type) {
-    return getSYCLRangeOrIDTy<mlir::sycl::RangeType>(
-        type, "class.cl::sycl::range", typeConverter);
+  typeConverter.addConversion([&](sycl::AccessorType type) {
+    return convertAccessorType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::ArrayType type) {
+    llvm_unreachable("SYCLToLLVM - sycl::ArrayType not handle (yet)");
+    return llvm::None;
+  });
+  typeConverter.addConversion([&](sycl::GroupType type) {
+    llvm_unreachable("SYCLToLLVM - sycl::GroupType not handle (yet)");
+    return llvm::None;
+  });
+  typeConverter.addConversion(
+      [&](sycl::IDType type) { return convertIDType(type, typeConverter); });
+  typeConverter.addConversion([&](sycl::ItemBaseType type) {
+    llvm_unreachable("SYCLToLLVM - sycl::ItemBaseType not handle (yet)");
+    return llvm::None;
+  });
+  typeConverter.addConversion([&](sycl::ItemType type) {
+    llvm_unreachable("SYCLToLLVM - sycl::ItemType not handle (yet)");
+    return llvm::None;
+  });
+  typeConverter.addConversion([&](sycl::NdItemType type) {
+    llvm_unreachable("SYCLToLLVM - sycl::NdItemType not handle (yet)");
+    return llvm::None;
+  });
+  typeConverter.addConversion([&](sycl::RangeType type) {
+    return convertRangeType(type, typeConverter);
   });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
-  populateSYCLToLLVMTypeConversion(typeConverter);      
+  populateSYCLToLLVMTypeConversion(typeConverter);
 }
