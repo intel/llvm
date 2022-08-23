@@ -3005,8 +3005,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
 
     case options::OPT_fcuda_flush_denormals_to_zero:
     case options::OPT_fgpu_flush_denormals_to_zero:
-      DenormalFPMath = llvm::DenormalMode::getPositiveZero();
-      DenormalFP32Math = llvm::DenormalMode::getPositiveZero();
+      DenormalFP32Math = llvm::DenormalMode::getPreserveSign();
       break;
 
     case options::OPT_fdenormal_fp_math_EQ:
