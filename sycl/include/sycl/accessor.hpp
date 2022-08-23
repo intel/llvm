@@ -1817,8 +1817,7 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     return AccessorBaseHost::impl->MPropertyList.get_property<Property>();
 #else
-    throw sycl::invalid_object_error("The property is not found",
-                                     PI_ERROR_INVALID_VALUE);
+    return Property();
 #endif
   }
 

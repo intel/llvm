@@ -148,7 +148,8 @@ public:
                    const PropertyListT &PropertyList = {}) {
     impl = std::shared_ptr<AccessorImplHost>(new AccessorImplHost(
         Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer, false, PropertyList));
+        ElemSize, OffsetInBytes, IsSubBuffer, /* IsESIMDAcc = */ false,
+        PropertyList));
   }
 
 protected:

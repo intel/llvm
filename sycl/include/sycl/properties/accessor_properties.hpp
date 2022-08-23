@@ -18,10 +18,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace property {
 
-class no_init : public detail::DataLessProperty<detail::NoInit> {
-public:
-  bool operator==(const no_init &) const { return true; }
-};
+class no_init : public detail::DataLessProperty<detail::NoInit> {};
 
 class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
     : public detail::DataLessProperty<detail::NoInit> {};
