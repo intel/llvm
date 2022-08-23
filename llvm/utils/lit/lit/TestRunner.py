@@ -1672,7 +1672,7 @@ def _runShTest(test, litConfig, useExternalSh, script, tmpBase):
             res = executeScriptInternal(test, litConfig, tmpBase, script, execdir)
         if isinstance(res, lit.Test.Result):
             return res
-
+        print('res is ', res)
         out,err,exitCode,timeoutInfo = res
         if exitCode == 0:
             status = Test.PASS
@@ -1689,6 +1689,7 @@ def _runShTest(test, litConfig, useExternalSh, script, tmpBase):
     # Re-run failed tests up to test.allowed_retries times.
     execdir = os.path.dirname(test.getExecPath())
     attempts = test.allowed_retries + 1
+    print('attempts is ', attempts)
     for i in range(attempts):
         res = runOnce(execdir)
         if isinstance(res, lit.Test.Result):
@@ -1702,7 +1703,7 @@ def _runShTest(test, litConfig, useExternalSh, script, tmpBase):
     # will be printed separately in the test summary.
     if i > 0 and status == Test.PASS:
         status = Test.FLAKYPASS
-
+    print('exitCode is ', exitCode)
     # Form the output log.
     output = """Script:\n--\n%s\n--\nExit Code: %d\n""" % (
         '\n'.join(script), exitCode)
