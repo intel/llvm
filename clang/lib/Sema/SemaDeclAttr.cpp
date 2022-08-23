@@ -6014,10 +6014,23 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  auto *FD = cast<FunctionDecl>(D);
-  if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL;
+  auto *ND = cast<NamedDecl>(D);
+  if (!ND->isExternallyVisible()) {
+    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_decl)
+        << AL << !isa<FunctionDecl>(ND);
     return;
+  }
+
+  if (auto *VD = dyn_cast<VarDecl>(D)) {
+    QualType VarType = VD->getType();
+    // Diagnose only for non-dependent types since dependent type don't have
+    // attributes applied on them ATM.
+    if (!VarType->isDependentType() &&
+        !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            VD->getType())) {
+      S.Diag(AL.getLoc(), diag::err_sycl_attribute_not_device_global) << AL;
+      return;
+    }
   }
 
   handleSimpleAttribute<SYCLDeviceAttr>(S, D, AL);
@@ -6027,7 +6040,8 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
                                                    const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL;
+    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_decl)
+        << AL << /*function*/ 0;
     return;
   }
 

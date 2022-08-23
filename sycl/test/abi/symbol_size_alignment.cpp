@@ -7,8 +7,6 @@
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/detail/accessor_impl.hpp>
-#include <sycl/detail/buffer_impl.hpp>
-#include <sycl/detail/image_impl.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_event.hpp>
 #include <sycl/device_selector.hpp>
@@ -58,13 +56,9 @@ int main() {
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
 #ifdef _MSC_VER
-  check<handler, 552, 8>();
-  check<detail::buffer_impl, 216, 8>();
-  check<detail::image_impl<1>, 272, 8>();
+  check<handler, 568, 8>();
 #else
-  check<handler, 560, 8>();
-  check<detail::buffer_impl, 184, 8>();
-  check<detail::image_impl<1>, 240, 8>();
+  check<handler, 576, 8>();
 #endif
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();

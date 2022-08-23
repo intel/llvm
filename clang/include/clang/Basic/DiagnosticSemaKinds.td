@@ -125,6 +125,9 @@ def warn_float_compare_literal : Warning<
 def warn_double_const_requires_fp64 : Warning<
   "double precision constant requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0, "
   "casting to single precision">;
+def warn_imp_float_size_conversion : Warning<
+  "implicit conversion between floating point types of different sizes">,
+  InGroup<ImplicitFloatSizeConversion>, DefaultIgnore;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 
@@ -11724,6 +11727,9 @@ def err_sycl_restrict : Error<
   "|use a const static or global variable that is neither zero-initialized "
   "nor constant-initialized"
   "}0">;
+def err_sycl_external_global : Error<
+  "invalid reference to 'device_global' variable; external 'device_global'"
+  " variable must be marked with SYCL_EXTERNAL macro">;
 def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
@@ -11755,9 +11761,12 @@ def err_sycl_function_attribute_mismatch : Error<
   "SYCL kernel without %0 attribute can't call a function with this attribute">;
 def err_sycl_x_y_z_arguments_must_be_one : Error<
   "all %0 attribute arguments must be '1' when the %1 attribute argument is '0'">;
-def err_sycl_attribute_internal_function
+def err_sycl_attribute_internal_decl
     : Error<"%0 attribute cannot be applied to a "
-            "static function or function in an anonymous namespace">;
+            "static %select{function|variable}1 or %select{function|variable}1 "
+            "in an anonymous namespace">;
+def err_sycl_attribute_not_device_global
+    : Error<"%0 attribute can only be applied to 'device_global' variables">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
