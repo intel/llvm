@@ -17,8 +17,6 @@
 
 using namespace sycl;
 
-template <typename T, int I> class KName;
-
 enum TestCase { NoDependencies, Dependency, DependenciesVector };
 
 template <typename T> T *allocUSM(queue &Q, size_t Size) {
@@ -38,7 +36,7 @@ size_t linearizeId(id<3> Id, range<3> Range) {
 
 template <typename T, TestCase TC, int Dims, typename BinaryOperation>
 int test(queue &Q, BinaryOperation BOp, const range<Dims> &Range) {
-  printTestLabel<T, BinaryOperation>(true /*SYCL2020*/, Range);
+  printTestLabel<T, BinaryOperation>(Range);
 
   size_t NElems = Range.size();
   T *Sum = allocUSM<T>(Q, 1);
@@ -74,7 +72,7 @@ int test(queue &Q, BinaryOperation BOp, const range<Dims> &Range) {
   }
 
   T ExpectedSum = NElems + (NElems - 1) * NElems / 2;
-  int Error = checkResults(Q, true /*SYCL2020*/, BOp, Range, *Sum, ExpectedSum);
+  int Error = checkResults(Q, BOp, Range, *Sum, ExpectedSum);
   free(Sum, Q);
   free(Arr, Q);
   return Error;

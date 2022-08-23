@@ -32,9 +32,6 @@ size_t getSafeMaxWGSize(size_t MaxWGSize, size_t MemSize, size_t OneElemSize) {
 
 template <typename Name, typename T, int Dim, class BinaryOperation>
 int test(queue &Q, T Identity) {
-  // It seems enough to test just one case - SYCL2020 reduction.
-  constexpr bool IsSYCL2020 = true;
-
   device Device = Q.get_device();
   std::size_t MaxWGSize = Device.get_info<info::device::max_work_group_size>();
   std::size_t LocalMemSize = Device.get_info<info::device::local_mem_size>();
@@ -48,7 +45,7 @@ int test(queue &Q, T Identity) {
 
   size_t NWorkGroups = (NWorkItems - 1) / WGSize + 1;
   nd_range<1> NDRange(range<1>{NWorkGroups * WGSize}, range<1>{WGSize});
-  printTestLabel<T, BinaryOperation>(IsSYCL2020, NDRange);
+  printTestLabel<T, BinaryOperation>(NDRange);
 
   buffer<T, 1> InBuf(NWorkItems);
   buffer<T, 1> OutBuf(1);
@@ -72,7 +69,7 @@ int test(queue &Q, T Identity) {
   // Check correctness.
   auto Out = OutBuf.template get_access<access::mode::read>();
   T ComputedOut = *(Out.get_pointer());
-  return checkResults(Q, IsSYCL2020, BOp, NDRange, ComputedOut, CorrectOut);
+  return checkResults(Q, BOp, NDRange, ComputedOut, CorrectOut);
 }
 
 template <typename T> struct BigCustomVec : public CustomVec<T> {

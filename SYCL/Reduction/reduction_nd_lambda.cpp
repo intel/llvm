@@ -10,7 +10,7 @@
 
 // This test performs basic checks of parallel_for(nd_range, reduction, lambda)
 
-#include "reduction_nd_range_scalar.hpp"
+#include "reduction_utils.hpp"
 
 using namespace sycl;
 
@@ -21,11 +21,10 @@ int NumErrors = 0;
 template <typename Name, typename T, class BinaryOperation>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, size_t WGSize,
            size_t NWItems) {
-  constexpr access::mode DW = access::mode::discard_write;
-  constexpr access::mode RW = access::mode::read_write;
   nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
-  NumErrors += testBoth<MName<Name, DW>, DW>(Q, Identity, Init, BOp, NDRange);
-  NumErrors += testBoth<MName<Name, RW>, RW>(Q, Identity, Init, BOp, NDRange);
+  NumErrors += test<KName<Name, true>>(Q, Identity, Init, BOp, NDRange);
+  NumErrors += test<KName<Name, false>>(Q, Identity, Init, BOp, NDRange,
+                                        init_to_identity());
 }
 
 int main() {

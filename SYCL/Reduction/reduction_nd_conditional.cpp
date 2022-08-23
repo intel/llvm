@@ -39,7 +39,7 @@ int test(queue &Q, T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> OutBuf(1);
 
   nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
-  printTestLabel<T, BinaryOperation>(true /*SYCL2020*/, NDRange);
+  printTestLabel<T, BinaryOperation>(NDRange);
 
   // Initialize.
   BinaryOperation BOp;
@@ -65,8 +65,7 @@ int test(queue &Q, T Identity, size_t WGSize, size_t NWItems) {
   // Check correctness.
   auto Out = OutBuf.template get_access<access::mode::read>();
   T ComputedOut = *(Out.get_pointer());
-  return checkResults(Q, true /*SYCL2020*/, BOp, NDRange, ComputedOut,
-                      CorrectOut);
+  return checkResults(Q, BOp, NDRange, ComputedOut, CorrectOut);
 }
 
 int main() {

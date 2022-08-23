@@ -17,188 +17,174 @@ constexpr access::mode RW = access::mode::read_write;
 constexpr access::mode DW = access::mode::discard_write;
 
 template <typename RangeT>
-void printNVarsTestLabel(bool IsSYCL2020, const RangeT &Range,
-                         bool ToCERR = false) {
+void printNVarsTestLabel(const RangeT &Range, bool ToCERR = false) {
   std::ostream &OS = ToCERR ? std::cerr : std::cout;
-  std::string Mode = IsSYCL2020 ? "SYCL2020" : "ext::oneapi  ";
-  OS << (ToCERR ? "Error" : "Start") << ": Mode=" << Mode
-     << ", Range=" << Range;
+  OS << (ToCERR ? "Error" : "Start") << ", Range=" << Range;
   if (!ToCERR)
     OS << std::endl;
 }
 
-// Returns 0 if the test case passed. Otherwise, some non-zero value.
-template <class Name, bool IsSYCL2020, typename T1, access::mode Mode1,
-          typename T2, access::mode Mode2, typename T3, access::mode Mode3,
-          typename T4, access::mode Mode4, class BinaryOperation1,
-          class BinaryOperation2, class BinaryOperation3,
-          class BinaryOperation4>
-int testOne(queue &Q, T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
-            T2 IdentityVal2, T2 InitVal2, BinaryOperation2 BOp2,
-            T3 IdentityVal3, T3 InitVal3, BinaryOperation3 BOp3,
-            T4 IdentityVal4, T3 InitVal4, BinaryOperation4 BOp4,
-            usm::alloc AllocType4, size_t NWorkItems, size_t WGSize) {
-
-  auto NDR = nd_range<1>{range<1>(NWorkItems), range<1>{WGSize}};
-  printNVarsTestLabel<>(IsSYCL2020, NDR);
-
-  buffer<T1, 1> InBuf1(NWorkItems);
-  buffer<T2, 1> InBuf2(NWorkItems);
-  buffer<T3, 1> InBuf3(NWorkItems);
-  buffer<T4, 1> InBuf4(NWorkItems);
-  buffer<T1, 1> OutBuf1(1);
-  buffer<T2, 1> OutBuf2(1);
-  buffer<T3, 1> OutBuf3(1);
-
-  auto Dev = Q.get_device();
-  if (AllocType4 == usm::alloc::shared &&
-      !Dev.get_info<info::device::usm_shared_allocations>())
-    return 0;
-  if (AllocType4 == usm::alloc::host &&
-      !Dev.get_info<info::device::usm_host_allocations>())
-    return 0;
-  if (AllocType4 == usm::alloc::device &&
-      !Dev.get_info<info::device::usm_device_allocations>())
-    return 0;
-  T4 *Out4 = (T4 *)malloc(sizeof(T4), Dev, Q.get_context(), AllocType4);
-  if (Out4 == nullptr)
-    return 1;
-
-  // Initialize the arrays with sentinel values
-  // and pre-compute the expected result 'CorrectOut'.
-  T1 CorrectOut1;
-  T2 CorrectOut2;
-  T3 CorrectOut3;
-  T4 CorrectOut4;
-  initInputData(InBuf1, CorrectOut1, IdentityVal1, BOp1, NWorkItems);
-  initInputData(InBuf2, CorrectOut2, IdentityVal2, BOp2, NWorkItems);
-  initInputData(InBuf3, CorrectOut3, IdentityVal3, BOp3, NWorkItems);
-  initInputData(InBuf4, CorrectOut4, IdentityVal4, BOp4, NWorkItems);
-
-  if (Mode1 == access::mode::read_write)
-    CorrectOut1 = BOp1(CorrectOut1, InitVal1);
-  if (Mode2 == access::mode::read_write)
-    CorrectOut2 = BOp2(CorrectOut2, InitVal2);
-  if (Mode3 == access::mode::read_write)
-    CorrectOut3 = BOp3(CorrectOut3, InitVal3);
-  // discard_write mode for USM reductions is available only SYCL2020.
-  if (Mode4 == access::mode::read_write || !IsSYCL2020)
-    CorrectOut4 = BOp4(CorrectOut4, InitVal4);
-
-  // Inititialize data.
-  {
-    auto Out1 = OutBuf1.template get_access<access::mode::write>();
-    Out1[0] = InitVal1;
-    auto Out2 = OutBuf2.template get_access<access::mode::write>();
-    Out2[0] = InitVal2;
-    auto Out3 = OutBuf3.template get_access<access::mode::write>();
-    Out3[0] = InitVal3;
-
-    if (AllocType4 == usm::alloc::device) {
-      Q.submit([&](handler &CGH) {
-         CGH.single_task<KNameGroup<Name, class KernelNameUSM4>>(
-             [=]() { *Out4 = InitVal4; });
-       }).wait();
-    } else {
-      *Out4 = InitVal4;
-    }
-  }
-
-  Q.submit([&](handler &CGH) {
-     auto In1 = InBuf1.template get_access<access::mode::read>(CGH);
-     auto In2 = InBuf2.template get_access<access::mode::read>(CGH);
-     auto In3 = InBuf3.template get_access<access::mode::read>(CGH);
-     auto In4 = InBuf4.template get_access<access::mode::read>(CGH);
-
-     auto Redu1 =
-         createReduction<IsSYCL2020, Mode1>(OutBuf1, CGH, IdentityVal1, BOp1);
-     auto Redu2 =
-         createReduction<IsSYCL2020, Mode2>(OutBuf2, CGH, IdentityVal2, BOp2);
-     auto Redu3 =
-         createReduction<IsSYCL2020, Mode3>(OutBuf3, CGH, IdentityVal3, BOp3);
-     auto Redu4 = createReduction<IsSYCL2020, Mode4>(Out4, IdentityVal4, BOp4);
-
-     auto Lambda = [=](nd_item<1> NDIt, auto &Sum1, auto &Sum2, auto &Sum3,
-                       auto &Sum4) {
-       size_t I = NDIt.get_global_id(0);
-       Sum1.combine(In1[I]);
-       Sum2.combine(In2[I]);
-       Sum3.combine(In3[I]);
-       Sum4.combine(In4[I]);
-     };
-     CGH.parallel_for<Name>(NDR, Redu1, Redu2, Redu3, Redu4, Lambda);
-   }).wait();
-
-  // Check the results and free memory.
-  int NumErrors = 0;
-  {
-    auto Out1 = OutBuf1.template get_access<access::mode::read>();
-    auto Out2 = OutBuf2.template get_access<access::mode::read>();
-    auto Out3 = OutBuf3.template get_access<access::mode::read>();
-
-    T4 Out4Val;
-    if (AllocType4 == usm::alloc::device) {
-      buffer<T4, 1> Buf(&Out4Val, range<1>(1));
-      Q.submit([&](handler &CGH) {
-        auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
-        CGH.copy(Out4, OutAcc);
-      });
-      Out4Val = (Buf.template get_access<access::mode::read>())[0];
-    } else {
-      Out4Val = *Out4;
-    }
-
-    std::string AddInfo = "TestCase=";
-    NumErrors += checkResults(Q, IsSYCL2020, BOp1, NDR, Out1[0], CorrectOut1,
-                              AddInfo + std::to_string(1));
-    NumErrors += checkResults(Q, IsSYCL2020, BOp2, NDR, Out2[0], CorrectOut2,
-                              AddInfo + std::to_string(2));
-    NumErrors += checkResults(Q, IsSYCL2020, BOp3, NDR, Out3[0], CorrectOut3,
-                              AddInfo + std::to_string(3));
-    NumErrors += checkResults(Q, IsSYCL2020, BOp4, NDR, Out4Val, CorrectOut4,
-                              AddInfo + std::to_string(4));
-    free(Out4, Q.get_context());
-  }
-
-  return NumErrors;
+template <typename T, bool IsUsm, usm::alloc AllocType> auto InitOut(queue &Q) {
+  if constexpr (IsUsm)
+    return malloc<T>(1, Q, AllocType);
+  else
+    return buffer<T, 1>{1};
 }
 
-// Tests both implementations of reduction:
-// sycl::reduction and sycl::ext::oneapi::reduction
-template <class Name, typename T1, access::mode Mode1, typename T2,
-          access::mode Mode2, typename T3, access::mode Mode3, typename T4,
-          access::mode Mode4, class BinaryOperation1, class BinaryOperation2,
-          class BinaryOperation3, class BinaryOperation4>
-int testBoth(queue &Q, T1 IdentityVal1, T1 InitVal1, BinaryOperation1 BOp1,
-             T2 IdentityVal2, T2 InitVal2, BinaryOperation2 BOp2,
-             T3 IdentityVal3, T3 InitVal3, BinaryOperation3 BOp3,
-             T4 IdentityVal4, T3 InitVal4, BinaryOperation4 BOp4,
-             usm::alloc AllocType4, size_t NWorkItems, size_t WGSize) {
-  int Error =
-      testOne<KName<Name, false>, false, T1, Mode1, T2, Mode2, T3, Mode3, T4,
-              Mode4>(Q, IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2,
-                     BOp2, IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4,
-                     BOp4, AllocType4, NWorkItems, WGSize);
+template <class T, class BinaryOperation, bool IsUSM,
+          usm::alloc AllocType = usm::alloc::unknown,
+          class PropListTy = property_list>
+struct Red {
+  Red(queue &Q, size_t NWorkItems, T IdentityVal, T InitVal,
+      BinaryOperation BOp, PropListTy PropList = {})
+      : Q(Q), NWorkItems(NWorkItems), IdentityVal(IdentityVal),
+        InitVal(InitVal), BOp(BOp), PropList(PropList), InBuf(NWorkItems),
+        Mem(InitOut<T, IsUSM, AllocType>(Q)) {}
 
-  Error +=
-      testOne<KName<Name, true>, true, T1, Mode1, T2, Mode2, T3, Mode3, T4,
-              Mode4>(Q, IdentityVal1, InitVal1, BOp1, IdentityVal2, InitVal2,
-                     BOp2, IdentityVal3, InitVal3, BOp3, IdentityVal4, InitVal4,
-                     BOp4, AllocType4, NWorkItems, WGSize);
-  return Error;
+  ~Red() {
+    if constexpr (IsUSM) {
+      free(Mem, Q);
+    }
+  }
+
+  void init() {
+    initInputData(InBuf, CorrectOut, IdentityVal, BOp, NWorkItems);
+    if (!PropList.template has_property<
+            property::reduction::initialize_to_identity>())
+      CorrectOut = BOp(CorrectOut, InitVal);
+
+    if constexpr (IsUSM) {
+      if constexpr (AllocType == usm::alloc::device) {
+        Q.single_task([InitVal = this->InitVal, Mem = this->Mem]() {
+           *Mem = InitVal;
+         }).wait();
+      } else {
+        *Mem = InitVal;
+      }
+    } else {
+      host_accessor Acc(Mem, sycl::write_only);
+      Acc[0] = InitVal;
+    }
+  }
+
+  auto createRed(handler &CGH) {
+    if constexpr (IsUSM)
+      return reduction(Mem, IdentityVal, BOp, PropList);
+    else
+      return reduction(Mem, CGH, IdentityVal, BOp, PropList);
+  }
+
+  int checkResult(nd_range<1> NDR) {
+    auto Out = [this]() {
+      if constexpr (IsUSM) {
+        if constexpr (AllocType == usm::alloc::device) {
+          buffer<T, 1> B(1);
+          Q.submit([&](handler &CGH) {
+            accessor A(B, CGH, sycl::write_only);
+            CGH.copy(Mem, A);
+          });
+          return host_accessor{B}[0];
+        } else {
+          return *Mem;
+        }
+      } else {
+        return host_accessor{Mem}[0];
+      }
+    }();
+    return checkResults(Q, BOp, NDR, Out, CorrectOut);
+  }
+
+  queue &Q;
+  size_t NWorkItems;
+  T IdentityVal;
+  T InitVal;
+  BinaryOperation BOp;
+  PropListTy PropList;
+  buffer<T, 1> InBuf;
+  T CorrectOut;
+  std::conditional_t<IsUSM, T *, buffer<T, 1>> Mem;
+};
+
+template <bool IsUSM, usm::alloc AllocType = usm::alloc::unknown>
+struct RedFactory {
+  template <class T, class BinaryOperation, class PropListTy = property_list>
+  auto get(queue &Q, size_t NWorkItems, T IdentityVal, T InitVal,
+           BinaryOperation BOp, PropListTy PropList = {}) {
+    return Red<T, BinaryOperation, IsUSM, AllocType, PropListTy>(
+        Q, NWorkItems, IdentityVal, InitVal, BOp, PropList);
+  }
+};
+
+template <class Name, class... RedTys>
+int test(queue &Q, size_t NWorkItems, size_t WGSize, RedTys... Reds) {
+  auto NDR = nd_range<1>{range<1>(NWorkItems), range<1>{WGSize}};
+  printNVarsTestLabel<>(NDR);
+
+  (Reds.init(), ...);
+
+  Q.submit([&](handler &CGH) {
+     auto InAcc = sycl::detail::make_tuple(
+         accessor(Reds.InBuf, CGH, sycl::read_only)...);
+     auto SyclReds = std::forward_as_tuple(Reds.createRed(CGH)...);
+     std::apply(
+         [&](auto... SyclReds) {
+           CGH.parallel_for<Name>(
+               NDR, SyclReds..., [=](nd_item<1> NDIt, auto &...Reducers) {
+                 static_assert(sizeof...(Reducers) == 4);
+                 // No C++20, so don't have explicit template param lists in
+                 // lambda and can't unfold std::integer_sequence to write
+                 // generic code here.
+                 auto ReducersTuple = std::forward_as_tuple(Reducers...);
+                 size_t I = NDIt.get_global_id(0);
+
+                 std::get<0>(ReducersTuple).combine(std::get<0>(InAcc)[I]);
+                 std::get<1>(ReducersTuple).combine(std::get<1>(InAcc)[I]);
+                 std::get<2>(ReducersTuple).combine(std::get<2>(InAcc)[I]);
+                 std::get<3>(ReducersTuple).combine(std::get<3>(InAcc)[I]);
+
+                 return;
+               });
+         },
+         SyclReds);
+   }).wait();
+
+  int NumErrors = (0 + ... + Reds.checkResult(NDR));
+  return NumErrors;
 }
 
 int main() {
   queue Q;
+  auto Dev = Q.get_device();
   printDeviceInfo(Q);
-  int Error = testBoth<class Case1, float, DW, int, RW, short, RW, int, RW>(
-      Q, 0, 1000, std::plus<>{}, 0, 2000, std::plus<>{}, 0, 4000,
-      std::bit_or<>{}, 0, 8000, std::bit_xor<>{}, usm::alloc::shared, 16, 16);
 
+  constexpr bool UseBuf = false;
+  constexpr bool UseUSM = true;
+  int Error = 0;
+
+  size_t GSize = 16;
+  size_t WGSize = 16;
+  if (Dev.get_info<info::device::usm_shared_allocations>())
+    Error += test<class Case1>(
+        Q, GSize, WGSize,
+        RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{},
+                                        init_to_identity()),
+        RedFactory<UseBuf>{}.get<int>(Q, GSize, 0, 2000, std::plus<>{}),
+        RedFactory<UseBuf>{}.get<short>(Q, GSize, 0, 4000, std::bit_or<>{}),
+        RedFactory<UseUSM, usm::alloc::shared>{}.get<int>(Q, GSize, 0, 8000,
+                                                          std::bit_xor<>{}));
+
+  GSize = 5 * (256 + 1);
+  WGSize = 5;
   auto Add = [](auto x, auto y) { return (x + y); };
-  Error += testBoth<class Case2, float, RW, int, RW, short, DW, int, DW>(
-      Q, 0, 1000, std::plus<>{}, 0, 2000, std::plus<>{}, 0, 4000, Add, 0, 8000,
-      std::plus<>{}, usm::alloc::device, 5 * (256 + 1), 5);
+  if (Dev.get_info<info::device::usm_device_allocations>())
+    Error += test<class Case2>(
+        Q, GSize, WGSize,
+        RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{}),
+        RedFactory<UseBuf>{}.get<int>(Q, GSize, 0, 2000, std::plus<>{}),
+        RedFactory<UseBuf>{}.get<short>(Q, GSize, 0, 4000, Add,
+                                        init_to_identity()),
+        RedFactory<UseUSM, usm::alloc::device>{}.get<int>(
+            Q, GSize, 0, 8000, std::plus<>{}, init_to_identity()));
 
   printFinalStatus(Error);
   return Error;

@@ -4,15 +4,11 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test performs basic checks of parallel_for(range, reduction, lambda)
-// with reductions initialized with 1-dimensional accessor accessing
-// 1 element buffer.
+// with reductions initialized with a one element buffer.
 
-#include "reduction_range_scalar.hpp"
+#include "reduction_utils.hpp"
 
 using namespace sycl;
-
-constexpr access::mode RW = access::mode::read_write;
-constexpr access::mode DW = access::mode::discard_write;
 
 int main() {
   queue Q;
@@ -24,31 +20,32 @@ int main() {
 
   int NumErrors = 0;
 
-  NumErrors += testBoth<class A1, RW, int>(Q, 0, 99, LambdaSum, range<1>{7});
-  NumErrors += testBoth<class A2, DW, int>(Q, 0, 99, LambdaSum, range<1>{7});
+  NumErrors += test<class A1, int>(Q, 0, 99, LambdaSum, range<1>{7});
+  NumErrors +=
+      test<class A2, int>(Q, 0, 99, LambdaSum, range<1>{7}, init_to_identity());
 
   NumErrors +=
-      testBoth<class A3, RW, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
-  NumErrors +=
-      testBoth<class A4, DW, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
+      test<class A3, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
+  NumErrors += test<class A4, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1},
+                                   init_to_identity());
 
-  NumErrors += testBoth<class B1, RW, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
-  NumErrors += testBoth<class B2, DW, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
-
-  NumErrors += testBoth<class B3, RW, int>(Q, 0, 99, LambdaSum,
-                                           range<2>{3, MaxWGSize + 1});
-  NumErrors += testBoth<class B4, DW, int>(Q, 0, 99, LambdaSum,
-                                           range<2>{3, MaxWGSize + 1});
+  NumErrors += test<class B1, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
+  NumErrors += test<class B2, int>(Q, 0, 99, LambdaSum, range<2>{3, 4},
+                                   init_to_identity());
 
   NumErrors +=
-      testBoth<class C1, RW, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
-  NumErrors +=
-      testBoth<class C2, RW, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
+      test<class B3, int>(Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1});
+  NumErrors += test<class B4, int>(
+      Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1}, init_to_identity());
 
-  NumErrors += testBoth<class C3, RW, int>(Q, 0, 99, LambdaSum,
-                                           range<3>{2, 3, MaxWGSize + 1});
-  NumErrors += testBoth<class C4, DW, int>(Q, 0, 99, LambdaSum,
-                                           range<3>{2, 3, MaxWGSize + 1});
+  NumErrors += test<class C1, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
+  NumErrors += test<class C2, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4},
+                                   init_to_identity());
+
+  NumErrors +=
+      test<class C3, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1});
+  NumErrors += test<class C4, int>(
+      Q, 0, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1}, init_to_identity());
 
   printFinalStatus(NumErrors);
   return NumErrors;

@@ -24,8 +24,8 @@ int main() {
   buffer<int, 1> InBuf(49 * 5);
   Q.submit([&](handler &CGH) {
     auto In = InBuf.get_access<access::mode::read>(CGH);
-    auto Out = OutBuf.get_access<access::mode::discard_write>(CGH);
-    auto Redu = ext::oneapi::reduction(Out, 0, BOp);
+    auto Redu = reduction(OutBuf, CGH, 0, BOp,
+                          {property::reduction::initialize_to_identity{}});
     CGH.parallel_for<class DiscardSum>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);

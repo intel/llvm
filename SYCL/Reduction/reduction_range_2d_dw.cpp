@@ -7,10 +7,10 @@
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test performs basic checks of parallel_for(range<2>, reduction, func)
-// with reductions initialized with 1-dimensional discard_write accessor
-// accessing 1 element buffer.
+// with reductions initialized with a one element buffer and
+// an initialize_to_identity property.
 
-#include "reduction_range_scalar.hpp"
+#include "reduction_utils.hpp"
 
 using namespace sycl;
 
@@ -18,8 +18,7 @@ int NumErrors = 0;
 
 template <typename Name, typename T, class BinaryOperation>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, range<2> Range) {
-  constexpr access::mode RW = access::mode::read_write;
-  NumErrors += testBoth<Name, RW>(Q, Identity, Init, BOp, Range);
+  NumErrors += test<Name>(Q, Identity, Init, BOp, Range, init_to_identity());
 }
 
 int main() {
@@ -41,7 +40,7 @@ int main() {
   tests<class B2, int>(Q, ~0, 99, std::bit_and<>{}, range<2>{4, 3});
   tests<class B3, int>(Q, 0, 99, std::bit_or<>{}, range<2>{2, 2});
   tests<class B4, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<2>{8, 3});
-  tests<class B5, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<2>{3, 8});
+  tests<class B5, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<2>{3, 7});
   tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
                        ext::oneapi::minimum<>{}, range<2>{8, 3});
   tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,

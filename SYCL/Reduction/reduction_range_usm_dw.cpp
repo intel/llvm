@@ -7,11 +7,11 @@
 // supported on host device.` on Nvidia.
 // XFAIL: hip_nvidia
 
-#include "reduction_range_scalar.hpp"
+#include "reduction_utils.hpp"
 
 // This test performs basic checks of parallel_for(range<1>, reduction, func)
-// with reductions initialized with 1-dimensional discard_write accessor
-// accessing 1 element buffer.
+// with reductions initialized a USM pointer and an initialize_to_identity
+// property.
 
 using namespace sycl;
 
@@ -20,8 +20,13 @@ int NumErrors = 0;
 template <typename Name, typename T, class BinaryOperation, int Dims>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp,
            const range<Dims> &Range) {
-  constexpr access::mode DW = access::mode::discard_write;
-  NumErrors += test2020USM<Name, DW>(Q, Identity, Init, BOp, Range);
+  auto PropList = init_to_identity();
+  NumErrors += testUSM<TName<Name, class Shared>, T>(
+      Q, Identity, Init, BOp, Range, usm::alloc::shared, PropList);
+  NumErrors += testUSM<TName<Name, class Host>, T>(
+      Q, Identity, Init, BOp, Range, usm::alloc::host, PropList);
+  NumErrors += testUSM<TName<Name, class Device>, T>(
+      Q, Identity, Init, BOp, Range, usm::alloc::device, PropList);
 }
 
 int main() {

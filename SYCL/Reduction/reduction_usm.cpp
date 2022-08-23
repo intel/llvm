@@ -7,22 +7,19 @@
 // XFAIL: hip_nvidia
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
-// with reductions initialized with USM var. It tests both
-// ext::oneapi::reduction and SYCL-2020 reduction (sycl::reduction) assuming
-// only read-write access, i.e. without using SYCL-2020
-// property::reduction::initialize_to_identity.
+// with reductions initialized with USM pointer.
 
 #include "reduction_utils.hpp"
 
 using namespace sycl;
 
-template <typename T1, typename T2> class KName;
+template <typename T1, typename T2> class USMKName;
 
-template <typename Name, bool IsSYCL2020, typename T, class BinaryOperation>
+template <typename Name, typename T, class BinaryOperation>
 int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
          usm::alloc AllocType) {
   nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
-  printTestLabel<T, BinaryOperation>(IsSYCL2020, NDRange);
+  printTestLabel<T, BinaryOperation>(NDRange);
 
   auto Dev = Q.get_device();
   if (!Dev.has(getUSMAspect(AllocType)))
@@ -33,7 +30,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
     return 0;
   if (AllocType == usm::alloc::device) {
     Q.submit([&](handler &CGH) {
-       CGH.single_task<KName<Name, class InitKernel>>(
+       CGH.single_task<USMKName<Name, class InitKernel>>(
            [=]() { *ReduVarPtr = Init; });
      }).wait();
   } else {
@@ -51,8 +48,8 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   // Compute.
   Q.submit([&](handler &CGH) {
      auto In = InBuf.template get_access<access::mode::read>(CGH);
-     auto Redu = createReduction<IsSYCL2020>(ReduVarPtr, Identity, BOp);
-     CGH.parallel_for<KName<Name, class Test>>(
+     auto Redu = reduction(ReduVarPtr, Identity, BOp);
+     CGH.parallel_for<USMKName<Name, class Test>>(
          NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
            Sum.combine(In[NDIt.get_global_linear_id()]);
          });
@@ -64,7 +61,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
        auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
-       CGH.single_task<KName<Name, class Check>>(
+       CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();
     ComputedOut = (Buf.template get_access<access::mode::read>())[0];
@@ -74,8 +71,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
 
   std::string AllocStr =
       "AllocMode=" + std::to_string(static_cast<int>(AllocType));
-  int Error = checkResults(Q, IsSYCL2020, BOp, NDRange, ComputedOut, CorrectOut,
-                           AllocStr);
+  int Error = checkResults(Q, BOp, NDRange, ComputedOut, CorrectOut, AllocStr);
   free(ReduVarPtr, Q.get_context());
   return Error;
 }
@@ -84,20 +80,11 @@ int NumErrors = 0;
 
 template <typename Name, typename T, class BinaryOperation>
 void testUSM(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
-  // Test SYCL-2020 reductions
-  NumErrors += test<KName<Name, class Shared2020>, true, T, BinaryOperation>(
+  NumErrors += test<USMKName<Name, class Shared>, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::shared);
-  NumErrors += test<KName<Name, class Host2020>, true, T, BinaryOperation>(
+  NumErrors += test<USMKName<Name, class Host>, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::host);
-  NumErrors += test<KName<Name, class Device2020>, true, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::device);
-
-  // Test ext::oneapi:: reductions
-  NumErrors += test<KName<Name, class Shared>, false, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::shared);
-  NumErrors += test<KName<Name, class Host>, false, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::host);
-  NumErrors += test<KName<Name, class Device>, false, T, BinaryOperation>(
+  NumErrors += test<USMKName<Name, class Device>, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::device);
 }
 

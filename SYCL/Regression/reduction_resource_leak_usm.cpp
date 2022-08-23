@@ -22,7 +22,7 @@ int main() {
   int *Out = malloc_shared<int>(1, Q);
   int *In = malloc_shared<int>(49 * 5, Q);
   Q.submit([&](handler &CGH) {
-     auto Redu = ext::oneapi::reduction(Out, 0, BOp);
+     auto Redu = reduction(Out, 0, BOp);
      CGH.parallel_for<class USMSum>(
          NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
            Sum.combine(In[NDIt.get_global_linear_id()]);

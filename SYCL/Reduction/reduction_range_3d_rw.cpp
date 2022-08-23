@@ -7,10 +7,9 @@
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test performs basic checks of parallel_for(range<3>, reduction, func)
-// with reductions initialized with 1-dimensional discard_write accessor
-// accessing 1 element buffer.
+// with reductions initialized with a one element buffer.
 
-#include "reduction_range_scalar.hpp"
+#include "reduction_utils.hpp"
 
 using namespace sycl;
 
@@ -18,8 +17,7 @@ int NumErrors = 0;
 
 template <typename Name, typename T, class BinaryOperation>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, range<3> Range) {
-  constexpr access::mode RW = access::mode::read_write;
-  NumErrors += testBoth<Name, RW>(Q, Identity, Init, BOp, Range);
+  NumErrors += test<Name>(Q, Identity, Init, BOp, Range);
 }
 
 int main() {

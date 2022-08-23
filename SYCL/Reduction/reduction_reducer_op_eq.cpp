@@ -80,13 +80,12 @@ template <> struct bit_and<XY> {
 };
 } // namespace std
 
-template <typename T, bool IsSYCL2020Mode, typename BinaryOperation,
-          OperationEqual OpEq, bool IsFP>
+template <typename T, typename BinaryOperation, OperationEqual OpEq, bool IsFP>
 int test(queue &Q, T Identity) {
   constexpr size_t N = 16;
   constexpr size_t L = 4;
   nd_range<1> NDR{N, L};
-  printTestLabel<T, BinaryOperation>(IsSYCL2020Mode, NDR);
+  printTestLabel<T, BinaryOperation>(NDR);
 
   T *Data = malloc_host<T>(N, Q);
   T *Res = malloc_host<T>(1, Q);
@@ -102,7 +101,7 @@ int test(queue &Q, T Identity) {
   }
 
   *Res = Identity;
-  auto Red = createReduction<IsSYCL2020Mode>(Res, Identity, BOp);
+  auto Red = reduction(Res, Identity, BOp);
   if constexpr (OpEq == PlusPlus) {
     auto Lambda = [=](nd_item<1> ID, auto &Sum) { ++Sum; };
     Q.submit([&](handler &H) { H.parallel_for(NDR, Red, Lambda); }).wait();
@@ -152,33 +151,24 @@ int test(queue &Q, T Identity) {
   return Error;
 }
 
-template <typename T, typename BinaryOperation, OperationEqual OpEq,
-          bool IsFP = false>
-int testBoth(queue &Q, T Identity) {
-  int Error = 0;
-  Error += test<T, true, BinaryOperation, OpEq, IsFP>(Q, Identity);
-  Error += test<T, false, BinaryOperation, OpEq, IsFP>(Q, Identity);
-  return Error;
-}
-
 template <typename T> int testFPPack(queue &Q) {
   int Error = 0;
-  Error += testBoth<T, std::plus<T>, PlusEq, true>(Q, T{});
-  Error += testBoth<T, std::multiplies<T>, MultipliesEq, true>(Q, T{1, 1});
+  Error += test<T, std::plus<T>, PlusEq, true>(Q, T{});
+  Error += test<T, std::multiplies<T>, MultipliesEq, true>(Q, T{1, 1});
   return Error;
 }
 
 template <typename T, bool TestPlusPlus> int testINTPack(queue &Q) {
   int Error = 0;
   if constexpr (TestPlusPlus) {
-    Error += testBoth<T, std::plus<T>, PlusPlus>(Q, T{});
-    Error += testBoth<T, std::plus<>, PlusPlusInt>(Q, T{});
+    Error += test<T, std::plus<T>, PlusPlus, false>(Q, T{});
+    Error += test<T, std::plus<>, PlusPlusInt, false>(Q, T{});
   }
-  Error += testBoth<T, std::plus<T>, PlusEq>(Q, T{});
-  Error += testBoth<T, std::multiplies<T>, MultipliesEq>(Q, T{1, 1});
-  Error += testBoth<T, std::bit_or<T>, BitwiseOREq>(Q, T{});
-  Error += testBoth<T, std::bit_xor<T>, BitwiseXOREq>(Q, T{});
-  Error += testBoth<T, std::bit_and<T>, BitwiseANDEq>(Q, T{~0, ~0});
+  Error += test<T, std::plus<T>, PlusEq, false>(Q, T{});
+  Error += test<T, std::multiplies<T>, MultipliesEq, false>(Q, T{1, 1});
+  Error += test<T, std::bit_or<T>, BitwiseOREq, false>(Q, T{});
+  Error += test<T, std::bit_xor<T>, BitwiseXOREq, false>(Q, T{});
+  Error += test<T, std::bit_and<T>, BitwiseANDEq, false>(Q, T{~0, ~0});
   return Error;
 }
 

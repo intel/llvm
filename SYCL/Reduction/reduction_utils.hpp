@@ -146,12 +146,6 @@ template <typename T> T getMaximumFPValue() {
              : (std::numeric_limits<T>::max)();
 }
 
-template <access::mode Mode> property_list getPropertyList() {
-  if constexpr (Mode == access::mode::read_write)
-    return property_list();
-  return property_list(property::reduction::initialize_to_identity{});
-}
-
 void printDeviceInfo(queue &Q, bool ToCERR = false) {
   static int IsErrDeviceInfoPrinted = 0;
   if (IsErrDeviceInfoPrinted >= 2)
@@ -187,12 +181,10 @@ std::ostream &operator<<(std::ostream &OS, const nd_range<Dims> &Range) {
 }
 
 template <typename T, typename BinaryOperation, typename RangeT>
-void printTestLabel(bool IsSYCL2020, const RangeT &Range, bool ToCERR = false) {
+void printTestLabel(const RangeT &Range, bool ToCERR = false) {
   std::ostream &OS = ToCERR ? std::cerr : std::cout;
-  std::string Mode = IsSYCL2020 ? "SYCL2020" : "ext::oneapi  ";
-  OS << (ToCERR ? "Error" : "Start") << ": Mode=" << Mode
-     << ", T=" << typeid(T).name() << ", BOp=" << typeid(BinaryOperation).name()
-     << ", Range=" << Range;
+  OS << (ToCERR ? "Error" : "Start") << ", T=" << typeid(T).name()
+     << ", BOp=" << typeid(BinaryOperation).name() << ", Range=" << Range;
 }
 
 template <typename BOp, typename T> constexpr bool isPreciseResultFP() {
@@ -204,8 +196,8 @@ template <typename BOp, typename T> constexpr bool isPreciseResultFP() {
 }
 
 template <typename BinaryOperation, typename T, typename RangeT>
-int checkResults(queue &Q, bool IsSYCL2020, BinaryOperation,
-                 const RangeT &Range, const T &ComputedRes, const T &CorrectRes,
+int checkResults(queue &Q, BinaryOperation, const RangeT &Range,
+                 const T &ComputedRes, const T &CorrectRes,
                  std::string AddInfo = "") {
   std::string ErrorStr;
   bool Passed;
@@ -237,7 +229,7 @@ int checkResults(queue &Q, bool IsSYCL2020, BinaryOperation,
   std::cout << AddInfo << (Passed ? ". PASSED" : ". FAILED") << std::endl;
   if (!Passed) {
     printDeviceInfo(Q, true);
-    printTestLabel<T, BinaryOperation>(IsSYCL2020, Range, true);
+    printTestLabel<T, BinaryOperation>(Range, true);
     std::cerr << ", Computed value=" << ComputedRes
               << ", Expected value=" << CorrectRes << ErrorStr << AddInfo
               << std::endl;
@@ -252,37 +244,6 @@ void printFinalStatus(int NumErrors) {
     std::cerr << NumErrors << " test-cases failed" << std::endl;
 }
 
-template <bool IsSYCL2020, access::mode AccMode = access::mode::read_write,
-          typename T, typename BinaryOperation>
-auto createReduction(T *USMPtr, T Identity, BinaryOperation BOp) {
-  if constexpr (IsSYCL2020)
-    return sycl::reduction(USMPtr, Identity, BOp, getPropertyList<AccMode>());
-  else
-    return ext::oneapi::reduction(USMPtr, Identity, BOp);
-}
-
-template <bool IsSYCL2020, access::mode AccMode = access::mode::read_write,
-          typename T, typename BinaryOperation>
-auto createReduction(T *USMPtr, BinaryOperation BOp) {
-  if constexpr (IsSYCL2020)
-    return sycl::reduction(USMPtr, BOp, getPropertyList<AccMode>());
-  else
-    return ext::oneapi::reduction(USMPtr, BOp);
-}
-
-template <bool IsSYCL2020, access::mode AccMode, int AccDim = 1, typename T,
-          typename BinaryOperation, typename BufferT>
-auto createReduction(BufferT ReduBuf, handler &CGH, T Identity,
-                     BinaryOperation BOp) {
-  if constexpr (IsSYCL2020) {
-    property_list PropList = getPropertyList<AccMode>();
-    return sycl::reduction(ReduBuf, CGH, Identity, BOp, PropList);
-  } else {
-    accessor<T, AccDim, AccMode, access::target::device> Out(ReduBuf, CGH);
-    return ext::oneapi::reduction(Out, Identity, BOp);
-  }
-}
-
 aspect getUSMAspect(usm::alloc Alloc) {
   if (Alloc == sycl::usm::alloc::host)
     return aspect::usm_host_allocations;
@@ -292,4 +253,174 @@ aspect getUSMAspect(usm::alloc Alloc) {
 
   assert(Alloc == usm::alloc::shared && "Unknown USM allocation type");
   return aspect::usm_shared_allocations;
+}
+
+template <typename T, bool B> class KName;
+template <typename T, typename> class TName;
+
+/// Helper to make the code slightly more readable.
+auto init_to_identity() {
+  return property_list{property::reduction::initialize_to_identity{}};
+}
+
+template <typename Name, typename T, class BinaryOperation,
+          template <int> typename RangeTy, int Dims,
+          typename PropListTy = property_list>
+int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
+         const RangeTy<Dims> &Range, PropListTy PropList = {}) {
+  constexpr bool IsRange = std::is_same_v<range<Dims>, RangeTy<Dims>>;
+  constexpr bool IsNDRange = std::is_same_v<nd_range<Dims>, RangeTy<Dims>>;
+  static_assert(IsRange || IsNDRange);
+
+  printTestLabel<T, BinaryOperation>(Range);
+
+  // It is a known problem with passing data that is close to 4Gb in size
+  // to device. Such data breaks the execution pretty badly.
+  // Some of test cases calling this function try to verify the correctness
+  // of reduction with the global range bigger than the maximal work-group size
+  // for the device. Maximal WG size for device may be very big, e.g. it is
+  // 67108864 for ACC emulator. Multiplying that by some factor
+  // (to exceed max WG-Size) and multiplying it by the element size may exceed
+  // the safe size of data passed to device.
+  // Let's set it to 1 GB for now, and just skip the test if it exceeds 1Gb.
+  constexpr size_t OneGB = 1LL * 1024 * 1024 * 1024;
+  range<Dims> GlobalRange = [&]() {
+    if constexpr (IsRange)
+      return Range;
+    else
+      return Range.get_global_range();
+  }();
+
+  if (GlobalRange.size() * sizeof(T) > OneGB) {
+    std::cout << " SKIPPED due to too big data size" << std::endl;
+    return 0;
+  }
+
+  // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
+  // for too long when the range is big. That is especially bad on ACC.
+  if (GlobalRange.size() > 65536 && Q.get_device().is_accelerator()) {
+    std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
+    return 0;
+  }
+
+  buffer<T, Dims> InBuf(GlobalRange);
+  buffer<T, 1> OutBuf(1);
+
+  // Initialize.
+  T CorrectOut;
+  initInputData(InBuf, CorrectOut, Identity, BOp, GlobalRange);
+  if (!PropList.template has_property<
+          property::reduction::initialize_to_identity>()) {
+    CorrectOut = BOp(CorrectOut, Init);
+  }
+
+  // The value assigned here must be discarded (if IsReadWrite is true).
+  // Verify that it is really discarded and assign some value.
+  (OutBuf.template get_access<access::mode::write>())[0] = Init;
+
+  // Compute.
+  Q.submit([&](handler &CGH) {
+    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto Redu = reduction(OutBuf, CGH, Identity, BOp, PropList);
+    if constexpr (IsRange)
+      CGH.parallel_for<Name>(
+          Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
+    else
+      CGH.parallel_for<Name>(Range, Redu, [=](nd_item<Dims> NDIt, auto &Sum) {
+        Sum.combine(In[NDIt.get_global_id()]);
+      });
+  });
+
+  // Check correctness.
+  auto Out = OutBuf.template get_access<access::mode::read>();
+  T ComputedOut = *(Out.get_pointer());
+  return checkResults(Q, BOp, Range, ComputedOut, CorrectOut);
+}
+
+template <typename Name, typename T, class BinaryOperation, int Dims,
+          typename PropListTy = property_list>
+int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
+            const range<Dims> &Range, usm::alloc AllocType,
+            PropListTy PropList = {}) {
+  printTestLabel<T, BinaryOperation>(Range);
+
+  auto Dev = Q.get_device();
+  if (!Dev.has(getUSMAspect(AllocType))) {
+    std::cout << " SKIPPED due to unsupported USM alloc type" << std::endl;
+    return 0;
+  }
+
+  // It is a known problem with passing data that is close to 4Gb in size
+  // to device. Such data breaks the execution pretty badly.
+  // Some of test cases calling this function try to verify the correctness
+  // of reduction with the global range bigger than the maximal work-group size
+  // for the device. Maximal WG size for device may be very big, e.g. it is
+  // 67108864 for ACC emulator. Multiplying that by some factor
+  // (to exceed max WG-Size) and multiplying it by the element size may exceed
+  // the safe size of data passed to device.
+  // Let's set it to 1 GB for now, and just skip the test if it exceeds 1Gb.
+  constexpr size_t OneGB = 1LL * 1024 * 1024 * 1024;
+  if (Range.size() * sizeof(T) > OneGB) {
+    std::cout << " SKIPPED due to too big data size" << std::endl;
+    return 0;
+  }
+
+  // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
+  // for too long when the range is big. That is especially bad on ACC.
+  if (Range.size() > 65536) {
+    std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
+    return 0;
+  }
+
+  T *ReduVarPtr = (T *)malloc(sizeof(T), Dev, Q.get_context(), AllocType);
+  if (ReduVarPtr == nullptr) {
+    std::cout << " SKIPPED due to unrelated reason: alloc returned nullptr"
+              << std::endl;
+    return 0;
+  }
+  if (AllocType == usm::alloc::device) {
+    Q.submit([&](handler &CGH) {
+       CGH.single_task<TName<Name, class InitKernel>>(
+           [=]() { *ReduVarPtr = Init; });
+     }).wait();
+  } else {
+    *ReduVarPtr = Init;
+  }
+
+  // Initialize.
+  T CorrectOut;
+  buffer<T, Dims> InBuf(Range);
+  initInputData(InBuf, CorrectOut, Identity, BOp, Range);
+  if (!PropList.template has_property<
+          property::reduction::initialize_to_identity>()) {
+    CorrectOut = BOp(CorrectOut, Init);
+  }
+
+  // Compute.
+  Q.submit([&](handler &CGH) {
+     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     auto Redu = reduction(ReduVarPtr, Identity, BOp, PropList);
+     CGH.parallel_for<TName<Name, class Test>>(
+         Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
+   }).wait();
+
+  // Check correctness.
+  T ComputedOut;
+  if (AllocType == usm::alloc::device) {
+    buffer<T, 1> Buf(&ComputedOut, range<1>(1));
+    Q.submit([&](handler &CGH) {
+       auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+       CGH.single_task<TName<Name, class Check>>(
+           [=]() { OutAcc[0] = *ReduVarPtr; });
+     }).wait();
+    ComputedOut = (Buf.template get_access<access::mode::read>())[0];
+  } else {
+    ComputedOut = *ReduVarPtr;
+  }
+
+  std::string AllocStr =
+      "AllocMode=" + std::to_string(static_cast<int>(AllocType));
+  int Error = checkResults(Q, BOp, Range, ComputedOut, CorrectOut, AllocStr);
+  free(ReduVarPtr, Q.get_context());
+  return Error;
 }

@@ -27,14 +27,14 @@ int main() {
   q.fill(r1, 0, 1).wait();
 
   q.submit([&](handler &cgh) {
-     auto r2 = r2buf.get_access<access::mode::discard_write>(cgh);
-     cgh.parallel_for(nd_range(range(N), range(WGSize)),
-                      sycl::reduction(r1, std::plus<int>()),
-                      ext::oneapi::reduction(r2, std::plus<int>()),
-                      [=](auto id, auto &r1, auto &r2) {
-                        r1 += 1;
-                        r2 += 2;
-                      });
+     cgh.parallel_for(
+         nd_range(range(N), range(WGSize)), reduction(r1, std::plus<int>()),
+         reduction(r2buf, cgh, std::plus<int>(),
+                   {property::reduction::initialize_to_identity{}}),
+         [=](auto id, auto &r1, auto &r2) {
+           r1 += 1;
+           r2 += 2;
+         });
    }).wait();
 
   int res1, res2;
