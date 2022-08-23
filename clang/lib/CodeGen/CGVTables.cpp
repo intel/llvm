@@ -400,9 +400,7 @@ void CodeGenFunction::EmitMustTailThunk(GlobalDecl GD,
   // to translate AST arguments into LLVM IR arguments.  For thunks, we know
   // that the caller prototype more or less matches the callee prototype with
   // the exception of 'this'.
-  SmallVector<llvm::Value *, 8> Args;
-  for (llvm::Argument &A : CurFn->args())
-    Args.push_back(&A);
+  SmallVector<llvm::Value *, 8> Args(llvm::make_pointer_range(CurFn->args()));
 
   // Set the adjusted 'this' pointer.
   const ABIArgInfo &ThisAI = CurFnInfo->arg_begin()->info;
@@ -1177,7 +1175,10 @@ void CodeGenModule::EmitDeferredVTables() {
   DeferredVTables.clear();
 }
 
-bool CodeGenModule::HasLTOVisibilityPublicStd(const CXXRecordDecl *RD) {
+bool CodeGenModule::AlwaysHasLTOVisibilityPublic(const CXXRecordDecl *RD) {
+  if (RD->hasAttr<LTOVisibilityPublicAttr>() || RD->hasAttr<UuidAttr>())
+    return true;
+
   if (!getCodeGenOpts().LTOVisibilityPublicStd)
     return false;
 
@@ -1202,9 +1203,6 @@ bool CodeGenModule::HasHiddenLTOVisibility(const CXXRecordDecl *RD) {
   if (!isExternallyVisible(LV.getLinkage()))
     return true;
 
-  if (RD->hasAttr<LTOVisibilityPublicAttr>() || RD->hasAttr<UuidAttr>())
-    return false;
-
   if (getTriple().isOSBinFormatCOFF()) {
     if (RD->hasAttr<DLLExportAttr>() || RD->hasAttr<DLLImportAttr>())
       return false;
@@ -1213,7 +1211,7 @@ bool CodeGenModule::HasHiddenLTOVisibility(const CXXRecordDecl *RD) {
       return false;
   }
 
-  return !HasLTOVisibilityPublicStd(RD);
+  return !AlwaysHasLTOVisibilityPublic(RD);
 }
 
 llvm::GlobalObject::VCallVisibility CodeGenModule::GetVCallVisibilityLevel(

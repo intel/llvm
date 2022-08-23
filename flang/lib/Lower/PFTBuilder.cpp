@@ -30,6 +30,13 @@ static llvm::cl::opt<bool> nonRecursiveProcedures(
                    "default for all Fortran standards prior to 2018."),
     llvm::cl::init(/*2018 standard=*/false));
 
+static llvm::cl::opt<bool> mainProgramGlobals(
+    "main-program-globals",
+    llvm::cl::desc(
+        "Allocate all variables in the main program as global variables and "
+        "not on the stack regardless of type, kind, and rank."),
+    llvm::cl::init(/*2018 standard=*/false), llvm::cl::Hidden);
+
 using namespace Fortran;
 
 namespace {
@@ -76,8 +83,9 @@ struct UnwrapStmt<parser::UnlabeledStatement<A>> {
 class PFTBuilder {
 public:
   PFTBuilder(const semantics::SemanticsContext &semanticsContext)
-      : pgm{std::make_unique<lower::pft::Program>()}, semanticsContext{
-                                                          semanticsContext} {
+      : pgm{std::make_unique<lower::pft::Program>(
+            semanticsContext.GetCommonBlocks())},
+        semanticsContext{semanticsContext} {
     lower::pft::PftNode pftRoot{*pgm.get()};
     pftParentStack.push_back(pftRoot);
   }
@@ -415,6 +423,8 @@ private:
     } else if (const auto *entryStmt = p->getIf<parser::EntryStmt>()) {
       const semantics::Symbol *sym =
           std::get<parser::Name>(entryStmt->t).symbol;
+      if (auto *details = sym->detailsIf<semantics::GenericDetails>())
+        sym = details->specific();
       assert(sym->has<semantics::SubprogramDetails>() &&
              "entry must be a subprogram");
       entryPointList.push_back(std::pair{sym, p});
@@ -744,6 +754,11 @@ private:
             assert(construct && "missing EXIT construct");
             markBranchTarget(eval, *construct->constructExit);
           },
+          [&](const parser::FailImageStmt &) {
+            eval.isUnstructured = true;
+            if (eval.lexicalSuccessor->lexicalSuccessor)
+              markSuccessorAsNewBlock(eval);
+          },
           [&](const parser::GotoStmt &s) { markBranchTarget(eval, s.v); },
           [&](const parser::IfStmt &) {
             eval.lexicalSuccessor->isNewBlock = true;
@@ -924,6 +939,7 @@ private:
             eval.constructExit = &eval.evaluationList->back();
           },
           [&](const parser::DoConstruct &) { setConstructExit(eval); },
+          [&](const parser::ForallConstruct &) { setConstructExit(eval); },
           [&](const parser::IfConstruct &) { setConstructExit(eval); },
           [&](const parser::SelectRankConstruct &) {
             setConstructExit(eval);
@@ -933,6 +949,7 @@ private:
             setConstructExit(eval);
             eval.isUnstructured = true;
           },
+          [&](const parser::WhereConstruct &) { setConstructExit(eval); },
 
           // Default - Common analysis for IO statements; otherwise nop.
           [&](const auto &stmt) {
@@ -969,30 +986,28 @@ private:
     }
   }
 
-  /// For multiple entry subprograms, build a list of the dummy arguments that
-  /// appear in some, but not all entry points.  For those that are functions,
-  /// also find one of the largest function results, since a single result
-  /// container holds the result for all entries.
+  /// Do processing specific to subprograms with multiple entry points.
   void processEntryPoints() {
     lower::pft::Evaluation *initialEval = &evaluationListStack.back()->front();
     lower::pft::FunctionLikeUnit *unit = initialEval->getOwningProcedure();
     int entryCount = unit->entryPointList.size();
     if (entryCount == 1)
       return;
-    llvm::DenseMap<semantics::Symbol *, int> dummyCountMap;
+
+    // The first executable statement in the subprogram is preceded by a
+    // branch to the entry point, so it starts a new block.
+    if (initialEval->hasNestedEvaluations())
+      initialEval = &initialEval->getFirstNestedEvaluation();
+    else if (initialEval->isA<Fortran::parser::EntryStmt>())
+      initialEval = initialEval->lexicalSuccessor;
+    initialEval->isNewBlock = true;
+
+    // All function entry points share a single result container.
+    // Find one of the largest results.
     for (int entryIndex = 0; entryIndex < entryCount; ++entryIndex) {
       unit->setActiveEntry(entryIndex);
       const auto &details =
           unit->getSubprogramSymbol().get<semantics::SubprogramDetails>();
-      for (semantics::Symbol *arg : details.dummyArgs()) {
-        if (!arg)
-          continue; // alternate return specifier (no actual argument)
-        const auto iter = dummyCountMap.find(arg);
-        if (iter == dummyCountMap.end())
-          dummyCountMap.try_emplace(arg, 1);
-        else
-          ++iter->second;
-      }
       if (details.isFunction()) {
         const semantics::Symbol *resultSym = &details.result();
         assert(resultSym && "missing result symbol");
@@ -1002,16 +1017,6 @@ private:
       }
     }
     unit->setActiveEntry(0);
-    for (auto arg : dummyCountMap)
-      if (arg.second < entryCount)
-        unit->nonUniversalDummyArguments.push_back(arg.first);
-    // The first executable statement in the subprogram is preceded by a
-    // branch to the entry point, so it starts a new block.
-    if (initialEval->hasNestedEvaluations())
-      initialEval = &initialEval->getFirstNestedEvaluation();
-    else if (initialEval->isA<Fortran::parser::EntryStmt>())
-      initialEval = initialEval->lexicalSuccessor;
-    initialEval->isNewBlock = true;
   }
 
   std::unique_ptr<lower::pft::Program> pgm;
@@ -1263,7 +1268,7 @@ bool Fortran::lower::definedInCommonBlock(const semantics::Symbol &sym) {
   return semantics::FindCommonBlockContaining(sym);
 }
 
-static bool isReEntrant(const Fortran::semantics::Scope &scope) {
+static bool isReentrant(const Fortran::semantics::Scope &scope) {
   if (scope.kind() == Fortran::semantics::Scope::Kind::MainProgram)
     return false;
   if (scope.kind() == Fortran::semantics::Scope::Kind::Subprogram) {
@@ -1283,7 +1288,7 @@ bool Fortran::lower::symbolIsGlobal(const semantics::Symbol &sym) {
   if (const auto *details = sym.detailsIf<semantics::ObjectEntityDetails>()) {
     if (details->init())
       return true;
-    if (!isReEntrant(sym.owner())) {
+    if (!isReentrant(sym.owner())) {
       // Turn array and character of non re-entrant programs (like the main
       // program) into global memory.
       if (const Fortran::semantics::DeclTypeSpec *symTy = sym.GetType())
@@ -1293,6 +1298,9 @@ bool Fortran::lower::symbolIsGlobal(const semantics::Symbol &sym) {
       if (!details->shape().empty() || !details->coshape().empty())
         return true;
     }
+    if (mainProgramGlobals &&
+        sym.owner().kind() == Fortran::semantics::Scope::Kind::MainProgram)
+      return true;
   }
   return semantics::IsSaved(sym) || lower::definedInCommonBlock(sym) ||
          semantics::IsNamedConstant(sym);
@@ -1395,10 +1403,14 @@ struct SymbolDependenceDepth {
     LLVM_DEBUG(llvm::dbgs() << "analyze symbol: " << sym << '\n');
     if (!done.second)
       return 0;
-    if (semantics::IsProcedure(sym)) {
-      // TODO: add declaration?
+    const bool isProcedurePointerOrDummy =
+        semantics::IsProcedurePointer(sym) ||
+        (semantics::IsProcedure(sym) && IsDummy(sym));
+    // A procedure argument in a subprogram with multiple entry points might
+    // need a vars list entry to trigger creation of a symbol map entry in
+    // some cases.  Non-dummy procedures don't.
+    if (semantics::IsProcedure(sym) && !isProcedurePointerOrDummy)
       return 0;
-    }
     semantics::Symbol ultimate = sym.GetUltimate();
     if (const auto *details =
             ultimate.detailsIf<semantics::NamelistDetails>()) {
@@ -1408,7 +1420,7 @@ struct SymbolDependenceDepth {
       return 0;
     }
     if (!ultimate.has<semantics::ObjectEntityDetails>() &&
-        !ultimate.has<semantics::ProcEntityDetails>())
+        !isProcedurePointerOrDummy)
       return 0;
 
     if (sym.has<semantics::DerivedTypeDetails>())
@@ -1416,15 +1428,14 @@ struct SymbolDependenceDepth {
 
     // Symbol must be something lowering will have to allocate.
     int depth = 0;
-    const semantics::DeclTypeSpec *symTy = sym.GetType();
-    assert(symTy && "symbol must have a type");
-
     // Analyze symbols appearing in object entity specification expression. This
     // ensures these symbols will be instantiated before the current one.
     // This is not done for object entities that are host associated because
     // they must be instantiated from the value of the host symbols (the
     // specification expressions should not be re-evaluated).
     if (const auto *details = sym.detailsIf<semantics::ObjectEntityDetails>()) {
+      const semantics::DeclTypeSpec *symTy = sym.GetType();
+      assert(symTy && "symbol must have a type");
       // check CHARACTER's length
       if (symTy->category() == semantics::DeclTypeSpec::Character)
         if (auto e = symTy->characterTypeSpec().length().GetExplicit())
@@ -1465,9 +1476,8 @@ struct SymbolDependenceDepth {
 
     // If there are alias sets, then link the participating variables to their
     // aggregate stores when constructing the new variable on the list.
-    if (lower::pft::Variable::AggregateStore *store = findStoreIfAlias(sym)) {
+    if (lower::pft::Variable::AggregateStore *store = findStoreIfAlias(sym))
       vars[depth].back().setAlias(store->getOffset());
-    }
     return depth;
   }
 
@@ -1772,7 +1782,9 @@ struct SymbolVisitor {
   template <typename A>
   bool Pre(const A &x) {
     if constexpr (Fortran::parser::HasTypedExpr<A>::value)
-      if (const auto *expr = Fortran::semantics::GetExpr(x))
+      // Some parse tree Expr may legitimately be un-analyzed after semantics
+      // (for instance PDT component initial value in the PDT definition body).
+      if (const auto *expr = Fortran::semantics::GetExpr(nullptr, x))
         visitExpr(*expr);
     return true;
   }
@@ -1783,7 +1795,8 @@ struct SymbolVisitor {
     return false;
   }
 
-  void visitExpr(const Fortran::lower::SomeExpr &expr) {
+  template <typename T>
+  void visitExpr(const Fortran::evaluate::Expr<T> &expr) {
     for (const semantics::Symbol &symbol :
          Fortran::evaluate::CollectSymbols(expr))
       visitSymbol(symbol);
@@ -1791,11 +1804,46 @@ struct SymbolVisitor {
 
   void visitSymbol(const Fortran::semantics::Symbol &symbol) {
     callBack(symbol);
-    // Visit statement function body since it will be inlined in lowering.
+    // - Visit statement function body since it will be inlined in lowering.
+    // - Visit function results specification expressions because allocations
+    //   happens on the caller side.
     if (const auto *subprogramDetails =
-            symbol.detailsIf<Fortran::semantics::SubprogramDetails>())
-      if (const auto &maybeExpr = subprogramDetails->stmtFunction())
+            symbol.detailsIf<Fortran::semantics::SubprogramDetails>()) {
+      if (const auto &maybeExpr = subprogramDetails->stmtFunction()) {
         visitExpr(*maybeExpr);
+      } else {
+        if (subprogramDetails->isFunction()) {
+          // Visit result extents expressions that are explicit.
+          const Fortran::semantics::Symbol &result =
+              subprogramDetails->result();
+          if (const auto *objectDetails =
+                  result.detailsIf<Fortran::semantics::ObjectEntityDetails>())
+            if (objectDetails->shape().IsExplicitShape())
+              for (const Fortran::semantics::ShapeSpec &shapeSpec :
+                   objectDetails->shape()) {
+                visitExpr(shapeSpec.lbound().GetExplicit().value());
+                visitExpr(shapeSpec.ubound().GetExplicit().value());
+              }
+        }
+      }
+    }
+    if (Fortran::semantics::IsProcedure(symbol)) {
+      if (auto dynamicType = Fortran::evaluate::DynamicType::From(symbol)) {
+        // Visit result length specification expressions that are explicit.
+        if (dynamicType->category() ==
+            Fortran::common::TypeCategory::Character) {
+          if (std::optional<Fortran::evaluate::ExtentExpr> length =
+                  dynamicType->GetCharLength())
+            visitExpr(*length);
+        } else if (const Fortran::semantics::DerivedTypeSpec *derivedTypeSpec =
+                       Fortran::evaluate::GetDerivedTypeSpec(dynamicType)) {
+          for (const auto &[_, param] : derivedTypeSpec->parameters())
+            if (const Fortran::semantics::MaybeIntExpr &expr =
+                    param.GetExplicit())
+              visitExpr(expr.value());
+        }
+      }
+    }
   }
 
   template <typename A>
@@ -1810,6 +1858,15 @@ void Fortran::lower::pft::visitAllSymbols(
     const std::function<void(const Fortran::semantics::Symbol &)> callBack) {
   SymbolVisitor visitor{callBack};
   funit.visit([&](const auto &functionParserNode) {
+    parser::Walk(functionParserNode, visitor);
+  });
+}
+
+void Fortran::lower::pft::visitAllSymbols(
+    const Fortran::lower::pft::Evaluation &eval,
+    const std::function<void(const Fortran::semantics::Symbol &)> callBack) {
+  SymbolVisitor visitor{callBack};
+  eval.visit([&](const auto &functionParserNode) {
     parser::Walk(functionParserNode, visitor);
   });
 }

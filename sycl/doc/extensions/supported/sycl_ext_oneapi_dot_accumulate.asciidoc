@@ -68,7 +68,7 @@ The extension is always enabled. The dot product functionality may be emulated i
 
 === Add to Section 4.13.6 - Geometric Functions
 
-Additionally, the following additional functions are available in the namespace `cl::sycl::intel` on the host and device.
+Additionally, the following additional functions are available in the namespace `sycl::intel` on the host and device.
 
 [cols="4a,4",options="header"]
 |====

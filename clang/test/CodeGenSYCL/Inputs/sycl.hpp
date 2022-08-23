@@ -4,9 +4,14 @@
 
 extern "C" int printf(const char* fmt, ...);
 
+#ifdef __SYCL_DEVICE_ONLY__
+__attribute__((convergent)) extern SYCL_EXTERNAL void
+__spirv_ControlBarrier(int, int, int) noexcept;
+#endif
+
 // Dummy runtime classes to model SYCL API.
-inline namespace cl {
 namespace sycl {
+inline namespace _V1 {
 struct sampler_impl {
 #ifdef __SYCL_DEVICE_ONLY__
   __ocl_sampler_t m_Sampler;
@@ -399,10 +404,19 @@ kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
+// Dummy parallel_for_work_item function to mimic calls from
+// parallel_for_work_group.
+void parallel_for_work_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  __spirv_ControlBarrier(0, 0, 0);
+#endif
+}
+
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
+  parallel_for_work_item();
 }
 
 class handler {
@@ -477,7 +491,7 @@ public:
   void __finalize() {}
 
 private:
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  sycl::accessor<char, 1, sycl::access::mode::read_write> Acc;
   int FlushBufferSize;
 };
 
@@ -607,5 +621,5 @@ public:
   }
 };
 
+} // inline namespace _V1
 } // namespace sycl
-} // namespace cl

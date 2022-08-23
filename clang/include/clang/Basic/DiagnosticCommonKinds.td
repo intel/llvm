@@ -123,7 +123,9 @@ def err_enum_template : Error<"enumeration cannot be a template">;
 def warn_cxx20_compat_consteval : Warning<
   "'consteval' specifier is incompatible with C++ standards before C++20">,
   InGroup<CXX20Compat>, DefaultIgnore;
-
+def warn_missing_type_specifier : Warning<
+  "type specifier missing, defaults to 'int'">,
+  InGroup<ImplicitInt>, DefaultIgnore;
 }
 
 let CategoryName = "Nullability Issue" in {
@@ -161,6 +163,8 @@ def err_opencl_unknown_type_specifier : Error<
 
 def warn_unknown_attribute_ignored : Warning<
   "unknown attribute %0 ignored">, InGroup<UnknownAttributes>;
+def warn_attribute_ignored : Warning<"%0 attribute ignored">,
+  InGroup<IgnoredAttributes>;
 def err_use_of_tag_name_without_tag : Error<
   "must use '%1' tag to refer to type %0%select{| in this scope}2">;
 

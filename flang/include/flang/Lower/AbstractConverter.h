@@ -16,7 +16,9 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Lower/PFTDefs.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
+#include "flang/Semantics/symbol.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
 
 namespace fir {
@@ -76,6 +78,9 @@ public:
   /// Get the mlir instance of a symbol.
   virtual mlir::Value getSymbolAddress(SymbolRef sym) = 0;
 
+  virtual fir::ExtendedValue
+  getSymbolExtendedValue(const Fortran::semantics::Symbol &sym) = 0;
+
   /// Get the binding of an implied do variable by name.
   virtual mlir::Value impliedDoBinding(llvm::StringRef name) = 0;
 
@@ -92,41 +97,71 @@ public:
   /// Get the code defined by a label
   virtual pft::Evaluation *lookupLabel(pft::Label label) = 0;
 
+  /// For a given symbol which is host-associated, create a clone using
+  /// parameters from the host-associated symbol.
+  virtual bool
+  createHostAssociateVarClone(const Fortran::semantics::Symbol &sym) = 0;
+
+  virtual void copyHostAssociateVar(const Fortran::semantics::Symbol &sym,
+                                    mlir::Block *lastPrivBlock = nullptr) = 0;
+
+  /// Collect the set of ultimate symbols of symbols with \p flag in \p eval
+  /// region if \p isUltimateSymbol is true. Otherwise, collect the set of
+  /// symbols with \p flag.
+  virtual void collectSymbolSet(
+      pft::Evaluation &eval,
+      llvm::SetVector<const Fortran::semantics::Symbol *> &symbolSet,
+      Fortran::semantics::Symbol::Flag flag, bool isUltimateSymbol = true) = 0;
+
   //===--------------------------------------------------------------------===//
   // Expressions
   //===--------------------------------------------------------------------===//
 
-  /// Generate the address of the location holding the expression, someExpr.
-  virtual fir::ExtendedValue genExprAddr(const SomeExpr &, StatementContext &,
+  /// Generate the address of the location holding the expression, \p expr.
+  /// If \p expr is a Designator that is not compile time contiguous, the
+  /// address returned is the one of a contiguous temporary storage holding the
+  /// expression value. The clean-up for this temporary is added to \p context.
+  virtual fir::ExtendedValue genExprAddr(const SomeExpr &expr,
+                                         StatementContext &context,
                                          mlir::Location *loc = nullptr) = 0;
-  /// Generate the address of the location holding the expression, someExpr
-  fir::ExtendedValue genExprAddr(const SomeExpr *someExpr,
-                                 StatementContext &stmtCtx,
-                                 mlir::Location loc) {
-    return genExprAddr(*someExpr, stmtCtx, &loc);
+
+  /// Generate the address of the location holding the expression, \p expr.
+  fir::ExtendedValue genExprAddr(mlir::Location loc, const SomeExpr *expr,
+                                 StatementContext &stmtCtx) {
+    return genExprAddr(*expr, stmtCtx, &loc);
+  }
+  fir::ExtendedValue genExprAddr(mlir::Location loc, const SomeExpr &expr,
+                                 StatementContext &stmtCtx) {
+    return genExprAddr(expr, stmtCtx, &loc);
   }
 
-  /// Generate the computations of the expression to produce a value
-  virtual fir::ExtendedValue genExprValue(const SomeExpr &, StatementContext &,
+  /// Generate the computations of the expression to produce a value.
+  virtual fir::ExtendedValue genExprValue(const SomeExpr &expr,
+                                          StatementContext &context,
                                           mlir::Location *loc = nullptr) = 0;
-  /// Generate the computations of the expression, someExpr, to produce a value
-  fir::ExtendedValue genExprValue(const SomeExpr *someExpr,
-                                  StatementContext &stmtCtx,
-                                  mlir::Location loc) {
-    return genExprValue(*someExpr, stmtCtx, &loc);
+
+  /// Generate the computations of the expression, \p expr, to produce a value.
+  fir::ExtendedValue genExprValue(mlir::Location loc, const SomeExpr *expr,
+                                  StatementContext &stmtCtx) {
+    return genExprValue(*expr, stmtCtx, &loc);
+  }
+  fir::ExtendedValue genExprValue(mlir::Location loc, const SomeExpr &expr,
+                                  StatementContext &stmtCtx) {
+    return genExprValue(expr, stmtCtx, &loc);
   }
 
   /// Generate or get a fir.box describing the expression. If SomeExpr is
   /// a Designator, the fir.box describes an entity over the Designator base
   /// storage without making a temporary.
-  virtual fir::ExtendedValue genExprBox(const SomeExpr &, StatementContext &,
-                                        mlir::Location) = 0;
+  virtual fir::ExtendedValue genExprBox(mlir::Location loc,
+                                        const SomeExpr &expr,
+                                        StatementContext &stmtCtx) = 0;
 
   /// Generate the address of the box describing the variable designated
   /// by the expression. The expression must be an allocatable or pointer
   /// designator.
   virtual fir::MutableBoxValue genExprMutableBox(mlir::Location loc,
-                                                 const SomeExpr &) = 0;
+                                                 const SomeExpr &expr) = 0;
 
   /// Get FoldingContext that is required for some expression
   /// analysis.

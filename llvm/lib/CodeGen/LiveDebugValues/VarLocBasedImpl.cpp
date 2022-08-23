@@ -914,14 +914,14 @@ private:
     std::unique_ptr<VarLocSet> &VLS = Locs[MBB];
     if (!VLS)
       VLS = std::make_unique<VarLocSet>(Alloc);
-    return *VLS.get();
+    return *VLS;
   }
 
   const VarLocSet &getVarLocsInMBB(const MachineBasicBlock *MBB,
                                    const VarLocInMBB &Locs) const {
     auto It = Locs.find(MBB);
     assert(It != Locs.end() && "MBB not in map");
-    return *It->second.get();
+    return *It->second;
   }
 
   /// Tests whether this instruction is a spill to a stack location.
@@ -1874,7 +1874,7 @@ void VarLocBasedLDV::accumulateFragmentMap(MachineInstr &MI,
   // Otherwise, examine all other seen fragments for this variable, with "this"
   // fragment being a previously unseen fragment. Record any pair of
   // overlapping fragments.
-  for (auto &ASeenFragment : AllSeenFragments) {
+  for (const auto &ASeenFragment : AllSeenFragments) {
     // Does this previously seen fragment overlap?
     if (DIExpression::fragmentsOverlap(ThisFragment, ASeenFragment)) {
       // Yes: Mark the current fragment as being overlapped.
@@ -1922,7 +1922,7 @@ bool VarLocBasedLDV::join(
   // For all predecessors of this MBB, find the set of VarLocs that
   // can be joined.
   int NumVisited = 0;
-  for (auto p : MBB.predecessors()) {
+  for (auto *p : MBB.predecessors()) {
     // Ignore backedges if we have not visited the predecessor yet. As the
     // predecessor hasn't yet had locations propagated into it, most locations
     // will not yet be valid, so treat them as all being uninitialized and
@@ -1940,7 +1940,7 @@ bool VarLocBasedLDV::join(
 
     // Just copy over the Out locs to incoming locs for the first visited
     // predecessor, and for all other predecessors join the Out locs.
-    VarLocSet &OutLocVLS = *OL->second.get();
+    VarLocSet &OutLocVLS = *OL->second;
     if (!NumVisited)
       InLocsT = OutLocVLS;
     else
@@ -1999,7 +1999,7 @@ void VarLocBasedLDV::flushPendingLocs(VarLocInMBB &PendingInLocs,
   for (auto &Iter : PendingInLocs) {
     // Map is keyed on a constant pointer, unwrap it so we can insert insts.
     auto &MBB = const_cast<MachineBasicBlock &>(*Iter.first);
-    VarLocSet &Pending = *Iter.second.get();
+    VarLocSet &Pending = *Iter.second;
 
     SmallVector<VarLoc, 32> VarLocs;
     collectAllVarLocs(VarLocs, Pending, VarLocIDs);
@@ -2246,7 +2246,7 @@ bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF,
 
         if (OLChanged) {
           OLChanged = false;
-          for (auto s : MBB->successors())
+          for (auto *s : MBB->successors())
             if (OnPending.insert(s).second) {
               Pending.push(BBToOrder[s]);
             }

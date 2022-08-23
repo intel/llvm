@@ -10,6 +10,7 @@
 #include <spirv/spirv_types.h>
 
 extern int __clc_nvvm_reflect_arch();
+_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 
 #define __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,     \
                                            ADDR_SPACE, ADDR_SPACE_NV, ORDER)   \
@@ -54,10 +55,17 @@ Memory order is stored in the lowest 5 bits */                                  
                                            _release)                                                                                  \
       }                                                                                                                               \
     } else {                                                                                                                          \
-      if (order == None) {                                                                                                            \
+      switch (order) {                                                                                                                \
+      case Release:                                                                                                                   \
+        __spirv_MemoryBarrier(scope, Release);                                                                                        \
         __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                                           \
             (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                                                                       \
         return;                                                                                                                       \
+      case None: {                                                                                                                    \
+        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                                           \
+            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                                                                       \
+        return;                                                                                                                       \
+      }                                                                                                                               \
       }                                                                                                                               \
     }                                                                                                                                 \
     __builtin_trap();                                                                                                                 \

@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s \
 // RUN:   -convert-scf-to-cf \
 // RUN:   -gpu-kernel-outlining \
-// RUN:   -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-rocdl,gpu-to-hsaco{chip=%chip})' \
+// RUN:   -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-rocdl{chipset=%chip index-bitwidth=32},gpu-to-hsaco{chip=%chip})' \
 // RUN:   -gpu-to-llvm \
 // RUN: | mlir-cpu-runner \
 // RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_rocm_runtime%shlibext \
@@ -9,50 +9,47 @@
 // RUN:   --entry-point-result=void \
 // RUN: | FileCheck %s
 
-func @vectransferx2(%arg0 : memref<?xf32>, %arg1 : memref<?xf32>) {
+// TODO: swap for vector transfer reads if we ever create a --vector-to-amdgpu
+func.func @vectransferx2(%arg0 : memref<?xf32>, %arg1 : memref<?xf32>) {
   %cst = arith.constant 1 : index
   gpu.launch blocks(%bx, %by, %bz) in (%grid_x = %cst, %grid_y = %cst, %grid_z = %cst)
              threads(%tx, %ty, %tz) in (%block_x = %cst, %block_y = %cst, %block_z = %cst) {
     %f0 = arith.constant 0.0: f32
-    %base = arith.constant 0 : index
-    %f = vector.transfer_read %arg0[%base], %f0
-        {permutation_map = affine_map<(d0) -> (d0)>} :
-      memref<?xf32>, vector<2xf32>
+    %base = arith.constant 0 : i32
+    %f = amdgpu.raw_buffer_load {boundsCheck = true } %arg0[%base]
+      : memref<?xf32>, i32 -> vector<2xf32>
 
     %c = arith.addf %f, %f : vector<2xf32>
 
-    %base1 = arith.constant 1 : index
-    vector.transfer_write %c, %arg1[%base1]
-        {permutation_map = affine_map<(d0) -> (d0)>} :
-      vector<2xf32>, memref<?xf32>
+    %base1 = arith.constant 1 : i32
+    amdgpu.raw_buffer_store { boundsCheck = false } %c -> %arg1[%base1]
+      : vector<2xf32> -> memref<?xf32>, i32
 
     gpu.terminator
   }
   return
 }
 
-func @vectransferx4(%arg0 : memref<?xf32>, %arg1 : memref<?xf32>) {
+func.func @vectransferx4(%arg0 : memref<?xf32>, %arg1 : memref<?xf32>) {
   %cst = arith.constant 1 : index
   gpu.launch blocks(%bx, %by, %bz) in (%grid_x = %cst, %grid_y = %cst, %grid_z = %cst)
              threads(%tx, %ty, %tz) in (%block_x = %cst, %block_y = %cst, %block_z = %cst) {
     %f0 = arith.constant 0.0: f32
-    %base = arith.constant 0 : index
-    %f = vector.transfer_read %arg0[%base], %f0
-        {permutation_map = affine_map<(d0) -> (d0)>} :
-      memref<?xf32>, vector<4xf32>
+    %base = arith.constant 0 : i32
+    %f = amdgpu.raw_buffer_load { boundsCheck = false } %arg0[%base]
+      : memref<?xf32>, i32 -> vector<4xf32>
 
     %c = arith.addf %f, %f : vector<4xf32>
 
-    vector.transfer_write %c, %arg1[%base]
-        {permutation_map = affine_map<(d0) -> (d0)>} :
-      vector<4xf32>, memref<?xf32>
+    amdgpu.raw_buffer_store { boundsCheck = false } %c -> %arg1[%base]
+      : vector<4xf32> -> memref<?xf32>, i32
 
     gpu.terminator
   }
   return
 }
 
-func @main() {
+func.func @main() {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c4 = arith.constant 4 : index
@@ -81,13 +78,13 @@ func @main() {
 
   // CHECK: [1.23, 2.46, 2.46, 1.23]
   call @vectransferx2(%24, %26) : (memref<?xf32>,  memref<?xf32>) -> ()
-  call @print_memref_f32(%cast1) : (memref<*xf32>) -> ()
+  call @printMemrefF32(%cast1) : (memref<*xf32>) -> ()
 
   // CHECK: [2.46, 2.46, 2.46, 2.46]
   call @vectransferx4(%24, %26) : (memref<?xf32>,  memref<?xf32>) -> ()
-  call @print_memref_f32(%cast1) : (memref<*xf32>) -> ()
+  call @printMemrefF32(%cast1) : (memref<*xf32>) -> ()
   return
 }
 
-func private @mgpuMemGetDeviceMemRef1dFloat(%ptr : memref<?xf32>) -> (memref<?xf32>)
-func private @print_memref_f32(%ptr : memref<*xf32>)
+func.func private @mgpuMemGetDeviceMemRef1dFloat(%ptr : memref<?xf32>) -> (memref<?xf32>)
+func.func private @printMemrefF32(%ptr : memref<*xf32>)

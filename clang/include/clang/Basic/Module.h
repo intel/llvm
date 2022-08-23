@@ -71,8 +71,8 @@ struct ASTFileSignature : std::array<uint8_t, 20> {
     return Value;
   }
 
-  static ASTFileSignature create(StringRef Bytes) {
-    return create(Bytes.bytes_begin(), Bytes.bytes_end());
+  static ASTFileSignature create(std::array<uint8_t, 20> Bytes) {
+    return ASTFileSignature(std::move(Bytes));
   }
 
   static ASTFileSignature createDISentinel() {
@@ -108,6 +108,9 @@ public:
 
     /// This is a C++20 module interface unit.
     ModuleInterfaceUnit,
+
+    /// This is a C++ 20 header unit.
+    ModuleHeaderUnit,
 
     /// This is a C++ 20 module partition interface.
     ModulePartitionInterface,
@@ -164,6 +167,10 @@ public:
   /// Does this Module scope describe a fragment of the global module within
   /// some C++ module.
   bool isGlobalModule() const { return Kind == GlobalModuleFragment; }
+
+  bool isPrivateModule() const { return Kind == PrivateModuleFragment; }
+
+  bool isModuleMapModule() const { return Kind == ModuleMapModule; }
 
 private:
   /// The submodules of this module, indexed by name.
@@ -518,18 +525,47 @@ public:
     Parent->SubModules.push_back(this);
   }
 
+  /// Is this module have similar semantics as headers.
+  bool isHeaderLikeModule() const {
+    return isModuleMapModule() || isHeaderUnit();
+  }
+
   /// Is this a module partition.
   bool isModulePartition() const {
     return Kind == ModulePartitionInterface ||
            Kind == ModulePartitionImplementation;
   }
 
+  /// Is this module a header unit.
+  bool isHeaderUnit() const { return Kind == ModuleHeaderUnit; }
+  // Is this a C++20 module interface or a partition.
+  bool isInterfaceOrPartition() const {
+    return Kind == ModuleInterfaceUnit || isModulePartition();
+  }
+
+  bool isModuleInterfaceUnit() const {
+    return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface;
+  }
+
   /// Get the primary module interface name from a partition.
   StringRef getPrimaryModuleInterfaceName() const {
+    // Technically, global module fragment belongs to global module. And global
+    // module has no name: [module.unit]p6:
+    //   The global module has no name, no module interface unit, and is not
+    //   introduced by any module-declaration.
+    //
+    // <global> is the default name showed in module map.
+    if (isGlobalModule())
+      return "<global>";
+
     if (isModulePartition()) {
       auto pos = Name.find(':');
       return StringRef(Name.data(), pos);
     }
+
+    if (isPrivateModule())
+      return getTopLevelModuleName();
+
     return Name;
   }
 
@@ -633,6 +669,18 @@ public:
   /// \returns The submodule if found, or NULL otherwise.
   Module *findSubmodule(StringRef Name) const;
   Module *findOrInferSubmodule(StringRef Name);
+
+  /// Get the Global Module Fragment (sub-module) for this module, it there is
+  /// one.
+  ///
+  /// \returns The GMF sub-module if found, or NULL otherwise.
+  Module *getGlobalModuleFragment() { return findSubmodule("<global>"); }
+
+  /// Get the Private Module Fragment (sub-module) for this module, it there is
+  /// one.
+  ///
+  /// \returns The PMF sub-module if found, or NULL otherwise.
+  Module *getPrivateModuleFragment() { return findSubmodule("<private>"); }
 
   /// Determine whether the specified module would be visible to
   /// a lookup at the end of this module.

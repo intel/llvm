@@ -1263,7 +1263,7 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       // If using instruction referencing, mutate this into a DBG_INSTR_REF,
       // to be later patched up by finalizeDebugInstrRefs. Tack a deref onto
       // the expression, we don't have an "indirect" flag in DBG_INSTR_REF.
-      if (FuncInfo.MF->useDebugInstrRef() && Op->isReg()) {
+      if (UseInstrRefDebugInfo && Op->isReg()) {
         Builder->setDesc(TII.get(TargetOpcode::DBG_INSTR_REF));
         Builder->getOperand(1).ChangeToImmediate(0);
         auto *NewExpr =
@@ -1322,7 +1322,7 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
 
       // If using instruction referencing, mutate this into a DBG_INSTR_REF,
       // to be later patched up by finalizeDebugInstrRefs.
-      if (FuncInfo.MF->useDebugInstrRef()) {
+      if (UseInstrRefDebugInfo) {
         Builder->setDesc(TII.get(TargetOpcode::DBG_INSTR_REF));
         Builder->getOperand(1).ChangeToImmediate(0);
       }
@@ -2228,6 +2228,11 @@ bool FastISel::tryToFoldLoad(const LoadInst *LI, const Instruction *FoldInst) {
   // may mean that the instruction got lowered to multiple MIs, or the use of
   // the loaded value ended up being multiple operands of the result.
   if (!MRI.hasOneUse(LoadReg))
+    return false;
+
+  // If the register has fixups, there may be additional uses through a
+  // different alias of the register.
+  if (FuncInfo.RegsWithFixups.contains(LoadReg))
     return false;
 
   MachineRegisterInfo::reg_iterator RI = MRI.reg_begin(LoadReg);

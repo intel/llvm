@@ -1,6 +1,6 @@
 // RUN: mlir-opt %s -test-vector-transfer-flatten-patterns -split-input-file | FileCheck %s
 
-func @transfer_read_flattenable_with_offset(
+func.func @transfer_read_flattenable_with_offset(
       %arg : memref<5x4x3x2xi8, offset:?, strides:[24, 6, 2, 1]>) -> vector<5x4x3x2xi8> {
     %c0 = arith.constant 0 : index
     %cst = arith.constant 0 : i8
@@ -18,7 +18,7 @@ func @transfer_read_flattenable_with_offset(
 
 // -----
 
-func @transfer_write_flattenable_with_offset(
+func.func @transfer_write_flattenable_with_offset(
       %arg : memref<5x4x3x2xi8, offset:?, strides:[24, 6, 2, 1]>, %vec : vector<5x4x3x2xi8>) {
     %c0 = arith.constant 0 : index
     vector.transfer_write %vec, %arg [%c0, %c0, %c0, %c0] : 
@@ -35,7 +35,7 @@ func @transfer_write_flattenable_with_offset(
 
 // -----
 
-func @transfer_write_0d(%arg : memref<i8>, %vec : vector<i8>) {
+func.func @transfer_write_0d(%arg : memref<i8>, %vec : vector<i8>) {
       vector.transfer_write %vec, %arg[] : vector<i8>, memref<i8>
       return
 }
@@ -48,7 +48,7 @@ func @transfer_write_0d(%arg : memref<i8>, %vec : vector<i8>) {
 
 // -----
 
-func @transfer_read_0d(%arg : memref<i8>) -> vector<i8> {
+func.func @transfer_read_0d(%arg : memref<i8>) -> vector<i8> {
       %cst = arith.constant 0 : i8
       %0 = vector.transfer_read %arg[], %cst : memref<i8>, vector<i8>
       return %0 : vector<i8>
@@ -59,3 +59,48 @@ func @transfer_read_0d(%arg : memref<i8>) -> vector<i8> {
 // CHECK:            %[[CST:.+]] = arith.constant 0 : i8
 // CHECK:            %[[READ:.+]] = vector.transfer_read %[[ARG]][], %[[CST]] : memref<i8>
 // CHECK:            return %[[READ]]
+
+// -----
+
+#map0 = affine_map<(d0, d1, d2, d3)[s0, s1] -> (d0 * s1 + s0 + d1 * 32 + d2 * 4 + d3)>
+
+func.func @transfer_read_flattenable_with_dynamic_dims_and_indices(%arg0 : memref<?x?x8x4xi8, #map0>, %arg1 : index, %arg2 : index) -> vector<8x4xi8> {
+    %c0_i8 = arith.constant 0 : i8
+    %c0 = arith.constant 0 : index
+    %result = vector.transfer_read %arg0[%arg1, %arg2, %c0, %c0], %c0_i8 {in_bounds = [true, true]} : memref<?x?x8x4xi8, #map0>, vector<8x4xi8>
+    return %result : vector<8x4xi8>
+}
+
+// CHECK-LABEL: func @transfer_read_flattenable_with_dynamic_dims_and_indices
+// CHECK-SAME:    %[[ARG0:.+]]: memref<?x?x8x4xi8, {{.+}}>, %[[ARG1:.+]]: index, %[[ARG2:.+]]: index
+// CHECK:       %[[C0_I8:.+]] = arith.constant 0 : i8
+// CHECK:       %[[C0:.+]] = arith.constant 0 : index
+// CHECK:       %[[COLLAPSED:.+]] = memref.collapse_shape %[[ARG0]] {{\[}}[0], [1], [2, 3]{{\]}}
+// CHECK-SAME:    : memref<?x?x8x4xi8, {{.+}}> into memref<?x?x32xi8, {{.+}}>
+// CHECK:       %[[VEC1D:.+]] = vector.transfer_read %[[COLLAPSED]]
+// CHECK-SAME:    [%[[ARG1]], %[[ARG2]], %[[C0]]], %[[C0_I8]]
+// CHECK-SAME:    {in_bounds = [true]}
+// CHECK-SAME:    : memref<?x?x32xi8, {{.+}}>, vector<32xi8>
+// CHECK:       %[[VEC2D:.+]] = vector.shape_cast %[[VEC1D]] : vector<32xi8> to vector<8x4xi8>
+// CHECK:       return %[[VEC2D]] : vector<8x4xi8>
+
+// -----
+
+#map0 = affine_map<(d0, d1, d2, d3)[s0, s1] -> (d0 * s1 + s0 + d1 * 32 + d2 * 4 + d3)>
+
+func.func @transfer_write_flattenable_with_dynamic_dims_and_indices(%vec : vector<8x4xi8>, %dst : memref<?x?x8x4xi8, #map0>, %arg1 : index, %arg2 : index) {
+    %c0 = arith.constant 0 : index
+    vector.transfer_write %vec, %dst[%arg1, %arg2, %c0, %c0] {in_bounds = [true, true]} : vector<8x4xi8>, memref<?x?x8x4xi8, #map0>
+    return
+}
+
+// CHECK-LABEL: func @transfer_write_flattenable_with_dynamic_dims_and_indices
+// CHECK-SAME:    %[[ARG0:.+]]: vector<8x4xi8>, %[[ARG1:.+]]: memref<?x?x8x4xi8, {{.+}}>, %[[ARG2:.+]]: index, %[[ARG3:.+]]: index
+// CHECK:       %[[C0:.+]] = arith.constant 0 : index
+// CHECK:       %[[COLLAPSED:.+]] = memref.collapse_shape %[[ARG1]] {{\[}}[0], [1], [2, 3]{{\]}}
+// CHECK-SAME:    : memref<?x?x8x4xi8, {{.+}}> into memref<?x?x32xi8, {{.+}}>
+// CHECK:       %[[VEC1D:.+]] = vector.shape_cast %[[ARG0]] : vector<8x4xi8> to vector<32xi8>
+// CHECK:       vector.transfer_write %[[VEC1D]], %[[COLLAPSED]]
+// CHECK-SAME:    [%[[ARG2]], %[[ARG3]], %[[C0]]]
+// CHECK-SAME:    {in_bounds = [true]}
+// CHECK-SAME:    : vector<32xi8>, memref<?x?x32xi8, {{.+}}>

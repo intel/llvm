@@ -161,7 +161,7 @@ public:
   // Get function size with a specific context. When there's no exact match
   // for the given context, try to retrieve the size of that function from
   // closest matching context.
-  uint32_t getFuncSizeForContext(const SampleContext &Context);
+  uint32_t getFuncSizeForContext(const ContextTrieNode *Context);
 
   // For inlinees that are full optimized away, we can establish zero size using
   // their remaining probes.
@@ -218,6 +218,9 @@ class ProfiledBinary {
   // A map of mapping function name to BinaryFunction info.
   std::unordered_map<std::string, BinaryFunction> BinaryFunctions;
 
+  // A list of binary functions that have samples.
+  std::unordered_set<const BinaryFunction *> ProfiledFunctions;
+
   // An ordered map of mapping function's start offset to function range
   // relevant info. Currently to determine if the offset of ELF is the start of
   // a real function, we leverage the function range info from DWARF.
@@ -236,6 +239,8 @@ class ProfiledBinary {
   std::unordered_set<uint64_t> CallOffsets;
   // A set of return instruction offsets. Used by virtual unwinding.
   std::unordered_set<uint64_t> RetOffsets;
+  // An ordered set of unconditional branch instruction offsets.
+  std::set<uint64_t> UncondBranchOffsets;
   // A set of branch instruction offsets.
   std::unordered_set<uint64_t> BranchOffsets;
 
@@ -277,6 +282,8 @@ class ProfiledBinary {
 
   template <class ELFT>
   void setPreferredTextSegmentAddresses(const ELFFile<ELFT> &Obj, StringRef FileName);
+
+  void checkPseudoProbe(const ELFObjectFileBase *Obj);
 
   void decodePseudoProbe(const ELFObjectFileBase *Obj);
 
@@ -331,6 +338,9 @@ public:
     setupSymbolizer();
     load();
   }
+
+  void decodePseudoProbe();
+
   uint64_t virtualAddrToOffset(uint64_t VirtualAddress) const {
     return VirtualAddress - BaseAddress;
   }
@@ -385,6 +395,13 @@ public:
   bool offsetIsTransfer(uint64_t Offset) {
     return BranchOffsets.count(Offset) || RetOffsets.count(Offset) ||
            CallOffsets.count(Offset);
+  }
+
+  bool rangeCrossUncondBranch(uint64_t Start, uint64_t End) {
+    if (Start >= End)
+      return false;
+    auto R = UncondBranchOffsets.lower_bound(Start);
+    return R != UncondBranchOffsets.end() && *R < End;
   }
 
   uint64_t getAddressforIndex(uint64_t Index) const {
@@ -453,6 +470,14 @@ public:
     return BinaryFunctions;
   }
 
+  std::unordered_set<const BinaryFunction *> &getProfiledFunctions() {
+    return ProfiledFunctions;
+  }
+
+  void setProfiledFunctions(std::unordered_set<const BinaryFunction *> &Funcs) {
+    ProfiledFunctions = Funcs;
+  }
+
   BinaryFunction *getBinaryFunction(StringRef FName) {
     auto I = BinaryFunctions.find(FName.str());
     if (I == BinaryFunctions.end())
@@ -460,8 +485,8 @@ public:
     return &I->second;
   }
 
-  uint32_t getFuncSizeForContext(SampleContext &Context) {
-    return FuncSizeTracker.getFuncSizeForContext(Context);
+  uint32_t getFuncSizeForContext(const ContextTrieNode *ContextNode) {
+    return FuncSizeTracker.getFuncSizeForContext(ContextNode);
   }
 
   // Load the symbols from debug table and populate into symbol list.

@@ -126,6 +126,7 @@ void speculated_iterations() {
       a[i] = 0;
 }
 
+// Add CodeGen tests for FPGA loop_count attributes.
 template <int A>
 void loop_count_control() {
   int a[10];

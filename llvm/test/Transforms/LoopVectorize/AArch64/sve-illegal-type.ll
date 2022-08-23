@@ -1,4 +1,5 @@
-; RUN: opt < %s -loop-vectorize -mattr=+sve -force-vector-width=4 -pass-remarks-analysis=loop-vectorize -S 2>%t | FileCheck %s
+; RUN: opt < %s -loop-vectorize -mattr=+sve -force-vector-width=4 -pass-remarks-analysis=loop-vectorize \
+; RUN:   -prefer-predicate-over-epilogue=scalar-epilogue -S 2>%t | FileCheck %s
 ; RUN: cat %t | FileCheck %s -check-prefix=CHECK-REMARKS
 target triple = "aarch64-linux-gnu"
 
@@ -83,11 +84,11 @@ for.end:
 define void @uniform_store_i1(i1* noalias %dst, i64* noalias %start, i64 %N) {
 ; CHECK-LABEL: @uniform_store_i1
 ; CHECK: vector.body
-; CHECK: %[[GEP:.*]] = getelementptr inbounds i64, <2 x i64*> {{.*}}, i64 1
-; CHECK: %[[ICMP:.*]] = icmp eq <2 x i64*> %[[GEP]], %[[SPLAT:.*]]
-; CHECK: %[[EXTRACT1:.*]] = extractelement <2 x i1> %[[ICMP]], i32 0
+; CHECK: %[[GEP:.*]] = getelementptr inbounds i64, <64 x i64*> {{.*}}, i64 1
+; CHECK: %[[ICMP:.*]] = icmp eq <64 x i64*> %[[GEP]], %[[SPLAT:.*]]
+; CHECK: %[[EXTRACT1:.*]] = extractelement <64 x i1> %[[ICMP]], i32 0
 ; CHECK: store i1 %[[EXTRACT1]], i1* %dst
-; CHECK: %[[EXTRACT2:.*]] = extractelement <2 x i1> %[[ICMP]], i32 1
+; CHECK: %[[EXTRACT2:.*]] = extractelement <64 x i1> %[[ICMP]], i32 1
 ; CHECK: store i1 %[[EXTRACT2]], i1* %dst
 ; CHECK-NOT: vscale
 entry:

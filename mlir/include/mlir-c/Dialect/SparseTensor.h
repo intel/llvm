@@ -11,7 +11,7 @@
 #define MLIR_C_DIALECT_SPARSETENSOR_H
 
 #include "mlir-c/AffineMap.h"
-#include "mlir-c/Registration.h"
+#include "mlir-c/IR.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,12 +20,10 @@ extern "C" {
 MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(SparseTensor, sparse_tensor);
 
 /// Dimension level types that define sparse tensors:
-///   - MLIR_SPARSE_TENSOR_DIM_LEVEL_DENSE      - dimension is dense, every
+///   - MLIR_SPARSE_TENSOR_DIM_LEVEL_DENSE - dimension is dense, every
 ///   entry is stored
 ///   - MLIR_SPARSE_TENSOR_DIM_LEVEL_COMPRESSED - dimension is sparse,
-///   only nonzeros are stored.
-///   - MLIR_SPARSE_TENSOR_DIM_LEVEL_SINGLETON  - dimension contains single
-///   coordinate, no siblings.
+///   only nonzeros are stored (no duplicates).
 ///
 /// These correspond to SparseTensorEncodingAttr::DimLevelType in the C++ API.
 /// If updating, keep them in sync and update the static_assert in the impl
@@ -33,7 +31,6 @@ MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(SparseTensor, sparse_tensor);
 enum MlirSparseTensorDimLevelType {
   MLIR_SPARSE_TENSOR_DIM_LEVEL_DENSE,
   MLIR_SPARSE_TENSOR_DIM_LEVEL_COMPRESSED,
-  MLIR_SPARSE_TENSOR_DIM_LEVEL_SINGLETON,
 };
 
 //===----------------------------------------------------------------------===//

@@ -59,11 +59,12 @@ public:
                  llvm::Triple::OSType preferred_os,
                  llvm::SmallVector<llvm::Triple::OSType, 4> supported_os,
                  llvm::SmallVector<llvm::StringRef, 4> supported_triples,
-                 llvm::StringRef sdk, XcodeSDK::Type sdk_type,
+                 std::string sdk_name_preferred, std::string sdk_name_secondary,
+                 XcodeSDK::Type sdk_type,
                  CoreSimulatorSupport::DeviceType::ProductFamilyID kind,
                  bool force, const ArchSpec *arch);
 
-  virtual ~PlatformAppleSimulator();
+  ~PlatformAppleSimulator() override;
 
   llvm::StringRef GetPluginName() override {
     return m_plugin_name.GetStringRef();

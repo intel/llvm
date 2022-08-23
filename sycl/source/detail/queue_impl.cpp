@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
 
 #include <cstring>
 #include <utility>
@@ -22,10 +22,11 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
+template <>
+uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
     getPlugin().call<PiApiKind::piQueueGetInfo>(
@@ -48,6 +49,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
@@ -201,7 +203,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   xpti::utils::StringHelper NG;
   Name = NG.nameWithAddress<queue_impl *>("queue.wait", this);
 
-  if (!CodeLoc.fileName()) {
+  if (CodeLoc.fileName()) {
     // We have source code location information
     Payload =
         xpti::payload_t(Name.c_str(), CodeLoc.fileName(), CodeLoc.lineNumber(),
@@ -236,7 +238,9 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
       xpti::addMetadata(WaitEvent, "sym_line_no",
-                        std::to_string(CodeLoc.lineNumber()));
+                        static_cast<int32_t>((CodeLoc.lineNumber())));
+      xpti::addMetadata(WaitEvent, "sym_column_no",
+                        static_cast<int32_t>((CodeLoc.columnNumber())));
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,
@@ -327,5 +331,5 @@ pi_native_handle queue_impl::getNative() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

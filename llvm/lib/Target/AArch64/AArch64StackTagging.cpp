@@ -58,6 +58,7 @@
 #include "llvm/Transforms/Utils/MemoryTaggingSupport.h"
 #include <cassert>
 #include <iterator>
+#include <memory>
 #include <utility>
 
 using namespace llvm;
@@ -65,12 +66,12 @@ using namespace llvm;
 #define DEBUG_TYPE "aarch64-stack-tagging"
 
 static cl::opt<bool> ClMergeInit(
-    "stack-tagging-merge-init", cl::Hidden, cl::init(true), cl::ZeroOrMore,
+    "stack-tagging-merge-init", cl::Hidden, cl::init(true),
     cl::desc("merge stack variable initializers with tagging when possible"));
 
 static cl::opt<bool>
     ClUseStackSafety("stack-tagging-use-stack-safety", cl::Hidden,
-                     cl::init(true), cl::ZeroOrMore,
+                     cl::init(true),
                      cl::desc("Use Stack Safety analysis results"));
 
 static cl::opt<unsigned> ClScanLimit("stack-tagging-merge-init-scan-limit",
@@ -417,7 +418,7 @@ bool AArch64StackTagging::isInterestingAlloca(const AllocaInst &AI) {
   bool IsInteresting =
       AI.getAllocatedType()->isSized() && AI.isStaticAlloca() &&
       // alloca() may be called with 0 size, ignore it.
-      AI.getAllocationSizeInBits(*DL).getValue() > 0 &&
+      *AI.getAllocationSizeInBits(*DL) > 0 &&
       // inalloca allocas are not treated as static, and we don't want
       // dynamic alloca instrumentation for them as well.
       !AI.isUsedWithInAlloca() &&
@@ -523,6 +524,15 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
     PDT = DeletePDT.get();
   }
 
+  std::unique_ptr<LoopInfo> DeleteLI;
+  LoopInfo *LI = nullptr;
+  if (auto *LIWP = getAnalysisIfAvailable<LoopInfoWrapperPass>()) {
+    LI = &LIWP->getLoopInfo();
+  } else {
+    DeleteLI = std::make_unique<LoopInfo>(*DT);
+    LI = DeleteLI.get();
+  }
+
   SetTagFunc =
       Intrinsic::getDeclaration(F->getParent(), Intrinsic::aarch64_settag);
 
@@ -555,7 +565,7 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
     // statement if return_twice functions are called.
     bool StandardLifetime =
         SInfo.UnrecognizedLifetimes.empty() &&
-        memtag::isStandardLifetime(Info.LifetimeStart, Info.LifetimeEnd, DT,
+        memtag::isStandardLifetime(Info.LifetimeStart, Info.LifetimeEnd, DT, LI,
                                    ClMaxLifetimes) &&
         !SInfo.CallsReturnTwice;
     if (StandardLifetime) {
@@ -567,13 +577,13 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
 
       auto TagEnd = [&](Instruction *Node) { untagAlloca(AI, Node, Size); };
       if (!DT || !PDT ||
-          !memtag::forAllReachableExits(*DT, *PDT, Start, Info.LifetimeEnd,
+          !memtag::forAllReachableExits(*DT, *PDT, *LI, Start, Info.LifetimeEnd,
                                         SInfo.RetVec, TagEnd)) {
         for (auto *End : Info.LifetimeEnd)
           End->eraseFromParent();
       }
     } else {
-      uint64_t Size = Info.AI->getAllocationSizeInBits(*DL).getValue() / 8;
+      uint64_t Size = *Info.AI->getAllocationSizeInBits(*DL) / 8;
       Value *Ptr = IRB.CreatePointerCast(TagPCall, IRB.getInt8PtrTy());
       tagAlloca(AI, &*IRB.GetInsertPoint(), Ptr, Size);
       for (auto &RI : SInfo.RetVec) {
@@ -593,7 +603,7 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
   }
 
   // If we have instrumented at least one alloca, all unrecognized lifetime
-  // instrinsics have to go.
+  // intrinsics have to go.
   for (auto &I : SInfo.UnrecognizedLifetimes)
     I->eraseFromParent();
 

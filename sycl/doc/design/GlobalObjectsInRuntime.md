@@ -17,7 +17,7 @@ At the same time, SYCL users may want to construct some SYCL objects globally,
 like in example below:
 
 ```
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 sycl::queue Queue;
 

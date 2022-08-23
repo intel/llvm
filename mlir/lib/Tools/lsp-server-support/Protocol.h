@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains structs based on the LSP specification at
-// https://github.com/Microsoft/language-server-protocol/blob/main/protocol.md
+// https://microsoft.github.io/language-server-protocol/specification
 //
 // This is not meant to be a complete implementation, new interfaces are added
 // when they're needed.
@@ -26,6 +26,7 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 #include <bitset>
 #include <memory>
@@ -34,6 +35,8 @@
 #include <vector>
 
 namespace mlir {
+struct LogicalResult;
+
 namespace lsp {
 
 enum class ErrorCode {
@@ -143,6 +146,10 @@ struct ClientCapabilities {
   /// Client supports hierarchical document symbols.
   /// textDocument.documentSymbol.hierarchicalDocumentSymbolSupport
   bool hierarchicalDocumentSymbol = false;
+
+  /// Client supports CodeAction return value for textDocument/codeAction.
+  /// textDocument.codeAction.codeActionLiteralSupport.
+  bool codeActionStructure = false;
 };
 
 /// Add support for JSON serialization.
@@ -245,6 +252,13 @@ struct Position {
   Position(int line = 0, int character = 0)
       : line(line), character(character) {}
 
+  /// Construct a position from the given source location.
+  Position(llvm::SourceMgr &mgr, SMLoc loc) {
+    std::pair<unsigned, unsigned> lineAndCol = mgr.getLineAndColumn(loc);
+    line = lineAndCol.first - 1;
+    character = lineAndCol.second - 1;
+  }
+
   /// Line position in a document (zero-based).
   int line = 0;
 
@@ -266,6 +280,13 @@ struct Position {
     return std::tie(lhs.line, lhs.character) <=
            std::tie(rhs.line, rhs.character);
   }
+
+  /// Convert this position into a source location in the main file of the given
+  /// source manager.
+  SMLoc getAsSMLoc(llvm::SourceMgr &mgr) const {
+    return mgr.FindLocForLineAndColumn(mgr.getMainFileID(), line + 1,
+                                       character + 1);
+  }
 };
 
 /// Add support for JSON serialization.
@@ -282,6 +303,10 @@ struct Range {
   Range() = default;
   Range(Position start, Position end) : start(start), end(end) {}
   Range(Position loc) : Range(loc, loc) {}
+
+  /// Construct a range from the given source range.
+  Range(llvm::SourceMgr &mgr, SMRange range)
+      : Range(Position(mgr, range.Start), Position(mgr, range.End)) {}
 
   /// The range's start position.
   Position start;
@@ -303,6 +328,18 @@ struct Range {
   bool contains(Range range) const {
     return start <= range.start && range.end <= end;
   }
+
+  /// Convert this range into a source range in the main file of the given
+  /// source manager.
+  SMRange getAsSMRange(llvm::SourceMgr &mgr) const {
+    SMLoc startLoc = start.getAsSMLoc(mgr);
+    SMLoc endLoc = end.getAsSMLoc(mgr);
+    // Check that the start and end locations are valid.
+    if (!startLoc.isValid() || !endLoc.isValid() ||
+        startLoc.getPointer() > endLoc.getPointer())
+      return SMRange();
+    return SMRange(startLoc, endLoc);
+  }
 };
 
 /// Add support for JSON serialization.
@@ -316,6 +353,13 @@ raw_ostream &operator<<(raw_ostream &os, const Range &value);
 //===----------------------------------------------------------------------===//
 
 struct Location {
+  Location() = default;
+  Location(const URIForFile &uri, Range range) : uri(uri), range(range) {}
+
+  /// Construct a Location from the given source range.
+  Location(const URIForFile &uri, llvm::SourceMgr &mgr, SMRange range)
+      : Location(uri, Range(mgr, range)) {}
+
   /// The text document's URI.
   URIForFile uri;
   Range range;
@@ -334,6 +378,8 @@ struct Location {
 };
 
 /// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, Location &result,
+              llvm::json::Path path);
 llvm::json::Value toJSON(const Location &value);
 raw_ostream &operator<<(raw_ostream &os, const Location &value);
 
@@ -405,6 +451,12 @@ bool fromJSON(const llvm::json::Value &value,
 //===----------------------------------------------------------------------===//
 
 struct TextDocumentContentChangeEvent {
+  /// Try to apply this change to the given contents string.
+  LogicalResult applyTo(std::string &contents) const;
+  /// Try to apply a set of changes to the given contents string.
+  static LogicalResult applyTo(ArrayRef<TextDocumentContentChangeEvent> changes,
+                               std::string &contents);
+
   /// The range of the document that changed.
   Optional<Range> range;
 
@@ -566,6 +618,7 @@ bool fromJSON(const llvm::json::Value &value, DocumentSymbolParams &result,
 /// This should be used to point to code locations that cause or related to a
 /// diagnostics, e.g. when duplicating a symbol in a scope.
 struct DiagnosticRelatedInformation {
+  DiagnosticRelatedInformation() = default;
   DiagnosticRelatedInformation(Location location, std::string message)
       : location(std::move(location)), message(std::move(message)) {}
 
@@ -576,6 +629,8 @@ struct DiagnosticRelatedInformation {
 };
 
 /// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value,
+              DiagnosticRelatedInformation &result, llvm::json::Path path);
 llvm::json::Value toJSON(const DiagnosticRelatedInformation &info);
 
 //===----------------------------------------------------------------------===//
@@ -620,6 +675,8 @@ struct Diagnostic {
 
 /// Add support for JSON serialization.
 llvm::json::Value toJSON(const Diagnostic &diag);
+bool fromJSON(const llvm::json::Value &value, Diagnostic &result,
+              llvm::json::Path path);
 
 //===----------------------------------------------------------------------===//
 // PublishDiagnosticsParams
@@ -639,6 +696,503 @@ struct PublishDiagnosticsParams {
 
 /// Add support for JSON serialization.
 llvm::json::Value toJSON(const PublishDiagnosticsParams &params);
+
+//===----------------------------------------------------------------------===//
+// TextEdit
+//===----------------------------------------------------------------------===//
+
+struct TextEdit {
+  /// The range of the text document to be manipulated. To insert
+  /// text into a document create a range where start === end.
+  Range range;
+
+  /// The string to be inserted. For delete operations use an
+  /// empty string.
+  std::string newText;
+};
+
+inline bool operator==(const TextEdit &lhs, const TextEdit &rhs) {
+  return std::tie(lhs.newText, lhs.range) == std::tie(rhs.newText, rhs.range);
+}
+
+bool fromJSON(const llvm::json::Value &value, TextEdit &result,
+              llvm::json::Path path);
+llvm::json::Value toJSON(const TextEdit &value);
+raw_ostream &operator<<(raw_ostream &os, const TextEdit &value);
+
+//===----------------------------------------------------------------------===//
+// CompletionItemKind
+//===----------------------------------------------------------------------===//
+
+/// The kind of a completion entry.
+enum class CompletionItemKind {
+  Missing = 0,
+  Text = 1,
+  Method = 2,
+  Function = 3,
+  Constructor = 4,
+  Field = 5,
+  Variable = 6,
+  Class = 7,
+  Interface = 8,
+  Module = 9,
+  Property = 10,
+  Unit = 11,
+  Value = 12,
+  Enum = 13,
+  Keyword = 14,
+  Snippet = 15,
+  Color = 16,
+  File = 17,
+  Reference = 18,
+  Folder = 19,
+  EnumMember = 20,
+  Constant = 21,
+  Struct = 22,
+  Event = 23,
+  Operator = 24,
+  TypeParameter = 25,
+};
+bool fromJSON(const llvm::json::Value &value, CompletionItemKind &result,
+              llvm::json::Path path);
+
+constexpr auto kCompletionItemKindMin =
+    static_cast<size_t>(CompletionItemKind::Text);
+constexpr auto kCompletionItemKindMax =
+    static_cast<size_t>(CompletionItemKind::TypeParameter);
+using CompletionItemKindBitset = std::bitset<kCompletionItemKindMax + 1>;
+bool fromJSON(const llvm::json::Value &value, CompletionItemKindBitset &result,
+              llvm::json::Path path);
+
+CompletionItemKind
+adjustKindToCapability(CompletionItemKind kind,
+                       CompletionItemKindBitset &supportedCompletionItemKinds);
+
+//===----------------------------------------------------------------------===//
+// CompletionItem
+//===----------------------------------------------------------------------===//
+
+/// Defines whether the insert text in a completion item should be interpreted
+/// as plain text or a snippet.
+enum class InsertTextFormat {
+  Missing = 0,
+  /// The primary text to be inserted is treated as a plain string.
+  PlainText = 1,
+  /// The primary text to be inserted is treated as a snippet.
+  ///
+  /// A snippet can define tab stops and placeholders with `$1`, `$2`
+  /// and `${3:foo}`. `$0` defines the final tab stop, it defaults to the end
+  /// of the snippet. Placeholders with equal identifiers are linked, that is
+  /// typing in one will update others too.
+  ///
+  /// See also:
+  /// https//github.com/Microsoft/vscode/blob/master/src/vs/editor/contrib/snippet/common/snippet.md
+  Snippet = 2,
+};
+
+struct CompletionItem {
+  CompletionItem() = default;
+  CompletionItem(const Twine &label, CompletionItemKind kind,
+                 StringRef sortText = "")
+      : label(label.str()), kind(kind), sortText(sortText.str()),
+        insertTextFormat(InsertTextFormat::PlainText) {}
+
+  /// The label of this completion item. By default also the text that is
+  /// inserted when selecting this completion.
+  std::string label;
+
+  /// The kind of this completion item. Based of the kind an icon is chosen by
+  /// the editor.
+  CompletionItemKind kind = CompletionItemKind::Missing;
+
+  /// A human-readable string with additional information about this item, like
+  /// type or symbol information.
+  std::string detail;
+
+  /// A human-readable string that represents a doc-comment.
+  Optional<MarkupContent> documentation;
+
+  /// A string that should be used when comparing this item with other items.
+  /// When `falsy` the label is used.
+  std::string sortText;
+
+  /// A string that should be used when filtering a set of completion items.
+  /// When `falsy` the label is used.
+  std::string filterText;
+
+  /// A string that should be inserted to a document when selecting this
+  /// completion. When `falsy` the label is used.
+  std::string insertText;
+
+  /// The format of the insert text. The format applies to both the `insertText`
+  /// property and the `newText` property of a provided `textEdit`.
+  InsertTextFormat insertTextFormat = InsertTextFormat::Missing;
+
+  /// An edit which is applied to a document when selecting this completion.
+  /// When an edit is provided `insertText` is ignored.
+  ///
+  /// Note: The range of the edit must be a single line range and it must
+  /// contain the position at which completion has been requested.
+  Optional<TextEdit> textEdit;
+
+  /// An optional array of additional text edits that are applied when selecting
+  /// this completion. Edits must not overlap with the main edit nor with
+  /// themselves.
+  std::vector<TextEdit> additionalTextEdits;
+
+  /// Indicates if this item is deprecated.
+  bool deprecated = false;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const CompletionItem &value);
+raw_ostream &operator<<(raw_ostream &os, const CompletionItem &value);
+bool operator<(const CompletionItem &lhs, const CompletionItem &rhs);
+
+//===----------------------------------------------------------------------===//
+// CompletionList
+//===----------------------------------------------------------------------===//
+
+/// Represents a collection of completion items to be presented in the editor.
+struct CompletionList {
+  /// The list is not complete. Further typing should result in recomputing the
+  /// list.
+  bool isIncomplete = false;
+
+  /// The completion items.
+  std::vector<CompletionItem> items;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const CompletionList &value);
+
+//===----------------------------------------------------------------------===//
+// CompletionContext
+//===----------------------------------------------------------------------===//
+
+enum class CompletionTriggerKind {
+  /// Completion was triggered by typing an identifier (24x7 code
+  /// complete), manual invocation (e.g Ctrl+Space) or via API.
+  Invoked = 1,
+
+  /// Completion was triggered by a trigger character specified by
+  /// the `triggerCharacters` properties of the `CompletionRegistrationOptions`.
+  TriggerCharacter = 2,
+
+  /// Completion was re-triggered as the current completion list is incomplete.
+  TriggerTriggerForIncompleteCompletions = 3
+};
+
+struct CompletionContext {
+  /// How the completion was triggered.
+  CompletionTriggerKind triggerKind = CompletionTriggerKind::Invoked;
+
+  /// The trigger character (a single character) that has trigger code complete.
+  /// Is undefined if `triggerKind !== CompletionTriggerKind.TriggerCharacter`
+  std::string triggerCharacter;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, CompletionContext &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// CompletionParams
+//===----------------------------------------------------------------------===//
+
+struct CompletionParams : TextDocumentPositionParams {
+  CompletionContext context;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, CompletionParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// ParameterInformation
+//===----------------------------------------------------------------------===//
+
+/// A single parameter of a particular signature.
+struct ParameterInformation {
+  /// The label of this parameter. Ignored when labelOffsets is set.
+  std::string labelString;
+
+  /// Inclusive start and exclusive end offsets withing the containing signature
+  /// label.
+  Optional<std::pair<unsigned, unsigned>> labelOffsets;
+
+  /// The documentation of this parameter. Optional.
+  std::string documentation;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const ParameterInformation &value);
+
+//===----------------------------------------------------------------------===//
+// SignatureInformation
+//===----------------------------------------------------------------------===//
+
+/// Represents the signature of something callable.
+struct SignatureInformation {
+  /// The label of this signature. Mandatory.
+  std::string label;
+
+  /// The documentation of this signature. Optional.
+  std::string documentation;
+
+  /// The parameters of this signature.
+  std::vector<ParameterInformation> parameters;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const SignatureInformation &value);
+raw_ostream &operator<<(raw_ostream &os, const SignatureInformation &value);
+
+//===----------------------------------------------------------------------===//
+// SignatureHelp
+//===----------------------------------------------------------------------===//
+
+/// Represents the signature of a callable.
+struct SignatureHelp {
+  /// The resulting signatures.
+  std::vector<SignatureInformation> signatures;
+
+  /// The active signature.
+  int activeSignature = 0;
+
+  /// The active parameter of the active signature.
+  int activeParameter = 0;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const SignatureHelp &value);
+
+//===----------------------------------------------------------------------===//
+// DocumentLinkParams
+//===----------------------------------------------------------------------===//
+
+/// Parameters for the document link request.
+struct DocumentLinkParams {
+  /// The document to provide document links for.
+  TextDocumentIdentifier textDocument;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, DocumentLinkParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// DocumentLink
+//===----------------------------------------------------------------------===//
+
+/// A range in a text document that links to an internal or external resource,
+/// like another text document or a web site.
+struct DocumentLink {
+  DocumentLink() = default;
+  DocumentLink(Range range, URIForFile target)
+      : range(range), target(std::move(target)) {}
+
+  /// The range this link applies to.
+  Range range;
+
+  /// The uri this link points to. If missing a resolve request is sent later.
+  URIForFile target;
+
+  // TODO: The following optional fields defined by the language server protocol
+  // are unsupported:
+  //
+  // data?: any - A data entry field that is preserved on a document link
+  //              between a DocumentLinkRequest and a
+  //              DocumentLinkResolveRequest.
+
+  friend bool operator==(const DocumentLink &lhs, const DocumentLink &rhs) {
+    return lhs.range == rhs.range && lhs.target == rhs.target;
+  }
+
+  friend bool operator!=(const DocumentLink &lhs, const DocumentLink &rhs) {
+    return !(lhs == rhs);
+  }
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const DocumentLink &value);
+
+//===----------------------------------------------------------------------===//
+// InlayHintsParams
+//===----------------------------------------------------------------------===//
+
+/// A parameter literal used in inlay hint requests.
+struct InlayHintsParams {
+  /// The text document.
+  TextDocumentIdentifier textDocument;
+
+  /// The visible document range for which inlay hints should be computed.
+  Range range;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, InlayHintsParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// InlayHintKind
+//===----------------------------------------------------------------------===//
+
+/// Inlay hint kinds.
+enum class InlayHintKind {
+  /// An inlay hint that for a type annotation.
+  ///
+  /// An example of a type hint is a hint in this position:
+  ///    auto var ^ = expr;
+  /// which shows the deduced type of the variable.
+  Type = 1,
+
+  /// An inlay hint that is for a parameter.
+  ///
+  /// An example of a parameter hint is a hint in this position:
+  ///    func(^arg);
+  /// which shows the name of the corresponding parameter.
+  Parameter = 2,
+};
+
+//===----------------------------------------------------------------------===//
+// InlayHint
+//===----------------------------------------------------------------------===//
+
+/// Inlay hint information.
+struct InlayHint {
+  InlayHint(InlayHintKind kind, Position pos) : position(pos), kind(kind) {}
+
+  /// The position of this hint.
+  Position position;
+
+  /// The label of this hint. A human readable string or an array of
+  /// InlayHintLabelPart label parts.
+  ///
+  /// *Note* that neither the string nor the label part can be empty.
+  std::string label;
+
+  /// The kind of this hint. Can be omitted in which case the client should fall
+  /// back to a reasonable default.
+  InlayHintKind kind;
+
+  /// Render padding before the hint.
+  ///
+  /// Note: Padding should use the editor's background color, not the
+  /// background color of the hint itself. That means padding can be used
+  /// to visually align/separate an inlay hint.
+  bool paddingLeft = false;
+
+  /// Render padding after the hint.
+  ///
+  /// Note: Padding should use the editor's background color, not the
+  /// background color of the hint itself. That means padding can be used
+  /// to visually align/separate an inlay hint.
+  bool paddingRight = false;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const InlayHint &);
+bool operator==(const InlayHint &lhs, const InlayHint &rhs);
+bool operator<(const InlayHint &lhs, const InlayHint &rhs);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, InlayHintKind value);
+
+//===----------------------------------------------------------------------===//
+// CodeActionContext
+//===----------------------------------------------------------------------===//
+
+struct CodeActionContext {
+  /// An array of diagnostics known on the client side overlapping the range
+  /// provided to the `textDocument/codeAction` request. They are provided so
+  /// that the server knows which errors are currently presented to the user for
+  /// the given range. There is no guarantee that these accurately reflect the
+  /// error state of the resource. The primary parameter to compute code actions
+  /// is the provided range.
+  std::vector<Diagnostic> diagnostics;
+
+  /// Requested kind of actions to return.
+  ///
+  /// Actions not of this kind are filtered out by the client before being
+  /// shown. So servers can omit computing them.
+  std::vector<std::string> only;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, CodeActionContext &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// CodeActionParams
+//===----------------------------------------------------------------------===//
+
+struct CodeActionParams {
+  /// The document in which the command was invoked.
+  TextDocumentIdentifier textDocument;
+
+  /// The range for which the command was invoked.
+  Range range;
+
+  /// Context carrying additional information.
+  CodeActionContext context;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, CodeActionParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// WorkspaceEdit
+//===----------------------------------------------------------------------===//
+
+struct WorkspaceEdit {
+  /// Holds changes to existing resources.
+  std::map<std::string, std::vector<TextEdit>> changes;
+
+  /// Note: "documentChanges" is not currently used because currently there is
+  /// no support for versioned edits.
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, WorkspaceEdit &result,
+              llvm::json::Path path);
+llvm::json::Value toJSON(const WorkspaceEdit &value);
+
+//===----------------------------------------------------------------------===//
+// CodeAction
+//===----------------------------------------------------------------------===//
+
+/// A code action represents a change that can be performed in code, e.g. to fix
+/// a problem or to refactor code.
+///
+/// A CodeAction must set either `edit` and/or a `command`. If both are
+/// supplied, the `edit` is applied first, then the `command` is executed.
+struct CodeAction {
+  /// A short, human-readable, title for this code action.
+  std::string title;
+
+  /// The kind of the code action.
+  /// Used to filter code actions.
+  Optional<std::string> kind;
+  const static llvm::StringLiteral kQuickFix;
+  const static llvm::StringLiteral kRefactor;
+  const static llvm::StringLiteral kInfo;
+
+  /// The diagnostics that this code action resolves.
+  Optional<std::vector<Diagnostic>> diagnostics;
+
+  /// Marks this as a preferred action. Preferred actions are used by the
+  /// `auto fix` command and can be targeted by keybindings.
+  /// A quick fix should be marked preferred if it properly addresses the
+  /// underlying error. A refactoring should be marked preferred if it is the
+  /// most reasonable choice of actions to take.
+  bool isPreferred = false;
+
+  /// The workspace edit this code action performs.
+  Optional<WorkspaceEdit> edit;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const CodeAction &);
 
 } // namespace lsp
 } // namespace mlir

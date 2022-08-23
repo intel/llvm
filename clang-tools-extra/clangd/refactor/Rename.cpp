@@ -768,9 +768,8 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
   RenameResult Result;
   Result.Target = CurrentIdentifier;
   Edit MainFileEdits = Edit(MainFileCode, std::move(*MainFileRenameEdit));
-  llvm::for_each(MainFileEdits.asTextEdits(), [&Result](const TextEdit &TE) {
+  for (const TextEdit &TE : MainFileEdits.asTextEdits())
     Result.LocalChanges.push_back(TE.range);
-  });
 
   // return the main file edit if this is a within-file rename or the symbol
   // being renamed is function local.
@@ -810,7 +809,7 @@ llvm::Expected<Edit> buildRenameEdit(llvm::StringRef AbsFilePath,
   SPAN_ATTACH(Tracer, "rename_occurrences",
               static_cast<int64_t>(Occurrences.size()));
 
-  assert(std::is_sorted(Occurrences.begin(), Occurrences.end()));
+  assert(llvm::is_sorted(Occurrences));
   assert(std::unique(Occurrences.begin(), Occurrences.end()) ==
              Occurrences.end() &&
          "Occurrences must be unique");
@@ -873,7 +872,7 @@ adjustRenameRanges(llvm::StringRef DraftCode, llvm::StringRef Identifier,
                    std::vector<Range> Indexed, const LangOptions &LangOpts) {
   trace::Span Tracer("AdjustRenameRanges");
   assert(!Indexed.empty());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
+  assert(llvm::is_sorted(Indexed));
   std::vector<Range> Lexed =
       collectIdentifierRanges(Identifier, DraftCode, LangOpts);
   llvm::sort(Lexed);
@@ -884,8 +883,8 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
                                                    ArrayRef<Range> Lexed) {
   trace::Span Tracer("GetMappedRanges");
   assert(!Indexed.empty());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
-  assert(std::is_sorted(Lexed.begin(), Lexed.end()));
+  assert(llvm::is_sorted(Indexed));
+  assert(llvm::is_sorted(Lexed));
 
   if (Indexed.size() > Lexed.size()) {
     vlog("The number of lexed occurrences is less than indexed occurrences");
@@ -951,8 +950,8 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
 size_t renameRangeAdjustmentCost(ArrayRef<Range> Indexed, ArrayRef<Range> Lexed,
                                  ArrayRef<size_t> MappedIndex) {
   assert(Indexed.size() == MappedIndex.size());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
-  assert(std::is_sorted(Lexed.begin(), Lexed.end()));
+  assert(llvm::is_sorted(Indexed));
+  assert(llvm::is_sorted(Lexed));
 
   int LastLine = -1;
   int LastDLine = 0, LastDColumn = 0;

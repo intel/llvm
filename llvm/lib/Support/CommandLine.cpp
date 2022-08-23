@@ -166,9 +166,9 @@ public:
   // This collects the different subcommands that have been registered.
   SmallPtrSet<SubCommand *, 4> RegisteredSubCommands;
 
-  CommandLineParser() : ActiveSubCommand(nullptr) {
-    registerSubCommand(&*TopLevelSubCommand);
-    registerSubCommand(&*AllSubCommands);
+  CommandLineParser() {
+    registerSubCommand(&SubCommand::getTopLevel());
+    registerSubCommand(&SubCommand::getAll());
   }
 
   void ResetAllOptionOccurrences();
@@ -188,7 +188,7 @@ public:
 
     // If we're adding this to all sub-commands, add it to the ones that have
     // already been registered.
-    if (SC == &*AllSubCommands) {
+    if (SC == &SubCommand::getAll()) {
       for (auto *Sub : RegisteredSubCommands) {
         if (SC == Sub)
           continue;
@@ -199,7 +199,7 @@ public:
 
   void addLiteralOption(Option &Opt, StringRef Name) {
     if (Opt.Subs.empty())
-      addLiteralOption(Opt, &*TopLevelSubCommand, Name);
+      addLiteralOption(Opt, &SubCommand::getTopLevel(), Name);
     else {
       for (auto *SC : Opt.Subs)
         addLiteralOption(Opt, SC, Name);
@@ -244,7 +244,7 @@ public:
 
     // If we're adding this to all sub-commands, add it to the ones that have
     // already been registered.
-    if (SC == &*AllSubCommands) {
+    if (SC == &SubCommand::getAll()) {
       for (auto *Sub : RegisteredSubCommands) {
         if (SC == Sub)
           continue;
@@ -260,7 +260,7 @@ public:
     }
 
     if (O->Subs.empty()) {
-      addOption(O, &*TopLevelSubCommand);
+      addOption(O, &SubCommand::getTopLevel());
     } else {
       for (auto *SC : O->Subs)
         addOption(O, SC);
@@ -302,7 +302,7 @@ public:
 
   void removeOption(Option *O) {
     if (O->Subs.empty())
-      removeOption(O, &*TopLevelSubCommand);
+      removeOption(O, &SubCommand::getTopLevel());
     else {
       if (O->isInAllSubCommands()) {
         for (auto *SC : RegisteredSubCommands)
@@ -341,7 +341,7 @@ public:
 
   void updateArgStr(Option *O, StringRef NewName) {
     if (O->Subs.empty())
-      updateArgStr(O, NewName, &*TopLevelSubCommand);
+      updateArgStr(O, NewName, &SubCommand::getTopLevel());
     else {
       if (O->isInAllSubCommands()) {
         for (auto *SC : RegisteredSubCommands)
@@ -376,8 +376,8 @@ public:
 
     // For all options that have been registered for all subcommands, add the
     // option to this subcommand now.
-    if (sub != &*AllSubCommands) {
-      for (auto &E : AllSubCommands->OptionsMap) {
+    if (sub != &SubCommand::getAll()) {
+      for (auto &E : SubCommand::getAll().OptionsMap) {
         Option *O = E.second;
         if ((O->isPositional() || O->isSink() || O->isConsumeAfter()) ||
             O->hasArgStr())
@@ -409,16 +409,16 @@ public:
     ResetAllOptionOccurrences();
     RegisteredSubCommands.clear();
 
-    TopLevelSubCommand->reset();
-    AllSubCommands->reset();
-    registerSubCommand(&*TopLevelSubCommand);
-    registerSubCommand(&*AllSubCommands);
+    SubCommand::getTopLevel().reset();
+    SubCommand::getAll().reset();
+    registerSubCommand(&SubCommand::getTopLevel());
+    registerSubCommand(&SubCommand::getAll());
 
     DefaultOptions.clear();
   }
 
 private:
-  SubCommand *ActiveSubCommand;
+  SubCommand *ActiveSubCommand = nullptr;
 
   Option *LookupOption(SubCommand &Sub, StringRef &Arg, StringRef &Value);
   Option *LookupLongOption(SubCommand &Sub, StringRef &Arg, StringRef &Value,
@@ -491,6 +491,10 @@ ManagedStatic<SubCommand> llvm::cl::TopLevelSubCommand;
 // A special subcommand that can be used to put an option into all subcommands.
 ManagedStatic<SubCommand> llvm::cl::AllSubCommands;
 
+SubCommand &SubCommand::getTopLevel() { return *TopLevelSubCommand; }
+
+SubCommand &SubCommand::getAll() { return *AllSubCommands; }
+
 void SubCommand::registerSubCommand() {
   GlobalParser->registerSubCommand(this);
 }
@@ -523,7 +527,7 @@ Option *CommandLineParser::LookupOption(SubCommand &Sub, StringRef &Arg,
   // Reject all dashes.
   if (Arg.empty())
     return nullptr;
-  assert(&Sub != &*AllSubCommands);
+  assert(&Sub != &SubCommand::getAll());
 
   size_t EqualPos = Arg.find('=');
 
@@ -551,9 +555,9 @@ Option *CommandLineParser::LookupOption(SubCommand &Sub, StringRef &Arg,
 
 SubCommand *CommandLineParser::LookupSubCommand(StringRef Name) {
   if (Name.empty())
-    return &*TopLevelSubCommand;
+    return &SubCommand::getTopLevel();
   for (auto *S : RegisteredSubCommands) {
-    if (S == &*AllSubCommands)
+    if (S == &SubCommand::getAll())
       continue;
     if (S->getName().empty())
       continue;
@@ -561,7 +565,7 @@ SubCommand *CommandLineParser::LookupSubCommand(StringRef Name) {
     if (StringRef(S->getName()) == StringRef(Name))
       return S;
   }
-  return &*TopLevelSubCommand;
+  return &SubCommand::getTopLevel();
 }
 
 /// LookupNearestOption - Lookup the closest match to the option specified by
@@ -918,21 +922,34 @@ static size_t parseBackslash(StringRef Src, size_t I, SmallString<128> &Token) {
   return I - 1;
 }
 
-// Windows treats whitespace, double quotes, and backslashes specially.
+// Windows treats whitespace, double quotes, and backslashes specially, except
+// when parsing the first token of a full command line, in which case
+// backslashes are not special.
 static bool isWindowsSpecialChar(char C) {
   return isWhitespaceOrNull(C) || C == '\\' || C == '\"';
+}
+static bool isWindowsSpecialCharInCommandName(char C) {
+  return isWhitespaceOrNull(C) || C == '\"';
 }
 
 // Windows tokenization implementation. The implementation is designed to be
 // inlined and specialized for the two user entry points.
-static inline void
-tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
-                               function_ref<void(StringRef)> AddToken,
-                               bool AlwaysCopy, function_ref<void()> MarkEOL) {
+static inline void tokenizeWindowsCommandLineImpl(
+    StringRef Src, StringSaver &Saver, function_ref<void(StringRef)> AddToken,
+    bool AlwaysCopy, function_ref<void()> MarkEOL, bool InitialCommandName) {
   SmallString<128> Token;
+
+  // Sometimes, this function will be handling a full command line including an
+  // executable pathname at the start. In that situation, the initial pathname
+  // needs different handling from the following arguments, because when
+  // CreateProcess or cmd.exe scans the pathname, it doesn't treat \ as
+  // escaping the quote character, whereas when libc scans the rest of the
+  // command line, it does.
+  bool CommandName = InitialCommandName;
 
   // Try to do as much work inside the state machine as possible.
   enum { INIT, UNQUOTED, QUOTED } State = INIT;
+
   for (size_t I = 0, E = Src.size(); I < E; ++I) {
     switch (State) {
     case INIT: {
@@ -947,19 +964,29 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
       if (I >= E)
         break;
       size_t Start = I;
-      while (I < E && !isWindowsSpecialChar(Src[I]))
-        ++I;
+      if (CommandName) {
+        while (I < E && !isWindowsSpecialCharInCommandName(Src[I]))
+          ++I;
+      } else {
+        while (I < E && !isWindowsSpecialChar(Src[I]))
+          ++I;
+      }
       StringRef NormalChars = Src.slice(Start, I);
       if (I >= E || isWhitespaceOrNull(Src[I])) {
         // No special characters: slice out the substring and start the next
         // token. Copy the string if the caller asks us to.
         AddToken(AlwaysCopy ? Saver.save(NormalChars) : NormalChars);
-        if (I < E && Src[I] == '\n')
+        if (I < E && Src[I] == '\n') {
           MarkEOL();
+          CommandName = InitialCommandName;
+        } else {
+          CommandName = false;
+        }
       } else if (Src[I] == '\"') {
         Token += NormalChars;
         State = QUOTED;
       } else if (Src[I] == '\\') {
+        assert(!CommandName && "or else we'd have treated it as a normal char");
         Token += NormalChars;
         I = parseBackslash(Src, I, Token);
         State = UNQUOTED;
@@ -976,12 +1003,16 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
         // token.
         AddToken(Saver.save(Token.str()));
         Token.clear();
-        if (Src[I] == '\n')
+        if (Src[I] == '\n') {
+          CommandName = InitialCommandName;
           MarkEOL();
+        } else {
+          CommandName = false;
+        }
         State = INIT;
       } else if (Src[I] == '\"') {
         State = QUOTED;
-      } else if (Src[I] == '\\') {
+      } else if (Src[I] == '\\' && !CommandName) {
         I = parseBackslash(Src, I, Token);
       } else {
         Token.push_back(Src[I]);
@@ -999,7 +1030,7 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
           // Otherwise, end the quoted portion and return to the unquoted state.
           State = UNQUOTED;
         }
-      } else if (Src[I] == '\\') {
+      } else if (Src[I] == '\\' && !CommandName) {
         I = parseBackslash(Src, I, Token);
       } else {
         Token.push_back(Src[I]);
@@ -1008,7 +1039,7 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
     }
   }
 
-  if (State == UNQUOTED)
+  if (State != INIT)
     AddToken(Saver.save(Token.str()));
 }
 
@@ -1021,7 +1052,7 @@ void cl::TokenizeWindowsCommandLine(StringRef Src, StringSaver &Saver,
       NewArgv.push_back(nullptr);
   };
   tokenizeWindowsCommandLineImpl(Src, Saver, AddToken,
-                                 /*AlwaysCopy=*/true, OnEOL);
+                                 /*AlwaysCopy=*/true, OnEOL, false);
 }
 
 void cl::TokenizeWindowsCommandLineNoCopy(StringRef Src, StringSaver &Saver,
@@ -1029,7 +1060,19 @@ void cl::TokenizeWindowsCommandLineNoCopy(StringRef Src, StringSaver &Saver,
   auto AddToken = [&](StringRef Tok) { NewArgv.push_back(Tok); };
   auto OnEOL = []() {};
   tokenizeWindowsCommandLineImpl(Src, Saver, AddToken, /*AlwaysCopy=*/false,
-                                 OnEOL);
+                                 OnEOL, false);
+}
+
+void cl::TokenizeWindowsCommandLineFull(StringRef Src, StringSaver &Saver,
+                                        SmallVectorImpl<const char *> &NewArgv,
+                                        bool MarkEOLs) {
+  auto AddToken = [&](StringRef Tok) { NewArgv.push_back(Tok.data()); };
+  auto OnEOL = [&]() {
+    if (MarkEOLs)
+      NewArgv.push_back(nullptr);
+  };
+  tokenizeWindowsCommandLineImpl(Src, Saver, AddToken,
+                                 /*AlwaysCopy=*/true, OnEOL, true);
 }
 
 void cl::tokenizeConfigFile(StringRef Source, StringSaver &Saver,
@@ -1413,12 +1456,12 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
   bool HasUnlimitedPositionals = false;
 
   int FirstArg = 1;
-  SubCommand *ChosenSubCommand = &*TopLevelSubCommand;
+  SubCommand *ChosenSubCommand = &SubCommand::getTopLevel();
   if (argc >= 2 && argv[FirstArg][0] != '-') {
     // If the first argument specifies a valid subcommand, start processing
     // options from the second argument.
     ChosenSubCommand = LookupSubCommand(StringRef(argv[FirstArg]));
-    if (ChosenSubCommand != &*TopLevelSubCommand)
+    if (ChosenSubCommand != &SubCommand::getTopLevel())
       FirstArg = 2;
   }
   GlobalParser->ActiveSubCommand = ChosenSubCommand;
@@ -1823,8 +1866,10 @@ void basic_parser_impl::printOptionInfo(const Option &O,
       outs() << " <" << getValueStr(O, ValName) << ">...";
     } else if (O.getValueExpectedFlag() == ValueOptional)
       outs() << "[=<" << getValueStr(O, ValName) << ">]";
-    else
-      outs() << "=<" << getValueStr(O, ValName) << '>';
+    else {
+      outs() << (O.ArgStr.size() == 1 ? " <" : "=<") << getValueStr(O, ValName)
+             << '>';
+    }
   }
 
   Option::printHelpStr(O.HelpStr, GlobalWidth, getOptionWidth(O));
@@ -2248,7 +2293,7 @@ public:
     if (!GlobalParser->ProgramOverview.empty())
       outs() << "OVERVIEW: " << GlobalParser->ProgramOverview << "\n";
 
-    if (Sub == &*TopLevelSubCommand) {
+    if (Sub == &SubCommand::getTopLevel()) {
       outs() << "USAGE: " << GlobalParser->ProgramName;
       if (Subs.size() > 2)
         outs() << " [subcommand]";
@@ -2272,7 +2317,7 @@ public:
     if (ConsumeAfterOpt)
       outs() << " " << ConsumeAfterOpt->HelpStr;
 
-    if (Sub == &*TopLevelSubCommand && !Subs.empty()) {
+    if (Sub == &SubCommand::getTopLevel() && !Subs.empty()) {
       // Compute the maximum subcommand length...
       size_t MaxSubLen = 0;
       for (size_t i = 0, e = Subs.size(); i != e; ++i)
@@ -2341,7 +2386,7 @@ protected:
     for (size_t I = 0, E = Opts.size(); I != E; ++I) {
       Option *Opt = Opts[I].second;
       for (auto &Cat : Opt->Categories) {
-        assert(find(SortedCategories, Cat) != SortedCategories.end() &&
+        assert(llvm::is_contained(SortedCategories, Cat) &&
                "Option has an unregistered category");
         CategorizedOptions[Cat].push_back(Opt);
       }
@@ -2429,11 +2474,7 @@ public:
 #else
     OS << "LLVM (http://llvm.org/):\n  ";
 #endif
-    OS << PACKAGE_NAME << " version " << PACKAGE_VERSION;
-#ifdef LLVM_VERSION_INFO
-    OS << " " << LLVM_VERSION_INFO;
-#endif
-    OS << "\n  ";
+    OS << PACKAGE_NAME << " version " << PACKAGE_VERSION << "\n  ";
 #if LLVM_IS_DEBUG_BUILD
     OS << "DEBUG build";
 #else
@@ -2482,7 +2523,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::opt<HelpPrinter, true, parser<bool>> HLHOp{
       "help-list-hidden",
@@ -2491,7 +2532,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   // Define uncategorized/categorized help printers. These printers change their
   // behaviour at runtime depending on whether one or more Option categories
@@ -2502,7 +2543,7 @@ struct CommandLineCommonOptions {
       cl::location(WrappedNormalPrinter),
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::alias HOpA{"h", cl::desc("Alias for --help"), cl::aliasopt(HOp),
                  cl::DefaultOption};
@@ -2514,7 +2555,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::opt<bool> PrintOptions{
       "print-options",
@@ -2522,7 +2563,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::init(false),
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::opt<bool> PrintAllOptions{
       "print-all-options",
@@ -2530,7 +2571,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::init(false),
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   VersionPrinterTy OverrideVersionPrinter = nullptr;
 

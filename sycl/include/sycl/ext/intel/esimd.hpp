@@ -71,11 +71,24 @@
 
 /// @} sycl_esimd
 
+// TODO Disable "changes ABI" warnings emitted by host compiler, because ESIMD
+// code is supposed to be compiled by clang++ only for now anyway, plus ESIMD
+// code performance on host is not an issue yet.
+#if !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpsabi"
+#endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+
 #include <sycl/ext/intel/esimd/alt_ui.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/math.hpp>
 #include <sycl/ext/intel/esimd/memory.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
+#include <sycl/ext/intel/experimental/esimd/kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
+
+#if !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
+#pragma clang diagnostics pop
+#endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)

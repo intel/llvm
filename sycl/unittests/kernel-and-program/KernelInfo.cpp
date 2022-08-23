@@ -8,10 +8,10 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -132,13 +132,6 @@ TEST_F(KernelInfoTest, GetPrivateMemUsage) {
   kernel Ker = Prg.get_kernel("");
 
   Ker.get_info<info::kernel_device_specific::private_mem_size>(
-      Ctx.get_devices()[0]);
-  EXPECT_EQ(TestContext->PrivateMemSizeCalled, true)
-      << "Expect piKernelGetGroupInfo to be "
-      << "called with PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
-
-  TestContext->PrivateMemSizeCalled = false;
-  Ker.get_work_group_info<info::kernel_work_group::private_mem_size>(
       Ctx.get_devices()[0]);
   EXPECT_EQ(TestContext->PrivateMemSizeCalled, true)
       << "Expect piKernelGetGroupInfo to be "

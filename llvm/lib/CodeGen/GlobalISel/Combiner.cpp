@@ -113,7 +113,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
 
   bool MFChanged = false;
   bool Changed;
-  MachineIRBuilder &B = *Builder.get();
+  MachineIRBuilder &B = *Builder;
 
   do {
     // Collect all instructions. Do a post order traversal for basic blocks and
@@ -132,6 +132,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
         // Erase dead insts before even adding to the list.
         if (isTriviallyDead(CurMI, *MRI)) {
           LLVM_DEBUG(dbgs() << CurMI << "Is dead; erasing.\n");
+          llvm::salvageDebugInfo(*MRI, CurMI);
           CurMI.eraseFromParent();
           continue;
         }

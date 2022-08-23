@@ -14,7 +14,7 @@
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 inline constexpr auto DisablePostEnqueueCleanupName =
     "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
@@ -45,31 +45,31 @@ public:
 
   std::unique_ptr<detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
-    std::shared_ptr<detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<detail::CG> CommandGroup;
     switch (CGH->MCGType) {
     case detail::CG::Kernel:
     case detail::CG::RunOnHostIntel: {
       CommandGroup.reset(new detail::CGExecKernel(
           std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(CGH->MArgsStorage),
-          std::move(CGH->MAccStorage), std::move(CGH->MSharedPtrStorage),
-          std::move(CGH->MRequirements), std::move(CGH->MEvents),
-          std::move(CGH->MArgs), std::move(CGH->MKernelName),
-          std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          std::move(Impl->MAuxiliaryResources), CGH->MCGType, CGH->MCodeLoc));
+          std::move(CGH->MKernel), std::move(MImpl->MKernelBundle),
+          std::move(CGH->MArgsStorage), std::move(CGH->MAccStorage),
+          std::move(CGH->MSharedPtrStorage), std::move(CGH->MRequirements),
+          std::move(CGH->MEvents), std::move(CGH->MArgs),
+          std::move(CGH->MKernelName), std::move(CGH->MOSModuleHandle),
+          std::move(CGH->MStreamStorage), std::move(MImpl->MAuxiliaryResources),
+          CGH->MCGType, CGH->MCodeLoc));
       break;
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                PI_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
     }
 
     return CommandGroup;
   }
 };
 
-using CmdTypeTy = cl::sycl::detail::Command::CommandType;
+using CmdTypeTy = sycl::detail::Command::CommandType;
 
 // Function recursively checks that initial command has dependency on chain of
 // other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
@@ -81,7 +81,7 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
                                     size_t Depth = 0) {
   if (!Cmd || Depth >= DepCmdsTypes.size())
     throw sycl::runtime_error("Command parameters are invalid",
-                              PI_INVALID_VALUE);
+                              PI_ERROR_INVALID_VALUE);
 
   for (const detail::DepDesc &Dep : Cmd->MDeps) {
     if (Dep.MDepCommand &&
@@ -103,7 +103,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-  cl::sycl::queue HQueue(host_selector{});
+  sycl::queue HQueue(host_selector{});
   detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
 
   // Emulating processing of command group function

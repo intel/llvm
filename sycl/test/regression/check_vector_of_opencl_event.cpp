@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -DSYCL2020_CONFORMANT_APIS %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 //
 //===----------------------------------------------------------------------===//

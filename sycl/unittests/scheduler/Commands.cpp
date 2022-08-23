@@ -12,7 +12,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 pi_result redefinePiEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                                  pi_uint32 NumEventsInWaitList,
@@ -42,7 +42,7 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // This test checks a handling of empty events in WaitWithBarrier command.
 // Original reproducer for l0 plugin led to segfault(nullptr dereference):
 //
-// #include <CL/sycl.hpp>
+// #include <sycl/sycl.hpp>
 // int main() {
 //     sycl::queue q;
 //     sycl::event e;
@@ -65,7 +65,7 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
       redefinePiEnqueueEventsWaitWithBarrier);
 
   queue Queue{Plt.get_devices()[0]};
-  cl::sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();

@@ -97,6 +97,14 @@ void IoChecker::Enter(const parser::ConnectSpec &spec) {
   }
 }
 
+// Ignore trailing spaces (12.5.6.2 p1) and convert to upper case
+static std::string Normalize(const std::string &value) {
+  auto upper{parser::ToUpperCaseLetters(value)};
+  std::size_t lastNonBlank{upper.find_last_not_of(" ")};
+  upper.resize(lastNonBlank == std::string::npos ? 0 : lastNonBlank + 1);
+  return upper;
+}
+
 void IoChecker::Enter(const parser::ConnectSpec::CharExpr &spec) {
   IoSpecKind specKind{};
   using ParseKind = parser::ConnectSpec::CharExpr::Kind;
@@ -150,7 +158,7 @@ void IoChecker::Enter(const parser::ConnectSpec::CharExpr &spec) {
   SetSpecifier(specKind);
   if (const std::optional<std::string> charConst{GetConstExpr<std::string>(
           std::get<parser::ScalarDefaultCharExpr>(spec.t))}) {
-    std::string s{parser::ToUpperCaseLetters(*charConst)};
+    std::string s{Normalize(*charConst)};
     if (specKind == IoSpecKind::Access) {
       flags_.set(Flag::KnownAccess);
       flags_.set(Flag::AccessDirect, s == "DIRECT");
@@ -204,12 +212,12 @@ void IoChecker::Enter(const parser::FileUnitNumber &) {
 void IoChecker::Enter(const parser::Format &spec) {
   SetSpecifier(IoSpecKind::Fmt);
   flags_.set(Flag::FmtOrNml);
-  std::visit(
+  common::visit(
       common::visitors{
           [&](const parser::Label &) { flags_.set(Flag::LabelFmt); },
           [&](const parser::Star &) { flags_.set(Flag::StarFmt); },
           [&](const parser::Expr &format) {
-            const SomeExpr *expr{GetExpr(format)};
+            const SomeExpr *expr{GetExpr(context_, format)};
             if (!expr) {
               return;
             }
@@ -299,7 +307,7 @@ void IoChecker::Enter(const parser::IdExpr &) { SetSpecifier(IoSpecKind::Id); }
 
 void IoChecker::Enter(const parser::IdVariable &spec) {
   SetSpecifier(IoSpecKind::Id);
-  const auto *expr{GetExpr(spec)};
+  const auto *expr{GetExpr(context_, spec)};
   if (!expr || !expr->GetType()) {
     return;
   }
@@ -484,8 +492,7 @@ void IoChecker::Enter(const parser::IoControlSpec::Asynchronous &spec) {
   SetSpecifier(IoSpecKind::Asynchronous);
   if (const std::optional<std::string> charConst{
           GetConstExpr<std::string>(spec)}) {
-    flags_.set(
-        Flag::AsynchronousYes, parser::ToUpperCaseLetters(*charConst) == "YES");
+    flags_.set(Flag::AsynchronousYes, Normalize(*charConst) == "YES");
     CheckStringValue(IoSpecKind::Asynchronous, *charConst,
         parser::FindSourceLocation(spec)); // C1223
   }
@@ -521,8 +528,7 @@ void IoChecker::Enter(const parser::IoControlSpec::CharExpr &spec) {
   if (const std::optional<std::string> charConst{GetConstExpr<std::string>(
           std::get<parser::ScalarDefaultCharExpr>(spec.t))}) {
     if (specKind == IoSpecKind::Advance) {
-      flags_.set(
-          Flag::AdvanceYes, parser::ToUpperCaseLetters(*charConst) == "YES");
+      flags_.set(Flag::AdvanceYes, Normalize(*charConst) == "YES");
     }
     CheckStringValue(specKind, *charConst, parser::FindSourceLocation(spec));
   }
@@ -546,7 +552,7 @@ void IoChecker::Enter(const parser::IoUnit &spec) {
     if (stmt_ == IoStmtKind::Write) {
       CheckForDefinableVariable(*var, "Internal file");
     }
-    if (const auto *expr{GetExpr(*var)}) {
+    if (const auto *expr{GetExpr(context_, *var)}) {
       if (HasVectorSubscript(*expr)) {
         context_.Say(parser::FindSourceLocation(*var), // C1201
             "Internal file must not have a vector subscript"_err_en_US);
@@ -577,7 +583,7 @@ void IoChecker::Enter(const parser::MsgVariable &var) {
 void IoChecker::Enter(const parser::OutputItem &item) {
   flags_.set(Flag::DataList);
   if (const auto *x{std::get_if<parser::Expr>(&item.u)}) {
-    if (const auto *expr{GetExpr(*x)}) {
+    if (const auto *expr{GetExpr(context_, *x)}) {
       if (evaluate::IsBOZLiteral(*expr)) {
         context_.Say(parser::FindSourceLocation(*x), // C7109
             "Output item must not be a BOZ literal constant"_err_en_US);
@@ -601,7 +607,7 @@ void IoChecker::Enter(const parser::StatusExpr &spec) {
   if (const std::optional<std::string> charConst{
           GetConstExpr<std::string>(spec)}) {
     // Status values for Open and Close are different.
-    std::string s{parser::ToUpperCaseLetters(*charConst)};
+    std::string s{Normalize(*charConst)};
     if (stmt_ == IoStmtKind::Open) {
       flags_.set(Flag::KnownStatus);
       flags_.set(Flag::StatusNew, s == "NEW");
@@ -868,7 +874,7 @@ void IoChecker::CheckStringValue(IoSpecKind specKind, const std::string &value,
       {IoSpecKind::Convert, {"BIG_ENDIAN", "LITTLE_ENDIAN", "NATIVE"}},
       {IoSpecKind::Dispose, {"DELETE", "KEEP"}},
   };
-  auto upper{parser::ToUpperCaseLetters(value)};
+  auto upper{Normalize(value)};
   if (specValues.at(specKind).count(upper) == 0) {
     if (specKind == IoSpecKind::Access && upper == "APPEND") {
       if (context_.languageFeatures().ShouldWarn(

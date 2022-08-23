@@ -34,27 +34,6 @@ class Defined;
 struct PhdrEntry;
 class SymbolTableBaseSection;
 
-class SyntheticSection : public InputSection {
-public:
-  SyntheticSection(uint64_t flags, uint32_t type, uint32_t alignment,
-                   StringRef name)
-      : InputSection(nullptr, flags, type, alignment, {}, name,
-                     InputSectionBase::Synthetic) {}
-
-  virtual ~SyntheticSection() = default;
-  virtual void writeTo(uint8_t *buf) = 0;
-  virtual size_t getSize() const = 0;
-  virtual void finalizeContents() {}
-  // If the section has the SHF_ALLOC flag and the size may be changed if
-  // thunks are added, update the section size.
-  virtual bool updateAllocSize() { return false; }
-  virtual bool isNeeded() const { return true; }
-
-  static bool classof(const SectionBase *d) {
-    return d->kind() == InputSectionBase::Synthetic;
-  }
-};
-
 struct CieRecord {
   EhSectionPiece *cie = nullptr;
   SmallVector<EhSectionPiece *, 0> fdes;
@@ -72,8 +51,6 @@ public:
   static bool classof(const SectionBase *d) {
     return SyntheticSection::classof(d) && d->name == ".eh_frame";
   }
-
-  void addSection(EhInputSection *sec);
 
   SmallVector<EhInputSection *, 0> sections;
   size_t numFdes = 0;
@@ -186,9 +163,7 @@ private:
 class BssSection final : public SyntheticSection {
 public:
   BssSection(StringRef name, uint64_t size, uint32_t alignment);
-  void writeTo(uint8_t *) override {
-    llvm_unreachable("unexpected writeTo() call for SHT_NOBITS section");
-  }
+  void writeTo(uint8_t *) override {}
   bool isNeeded() const override { return size != 0; }
   size_t getSize() const override { return size; }
 
@@ -957,7 +932,7 @@ private:
   // The reason why we don't want to use the least significant bits is
   // because DenseMap also uses lower bits to determine a bucket ID.
   // If we use lower bits, it significantly increases the probability of
-  // hash collisons.
+  // hash collisions.
   size_t getShardId(uint32_t hash) {
     assert((hash >> 31) == 0);
     return hash >> (31 - llvm::countTrailingZeros(numShards));
@@ -1189,9 +1164,22 @@ public:
   void writeTo(uint8_t *buf) override;
 };
 
+// See the following link for the Android-specific loader code that operates on
+// this section:
+// https://cs.android.com/android/platform/superproject/+/master:bionic/libc/bionic/libc_init_static.cpp;drc=9425b16978f9c5aa8f2c50c873db470819480d1d;l=192
+class MemtagAndroidNote : public SyntheticSection {
+public:
+  MemtagAndroidNote()
+      : SyntheticSection(llvm::ELF::SHF_ALLOC, llvm::ELF::SHT_NOTE,
+                         /*alignment=*/4, ".note.android.memtag") {}
+  void writeTo(uint8_t *buf) override;
+  size_t getSize() const override;
+};
+
 InputSection *createInterpSection();
 MergeInputSection *createCommentSection();
 template <class ELFT> void splitSections();
+void combineEhSections();
 
 template <typename ELFT> void writeEhdr(uint8_t *buf, Partition &part);
 template <typename ELFT> void writePhdrs(uint8_t *buf, Partition &part);
@@ -1219,6 +1207,7 @@ struct Partition {
   std::unique_ptr<EhFrameSection> ehFrame;
   std::unique_ptr<GnuHashTableSection> gnuHashTab;
   std::unique_ptr<HashTableSection> hashTab;
+  std::unique_ptr<MemtagAndroidNote> memtagAndroidNote;
   std::unique_ptr<RelocationBaseSection> relaDyn;
   std::unique_ptr<RelrBaseSection> relrDyn;
   std::unique_ptr<VersionDefinitionSection> verDef;

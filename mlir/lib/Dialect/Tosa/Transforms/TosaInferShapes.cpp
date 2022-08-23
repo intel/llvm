@@ -1,4 +1,4 @@
-//===- TosaInferShapes.cpp ------------------------------------------===//
+//===- TosaInferShapes.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/DataFlowAnalysis.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -279,7 +278,7 @@ void propagateShapesInRegion(Region &region) {
 struct TosaInferShapes : public TosaInferShapesBase<TosaInferShapes> {
 public:
   void runOnOperation() override {
-    FuncOp func = getOperation();
+    func::FuncOp func = getOperation();
 
     IRRewriter rewriter(func.getContext());
 
@@ -288,7 +287,7 @@ public:
     // Insert UnrealizedConversionCasts to guarantee ReturnOp agress with
     // the FuncOp type.
     func.walk([&](func::ReturnOp op) {
-      FuncOp parent = dyn_cast<FuncOp>(op->getParentOp());
+      func::FuncOp parent = dyn_cast<func::FuncOp>(op->getParentOp());
       if (!parent)
         return;
 

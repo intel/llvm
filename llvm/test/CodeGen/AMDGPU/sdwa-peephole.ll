@@ -487,7 +487,10 @@ entry:
 ; GCN-LABEL: {{^}}add_bb_v2i16:
 ; NOSDWA-NOT: v_add_{{(_co)?}}_u32_sdwa
 
-; VI: v_add_u32_sdwa v{{[0-9]+}}, vcc, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:WORD_1
+; VI: v_readfirstlane_b32 [[LO:s[0-9]+]]
+; VI: v_readfirstlane_b32 [[HI:s[0-9]+]]
+; VI: s_lshr_b32 [[LOSH:s[0-9]+]], [[LO]], 16
+; VI: s_lshr_b32 [[HISH:s[0-9]+]], [[HI]], 16
 
 ; GFX9_10: v_pk_add_u16 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
 
@@ -507,22 +510,24 @@ store_label:
 
 ; Check that "pulling out" SDWA operands works correctly.
 ; GCN-LABEL: {{^}}pulled_out_test:
-; NOSDWA-DAG: v_and_b32_e32 v{{[0-9]+}}, s{{[0-9]+}}, v{{[0-9]+}}
+; NOSDWA-DAG: v_and_b32_e32 v{{[0-9]+}}, 0xff, v{{[0-9]+}}
 ; NOSDWA-DAG: v_lshlrev_b16_e32 v{{[0-9]+}}, 8, v{{[0-9]+}}
-; NOSDWA-DAG: v_and_b32_e32 v{{[0-9]+}}, s{{[0-9]+}}, v{{[0-9]+}}
+; NOSDWA-DAG: v_and_b32_e32 v{{[0-9]+}}, 0xff, v{{[0-9]+}}
 ; NOSDWA-DAG: v_lshlrev_b16_e32 v{{[0-9]+}}, 8, v{{[0-9]+}}
 ; NOSDWA: v_or_b32_e32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
 ; NOSDWA-NOT: v_and_b32_sdwa
 ; NOSDWA-NOT: v_or_b32_sdwa
 
 ; VI-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
-; GFX9_10-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, s{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
+; GFX9-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, s{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
+; GFX10-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
 ; GFX89-DAG: v_lshlrev_b16_e32 v{{[0-9]+}}, 8, v{{[0-9]+}}
 ;
 ; GFX10-DAG: v_lshrrev_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:BYTE_1 dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:DWORD
 ;
 ; VI-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
-; GFX9_10-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, s{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
+; GFX9-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, s{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
+; GFX10-DAG: v_and_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
 ; GFX89-DAG: v_lshlrev_b16_e32 v{{[0-9]+}}, 8, v{{[0-9]+}}
 ;
 ; GFX10-DAG: v_lshrrev_b32_sdwa v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}} dst_sel:BYTE_1 dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:DWORD

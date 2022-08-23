@@ -43,10 +43,8 @@
 
 #include "llvm/Analysis/IRSimilarityIdentifier.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/ValueMap.h"
 #include "llvm/Support/InstructionCost.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
-#include <set>
 
 struct OutlinableGroup;
 
@@ -86,6 +84,13 @@ struct OutlinableRegion {
   /// track of which extracted argument maps to which overall argument.
   DenseMap<unsigned, unsigned> ExtractedArgToAgg;
   DenseMap<unsigned, unsigned> AggArgToExtracted;
+
+  /// Values in the outlined functions will often be replaced by arguments. When
+  /// finding corresponding values from one region to another, the found value
+  /// will be the value the argument previously replaced.  This structure maps
+  /// any replaced values for the region to the aggregate aggregate argument
+  /// in the overall function.
+  DenseMap<Value *, Value *> RemappedArguments;
 
   /// Marks whether we need to change the order of the arguments when mapping
   /// the old extracted function call to the new aggregate outlined function

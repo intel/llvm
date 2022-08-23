@@ -126,13 +126,15 @@ int omp_get_default_device(void);
 
 int omp_get_num_devices(void);
 
+int omp_get_device_num(void);
+
 int omp_get_num_teams(void);
 
 int omp_get_team_num();
 
 int omp_get_initial_device(void);
 
-void *llvm_omp_get_dynamic_shared();
+void *llvm_omp_target_dynamic_shared_alloc();
 
 /// Synchronization
 ///

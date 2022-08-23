@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++11, c++14
-
-// UNSUPPORTED: libcxx-no-debug-mode, c++03, windows
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DEBUG=1
+// REQUIRES: has-unix-headers
+// UNSUPPORTED: !libcpp-has-debug-mode, c++03, c++11, c++14
 
 // test container debugging
 
@@ -82,7 +80,7 @@ private:
     EXPECT_DEATH( C1.erase(it1) );
     C1.erase(C1.begin(), C1.end());
     assert(C1.size() == 0);
-    EXPECT_DEATH_MATCHES(DebugInfoMatcher("string::pop_back(): string is already empty"), C1.pop_back() );
+    TEST_LIBCPP_ASSERT_FAILURE(C1.pop_back(), "string::pop_back(): string is already empty");
   }
 };
 

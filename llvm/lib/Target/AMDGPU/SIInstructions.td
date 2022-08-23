@@ -30,6 +30,8 @@ include "SMInstructions.td"
 include "FLATInstructions.td"
 include "BUFInstructions.td"
 include "EXPInstructions.td"
+include "LDSDIRInstructions.td"
+include "VINTERPInstructions.td"
 
 //===----------------------------------------------------------------------===//
 // VINTRP Instructions
@@ -311,6 +313,35 @@ def WAVE_BARRIER : SPseudoInstSI<(outs), (ins),
   let isConvergent = 1;
   let FixedSize = 1;
   let Size = 0;
+  let isMeta = 1;
+}
+
+def SCHED_BARRIER : SPseudoInstSI<(outs), (ins i32imm:$mask),
+  [(int_amdgcn_sched_barrier (i32 timm:$mask))]> {
+  let SchedRW = [];
+  let hasNoSchedulingInfo = 1;
+  let hasSideEffects = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
+  let isConvergent = 1;
+  let FixedSize = 1;
+  let Size = 0;
+  let isMeta = 1;
+}
+
+def SCHED_GROUP_BARRIER : SPseudoInstSI<
+  (outs),
+  (ins i32imm:$mask, i32imm:$size, i32imm:$syncid),
+  [(int_amdgcn_sched_group_barrier (i32 timm:$mask), (i32 timm:$size), (i32 timm:$syncid))]> {
+  let SchedRW = [];
+  let hasNoSchedulingInfo = 1;
+  let hasSideEffects = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
+  let isConvergent = 1;
+  let FixedSize = 1;
+  let Size = 0;
+  let isMeta = 1;
 }
 
 // SI pseudo instructions. These are used by the CFG structurizer pass
@@ -448,6 +479,7 @@ def SI_MASKED_UNREACHABLE : SPseudoInstSI <(outs), (ins),
   let Size = 0;
   let hasNoSchedulingInfo = 1;
   let FixedSize = 1;
+  let isMeta = 1;
 }
 
 // Used as an isel pseudo to directly emit initialization with an
@@ -483,6 +515,9 @@ def SI_RETURN_TO_EPILOG : SPseudoInstSI <
   let hasNoSchedulingInfo = 1;
   let DisableWQM = 1;
   let FixedSize = 1;
+
+  // TODO: Should this be true?
+  let isMeta = 0;
 }
 
 // Return for returning function calls.
@@ -520,6 +555,7 @@ def : GCNPat<
 def SI_CALL : SPseudoInstSI <
   (outs SReg_64:$dst), (ins SSrc_b64:$src0, unknown:$callee)> {
   let Size = 4;
+  let FixedSize = 1;
   let isCall = 1;
   let UseNamedOperandTable = 1;
   let SchedRW = [WriteBranch];
@@ -532,6 +568,7 @@ def SI_TCRETURN : SPseudoInstSI <(outs),
   (ins SReg_64:$src0, unknown:$callee, i32imm:$fpdiff),
   [(AMDGPUtc_return i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
   let Size = 4;
+  let FixedSize = 1;
   let isCall = 1;
   let isTerminator = 1;
   let isReturn = 1;
@@ -1236,6 +1273,26 @@ def : Pat <
   (v4f16 (EXTRACT_SUBREG v8f16:$vec, sub2_sub3))
 >;
 
+def : Pat <
+  (extract_subvector v16i16:$vec, (i32 0)),
+  (v8i16 (EXTRACT_SUBREG v16i16:$vec, sub0_sub1_sub2_sub3))
+>;
+
+def : Pat <
+  (extract_subvector v16i16:$vec, (i32 8)),
+  (v8i16 (EXTRACT_SUBREG v16i16:$vec, sub4_sub5_sub6_sub7))
+>;
+
+def : Pat <
+  (extract_subvector v16f16:$vec, (i32 0)),
+  (v8f16 (EXTRACT_SUBREG v16f16:$vec, sub0_sub1_sub2_sub3))
+>;
+
+def : Pat <
+  (extract_subvector v16f16:$vec, (i32 8)),
+  (v8f16 (EXTRACT_SUBREG v16f16:$vec, sub4_sub5_sub6_sub7))
+>;
+
 foreach Index = 0-31 in {
   def Extract_Element_v32i32_#Index : Extract_Element <
     i32, v32i32, Index, !cast<SubRegIndex>(sub#Index)
@@ -1395,7 +1452,26 @@ def : BitConvert <v8i32, v4i64, VReg_256>;
 def : BitConvert <v8f32, v4i64, VReg_256>;
 def : BitConvert <v8i32, v4f64, VReg_256>;
 def : BitConvert <v8f32, v4f64, VReg_256>;
-
+def : BitConvert <v16i16, v16f16, SReg_256>;
+def : BitConvert <v16f16, v16i16, SReg_256>;
+def : BitConvert <v16i16, v16f16, VReg_256>;
+def : BitConvert <v16f16, v16i16, VReg_256>;
+def : BitConvert <v16f16, v8i32, VReg_256>;
+def : BitConvert <v16i16, v8i32, VReg_256>;
+def : BitConvert <v16f16, v8f32, VReg_256>;
+def : BitConvert <v16i16, v8f32, VReg_256>;
+def : BitConvert <v8i32, v16f16, VReg_256>;
+def : BitConvert <v8i32, v16i16, VReg_256>;
+def : BitConvert <v8f32, v16f16, VReg_256>;
+def : BitConvert <v8f32, v16i16, VReg_256>;
+def : BitConvert <v16f16, v4i64, VReg_256>;
+def : BitConvert <v16i16, v4i64, VReg_256>;
+def : BitConvert <v16f16, v4f64, VReg_256>;
+def : BitConvert <v16i16, v4f64, VReg_256>;
+def : BitConvert <v4i64, v16f16, VReg_256>;
+def : BitConvert <v4i64, v16i16, VReg_256>;
+def : BitConvert <v4f64, v16f16, VReg_256>;
+def : BitConvert <v4f64, v16i16, VReg_256>;
 
 // 512-bit bitcast
 def : BitConvert <v16i32, v16f32, VReg_512>;
@@ -2594,12 +2670,12 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (v2i16 (build_vector (i16 SReg_32:$src0), (i16 undef))),
+  (v2i16 (UniformBinFrag<build_vector> (i16 SReg_32:$src0), (i16 undef))),
   (COPY_TO_REGCLASS SReg_32:$src0, SReg_32)
 >;
 
 def : GCNPat <
-  (v2i16 (build_vector (i16 VGPR_32:$src0), (i16 undef))),
+  (v2i16 (DivergentBinFrag<build_vector> (i16 VGPR_32:$src0), (i16 undef))),
   (COPY_TO_REGCLASS VGPR_32:$src0, VGPR_32)
 >;
 
@@ -2682,6 +2758,15 @@ def : GCNPat <
   (V_PACK_B32_F16_e64 $src0_mods, VGPR_32:$src0, $src1_mods, VGPR_32:$src1)
 >;
 } // End SubtargetPredicate = HasVOP3PInsts
+
+// With multiple uses of the shift, this will duplicate the shift and
+// increase register pressure.
+let SubtargetPredicate = isGFX11Plus in
+def : GCNPat <
+  (v2i16 (build_vector (i16 (trunc (srl_oneuse SReg_32:$src0, (i32 16)))), (i16 SReg_32:$src1))),
+  (v2i16 (S_PACK_HL_B32_B16 SReg_32:$src0, SReg_32:$src1))
+>;
+
 
 def : GCNPat <
   (v2f16 (scalar_to_vector f16:$src0)),
@@ -2950,6 +3035,35 @@ multiclass Int16Med3Pat<Instruction med3Inst,
 
 def : FPMed3Pat<f32, V_MED3_F32_e64>;
 
+class
+IntMinMaxPat<Instruction minmaxInst, SDPatternOperator min_or_max,
+             SDPatternOperator max_or_min_oneuse> : AMDGPUPat <
+  (DivergentBinFrag<min_or_max> (max_or_min_oneuse i32:$src0, i32:$src1),
+                                i32:$src2),
+  (minmaxInst VSrc_b32:$src0, VSrc_b32:$src1, VSrc_b32:$src2)
+>;
+
+class
+FPMinMaxPat<Instruction minmaxInst, ValueType vt, SDPatternOperator min_or_max,
+            SDPatternOperator max_or_min_oneuse> : GCNPat <
+  (min_or_max (max_or_min_oneuse (VOP3Mods vt:$src0, i32:$src0_mods),
+                                 (VOP3Mods vt:$src1, i32:$src1_mods)),
+               (vt (VOP3Mods vt:$src2, i32:$src2_mods))),
+  (minmaxInst $src0_mods, $src0, $src1_mods, $src1, $src2_mods, $src2,
+              DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
+
+let OtherPredicates = [isGFX11Plus] in {
+def : IntMinMaxPat<V_MAXMIN_I32_e64, smin, smax_oneuse>;
+def : IntMinMaxPat<V_MINMAX_I32_e64, smax, smin_oneuse>;
+def : IntMinMaxPat<V_MAXMIN_U32_e64, umin, umax_oneuse>;
+def : IntMinMaxPat<V_MINMAX_U32_e64, umax, umin_oneuse>;
+def : FPMinMaxPat<V_MINMAX_F32_e64, f32, fmaxnum_like, fminnum_like_oneuse>;
+def : FPMinMaxPat<V_MAXMIN_F32_e64, f32, fminnum_like, fmaxnum_like_oneuse>;
+def : FPMinMaxPat<V_MINMAX_F16_e64, f16, fmaxnum_like, fminnum_like_oneuse>;
+def : FPMinMaxPat<V_MAXMIN_F16_e64, f16, fminnum_like, fmaxnum_like_oneuse>;
+}
+
 let OtherPredicates = [isGFX9Plus] in {
 def : FP16Med3Pat<f16, V_MED3_F16_e64>;
 defm : Int16Med3Pat<V_MED3_I16_e64, smin, smax, smax_oneuse, smin_oneuse>;
@@ -3093,6 +3207,19 @@ def G_AMDGPU_CLAMP : AMDGPUGenericInstruction {
   let InOperandList = (ins type0:$src);
   let hasSideEffects = 0;
 }
+
+// Integer multiply-add: arg0 * arg1 + arg2.
+//
+// arg0 and arg1 are 32-bit integers (interpreted as signed or unsigned),
+// arg2 is a 64-bit integer. Result is a 64-bit integer and a 1-bit carry-out.
+class G_AMDGPU_MAD_64_32 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst, type1:$carry_out);
+  let InOperandList = (ins type2:$arg0, type2:$arg1, type0:$arg2);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_MAD_U64_U32 : G_AMDGPU_MAD_64_32;
+def G_AMDGPU_MAD_I64_I32 : G_AMDGPU_MAD_64_32;
 
 // Atomic cmpxchg. $cmpval ad $newval are packed in a single vector
 // operand Expects a MachineMemOperand in addition to explicit

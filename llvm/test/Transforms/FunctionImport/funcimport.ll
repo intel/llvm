@@ -1,20 +1,20 @@
 ; REQUIRES: x86-registered-target
 
 ; Do setup work for all below tests: generate bitcode and combined index
-; RUN: opt -module-summary %s -o %t.bc
-; RUN: opt -module-summary %p/Inputs/funcimport.ll -o %t2.bc
+; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto -print-summary-global-ids -o %t3 %t.bc %t2.bc 2>&1 | FileCheck %s --check-prefix=GUID
 
 ; Do the import now
-; RUN: opt -function-import -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
+; RUN: opt -opaque-pointers -passes=function-import -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
 ; Try again with new pass manager
-; RUN: opt -passes='function-import' -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
-; RUN: opt -passes='function-import' -debug-only=function-import -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=DUMP
+; RUN: opt -opaque-pointers -passes='function-import' -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
+; RUN: opt -opaque-pointers -passes='function-import' -debug-only=function-import -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=DUMP
 ; "-stats" and "-debug-only" require +Asserts.
 ; REQUIRES: asserts
 
 ; Test import with smaller instruction limit
-; RUN: opt -function-import -enable-import-metadata  -summary-file %t3.thinlto.bc %t.bc -import-instr-limit=5 -S | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIM5
+; RUN: opt -opaque-pointers -passes=function-import -enable-import-metadata  -summary-file %t3.thinlto.bc %t.bc -import-instr-limit=5 -S | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIM5
 ; INSTLIM5-NOT: @staticfunc.llvm.
 
 ; Test force import all
@@ -91,9 +91,9 @@ declare void @callfuncptr(...) #1
 
 ; Ensure that all uses of local variable @P which has used in setfuncptr
 ; and callfuncptr are to the same promoted/renamed global.
-; CHECK-DAG: @P.llvm.{{.*}} = available_externally hidden global void ()* null
-; CHECK-DAG: %0 = load void ()*, void ()** @P.llvm.
-; CHECK-DAG: store void ()* @staticfunc2.llvm.{{.*}}, void ()** @P.llvm.
+; CHECK-DAG: @P.llvm.{{.*}} = available_externally hidden global ptr null
+; CHECK-DAG: %0 = load ptr, ptr @P.llvm.
+; CHECK-DAG: store ptr @staticfunc2.llvm.{{.*}}, ptr @P.llvm.
 
 ; Ensure that @referencelargelinkonce definition is pulled in, but later we
 ; also check that the linkonceodr function is not.
@@ -110,7 +110,7 @@ declare void @weakfunc(...) #1
 declare void @linkoncefunc2(...) #1
 
 ; INSTLIMDEF-DAG: Import funcwithpersonality
-; INSTLIMDEF-DAG: define available_externally hidden void @funcwithpersonality.llvm.{{.*}}() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) !thinlto_src_module !0 {
+; INSTLIMDEF-DAG: define available_externally hidden void @funcwithpersonality.llvm.{{.*}}() personality ptr @__gxx_personality_v0 !thinlto_src_module !0 {
 ; INSTLIM5-DAG: declare hidden void @funcwithpersonality.llvm.{{.*}}()
 
 ; We can import variadic functions without a va_start, since the inliner

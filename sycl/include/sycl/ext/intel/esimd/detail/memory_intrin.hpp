@@ -13,19 +13,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
+#include <sycl/types.hpp>
 
 #include <cstdint>
 
 #ifndef __SYCL_DEVICE_ONLY__
 // ESIMD_CPU Emulation support using esimd_cpu plugin
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
@@ -36,8 +36,9 @@ const std::array<__ESIMD_NS::rgba_channel, 4> ChannelMaskArray{
 
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
@@ -77,16 +78,16 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
   return (1 << ElemsPerAddrEncoded);
 }
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 // flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0>
+template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                       int ElemsPerAddr = NumBlk,
                        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
@@ -95,18 +96,18 @@ __ESIMD_INTRIN
   auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
   __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
       V = 0;
-  ElemsPerAddr = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
+  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
+    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
       if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           V[I * NumBlkDecoded + J] = *(Addr + J);
       } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           V[J * N + I] = *(Addr + J);
       }
     }
@@ -116,30 +117,30 @@ __ESIMD_INTRIN
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, int NumBlk = 0>
+template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN void __esimd_svm_scatter(
     __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    int ElemsPerAddr = NumBlk, __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
   auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  ElemsPerAddr = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
+  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
+    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
       if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           *(Addr + J) = vals[I * NumBlkDecoded + J];
       } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
+        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
           *(Addr + J) = vals[J * N + I];
       }
     }
@@ -225,10 +226,9 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (offset >= width) {
@@ -270,10 +270,9 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (offset < width) {
@@ -458,11 +457,10 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
     writeBase += global_offset;
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
@@ -508,7 +506,7 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 
       switch (Op) {
       case __ESIMD_NS::atomic_op::add:
-        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
+        retv[i] = __ESIMD_DNS::atomic_add_fetch<Ty>(p, src0[i]);
         break;
       default:
         __ESIMD_UNSUPPORTED_ON_HOST;
@@ -534,7 +532,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-__ESIMD_INTRIN void __esimd_slm_init(size_t size)
+__ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -594,11 +592,10 @@ __esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
     readBase += global_offset;
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
@@ -672,11 +669,10 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
     readBase += global_offset;
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
     for (int idx = 0; idx < N; idx++) {
       if (pred[idx]) {
         RestoredTy *addr =
@@ -727,10 +723,9 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     uint32_t width;
     std::mutex *mutexLock;
 
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
 
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
 
     for (int idx = 0; idx < N; idx++) {
       if (addr >= width) {
@@ -745,14 +740,15 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// gather4 scaled from a surface/SLM
-template <typename Ty, int N, typename SurfIndAliasTy,
-          __ESIMD_NS::rgba_channel_mask Mask, int16_t Scale = 0>
+// gather4 scaled masked from a surface/SLM
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          typename SurfIndAliasTy, int16_t Scale = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __esimd_gather4_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           SurfIndAliasTy surf_ind, int global_offset,
-                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+    __esimd_gather4_masked_scaled2(
+        SurfIndAliasTy surf_ind, int global_offset,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
 #else
@@ -768,9 +764,8 @@ __ESIMD_INTRIN
   } else {
     uint32_t width;
     std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &ReadBase, &width,
-                                           &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &ReadBase, &width, &mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
   }
 
   ReadBase += global_offset;
@@ -812,9 +807,8 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   } else {
     uint32_t width;
     std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &WriteBase, &width,
-                                           &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
+    I->sycl_get_cm_buffer_params_ptr(surf_ind, &WriteBase, &width, &mutexLock);
+    std::lock_guard<std::mutex> lock(*mutexLock);
   }
 
   WriteBase += global_offset;
@@ -855,7 +849,7 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
         switch (Op) {
         case __ESIMD_NS::atomic_op::inc:
-          retv[i] = atomic_add_fetch<Ty>(p, 1);
+          retv[i] = __ESIMD_DNS::atomic_add_fetch<Ty>(p, 1);
           break;
         default:
           __ESIMD_UNSUPPORTED_ON_HOST;
@@ -931,10 +925,10 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_index_ptr(
+  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_ptr(
       handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
 
-  std::unique_lock<std::mutex> lock(*mutexLock);
+  std::lock_guard<std::mutex> lock(*mutexLock);
 
   int x_pos_a, y_pos_a, offset, index;
 
@@ -1061,8 +1055,8 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  I->sycl_get_cm_image_params_index_ptr(handle, &writeBase, &imgWidth,
-                                        &imgHeight, &bpp, &mutexLock);
+  I->sycl_get_cm_image_params_ptr(handle, &writeBase, &imgWidth, &imgHeight,
+                                  &bpp, &mutexLock);
 
   int x_pos_a, y_pos_a, offset;
 
@@ -1072,7 +1066,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   // TODO : Remove intermediate 'out' matrix
   std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
 
-  std::unique_lock<std::mutex> lock(*mutexLock);
+  std::lock_guard<std::mutex> lock(*mutexLock);
 
   for (int i = 0, k = 0; i < M; i++) {
     for (int j = 0; j < N; j++) {
@@ -1107,6 +1101,10 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// getter methods returning surface index are not available when stateless
+// memory accesses are enforced.
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getNativeImageObj(acc)
@@ -1138,5 +1136,7 @@ __ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
+
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

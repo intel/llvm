@@ -10,7 +10,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -85,7 +85,7 @@ struct LoopCoalescingPass : public LoopCoalescingBase<LoopCoalescingPass> {
   }
 
   void runOnOperation() override {
-    FuncOp func = getOperation();
+    func::FuncOp func = getOperation();
     func.walk([&](Operation *op) {
       if (auto scfForOp = dyn_cast<scf::ForOp>(op))
         walkLoop(scfForOp);
@@ -97,6 +97,6 @@ struct LoopCoalescingPass : public LoopCoalescingBase<LoopCoalescingPass> {
 
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLoopCoalescingPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLoopCoalescingPass() {
   return std::make_unique<LoopCoalescingPass>();
 }

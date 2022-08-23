@@ -16,6 +16,12 @@
 // be tested here and in nodiscard_extensions.fail.cpp. They should also
 // be listed in `UsingLibcxx.rst` in the documentation for the extension.
 
+// Disable any builtin recognition of std::* in the compiler, that might also
+// trigger -Wunused-value warnings.
+// ADDITIONAL_COMPILE_FLAGS: -fno-builtin
+
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <algorithm>
 #include <bit> // bit_cast
 #include <cstddef> // to_integer

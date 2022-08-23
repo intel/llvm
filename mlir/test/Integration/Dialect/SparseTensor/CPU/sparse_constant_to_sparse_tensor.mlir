@@ -12,7 +12,7 @@
 // Integration tests for conversions from sparse constants to sparse tensors.
 //
 module {
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
@@ -41,7 +41,7 @@ module {
     vector.print %vr : vector<8xf64>
 
     // Release the resources.
-    sparse_tensor.release %ts : tensor<10x8xf64, #Tensor1>
+    bufferization.dealloc_tensor %ts : tensor<10x8xf64, #Tensor1>
 
     return
   }

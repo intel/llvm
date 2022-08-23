@@ -20,7 +20,7 @@ namespace bugprone {
 namespace {
 
 AST_MATCHER_P(IntegerLiteral, isBiggerThan, unsigned, N) {
-  return Node.getValue().getZExtValue() > N;
+  return Node.getValue().ugt(N);
 }
 
 AST_MATCHER_P2(Expr, hasSizeOfDescendant, int, Depth,
@@ -87,9 +87,9 @@ void SizeofExpressionCheck::registerMatchers(MatchFinder *Finder) {
   const auto ConstantExpr = ignoringParenImpCasts(
       anyOf(integerLiteral(), unaryOperator(hasUnaryOperand(IntegerExpr)),
             binaryOperator(hasLHS(IntegerExpr), hasRHS(IntegerExpr))));
-  const auto IntegerCallExpr = ignoringParenImpCasts(
-      callExpr(anyOf(hasType(isInteger()), hasType(enumType())),
-               unless(isInTemplateInstantiation())));
+  const auto IntegerCallExpr = ignoringParenImpCasts(callExpr(
+      anyOf(hasType(isInteger()), hasType(hasCanonicalType(enumType()))),
+      unless(isInTemplateInstantiation())));
   const auto SizeOfExpr = sizeOfExpr(hasArgumentOfType(
       hasUnqualifiedDesugaredType(type().bind("sizeof-arg-type"))));
   const auto SizeOfZero =
@@ -147,8 +147,8 @@ void SizeofExpressionCheck::registerMatchers(MatchFinder *Finder) {
   const auto StructAddrOfExpr = unaryOperator(
       hasOperatorName("&"), hasUnaryOperand(ignoringParenImpCasts(
                                 hasType(hasCanonicalType(recordType())))));
-  const auto PointerToStructType =
-      hasUnqualifiedDesugaredType(pointerType(pointee(recordType())));
+  const auto PointerToStructType = hasUnqualifiedDesugaredType(
+      pointerType(pointee(hasCanonicalType(recordType()))));
   const auto PointerToStructExpr = ignoringParenImpCasts(expr(
       hasType(hasCanonicalType(PointerToStructType)), unless(cxxThisExpr())));
 

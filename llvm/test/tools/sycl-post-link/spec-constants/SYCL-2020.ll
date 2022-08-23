@@ -72,7 +72,7 @@ entry:
 ; CHECK-RT: call half @_Z20__spirv_SpecConstantiDh(i32 [[#SCID0:]], half 0xH4000)
 
   %call.i3 = tail call i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPvS3_(i8* getelementptr inbounds ([34 x i8], [34 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z6id_intE17specialization_idIiEiET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.0* @id_int to i8*), i8* null)
-; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 2
+; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 4
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast i8* %[[GEP1]] to i32*
 ; CHECK-DEF: %[[LOAD1:[0-9a-z]+]] = load i32, i32* %[[BITCAST1]], align 4
 ;
@@ -96,7 +96,7 @@ entry:
   %0 = bitcast %struct.ComposConst* %tmp to i8*
   call void @llvm.lifetime.start.p0i8(i64 24, i8* nonnull %0) #3
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11ComposConstET_PKcPvS4_(%struct.ComposConst* nonnull sret(%struct.ComposConst) align 8 %tmp, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_composE17specialization_idI11ComposConstES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.1* @id_compos to i8*), i8* null)
-; CHECK-DEF: %[[GEP:[0-9a-z]+]] = getelementptr i8, i8* null, i32 6
+; CHECK-DEF: %[[GEP:[0-9a-z]+]] = getelementptr i8, i8* null, i32 8
 ; CHECK-DEF: %[[BITCAST:[0-9a-z]+]] = bitcast i8* %[[GEP]] to %struct.ComposConst*
 ; CHECK-DEF: %[[C1:[0-9a-z]+]] = load %struct.ComposConst, %struct.ComposConst* %[[BITCAST]], align 8
 ;
@@ -113,7 +113,7 @@ entry:
   %1 = getelementptr inbounds %struct.ComposConst2, %struct.ComposConst2* %tmp1, i64 0, i32 0
   call void @llvm.lifetime.start.p0i8(i64 24, i8* nonnull %1) #3
   call void @_Z40__sycl_getComposite2020SpecConstantValueI12ComposConst2ET_PKcPvS4_(%struct.ComposConst2* nonnull sret(%struct.ComposConst2) align 8 %tmp1, i8* getelementptr inbounds ([39 x i8], [39 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos2E17specialization_idI12ComposConst2ES1_ET1_v, i64 0, i64 0), i8* getelementptr inbounds (%class.specialization_id.2, %class.specialization_id.2* @id_compos2, i64 0, i32 0, i32 0), i8* null)  call void @llvm.lifetime.end.p0i8(i64 24, i8* nonnull %1) #3
-; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 30
+; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 32
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast i8* %[[GEP1]] to %struct.ComposConst2*
 ; CHECK-DEF: %[[C2:[0-9a-z]+]] = load %struct.ComposConst2, %struct.ComposConst2* %[[BITCAST1]], align 8
 ;
@@ -129,7 +129,7 @@ entry:
   %2 = bitcast %struct.ComposConst* %tmp2 to i8*
   call void @llvm.lifetime.start.p0i8(i64 24, i8* nonnull %2) #3
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11ComposConstET_PKcPvS4_(%struct.ComposConst* nonnull sret(%struct.ComposConst) align 8 %tmp2, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_composE17specialization_idI11ComposConstES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.1* @id_compos to i8*), i8* null)
-; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 6
+; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 8
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast i8* %[[GEP2]] to %struct.ComposConst*
 ; CHECK-DEF: %[[C3:[0-9a-z]+]] = load %struct.ComposConst, %struct.ComposConst* %[[BITCAST2]], align 8
 ;
@@ -148,7 +148,7 @@ entry:
 define void @test_zeroinit() {
   %tmp = alloca %struct.ComposConst3, align 4
   %1 = bitcast %struct.ComposConst3* %tmp to i8*
-; CHECK-DEF: %[[GEP3:[0-9a-z]+]] = getelementptr i8, i8* null, i32 54
+; CHECK-DEF: %[[GEP3:[0-9a-z]+]] = getelementptr i8, i8* null, i32 56
 ; CHECK-DEF: %[[BITCAST3:[0-9a-z]+]] = bitcast i8* %[[GEP3]] to %struct.ComposConst3*
 ; CHECK-DEF: %[[C3:[0-9a-z]+]] = load %struct.ComposConst3, %struct.ComposConst3* %[[BITCAST3]], align 4
 ;
@@ -169,7 +169,7 @@ define void @test3() {
   %tmp3 = alloca %struct.MArrayConst3, align 8
   %tmp4 = alloca %struct.MArrayConst4, align 8
   %1 = bitcast %struct.VectorConst* %tmp to i8*
-; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 70
+; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 72
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast i8* %[[GEP1]] to %struct.VectorConst*
 ; CHECK-DEF: %[[C1:[0-9a-z]+]] = load %struct.VectorConst, %struct.VectorConst* %[[BITCAST1]], align 8
 ;
@@ -179,7 +179,7 @@ define void @test3() {
 ; CHECK-RT: call %struct.VectorConst @_Z29__spirv_SpecConstantCompositeDv2_i_Rstruct.VectorConst(<2 x i32> %[[#CE1]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11VectorConstET_PKcPvS4_(%struct.VectorConst* nonnull sret(%struct.VectorConst) align 8 %tmp, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_vectorE17specialization_idI11VectorConstES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.3* @id_vector to i8*), i8* null)
   %2 = bitcast %struct.MArrayConst* %tmp1 to i8*
-; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 78
+; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 80
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast i8* %[[GEP2]] to %struct.MArrayConst*
 ; CHECK-DEF: %[[C2:[0-9a-z]+]] = load %struct.MArrayConst, %struct.MArrayConst* %[[BITCAST2]], align 4
 ;
@@ -234,11 +234,14 @@ attributes #3 = { nounwind }
 
 ; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]], ![[#ID_COMPOS3:]], ![[#ID4:]], ![[#ID5:]]
 ;
-; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID_COMPOS3_DEFAULT:]], ![[#ID8:]], ![[#ID9:]]
+; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5_PAD:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID_COMPOS3_DEFAULT:]], ![[#ID8:]], ![[#ID9:]]
 ; CHECK-RT: !sycl.specialization-constants-default-values
 ;
-; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
-; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
+; Emulated spec constant may use an extra padding element to ensure alignment
+; CHECK-RT: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
+; CHECK-DEF: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2, i32 -1, i32 2, i32 2}
+;
+; CHECK:  ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
 ;
 ; For composite types, the amount of metadata is a bit different between native and emulated spec constants
 ;
@@ -256,6 +259,7 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}
 ;
 ; CHECK-DEF: ![[#ID4]] = !{half 0xH4000}
+; CHECK-DEF: ![[#ID5_PAD]] = !{[2 x i8] zeroinitializer}
 ; CHECK-DEF: ![[#ID5]] = !{i32 42}
 ; CHECK-DEF: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float 0x4020666660000000 } }}
 ; CHECK-DEF: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 0x40479999A0000000 }, double 2.000000e+00 }}

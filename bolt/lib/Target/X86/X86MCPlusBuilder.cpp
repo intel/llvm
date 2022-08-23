@@ -13,6 +13,7 @@
 #include "MCTargetDesc/X86BaseInfo.h"
 #include "MCTargetDesc/X86InstrRelaxTables.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
+#include "X86MCSymbolizer.h"
 #include "bolt/Core/MCPlus.h"
 #include "bolt/Core/MCPlusBuilder.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -43,7 +44,7 @@ extern cl::OptionCategory BoltOptCategory;
 static cl::opt<bool> X86StripRedundantAddressSize(
     "x86-strip-redundant-address-size",
     cl::desc("Remove redundant Address-Size override prefix"), cl::init(true),
-    cl::ZeroOrMore, cl::cat(BoltOptCategory));
+    cl::cat(BoltOptCategory));
 
 } // namespace opts
 
@@ -64,222 +65,21 @@ unsigned getShortArithOpcode(unsigned Opcode) {
   return X86::getShortOpcodeArith(Opcode);
 }
 
-bool isADD(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::ADD16i16:
-  case X86::ADD16mi:
-  case X86::ADD16mi8:
-  case X86::ADD16mr:
-  case X86::ADD16ri:
-  case X86::ADD16ri8:
-  case X86::ADD16ri8_DB:
-  case X86::ADD16ri_DB:
-  case X86::ADD16rm:
-  case X86::ADD16rr:
-  case X86::ADD16rr_DB:
-  case X86::ADD16rr_REV:
-  case X86::ADD32i32:
-  case X86::ADD32mi:
-  case X86::ADD32mi8:
-  case X86::ADD32mr:
-  case X86::ADD32ri:
-  case X86::ADD32ri8:
-  case X86::ADD32ri8_DB:
-  case X86::ADD32ri_DB:
-  case X86::ADD32rm:
-  case X86::ADD32rr:
-  case X86::ADD32rr_DB:
-  case X86::ADD32rr_REV:
-  case X86::ADD64i32:
-  case X86::ADD64mi32:
-  case X86::ADD64mi8:
-  case X86::ADD64mr:
-  case X86::ADD64ri32:
-  case X86::ADD64ri32_DB:
-  case X86::ADD64ri8:
-  case X86::ADD64ri8_DB:
-  case X86::ADD64rm:
-  case X86::ADD64rr:
-  case X86::ADD64rr_DB:
-  case X86::ADD64rr_REV:
-  case X86::ADD8i8:
-  case X86::ADD8mi:
-  case X86::ADD8mi8:
-  case X86::ADD8mr:
-  case X86::ADD8ri:
-  case X86::ADD8ri8:
-  case X86::ADD8rm:
-  case X86::ADD8rr:
-  case X86::ADD8rr_REV:
-    return true;
-  }
-}
-
-bool isAND(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::AND16i16:
-  case X86::AND16mi:
-  case X86::AND16mi8:
-  case X86::AND16mr:
-  case X86::AND16ri:
-  case X86::AND16ri8:
-  case X86::AND16rm:
-  case X86::AND16rr:
-  case X86::AND16rr_REV:
-  case X86::AND32i32:
-  case X86::AND32mi:
-  case X86::AND32mi8:
-  case X86::AND32mr:
-  case X86::AND32ri:
-  case X86::AND32ri8:
-  case X86::AND32rm:
-  case X86::AND32rr:
-  case X86::AND32rr_REV:
-  case X86::AND64i32:
-  case X86::AND64mi32:
-  case X86::AND64mi8:
-  case X86::AND64mr:
-  case X86::AND64ri32:
-  case X86::AND64ri8:
-  case X86::AND64rm:
-  case X86::AND64rr:
-  case X86::AND64rr_REV:
-  case X86::AND8i8:
-  case X86::AND8mi:
-  case X86::AND8mi8:
-  case X86::AND8mr:
-  case X86::AND8ri:
-  case X86::AND8ri8:
-  case X86::AND8rm:
-  case X86::AND8rr:
-  case X86::AND8rr_REV:
-    return true;
-  }
-}
-
-bool isCMP(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::CMP16i16:
-  case X86::CMP16mi:
-  case X86::CMP16mi8:
-  case X86::CMP16mr:
-  case X86::CMP16ri:
-  case X86::CMP16ri8:
-  case X86::CMP16rm:
-  case X86::CMP16rr:
-  case X86::CMP16rr_REV:
-  case X86::CMP32i32:
-  case X86::CMP32mi:
-  case X86::CMP32mi8:
-  case X86::CMP32mr:
-  case X86::CMP32ri:
-  case X86::CMP32ri8:
-  case X86::CMP32rm:
-  case X86::CMP32rr:
-  case X86::CMP32rr_REV:
-  case X86::CMP64i32:
-  case X86::CMP64mi32:
-  case X86::CMP64mi8:
-  case X86::CMP64mr:
-  case X86::CMP64ri32:
-  case X86::CMP64ri8:
-  case X86::CMP64rm:
-  case X86::CMP64rr:
-  case X86::CMP64rr_REV:
-  case X86::CMP8i8:
-  case X86::CMP8mi:
-  case X86::CMP8mi8:
-  case X86::CMP8mr:
-  case X86::CMP8ri:
-  case X86::CMP8ri8:
-  case X86::CMP8rm:
-  case X86::CMP8rr:
-  case X86::CMP8rr_REV:
-    return true;
-  }
-}
-
-bool isSUB(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::SUB16i16:
-  case X86::SUB16mi:
-  case X86::SUB16mi8:
-  case X86::SUB16mr:
-  case X86::SUB16ri:
-  case X86::SUB16ri8:
-  case X86::SUB16rm:
-  case X86::SUB16rr:
-  case X86::SUB16rr_REV:
-  case X86::SUB32i32:
-  case X86::SUB32mi:
-  case X86::SUB32mi8:
-  case X86::SUB32mr:
-  case X86::SUB32ri:
-  case X86::SUB32ri8:
-  case X86::SUB32rm:
-  case X86::SUB32rr:
-  case X86::SUB32rr_REV:
-  case X86::SUB64i32:
-  case X86::SUB64mi32:
-  case X86::SUB64mi8:
-  case X86::SUB64mr:
-  case X86::SUB64ri32:
-  case X86::SUB64ri8:
-  case X86::SUB64rm:
-  case X86::SUB64rr:
-  case X86::SUB64rr_REV:
-  case X86::SUB8i8:
-  case X86::SUB8mi:
-  case X86::SUB8mi8:
-  case X86::SUB8mr:
-  case X86::SUB8ri:
-  case X86::SUB8ri8:
-  case X86::SUB8rm:
-  case X86::SUB8rr:
-  case X86::SUB8rr_REV:
-    return true;
-  }
-}
-
-bool isTEST(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return false;
-  case X86::TEST16i16:
-  case X86::TEST16mi:
-  case X86::TEST16mr:
-  case X86::TEST16ri:
-  case X86::TEST16rr:
-  case X86::TEST32i32:
-  case X86::TEST32mi:
-  case X86::TEST32mr:
-  case X86::TEST32ri:
-  case X86::TEST32rr:
-  case X86::TEST64i32:
-  case X86::TEST64mi32:
-  case X86::TEST64mr:
-  case X86::TEST64ri32:
-  case X86::TEST64rr:
-  case X86::TEST8i8:
-  case X86::TEST8mi:
-  case X86::TEST8mr:
-  case X86::TEST8ri:
-  case X86::TEST8rr:
-    return true;
-  }
-}
-
 bool isMOVSX64rm32(const MCInst &Inst) {
   return Inst.getOpcode() == X86::MOVSX64rm32;
 }
+
+bool isADD64rr(const MCInst &Inst) { return Inst.getOpcode() == X86::ADD64rr; }
+
+bool isADDri(const MCInst &Inst) {
+  return Inst.getOpcode() == X86::ADD64ri32 ||
+         Inst.getOpcode() == X86::ADD64ri8;
+}
+
+#define GET_INSTRINFO_OPERAND_TYPES_ENUM
+#define GET_INSTRINFO_OPERAND_TYPE
+#define GET_INSTRINFO_MEM_OPERAND_SIZE
+#include "X86GenInstrInfo.inc"
 
 class X86MCPlusBuilder : public MCPlusBuilder {
 public:
@@ -287,38 +87,24 @@ public:
                    const MCRegisterInfo *RegInfo)
       : MCPlusBuilder(Analysis, Info, RegInfo) {}
 
+  std::unique_ptr<MCSymbolizer>
+  createTargetSymbolizer(BinaryFunction &Function) const override {
+    return std::make_unique<X86MCSymbolizer>(Function);
+  }
+
   bool isBranch(const MCInst &Inst) const override {
     return Analysis->isBranch(Inst) && !isTailCall(Inst);
   }
 
-  bool isUnconditionalBranch(const MCInst &Inst) const override {
-    return Analysis->isUnconditionalBranch(Inst) && !isTailCall(Inst);
-  }
-
   bool isNoop(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    case X86::NOOP:
-    case X86::NOOPL:
-    case X86::NOOPLr:
-    case X86::NOOPQ:
-    case X86::NOOPQr:
-    case X86::NOOPW:
-    case X86::NOOPWr:
-      return true;
-    }
-    return false;
+    return X86::isNOP(Inst.getOpcode());
   }
 
   unsigned getCondCode(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    default:
-      return X86::COND_INVALID;
-    case X86::JCC_1:
-    case X86::JCC_2:
-    case X86::JCC_4:
-      return Inst.getOperand(Info->get(Inst.getOpcode()).NumOperands - 1)
-          .getImm();
-    }
+    unsigned Opcode = Inst.getOpcode();
+    if (X86::isJCC(Opcode))
+      return Inst.getOperand(Info->get(Opcode).NumOperands - 1).getImm();
+    return X86::COND_INVALID;
   }
 
   unsigned getInvertedCondCode(unsigned CC) const override {
@@ -406,13 +192,8 @@ public:
   }
 
   bool isPrefix(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    case X86::LOCK_PREFIX:
-    case X86::REPNE_PREFIX:
-    case X86::REP_PREFIX:
-      return true;
-    }
-    return false;
+    const MCInstrDesc &Desc = Info->get(Inst.getOpcode());
+    return X86II::isPrefix(Desc.TSFlags);
   }
 
   bool isRep(const MCInst &Inst) const override {
@@ -429,21 +210,9 @@ public:
 
   // FIXME: For compatibility with old LLVM only!
   bool isTerminator(const MCInst &Inst) const override {
-    if (Info->get(Inst.getOpcode()).isTerminator())
-      return true;
-    switch (Inst.getOpcode()) {
-    default:
-      return false;
-    case X86::TRAP:
-    // Opcodes previously known as X86::UD2B
-    case X86::UD1Wm:
-    case X86::UD1Lm:
-    case X86::UD1Qm:
-    case X86::UD1Wr:
-    case X86::UD1Lr:
-    case X86::UD1Qr:
-      return true;
-    }
+    unsigned Opcode = Inst.getOpcode();
+    return Info->get(Opcode).isTerminator() || X86::isUD1(Opcode) ||
+           X86::isUD2(Opcode);
   }
 
   bool isIndirectCall(const MCInst &Inst) const override {
@@ -541,17 +310,8 @@ public:
     return 0;
   }
 
-  bool isADD64rr(const MCInst &Inst) const override {
-    return Inst.getOpcode() == X86::ADD64rr;
-  }
-
   bool isSUB(const MCInst &Inst) const override {
-    return ::isSUB(Inst.getOpcode());
-  }
-
-  bool isADDri(const MCInst &Inst) const {
-    return Inst.getOpcode() == X86::ADD64ri32 ||
-           Inst.getOpcode() == X86::ADD64ri8;
+    return X86::isSUB(Inst.getOpcode());
   }
 
   bool isLEA64r(const MCInst &Inst) const override {
@@ -814,7 +574,7 @@ public:
     }
   };
 
-  virtual std::unique_ptr<MCInstMatcher>
+  std::unique_ptr<MCInstMatcher>
   matchAdd(std::unique_ptr<MCInstMatcher> A,
            std::unique_ptr<MCInstMatcher> B) const override {
     return std::unique_ptr<MCInstMatcher>(
@@ -852,7 +612,7 @@ public:
     }
   };
 
-  virtual std::unique_ptr<MCInstMatcher>
+  std::unique_ptr<MCInstMatcher>
   matchLoadAddr(std::unique_ptr<MCInstMatcher> Target) const override {
     return std::unique_ptr<MCInstMatcher>(new LEAMatcher(std::move(Target)));
   }
@@ -1236,8 +996,7 @@ public:
     case X86::MOVZX32rm8:
     case X86::MOVZX32rr8:
     case X86::TEST8ri:
-      for (int I = 0, E = MCPlus::getNumPrimeOperands(Inst); I != E; ++I) {
-        const MCOperand &Operand = Inst.getOperand(I);
+      for (const MCOperand &Operand : MCPlus::primeOperands(Inst)) {
         if (!Operand.isReg())
           continue;
         if (isUpper8BitReg(Operand.getReg()))
@@ -1249,6 +1008,31 @@ public:
     }
   }
 
+  static uint8_t getMemDataSize(const MCInst &Inst, int MemOpNo) {
+    using namespace llvm::X86;
+    int OpType = getOperandType(Inst.getOpcode(), MemOpNo);
+    return getMemOperandSize(OpType) / 8;
+  }
+
+  /// Classifying a stack access as *not* "SIMPLE" here means we don't know how
+  /// to change this instruction memory access. It will disable any changes to
+  /// the stack layout, so we can't do the most aggressive form of shrink
+  /// wrapping. We must do so in a way that keeps the original stack layout.
+  /// Otherwise you need to adjust the offset of all instructions accessing the
+  /// stack: we can't do that anymore because there is one instruction that is
+  /// not simple. There are other implications as well. We have heuristics to
+  /// detect when a register is callee-saved and thus eligible for shrink
+  /// wrapping. If you are restoring a register using a non-simple stack access,
+  /// then it is classified as NOT callee-saved, and it disables shrink wrapping
+  /// for *that* register (but not for others).
+  ///
+  /// Classifying a stack access as "size 0" or detecting an indexed memory
+  /// access (to address a vector, for example) here means we know there is a
+  /// stack access, but we can't quite understand how wide is the access in
+  /// bytes. This is very serious because we can't understand how memory
+  /// accesses alias with each other for this function. This will essentially
+  /// disable not only shrink wrapping but all frame analysis, it will fail it
+  /// as "we don't understand this function and we give up on it".
   bool isStackAccess(const MCInst &Inst, bool &IsLoad, bool &IsStore,
                      bool &IsStoreFromReg, MCPhysReg &Reg, int32_t &SrcImm,
                      uint16_t &StackPtrReg, int64_t &StackOffset, uint8_t &Size,
@@ -1304,33 +1088,27 @@ public:
 
     switch (Inst.getOpcode()) {
     default: {
-      uint8_t Sz = 0;
       bool IsLoad = MCII.mayLoad();
       bool IsStore = MCII.mayStore();
       // Is it LEA? (deals with memory but is not loading nor storing)
-      if (!IsLoad && !IsStore)
-        return false;
-
-      // Try to guess data size involved in the load/store by looking at the
-      // register size. If there's no reg involved, return 0 as size, meaning
-      // we don't know.
-      for (unsigned I = 0, E = MCII.getNumOperands(); I != E; ++I) {
-        if (MCII.OpInfo[I].OperandType != MCOI::OPERAND_REGISTER)
-          continue;
-        if (static_cast<int>(I) >= MemOpNo && I < X86::AddrNumOperands)
-          continue;
-        Sz = RegInfo->getRegClass(MCII.OpInfo[I].RegClass).getSizeInBits() / 8;
+      if (!IsLoad && !IsStore) {
+        I = {0, IsLoad, IsStore, false, false};
         break;
       }
+      uint8_t Sz = getMemDataSize(Inst, MemOpNo);
       I = {Sz, IsLoad, IsStore, false, false};
       break;
     }
+    // Report simple stack accesses
+    case X86::MOV8rm: I = {1, true, false, false, true}; break;
     case X86::MOV16rm: I = {2, true, false, false, true}; break;
     case X86::MOV32rm: I = {4, true, false, false, true}; break;
     case X86::MOV64rm: I = {8, true, false, false, true}; break;
+    case X86::MOV8mr: I = {1, false, true, true, true};  break;
     case X86::MOV16mr: I = {2, false, true, true, true};  break;
     case X86::MOV32mr: I = {4, false, true, true, true};  break;
     case X86::MOV64mr: I = {8, false, true, true, true};  break;
+    case X86::MOV8mi: I = {1, false, true, false, true}; break;
     case X86::MOV16mi: I = {2, false, true, false, true}; break;
     case X86::MOV32mi: I = {4, false, true, false, true}; break;
     } // end switch (Inst.getOpcode())
@@ -1496,9 +1274,10 @@ public:
     return false;
   }
 
-  bool evaluateSimple(const MCInst &Inst, int64_t &Output,
-                      std::pair<MCPhysReg, int64_t> Input1,
-                      std::pair<MCPhysReg, int64_t> Input2) const override {
+  bool
+  evaluateStackOffsetExpr(const MCInst &Inst, int64_t &Output,
+                          std::pair<MCPhysReg, int64_t> Input1,
+                          std::pair<MCPhysReg, int64_t> Input2) const override {
 
     auto getOperandVal = [&](MCPhysReg Reg) -> ErrorOr<int64_t> {
       if (Reg == Input1.first)
@@ -1512,16 +1291,6 @@ public:
     default:
       return false;
 
-    case X86::AND64ri32:
-    case X86::AND64ri8:
-      if (!Inst.getOperand(2).isImm())
-        return false;
-      if (ErrorOr<int64_t> InputVal =
-              getOperandVal(Inst.getOperand(1).getReg()))
-        Output = *InputVal & Inst.getOperand(2).getImm();
-      else
-        return false;
-      break;
     case X86::SUB64ri32:
     case X86::SUB64ri8:
       if (!Inst.getOperand(2).isImm())
@@ -1996,9 +1765,8 @@ public:
 
   bool convertCallToIndirectCall(MCInst &Inst, const MCSymbol *TargetLocation,
                                  MCContext *Ctx) override {
-    bool IsTailCall = isTailCall(Inst);
     assert((Inst.getOpcode() == X86::CALL64pcrel32 ||
-            (Inst.getOpcode() == X86::JMP_4 && IsTailCall)) &&
+            (Inst.getOpcode() == X86::JMP_4 && isTailCall(Inst))) &&
            "64-bit direct (tail) call instruction expected");
     const auto NewOpcode =
         (Inst.getOpcode() == X86::CALL64pcrel32) ? X86::CALL64m : X86::JMP32m;
@@ -3074,10 +2842,11 @@ public:
 
     // Get the HasLHS value so that iteration can be done
     bool HasLHS;
-    if (isAND(Inst.getOpcode()) || isADD(Inst.getOpcode()) || isSUB(Inst)) {
+    if (X86::isAND(Inst.getOpcode()) || X86::isADD(Inst.getOpcode()) ||
+        X86::isSUB(Inst.getOpcode())) {
       HasLHS = true;
-    } else if (isPop(Inst) || isPush(Inst) || isCMP(Inst.getOpcode()) ||
-               isTEST(Inst.getOpcode())) {
+    } else if (isPop(Inst) || isPush(Inst) || X86::isCMP(Inst.getOpcode()) ||
+               X86::isTEST(Inst.getOpcode())) {
       HasLHS = false;
     } else {
       switch (Inst.getOpcode()) {
@@ -3384,7 +3153,12 @@ public:
     case 1: Opcode = X86::MOV8ri; break;
     case 2: Opcode = X86::MOV16ri; break;
     case 4: Opcode = X86::MOV32ri; break;
-    case 8: Opcode = X86::MOV64ri; break;
+    // Writing to a 32-bit register always zeros the upper 32 bits of the
+    // full-width register
+    case 8:
+      Opcode = X86::MOV32ri;
+      Reg = getAliasSized(Reg, 4);
+      break;
     default:
       llvm_unreachable("Unexpected size");
     }

@@ -133,8 +133,9 @@ __esimd_wrindirect(__ESIMD_DNS::vector_type_t<T, N> OldVal,
                    __ESIMD_DNS::vector_type_t<uint16_t, M> Offset,
                    __ESIMD_DNS::simd_mask_storage_t<M> Mask = 1);
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 template <class T> using __st = __raw_t<T>;
 
@@ -207,8 +208,9 @@ ESIMD_INLINE
   }
 }
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 // vload
 //

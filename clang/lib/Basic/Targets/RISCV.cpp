@@ -158,8 +158,10 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro(Twine("__riscv_", ExtName), Twine(Version));
   }
 
-  if (ISAInfo->hasExtension("m")) {
+  if (ISAInfo->hasExtension("m") || ISAInfo->hasExtension("zmmul"))
     Builder.defineMacro("__riscv_mul");
+
+  if (ISAInfo->hasExtension("m")) {
     Builder.defineMacro("__riscv_div");
     Builder.defineMacro("__riscv_muldiv");
   }
@@ -235,11 +237,9 @@ bool RISCVTargetInfo::initFeatureMap(
   // RISCVISAInfo makes implications for ISA features
   std::vector<std::string> ImpliedFeatures = (*ParseResult)->toFeatureVector();
   // Add non-ISA features like `relax` and `save-restore` back
-  for (std::string Feature : FeaturesVec) {
-    if (std::find(begin(ImpliedFeatures), end(ImpliedFeatures), Feature) ==
-        end(ImpliedFeatures))
+  for (const std::string &Feature : FeaturesVec)
+    if (!llvm::is_contained(ImpliedFeatures, Feature))
       ImpliedFeatures.push_back(Feature);
-  }
 
   return TargetInfo::initFeatureMap(Features, Diags, CPU, ImpliedFeatures);
 }
@@ -253,8 +253,8 @@ bool RISCVTargetInfo::hasFeature(StringRef Feature) const {
                     .Case("riscv64", Is64Bit)
                     .Case("64bit", Is64Bit)
                     .Default(None);
-  if (Result.hasValue())
-    return Result.getValue();
+  if (Result)
+    return Result.value();
 
   if (ISAInfo->isSupportedExtensionFeature(Feature))
     return ISAInfo->hasExtension(Feature);

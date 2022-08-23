@@ -11,16 +11,61 @@ add_entrypoint_object(
 
 add_entrypoint_object(
   thrd_create
-  ALIAS
+  SRCS
+    thrd_create.cpp
+  HDRS
+    thrd_create.h
   DEPENDS
-    .${LIBC_TARGET_OS}.thrd_create
+    libc.src.__support.threads.thread
+    libc.include.threads
+  COMPILE_OPTIONS
+    -O3
+    -fno-omit-frame-pointer # This allows us to sniff out the thread args from
+                            # the new thread's stack reliably.
 )
 
 add_entrypoint_object(
   thrd_join
-  ALIAS
+  SRCS
+    thrd_join.cpp
+  HDRS
+    thrd_join.h
   DEPENDS
-    .${LIBC_TARGET_OS}.thrd_join
+    libc.include.threads
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  thrd_detach
+  SRCS
+    thrd_detach.cpp
+  HDRS
+    thrd_detach.h
+  DEPENDS
+    libc.include.threads
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  thrd_current
+  SRCS
+    thrd_current.cpp
+  HDRS
+    thrd_current.h
+  DEPENDS
+    libc.include.threads
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  thrd_equal
+  SRCS
+    thrd_equal.cpp
+  HDRS
+    thrd_equal.h
+  DEPENDS
+    libc.include.threads
+    libc.src.__support.threads.thread
 )
 
 add_entrypoint_object(
@@ -31,7 +76,7 @@ add_entrypoint_object(
     mtx_init.h
   DEPENDS
     libc.include.threads
-    libc.src.__support.threads.thread
+    libc.src.__support.threads.mutex
 )
 
 add_entrypoint_object(
@@ -42,7 +87,7 @@ add_entrypoint_object(
     mtx_destroy.h
   DEPENDS
     libc.include.threads
-    libc.src.__support.threads.thread
+    libc.src.__support.threads.mutex
 )
 
 add_entrypoint_object(
@@ -53,7 +98,7 @@ add_entrypoint_object(
     mtx_lock.h
   DEPENDS
     libc.include.threads
-    libc.src.__support.threads.thread
+    libc.src.__support.threads.mutex
 )
 
 add_entrypoint_object(
@@ -64,7 +109,7 @@ add_entrypoint_object(
     mtx_unlock.h
   DEPENDS
     libc.include.threads
-    libc.src.__support.threads.thread
+    libc.src.__support.threads.mutex
 )
 
 add_entrypoint_object(

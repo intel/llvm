@@ -7,21 +7,20 @@
 ; a test instruction from the icmp+trunc+and, but needs to
 ; mask the -9 to 8 bits since SimplifyDemandedBits didn't.
 
-define i32 @foo(i16 signext %0, i32 %1, i32* nocapture %2) {
+define i32 @foo(i16 signext %0, i32 %1, ptr nocapture %2) {
 ; CHECK-LABEL: foo:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    incl %edi
-; CHECK-NEXT:    movl %edi, %eax
-; CHECK-NEXT:    andl $65527, %eax # imm = 0xFFF7
-; CHECK-NEXT:    movl %eax, (%rdx)
+; CHECK-NEXT:    andl $65527, %edi # imm = 0xFFF7
+; CHECK-NEXT:    movl %edi, (%rdx)
 ; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    testb $-9, %dil
+; CHECK-NEXT:    testb %dil, %dil
 ; CHECK-NEXT:    cmovel %esi, %eax
 ; CHECK-NEXT:    retq
   %4 = add i16 %0, 1
   %5 = and i16 %4, -9
   %6 = zext i16 %5 to i32
-  store i32 %6, i32* %2, align 4
+  store i32 %6, ptr %2, align 4
   %7 = trunc i16 %5 to i8
   %8 = icmp eq i8 %7, 0
   %9 = select i1 %8, i32 %1, i32 0

@@ -1337,7 +1337,7 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertBlockSignature(
                                                  argReplacements);
   if (failed(result))
     return failure();
-  if (Block *newBlock = result.getValue()) {
+  if (Block *newBlock = *result) {
     if (newBlock != block)
       blockActions.push_back(BlockAction::getTypeConversion(newBlock));
   }
@@ -1673,8 +1673,8 @@ void ConversionPatternRewriter::cancelRootUpdate(Operation *op) {
 }
 
 LogicalResult ConversionPatternRewriter::notifyMatchFailure(
-    Operation *op, function_ref<void(Diagnostic &)> reasonCallback) {
-  return impl->notifyMatchFailure(op->getLoc(), reasonCallback);
+    Location loc, function_ref<void(Diagnostic &)> reasonCallback) {
+  return impl->notifyMatchFailure(loc, reasonCallback);
 }
 
 detail::ConversionPatternRewriterImpl &ConversionPatternRewriter::getImpl() {
@@ -3044,7 +3044,7 @@ Value TypeConverter::materializeConversion(
     OpBuilder &builder, Location loc, Type resultType, ValueRange inputs) {
   for (MaterializationCallbackFn &fn : llvm::reverse(materializations))
     if (Optional<Value> result = fn(builder, resultType, inputs, loc))
-      return result.getValue();
+      return *result;
   return nullptr;
 }
 
@@ -3151,7 +3151,7 @@ auto ConversionTarget::isLegal(Operation *op) const
     auto legalityFnIt = opRecursiveLegalityFns.find(op->getName());
     if (legalityFnIt != opRecursiveLegalityFns.end()) {
       legalityDetails.isRecursivelyLegal =
-          legalityFnIt->second(op).getValueOr(true);
+          legalityFnIt->second(op).value_or(true);
     } else {
       legalityDetails.isRecursivelyLegal = true;
     }

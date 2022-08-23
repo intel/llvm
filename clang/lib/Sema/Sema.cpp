@@ -37,6 +37,7 @@
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/MultiplexExternalSemaSource.h"
 #include "clang/Sema/ObjCMethodList.h"
+#include "clang/Sema/RISCVIntrinsicManager.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaConsumer.h"
@@ -137,9 +138,9 @@ public:
 
   void reset() { S = nullptr; }
 
-  virtual void FileChanged(SourceLocation Loc, FileChangeReason Reason,
-                           SrcMgr::CharacteristicKind FileType,
-                           FileID PrevFID) override {
+  void FileChanged(SourceLocation Loc, FileChangeReason Reason,
+                   SrcMgr::CharacteristicKind FileType,
+                   FileID PrevFID) override {
     if (!S)
       return;
     switch (Reason) {
@@ -202,8 +203,9 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
-      MSVCGuidDecl(nullptr), NSNumberDecl(nullptr), NSValueDecl(nullptr),
-      NSStringDecl(nullptr), StringWithUTF8StringMethod(nullptr),
+      MSVCGuidDecl(nullptr), StdSourceLocationImplDecl(nullptr),
+      NSNumberDecl(nullptr), NSValueDecl(nullptr), NSStringDecl(nullptr),
+      StringWithUTF8StringMethod(nullptr),
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
       ArrayWithObjectsMethod(nullptr), NSDictionaryDecl(nullptr),
       DictionaryWithObjectsMethod(nullptr), GlobalNewDeleteDeclared(false),
@@ -249,21 +251,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   SemaPPCallbackHandler = Callbacks.get();
   PP.addPPCallbacks(std::move(Callbacks));
   SemaPPCallbackHandler->set(*this);
-  if (getLangOpts().getFPEvalMethod() == LangOptions::FEM_UnsetOnCommandLine)
-    // Use setting from TargetInfo.
-    PP.setCurrentFPEvalMethod(SourceLocation(),
-                              ctxt.getTargetInfo().getFPEvalMethod());
-  else
-    // Set initial value of __FLT_EVAL_METHOD__ from the command line.
-    PP.setCurrentFPEvalMethod(SourceLocation(),
-                              getLangOpts().getFPEvalMethod());
+
   CurFPFeatures.setFPEvalMethod(PP.getCurrentFPEvalMethod());
-  // When `-ffast-math` option is enabled, it triggers several driver math
-  // options to be enabled. Among those, only one the following two modes
-  // affect the eval-method:  reciprocal or reassociate.
-  if (getLangOpts().AllowFPReassoc || getLangOpts().AllowRecip)
-    PP.setCurrentFPEvalMethod(SourceLocation(),
-                              LangOptions::FEM_Indeterminable);
 }
 
 // Anchor Sema's type info to this TU.
@@ -957,7 +946,7 @@ void Sema::LoadExternalWeakUndeclaredIdentifiers() {
   SmallVector<std::pair<IdentifierInfo *, WeakInfo>, 4> WeakIDs;
   ExternalSource->ReadWeakUndeclaredIdentifiers(WeakIDs);
   for (auto &WeakID : WeakIDs)
-    WeakUndeclaredIdentifiers.insert(WeakID);
+    (void)WeakUndeclaredIdentifiers[WeakID.first].insert(WeakID.second);
 }
 
 
@@ -1058,9 +1047,13 @@ void Sema::emitAndClearUnusedLocalTypedefWarnings() {
 /// is parsed. Note that the ASTContext may have already injected some
 /// declarations.
 void Sema::ActOnStartOfTranslationUnit() {
-  if (getLangOpts().ModulesTS &&
-      (getLangOpts().getCompilingModule() == LangOptions::CMK_ModuleInterface ||
-       getLangOpts().getCompilingModule() == LangOptions::CMK_None)) {
+  if (getLangOpts().CPlusPlusModules &&
+      getLangOpts().getCompilingModule() == LangOptions::CMK_HeaderUnit)
+    HandleStartOfHeaderUnit();
+  else if (getLangOpts().ModulesTS &&
+           (getLangOpts().getCompilingModule() ==
+                LangOptions::CMK_ModuleInterface ||
+            getLangOpts().getCompilingModule() == LangOptions::CMK_None)) {
     // We start in an implied global module fragment.
     SourceLocation StartOfTU =
         SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
@@ -1195,6 +1188,7 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
+  DiagnoseUnterminatedOpenMPDeclareTarget();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1223,19 +1217,21 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   // Check for #pragma weak identifiers that were never declared
   LoadExternalWeakUndeclaredIdentifiers();
-  for (auto WeakID : WeakUndeclaredIdentifiers) {
-    if (WeakID.second.getUsed())
+  for (const auto &WeakIDs : WeakUndeclaredIdentifiers) {
+    if (WeakIDs.second.empty())
       continue;
 
-    Decl *PrevDecl = LookupSingleName(TUScope, WeakID.first, SourceLocation(),
+    Decl *PrevDecl = LookupSingleName(TUScope, WeakIDs.first, SourceLocation(),
                                       LookupOrdinaryName);
     if (PrevDecl != nullptr &&
         !(isa<FunctionDecl>(PrevDecl) || isa<VarDecl>(PrevDecl)))
-      Diag(WeakID.second.getLocation(), diag::warn_attribute_wrong_decl_type)
-          << "'weak'" << ExpectedVariableOrFunction;
+      for (const auto &WI : WeakIDs.second)
+        Diag(WI.getLocation(), diag::warn_attribute_wrong_decl_type)
+            << "'weak'" << ExpectedVariableOrFunction;
     else
-      Diag(WeakID.second.getLocation(), diag::warn_weak_identifier_undeclared)
-          << WeakID.first;
+      for (const auto &WI : WeakIDs.second)
+        Diag(WI.getLocation(), diag::warn_weak_identifier_undeclared)
+            << WeakIDs.first;
   }
 
   if (LangOpts.CPlusPlus11 &&
@@ -1263,9 +1259,7 @@ void Sema::ActOnEndOfTranslationUnit() {
     // module declaration by now.
     if (getLangOpts().getCompilingModule() ==
             LangOptions::CMK_ModuleInterface &&
-        (ModuleScopes.empty() ||
-         !ModuleScopes.back().Module->isModulePurview()) &&
-        !DiagnosedMissingModuleDeclaration) {
+        !isCurrentModulePurview() && !DiagnosedMissingModuleDeclaration) {
       // FIXME: Make a better guess as to where to put the module declaration.
       Diag(getSourceManager().getLocForStartOfFile(
                getSourceManager().getMainFileID()),
@@ -1464,19 +1458,18 @@ void Sema::ActOnEndOfTranslationUnit() {
 // Helper functions.
 //===----------------------------------------------------------------------===//
 
-DeclContext *Sema::getFunctionLevelDeclContext() {
+DeclContext *Sema::getFunctionLevelDeclContext(bool AllowLambda) {
   DeclContext *DC = CurContext;
 
   while (true) {
     if (isa<BlockDecl>(DC) || isa<EnumDecl>(DC) || isa<CapturedDecl>(DC) ||
         isa<RequiresExprBodyDecl>(DC)) {
       DC = DC->getParent();
-    } else if (isa<CXXMethodDecl>(DC) &&
+    } else if (!AllowLambda && isa<CXXMethodDecl>(DC) &&
                cast<CXXMethodDecl>(DC)->getOverloadedOperator() == OO_Call &&
                cast<CXXRecordDecl>(DC->getParent())->isLambda()) {
       DC = DC->getParent()->getParent();
-    }
-    else break;
+    } else break;
   }
 
   return DC;
@@ -1485,8 +1478,8 @@ DeclContext *Sema::getFunctionLevelDeclContext() {
 /// getCurFunctionDecl - If inside of a function body, this returns a pointer
 /// to the function decl for the function being parsed.  If we're currently
 /// in a 'block', this returns the containing context.
-FunctionDecl *Sema::getCurFunctionDecl() {
-  DeclContext *DC = getFunctionLevelDeclContext();
+FunctionDecl *Sema::getCurFunctionDecl(bool AllowLambda) {
+  DeclContext *DC = getFunctionLevelDeclContext(AllowLambda);
   return dyn_cast<FunctionDecl>(DC);
 }
 
@@ -1722,6 +1715,11 @@ public:
               << Sema::KernelConstStaticVariable;
           return;
         }
+        if (!VD->hasInit() &&
+            S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+                VD->getType()) &&
+            !VD->hasAttr<SYCLDeviceAttr>())
+          S.Diag(Loc, diag::err_sycl_external_global);
       }
     }
     if (isa<VarDecl>(D))
@@ -2318,7 +2316,8 @@ operator()(sema::FunctionScopeInfo *Scope) const {
 }
 
 void Sema::PushCompoundScope(bool IsStmtExpr) {
-  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo(IsStmtExpr));
+  getCurFunction()->CompoundScopes.push_back(
+      CompoundScopeInfo(IsStmtExpr, getCurFPFeatures()));
 }
 
 void Sema::PopCompoundScope() {

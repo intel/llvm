@@ -3,8 +3,8 @@
 // Test `fir.dispatch` conversion to llvm.
 // Not implemented yet.
 
-func @dispatch(%arg0: !fir.box<!fir.type<derived3{f:f32}>>) {
-// CHECK: not yet implemented fir.dispatch codegen
+func.func @dispatch(%arg0: !fir.box<!fir.type<derived3{f:f32}>>) {
+// CHECK: not yet implemented: fir.dispatch codegen
   %0 = fir.dispatch "method"(%arg0) : (!fir.box<!fir.type<derived3{f:f32}>>) -> i32
   return
 }

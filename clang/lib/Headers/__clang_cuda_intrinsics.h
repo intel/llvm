@@ -71,8 +71,8 @@
   }                                                                            \
   inline __device__ unsigned long long __FnName(                               \
       unsigned long long __val, __Type __offset, int __width = warpSize) {     \
-    return static_cast<unsigned long long>(::__FnName(                         \
-        static_cast<unsigned long long>(__val), __offset, __width));           \
+    return static_cast<unsigned long long>(                                    \
+        ::__FnName(static_cast<long long>(__val), __offset, __width));         \
   }                                                                            \
   inline __device__ double __FnName(double __val, __Type __offset,             \
                                     int __width = warpSize) {                  \
@@ -139,8 +139,8 @@ __MAKE_SHUFFLES(__shfl_xor, __nvvm_shfl_bfly_i32, __nvvm_shfl_bfly_f32, 0x1f,
   inline __device__ unsigned long long __FnName(                               \
       unsigned int __mask, unsigned long long __val, __Type __offset,          \
       int __width = warpSize) {                                                \
-    return static_cast<unsigned long long>(::__FnName(                         \
-        __mask, static_cast<unsigned long long>(__val), __offset, __width));   \
+    return static_cast<unsigned long long>(                                    \
+        ::__FnName(__mask, static_cast<long long>(__val), __offset, __width)); \
   }                                                                            \
   inline __device__ long __FnName(unsigned int __mask, long __val,             \
                                   __Type __offset, int __width = warpSize) {   \
@@ -509,7 +509,7 @@ __device__ inline void *__nv_cvta_constant_to_generic_impl(size_t __ptr) {
 __device__ inline void *__nv_cvta_local_to_generic_impl(size_t __ptr) {
   return (void *)(void __attribute__((address_space(5))) *)__ptr;
 }
-__device__ inline uint32_t __nvvm_get_smem_pointer(void *__ptr) {
+__device__ inline cuuint32_t __nvvm_get_smem_pointer(void *__ptr) {
   return __nv_cvta_generic_to_shared_impl(__ptr);
 }
 } // extern "C"

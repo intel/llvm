@@ -283,6 +283,9 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
     assert(!Failed && "Invalid warn-stack-size fn attr value");
     (void)Failed;
   }
+  if (MF.getFunction().hasFnAttribute(Attribute::SafeStack)) {
+    StackSize += MFI.getUnsafeStackSize();
+  }
   if (StackSize > Threshold) {
     DiagnosticInfoStackSize DiagStackSize(F, StackSize, Threshold, DS_Warning);
     F.getContext().diagnose(DiagStackSize);
@@ -551,7 +554,7 @@ static void updateLiveness(MachineFunction &MF) {
   }
 }
 
-/// Insert restore code for the callee-saved registers used in the function.
+/// Insert spill code for the callee-saved registers used in the function.
 static void insertCSRSaves(MachineBasicBlock &SaveBlock,
                            ArrayRef<CalleeSavedInfo> CSI) {
   MachineFunction &MF = *SaveBlock.getParent();
@@ -836,8 +839,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   // Adjust 'Offset' to point to the end of last fixed sized preallocated
   // object.
   for (int i = MFI.getObjectIndexBegin(); i != 0; ++i) {
-    if (MFI.getStackID(i) !=
-        TargetStackID::Default) // Only allocate objects on the default stack.
+    // Only allocate objects on the default stack.
+    if (MFI.getStackID(i) != TargetStackID::Default)
       continue;
 
     int64_t FixedOff;
@@ -968,8 +971,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
         continue;
       if (StackProtectorFI == (int)i || EHRegNodeFrameIndex == (int)i)
         continue;
-      if (MFI.getStackID(i) !=
-          TargetStackID::Default) // Only allocate objects on the default stack.
+      // Only allocate objects on the default stack.
+      if (MFI.getStackID(i) != TargetStackID::Default)
         continue;
 
       switch (MFI.getObjectSSPLayout(i)) {
@@ -1022,8 +1025,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
       continue;
     if (ProtectedObjs.count(i))
       continue;
-    if (MFI.getStackID(i) !=
-        TargetStackID::Default) // Only allocate objects on the default stack.
+    // Only allocate objects on the default stack.
+    if (MFI.getStackID(i) != TargetStackID::Default)
       continue;
 
     // Add the objects that we need to allocate to our working set.
@@ -1144,11 +1147,7 @@ void PEI::insertPrologEpilogCode(MachineFunction &MF) {
   if (MF.shouldSplitStack()) {
     for (MachineBasicBlock *SaveBlock : SaveBlocks)
       TFI.adjustForSegmentedStacks(MF, *SaveBlock);
-    // Record that there are split-stack functions, so we will emit a
-    // special section to tell the linker.
-    MF.getMMI().setHasSplitStack(true);
-  } else
-    MF.getMMI().setHasNosplitStack(true);
+  }
 
   // Emit additional code that is required to explicitly handle the stack in
   // HiPE native code (if needed) when loaded in the Erlang/OTP runtime. The
@@ -1228,7 +1227,7 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
     RegsToZero.set(Reg);
   }
 
-  // Remove registers that are live when leaving the function.
+  // Don't clear registers that are live when leaving the function.
   for (const MachineBasicBlock &MBB : MF)
     for (const MachineInstr &MI : MBB.terminators()) {
       if (!MI.isReturn())
@@ -1242,6 +1241,31 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
           RegsToZero.reset(SReg);
       }
     }
+
+  // Don't need to clear registers that are used/clobbered by terminating
+  // instructions.
+  for (const MachineBasicBlock &MBB : MF) {
+    if (!MBB.isReturnBlock())
+      continue;
+
+    MachineBasicBlock::const_iterator MBBI = MBB.getFirstTerminator();
+    for (MachineBasicBlock::const_iterator I = MBBI, E = MBB.end(); I != E;
+         ++I) {
+      for (const MachineOperand &MO : I->operands()) {
+        if (!MO.isReg())
+          continue;
+
+        for (const MCPhysReg &Reg :
+             TRI.sub_and_superregs_inclusive(MO.getReg()))
+          RegsToZero.reset(Reg);
+      }
+    }
+  }
+
+  // Don't clear registers that are reset before exiting.
+  for (const CalleeSavedInfo &CSI : MF.getFrameInfo().getCalleeSavedInfo())
+    for (MCRegister Reg : TRI.sub_and_superregs_inclusive(CSI.getReg()))
+      RegsToZero.reset(Reg);
 
   const TargetFrameLowering &TFI = *MF.getSubtarget().getFrameLowering();
   for (MachineBasicBlock &MBB : MF)

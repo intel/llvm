@@ -107,6 +107,27 @@ static const char *getPropertyName(MachineFunctionProperties::Property Prop) {
   llvm_unreachable("Invalid machine function property");
 }
 
+void setUnsafeStackSize(const Function &F, MachineFrameInfo &FrameInfo) {
+  if (!F.hasFnAttribute(Attribute::SafeStack))
+    return;
+
+  auto *Existing =
+      dyn_cast_or_null<MDTuple>(F.getMetadata(LLVMContext::MD_annotation));
+
+  if (!Existing || Existing->getNumOperands() != 2)
+    return;
+
+  auto *MetadataName = "unsafe-stack-size";
+  if (auto &N = Existing->getOperand(0)) {
+    if (cast<MDString>(N.get())->getString() == MetadataName) {
+      if (auto &Op = Existing->getOperand(1)) {
+        auto Val = mdconst::extract<ConstantInt>(Op)->getZExtValue();
+        FrameInfo.setUnsafeStackSize(Val);
+      }
+    }
+  }
+}
+
 // Pin the vtable to this file.
 void MachineFunction::Delegate::anchor() {}
 
@@ -131,11 +152,11 @@ void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
   MBB->getParent()->deleteMachineBasicBlock(MBB);
 }
 
-static inline unsigned getFnStackAlignment(const TargetSubtargetInfo *STI,
+static inline Align getFnStackAlignment(const TargetSubtargetInfo *STI,
                                            const Function &F) {
   if (auto MA = F.getFnStackAlign())
-    return MA->value();
-  return STI->getFrameLowering()->getStackAlign().value();
+    return *MA;
+  return STI->getFrameLowering()->getStackAlign();
 }
 
 MachineFunction::MachineFunction(Function &F, const LLVMTargetMachine &Target,
@@ -175,6 +196,8 @@ void MachineFunction::init() {
       /*ForcedRealign=*/CanRealignSP &&
           F.hasFnAttribute(Attribute::StackAlignment));
 
+  setUnsafeStackSize(F, *FrameInfo);
+
   if (F.hasFnAttribute(Attribute::StackAlignment))
     FrameInfo->ensureMaxAlignment(*F.getFnStackAlign());
 
@@ -206,9 +229,7 @@ void MachineFunction::init() {
          "Can't create a MachineFunction using a Module with a "
          "Target-incompatible DataLayout attached\n");
 
-  PSVManager =
-    std::make_unique<PseudoSourceValueManager>(*(getSubtarget().
-                                                  getInstrInfo()));
+  PSVManager = std::make_unique<PseudoSourceValueManager>(getTarget());
 }
 
 MachineFunction::~MachineFunction() {
@@ -835,25 +856,6 @@ void MachineFunction::addCleanup(MachineBasicBlock *LandingPad) {
   LP.TypeIds.push_back(0);
 }
 
-void MachineFunction::addSEHCatchHandler(MachineBasicBlock *LandingPad,
-                                         const Function *Filter,
-                                         const BlockAddress *RecoverBA) {
-  LandingPadInfo &LP = getOrCreateLandingPadInfo(LandingPad);
-  SEHHandler Handler;
-  Handler.FilterOrFinally = Filter;
-  Handler.RecoverBA = RecoverBA;
-  LP.SEHHandlers.push_back(Handler);
-}
-
-void MachineFunction::addSEHCleanupHandler(MachineBasicBlock *LandingPad,
-                                           const Function *Cleanup) {
-  LandingPadInfo &LP = getOrCreateLandingPadInfo(LandingPad);
-  SEHHandler Handler;
-  Handler.FilterOrFinally = Cleanup;
-  Handler.RecoverBA = nullptr;
-  LP.SEHHandlers.push_back(Handler);
-}
-
 void MachineFunction::setCallSiteLandingPad(MCSymbol *Sym,
                                             ArrayRef<unsigned> Sites) {
   LPadToCallSiteMap[Sym].append(Sites.begin(), Sites.end());
@@ -909,8 +911,8 @@ static const MachineInstr *getCallInstr(const MachineInstr *MI) {
   if (!MI->isBundle())
     return MI;
 
-  for (auto &BMI : make_range(getBundleStart(MI->getIterator()),
-                              getBundleEnd(MI->getIterator())))
+  for (const auto &BMI : make_range(getBundleStart(MI->getIterator()),
+                                    getBundleEnd(MI->getIterator())))
     if (BMI.isCandidateForCallSiteEntry())
       return &BMI;
 
@@ -1010,7 +1012,32 @@ void MachineFunction::substituteDebugValuesForInst(const MachineInstr &Old,
   }
 }
 
-auto MachineFunction::salvageCopySSA(MachineInstr &MI)
+auto MachineFunction::salvageCopySSA(
+    MachineInstr &MI, DenseMap<Register, DebugInstrOperandPair> &DbgPHICache)
+    -> DebugInstrOperandPair {
+  const TargetInstrInfo &TII = *getSubtarget().getInstrInfo();
+
+  // Check whether this copy-like instruction has already been salvaged into
+  // an operand pair.
+  Register Dest;
+  if (auto CopyDstSrc = TII.isCopyInstr(MI)) {
+    Dest = CopyDstSrc->Destination->getReg();
+  } else {
+    assert(MI.isSubregToReg());
+    Dest = MI.getOperand(0).getReg();
+  }
+
+  auto CacheIt = DbgPHICache.find(Dest);
+  if (CacheIt != DbgPHICache.end())
+    return CacheIt->second;
+
+  // Calculate the instruction number to use, or install a DBG_PHI.
+  auto OperandPair = salvageCopySSAImpl(MI);
+  DbgPHICache.insert({Dest, OperandPair});
+  return OperandPair;
+}
+
+auto MachineFunction::salvageCopySSAImpl(MachineInstr &MI)
     -> DebugInstrOperandPair {
   MachineRegisterInfo &MRI = getRegInfo();
   const TargetRegisterInfo &TRI = *MRI.getTargetRegisterInfo();
@@ -1166,9 +1193,7 @@ void MachineFunction::finalizeDebugInstrRefs() {
     MI.getOperand(1).ChangeToRegister(0, false);
   };
 
-  if (!useDebugInstrRef())
-    return;
-
+  DenseMap<Register, DebugInstrOperandPair> ArgDbgPHIs;
   for (auto &MBB : *this) {
     for (auto &MI : MBB) {
       if (!MI.isDebugRef() || !MI.getOperand(0).isReg())
@@ -1191,7 +1216,7 @@ void MachineFunction::finalizeDebugInstrRefs() {
       // instruction that defines the source value, see salvageCopySSA docs
       // for why this is important.
       if (DefMI.isCopyLike() || TII->isCopyInstr(DefMI)) {
-        auto Result = salvageCopySSA(DefMI);
+        auto Result = salvageCopySSA(DefMI, ArgDbgPHIs);
         MI.getOperand(0).ChangeToImmediate(Result.first);
         MI.getOperand(1).setImm(Result.second);
       } else {

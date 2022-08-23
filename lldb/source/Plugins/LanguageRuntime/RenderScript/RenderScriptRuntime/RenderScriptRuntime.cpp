@@ -577,7 +577,7 @@ struct RenderScriptRuntime::Element {
       array_size;        // Number of items in array, only needed for structs
   ConstString type_name; // Name of type, only needed for structs
 
-  static ConstString 
+  static ConstString
   GetFallbackStructName(); // Print this as the type name of a struct Element
                            // If we can't resolve the actual struct name
 
@@ -879,7 +879,7 @@ RSReduceBreakpointResolver::SearchCallback(lldb_private::SearchFilter &filter,
           LLDB_LOGF(log, "%s: %s reduction breakpoint on %s in %s",
                     __FUNCTION__, new_bp ? "new" : "existing",
                     kernel_name.GetCString(),
-                    address.GetModule()->GetFileSpec().GetCString());
+                    address.GetModule()->GetFileSpec().GetPath().c_str());
         }
       }
     }
@@ -2442,7 +2442,7 @@ bool RenderScriptRuntime::LoadAllocation(Stream &strm, const uint32_t alloc_id,
   auto data_sp = FileSystem::Instance().CreateDataBuffer(file.GetPath());
 
   // Cast start of buffer to FileHeader and use pointer to read metadata
-  void *file_buf = data_sp->GetBytes();
+  const void *file_buf = data_sp->GetBytes();
   if (file_buf == nullptr ||
       data_sp->GetByteSize() < (sizeof(AllocationDetails::FileHeader) +
                                 sizeof(AllocationDetails::ElementHeader))) {
@@ -2451,7 +2451,7 @@ bool RenderScriptRuntime::LoadAllocation(Stream &strm, const uint32_t alloc_id,
     return false;
   }
   const AllocationDetails::FileHeader *file_header =
-      static_cast<AllocationDetails::FileHeader *>(file_buf);
+      static_cast<const AllocationDetails::FileHeader *>(file_buf);
 
   // Check file starts with ascii characters "RSAD"
   if (memcmp(file_header->ident, "RSAD", 4)) {
@@ -2463,8 +2463,9 @@ bool RenderScriptRuntime::LoadAllocation(Stream &strm, const uint32_t alloc_id,
 
   // Look at the type of the root element in the header
   AllocationDetails::ElementHeader root_el_hdr;
-  memcpy(&root_el_hdr, static_cast<uint8_t *>(file_buf) +
-                           sizeof(AllocationDetails::FileHeader),
+  memcpy(&root_el_hdr,
+         static_cast<const uint8_t *>(file_buf) +
+             sizeof(AllocationDetails::FileHeader),
          sizeof(AllocationDetails::ElementHeader));
 
   LLDB_LOGF(log, "%s - header type %" PRIu32 ", element size %" PRIu32,
@@ -2515,7 +2516,7 @@ bool RenderScriptRuntime::LoadAllocation(Stream &strm, const uint32_t alloc_id,
   }
 
   // Advance buffer past header
-  file_buf = static_cast<uint8_t *>(file_buf) + file_header->hdr_size;
+  file_buf = static_cast<const uint8_t *>(file_buf) + file_header->hdr_size;
 
   // Calculate size of allocation data in file
   size_t size = data_sp->GetByteSize() - file_header->hdr_size;
@@ -2983,7 +2984,8 @@ bool RSModuleDescriptor::ParseRSInfo() {
     const llvm::StringRef raw_rs_info((const char *)buffer->GetBytes());
     raw_rs_info.split(info_lines, '\n');
     LLDB_LOGF(log, "'.rs.info symbol for '%s':\n%s",
-              m_module->GetFileSpec().GetCString(), raw_rs_info.str().c_str());
+              m_module->GetFileSpec().GetPath().c_str(),
+              raw_rs_info.str().c_str());
   }
 
   enum {
@@ -4066,7 +4068,10 @@ public:
             "<reduction_kernel_type,...>]",
             eCommandRequiresProcess | eCommandProcessMustBeLaunched |
                 eCommandProcessMustBePaused),
-        m_options(){};
+        m_options() {
+    CommandArgumentData name_arg{eArgTypeName, eArgRepeatPlain};
+    m_arguments.push_back({name_arg});
+  };
 
   class CommandOptions : public Options {
   public:
@@ -4159,7 +4164,7 @@ public:
     int m_kernel_types = RSReduceBreakpointResolver::eKernelTypeAll;
     llvm::StringRef m_reduce_name;
     RSCoordinate m_coord;
-    bool m_have_coord;
+    bool m_have_coord = false;
   };
 
   Options *GetOptions() override { return &m_options; }
@@ -4215,7 +4220,10 @@ public:
             "renderscript kernel breakpoint set <kernel_name> [-c x,y,z]",
             eCommandRequiresProcess | eCommandProcessMustBeLaunched |
                 eCommandProcessMustBePaused),
-        m_options() {}
+        m_options() {
+    CommandArgumentData name_arg{eArgTypeName, eArgRepeatPlain};
+    m_arguments.push_back({name_arg});
+  }
 
   ~CommandObjectRenderScriptRuntimeKernelBreakpointSet() override = default;
 
@@ -4261,7 +4269,7 @@ public:
     }
 
     RSCoordinate m_coord;
-    bool m_have_coord;
+    bool m_have_coord = false;
   };
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
@@ -4310,7 +4318,10 @@ public:
             "but does not remove currently set breakpoints.",
             "renderscript kernel breakpoint all <enable/disable>",
             eCommandRequiresProcess | eCommandProcessMustBeLaunched |
-                eCommandProcessMustBePaused) {}
+                eCommandProcessMustBePaused) {
+    CommandArgumentData enable_arg{eArgTypeNone, eArgRepeatPlain};
+    m_arguments.push_back({enable_arg});
+  }
 
   ~CommandObjectRenderScriptRuntimeKernelBreakpointAll() override = default;
 
@@ -4492,7 +4503,10 @@ public:
                             "renderscript allocation dump <ID>",
                             eCommandRequiresProcess |
                                 eCommandProcessMustBeLaunched),
-        m_options() {}
+        m_options() {
+    CommandArgumentData id_arg{eArgTypeUnsignedInteger, eArgRepeatPlain};
+    m_arguments.push_back({id_arg});
+  }
 
   ~CommandObjectRenderScriptRuntimeAllocationDump() override = default;
 
@@ -4678,7 +4692,12 @@ public:
             interpreter, "renderscript allocation load",
             "Loads renderscript allocation contents from a file.",
             "renderscript allocation load <ID> <filename>",
-            eCommandRequiresProcess | eCommandProcessMustBeLaunched) {}
+            eCommandRequiresProcess | eCommandProcessMustBeLaunched) {
+    CommandArgumentData id_arg{eArgTypeUnsignedInteger, eArgRepeatPlain};
+    CommandArgumentData name_arg{eArgTypeFilename, eArgRepeatPlain};
+    m_arguments.push_back({id_arg});
+    m_arguments.push_back({name_arg});
+  }
 
   ~CommandObjectRenderScriptRuntimeAllocationLoad() override = default;
 
@@ -4725,7 +4744,12 @@ public:
                             "Write renderscript allocation contents to a file.",
                             "renderscript allocation save <ID> <filename>",
                             eCommandRequiresProcess |
-                                eCommandProcessMustBeLaunched) {}
+                                eCommandProcessMustBeLaunched) {
+    CommandArgumentData id_arg{eArgTypeUnsignedInteger, eArgRepeatPlain};
+    CommandArgumentData name_arg{eArgTypeFilename, eArgRepeatPlain};
+    m_arguments.push_back({id_arg});
+    m_arguments.push_back({name_arg});
+  }
 
   ~CommandObjectRenderScriptRuntimeAllocationSave() override = default;
 

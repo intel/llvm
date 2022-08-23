@@ -2,6 +2,7 @@
 // CHECK: Available Dialects:
 // CHECK-NEXT: acc
 // CHECK-NEXT: affine
+// CHECK-NEXT: amdgpu
 // CHECK-NEXT: amx
 // CHECK-NEXT: arith
 // CHECK-NEXT: arm_neon
@@ -19,6 +20,8 @@
 // CHECK-NEXT: llvm
 // CHECK-NEXT: math
 // CHECK-NEXT: memref
+// CHECK-NEXT: ml_program
+// CHECK-NEXT: nvgpu
 // CHECK-NEXT: nvvm
 // CHECK-NEXT: omp
 // CHECK-NEXT: pdl
@@ -32,5 +35,6 @@
 // CHECK-NEXT: tensor
 // CHECK-NEXT: test
 // CHECK-NEXT: tosa
+// CHECK-NEXT: transform
 // CHECK-NEXT: vector
 // CHECK-NEXT: x86vector

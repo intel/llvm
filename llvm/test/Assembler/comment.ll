@@ -1,5 +1,5 @@
-; RUN: llvm-as < %s | llvm-dis -show-annotations | FileCheck -check-prefix=ANNOT %s
-; RUN: llvm-as < %s | llvm-dis | FileCheck -check-prefix=BARE %s
+; RUN: llvm-as -opaque-pointers < %s | llvm-dis -show-annotations | FileCheck -check-prefix=ANNOT %s
+; RUN: llvm-as -opaque-pointers < %s | llvm-dis | FileCheck -check-prefix=BARE %s
 ; RUN: verify-uselistorder %s
 
 ; The bare version of this file should not have any #uses lines.
@@ -8,7 +8,7 @@
 ; BARE: }
 
 @B = external global i32
-; ANNOT: @B = external global i32   ; [#uses=0 type=i32*]
+; ANNOT: @B = external global i32   ; [#uses=0 type=ptr]
 
 define <4 x i1> @foo(<4 x float> %a, <4 x float> %b) nounwind {
 entry:

@@ -72,6 +72,8 @@ intrinsicToAttrMask(Intrinsic::ID ID, bool &NonKernelOnly, bool &NeedsImplicit,
   case Intrinsic::amdgcn_workgroup_id_z:
   case Intrinsic::r600_read_tgid_z:
     return WORKGROUP_ID_Z;
+  case Intrinsic::amdgcn_lds_kernel_id:
+    return LDS_KERNEL_ID;
   case Intrinsic::amdgcn_dispatch_ptr:
     return DISPATCH_PTR;
   case Intrinsic::amdgcn_dispatch_id:
@@ -436,6 +438,12 @@ struct AAAMDAttributesFunction : public AAAMDAttributes {
         removeAssumedBits(QUEUE_PTR);
     }
 
+    if (funcRetrievesMultigridSyncArg(A)) {
+      assert(!isAssumed(IMPLICIT_ARG_PTR) &&
+             "multigrid_sync_arg needs implicitarg_ptr");
+      removeAssumedBits(MULTIGRID_SYNC_ARG);
+    }
+
     if (funcRetrievesHostcallPtr(A)) {
       assert(!isAssumed(IMPLICIT_ARG_PTR) && "hostcall needs implicitarg_ptr");
       removeAssumedBits(HOSTCALL_PTR);
@@ -449,6 +457,10 @@ struct AAAMDAttributesFunction : public AAAMDAttributes {
     if (isAssumed(QUEUE_PTR) && funcRetrievesQueuePtr(A)) {
       assert(!isAssumed(IMPLICIT_ARG_PTR) && "queue_ptr needs implicitarg_ptr");
       removeAssumedBits(QUEUE_PTR);
+    }
+
+    if (isAssumed(LDS_KERNEL_ID) && funcRetrievesLDSKernelId(A)) {
+      removeAssumedBits(LDS_KERNEL_ID);
     }
 
     return getAssumed() != OrigAssumed ? ChangeStatus::CHANGED
@@ -533,6 +545,12 @@ private:
     return false;
   }
 
+  bool funcRetrievesMultigridSyncArg(Attributor &A) {
+    auto Pos = llvm::AMDGPU::getMultigridSyncArgImplicitArgPosition();
+    AAPointerInfo::OffsetAndSize OAS(Pos, 8);
+    return funcRetrievesImplicitKernelArg(A, OAS);
+  }
+
   bool funcRetrievesHostcallPtr(Attributor &A) {
     auto Pos = llvm::AMDGPU::getHostcallImplicitArgPosition();
     AAPointerInfo::OffsetAndSize OAS(Pos, 8);
@@ -577,6 +595,16 @@ private:
 
     bool UsedAssumedInformation = false;
     return !A.checkForAllCallLikeInstructions(DoesNotLeadToKernelArgLoc, *this,
+                                              UsedAssumedInformation);
+  }
+
+  bool funcRetrievesLDSKernelId(Attributor &A) {
+    auto DoesNotRetrieve = [&](Instruction &I) {
+      auto &Call = cast<CallBase>(I);
+      return Call.getIntrinsicID() != Intrinsic::amdgcn_lds_kernel_id;
+    };
+    bool UsedAssumedInformation = false;
+    return !A.checkForAllCallLikeInstructions(DoesNotRetrieve, *this,
                                               UsedAssumedInformation);
   }
 };
@@ -731,9 +759,15 @@ public:
     AMDGPUInformationCache InfoCache(M, AG, Allocator, nullptr, *TM);
     DenseSet<const char *> Allowed(
         {&AAAMDAttributes::ID, &AAUniformWorkGroupSize::ID,
-         &AAAMDFlatWorkGroupSize::ID, &AACallEdges::ID, &AAPointerInfo::ID});
+         &AAPotentialValues::ID, &AAAMDFlatWorkGroupSize::ID, &AACallEdges::ID,
+         &AAPointerInfo::ID});
 
-    Attributor A(Functions, InfoCache, CGUpdater, &Allowed);
+    AttributorConfig AC(CGUpdater);
+    AC.Allowed = &Allowed;
+    AC.IsModulePass = true;
+    AC.DefaultInitializeLiveInternals = false;
+
+    Attributor A(Functions, InfoCache, AC);
 
     for (Function &F : M) {
       if (!F.isIntrinsic()) {

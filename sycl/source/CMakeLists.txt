@@ -66,10 +66,6 @@ function(add_sycl_rt_library LIB_NAME)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
-    target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
     target_link_libraries(
         ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
     set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
@@ -86,7 +82,7 @@ function(add_sycl_rt_library LIB_NAME)
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
   )
-  #TODO: Remove dependency on icd loader and opencl headers.
+  #TODO: Remove dependency on opencl headers.
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
@@ -95,11 +91,8 @@ function(add_sycl_rt_library LIB_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
@@ -171,6 +164,7 @@ set(SYCL_SOURCES
     "detail/util.cpp"
     "detail/xpti_registry.cpp"
     "accessor.cpp"
+    "buffer.cpp"
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
@@ -178,8 +172,8 @@ set(SYCL_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
+    "image.cpp"
     "interop_handle.cpp"
     "interop_handler.cpp"
     "kernel.cpp"
@@ -193,7 +187,6 @@ set(SYCL_SOURCES
     "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
-    "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
 if (MSVC)

@@ -179,6 +179,7 @@ struct EquivalenceStmt; // R870
 struct CommonStmt; // R873
 struct Substring; // R908
 struct CharLiteralConstantSubstring;
+struct SubstringInquiry;
 struct DataRef; // R911
 struct StructureComponent; // R913
 struct CoindexedNamedObject; // R914
@@ -1734,7 +1735,7 @@ struct Expr {
       StructureConstructor, common::Indirection<FunctionReference>, Parentheses,
       UnaryPlus, Negate, NOT, PercentLoc, DefinedUnary, Power, Multiply, Divide,
       Add, Subtract, Concat, LT, LE, EQ, NE, GE, GT, AND, OR, EQV, NEQV,
-      DefinedBinary, ComplexConstructor>
+      DefinedBinary, ComplexConstructor, common::Indirection<SubstringInquiry>>
       u;
 };
 
@@ -1776,6 +1777,15 @@ struct Substring {
 struct CharLiteralConstantSubstring {
   TUPLE_CLASS_BOILERPLATE(CharLiteralConstantSubstring);
   std::tuple<CharLiteralConstant, SubstringRange> t;
+};
+
+// substring%KIND/LEN type parameter inquiry for cases that could not be
+// parsed as part-refs and fixed up afterwards.  N.B. we only have to
+// handle inquiries into designator-based substrings, not those based on
+// char-literal-constants.
+struct SubstringInquiry {
+  CharBlock source;
+  WRAPPER_CLASS_BOILERPLATE(SubstringInquiry, Substring);
 };
 
 // R901 designator -> object-name | array-element | array-section |
@@ -3308,7 +3318,7 @@ WRAPPER_CLASS(PauseStmt, std::optional<StopCode>);
 
 // 2.5 proc-bind-clause -> PROC_BIND (MASTER | CLOSE | SPREAD)
 struct OmpProcBindClause {
-  ENUM_CLASS(Type, Close, Master, Spread)
+  ENUM_CLASS(Type, Close, Master, Spread, Primary)
   WRAPPER_CLASS_BOILERPLATE(OmpProcBindClause, Type);
 };
 
@@ -3346,8 +3356,9 @@ struct OmpMapClause {
 // 2.15.5.2 defaultmap -> DEFAULTMAP (implicit-behavior[:variable-category])
 struct OmpDefaultmapClause {
   TUPLE_CLASS_BOILERPLATE(OmpDefaultmapClause);
-  ENUM_CLASS(ImplicitBehavior, Tofrom)
-  ENUM_CLASS(VariableCategory, Scalar)
+  ENUM_CLASS(
+      ImplicitBehavior, Alloc, To, From, Tofrom, Firstprivate, None, Default)
+  ENUM_CLASS(VariableCategory, Scalar, Aggregate, Allocatable, Pointer)
   std::tuple<ImplicitBehavior, std::optional<VariableCategory>> t;
 };
 
@@ -3433,6 +3444,13 @@ struct OmpReductionClause {
   std::tuple<OmpReductionOperator, OmpObjectList> t;
 };
 
+// OMP 5.0 2.19.5.6 in_reduction-clause -> IN_REDUCTION (reduction-identifier:
+//                                         variable-name-list)
+struct OmpInReductionClause {
+  TUPLE_CLASS_BOILERPLATE(OmpInReductionClause);
+  std::tuple<OmpReductionOperator, OmpObjectList> t;
+};
+
 // OMP 5.0 2.11.4 allocate-clause -> ALLOCATE ([allocator:] variable-name-list)
 struct OmpAllocateClause {
   TUPLE_CLASS_BOILERPLATE(OmpAllocateClause);
@@ -3515,7 +3533,15 @@ struct OmpEndSectionsDirective {
 // [!$omp section
 //    structured-block]
 // ...
-WRAPPER_CLASS(OmpSectionBlocks, std::list<Block>);
+struct OpenMPSectionConstruct {
+  WRAPPER_CLASS_BOILERPLATE(OpenMPSectionConstruct, Block);
+  CharBlock source;
+};
+
+// `OmpSectionBlocks` is a list of section constructs. The parser guarentees
+// that the `OpenMPConstruct` here always encapsulates an
+// `OpenMPSectionConstruct` and not any other OpenMP construct.
+WRAPPER_CLASS(OmpSectionBlocks, std::list<OpenMPConstruct>);
 
 struct OpenMPSectionsConstruct {
   TUPLE_CLASS_BOILERPLATE(OpenMPSectionsConstruct);
@@ -3746,7 +3772,6 @@ struct OpenMPCancelConstruct {
   std::tuple<Verbatim, OmpCancelType, std::optional<If>> t;
 };
 
-
 // 2.17.8 flush -> FLUSH [memory-order-clause] [(variable-name-list)]
 struct OpenMPFlushConstruct {
   TUPLE_CLASS_BOILERPLATE(OpenMPFlushConstruct);
@@ -3817,9 +3842,9 @@ struct OpenMPLoopConstruct {
 struct OpenMPConstruct {
   UNION_CLASS_BOILERPLATE(OpenMPConstruct);
   std::variant<OpenMPStandaloneConstruct, OpenMPSectionsConstruct,
-      OpenMPLoopConstruct, OpenMPBlockConstruct, OpenMPAtomicConstruct,
-      OpenMPDeclarativeAllocate, OpenMPExecutableAllocate,
-      OpenMPCriticalConstruct>
+      OpenMPSectionConstruct, OpenMPLoopConstruct, OpenMPBlockConstruct,
+      OpenMPAtomicConstruct, OpenMPDeclarativeAllocate,
+      OpenMPExecutableAllocate, OpenMPCriticalConstruct>
       u;
 };
 
@@ -3898,6 +3923,17 @@ struct AccObjectListWithReduction {
 struct AccWaitArgument {
   TUPLE_CLASS_BOILERPLATE(AccWaitArgument);
   std::tuple<std::optional<ScalarIntExpr>, std::list<ScalarIntExpr>> t;
+};
+
+struct AccDeviceTypeExpr {
+  TUPLE_CLASS_BOILERPLATE(AccDeviceTypeExpr);
+  CharBlock source;
+  std::tuple<std::optional<ScalarIntExpr>> t; // if null then *
+};
+
+struct AccDeviceTypeExprList {
+  WRAPPER_CLASS_BOILERPLATE(
+      AccDeviceTypeExprList, std::list<AccDeviceTypeExpr>);
 };
 
 struct AccTileExpr {

@@ -2,9 +2,9 @@
 // found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
 // RUN: %clangxx -fsycl %s -o %t.out
 
-#include <CL/sycl.hpp>
 #include <cmath>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;

@@ -16,14 +16,13 @@
 #define _USE_MATH_DEFINES
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
 namespace {
@@ -42,7 +41,7 @@ template <typename T> inline T __cospi(T x) { return std::cos(M_PI * x); }
 template <typename T> T inline __fract(T x, T *iptr) {
   T f = std::floor(x);
   *(iptr) = f;
-  return std::fmin(x - f, nextafter(T(1.0), T(0.0)));
+  return std::fmin(x - f, std::nextafter(T(1.0), T(0.0)));
 }
 
 template <typename T> inline T __lgamma_r(T x, s::cl_int *signp) {
@@ -997,4 +996,3 @@ __SYCL_EXPORT s::cl_float half_tan(s::cl_float x) __NOEXC {
 MAKE_1V(half_tan, s::cl_float, s::cl_float)
 
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)

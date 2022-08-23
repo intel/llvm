@@ -234,7 +234,7 @@ device binary image descriptor's property sets.
 
 Each device image is supplied with an array of property sets. For description
 of property sets see `struct pi_device_binary_struct` in
-[`pi.h`](https://github.com/intel/llvm/blob/sycl/sycl/include/CL/sycl/detail/pi.h#L692)
+[`pi.h`](https://github.com/intel/llvm/blob/sycl/sycl/include/sycl/detail/pi.h#L692)
 
 A distinct property set `SYCL/assert used` is added. In this set a property
 with the name of the kernel is added whenever the kernel uses assert. The use of

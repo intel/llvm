@@ -1,11 +1,11 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   auto AsyncHandler = [](exception_list ES) {

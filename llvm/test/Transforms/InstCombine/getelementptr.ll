@@ -1300,9 +1300,8 @@ define i8* @gep_null_inbounds_different_type(i64 %idx1, i64 %idx2) {
 
 define i8* @D98588(i8* %c1, i64 %offset) {
 ; CHECK-LABEL: @D98588(
-; CHECK-NEXT:    [[C2:%.*]] = bitcast i8* [[C1:%.*]] to i64*
-; CHECK-NEXT:    [[C2_NEXT:%.*]] = getelementptr inbounds i64, i64* [[C2]], i64 [[OFFSET:%.*]]
-; CHECK-NEXT:    [[GEP:%.*]] = bitcast i64* [[C2_NEXT]] to i8*
+; CHECK-NEXT:    [[C2_NEXT_IDX:%.*]] = shl nsw i64 [[OFFSET:%.*]], 3
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i8, i8* [[C1:%.*]], i64 [[C2_NEXT_IDX]]
 ; CHECK-NEXT:    ret i8* [[GEP]]
 ;
   %c2 = bitcast i8* %c1 to i64*
@@ -1314,7 +1313,7 @@ define i8* @D98588(i8* %c1, i64 %offset) {
   ret i8* %gep
 }
 
-declare noalias i8* @malloc(i64) nounwind
+declare noalias i8* @malloc(i64) nounwind allockind("alloc,uninitialized") allocsize(0)
 
 define i32 @test_gep_bitcast_malloc(%struct.A* %a) {
 ; CHECK-LABEL: @test_gep_bitcast_malloc(

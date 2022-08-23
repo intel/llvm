@@ -23,6 +23,7 @@
 using namespace llvm;
 
 #define GET_INSTRINFO_MC_DESC
+#define ENABLE_INSTR_PREDICATE_VERIFIER
 #include "SystemZGenInstrInfo.inc"
 
 #define GET_SUBTARGETINFO_MC_DESC
@@ -194,7 +195,7 @@ void SystemZTargetStreamer::emitConstantPools() {
     return;
   // Switch to the .text section.
   const MCObjectFileInfo &OFI = *Streamer.getContext().getObjectFileInfo();
-  Streamer.SwitchSection(OFI.getTextSection());
+  Streamer.switchSection(OFI.getTextSection());
   for (auto &I : EXRLTargets2Sym) {
     Streamer.emitLabel(I.second);
     const MCInstSTIPair &MCI_STI = I.first;

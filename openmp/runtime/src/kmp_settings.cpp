@@ -812,6 +812,7 @@ static void __kmp_stg_parse_wait_policy(char const *name, char const *value,
       }
     } else if (__kmp_str_match("PASSIVE", 1, value)) {
       __kmp_library = library_throughput;
+      __kmp_wpolicy_passive = true; /* allow sleep while active tasking */
       if (blocktime_str == NULL) {
         // KMP_BLOCKTIME not specified, so set default to 0.
         __kmp_dflt_blocktime = 0;
@@ -2168,6 +2169,7 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
   int respect = 0;
   int gran = 0;
   int dups = 0;
+  int reset = 0;
   bool set = false;
 
   KMP_ASSERT(value != NULL);
@@ -2223,6 +2225,7 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
 #define set_respect(val) _set_param(respect, *out_respect, val)
 #define set_dups(val) _set_param(dups, *out_dups, val)
 #define set_proclist(val) _set_param(proclist, *out_proclist, val)
+#define set_reset(val) _set_param(reset, __kmp_affin_reset, val)
 
 #define set_gran(val, levels)                                                  \
   {                                                                            \
@@ -2291,6 +2294,12 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
       buf = next;
     } else if (__kmp_match_str("norespect", buf, CCAST(const char **, &next))) {
       set_respect(FALSE);
+      buf = next;
+    } else if (__kmp_match_str("reset", buf, CCAST(const char **, &next))) {
+      set_reset(TRUE);
+      buf = next;
+    } else if (__kmp_match_str("noreset", buf, CCAST(const char **, &next))) {
+      set_reset(FALSE);
       buf = next;
     } else if (__kmp_match_str("duplicates", buf,
                                CCAST(const char **, &next)) ||
@@ -2432,6 +2441,7 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
 #undef set_warnings
 #undef set_respect
 #undef set_granularity
+#undef set_reset
 
   __kmp_str_free(&buffer);
 
@@ -2562,6 +2572,11 @@ static void __kmp_stg_print_affinity(kmp_str_buf_t *buffer, char const *name,
       __kmp_str_buf_print(buffer, "%s,", "respect");
     } else {
       __kmp_str_buf_print(buffer, "%s,", "norespect");
+    }
+    if (__kmp_affin_reset) {
+      __kmp_str_buf_print(buffer, "%s,", "reset");
+    } else {
+      __kmp_str_buf_print(buffer, "%s,", "noreset");
     }
     __kmp_str_buf_print(buffer, "granularity=%s,",
                         __kmp_hw_get_keyword(__kmp_affinity_gran, false));
@@ -5021,7 +5036,7 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
           attr.set_core_type(KMP_HW_CORE_TYPE_CORE);
         } else if (__kmp_str_match("intel_atom", -1, attr_ptr + 1)) {
           attr.set_core_type(KMP_HW_CORE_TYPE_ATOM);
-        }
+        } else
 #endif
         if (__kmp_str_match("eff", 3, attr_ptr + 1)) {
           const char *number = attr_ptr + 1;
