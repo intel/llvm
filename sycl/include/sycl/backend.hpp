@@ -43,8 +43,8 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 // TODO each backend can have its own custom errc enumeration
@@ -331,5 +331,5 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/sycl_mem_obj_i.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
@@ -18,8 +18,8 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class queue_impl;
@@ -148,5 +148,5 @@ public:
                          RT::PiEvent *OutEvent);
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

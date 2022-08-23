@@ -15,7 +15,7 @@ int main() {
     };
 
     cgh.parallel_for_work_group<class kernel_class>(
-        cl::sycl::range<1>(), cl::sycl::range<1>(), kernel_);
+        sycl::range<1>(), sycl::range<1>(), kernel_);
   });
   return 0;
 }

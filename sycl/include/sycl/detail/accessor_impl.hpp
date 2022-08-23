@@ -10,14 +10,13 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/sycl_mem_obj_i.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename, int, access::mode, access::target, access::placeholder,
           typename>
 class accessor;
@@ -34,6 +33,8 @@ class AccessorPrivateProxy;
 } // namespace ext
 
 namespace detail {
+
+class SYCLMemObjI;
 
 class Command;
 
@@ -78,12 +79,13 @@ public:
 class __SYCL_EXPORT AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
+                   access::mode AccessMode, void *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false, bool IsESIMDAcc = false,
                    const property_list &PropertyList = {})
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
-        MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
+        MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
         MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc),
         MPropertyList(PropertyList) {}
@@ -142,12 +144,13 @@ class AccessorBaseHost {
 public:
   template <typename PropertyListT = property_list>
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
+                   access::mode AccessMode, void *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const PropertyListT &PropertyList = {}) {
     impl = std::shared_ptr<AccessorImplHost>(new AccessorImplHost(
-        Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
+        Offset, AccessRange, MemoryRange, AccessMode,
+        (detail::SYCLMemObjI *)SYCLMemObject, Dims,
         ElemSize, OffsetInBytes, IsSubBuffer, /* IsESIMDAcc = */ false,
         PropertyList));
   }
@@ -283,5 +286,5 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
 #endif
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -17,8 +17,8 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <typename T> class aligned_allocator {
 public:
@@ -79,8 +79,8 @@ private:
   size_t MAlignment = 128;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <typename T>
@@ -131,7 +131,8 @@ struct allocator_traits<sycl::detail::aligned_allocator<T>> {
   }
 
   static size_type max_size(const allocator_type &) noexcept {
-    return std::numeric_limits<size_type>::max() / sizeof(value_type);
+    // max is a macro on Windows...
+    return (std::numeric_limits<size_type>::max)() / sizeof(value_type);
   }
 
   static allocator_type

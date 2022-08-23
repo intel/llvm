@@ -17,8 +17,8 @@
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -75,7 +75,6 @@ context queue::get_context() const { return impl->get_context(); }
 device queue::get_device() const { return impl->get_device(); }
 
 bool queue::is_host() const { return impl->is_host(); }
-
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
@@ -176,7 +175,7 @@ queue::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <typename PropertyT> bool queue::has_property() const {
+template <typename PropertyT> bool queue::has_property() const noexcept {
   return impl->has_property<PropertyT>();
 }
 
@@ -185,7 +184,7 @@ template <typename PropertyT> PropertyT queue::get_property() const {
 }
 
 template __SYCL_EXPORT bool
-queue::has_property<property::queue::enable_profiling>() const;
+queue::has_property<property::queue::enable_profiling>() const noexcept;
 template __SYCL_EXPORT property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
@@ -210,5 +209,5 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

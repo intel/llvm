@@ -18,8 +18,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class context;
 
@@ -63,13 +63,6 @@ public:
   bool operator==(const event &rhs) const;
 
   bool operator!=(const event &rhs) const;
-
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-#ifdef __SYCL_INTERNAL_API
-  cl_event get() const;
-#endif
 
   /// Checks if this event is a SYCL host event.
   ///
@@ -154,8 +147,8 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::event> {

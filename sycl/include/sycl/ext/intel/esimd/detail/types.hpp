@@ -24,8 +24,9 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 // simd and simd_view_impl forward declarations
 template <typename Ty, int N> class simd;
@@ -398,5 +399,6 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
 // Alias for backward compatibility.
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

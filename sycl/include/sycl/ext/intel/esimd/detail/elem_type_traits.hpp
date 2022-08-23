@@ -87,8 +87,9 @@
 
 /// @cond ESIMD_DETAIL
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
 
 // Primitive C++ operations supported by simd objects and templated upon by some
 // of the functions/classes.
@@ -581,7 +582,7 @@ public:
   template <class T = sycl::half>
   static inline T bitcast_to_half(__raw_t<T> Bits) {
 #ifndef __SYCL_DEVICE_ONLY__
-    return sycl::half{Bits};
+    return sycl::half(::sycl::detail::host_half_impl::half(Bits));
 #else
     sycl::half Res;
     Res.Data = Bits;
@@ -747,7 +748,8 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 ////////////////////////////////////////////////////////////////////////////////
 // TODO
 
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @endcond ESIMD_DETAIL

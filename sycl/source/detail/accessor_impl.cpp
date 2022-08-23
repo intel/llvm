@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/accessor_impl.hpp>
-#include <sycl/detail/buffer_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {
@@ -47,5 +47,5 @@ void constructorNotification(void *BufferObj, void *AccessorObj,
       BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -37,8 +37,8 @@
 #include <sstream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
@@ -2046,8 +2046,8 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
   sycl::detail::ProgramManager::getInstance().addImages(desc);

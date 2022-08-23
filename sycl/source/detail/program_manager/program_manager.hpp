@@ -40,8 +40,8 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
@@ -401,5 +401,5 @@ private:
   std::mutex m_DeviceGlobalsMutex;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

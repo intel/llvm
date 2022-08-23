@@ -21,8 +21,8 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
@@ -339,5 +339,5 @@ bool platform_impl::has(aspect Aspect) const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

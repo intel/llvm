@@ -25,8 +25,8 @@
 #include <algorithm>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 static const plugin &getPlugin(backend Backend) {
@@ -280,5 +280,5 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

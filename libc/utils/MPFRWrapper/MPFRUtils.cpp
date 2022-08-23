@@ -194,6 +194,12 @@ public:
     return result;
   }
 
+  MPFRNumber cosh() const {
+    MPFRNumber result(*this);
+    mpfr_cosh(result.value, value, mpfr_rounding);
+    return result;
+  }
+
   MPFRNumber exp() const {
     MPFRNumber result(*this);
     mpfr_exp(result.value, value, mpfr_rounding);
@@ -331,6 +337,12 @@ public:
     return result;
   }
 
+  MPFRNumber sinh() const {
+    MPFRNumber result(*this);
+    mpfr_sinh(result.value, value, mpfr_rounding);
+    return result;
+  }
+
   MPFRNumber sqrt() const {
     MPFRNumber result(*this);
     mpfr_sqrt(result.value, value, mpfr_rounding);
@@ -340,6 +352,12 @@ public:
   MPFRNumber tan() const {
     MPFRNumber result(*this);
     mpfr_tan(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber tanh() const {
+    MPFRNumber result(*this);
+    mpfr_tanh(result.value, value, mpfr_rounding);
     return result;
   }
 
@@ -481,6 +499,8 @@ unary_operation(Operation op, InputType input, unsigned int precision,
     return mpfrInput.ceil();
   case Operation::Cos:
     return mpfrInput.cos();
+  case Operation::Cosh:
+    return mpfrInput.cosh();
   case Operation::Exp:
     return mpfrInput.exp();
   case Operation::Exp2:
@@ -507,10 +527,14 @@ unary_operation(Operation op, InputType input, unsigned int precision,
     return mpfrInput.round();
   case Operation::Sin:
     return mpfrInput.sin();
+  case Operation::Sinh:
+    return mpfrInput.sinh();
   case Operation::Sqrt:
     return mpfrInput.sqrt();
   case Operation::Tan:
     return mpfrInput.tan();
+  case Operation::Tanh:
+    return mpfrInput.tanh();
   case Operation::Trunc:
     return mpfrInput.trunc();
   default:

@@ -5,13 +5,13 @@
 template <typename KernelName, typename KernelType>
 __attribute__((sycl_kernel)) void
 kernel_parallel_for_work_group(const KernelType &KernelFunc) {
-  cl::sycl::group<1> G;
+  sycl::group<1> G;
   KernelFunc(G);
 }
 
 int main() {
 
-  kernel_parallel_for_work_group<class kernel>([=](cl::sycl::group<1> G) {
+  kernel_parallel_for_work_group<class kernel>([=](sycl::group<1> G) {
     const int WG_CONST = 10;
   });
   // CHECK:  store i32 10, ptr addrspace(4) addrspacecast (ptr addrspace(3) @{{.*}}WG_CONST{{.*}} to ptr addrspace(4))

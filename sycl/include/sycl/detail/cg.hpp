@@ -31,13 +31,16 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class queue;
 
 namespace detail {
+
+class event_impl;
+using EventImplPtr = std::shared_ptr<event_impl>;
 
 // Periodically there is a need to extend handler and CG classes to hold more
 // data(members) than it has now. But any modification of the layout of those
@@ -88,17 +91,9 @@ namespace detail {
 // with the desired type.
 // This allows changing/extending the contents of this vector without changing
 // the version.
-//
 
 // Used to represent a type of an extended member
-enum class ExtendedMembersType : unsigned int {
-  HANDLER_KERNEL_BUNDLE = 0,
-  HANDLER_MEM_ADVICE,
-  // handler_impl is stored in the exended members to avoid breaking ABI.
-  // TODO: This should be made a member of the handler class once ABI can be
-  //       broken.
-  HANDLER_IMPL,
-};
+enum class ExtendedMembersType : unsigned int { PLACEHOLDER_TYPE };
 
 // Holds a pointer to an object of an arbitrary type and an ID value which
 // should be used to understand what type pointer points to.
@@ -244,6 +239,7 @@ public:
   NDRDescT MNDRDesc;
   std::unique_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
+  std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
   detail::OSModuleHandle MOSModuleHandle;
@@ -252,6 +248,7 @@ public:
 
   CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
+               std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
@@ -266,7 +263,8 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
+        MSyclKernel(std::move(SyclKernel)),
+        MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)) {
@@ -285,15 +283,7 @@ public:
   }
 
   std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
-    const std::shared_ptr<std::vector<ExtendedMemberT>> &ExtendedMembers =
-        getExtendedMembers();
-    if (!ExtendedMembers)
-      return nullptr;
-    for (const ExtendedMemberT &EMember : *ExtendedMembers)
-      if (ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType)
-        return std::static_pointer_cast<detail::kernel_bundle_impl>(
-            EMember.MData);
-    return nullptr;
+    return MKernelBundle;
   }
 
   void clearStreams() { MStreams.clear(); }
@@ -435,9 +425,10 @@ public:
 class CGAdviseUSM : public CG {
   void *MDst;
   size_t MLength;
+  pi_mem_advice MAdvice;
 
 public:
-  CGAdviseUSM(void *DstPtr, size_t Length,
+  CGAdviseUSM(void *DstPtr, size_t Length, pi_mem_advice Advice,
               std::vector<std::vector<char>> ArgsStorage,
               std::vector<detail::AccessorImplPtr> AccStorage,
               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
@@ -447,19 +438,10 @@ public:
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
+        MDst(DstPtr), MLength(Length), MAdvice(Advice) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-
-  pi_mem_advice getAdvice() {
-    auto ExtendedMembers = getExtendedMembers();
-    if (!ExtendedMembers)
-      return PI_MEM_ADVICE_UNKNOWN;
-    for (const ExtendedMemberT &EM : *ExtendedMembers)
-      if ((ExtendedMembersType::HANDLER_MEM_ADVICE == EM.MType) && EM.MData)
-        return *std::static_pointer_cast<pi_mem_advice>(EM.MData);
-    return PI_MEM_ADVICE_UNKNOWN;
-  }
+  pi_mem_advice getAdvice() { return MAdvice; }
 };
 
 class CGInteropTask : public CG {
@@ -523,5 +505,5 @@ public:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

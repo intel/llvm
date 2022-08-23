@@ -19,8 +19,8 @@
 
 #include <exception>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class context;
@@ -89,7 +89,7 @@ public:
 
   const char *what() const noexcept final;
 
-  bool has_context() const;
+  bool has_context() const noexcept;
 
   context get_context() const;
 
@@ -97,9 +97,12 @@ public:
   cl_int get_cl_code() const;
 
 private:
-  std::string MMsg;
+  // Exceptions must be noexcept copy constructible, so cannot use std::string
+  // directly.
+  std::shared_ptr<std::string> MMsg;
   pi_int32 MPIErr;
   std::shared_ptr<context> MContext;
+  std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
 protected:
   // these two constructors are no longer used. Kept for ABI compatability.
@@ -108,8 +111,9 @@ protected:
       : exception(std::string(Msg), PIErr, Context) {}
   exception(const std::string &Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)
-      : MMsg(Msg + " " + detail::codeToString(PIErr)), MPIErr(PIErr),
-        MContext(Context) {}
+      : MMsg(std::make_shared<std::string>(Msg + " " +
+                                           detail::codeToString(PIErr))),
+        MPIErr(PIErr), MContext(Context) {}
 
   // base constructors used by SYCL 1.2.1 exception subclasses
   exception(std::error_code ec, const char *Msg, const pi_int32 PIErr,
@@ -122,7 +126,8 @@ protected:
     MPIErr = PIErr;
   }
 
-  exception(const std::string &Msg) : MMsg(Msg), MContext(nullptr) {}
+  exception(const std::string &Msg)
+      : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {}
 
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code ec, const std::string
@@ -329,8 +334,8 @@ public:
       : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct is_error_code_enum<sycl::errc> : true_type {};

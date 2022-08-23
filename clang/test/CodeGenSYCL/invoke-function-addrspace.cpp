@@ -5,7 +5,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: define dso_local spir_func noundef i32 @{{.*}}bar10{{.*}}()

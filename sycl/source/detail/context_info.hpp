@@ -13,8 +13,8 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <typename Param>
@@ -31,7 +31,7 @@ typename Param::return_type get_context_info(RT::PiContext Ctx,
 
 // Specialization for atomic_memory_order_capabilities, PI returns a bitfield
 template <>
-std::vector<cl::sycl::memory_order>
+std::vector<sycl::memory_order>
 get_context_info<info::context::atomic_memory_order_capabilities>(
     RT::PiContext Ctx, const plugin &Plugin) {
   pi_memory_order_capabilities Result;
@@ -41,5 +41,5 @@ get_context_info<info::context::atomic_memory_order_capabilities>(
   return readMemoryOrderBitfield(Result);
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

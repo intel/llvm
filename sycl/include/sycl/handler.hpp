@@ -69,8 +69,8 @@ class __copyAcc2Acc;
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 
@@ -302,6 +302,9 @@ reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
+
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem);
 
 template <typename... ReductionT, size_t... Is>
 size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
@@ -1280,9 +1283,6 @@ private:
     kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
   }
 
-  std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
-  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
-
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
@@ -1618,13 +1618,13 @@ public:
 #else
         ext::oneapi::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
 #endif
-    // TODO: currently the maximal work group size is determined for the given
+    // TODO: currently the preferred work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    size_t PrefWGSize =
+        ext::oneapi::detail::reduGetPreferredWGSize(MQueue, OneElemSize);
     if (ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-            *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups,
+            *this, KernelFunc, Range, PrefWGSize, NumConcurrentWorkGroups,
             Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
@@ -1639,13 +1639,13 @@ public:
   void parallel_for(nd_range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
     if constexpr (!Reduction::has_fast_atomics &&
-                  !Reduction::has_atomic_add_float64) {
+                  !Reduction::has_float64_atomics) {
       // The most basic implementation.
       parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
       std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-      if constexpr (Reduction::has_atomic_add_float64) {
+      if constexpr (Reduction::has_float64_atomics) {
         /// This version is a specialization for the add
         /// operator. It performs runtime checks for device aspect "atomic64";
         /// if found, fast sycl::atomic_ref operations are used to update the
@@ -2565,6 +2565,7 @@ public:
   void mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
+  std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
@@ -2677,5 +2678,5 @@ private:
         NumWorkItems, KernelFunc);
   }
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

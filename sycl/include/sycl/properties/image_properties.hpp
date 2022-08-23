@@ -12,8 +12,8 @@
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/properties/property_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace property {
 namespace image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
@@ -62,5 +62,5 @@ template <int Dimensions, typename AllocatorT>
 struct is_property_of<property::image::context_bound,
                       image<Dimensions, AllocatorT>> : std::true_type {};
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

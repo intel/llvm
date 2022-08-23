@@ -21,8 +21,8 @@
 #include <cassert>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // Forward declaration
 class program_impl;
@@ -219,7 +219,7 @@ kernel_impl::get_info(const device &Device) const {
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device,
-                      const cl::sycl::range<3> &WGSize) const {
+                      const sycl::range<3> &WGSize) const {
   if (is_host()) {
     throw runtime_error("Sub-group feature is not supported on HOST device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -230,5 +230,5 @@ kernel_impl::get_info(const device &Device,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

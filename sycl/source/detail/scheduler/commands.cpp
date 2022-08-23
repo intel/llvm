@@ -48,8 +48,8 @@
 #include <detail/xpti_registry.hpp>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -932,7 +932,6 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
 
-
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
       continue;
@@ -1077,7 +1076,6 @@ pi_int32 ReleaseCommand::enqueueImp() {
     // 2. Host allocation should be released if host allocation is "leader".
     // 3. Device alloca in the pair should be in active state in order to be
     //    correctly released.
-
 
     // There is no actual memory allocation if a host alloca command is created
     // being linked to a device allocation.
@@ -2581,5 +2579,5 @@ bool ExecCGCommand::supportsPostEnqueueCleanup() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

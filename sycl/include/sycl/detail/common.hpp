@@ -21,9 +21,21 @@
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
 // -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+// The check for output iterator is commented out as it blocks set_final_data
+// with void * argument to be used.
+// TODO: Align these checks with the SYCL specification when the behaviour
+// with void * is clarified.
+template <typename DataT>
+using EnableIfOutputPointerT = detail::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+
+template <typename DataT>
+using EnableIfOutputIteratorT = detail::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
@@ -108,11 +120,11 @@ private:
 #endif
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
@@ -123,8 +135,8 @@ static inline std::string codeToString(pi_int32 code) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -209,8 +221,8 @@ static inline std::string codeToString(pi_int32 code) {
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.
@@ -378,6 +390,21 @@ template <typename T> struct InlineVariableHelper {
 };
 
 template <typename T> constexpr T InlineVariableHelper<T>::value;
+
+// The function extends or truncates number of dimensions of objects of id
+// or ranges classes. When extending the new values are filled with
+// DefaultValue, truncation just removes extra values.
+template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
+static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
+  T<NewDim> NewObj = detail::InitializedVal<NewDim, T>::template get<0>();
+  const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
+  for (int I = 0; I < CopyDims; ++I)
+    NewObj[I] = OldObj[I];
+  for (int I = CopyDims; I < NewDim; ++I)
+    NewObj[I] = DefaultValue;
+  return NewObj;
+}
+
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -38,8 +38,8 @@
 #define XPTI_CREATE_TRACEPOINT(CodeLoc)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 using alloc = sycl::usm::alloc;
 
@@ -603,6 +603,5 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   throw runtime_error("Cannot find device associated with USM allocation!",
                       PI_ERROR_INVALID_OPERATION);
 }
-
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

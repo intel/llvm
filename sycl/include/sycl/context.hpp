@@ -21,8 +21,8 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declarations
 class device;
 class platform;
@@ -178,7 +178,7 @@ public:
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   /// Gets the specified property of this context.
   ///
@@ -240,8 +240,8 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::context> {
