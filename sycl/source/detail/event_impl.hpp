@@ -212,6 +212,15 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Checks if an event is in a fully intialized state. Default-constructed
+  /// events will return true only after having initialized its native event,
+  /// while other events will assume that they are fully initialized at
+  /// construction, relying on external sources to supply member data.
+  ///
+  /// \return true if the event is considered to be in a fully initialized
+  /// state.
+  bool isInitialized() const noexcept { return MIsInitialized; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
