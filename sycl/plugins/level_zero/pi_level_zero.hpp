@@ -1058,10 +1058,10 @@ struct _pi_queue : _pi_object {
 
   // Returns bool value indicating whether queue supports in-order optimization
   // for provided type of event.
-  bool supportsInOrderQueueOptimization(bool HostVisible, bool IsInternal) {
+  bool supportsInOrderQueueOptimization(bool HostVisible, bool IsDiscarded) {
     bool ProfilingEnabled = (Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
     return isInOrderQueue() && isDiscardEvents() && !ProfilingEnabled &&
-                   !HostVisible && IsInternal
+                   !HostVisible && IsDiscarded
                ? true
                : false;
   }
@@ -1393,6 +1393,8 @@ struct _pi_event : _pi_object {
   std::atomic<pi_uint32> RefCountExternal{0};
 
   bool hasExternalRefs() { return RefCountExternal != 0; }
+
+  bool IsDiscarded = false;
 
   // Reset _pi_event object.
   pi_result reset();

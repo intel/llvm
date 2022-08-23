@@ -34,7 +34,7 @@ static pi_result piQueueReleaseInternal(pi_queue Queue);
 static pi_result piEventReleaseInternal(pi_event Event);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent,
-                             bool IsInternal = false);
+                             bool IsDiscarded = false);
 }
 
 // Defined in tracing.cpp
@@ -700,13 +700,13 @@ pi_result _pi_queue::getEventFromCache(pi_command_list_ptr_t CommandList,
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
-// \param IsInternal tells if the event is internal, i.e. visible in the L0
-//        plugin only.
-// \param ForceHostVisible tells if the event must be created in
-//        the host-visible pool
+// \param IsDiscarded tells if the event is discarded, i.e. pointer to the event
+// is not visible externally.
+// \param ForceHostVisible tells if the event must be
+// created in the host-visible pool
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
-    pi_command_list_ptr_t CommandList, bool IsInternal = false,
+    pi_command_list_ptr_t CommandList, bool IsDiscarded = false,
     bool ForceHostVisible = false) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
@@ -715,11 +715,13 @@ inline static pi_result createEventAndAssociateQueue(
 
   // If the queue supports optimization and right type of event is requested
   // then try to get it from cache.
-  if (Queue && Queue->supportsInOrderQueueOptimization(HostVisible, IsInternal))
+  if (Queue &&
+      Queue->supportsInOrderQueueOptimization(HostVisible, IsDiscarded))
     PI_CALL(Queue->getEventFromCache(CommandList, Event));
 
   if (*Event == nullptr)
-    PI_CALL(EventCreate(Queue->Context, Queue, HostVisible, Event, IsInternal));
+    PI_CALL(
+        EventCreate(Queue->Context, Queue, HostVisible, Event, IsDiscarded));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -745,7 +747,7 @@ inline static pi_result createEventAndAssociateQueue(
   // If the event is internal then don't increment the reference count as this
   // event will not be waited/released by SYCL RT, so it must be destroyed by
   // EventRelease in resetCommandList.
-  if (!IsInternal)
+  if (!IsDiscarded)
     PI_CALL(piEventRetain(*Event));
 
   return PI_SUCCESS;
@@ -1031,7 +1033,7 @@ bool _pi_queue::isDiscardEvents() const {
 
 void _pi_queue::setLastCommandEvent(pi_event Event) {
   if (Event && supportsInOrderQueueOptimization(Event->isHostVisible(),
-                                                !Event->hasExternalRefs()))
+                                                Event->IsDiscarded))
     ZeLastCommandEvent = std::make_pair(Event->ZeEvent, Event->ZeEventPool);
 
   LastCommandEvent = Event;
@@ -1684,7 +1686,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         pi_event HostVisibleEvent;
         auto Res = createEventAndAssociateQueue(
             this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-            /* IsInternal */ false, /* ForceHostVisible */ true);
+            /* IsDiscarded */ false, /* ForceHostVisible */ true);
         if (Res)
           return Res;
 
@@ -5450,10 +5452,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   pi_result Res = createEventAndAssociateQueue(
-      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList, IsInternal);
+      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -5573,7 +5575,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     // Create a "proxy" host-visible event.
     auto Res = createEventAndAssociateQueue(
         Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-        /* IsInternal */ false, /* ForceHostVisible */ true);
+        /* IsDiscarded */ false, /* ForceHostVisible */ true);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -5633,7 +5635,7 @@ void _pi_context::addEventToCache(pi_event Event) {
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent,
-                             bool IsInternal) {
+                             bool IsDiscarded) {
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
@@ -5642,7 +5644,8 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
   // same queue, so we want to destroy or return them to the context-level cache
   // only during queue destruction.
   bool InOrderQueueOptimization =
-      Queue && Queue->supportsInOrderQueueOptimization(HostVisible, IsInternal);
+      Queue &&
+      Queue->supportsInOrderQueueOptimization(HostVisible, IsDiscarded);
 
   if (auto CachedEvent =
           Context->getEventFromCache(HostVisible, ProfilingEnabled)) {
@@ -6084,9 +6087,8 @@ static pi_result piEventReleaseInternal(pi_event Event) {
   // for such event (in this case event we reuse only native handles, not
   // pi_event object itself).
   if (DisableEventsCaching || !Event->OwnZeEvent ||
-      (Event->Queue &&
-       Event->Queue->supportsInOrderQueueOptimization(
-           Event->isHostVisible(), !Event->hasExternalRefs()))) {
+      (Event->Queue && Event->Queue->supportsInOrderQueueOptimization(
+                           Event->isHostVisible(), Event->IsDiscarded))) {
     delete Event;
   } else {
     Event->Context->addEventToCache(Event);
@@ -6343,10 +6345,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ze_event_handle_t ZeEvent = nullptr;
     pi_event InternalEvent;
-    bool IsInternal = OutEvent == nullptr;
+    bool IsDiscarded = OutEvent == nullptr;
     pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            CommandList, IsInternal);
+                                            CommandList, IsDiscarded);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -6409,9 +6411,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   auto insertBarrierIntoCmdList =
       [&Queue](pi_command_list_ptr_t CmdList,
                const _pi_ze_event_list_t &EventWaitList, pi_event &Event,
-               bool IsInternal) {
+               bool IsDiscarded) {
         if (auto Res = createEventAndAssociateQueue(
-                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
+                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsDiscarded))
           return Res;
         Event->WaitList = EventWaitList;
         ZE_CALL(zeCommandListAppendBarrier,
@@ -6421,7 +6423,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       };
 
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
 
   // Indicator for whether batching is allowed. This may be changed later in
@@ -6450,7 +6452,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
     // Insert the barrier into the command-list and execute.
     if (auto Res =
-            insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal))
+            insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsDiscarded))
       return Res;
 
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
@@ -6542,7 +6544,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // convergence command list. The resulting event signals the convergence of
     // all barriers.
     if (auto Res = insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList,
-                                            *Event, IsInternal))
+                                            *Event, IsDiscarded))
       return Res;
   } else {
     // If there is only a single queue we have inserted all the barriers we need
@@ -6691,10 +6693,10 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -6754,10 +6756,10 @@ static pi_result enqueueMemCopyRectHelper(
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -7002,10 +7004,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
 
@@ -7078,7 +7080,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
   auto Buffer = pi_cast<pi_buffer>(Mem);
 
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   ze_event_handle_t ZeEvent = nullptr;
 
@@ -7094,7 +7096,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
 
     auto Res = createEventAndAssociateQueue(
         Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-        Queue->CommandListMap.end(), IsInternal);
+        Queue->CommandListMap.end(), IsDiscarded);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -7233,7 +7235,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   {
     // Lock automatically releases when this goes out of scope.
@@ -7246,7 +7248,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
 
     auto Res = createEventAndAssociateQueue(
         Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-        Queue->CommandListMap.end(), IsInternal);
+        Queue->CommandListMap.end(), IsDiscarded);
     if (Res != PI_SUCCESS)
       return Res;
     ZeEvent = (*Event)->ZeEvent;
@@ -7423,10 +7425,10 @@ static pi_result enqueueMemImageCommandHelper(
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -8420,10 +8422,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -8485,10 +8487,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
