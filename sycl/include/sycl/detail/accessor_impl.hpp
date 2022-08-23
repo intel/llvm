@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/sycl_mem_obj_i.hpp>
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
@@ -33,6 +32,8 @@ class AccessorPrivateProxy;
 } // namespace ext
 
 namespace detail {
+
+class SYCLMemObjI;
 
 class Command;
 
@@ -77,11 +78,12 @@ public:
 class __SYCL_EXPORT AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false, bool IsESIMDAcc = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
-        MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
+        MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
         MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {}
 
@@ -135,12 +137,13 @@ using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 class AccessorBaseHost {
 public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false) {
-    impl = std::shared_ptr<AccessorImplHost>(new AccessorImplHost(
-        Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer));
+    impl = std::shared_ptr<AccessorImplHost>(
+        new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
+                             (detail::SYCLMemObjI *)SYCLMemObject, Dims,
+                             ElemSize, OffsetInBytes, IsSubBuffer));
   }
 
 protected:
