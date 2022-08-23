@@ -59,6 +59,7 @@ struct ABar {
 };
 
 template <typename T> void fooBar() {
+  // expected-error@+1{{'device_global' variable must be a static data member or declared in global or namespace scope}}
   static device_global<T> c;
   device_global<T> d;
 }
@@ -101,6 +102,9 @@ template<> void templFoo<int>();
 union [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] a_union;
 
 int main() {
+  // expected-note@+1{{in instantiation of function template specialization 'fooBar<int>' requested here}}
+  fooBar<int>();
+
   sycl::kernel_single_task<class KernelName1>([=]() {
     (void)glob;
     (void)static_glob;
