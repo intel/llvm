@@ -7680,13 +7680,10 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   if (getLangOpts().SYCLIsDevice) {
     // device_global array is not allowed.
-    if (NewVD->getType()->isArrayType()) {
-      if (const auto *AT = dyn_cast<ArrayType>(NewVD->getType())) {
-        if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-                AT->getElementType()))
-          Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
-      }
-    }
+    if (const ArrayType *AT = getASTContext().getAsArrayType(NewVD->getType()))
+      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              AT->getElementType()))
+        Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
 
     // Global variables with types decorated with device_global attribute must
     // be static if they are declared in SYCL device code.
@@ -7702,9 +7699,10 @@ NamedDecl *Sema::ActOnVariableDeclarator(
           }
           DC = DC->getParent();
         }
-      } else if (!NewVD->hasGlobalStorage())
+      } else if (!NewVD->hasGlobalStorage()) {
         Diag(D.getIdentifierLoc(),
              diag::err_sycl_device_global_incorrect_scope);
+      }
     }
 
     // Static variables declared inside SYCL device code must be const or

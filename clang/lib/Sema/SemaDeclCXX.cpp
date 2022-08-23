@@ -3605,8 +3605,8 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
         }
         const DeclContext *DC = Member->getDeclContext();
         while (!DC->isTranslationUnit()) {
-          if (auto decl = dyn_cast<NamedDecl>(DC)) {
-            if (decl->getAccess() == AS_private) {
+          if (auto Decl = dyn_cast<NamedDecl>(DC)) {
+            if (Decl->getAccess() == AS_private) {
               Diag(Loc, diag::err_sycl_device_global_not_publicly_accessible)
                   << Value;
               break;
