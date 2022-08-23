@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SYCL/SYCLOpsAlias.h"
-#include "SYCL/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsAlias.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
 SYCLOpAsmInterface::AliasResult
 SYCLOpAsmInterface::getAlias(mlir::Attribute Attr,

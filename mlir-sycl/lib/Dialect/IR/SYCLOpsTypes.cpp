@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SYCL/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/OpDefinition.h"
 
 static mlir::ParseResult

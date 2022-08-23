@@ -67,7 +67,7 @@ set(MLIR_SYCL_TOOLS_DIR ${CMAKE_BINARY_DIR}/bin)
 set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 
-add_subdirectory(include)
+add_subdirectory(include/mlir)
 add_subdirectory(lib)
 add_subdirectory(test)
 

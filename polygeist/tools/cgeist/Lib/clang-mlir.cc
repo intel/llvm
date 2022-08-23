@@ -41,9 +41,9 @@
 #include "llvm/Support/raw_ostream.h"
 
 #define GET_OP_CLASSES
-#include "SYCL/SYCLOps.h.inc"
-#include "SYCL/SYCLOpsDialect.h.inc"
-#include "SYCL/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
 static bool DEBUG_FUNCTION = false;
 static bool BREAKPOINT_FUNCTION = false;

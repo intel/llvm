@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SYCL/SYCLOpsDialect.h"
-#include "SYCL/SYCLOpsAlias.h"
-#include "SYCL/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsAlias.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
@@ -22,7 +22,7 @@
 void mlir::sycl::SYCLDialect::initialize() {
   mlir::Dialect::addOperations<
 #define GET_OP_LIST
-#include "SYCL/SYCLOps.cpp.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
       >();
 
   mlir::Dialect::addTypes<
@@ -152,7 +152,7 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   return HasArrayTrait && IsArray;
 }
 
-#include "SYCL/SYCLOpsDialect.cpp.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "SYCL/SYCLOps.cpp.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"

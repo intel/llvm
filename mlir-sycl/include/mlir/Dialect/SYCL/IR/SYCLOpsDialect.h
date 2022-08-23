@@ -19,11 +19,11 @@
 
 /// Include the auto-generated header file containing the declaration of the
 /// sycl dialect.
-#include "SYCL/SYCLOpsDialect.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
 
 /// Include the auto-generated header file containing the declarations of the
 /// sycl operations.
 #define GET_OP_CLASSES
-#include "SYCL/SYCLOps.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 
 #endif // MLIR_SYCL_OPS_DIALECT_H_
