@@ -1635,6 +1635,13 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
         }
       }
     }
+    if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
+      if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              Var->getType()))
+        SemaRef.Diag(SYCLDevice->getLoc(),
+                     diag::err_sycl_attribute_not_device_global)
+            << SYCLDevice;
+    }
     SemaRef.addSyclVarDecl(Var);
   }
   return Var;

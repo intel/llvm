@@ -46,7 +46,9 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete);
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
   ///
@@ -65,11 +67,6 @@ public:
   //
   /// \return true if this event is a SYCL host event.
   bool is_host();
-
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
 
   /// Waits for the event.
   ///
@@ -231,7 +228,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;

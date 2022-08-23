@@ -24,6 +24,7 @@ compiler and runtime.
 | `SYCL_RT_WARNING_LEVEL` | Positive integer | The higher warning level is used the more warnings and performance hints the runtime library may print. Default value is '0', which means no warning/hint messages from the runtime library are allowed. The value '1' enables performance warnings from device runtime/codegen. The values greater than 1 are reserved for future use. |
 | `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 | `SYCL_EAGER_INIT` | Integer | Enable by specifying non-zero value. Tells the SYCL runtime to do as much as possible initialization at objects construction as opposed to doing lazy initialization on the fly. This may mean doing some redundant work at warmup but ensures fastest possible execution on the following hot and reportable paths. It also instructs PI plugins to do the same. Default is "0".  |
+| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -59,6 +60,32 @@ Possible values of `device_type` are:
 Assuming a filter has all three elements of the triple, it selects only those devices that come from the given backend, have the specified device type, AND have the given device index. If more than one filter is specified, the RT is restricted to the union of devices selected by all filters. The RT does not include the `host` backend and the `host` device automatically unless one of the filters explicitly specifies the `host` device type. Therefore, `SYCL_DEVICE_FILTER=host` should be set to enforce SYCL to use the `host` device only. 
 
 Note that all device selectors will throw an exception if the filtered list of devices does not include a device that satisfies the selector. For instance, `SYCL_DEVICE_FILTER=cpu,level_zero` will cause `host_selector()` to throw an exception. `SYCL_DEVICE_FILTER` also limits loading only specified plugins into the SYCL RT. In particular, `SYCL_DEVICE_FILTER=level_zero` will cause the `cpu_selector` to throw an exception since SYCL RT will only load the `level_zero` backend which does not support any CPU devices at this time. When multiple devices satisfy the filter (e..g, `SYCL_DEVICE_FILTER=gpu`), only one of them will be selected.
+
+## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
+
+This environment variable controls the preferred work-group size for reductions on specified device types. Setting this will affect all reductions without an explicitly specified work-group size on devices of types in the value of the environment variable.
+
+The value of this environment variable is a comma separated list of one or more configurations, where each configuration is a pair of the form "`device_type`:`size`" (without the quotes). Possible values of `device_type` are:
+- `cpu`
+- `gpu`
+- `acc`
+- `*`
+
+`size` is a positive integer larger than 0.
+
+For a configuration `device_type`:`size` the `device_type` element specifies the type of device the configuration applies to, that is `cpu` is for CPU devices, `gpu` is for GPU devices, and `acc` is for accelerator devices. If `device_type` is `*` the configuration applies to all applicable device types. `size` denotes the preferred work-group size to be used for devices of types specified by `device_type`.
+
+If `info::device::max_work_group_size` on a device on which a reduction is being enqueued is less than the value specified by a configuration in this environment variable, the value of `info::device::max_work_group_size` on that device is used instead.
+
+A `sycl::exception` with `sycl::errc::invalid` is thrown during submission of a reduction kernel in the following cases:
+- If the specified device type in any configuration is not one of the valid values.
+- If the specified preferred work-group size in any configuration is not a valid integer.
+- If the specified preferred work-group size in any configuration is not an integer value larger than 0.
+- If any configuration does not have the `:` delimiter.
+
+If this environment variable is not set, the preferred work-group size for reductions is implementation defined.
+
+Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions to 32 on CPUs and to 16 on all other devices.
 
 ## Controlling DPC++ Level Zero Plugin
 
