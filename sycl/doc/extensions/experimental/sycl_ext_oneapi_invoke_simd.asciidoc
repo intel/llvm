@@ -125,7 +125,7 @@ rather than specifying the register types directly.
 
 Each of the following must hold true for a SIMD function and its invoke_simd
 call site:
-- the value of `N` of each `simd` formal parameter corresponding to a non-uniform
+- the value of `N` of each `simd` or `simd_mask` formal parameter corresponding to a non-uniform
 SPMD actual argument (if any) must be the same
 - if the return type of the SIMD function is `simd<T, M>` or `simd_mask<T, M>`,
   then `M` must match `N` above
