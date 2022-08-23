@@ -16,8 +16,9 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-template <typename, int, access::mode, access::target, access::placeholder,
-          typename>
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
 class accessor;
 
 namespace ext {
@@ -161,8 +162,9 @@ protected:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
-  template <typename, int, access::mode, access::target, access::placeholder,
-            typename>
+  template <typename DataT, int Dimensions, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder,
+            typename PropertyListT>
   friend class accessor;
 
   AccessorImplPtr impl;

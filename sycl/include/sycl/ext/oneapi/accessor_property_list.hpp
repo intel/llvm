@@ -16,7 +16,8 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-template <typename, int, access::mode, access::target, access::placeholder,
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
 namespace detail {
