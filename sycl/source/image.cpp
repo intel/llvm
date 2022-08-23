@@ -91,7 +91,7 @@ image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <>                                                                  \
-  __SYCL_EXPORT bool image_plain::has_property<param_type>() const {           \
+  __SYCL_EXPORT bool image_plain::has_property<param_type>() const noexcept {  \
     return impl->has_property<param_type>();                                   \
   }
 #include <sycl/detail/properties_traits.def>

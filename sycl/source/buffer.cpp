@@ -35,12 +35,6 @@ buffer_plain::buffer_plain(
       HostData, SizeInBytes, RequiredAlign, Props, std::move(Allocator));
 }
 
-/* buffer_impl(const std::shared_ptr<void> &HostData, const size_t SizeInBytes,
- */
-/*             size_t RequiredAlign, const property_list &Props, */
-/*             std::unique_ptr<SYCLMemObjAllocator> Allocator, bool IsConstPtr)
- */
-
 buffer_plain::buffer_plain(
     const std::shared_ptr<const void> &HostData, const size_t SizeInBytes,
     size_t RequiredAlign, const property_list &Props,
@@ -90,7 +84,7 @@ void buffer_plain::set_write_back(bool NeedWriteBack) {
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <>                                                                  \
-  __SYCL_EXPORT bool buffer_plain::has_property<param_type>() const {          \
+  __SYCL_EXPORT bool buffer_plain::has_property<param_type>() const noexcept { \
     return impl->has_property<param_type>();                                   \
   }
 #include <sycl/detail/properties_traits.def>

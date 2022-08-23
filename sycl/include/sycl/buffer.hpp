@@ -103,7 +103,7 @@ protected:
                                const void *Type, uint32_t Dim,
                                uint32_t ElemType, size_t Range[3]);
 
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   template <typename propertyT> propertyT get_property() const;
 
@@ -692,7 +692,6 @@ protected:
   }
 
 private:
-  /* std::shared_ptr<detail::buffer_impl> impl; */
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>

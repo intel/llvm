@@ -170,7 +170,6 @@ public:
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
     if (!MHostPtrReadOnly && HostPtr) {
-      /* char *TempHostPtr = reinterpret_cast<char *>(HostPtr); */
       set_final_data([HostPtr](const std::function<void(void *const Ptr)> &F) {
         F(HostPtr);
       });

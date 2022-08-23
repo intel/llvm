@@ -127,7 +127,7 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   template <typename propertyT> propertyT get_property() const;
 
