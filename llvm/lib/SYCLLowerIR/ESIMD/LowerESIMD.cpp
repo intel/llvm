@@ -1685,7 +1685,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
             cast<FixedVectorType>(DstTy)->getNumElements());
-        Src = Builder.CreateFPToSI(Src, TmpTy);
+        if (CastOpcode == llvm::Instruction::FPToUI) {
+          Src = Builder.CreateFPToUI(Src, TmpTy);
+        } else {
+          Src = Builder.CreateFPToSI(Src, TmpTy);
+        }
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
         llvm::Value *NewDst = Builder.CreateCast(TruncOp, Src, DstTy);
