@@ -3328,58 +3328,6 @@ or ``ivdep``.
   }];
 }
 
-def SYCLIntelFPGAPipelineAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::fpga_pipeline";
-  let Content = [{
-The ``intel::fpga_pipeline(N)`` attribute applies to a loop and it allows users
-to disable or enable pipelining iterations of a loop. The attribute optionally
-accepts an integer constant expression that is converted to `bool`. A `true`
-value enables pipelining while a `false` value disables pipelining. The
-optional argument defaults to `true`. This attribute cannot be applied to a
-loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
-``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
-
-.. code-block:: c++
-
-  // Disable loop pipelining
-  void bar() {
-    int a[10];
-    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  // Enable loop pipelining
-  void foo() {
-    int var = 0;
-    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
-  }
-
-  void Array(int *array, size_t n) {
-    // identical to [[intel::fpga_pipeline(1)]]
-    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void count () {
-  int a1[10], int i = 0;
-  [[intel::fpga_pipeline(1)]] while (i < 10) {
-    a1[i] += 3;
-  }
-
-  void check() {
-    int a = 10;
-    [[intel::fpga_pipeline(1)]] do {
-      a = a + 1;
-    } while (a < 20);
-  }
-
-  template<int A>
-  void func() {
-    [[intel::fpga_pipeline(A)]] for(;;) { }
-  }
-
-  }];
-}
-
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
@@ -6022,7 +5970,7 @@ The allow extensions change when the ``begin declare variant`` effect is
 applied to a definition. If ``allow_templates`` is given, template function
 definitions are considered as specializations of existing or assumed template
 declarations with the same name. The template parameters for the base functions
-are used to instantiate the specialization. If ``bind_to_declartion`` is given,
+are used to instantiate the specialization. If ``bind_to_declaration`` is given,
 apply the same variant rules to function declarations. This allows the user to
 override declarations with only a function declaration.
   }];
@@ -7739,7 +7687,7 @@ deferring any errors to the point of use. For instance:
 
   does_not_exist x; // error: use of unresolved 'using_if_exists'
 
-The C++ spelling of the attribte (`[[clang::using_if_exists]]`) is also
+The C++ spelling of the attribute (`[[clang::using_if_exists]]`) is also
 supported as a clang extension, since ISO C++ doesn't support attributes in this
 position. If the entity referred to by the using-declaration is found by name
 lookup, the attribute has no effect. This attribute is useful for libraries
@@ -8077,7 +8025,7 @@ of the call-used registers to be zeroed:
   command-line arguments.
 - ``used`` only zeros call-used registers used in the function. By ``used``, we
   mean a register whose contents have been set or referenced in the function.
-- ``used-gpr`` only zeros call-used GPR registers used in the funciton.
+- ``used-gpr`` only zeros call-used GPR registers used in the function.
 - ``used-arg`` only zeros call-used registers used to pass arguments to the
   function.
 - ``used-gpr-arg`` only zeros call-used GPR registers used to pass arguments to
@@ -8089,7 +8037,7 @@ of the call-used registers to be zeroed:
 - ``all-gpr-arg`` zeros all call-used GPR registers used to pass arguments to
   the function.
 
-The default for the attribute is contolled by the ``-fzero-call-used-regs``
+The default for the attribute is controlled by the ``-fzero-call-used-regs``
 flag.
 
 .. _Return-Oriented Programming: https://en.wikipedia.org/wiki/Return-oriented_programming

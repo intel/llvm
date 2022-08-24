@@ -12,8 +12,8 @@
 
 template <size_t KernelSize = 1> class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -29,8 +29,8 @@ template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

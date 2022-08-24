@@ -83,7 +83,7 @@ struct MyWrapper {
 
   int test() {
 
-    cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+    sycl::accessor<char, 1, sycl::access::mode::read> acc;
 
     // Acronyms used to designate a test combination:
     //   Declaration levels: 'T'-translation unit, 'L'-local scope,
@@ -171,7 +171,7 @@ struct MyWrapper {
 };
 
 #ifndef __SYCL_DEVICE_ONLY__
-using namespace cl::sycl::detail;
+using namespace sycl::detail;
 #endif // __SYCL_DEVICE_ONLY__
 
 int main() {

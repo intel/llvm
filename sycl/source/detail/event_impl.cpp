@@ -25,8 +25,8 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -50,17 +50,7 @@ void event_impl::ensureContextInitialized() {
 bool event_impl::is_host() {
   // Treat all devices that don't support interoperability as host devices to
   // avoid attempts to call method get on such events.
-  return MHostEvent || !MOpenCLInterop;
-}
-
-cl_event event_impl::get() {
-  if (!MOpenCLInterop) {
-    throw invalid_object_error(
-        "This instance of event doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_EVENT);
-  }
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
-  return pi::cast<cl_event>(MEvent);
+  return MHostEvent;
 }
 
 event_impl::~event_impl() {
@@ -123,19 +113,14 @@ void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
-  MOpenCLInterop = !MHostEvent;
   MContext = Context;
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(std::optional<HostEventState> State)
-    : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
-      MState(State.value_or(HES_Complete)) {}
-
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
-      MContext(detail::getSyclObjImpl(SyclContext)), MOpenCLInterop(true),
-      MHostEvent(false), MIsFlushed(true), MState(HES_Complete) {
+      MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
+      MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
     throw sycl::invalid_parameter_error(
@@ -281,10 +266,18 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  if (!MIsProfilingEnabled) {
+  std::weak_ptr<queue_impl> EmptyPtr;
+
+  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "get_profiling_info() can't be used without set "
-                          "'enable_profiling' queue property");
+                          "Profiling information is unavailable as the event "
+                          "has no associated queue.");
+  }
+  if (!MIsProfilingEnabled) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Profiling information is unavailable as the queue associated with "
+        "the event does not have the 'enable_profiling' property.");
   }
 }
 
@@ -294,9 +287,8 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<
-          info::event_profiling::command_submit>::get(this->getHandleRef(),
-                                                      this->getPlugin());
+      return get_event_profiling_info<info::event_profiling::command_submit>(
+          this->getHandleRef(), this->getPlugin());
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -311,9 +303,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<
-          info::event_profiling::command_start>::get(this->getHandleRef(),
-                                                     this->getPlugin());
+      return get_event_profiling_info<info::event_profiling::command_start>(
+          this->getHandleRef(), this->getPlugin());
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -327,7 +318,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_end>::get(
+      return get_event_profiling_info<info::event_profiling::command_end>(
           this->getHandleRef(), this->getPlugin());
     return 0;
   }
@@ -339,8 +330,8 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::reference_count>::get(
-        this->getHandleRef(), this->getPlugin());
+    return get_event_info<info::event::reference_count>(this->getHandleRef(),
+                                                        this->getPlugin());
   }
   return 0;
 }
@@ -352,7 +343,7 @@ event_impl::get_info<info::event::command_execution_status>() {
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::command_execution_status>::get(
+    return get_event_info<info::event::command_execution_status>(
         this->getHandleRef(), this->getPlugin());
   }
   return MHostEvent && MState.load() != HES_Complete
@@ -447,5 +438,5 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

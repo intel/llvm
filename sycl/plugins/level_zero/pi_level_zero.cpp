@@ -31,6 +31,7 @@
 extern "C" {
 // Forward declarartions.
 static pi_result piQueueReleaseInternal(pi_queue Queue);
+static pi_result piEventReleaseInternal(pi_event Event);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
@@ -670,11 +671,14 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
+// \param IsInternal tells if the event is internal, i.e. visible in the L0
+//        plugin only.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
-    pi_command_list_ptr_t CommandList, bool ForceHostVisible = false) {
+    pi_command_list_ptr_t CommandList, bool IsInternal = false,
+    bool ForceHostVisible = false) {
 
   PI_CALL(EventCreate(Queue->Context, Queue,
                       ForceHostVisible ? true : EventsScope == AllHostVisible,
@@ -686,7 +690,7 @@ inline static pi_result createEventAndAssociateQueue(
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
     CommandList->second.append(*Event);
-    PI_CALL(piEventRetain(*Event));
+    (*Event)->RefCount.increment();
   }
 
   // We need to increment the reference counter here to avoid pi_queue
@@ -701,8 +705,11 @@ inline static pi_result createEventAndAssociateQueue(
   // But we have to ensure that the event is not destroyed before
   // it is really signalled, so retain it explicitly here and
   // release in CleanupCompletedEvent(Event).
-  //
-  PI_CALL(piEventRetain(*Event));
+  // If the event is internal then don't increment the reference count as this
+  // event will not be waited/released by SYCL RT, so it must be destroyed by
+  // EventRelease in resetCommandList.
+  if (!IsInternal)
+    PI_CALL(piEventRetain(*Event));
 
   return PI_SUCCESS;
 }
@@ -732,14 +739,13 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
     }
   }
 
-  // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Reinitialize a sub-sub-device with its own ordinal, index.
   // Our sub-sub-device representation is currently [Level-Zero sub-device
-  // handle + Level-Zero compute group/engine index]. As we have a single queue
-  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
+  // handle + Level-Zero compute group/engine index]. Only the specified
+  // index queue will be used to submit work to the sub-sub-device.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
-    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
   } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
@@ -862,6 +868,50 @@ pi_device _pi_context::getRootDevice() const {
 }
 
 pi_result _pi_context::initialize() {
+
+  // Helper lambda to create various USM allocators for a device.
+  auto createUSMAllocators = [this](pi_device Device) {
+    SharedMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedMemoryAlloc(this, Device))));
+    SharedReadOnlyMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedReadOnlyMemoryAlloc(this, Device))));
+    DeviceMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMDeviceMemoryAlloc(this, Device))));
+  };
+
+  // Recursive helper to call createUSMAllocators for all sub-devices
+  std::function<void(pi_device)> createUSMAllocatorsRecursive;
+  createUSMAllocatorsRecursive =
+      [createUSMAllocators,
+       &createUSMAllocatorsRecursive](pi_device Device) -> void {
+    createUSMAllocators(Device);
+    for (auto &SubDevice : Device->SubDevices)
+      createUSMAllocatorsRecursive(SubDevice);
+  };
+
+  // Create USM allocator context for each pair (device, context).
+  //
+  for (auto &Device : Devices) {
+    createUSMAllocatorsRecursive(Device);
+  }
+  // Create USM allocator context for host. Device and Shared USM allocations
+  // are device-specific. Host allocations are not device-dependent therefore
+  // we don't need a map with device as key.
+  HostMemAllocContext = std::make_unique<USMAllocContext>(
+      std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+  // We may allocate memory to this root device so create allocators.
+  if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
+                              DeviceMemAllocContexts.end()) {
+    createUSMAllocators(SingleRootDevice);
+  }
+
   // Create the immediate command list to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -936,6 +986,10 @@ bool pi_command_list_info_t::isCopy(pi_queue Queue) const {
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
   return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
+}
+
+bool _pi_queue::isDiscardEvents() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
 }
 
 pi_result
@@ -1112,32 +1166,30 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
   auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  ComputeQueueGroup.ZeQueues = ComputeQueues;
   if (ComputeQueueGroupInfo.ZeIndex >= 0) {
     ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
   } else {
-    ComputeQueueGroup.LowerIndex = 0;
-    ComputeQueueGroup.UpperIndex = INT_MAX;
-    ComputeQueueGroup.NextIndex = 0;
-  }
-
-  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
-  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
-  FilterUpperIndex =
-      std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
-  if (FilterLowerIndex <= FilterUpperIndex) {
-    ComputeQueueGroup.ZeQueues = ComputeQueues;
-    ComputeQueueGroup.LowerIndex = FilterLowerIndex;
-    ComputeQueueGroup.UpperIndex = FilterUpperIndex;
-    ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
-    // Create space to hold immediate commandlists corresponding to the ZeQueues
-    if (UseImmediateCommandLists) {
-      ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+    // Set-up to round-robin across allowed range of engines.
+    uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
+    uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + ComputeQueues.size() - 1);
+    if (FilterLowerIndex <= FilterUpperIndex) {
+      ComputeQueueGroup.LowerIndex = FilterLowerIndex;
+      ComputeQueueGroup.UpperIndex = FilterUpperIndex;
+      ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
+      // Create space to hold immediate commandlists corresponding to the
+      // ZeQueues
+      if (UseImmediateCommandLists) {
+        ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+      }
+    } else {
+      die("No compute queue available/allowed.");
     }
-  } else {
-    die("No compute queue available.");
   }
 
   // Copy group initialization.
@@ -1148,8 +1200,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   } else {
     uint32_t FilterLowerIndex = getRangeOfAllowedCopyEngines.first;
     uint32_t FilterUpperIndex = getRangeOfAllowedCopyEngines.second;
-    FilterUpperIndex =
-        std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
@@ -1190,7 +1242,7 @@ CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
     PI_CALL(CleanupCompletedEvent(Event, QueueLocked));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
   }
   return PI_SUCCESS;
 }
@@ -1556,45 +1608,57 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // afterwards.
     if (EventsScope == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
-      // Create a "proxy" host-visible event.
-      //
-      pi_event HostVisibleEvent;
-      auto Res = createEventAndAssociateQueue(
-          this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
-      if (Res)
-        return Res;
+      // If there are only internal events in the command list then we don't
+      // need to create host proxy event.
+      auto Result =
+          std::find_if(CommandList->second.EventList.begin(),
+                       CommandList->second.EventList.end(),
+                       [](pi_event E) { return E->hasExternalRefs(); });
+      if (Result != CommandList->second.EventList.end()) {
+        // Create a "proxy" host-visible event.
+        //
+        pi_event HostVisibleEvent;
+        auto Res = createEventAndAssociateQueue(
+            this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
+            /* IsInternal */ false, /* ForceHostVisible */ true);
+        if (Res)
+          return Res;
 
-      // Update each command's event in the command-list to "see" this
-      // proxy event as a host-visible counterpart.
-      for (auto &Event : CommandList->second.EventList) {
-        std::scoped_lock EventLock(Event->Mutex);
-        if (!Event->HostVisibleEvent) {
-          Event->HostVisibleEvent = HostVisibleEvent;
-          PI_CALL(piEventRetain(HostVisibleEvent));
+        // Update each command's event in the command-list to "see" this
+        // proxy event as a host-visible counterpart.
+        for (auto &Event : CommandList->second.EventList) {
+          std::scoped_lock EventLock(Event->Mutex);
+          // Internal event doesn't need host-visible proxy.
+          if (!Event->hasExternalRefs())
+            continue;
+
+          if (!Event->HostVisibleEvent) {
+            Event->HostVisibleEvent = HostVisibleEvent;
+            HostVisibleEvent->RefCount.increment();
+          }
         }
+
+        // Decrement the reference count of the event such that all the
+        // remaining references are from the other commands in this batch and
+        // from the command-list itself. This host-visible event will not be
+        // waited/released by SYCL RT, so it must be destroyed after all events
+        // in the batch are gone. We know that refcount is more than 2 because
+        // we check that EventList of the command list is not empty above, i.e.
+        // after createEventAndAssociateQueue ref count is 2 and then +1 for
+        // each event in the EventList.
+        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+
+        // Indicate no cleanup is needed for this PI event as it is special.
+        HostVisibleEvent->CleanedUp = true;
+
+        // Finally set to signal the host-visible event at the end of the
+        // command-list.
+        // TODO: see if we need a barrier here (or explicit wait for all events
+        // in the batch).
+        ZE_CALL(zeCommandListAppendSignalEvent,
+                (CommandList->first, HostVisibleEvent->ZeEvent));
       }
-
-      // Decrement the reference count of the event such that all the remaining
-      // references are from the other commands in this batch and from the
-      // command-list itself. This host-visible event will not be
-      // waited/released by SYCL RT, so it must be destroyed after all events in
-      // the batch are gone.
-      // We know that refcount is more than 2 because we check that EventList of
-      // the command list is not empty above, i.e. after
-      // createEventAndAssociateQueue ref count is 2 and then +1 for each event
-      // in the EventList.
-      PI_CALL(piEventRelease(HostVisibleEvent));
-      PI_CALL(piEventRelease(HostVisibleEvent));
-
-      // Indicate no cleanup is needed for this PI event as it is special.
-      HostVisibleEvent->CleanedUp = true;
-
-      // Finally set to signal the host-visible event at the end of the
-      // command-list.
-      // TODO: see if we need a barrier here (or explicit wait for all events in
-      // the batch).
-      ZE_CALL(zeCommandListAppendSignalEvent,
-              (CommandList->first, HostVisibleEvent->ZeEvent));
     }
 
     // Close the command list and have it ready for dispatch.
@@ -1802,7 +1866,7 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
   // We can now release all the active barriers and replace them with the ones
   // in the wait list.
   for (pi_event &BarrierEvent : ActiveBarriers)
-    PI_CALL(piEventRelease(BarrierEvent));
+    PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
   ActiveBarriers.insert(
       ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
@@ -1962,7 +2026,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   }
 
   for (pi_uint32 I = 0; I < this->Length; I++) {
-    PI_CALL(piEventRetain(this->PiEventList[I]));
+    this->PiEventList[I]->RefCount.increment();
   }
 
   return PI_SUCCESS;
@@ -3404,17 +3468,14 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   // Check that unexpected bits are not set.
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-                             PI_QUEUE_ON_DEVICE_DEFAULT)),
+                             PI_QUEUE_ON_DEVICE_DEFAULT |
+                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
-      Context->Devices.end()) {
-    return PI_ERROR_INVALID_DEVICE;
-  }
+  PI_ASSERT(Context->isValidDevice(Device), PI_ERROR_INVALID_DEVICE);
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
@@ -3582,7 +3643,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     PI_CALL(CleanupCompletedEvent(Event));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
   }
   PI_CALL(piQueueReleaseInternal(Queue));
   return PI_SUCCESS;
@@ -4196,11 +4257,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   pi_device Device = nullptr;
   if (ZeDevice) {
     Device = Context->getPlatform()->getDeviceFromNativeHandle(ZeDevice);
-    // Check that the device is present in this context.
-    if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
-        Context->Devices.end()) {
-      return PI_ERROR_INVALID_CONTEXT;
-    }
+    PI_ASSERT(Context->isValidDevice(Device), PI_ERROR_INVALID_CONTEXT);
   }
 
   try {
@@ -4469,12 +4526,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
 
   // Validate input parameters.
   PI_ASSERT(DeviceList, PI_ERROR_INVALID_DEVICE);
-  {
-    auto DeviceEntry =
-        find(Context->Devices.begin(), Context->Devices.end(), DeviceList[0]);
-    if (DeviceEntry == Context->Devices.end())
-      return PI_ERROR_INVALID_DEVICE;
-  }
+  PI_ASSERT(Context->isValidDevice(DeviceList[0]), PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(!PFnNotify && !UserData, PI_ERROR_INVALID_VALUE);
   if (NumInputPrograms == 0 || InputPrograms == nullptr)
     return PI_ERROR_INVALID_VALUE;
@@ -4679,12 +4731,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   std::scoped_lock Guard(Program->Mutex);
   // Check if device belongs to associated context.
   PI_ASSERT(Program->Context, PI_ERROR_INVALID_PROGRAM);
-  {
-    auto DeviceEntry = find(Program->Context->Devices.begin(),
-                            Program->Context->Devices.end(), DeviceList[0]);
-    if (DeviceEntry == Program->Context->Devices.end())
-      return PI_ERROR_INVALID_VALUE;
-  }
+  PI_ASSERT(Program->Context->isValidDevice(DeviceList[0]),
+            PI_ERROR_INVALID_VALUE);
+
   // It is legal to build a program created from either IL or from native
   // device code.
   if (Program->State != _pi_program::IL &&
@@ -5212,10 +5261,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkOffset,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventWaitList, pi_event *Event) {
+                      const pi_event *EventWaitList, pi_event *OutEvent) {
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
 
   // Lock automatically releases when this goes out of scope.
@@ -5322,8 +5370,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   pi_result Res = createEventAndAssociateQueue(
-      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList);
+      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -5442,8 +5493,8 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 
     // Create a "proxy" host-visible event.
     auto Res = createEventAndAssociateQueue(
-        Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
-    // HostVisibleEvent->CleanedUp = true;
+        Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
+        /* IsInternal */ false, /* ForceHostVisible */ true);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -5466,6 +5517,7 @@ pi_result _pi_event::reset() {
   CommandData = nullptr;
   CommandType = PI_COMMAND_TYPE_USER;
   WaitList = {};
+  RefCountExternal = 0;
   RefCount.reset();
 
   if (!isHostVisible())
@@ -5559,7 +5611,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 
 // Exteral PI API entry
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
-  return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
+  pi_result Result =
+      EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
+  (*RetEvent)->RefCountExternal++;
+  return Result;
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5755,7 +5810,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
     // association with queue. Events which don't have associated queue doesn't
     // require this release because it means that they are not created using
     // createEventAndAssociateQueue, i.e. additional retain was not made.
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
   }
 
   // The list of dependent events will be appended to as we walk it so that this
@@ -5787,7 +5842,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
     }
     if (DepEventKernel)
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
-    PI_CALL(piEventRelease(DepEvent));
+    PI_CALL(piEventReleaseInternal(DepEvent));
   }
 
   return PI_SUCCESS;
@@ -5806,6 +5861,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     // thus proxy events can be waited without a deadlock.
     //
     for (uint32_t I = 0; I < NumEvents; I++) {
+      if (!EventList[I]->hasExternalRefs())
+        die("piEventsWait must not be called for an internal event");
+
       ze_event_handle_t ZeHostVisibleEvent;
       if (auto Res =
               EventList[I]->getOrCreateHostVisibleEvent(ZeHostVisibleEvent))
@@ -5827,6 +5885,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     {
       std::shared_lock EventLock(EventList[I]->Mutex);
+      if (!EventList[I]->hasExternalRefs())
+        die("piEventsWait must not be called for an internal event");
+
       if (!EventList[I]->Completed) {
         auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
         if (!HostVisibleEvent)
@@ -5873,11 +5934,20 @@ pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 }
 
 pi_result piEventRetain(pi_event Event) {
+  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
+  Event->RefCountExternal++;
   Event->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piEventRelease(pi_event Event) {
+  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
+  Event->RefCountExternal--;
+  PI_CALL(piEventReleaseInternal(Event));
+  return PI_SUCCESS;
+}
+
+static pi_result piEventReleaseInternal(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   if (!Event->RefCount.decrementAndTest())
@@ -5903,7 +5973,7 @@ pi_result piEventRelease(pi_event Event) {
   // and release a reference to it.
   if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
     // Decrement ref-count of the host-visible proxy event.
-    PI_CALL(piEventRelease(Event->HostVisibleEvent));
+    PI_CALL(piEventReleaseInternal(Event->HostVisibleEvent));
   }
 
   // We intentionally incremented the reference counter when an event is
@@ -6145,10 +6215,10 @@ pi_result piSamplerRelease(pi_sampler Sampler) {
 // Queue Commands
 //
 pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
-                              const pi_event *EventWaitList, pi_event *Event) {
+                              const pi_event *EventWaitList,
+                              pi_event *OutEvent) {
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   if (EventWaitList) {
     PI_ASSERT(NumEventsInWaitList > 0, PI_ERROR_INVALID_VALUE);
@@ -6170,10 +6240,14 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
       return Res;
 
     ze_event_handle_t ZeEvent = nullptr;
+    pi_event InternalEvent;
+    bool IsInternal = OutEvent == nullptr;
+    pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            CommandList);
+                                            CommandList, IsInternal);
     if (Res != PI_SUCCESS)
       return Res;
+
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
 
@@ -6198,17 +6272,21 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock lock(Queue->Mutex);
 
-    auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            Queue->CommandListMap.end());
-    if (Res != PI_SUCCESS)
-      return Res;
+    if (OutEvent) {
+      auto Res = createEventAndAssociateQueue(
+          Queue, OutEvent, PI_COMMAND_TYPE_USER, Queue->CommandListMap.end());
+      if (Res != PI_SUCCESS)
+        return Res;
+    }
 
     Queue->synchronize();
 
-    Queue->LastCommandEvent = *Event;
+    if (OutEvent) {
+      Queue->LastCommandEvent = *OutEvent;
 
-    ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
-    (*Event)->Completed = true;
+      ZE_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
+      (*OutEvent)->Completed = true;
+    }
   }
 
   resetCommandLists(Queue);
@@ -6219,9 +6297,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                          pi_uint32 NumEventsInWaitList,
                                          const pi_event *EventWaitList,
-                                         pi_event *Event) {
+                                         pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
@@ -6229,9 +6306,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Helper function for appending a barrier to a command list.
   auto insertBarrierIntoCmdList =
       [&Queue](pi_command_list_ptr_t CmdList,
-               const _pi_ze_event_list_t &EventWaitList, pi_event &Event) {
+               const _pi_ze_event_list_t &EventWaitList, pi_event &Event,
+               bool IsInternal) {
         if (auto Res = createEventAndAssociateQueue(
-                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList))
+                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
           return Res;
         Event->WaitList = EventWaitList;
         ZE_CALL(zeCommandListAppendBarrier,
@@ -6239,6 +6317,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                  EventWaitList.ZeEventList));
         return PI_SUCCESS;
       };
+
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
 
   // Indicator for whether batching is allowed. This may be changed later in
   // this function, but allow it by default.
@@ -6265,14 +6347,16 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
 
     // Insert the barrier into the command-list and execute.
-    if (auto Res = insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event))
+    if (auto Res =
+            insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal))
       return Res;
+
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
     if (UseMultipleCmdlistBarriers) {
       // Retain and save the resulting event for future commands.
-      PI_CALL(piEventRetain(*Event));
+      (*Event)->RefCount.increment();
       Queue->ActiveBarriers.push_back(*Event);
     }
     return PI_SUCCESS;
@@ -6284,7 +6368,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Doing it early prevents potential additional barriers from implicitly being
   // appended.
   for (pi_event &E : Queue->ActiveBarriers)
-    PI_CALL(piEventRelease(E));
+    PI_CALL(piEventReleaseInternal(E));
   Queue->ActiveBarriers.clear();
 
   // Get command lists for each command queue.
@@ -6332,7 +6416,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::vector<pi_event> EventWaitVector(CmdLists.size());
   for (size_t I = 0; I < CmdLists.size(); ++I)
     if (auto Res = insertBarrierIntoCmdList(CmdLists[I], _pi_ze_event_list_t{},
-                                            EventWaitVector[I]))
+                                            EventWaitVector[I], false))
       return Res;
 
   if (CmdLists.size() > 1) {
@@ -6350,13 +6434,13 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
             ConvergenceCmdList->second.isCopy(Queue)))
       return Res;
     for (pi_event &E : EventWaitVector)
-      PI_CALL(piEventRelease(E));
+      PI_CALL(piEventReleaseInternal(E));
 
     // Insert a barrier with the events from each command-queue into the
     // convergence command list. The resulting event signals the convergence of
     // all barriers.
-    if (auto Res =
-            insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList, *Event))
+    if (auto Res = insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList,
+                                            *Event, IsInternal))
       return Res;
   } else {
     // If there is only a single queue we have inserted all the barriers we need
@@ -6371,7 +6455,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
 
   // We must keep the event internally to use if new command lists are created.
-  PI_CALL(piEventRetain(*Event));
+  (*Event)->RefCount.increment();
   Queue->ActiveBarriers.push_back(*Event);
   return PI_SUCCESS;
 }
@@ -6449,7 +6533,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
     return PI_SUCCESS;
   };
 
@@ -6470,7 +6554,7 @@ pi_result _pi_queue::synchronize() {
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
   for (pi_event &BarrierEvent : ActiveBarriers)
-    PI_CALL(piEventRelease(BarrierEvent));
+    PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
 
   return PI_SUCCESS;
@@ -6479,15 +6563,13 @@ pi_result _pi_queue::synchronize() {
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
-static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
-                                      pi_queue Queue, void *Dst,
-                                      pi_bool BlockingWrite, size_t Size,
-                                      const void *Src,
-                                      pi_uint32 NumEventsInWaitList,
-                                      const pi_event *EventWaitList,
-                                      pi_event *Event, bool PreferCopyEngine) {
+static pi_result
+enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
+                     pi_bool BlockingWrite, size_t Size, const void *Src,
+                     pi_uint32 NumEventsInWaitList,
+                     const pi_event *EventWaitList, pi_event *OutEvent,
+                     bool PreferCopyEngine) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
@@ -6506,8 +6588,11 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  auto Res =
-      createEventAndAssociateQueue(Queue, Event, CommandType, CommandList);
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
+  auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
+                                          CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -6545,10 +6630,9 @@ static pi_result enqueueMemCopyRectHelper(
     pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
     size_t SrcRowPitch, size_t DstRowPitch, size_t SrcSlicePitch,
     size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event, bool PreferCopyEngine) {
+    const pi_event *EventWaitList, pi_event *OutEvent, bool PreferCopyEngine) {
 
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
@@ -6567,8 +6651,11 @@ static pi_result enqueueMemCopyRectHelper(
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  auto Res =
-      createEventAndAssociateQueue(Queue, Event, CommandType, CommandList);
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
+  auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
+                                          CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -6761,9 +6848,8 @@ static pi_result
 enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                      const void *Pattern, size_t PatternSize, size_t Size,
                      pi_uint32 NumEventsInWaitList,
-                     const pi_event *EventWaitList, pi_event *Event) {
+                     const pi_event *EventWaitList, pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
   // Pattern size must be a power of two.
   PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             PI_ERROR_INVALID_VALUE);
@@ -6813,10 +6899,14 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  auto Res =
-      createEventAndAssociateQueue(Queue, Event, CommandType, CommandList);
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
+  auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
+                                          CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
+
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
@@ -6873,19 +6963,21 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
 pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
                                 pi_map_flags MapFlags, size_t Offset,
                                 size_t Size, pi_uint32 NumEventsInWaitList,
-                                const pi_event *EventWaitList, pi_event *Event,
-                                void **RetMap) {
+                                const pi_event *EventWaitList,
+                                pi_event *OutEvent, void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
   // assert((map_flags & PI_MAP_READ) != 0);
   // assert((map_flags & PI_MAP_WRITE) != 0);
   PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   PI_ASSERT(!Mem->isImage(), PI_ERROR_INVALID_MEM_OBJECT);
   auto Buffer = pi_cast<pi_buffer>(Mem);
 
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   ze_event_handle_t ZeEvent = nullptr;
 
   bool UseCopyEngine = false;
@@ -6898,11 +6990,12 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
             NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
-    auto Res = createEventAndAssociateQueue(Queue, Event,
-                                            PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                            Queue->CommandListMap.end());
+    auto Res = createEventAndAssociateQueue(
+        Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_MAP,
+        Queue->CommandListMap.end(), IsInternal);
     if (Res != PI_SUCCESS)
       return Res;
+
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   }
@@ -6936,21 +7029,11 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
   // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
-    PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
+    if (NumEventsInWaitList > 0)
+      PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
 
-    if (Queue->isInOrderQueue()) {
-      pi_event TmpLastCommandEvent = nullptr;
-
-      {
-        // Lock automatically releases when this goes out of scope.
-        std::scoped_lock lock(Queue->Mutex);
-        TmpLastCommandEvent = Queue->LastCommandEvent;
-      }
-
-      if (TmpLastCommandEvent != nullptr) {
-        PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
-      }
-    }
+    if (Queue->isInOrderQueue())
+      PI_CALL(piQueueFinish(Queue));
 
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock Guard(Buffer->Mutex);
@@ -7008,7 +7091,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
     // Add the event to the command list.
     if (Event) {
       CommandList->second.append(*Event);
-      PI_CALL(piEventRetain(*Event));
+      (*Event)->RefCount.increment();
     }
 
     const auto &ZeCommandList = CommandList->first;
@@ -7037,10 +7120,9 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
 
 pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
                             pi_uint32 NumEventsInWaitList,
-                            const pi_event *EventWaitList, pi_event *Event) {
+                            const pi_event *EventWaitList, pi_event *OutEvent) {
   PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   PI_ASSERT(!Mem->isImage(), PI_ERROR_INVALID_MEM_OBJECT);
   auto Buffer = pi_cast<pi_buffer>(Mem);
@@ -7048,6 +7130,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
   bool UseCopyEngine = false;
 
   ze_event_handle_t ZeEvent = nullptr;
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock lock(Queue->Mutex);
@@ -7057,9 +7142,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
             NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
-    auto Res = createEventAndAssociateQueue(Queue, Event,
-                                            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                            Queue->CommandListMap.end());
+    auto Res = createEventAndAssociateQueue(
+        Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+        Queue->CommandListMap.end(), IsInternal);
     if (Res != PI_SUCCESS)
       return Res;
     ZeEvent = (*Event)->ZeEvent;
@@ -7093,21 +7178,11 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
   // For integrated devices the buffer is allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
-    PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
+    if (NumEventsInWaitList > 0)
+      PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
 
-    if (Queue->isInOrderQueue()) {
-      pi_event TmpLastCommandEvent = nullptr;
-
-      {
-        // Lock automatically releases when this goes out of scope.
-        std::shared_lock lock(Queue->Mutex);
-        TmpLastCommandEvent = Queue->LastCommandEvent;
-      }
-
-      if (TmpLastCommandEvent != nullptr) {
-        PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
-      }
-    }
+    if (Queue->isInOrderQueue())
+      PI_CALL(piQueueFinish(Queue));
 
     char *ZeHandleDst;
     PI_CALL(
@@ -7132,7 +7207,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
     return Res;
 
   CommandList->second.append(*Event);
-  PI_CALL(piEventRetain(*Event));
+  (*Event)->RefCount.increment();
 
   const auto &ZeCommandList = CommandList->first;
 
@@ -7225,9 +7300,8 @@ static pi_result enqueueMemImageCommandHelper(
     pi_bool IsBlocking, pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
     pi_image_region Region, size_t RowPitch, size_t SlicePitch,
     pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event, bool PreferCopyEngine = false) {
+    pi_event *OutEvent, bool PreferCopyEngine = false) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
@@ -7246,8 +7320,11 @@ static pi_result enqueueMemImageCommandHelper(
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  auto Res =
-      createEventAndAssociateQueue(Queue, Event, CommandType, CommandList);
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
+  auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
+                                          CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -8208,12 +8285,11 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
                                   pi_usm_migration_flags Flags,
                                   pi_uint32 NumEventsInWaitList,
                                   const pi_event *EventWaitList,
-                                  pi_event *Event) {
+                                  pi_event *OutEvent) {
 
   // flags is currently unused so fail if set
   PI_ASSERT(Flags == 0, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
@@ -8241,8 +8317,11 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          CommandList);
+                                          CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -8277,9 +8356,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
 ///
 pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
                                    size_t Length, pi_mem_advice Advice,
-                                   pi_event *Event) {
+                                   pi_event *OutEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
@@ -8304,8 +8382,11 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
+  pi_event InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          CommandList);
+                                          CommandList, IsInternal);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;

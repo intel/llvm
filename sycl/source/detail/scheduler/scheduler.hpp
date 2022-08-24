@@ -10,8 +10,8 @@
 
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
+#include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/detail/cg.hpp>
-#include <sycl/detail/sycl_mem_obj_i.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -171,8 +171,8 @@
 // For testing purposes
 class MockScheduler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class queue_impl;
@@ -618,7 +618,8 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context);
+                                        const ContextImplPtr &Context,
+                                        bool AllowConst = true);
 
     friend class Command;
 
@@ -825,5 +826,5 @@ protected:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

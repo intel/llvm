@@ -10,8 +10,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace access {
 
 enum class target {
@@ -45,19 +45,12 @@ enum class placeholder { false_t = 0, true_t = 1 };
 enum class address_space : int {
   private_space = 0,
   global_space = 1,
-  constant_space = 2,
+  constant_space __SYCL2020_DEPRECATED("sycl::access::address_space::constant_"
+                                       "space is deprecated since SYCL 2020") =
+      2,
   local_space = 3,
   ext_intel_global_device_space = 4,
   ext_intel_global_host_space = 5,
-  global_device_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_device_space' instead") =
-      ext_intel_global_device_space,
-  global_host_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_host_space' instead") =
-      ext_intel_global_host_space,
-  ext_intel_host_device_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_host_space' instead") =
-      ext_intel_global_host_space,
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
@@ -192,9 +185,9 @@ template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
   // of emitting incorrect (in terms of OpenCL) address space casts from
-  // constant to generic (and vise-versa). So, global address space is used here
-  // instead of constant to avoid incorrect address space casts in the produced
-  // device code.
+  // constant to generic (and vise-versa). So, global address space is used
+  // here instead of constant to avoid incorrect address space casts in the
+  // produced device code.
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   using type = const __OPENCL_GLOBAL_AS__ ElementType;
 #else
@@ -280,5 +273,5 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_PRIVATE_AS__
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

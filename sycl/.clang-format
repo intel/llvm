@@ -1,2 +1,2 @@
 BasedOnStyle: LLVM
-NamespaceMacros: ['__SYCL_INLINE_NAMESPACE']
+NamespaceMacros: ['__SYCL_INLINE_NAMESPACE', '__SYCL_INLINE_VER_NAMESPACE']

@@ -14,8 +14,8 @@
 #include <sycl/functional.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <typename T, class BinaryOperation>
@@ -166,7 +166,7 @@ struct known_identity_impl<
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
-      sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0));
+      sycl::detail::host_half_impl::half(static_cast<uint16_t>(0));
 #endif
 };
 
@@ -206,7 +206,7 @@ struct known_identity_impl<
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
-      sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x3C00));
+      sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x3C00));
 #endif
 };
 
@@ -394,5 +394,5 @@ template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -925,13 +925,13 @@ public:
       return true;
     QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
     if (!Util::isSyclType(Ty, "group", true /*Tmpl*/))
-      // not a member of cl::sycl::group - continue search
+      // not a member of sycl::group - continue search
       return true;
     auto Name = Callee->getName();
     if (((Name != "parallel_for_work_item") && (Name != "wait_for")) ||
         Callee->hasAttr<SYCLScopeAttr>())
       return true;
-    // it is a call to cl::sycl::group::parallel_for_work_item/wait_for -
+    // it is a call to sycl::group::parallel_for_work_item/wait_for -
     // mark the callee
     Callee->addAttr(
         SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkItem));
@@ -4215,7 +4215,7 @@ static const char *paramKind2Str(KernelParamKind K) {
 //   VB,
 //     std::array<T1, N>& VC, int param, T2 ... varargs) {
 //     ...
-//     deviceQueue.submit([&](cl::sycl::handler& cgh) {
+//     deviceQueue.submit([&](sycl::handler& cgh) {
 //       ...
 //       cgh.parallel_for<class SimpleVadd<T1, N, T2...>>(...)
 //       ...
@@ -4650,8 +4650,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       FwdDeclEmitter.Visit(K.NameType);
   O << "\n";
 
-  O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
   O << "namespace sycl {\n";
+  O << "__SYCL_INLINE_VER_NAMESPACE(_V1) {\n";
   O << "namespace detail {\n";
 
   // Generate declaration of variable of type __sycl_device_global_registration
@@ -4795,8 +4795,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
   O << "} // namespace detail\n";
+  O << "} // __SYCL_INLINE_VER_NAMESPACE(_V1)\n";
   O << "} // namespace sycl\n";
-  O << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
   O << "\n";
 }
 
@@ -5076,8 +5076,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       DeviceGlobOS << "\");\n";
     } else {
       EmittedFirstSpecConstant = true;
-      OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
       OS << "namespace sycl {\n";
+      OS << "__SYCL_INLINE_VER_NAMESPACE(_V1) {\n";
       OS << "namespace detail {\n";
       OS << "template<>\n";
       OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
@@ -5095,8 +5095,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       OS << "\";\n";
       OS << "}\n";
       OS << "} // namespace detail\n";
+      OS << "} // __SYCL_INLINE_VER_NAMESPACE(_V1)\n";
       OS << "} // namespace sycl\n";
-      OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
     }
   }
 
@@ -5132,8 +5132,8 @@ bool Util::isSyclSpecialType(const QualType Ty) {
 
 bool Util::isSyclSpecConstantType(QualType Ty) {
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
@@ -5144,8 +5144,8 @@ bool Util::isSyclSpecConstantType(QualType Ty) {
 
 bool Util::isSyclSpecIdType(QualType Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "specialization_id")};
   return matchQualifiedTypeName(Ty, Scopes);
@@ -5153,16 +5153,16 @@ bool Util::isSyclSpecIdType(QualType Ty) {
 
 bool Util::isSyclKernelHandlerType(QualType Ty) {
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "kernel_handler")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
   std::array<DeclContextDesc, 7> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
@@ -5174,8 +5174,8 @@ bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
 
 bool Util::isSyclBufferLocationType(QualType Ty) {
   std::array<DeclContextDesc, 7> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "intel"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
@@ -5189,16 +5189,16 @@ bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
   Decl::Kind ClassDeclKind =
       Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
   std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(ClassDeclKind, Name)};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {
   std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,

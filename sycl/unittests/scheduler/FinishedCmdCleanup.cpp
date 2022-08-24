@@ -9,6 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 
 using namespace sycl;

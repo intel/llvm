@@ -22,7 +22,7 @@ int main() {
     auto buf_acc = data_buf.get_access<sycl::access::mode::read_write>(h);
     h.parallel_for(
         sycl::range<1>{sz},
-        // CHECK: cl{{.*}}sycl{{.*}}detail{{.*}}RoundedRangeKernel{{.*}}item{{.*}}main{{.*}}handler
+        // CHECK: sycl{{.*}}detail{{.*}}RoundedRangeKernel{{.*}}item{{.*}}main{{.*}}handler
         [=](sycl::id<1> item) { buf_acc[item] += 1; });
   });
   q.wait();

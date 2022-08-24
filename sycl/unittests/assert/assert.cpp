@@ -37,8 +37,8 @@
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -76,8 +76,8 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
@@ -312,7 +312,7 @@ static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
     return PI_SUCCESS;
   }
 
-  if (sycl::info::kernel::function_name == (sycl::info::kernel)ParamName) {
+  if (PI_KERNEL_INFO_FUNCTION_NAME == ParamName) {
     static const char FName[] = "TestFnName";
     if (ParamValue) {
       size_t L = strlen(FName) + 1;

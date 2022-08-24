@@ -10,6 +10,8 @@
 
 #define __SYCL_INLINE_NAMESPACE(X) inline namespace X
 
+#define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
+
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -102,20 +104,6 @@
 // clang emits "warning:" in the message pragma output
 #define __SYCL_WARNING(msg) __pragma(message(msg))
 #endif // __GNUC__
-
-// Define __SYCL_UNROLL to add pragma/attribute unroll to a loop.
-#ifndef __SYCL_UNROLL
-#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
-#elif defined(__clang__)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
-#elif (defined(__GNUC__) && __GNUC__ >= 8) ||                                  \
-    (defined(__GNUG__) && __GNUG__ >= 8)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(GCC unroll x))
-#else
-#define __SYCL_UNROLL(x)
-#endif // compiler switch
-#endif // __SYCL_UNROLL
 
 #if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_WARNING) && __cplusplus < 201703L
 

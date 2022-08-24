@@ -10,8 +10,8 @@
 
 #include <sycl/handler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 void associateWithHandler(handler &CGH, AccessorBaseHost *Acc,
@@ -20,5 +20,5 @@ void associateWithHandler(handler &CGH, AccessorBaseHost *Acc,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

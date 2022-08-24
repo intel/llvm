@@ -17,7 +17,6 @@
 namespace s = sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
 __SYCL_EXPORT s::cl_float Dot(s::vec<float, 1>, s::vec<float, 1>);
@@ -293,4 +292,3 @@ __SYCL_EXPORT s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
 }
 
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)

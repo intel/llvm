@@ -219,33 +219,6 @@ static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
 
-// Handle [[intel:fpga_pipeline]] attribute.
-static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
-                                             const ParsedAttr &A) {
-  // If no attribute argument is specified, set to default value '1'.
-  Expr *E = A.isArgExpr(0)
-                ? A.getArgAsExpr(0)
-                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                         S.Context.IntTy, A.getLoc());
-
-  return S.BuildSYCLIntelFPGAPipelineAttr(A, E);
-}
-
-SYCLIntelFPGAPipelineAttr *
-Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
-
-  if (!E->isValueDependent()) {
-    // Check if the expression is not value dependent.
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-  }
-
-  return new (Context) SYCLIntelFPGAPipelineAttr(Context, A, E);
-}
-
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
                                            Expr *E) {
   // This attribute requires a non-negative value.
@@ -855,7 +828,6 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAPipelineAttr>(S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -1001,8 +973,6 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleUnlikely(S, St, A, Range);
   case ParsedAttr::AT_SYCLIntelFPGANofusion:
     return handleIntelFPGANofusionAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelFPGAPipeline:
-    return handleSYCLIntelFPGAPipelineAttr(S, St, A);
   default:
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
     // declaration attribute is not written on a statement, but this code is

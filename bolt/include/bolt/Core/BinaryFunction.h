@@ -994,7 +994,7 @@ public:
   bool hasName(const std::string &FunctionName) const {
     auto Res =
         forEachName([&](StringRef Name) { return Name == FunctionName; });
-    return Res.hasValue();
+    return Res.has_value();
   }
 
   /// Check if any of function names matches the given regex.
@@ -1005,7 +1005,7 @@ public:
   Optional<StringRef> hasRestoredNameRegex(const StringRef NameRegex) const;
 
   /// Return a vector of all possible names for the function.
-  const std::vector<StringRef> getNames() const {
+  std::vector<StringRef> getNames() const {
     std::vector<StringRef> AllNames;
     forEachName([&AllNames](StringRef Name) {
       AllNames.push_back(Name);
@@ -1427,7 +1427,7 @@ public:
 
   const CallSitesType &getColdCallSites() const { return ColdCallSites; }
 
-  const ArrayRef<uint8_t> getLSDAActionTable() const { return LSDAActionTable; }
+  ArrayRef<uint8_t> getLSDAActionTable() const { return LSDAActionTable; }
 
   const LSDATypeTableTy &getLSDATypeTable() const { return LSDATypeTable; }
 
@@ -1435,9 +1435,7 @@ public:
     return LSDATypeAddressTable;
   }
 
-  const ArrayRef<uint8_t> getLSDATypeIndexTable() const {
-    return LSDATypeIndexTable;
-  }
+  ArrayRef<uint8_t> getLSDATypeIndexTable() const { return LSDATypeIndexTable; }
 
   const LabelsMapType &getLabels() const { return Labels; }
 
@@ -1652,7 +1650,6 @@ public:
     }
     OffsetToCFI.emplace(Offset, FrameInstructions.size());
     FrameInstructions.emplace_back(std::forward<MCCFIInstruction>(Inst));
-    return;
   }
 
   BinaryBasicBlock::iterator addCFIInstruction(BinaryBasicBlock *BB,

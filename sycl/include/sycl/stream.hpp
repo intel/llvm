@@ -13,8 +13,8 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/handler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 
@@ -1159,8 +1159,8 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 namespace std {
 template <> struct hash<sycl::stream> {
   size_t operator()(const sycl::stream &S) const {

@@ -65,8 +65,8 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
@@ -702,13 +702,13 @@ public:
   using EnableIfNotHostHalf = typename detail::enable_if_t<
       !std::is_same<DataT, sycl::detail::half_impl::half>::value ||
           !std::is_same<sycl::detail::half_impl::StorageT,
-                        sycl::detail::host_half_impl::half_v2>::value,
+                        sycl::detail::host_half_impl::half>::value,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename detail::enable_if_t<
       std::is_same<DataT, sycl::detail::half_impl::half>::value &&
           std::is_same<sycl::detail::half_impl::StorageT,
-                       sycl::detail::host_half_impl::half_v2>::value,
+                       sycl::detail::host_half_impl::half>::value,
       T>;
 
   template <typename Ty = DataT>
@@ -2077,8 +2077,8 @@ __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_DECLARE_TYPE_VIA_CL_T(type)                                     \
@@ -2136,8 +2136,8 @@ using __half8_vec_t = sycl::detail::half_impl::Vec8StorageT;
 using __half16_vec_t = sycl::detail::half_impl::Vec16StorageT;
 #define __SYCL_GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types in IN.
@@ -2488,7 +2488,7 @@ struct CheckDeviceCopyable<
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __SYCL_ALIGNED_VAR

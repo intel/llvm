@@ -11,6 +11,8 @@
 
 #include <helpers/PiMock.hpp>
 
+#include <detail/buffer_impl.hpp>
+
 #include <iostream>
 #include <memory>
 
@@ -221,8 +223,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
     auto BufI = std::make_shared<detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MockInteropBuffer), Q.get_context(),
-        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<
-            detail::default_buffer_allocator<char>, char>>(),
+        make_unique_ptr<
+            detail::SYCLMemObjAllocatorHolder<buffer_allocator<char>, char>>(),
         /* OwnNativeHandle */ true, event());
 
     detail::Requirement Req = getMockRequirement();

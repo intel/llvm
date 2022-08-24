@@ -22,8 +22,8 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // ---- linear_id_to_id
@@ -1037,5 +1037,5 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
 #endif
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
