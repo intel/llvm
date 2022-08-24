@@ -3733,8 +3733,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   }
   // Reset signalled command lists and return them back to the cache of
   // available command lists.
-  if (!Queue->Device->useImmediateCommandLists())
-    resetCommandLists(Queue);
+  resetCommandLists(Queue);
   return PI_SUCCESS;
 }
 
