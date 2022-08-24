@@ -5,7 +5,7 @@
 // Build program and add item to cache
 // RUN: %BE_RUN_PLACEHOLDER SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // Ignore caching because image size is less than threshold
-// RUN: %BE_RUN_PLACEHOLDER SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE=100000 %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
+// RUN: %BE_RUN_PLACEHOLDER SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE=1000000 %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // Ignore caching because image size is more than threshold
 // RUN: %BE_RUN_PLACEHOLDER SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE=1000 %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // Use cache
