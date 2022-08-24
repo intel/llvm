@@ -114,15 +114,19 @@ namespace sycl::ext::oneapi::experimental {
     executable
   };
 
-  template<graph_state State>
-  class graph {
+  template<graph_state State=graph_state::modifiable>
+  class command_graph {
   public:
-    operator graph<graph_state::executable>();
+    operator command_graph<graph_state::executable>();
   };
   
-  graph<graph_state::modifiable> make_graph();
+  template<>
+  class command_graph<graph_state::executable>{
+      public:
+      command_graph() = delete;
+  };
   
-  graph<graph_state::executable> compile(const graph<graph_state::modifiable> Graph);
+  command_graph<graph_state::executable> compile(const command_graph<graph_state::modifiable> Graph);
   
 }
 
@@ -135,7 +139,7 @@ The following member functions are added to the queue class.
 
 namespace sycl {
 
-event submit(const ext::oneapi::experimental::graph<ext::oneapi::experimental::graph_state::executable>& my_graph);
+event submit(const ext::oneapi::experimental::command_graph<ext::oneapi::experimental::graph_state::executable>& my_graph);
 
 } // namespace sycl
 
@@ -143,13 +147,13 @@ event submit(const ext::oneapi::experimental::graph<ext::oneapi::experimental::g
 
 === Executable Graph
 
-A `graph` object in `graph_state::executable` represents a user generated device and context specific execution object that is submitted to a queue for execution.
-The structure of such a `graph` object in this state is immutable and cannot be changed, so are the tasks assigned with each node.
+A `command_graph` object in `graph_state::executable` represents a user generated device and context specific execution object that is submitted to a queue for execution.
+The structure of such a `command_graph` object in this state is immutable and cannot be changed, so are the tasks assigned with each node.
 Support of submitting a graph for execution, before a previous execution has been completed is backend specific. The runtime may throw an error.
 
 === Graph member and helper functions
 
-Table 3. Constructor of the `graph` class.
+Table 3. Constructor of the `command_graph` class.
 [cols="2a,a"]
 |===
 |Constructor|Description
@@ -158,13 +162,13 @@ Table 3. Constructor of the `graph` class.
 [source,c++]
 ----
 /* available only when graph_state == modifiable */`
-graph();
+command_graph();
 ----
-|Creates a `graph` object.
+|Creates a `command_graph` object.
 
 |===
 
-Table 4. Member functions of the `graph` class.
+Table 4. Member functions of the `command_graph` class.
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -188,7 +192,7 @@ template<typename T>
 
 Memory that is allocated by the following functions is owned by the specific graph. When freed inside the graph, the memory is only accessible before the `free` node is executed and after the `malloc` node is executed.
 
-Table 5. Member functions of the `graph` class (memory operations).
+Table 5. Member functions of the `command_graph` class (memory operations).
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -260,7 +264,7 @@ node free(void *data, const std::vector<node>& dep = {});
 
 |===
 
-Table 6. Member functions of the `graph` class (convenience shortcuts).
+Table 6. Member functions of the `command_graph` class (convenience shortcuts).
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -289,20 +293,20 @@ node parallel_for(nd_range<Dims> executionRange, Rest&& rest, const std::vector<
 ----
 |Adding a node that encapsulates a `parallel_for` operation.
 
-|===
-
-Table 7. Helper functions of the `graph` class.
-[cols="a,a"]
-|===
-|Function name|Description
-
-|
-[source,c++]
-----
-graph<graph_state::modifiable> make_graph();
-----
-|Creates a `graph` object in the  `graph_state::modifiable` state.
-
+// |===
+// 
+// Table 7. Helper functions of the `graph` class.
+// [cols="a,a"]
+// |===
+// |Function name|Description
+//
+// |
+// [source,c++]
+// ----
+// graph<graph_state::modifiable> make_graph();
+// ----
+// |Creates a `graph` object in the  `graph_state::modifiable` state.
+ 
 |===
 
 === Node member functions
@@ -329,7 +333,7 @@ Table 9. Member functions of the `node` class.
 |
 [source,c++]
 ----
-void set_graph(graph<graph_state::modifiable>& Graph);
+void set_graph(command_graph<graph_state::modifiable>& Graph);
 ----
 |Assigns a `node` object to a `graph`.
 
