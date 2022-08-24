@@ -95,15 +95,15 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<((sycl::detail::is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                   sycl::detail::is_sgeninteger<T>::value) &&
-                  sycl::detail::IsValidAtomicType<T>::value &&
-                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitOR<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitXOR<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitAND<T, BinaryOperation>::value)>;
+    bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
+                   is_sgeninteger<T>::value) &&
+                  IsValidAtomicType<T>::value &&
+                  (IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value ||
+                   IsBitOR<T, BinaryOperation>::value ||
+                   IsBitXOR<T, BinaryOperation>::value ||
+                   IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -119,10 +119,10 @@ using IsReduOptForAtomic64Op =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<(sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value) &&
-                  sycl::detail::is_sgenfloat<T>::value && sizeof(T) == 8>;
+    bool_constant<(IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value) &&
+                  is_sgenfloat<T>::value && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -135,12 +135,12 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<((sycl::detail::is_sgeninteger<T>::value &&
+    bool_constant<((is_sgeninteger<T>::value &&
                     (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   sycl::detail::is_sgenfloat<T>::value) &&
-                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
+                   is_sgenfloat<T>::value) &&
+                  (IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -191,45 +191,45 @@ template <class Reducer> class combiner {
 
 public:
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsPlus<_T, BinaryOp>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
+              is_geninteger<_T>::value>
   operator++() {
     static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsPlus<_T, BinaryOp>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
+              is_geninteger<_T>::value>
   operator++(int) {
     static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsPlus<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
   operator+=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsMultiplies<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
   operator*=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsBitOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
   operator|=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsBitXOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
   operator^=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsBitAND<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
   operator&=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
@@ -266,7 +266,7 @@ public:
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-              sycl::detail::IsPlus<_T, _BinaryOperation>::value>
+              IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
@@ -277,7 +277,7 @@ public:
             typename _T = Ty, class _BinaryOperation = BinaryOp>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-              sycl::detail::IsBitOR<_T, _BinaryOperation>::value>
+              IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
@@ -288,7 +288,7 @@ public:
             typename _T = Ty, class _BinaryOperation = BinaryOp>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-              sycl::detail::IsBitXOR<_T, _BinaryOperation>::value>
+              IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
@@ -299,7 +299,7 @@ public:
             typename _T = Ty, class _BinaryOperation = BinaryOp>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, _T>::value &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-              sycl::detail::IsBitAND<_T, _BinaryOperation>::value &&
+              IsBitAND<_T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -313,7 +313,7 @@ public:
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-              sycl::detail::IsMinimum<_T, _BinaryOperation>::value>
+              IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
@@ -325,7 +325,7 @@ public:
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-              sycl::detail::IsMaximum<_T, _BinaryOperation>::value>
+              IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
@@ -339,15 +339,15 @@ public:
 /// It stores a copy of the identity and binary operation associated with the
 /// reduction.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 0 && Extent == 1 && View == false &&
-                  !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                     !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                                   !sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 0 && Extent == 1 && View == false &&
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -371,15 +371,15 @@ private:
 /// It allows to reduce the size of the 'reducer' object by not holding
 /// the identity field inside it and allows to add a default constructor.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 0 && Extent == 1 && View == false &&
-                  sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                     detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                                   sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 0 && Extent == 1 && View == false &&
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -390,7 +390,7 @@ public:
   }
 
   static T getIdentity() {
-    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
+    return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t) { return MValue; }
@@ -419,15 +419,15 @@ private:
 /// Specialization of 'reducer' class for array reductions exposing the
 /// subscript operator.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 1 && View == false &&
-                  !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 1 && View == false &&
+                     !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 1 && View == false &&
-                                   !sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 1 && View == false &&
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -449,15 +449,15 @@ private:
 /// Specialization of 'reducer' class for array reductions accepting a span
 /// in cases where the identity value is known.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 1 && View == false &&
-                  sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 1 && View == false &&
+                     detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 1 && View == false &&
-                                   sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 1 && View == false &&
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -469,7 +469,7 @@ public:
   }
 
   static T getIdentity() {
-    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
+    return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
@@ -491,14 +491,14 @@ protected:
 public:
   /// Returns the statically known identity value.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value,
+  enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
               _T> constexpr getIdentity() {
-    return sycl::detail::known_identity_impl<_BinaryOperation, _T>::value;
+    return known_identity_impl<_BinaryOperation, _T>::value;
   }
 
   /// Returns the identity value given by user.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<!sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
+  enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
     return MIdentity;
   }
@@ -765,7 +765,7 @@ private:
   using self = reduction_impl<T, BinaryOperation, Dims, Extent, RedOutVar>;
 
   static constexpr bool is_known_identity =
-      sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value;
+      IsKnownIdentityOp<T, BinaryOperation>::value;
 
   // TODO: Do we also need chooseBinOp?
   static constexpr T chooseIdentity(const T &Identity) {
@@ -880,8 +880,8 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
 /// must do that to avoid name collisions.
 template <template <typename...> class Namer, class KernelName, class... Ts>
 using __sycl_reduction_kernel =
-    std::conditional_t<std::is_same<KernelName, sycl::detail::auto_name>::value,
-                       sycl::detail::auto_name, Namer<KernelName, Ts...>>;
+    std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
+                       Namer<KernelName, Ts...>>;
 
 /// Called in device code. This function iterates through the index space
 /// by assigning contiguous chunks to each work-group, then iterating
@@ -907,7 +907,7 @@ void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
   size_t End = GroupEnd;
   size_t Stride = NdId.get_local_range(0);
   for (size_t I = Start; I < End; I += Stride)
-    F(sycl::detail::getDelinearizedId(Range, I), Reducer);
+    F(getDelinearizedId(Range, I), Reducer);
 }
 
 namespace reduction {
@@ -937,7 +937,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
     for (size_t E = LID; E < NElements; E += NDId.get_local_range(0)) {
       GroupSum[E] = Reducer.getIdentity();
     }
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
 
     // Each work-item has its own reducer to combine
     Reducer.template atomic_combine<access::address_space::local_space>(
@@ -945,7 +945,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
 
     // Single work-item performs finalization for entire work-group
     // TODO: Opportunity to parallelize across elements
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
     if (LID == 0) {
       for (size_t E = 0; E < NElements; ++E) {
         Reducer.getElement(E) = GroupSum[E];
@@ -985,8 +985,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
   // Integrated/discrete GPUs have different faster path.
   auto NWorkGroupsFinished =
-      sycl::detail::getDeviceFromHandler(CGH)
-              .get_info<info::device::host_unified_memory>()
+      getDeviceFromHandler(CGH).get_info<info::device::host_unified_memory>()
           ? Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH)
           : Redu.template getGroupsCounterAccDiscrete<InitName>(CGH);
 
@@ -1037,7 +1036,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
       DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
     }
 
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       // Reduce each result separately
       // TODO: Opportunity to parallelize across elements.
@@ -1105,7 +1104,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       LocalReds[LID] = Reducer.getElement(E);
       if (LID == 0)
         LocalReds[WGSize] = Identity;
-      sycl::detail::workGroupBarrier();
+      workGroupBarrier();
 
       // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
       // LocalReds[WGSize] accumulates last/odd elements when the step
@@ -1116,7 +1115,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
           LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
         else if (LID == CurStep && (PrevStep & 0x1))
           LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-        sycl::detail::workGroupBarrier();
+        workGroupBarrier();
         PrevStep = CurStep;
       }
 
@@ -1140,7 +1139,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
           ++NFinished == NWorkGroups && NWorkGroups > 1;
     }
 
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       // Reduce each result separately
       // TODO: Opportunity to parallelize across elements
@@ -1154,7 +1153,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
         LocalReds[LID] = LocalSum;
         if (LID == 0)
           LocalReds[WGSize] = Identity;
-        sycl::detail::workGroupBarrier();
+        workGroupBarrier();
 
         size_t PrevStep = WGSize;
         for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
@@ -1162,7 +1161,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
             LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
           else if (LID == CurStep && (PrevStep & 0x1))
             LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          sycl::detail::workGroupBarrier();
+          workGroupBarrier();
           PrevStep = CurStep;
         }
         if (LID == 0) {
