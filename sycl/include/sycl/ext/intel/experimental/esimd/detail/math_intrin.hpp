@@ -449,7 +449,10 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
                                 __ESIMD_EMU_DNS::is_inttype<RT>::value>::set();
 
   constexpr __ESIMD_NS::uint ops_per_chan =
-      src1_precision == __ESIMD_ENS::argument_type::BF16 ||
+      src1_precision == __ESIMD_ENS::argument_type::TF32 ||
+              src2_precision == __ESIMD_ENS::argument_type::TF32
+          ? 1
+      : src1_precision == __ESIMD_ENS::argument_type::BF16 ||
               src1_precision == __ESIMD_ENS::argument_type::FP16 ||
               src2_precision == __ESIMD_ENS::argument_type::BF16 ||
               src2_precision == __ESIMD_ENS::argument_type::FP16
