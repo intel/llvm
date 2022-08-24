@@ -1290,6 +1290,8 @@ private:
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
+  void setHandlerKernelBundle(kernel Kernel);
+
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
@@ -1918,7 +1920,7 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -1991,7 +1993,7 @@ public:
   void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2037,7 +2039,7 @@ public:
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2075,7 +2077,7 @@ public:
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2113,7 +2115,7 @@ public:
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2155,7 +2157,7 @@ public:
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2195,7 +2197,7 @@ public:
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
