@@ -524,14 +524,6 @@ struct is_rw_acc_t<accessor<T, AccessorDims, access::mode::read_write,
                             access::target::device, IsPlaceholder, PropList>>
     : public std::true_type {};
 
-template <class T> struct is_dw_acc_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::placeholder IsPlaceholder,
-          typename PropList>
-struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
-                            access::target::device, IsPlaceholder, PropList>>
-    : public std::true_type {};
-
 // Used for determining dimensions for temporary storage (mainly).
 template <class T> struct data_dim_t {
   static constexpr int value = 1;
@@ -583,10 +575,8 @@ public:
   static constexpr bool is_usm = std::is_same_v<RedOutVar, T *>;
 
   static constexpr bool is_rw_acc = is_rw_acc_t<RedOutVar>::value;
-  static constexpr bool is_dw_acc = is_dw_acc_t<RedOutVar>::value;
-  static constexpr bool is_acc = is_rw_acc | is_dw_acc;
-  static_assert(!is_rw_acc || !is_dw_acc, "Can be only one at once!");
-  static_assert(!is_usm || !is_acc, "Can be only one at once!");
+  static constexpr bool is_acc = is_rw_acc;
+  static_assert(!is_rw_acc || !is_usm, "Can be only one at once!");
 
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
@@ -616,11 +606,7 @@ public:
   auto getWriteMemForPartialReds(size_t Size, handler &CGH) {
     // If there is only one WG we can avoid creation of temporary buffer with
     // partial sums and write directly into user's reduction variable.
-    //
-    // Current implementation doesn't allow that in case of DW accessor used for
-    // reduction because C++ types for it and for temporary storage don't match,
-    // hence the second part of the check.
-    if constexpr (IsOneWG && !is_dw_acc) {
+    if constexpr (IsOneWG) {
       return MRedOut;
     } else {
       MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
@@ -667,8 +653,6 @@ public:
       if (!base::initializeToIdentity())
         return MRedOut;
     }
-    assert(!(is_dw_acc && !base::initializeToIdentity()) &&
-           "Unexpected condition!");
 
     // TODO: Move to T[] in C++20 to simplify handling here
     // auto RWReduVal = std::make_shared<T[num_elements]>();
@@ -762,7 +746,6 @@ private:
 
 public:
   using algo::is_acc;
-  using algo::is_dw_acc;
   using algo::is_rw_acc;
   using algo::is_usm;
 
@@ -776,7 +759,7 @@ public:
   template <typename _self = self,
             enable_if_t<_self::is_known_identity && _self::is_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), is_dw_acc, Acc) {
+      : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -811,7 +794,7 @@ public:
   /// Constructs reduction_impl when the identity value is unknown.
   template <typename _self = self, enable_if_t<_self::is_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(chooseIdentity(Identity), BOp, is_dw_acc, Acc) {
+      : algo(chooseIdentity(Identity), BOp, false, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -1144,7 +1127,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       }
     }
   });
-  return Reduction::is_usm || Reduction::is_dw_acc;
+  return Reduction::is_usm;
 }
 
 /// Returns "true" if the result has to be saved to user's variable by
@@ -2379,18 +2362,6 @@ template <typename Reduction, typename... RestT>
 void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
-  if constexpr (Reduction::is_dw_acc) {
-    event CopyEvent = withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
-      auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
-      auto OutAcc = Redu.getUserRedVar();
-      associateWithHandler(CopyHandler, &Redu.getUserRedVar(),
-                           access::target::device);
-      if (!Events.empty())
-        CopyHandler.depends_on(Events.back());
-      CopyHandler.copy(InAcc, OutAcc);
-    });
-    Events.push_back(CopyEvent);
-  }
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
 
