@@ -371,7 +371,7 @@ int main() {
 
   sycl::queue q;
 
-  auto g = sycl::ext::oneapi::experimental::make_graph();
+  sycl::ext::oneapi::experimental::command_graph g;
 
   float *x , *y, *z;
 
