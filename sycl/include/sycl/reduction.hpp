@@ -532,13 +532,6 @@ struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
                             access::target::device, IsPlaceholder, PropList>>
     : public std::true_type {};
 
-template <class T> struct is_placeholder_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::mode Mode, typename PropList>
-struct is_placeholder_t<accessor<T, AccessorDims, Mode, access::target::device,
-                                 access::placeholder::true_t, PropList>>
-    : public std::true_type {};
-
 // Used for determining dimensions for temporary storage (mainly).
 template <class T> struct data_dim_t {
   static constexpr int value = 1;
@@ -579,12 +572,7 @@ public:
   // AccessorDims also determines the dimensionality of some temp storage
   static constexpr int accessor_dim = data_dim_t<RedOutVar>::value;
   static constexpr int buffer_dim = (accessor_dim == 0) ? 1 : accessor_dim;
-  static constexpr access::placeholder is_placeholder =
-      is_placeholder_t<RedOutVar>::value ? access::placeholder::true_t
-                                         : access::placeholder::false_t;
-  using rw_accessor_type = accessor<T, accessor_dim, access::mode::read_write,
-                                    access::target::device, is_placeholder,
-                                    ext::oneapi::accessor_property_list<>>;
+  using rw_accessor_type = accessor<T, accessor_dim>;
   static constexpr bool has_float64_atomics =
       IsReduOptForAtomic64Op<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
@@ -637,7 +625,7 @@ public:
     } else {
       MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
       CGH.addReduction(MOutBufPtr);
-      return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+      return rw_accessor_type{*MOutBufPtr, CGH};
     }
   }
 
@@ -665,7 +653,7 @@ public:
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return rw_accessor_type{*MOutBufPtr, CGH};
   }
 
   /// If reduction is initialized with read-write accessor, which does not
@@ -693,7 +681,7 @@ public:
                                                 range<1>(num_elements));
     MOutBufPtr->set_final_data();
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return rw_accessor_type{*MOutBufPtr, CGH};
   }
 
   accessor<int, 1, access::mode::read_write, access::target::device,
@@ -731,23 +719,6 @@ public:
   }
 
 private:
-  template <typename BufferT>
-  rw_accessor_type createHandlerWiredReadWriteAccessor(handler &CGH,
-                                                       BufferT Buffer) {
-    // TODO:
-    // SYCL 2020: The accessor template parameter IsPlaceholder is allowed to be
-    // specified, but it has no bearing on whether the accessor instance is a
-    // placeholder. This is determined solely by the constructor used to create
-    // the instance. The associated type access::placeholder is also deprecated.
-    if constexpr (is_placeholder == access::placeholder::true_t) {
-      rw_accessor_type Acc(Buffer);
-      CGH.require(Acc);
-      return Acc;
-    } else {
-      return {Buffer, CGH};
-    }
-  }
-
   std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
 
   /// User's accessor/USM pointer to where the reduction must be written.
@@ -2474,7 +2445,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var}, CGH,
+  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH}, CGH,
                                                        InitializeToIdentity);
 }
 
@@ -2538,7 +2509,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1>(
-      accessor{Var}, CGH, Identity, Combiner, InitializeToIdentity);
+      accessor{Var, CGH}, CGH, Identity, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
