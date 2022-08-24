@@ -723,7 +723,7 @@ device and queue objects bound to Intel GPU device:
 
 int main() {
 
-  auto NEOGPUDeviceSelectorLambda = [](const sycl::device &Device){
+  auto NEOGPUDeviceSelector = [](const sycl::device &Device){
     using namespace sycl::info;
 
     const std::string DeviceName = Device.get_info<device::name>();
@@ -733,8 +733,8 @@ int main() {
   };
 
   try {
-    sycl::queue Queue(NEOGPUDeviceSelectorLambda);
-    sycl::device Device(NEOGPUDeviceSelectorLambda);
+    sycl::queue Queue(NEOGPUDeviceSelector);
+    sycl::device Device(NEOGPUDeviceSelector);
   } catch (sycl::exception &E) {
     std::cout << E.what() << std::endl;
   }
