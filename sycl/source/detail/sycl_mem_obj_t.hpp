@@ -82,12 +82,12 @@ public:
 
   const plugin &getPlugin() const;
 
-  size_t getSize() const override { return MSizeInBytes; }
+  size_t getSizeInBytes() const override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept {
     size_t AllocatorValueSize = MAllocator->getValueSize();
-    return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
+    return (getSizeInBytes() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
   template <typename propertyT> bool has_property() const noexcept {
