@@ -1042,6 +1042,47 @@ struct _pi_queue : _pi_object {
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
+
+  // Data structures and methods for optimizing events usage in in-order queues.
+
+  // Copy of the last command event which is suitable for reuse.
+  // It will be put into the cache when new command is submitted to the in-order
+  // queue.
+  pi_event CandidateForReuse = nullptr;
+
+  // Caches of events for reuse.
+  std::vector<std::list<pi_event>> EventCaches{2};
+  auto getEventCache(bool HostVisible) {
+    return HostVisible ? &EventCaches[0] : &EventCaches[1];
+  }
+
+  // Storage of all events created in the queue which are suitable for reuse.
+  std::list<pi_event> EventsStorage;
+
+  void storeEvent(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
+                  bool HostVisible);
+
+  // Update last command event of the in-order queue and save a copy of the last
+  // command event for future reuse. Saved copy will be put into the cache for
+  // reuse when new command is submitted to the in-order queue. If last command
+  // command event is referenced externally it will be considered for reuse only
+  // after external reference count turns to zero.
+  void setLastCommandEvent(pi_event Event);
+
+  // Put the candidate for reuse into the cache if new command was submitted to
+  // the command list.
+  pi_result cacheEventForReuse(pi_command_list_ptr_t CommandList);
+
+  // Get event from the queue's cache.
+  pi_event getEventFromCache(pi_command_list_ptr_t CommandList,
+                             bool HostVisible);
+
+  // Add event to the queue's cache.
+  void addEventToCache(pi_event Event);
+
+  // Returns bool value indicating whether queue supports optimization (events
+  // caching) for provided type of event.
+  bool supportsInOrderQueueOptimization(bool HostVisible, bool IsDiscarded);
 };
 
 struct _pi_mem : _pi_object {
@@ -1370,6 +1411,8 @@ struct _pi_event : _pi_object {
   std::atomic<pi_uint32> RefCountExternal{0};
 
   bool hasExternalRefs() { return RefCountExternal != 0; }
+
+  bool IsDiscarded = false;
 
   // Reset _pi_event object.
   pi_result reset();
