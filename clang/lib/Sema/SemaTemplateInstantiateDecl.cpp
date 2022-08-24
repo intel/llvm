@@ -1613,8 +1613,16 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
 
   // Only add this if we aren't instantiating a variable template.  We'll end up
   // adding the VarTemplateSpecializationDecl later.
-  if (!InstantiatingVarTemplate)
+  if (!InstantiatingVarTemplate) {
     SemaRef.addSyclVarDecl(Var);
+    if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
+      if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              Var->getType()))
+        SemaRef.Diag(SYCLDevice->getLoc(),
+                     diag::err_sycl_attribute_not_device_global)
+            << SYCLDevice;
+    }
+  }
   return Var;
 }
 

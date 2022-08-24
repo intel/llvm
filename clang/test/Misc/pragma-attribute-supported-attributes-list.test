@@ -164,7 +164,6 @@
 // CHECK-NEXT: SYCLAddIRAttributesFunction (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLAddIRAttributesGlobalVariable (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLAddIRAttributesKernelParameter (SubjectMatchRule_variable_is_parameter)
-// CHECK-NEXT: SYCLDevice (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceGlobal (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLDeviceHas (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceIndirectlyCallable (SubjectMatchRule_function)

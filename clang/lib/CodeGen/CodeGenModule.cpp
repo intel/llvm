@@ -840,13 +840,15 @@ void CodeGenModule::Release() {
         llvm::MDString::get(Ctx, CodeGenOpts.MemoryProfileOutput));
   }
 
-  if ((LangOpts.CUDAIsDevice || LangOpts.isSYCL()) && getTriple().isNVPTX()) {
+  if ((LangOpts.CUDAIsDevice || LangOpts.SYCLIsDevice) && getTriple().isNVPTX()) {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
-                              CodeGenOpts.FP32DenormalMode.Output !=
-                                  llvm::DenormalMode::IEEE);
+                              (CodeGenOpts.FP32DenormalMode.Output !=
+                                  llvm::DenormalMode::IEEE) ||
+                              (CodeGenOpts.FPDenormalMode.Output !=
+                                  llvm::DenormalMode::IEEE));
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
@@ -2257,6 +2259,19 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
     if (VD->getType().isConstQualified() &&
         VD->getStorageDuration() == SD_Static)
       addUsedOrCompilerUsedGlobal(GV);
+  }
+
+  if (getLangOpts().SYCLIsDevice) {
+    // Add internal device_global variables to llvm.compiler.used array to
+    // prevent early optimizations from removing these variables from the
+    // module.
+    if (D && isa<VarDecl>(D)) {
+      const auto *VD = cast<VarDecl>(D);
+      const RecordDecl *RD = VD->getType()->getAsRecordDecl();
+      if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>() &&
+          VD->getFormalLinkage() == InternalLinkage)
+        addUsedOrCompilerUsedGlobal(GV);
+    }
   }
 }
 
