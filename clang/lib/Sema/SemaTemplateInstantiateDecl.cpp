@@ -1620,7 +1620,6 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
       if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope);
-        return nullptr;
       }
 
       if (Var->getAccess() == AS_private)
@@ -1634,7 +1633,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
           if (isa<FunctionDecl>(DC)) {
             SemaRef.Diag(D->getLocation(),
                          diag::err_sycl_device_global_incorrect_scope);
-            return nullptr;
+            break;
           }
           DC = DC->getParent();
         }
