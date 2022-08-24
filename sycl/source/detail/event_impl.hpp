@@ -20,6 +20,7 @@
 #include <cassert>
 #include <condition_variable>
 #include <optional>
+#include <unordered_set>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -217,7 +218,6 @@ public:
   /// @return a reference to MWorkerQueue.
   QueueImplPtr &getWorkerQueue() { return MWorkerQueue; };
 
-
   /// Checks if an event is in a fully intialized state. Default-constructed
   /// events will return true only after having initialized its native event,
   /// while other events will assume that they are fully initialized at
@@ -226,6 +226,19 @@ public:
   /// \return true if the event is considered to be in a fully initialized
   /// state.
   bool isInitialized() const noexcept { return MIsInitialized; }
+
+  /// Returns set of explicit dependencies that may block the command from being
+  /// enqueued.
+  ///
+  /// @return a reference to MBlockingExplicitDeps.
+  std::unordered_set<EventImplPtr> &getBlockingExplicitDeps() {
+    return MBlockingExplicitDeps;
+  }
+
+  /// Checks if this event is complete.
+  ///
+  /// \return true if this event is complete.
+  bool isComplete() const { return MState == HES_Complete; }
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -272,6 +285,11 @@ private:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  /// Contains list of commands that blocks this command from being enqueued
+  /// (not edges). Commands from set is moved to the top level command during
+  /// dependency building process.
+  std::unordered_set<EventImplPtr> MBlockingExplicitDeps;
 
   friend std::vector<RT::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

@@ -464,6 +464,11 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
+  static void enqueueUnblockedCommands(
+      const EventImplPtr &UnblockedDep,
+      const std::unordered_set<EventImplPtr> &CmdsToEnqueue,
+      std::vector<Command *> &ToCleanUp);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
@@ -601,7 +606,6 @@ protected:
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
                                        const ContextImplPtr &Context);
-
     template <typename T>
     typename detail::enable_if_t<
         std::is_same<typename std::remove_cv_t<T>, Requirement>::value,

@@ -370,6 +370,23 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
+void Scheduler::enqueueUnblockedCommands(
+    const EventImplPtr &UnblockedDep,
+    const std::unordered_set<EventImplPtr> &ToEnqueue,
+    std::vector<Command *> &ToCleanUp) {
+  for (auto &CmdEvent : ToEnqueue) {
+    Command *Cmd = static_cast<Command *>(CmdEvent->getCommand());
+    assert(Cmd &&
+           "Event with blocked command must always has not NULL command");
+
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+  }
+}
+
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
                                       size_t StreamBufferSize,
                                       size_t FlushBufferSize) {

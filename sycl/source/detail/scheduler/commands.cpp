@@ -319,10 +319,6 @@ public:
 
     HostTask.MHostTask.reset();
 
-    // unblock user empty command here
-    EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
-    assert(EmptyCmd && "No empty command found");
-
     // Completing command's event along with unblocking enqueue readiness of
     // empty command may lead to quick deallocation of MThisCmd by some cleanup
     // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -337,9 +333,11 @@ public:
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
       // update self-event status
+      const std::unordered_set<EventImplPtr> &CmdsToEnqueue =
+          MThisCmd->getBlockedUsers();
       MThisCmd->MEvent->setComplete();
-
-      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+      Scheduler::enqueueUnblockedCommands(MThisCmd->MEvent, CmdsToEnqueue,
+                                          ToCleanUp);
 
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
@@ -368,9 +366,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
       // we will have two different contexts for the same CPU device: C1, C2.
       // Also we have default host queue. This queue is accessible via
       // Scheduler. Now, let's assume we have three different events: E1(C1),
-      // E2(C1), E3(C2). Also, we have an EmptyCommand which is to be executed
-      // on host queue. The command's MPreparedDepsEvents will contain all three
-      // events (E1, E2, E3). Now, if piEventsWait is called for all three
+      // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
+      // three events (E1, E2, E3). Now, if piEventsWait is called for all three
       // events we'll experience failure with CL_INVALID_CONTEXT 'cause these
       // events refer to different contexts.
       std::map<context_impl *, std::vector<EventImplPtr>>
@@ -413,7 +410,7 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
       MWorkerQueue(MEvent->getWorkerQueue()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MType(Type) {
+      MBlockingExplicitDeps(MEvent->getBlockingExplicitDeps()), MType(Type) {
   MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
   MEvent->setCommand(this);
@@ -605,14 +602,38 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 3. Some types of commands do not produce PI events after they are enqueued
   //    (e.g. alloca). Note that we can't check the pi event to make that
   //    distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized()) ||
-                         getType() == CommandType::HOST_TASK;
-  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
+  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized());
+  auto *DepCmd = static_cast<Command *>(DepEvent->getCommand());
+  if (DepCmd)
     PiEventExpected &= DepCmd->producesPiEvent();
+
+  // MBlockingExplicitDeps used to avoid graph depth search for blocking command
+  // to add new command as user to it. It is trade-off between average perf
+  // and scenario influence and memory usage. if
+  // BlockingCmdEvent->getCommand() returns nullptr - task is completed and
+  // event is signalled, not blocking any more so no copy.
+  for (const auto &BlockingCmdEvent : DepEvent->getBlockingExplicitDeps()) {
+    if (Command *BlockingCmd =
+            static_cast<Command *>(BlockingCmdEvent->getCommand());
+        BlockingCmd && BlockingCmd->isBlocking()) {
+      MBlockingExplicitDeps.insert(BlockingCmdEvent);
+      BlockingCmd->removeBlockedUser(DepEvent);
+      BlockingCmd->addBlockedUser(this->MEvent);
+    }
+  }
 
   if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
+    // Explicit user is a notification approach of host task completion only.
+    // Skip DepEvent command check (== HOST_TASK) because of isBlocking
+    // condition than checks MBlocking field that is true only for host task
+    // now.
+    if (DepCmd && DepCmd->isBlocking()) {
+      // Blocks new command and prevent waiting on event
+      MBlockingExplicitDeps.insert(DepEvent);
+      DepCmd->addBlockedUser(this->MEvent);
+    }
     MPreparedHostDepsEvents.push_back(DepEvent);
     return nullptr;
   }
@@ -776,6 +797,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // Consider the command is successfully enqueued if return code is
     // PI_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
+    // Stop MBlockingExplicitDeps copy/analysis chain since all dependencies are
+    // already unblocked as enqueue succeeded.
+    MBlockingExplicitDeps.clear();
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MPostEnqueueCleanup);
@@ -1528,10 +1552,6 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
-  return getWorkerQueue()->getContextImplPtr();
-}
-
 pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
@@ -1558,6 +1578,10 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
       MDstReq.MElemSize, std::move(RawEvents), Event);
 
   return PI_SUCCESS;
+}
+
+const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
+  return getWorkerQueue()->getContextImplPtr();
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
@@ -1597,7 +1621,6 @@ void EmptyCommand::emitInstrumentationData() {
     return;
 
   Requirement &Req = *MRequirements.begin();
-
   MAddress = Req.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
@@ -1624,7 +1647,6 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
          << "\\n";
 
   Stream << "\"];" << std::endl;
-
   for (const auto &Dep : MDeps) {
     Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
            << " [ label = \"Access mode: "
@@ -1732,6 +1754,9 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     MSubmittedQueue =
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
     MEvent->setNeedsCleanupAfterWait(true);
+    // Host Task is the only natively blocking task that will enqueue dependents
+    // on completion.
+    MBlockingTask = true;
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
              (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
               static_cast<CGExecKernel *>(MCommandGroup.get())

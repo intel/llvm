@@ -136,8 +136,6 @@ public:
   virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                        std::vector<Command *> &ToCleanUp);
 
-  bool isFinished();
-
   bool isSuccessfullyEnqueued() const {
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
@@ -213,6 +211,16 @@ public:
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
+  bool isBlocking() const { return MBlockingTask && !MEvent->isComplete(); }
+  void addBlockedUser(const EventImplPtr &NewUser) {
+    MBlockedUsers.insert(NewUser);
+  }
+  void removeBlockedUser(const EventImplPtr &User) {
+    MBlockedUsers.erase(User);
+  }
+  const std::unordered_set<EventImplPtr> &getBlockedUsers() const {
+    return MBlockedUsers;
+  }
 
 protected:
   QueueImplPtr MQueue;
@@ -225,6 +233,11 @@ protected:
   /// See processDepEvent for details.
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
+  std::unordered_set<EventImplPtr> &MBlockingExplicitDeps;
+  /// Contains list of commands that depend on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  std::unordered_set<EventImplPtr> MBlockedUsers;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -253,6 +266,8 @@ protected:
   CommandType MType;
   /// Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
+  /// Usually used by host task in replacement of empty task usage
+  bool MBlockingTask;
 
   friend class DispatchHostTask;
 
@@ -564,12 +579,6 @@ public:
   void emitInstrumentationData() final;
 
   detail::CG &getCG() const { return *MCommandGroup; }
-
-  // MEmptyCmd is only employed if this command refers to host-task.
-  // The mechanism of lookup for single EmptyCommand amongst users of
-  // host-task-representing command is unreliable. This unreliability roots in
-  // the cleanup process.
-  EmptyCommand *MEmptyCmd = nullptr;
 
   bool producesPiEvent() const final;
 
