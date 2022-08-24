@@ -234,11 +234,6 @@ private:
   KernelType KernelFunc;
 };
 
-} // namespace detail
-
-namespace ext {
-namespace oneapi {
-namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo;
@@ -320,8 +315,6 @@ template <class FunctorTy>
 event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
                      FunctorTy Func);
 } // namespace detail
-} // namespace oneapi
-} // namespace ext
 
 /// Command group handler class.
 ///
@@ -468,8 +461,7 @@ private:
   }
 
   template <class FunctorTy>
-  friend event
-  ext::oneapi::detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
+  friend event detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
                                       bool IsHost, FunctorTy Func);
   /// }@
 
@@ -1618,20 +1610,18 @@ public:
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
         __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
 #else
-        ext::oneapi::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
+        detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
 #endif
     // TODO: currently the preferred work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
-    size_t PrefWGSize =
-        ext::oneapi::detail::reduGetPreferredWGSize(MQueue, OneElemSize);
-    if (ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-            *this, KernelFunc, Range, PrefWGSize, NumConcurrentWorkGroups,
-            Redu)) {
+    size_t PrefWGSize = detail::reduGetPreferredWGSize(MQueue, OneElemSize);
+    if (detail::reduCGFuncForRange<KernelName>(*this, KernelFunc, Range,
+                                               PrefWGSize,
+                                               NumConcurrentWorkGroups, Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
-        ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
-            CopyHandler, Redu);
+        detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
   }
@@ -1657,8 +1647,8 @@ public:
 
         if (D.has(aspect::atomic64)) {
 
-          ext::oneapi::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc,
-                                                              Range, Redu);
+          detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc, Range,
+                                                 Redu);
         } else {
           // Resort to basic implementation as well.
           parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
@@ -1667,8 +1657,7 @@ public:
       } else {
         // Use fast sycl::atomic operations to update reduction variable at the
         // end of each work-group work.
-        ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
-                                                    Redu);
+        detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
       }
       // If the reduction variable must be initialized with the identity value
       // before the kernel run, then an additional working accessor is created,
@@ -1682,8 +1671,7 @@ public:
       if (Reduction::is_usm || Redu.initializeToIdentity()) {
         this->finalize();
         MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
-          ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
-              CopyHandler, Redu);
+          detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
         });
       }
     }
@@ -1719,8 +1707,7 @@ public:
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it may be safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    size_t MaxWGSize = detail::reduGetMaxWGSize(MQueue, OneElemSize);
     if (Range.get_local_range().size() > MaxWGSize)
       throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires work group size not bigger"
@@ -1729,7 +1716,7 @@ public:
                                 PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
-    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
+    detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
@@ -1749,15 +1736,14 @@ public:
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
-        NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName, KernelType>(
+        NWorkItems = detail::reduAuxCGFunc<KernelName, KernelType>(
             AuxHandler, NWorkItems, MaxWGSize, Redu);
       });
     } // end while (NWorkItems > 1)
 
     if (Reduction::is_usm || Reduction::is_dw_acc) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
-        ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
-            CopyHandler, Redu);
+        detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
   }
@@ -1798,24 +1784,21 @@ public:
   //    c) Repeat the steps (a) and (b) to get one final sum.
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<
-      (sizeof...(RestT) >= 3 &&
-       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value)>
+  std::enable_if_t<(sizeof...(RestT) >= 3 &&
+                    detail::AreAllButLastReductions<RestT...>::value)>
   parallel_for(nd_range<Dims> Range, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
     auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
-    auto ReduTuple =
-        ext::oneapi::detail::tuple_select_elements(ArgsTuple, ReduIndices);
+    auto ReduTuple = detail::tuple_select_elements(ArgsTuple, ReduIndices);
 
     size_t LocalMemPerWorkItem =
-        ext::oneapi::detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+        detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
+    size_t MaxWGSize = detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
     if (Range.get_local_range().size() > MaxWGSize)
       throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires work group size not bigger"
@@ -1823,21 +1806,20 @@ public:
                                     std::to_string(MaxWGSize),
                                 PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
-    ext::oneapi::detail::reduCGFuncMulti<KernelName>(*this, KernelFunc, Range,
-                                                     ReduTuple, ReduIndices);
+    detail::reduCGFuncMulti<KernelName>(*this, KernelFunc, Range, ReduTuple,
+                                        ReduIndices);
     std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
-        NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName,
-                                                        decltype(KernelFunc)>(
+        NWorkItems = detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
             AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       });
     } // end while (NWorkItems > 1)
 
-    auto CopyEvent = ext::oneapi::detail::reduSaveFinalResultToUserMem(
+    auto CopyEvent = detail::reduSaveFinalResultToUserMem(
         QueueCopy, MIsHost, ReduTuple, ReduIndices);
     if (CopyEvent)
       MLastEvent = *CopyEvent;
@@ -2641,7 +2623,7 @@ private:
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
             typename RedOutVar>
-  friend class ext::oneapi::detail::reduction_impl_algo;
+  friend class detail::reduction_impl_algo;
 
 #ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,
