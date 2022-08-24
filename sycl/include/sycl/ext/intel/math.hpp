@@ -16,9 +16,9 @@
 // math device library. The definition here should align with definition in
 // https://github.com/intel/llvm/blob/sycl/libdevice/imf_half.hpp
 #if defined(__SPIR__)
-typedef _Float16 _iml_half_internal;
+using _iml_half_internal = _Float16;
 #else
-typedef uint16_t _iml_half_internal;
+using _iml_half_internal = uint16_t;
 #endif
 
 extern "C" {
@@ -35,24 +35,21 @@ namespace intel {
 namespace math {
 
 #if __cplusplus >= 201703L
-template <typename Tp> Tp saturate(Tp x) {
-  static_assert(std::is_same<Tp, float>::value,
-                "sycl::ext::intel::math::saturate only supports fp32 version.");
-  if constexpr (std::is_same<Tp, float>::value)
-    return __imf_saturatef(x);
+template <typename Tp>
+typename std::enable_if<std::is_same_v<Tp, float>, float>::type saturate(Tp x) {
+  return __imf_saturatef(x);
 }
 
 template <typename Tp> Tp copysign(Tp x, Tp y) {
-  static_assert(std::is_same<Tp, float>::value ||
-                    std::is_same<Tp, double>::value ||
-                    std::is_same<Tp, sycl::half>::value,
+  static_assert(std::is_same_v<Tp, float> || std::is_same_v<Tp, double> ||
+                    std::is_same_v<Tp, sycl::half>,
                 "sycl::ext::intel::math::copysign only supports fp16, fp32, "
                 "fp64 version.");
-  if constexpr (std::is_same<Tp, float>::value)
+  if constexpr (std::is_same_v<Tp, float>)
     return __imf_copysignf(x, y);
-  if constexpr (std::is_same<Tp, double>::value)
+  if constexpr (std::is_same_v<Tp, double>)
     return __imf_copysign(x, y);
-  if constexpr (std::is_same<Tp, sycl::half>::value) {
+  if constexpr (std::is_same_v<Tp, sycl::half>) {
     static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
                   "sycl::half is not compatible with _iml_half_internal.");
     _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
