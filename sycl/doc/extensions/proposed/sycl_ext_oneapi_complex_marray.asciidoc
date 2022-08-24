@@ -91,7 +91,6 @@ supports.
 
 === Marray Complex Class Instantiation
 
-The `marray` class is extended for the `sycl::ext::oneapi::complex` class.
 The user interface of the `marray<sycl::ext::oneapi::complex, {N}>`
 class is not changed compared to the SYCL-2020 generic `marray` interface.
 
