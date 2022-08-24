@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
 
