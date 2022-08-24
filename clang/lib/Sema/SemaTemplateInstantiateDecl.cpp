@@ -2274,7 +2274,6 @@ TemplateDeclInstantiator::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   // merged with the local instantiation scope for the function template
   // itself.
   LocalInstantiationScope Scope(SemaRef);
-  Sema::ConstraintEvalRAII<TemplateDeclInstantiator> RAII(*this);
 
   TemplateParameterList *TempParams = D->getTemplateParameters();
   TemplateParameterList *InstParams = SubstTemplateParams(TempParams);
@@ -2514,7 +2513,19 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
       return nullptr;
   }
 
+  // FIXME: Concepts: Do not substitute into constraint expressions
   Expr *TrailingRequiresClause = D->getTrailingRequiresClause();
+  if (TrailingRequiresClause) {
+    EnterExpressionEvaluationContext ConstantEvaluated(
+        SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
+    ExprResult SubstRC = SemaRef.SubstExpr(TrailingRequiresClause,
+                                           TemplateArgs);
+    if (SubstRC.isInvalid())
+      return nullptr;
+    TrailingRequiresClause = SubstRC.get();
+    if (!SemaRef.CheckConstraintExpression(TrailingRequiresClause))
+      return nullptr;
+  }
 
   // If we're instantiating a local function declaration, put the result
   // in the enclosing namespace; otherwise we need to find the instantiated
@@ -2865,6 +2876,23 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
       return nullptr;
   }
 
+  // FIXME: Concepts: Do not substitute into constraint expressions
+  Expr *TrailingRequiresClause = D->getTrailingRequiresClause();
+  if (TrailingRequiresClause) {
+    EnterExpressionEvaluationContext ConstantEvaluated(
+        SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
+    auto *ThisContext = dyn_cast_or_null<CXXRecordDecl>(Owner);
+    Sema::CXXThisScopeRAII ThisScope(SemaRef, ThisContext,
+                                     D->getMethodQualifiers(), ThisContext);
+    ExprResult SubstRC = SemaRef.SubstExpr(TrailingRequiresClause,
+                                           TemplateArgs);
+    if (SubstRC.isInvalid())
+      return nullptr;
+    TrailingRequiresClause = SubstRC.get();
+    if (!SemaRef.CheckConstraintExpression(TrailingRequiresClause))
+      return nullptr;
+  }
+
   DeclContext *DC = Owner;
   if (isFriend) {
     if (QualifierLoc) {
@@ -2882,9 +2910,6 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     if (!DC) return nullptr;
   }
 
-  CXXRecordDecl *Record = cast<CXXRecordDecl>(DC);
-  Expr *TrailingRequiresClause = D->getTrailingRequiresClause();
-
   DeclarationNameInfo NameInfo
     = SemaRef.SubstDeclarationNameInfo(D->getNameInfo(), TemplateArgs);
 
@@ -2892,6 +2917,7 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     adjustForRewrite(FunctionRewriteKind, D, T, TInfo, NameInfo);
 
   // Build the instantiated method declaration.
+  CXXRecordDecl *Record = cast<CXXRecordDecl>(DC);
   CXXMethodDecl *Method = nullptr;
 
   SourceLocation StartLoc = D->getInnerLocStart();
@@ -3197,11 +3223,13 @@ Decl *TemplateDeclInstantiator::VisitTemplateTypeParmDecl(
   Inst->setImplicit(D->isImplicit());
   if (auto *TC = D->getTypeConstraint()) {
     if (!D->isImplicit()) {
-      // Invented template parameter type constraints will be instantiated
-      // with the corresponding auto-typed parameter as it might reference
-      // other parameters.
-      if (SemaRef.SubstTypeConstraint(Inst, TC, TemplateArgs,
-                                      EvaluateConstraints))
+      // Invented template parameter type constraints will be instantiated with
+      // the corresponding auto-typed parameter as it might reference other
+      // parameters.
+
+      // TODO: Concepts: do not instantiate the constraint (delayed constraint
+      // substitution)
+      if (SemaRef.SubstTypeConstraint(Inst, TC, TemplateArgs))
         return nullptr;
     }
   }
@@ -4445,7 +4473,18 @@ TemplateDeclInstantiator::SubstTemplateParams(TemplateParameterList *L) {
   if (Invalid)
     return nullptr;
 
-  Expr *InstRequiresClause = L->getRequiresClause();
+  // FIXME: Concepts: Substitution into requires clause should only happen when
+  // checking satisfaction.
+  Expr *InstRequiresClause = nullptr;
+  if (Expr *E = L->getRequiresClause()) {
+    EnterExpressionEvaluationContext ConstantEvaluated(
+        SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
+    ExprResult Res = SemaRef.SubstExpr(E, TemplateArgs);
+    if (Res.isInvalid() || !Res.isUsable()) {
+      return nullptr;
+    }
+    InstRequiresClause = Res.get();
+  }
 
   TemplateParameterList *InstL
     = TemplateParameterList::Create(SemaRef.Context, L->getTemplateLoc(),
@@ -4739,9 +4778,11 @@ TemplateDeclInstantiator::SubstFunctionType(FunctionDecl *D,
     ThisTypeQuals = Method->getMethodQualifiers();
   }
 
-  TypeSourceInfo *NewTInfo = SemaRef.SubstFunctionDeclType(
-      OldTInfo, TemplateArgs, D->getTypeSpecStartLoc(), D->getDeclName(),
-      ThisContext, ThisTypeQuals, EvaluateConstraints);
+  TypeSourceInfo *NewTInfo
+    = SemaRef.SubstFunctionDeclType(OldTInfo, TemplateArgs,
+                                    D->getTypeSpecStartLoc(),
+                                    D->getDeclName(),
+                                    ThisContext, ThisTypeQuals);
   if (!NewTInfo)
     return nullptr;
 

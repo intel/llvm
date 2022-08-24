@@ -1924,13 +1924,17 @@ bool OmpStructureChecker::CheckIntrinsicOperator(
 
   switch (op) {
   case parser::DefinedOperator::IntrinsicOperator::Add:
-  case parser::DefinedOperator::IntrinsicOperator::Subtract:
   case parser::DefinedOperator::IntrinsicOperator::Multiply:
   case parser::DefinedOperator::IntrinsicOperator::AND:
   case parser::DefinedOperator::IntrinsicOperator::OR:
   case parser::DefinedOperator::IntrinsicOperator::EQV:
   case parser::DefinedOperator::IntrinsicOperator::NEQV:
     return true;
+  case parser::DefinedOperator::IntrinsicOperator::Subtract:
+    context_.Say(GetContext().clauseSource,
+        "The minus reduction operator is deprecated since OpenMP 5.2 and is not supported in the REDUCTION clause."_err_en_US,
+        ContextDirectiveAsFortran());
+    break;
   default:
     context_.Say(GetContext().clauseSource,
         "Invalid reduction operator in REDUCTION clause."_err_en_US,
@@ -2271,9 +2275,7 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Linear &x) {
 void OmpStructureChecker::CheckAllowedMapTypes(
     const parser::OmpMapType::Type &type,
     const std::list<parser::OmpMapType::Type> &allowedMapTypeList) {
-  const auto found{std::find(
-      std::begin(allowedMapTypeList), std::end(allowedMapTypeList), type)};
-  if (found == std::end(allowedMapTypeList)) {
+  if (!llvm::is_contained(allowedMapTypeList, type)) {
     std::string commaSeperatedMapTypes;
     llvm::interleave(
         allowedMapTypeList.begin(), allowedMapTypeList.end(),
