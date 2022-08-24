@@ -1,5 +1,4 @@
 add_mlir_conversion_library(MLIRSYCLToLLVM
-  SYCLFuncRegistry.cpp
   SYCLToLLVM.cpp
   SYCLToLLVMPass.cpp
 
