@@ -89,7 +89,7 @@ supports.
 |Initial version of this extension.
 |===
 
-=== Marray Complex Class Specialization
+=== Marray Complex Class Instantiation
 
 The `marray` class is extended for the `sycl::ext::oneapi::complex` class.
 The user interface of the `marray<sycl::ext::oneapi::complex, {N}>`
