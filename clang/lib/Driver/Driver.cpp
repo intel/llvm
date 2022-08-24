@@ -7174,10 +7174,13 @@ void Driver::BuildJobs(Compilation &C) const {
   // Preprocessing job performed for -fsycl enabled compilation specifically
   // for dependency generation (TY_Dependencies)
   //
+  // OffloadClass of type TY_Nothing: device-only output will place many outputs
+  // into a single offloading action. We should count all inputs to the action
+  // as outputs.
   if (FinalOutput) {
     unsigned NumOutputs = 0;
     unsigned NumIfsOutputs = 0;
-    for (const Action *A : C.getActions())
+    for (const Action *A : C.getActions()) {
       if (A->getType() != types::TY_Nothing &&
           !(A->getKind() == Action::IfsMergeJobClass ||
             (A->getType() == clang::driver::types::TY_IFS_CPP &&
@@ -7189,6 +7192,10 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getType() == types::TY_Dependencies &&
              C.getArgs().hasArg(options::OPT_fsycl))))
         ++NumOutputs;
+      else if (A->getKind() == Action::OffloadClass &&
+               A->getType() == types::TY_Nothing)
+        NumOutputs += A->size();
+    }
 
     if (NumOutputs > 1) {
       Diag(clang::diag::err_drv_output_argument_with_multiple_files);
@@ -7746,20 +7753,21 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     //                      \
     //    Device Action 1  ---> OffloadAction -> Device Action 2
     //
-    // For a) and b), we just return the job generated for the dependence. For
+    // For a) and b), we just return the job generated for the dependences. For
     // c) and d) we override the current action with the host/device dependence
     // if the current toolchain is host/device and set the offload dependences
     // info with the jobs obtained from the device/host dependence(s).
 
-    // If there is a single device option, just generate the job for it.
-    if (OA->hasSingleDeviceDependence()) {
+    // If there is a single device option or has no host action, just generate
+    // the job for it.
+    if (OA->hasSingleDeviceDependence() || !OA->hasHostDependence()) {
       InputInfoList DevA;
       OA->doOnEachDeviceDependence([&](Action *DepA, const ToolChain *DepTC,
                                        const char *DepBoundArch) {
-        DevA =
-            BuildJobsForAction(C, DepA, DepTC, DepBoundArch, AtTopLevel,
-                               /*MultipleArchs*/ !!DepBoundArch, LinkingOutput,
-                               CachedResults, DepA->getOffloadingDeviceKind());
+        DevA.append(BuildJobsForAction(C, DepA, DepTC, DepBoundArch, AtTopLevel,
+                                       /*MultipleArchs*/ !!DepBoundArch,
+                                       LinkingOutput, CachedResults,
+                                       DepA->getOffloadingDeviceKind()));
       });
       return DevA;
     }

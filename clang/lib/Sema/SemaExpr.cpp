@@ -2991,7 +2991,7 @@ ExprResult Sema::BuildIvarRefExpr(Scope *S, SourceLocation Loc,
         !Diags.isIgnored(diag::warn_arc_repeated_use_of_weak, Loc))
       getCurFunction()->recordUseOfWeak(Result);
   }
-  if (getLangOpts().ObjCAutoRefCount)
+  if (getLangOpts().ObjCAutoRefCount && !isUnevaluatedContext())
     if (const BlockDecl *BD = CurContext->getInnermostBlockDecl())
       ImplicitlyRetainedSelfLocs.push_back({Loc, BD});
 

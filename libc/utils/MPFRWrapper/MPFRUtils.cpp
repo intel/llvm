@@ -8,7 +8,7 @@
 
 #include "MPFRUtils.h"
 
-#include "src/__support/CPP/StringView.h"
+#include "src/__support/CPP/string_view.h"
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/FPUtil/PlatformDefs.h"
 #include "utils/UnitTest/FPMatcher.h"
@@ -379,8 +379,13 @@ public:
     constexpr size_t printBufSize = 200;
     char buffer[printBufSize];
     mpfr_snprintf(buffer, printBufSize, "%100.50Rf", value);
-    cpp::StringView view(buffer);
-    view = view.trim(' ');
+    cpp::string_view view(buffer);
+    // Trim whitespaces
+    const char whitespace = ' ';
+    while (!view.empty() && view.front() == whitespace)
+      view.remove_prefix(1);
+    while (!view.empty() && view.back() == whitespace)
+      view.remove_suffix(1);
     return std::string(view.data());
   }
 

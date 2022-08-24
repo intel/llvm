@@ -628,14 +628,10 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(Op, MVT::f16, Custom);
 
     // promote v4f16 to v4f32 when that is known to be safe.
-    setOperationAction(ISD::FADD,        MVT::v4f16, Promote);
-    setOperationAction(ISD::FSUB,        MVT::v4f16, Promote);
-    setOperationAction(ISD::FMUL,        MVT::v4f16, Promote);
-    setOperationAction(ISD::FDIV,        MVT::v4f16, Promote);
-    AddPromotedToType(ISD::FADD,         MVT::v4f16, MVT::v4f32);
-    AddPromotedToType(ISD::FSUB,         MVT::v4f16, MVT::v4f32);
-    AddPromotedToType(ISD::FMUL,         MVT::v4f16, MVT::v4f32);
-    AddPromotedToType(ISD::FDIV,         MVT::v4f16, MVT::v4f32);
+    setOperationPromotedToType(ISD::FADD, MVT::v4f16, MVT::v4f32);
+    setOperationPromotedToType(ISD::FSUB, MVT::v4f16, MVT::v4f32);
+    setOperationPromotedToType(ISD::FMUL, MVT::v4f16, MVT::v4f32);
+    setOperationPromotedToType(ISD::FDIV, MVT::v4f16, MVT::v4f32);
 
     setOperationAction(ISD::FABS,        MVT::v4f16, Expand);
     setOperationAction(ISD::FNEG,        MVT::v4f16, Expand);
@@ -12894,7 +12890,7 @@ static bool areOperandsOfVmullHighP64(Value *Op1, Value *Op2) {
 
 static bool isSplatShuffle(Value *V) {
   if (auto *Shuf = dyn_cast<ShuffleVectorInst>(V))
-    return is_splat(Shuf->getShuffleMask());
+    return all_equal(Shuf->getShuffleMask());
   return false;
 }
 
@@ -20831,7 +20827,7 @@ bool AArch64TargetLowering::functionArgumentNeedsConsecutiveRegisters(
   // All non aggregate members of the type must have the same type
   SmallVector<EVT> ValueVTs;
   ComputeValueVTs(*this, DL, Ty, ValueVTs);
-  return is_splat(ValueVTs);
+  return all_equal(ValueVTs);
 }
 
 bool AArch64TargetLowering::shouldNormalizeToSelectSequence(LLVMContext &,

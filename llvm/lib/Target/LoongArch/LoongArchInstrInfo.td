@@ -126,7 +126,8 @@ def simm12 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isInt<12>(Imm);}]> {
   let DecoderMethod = "decodeSImmOperand<12>";
 }
 
-def simm14_lsl2 : Operand<GRLenVT> {
+def simm14_lsl2 : Operand<GRLenVT>,
+    ImmLeaf<GRLenVT, [{return isShiftedInt<14,2>(Imm);}]> {
   let ParserMatchClass = SImmAsmOperand<14, "lsl2">;
   let EncoderMethod = "getImmOpValueAsr2";
   let DecoderMethod = "decodeSImmOperand<14, 2>";
@@ -962,6 +963,18 @@ defm : StPat<truncstorei32, ST_W, GPR, i64>;
 defm : StPat<store, ST_D, GPR, i64>;
 } // Predicates = [IsLA64]
 
+let Predicates = [IsLA64] in {
+def : Pat<(i64 (sextloadi32 (AddLike BaseAddr:$rj, simm14_lsl2:$imm14))),
+          (LDPTR_W BaseAddr:$rj, simm14_lsl2:$imm14)>;
+def : Pat<(i64 (load (AddLike BaseAddr:$rj, simm14_lsl2:$imm14))),
+          (LDPTR_D BaseAddr:$rj, simm14_lsl2:$imm14)>;
+def : Pat<(truncstorei32 (i64 GPR:$rd),
+                         (AddLike BaseAddr:$rj, simm14_lsl2:$imm14)),
+          (STPTR_W GPR:$rd, BaseAddr:$rj, simm14_lsl2:$imm14)>;
+def : Pat<(store (i64 GPR:$rd), (AddLike BaseAddr:$rj, simm14_lsl2:$imm14)),
+          (STPTR_D GPR:$rd, BaseAddr:$rj, simm14_lsl2:$imm14)>;
+} // Predicates = [IsLA64]
+
 // LA64 register-register-addressed stores
 let Predicates = [IsLA64] in {
 class RegRegStPat<PatFrag StoreOp, LAInst Inst, RegisterClass StTy>
@@ -982,13 +995,48 @@ defm : LdPat<atomic_load_8, LD_B>;
 defm : LdPat<atomic_load_16, LD_H>;
 defm : LdPat<atomic_load_32, LD_W>;
 
+class release_seqcst_store<PatFrag base>
+    : PatFrag<(ops node:$ptr, node:$val), (base node:$ptr, node:$val), [{
+  AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getSuccessOrdering();
+  return isReleaseOrStronger(Ordering);
+}]>;
+
+class unordered_monotonic_store<PatFrag base>
+    : PatFrag<(ops node:$ptr, node:$val), (base node:$ptr, node:$val), [{
+  AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getSuccessOrdering();
+  return !isReleaseOrStronger(Ordering);
+}]>;
+
+def atomic_store_release_seqcst_32 : release_seqcst_store<atomic_store_32>;
+def atomic_store_release_seqcst_64 : release_seqcst_store<atomic_store_64>;
+def atomic_store_unordered_monotonic_32
+    : unordered_monotonic_store<atomic_store_32>;
+def atomic_store_unordered_monotonic_64
+    : unordered_monotonic_store<atomic_store_64>;
+
 defm : StPat<atomic_store_8, ST_B, GPR, GRLenVT>;
 defm : StPat<atomic_store_16, ST_H, GPR, GRLenVT>;
-defm : StPat<atomic_store_32, ST_W, GPR, i32>, Requires<[IsLA32]>;
+defm : StPat<atomic_store_unordered_monotonic_32, ST_W, GPR, i32>,
+             Requires<[IsLA32]>;
+
+def PseudoAtomicStoreW : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk), []>,
+                                 PseudoInstExpansion<(AMSWAP_DB_W R0,
+                                                      GPR:$rk, GPR:$rj)>;
+
+def : Pat<(atomic_store_release_seqcst_32 GPR:$rj, GPR:$rk),
+          (PseudoAtomicStoreW GPR:$rj, GPR:$rk)>;
+
 let Predicates = [IsLA64] in {
+def PseudoAtomicStoreD : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk), []>,
+                                 PseudoInstExpansion<(AMSWAP_DB_D R0,
+                                                      GPR:$rk, GPR:$rj)>;
+
+def : Pat<(atomic_store_release_seqcst_64 GPR:$rj, GPR:$rk),
+          (PseudoAtomicStoreD GPR:$rj, GPR:$rk)>;
+
 defm : LdPat<atomic_load_64, LD_D>;
-defm : StPat<atomic_store_32, ST_W, GPR, i64>;
-defm : StPat<atomic_store_64, ST_D, GPR, i64>;
+defm : StPat<atomic_store_unordered_monotonic_32, ST_W, GPR, i64>;
+defm : StPat<atomic_store_unordered_monotonic_64, ST_D, GPR, i64>;
 } // Predicates = [IsLA64]
 
 /// Other pseudo-instructions

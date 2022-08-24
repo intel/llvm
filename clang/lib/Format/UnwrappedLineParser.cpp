@@ -1878,8 +1878,7 @@ void UnwrappedLineParser::parseStructuralElement(
         } else if (Style.BraceWrapping.AfterFunction) {
           addUnwrappedLine();
         }
-        if (!Line->InPPDirective)
-          FormatTok->setFinalizedType(TT_FunctionLBrace);
+        FormatTok->setFinalizedType(TT_FunctionLBrace);
         parseBlock();
         addUnwrappedLine();
         return;
@@ -2007,7 +2006,8 @@ void UnwrappedLineParser::parseStructuralElement(
 
         if (FollowedByNewline && (Text.size() >= 5 || FunctionLike) &&
             tokenCanStartNewLine(*FormatTok) && Text == Text.upper()) {
-          PreviousToken->setFinalizedType(TT_FunctionLikeOrFreestandingMacro);
+          if (PreviousToken->isNot(TT_UntouchableMacroFunc))
+            PreviousToken->setFinalizedType(TT_FunctionLikeOrFreestandingMacro);
           addUnwrappedLine();
           return;
         }
