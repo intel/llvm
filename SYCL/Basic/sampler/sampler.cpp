@@ -1,5 +1,5 @@
-// REQUIRES: opencl, opencl_icd
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out %opencl_lib
+// REQUIRES: opencl
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -67,7 +67,6 @@ int main() {
   A = std::move(B);
   assert(Hasher(C) == Hasher(A));
   assert(C == A);
-  assert(Hasher(C) != Hasher(B));
 
   SamplerWrapper WrappedSmplr(sycl::coordinate_normalization_mode::normalized,
                               sycl::addressing_mode::repeat,
