@@ -174,6 +174,7 @@ public:
     // If arguments need to be captured, then a data structure can be sent in
     // the per_instance_user_data field.
     const char *PIFnName = PiCallInfo.getFuncName();
+    printf("%s\n", PIFnName);
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
     uint64_t CorrelationIDWithArgs = 0;
     unsigned char *ArgsDataPtr = nullptr;
