@@ -516,14 +516,6 @@ protected:
   bool InitializeToIdentity;
 };
 
-template <class T> struct is_rw_acc_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::placeholder IsPlaceholder,
-          typename PropList>
-struct is_rw_acc_t<accessor<T, AccessorDims, access::mode::read_write,
-                            access::target::device, IsPlaceholder, PropList>>
-    : public std::true_type {};
-
 // Used for determining dimensions for temporary storage (mainly).
 template <class T> struct data_dim_t {
   static constexpr int value = 1;
@@ -573,10 +565,6 @@ public:
       IsReduOptForFastReduce<T, BinaryOperation>::value;
 
   static constexpr bool is_usm = std::is_same_v<RedOutVar, T *>;
-
-  static constexpr bool is_rw_acc = is_rw_acc_t<RedOutVar>::value;
-  static constexpr bool is_acc = is_rw_acc;
-  static_assert(!is_rw_acc || !is_usm, "Can be only one at once!");
 
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
@@ -629,7 +617,7 @@ public:
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
   rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if constexpr (is_rw_acc) {
+    if constexpr (!is_usm) {
       if (Size == 1) {
         CGH.associateWithHandler(&MRedOut, access::target::device);
         return MRedOut;
@@ -649,7 +637,7 @@ public:
   template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
-    if constexpr (is_rw_acc) {
+    if constexpr (!is_usm) {
       if (!base::initializeToIdentity())
         return MRedOut;
     }
@@ -745,8 +733,6 @@ private:
   }
 
 public:
-  using algo::is_acc;
-  using algo::is_rw_acc;
   using algo::is_usm;
 
   using reducer_type = typename algo::reducer_type;
@@ -757,7 +743,7 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
-            enable_if_t<_self::is_known_identity && _self::is_acc> * = nullptr>
+            enable_if_t<_self::is_known_identity && !_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
@@ -778,9 +764,8 @@ public:
 
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self,
-            std::enable_if_t<_self::is_known_identity && _self::is_rw_acc> * =
-                nullptr>
+  template <typename _self = self, std::enable_if_t<_self::is_known_identity &&
+                                                    !_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, Acc) {
@@ -792,7 +777,7 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _self = self, enable_if_t<_self::is_acc> * = nullptr>
+  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
       : algo(chooseIdentity(Identity), BOp, false, Acc) {
     if (Acc.size() != 1)
@@ -810,7 +795,7 @@ public:
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
 
   /// For placeholder accessor.
-  template <typename _self = self, enable_if_t<_self::is_rw_acc> * = nullptr>
+  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
                  BinaryOperation BOp, bool InitializeToIdentity)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
@@ -927,7 +912,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   size_t NWorkGroups = NDRange.get_group_range().size();
 
   auto &Out = Redu.getUserRedVar();
-  if constexpr (Reduction::is_acc)
+  if constexpr (!Reduction::is_usm)
     associateWithHandler(CGH, &Out, access::target::device);
 
   auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
@@ -2092,7 +2077,7 @@ void associateReduAccsWithHandler(handler &CGH,
                                   std::tuple<Reductions...> &ReduTuple,
                                   std::index_sequence<Is...>) {
   auto ProcessOne = [&CGH](auto Redu) {
-    if constexpr (decltype(Redu)::is_acc) {
+    if constexpr (!decltype(Redu)::is_usm) {
       associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
     }
   };
