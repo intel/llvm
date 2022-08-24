@@ -88,7 +88,7 @@ public:
   /// Checks if this sampler has a property of type propertyT.
   ///
   /// \return true if this sampler has a property of type propertyT.
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   /// Gets the specified property of this sampler.
   ///

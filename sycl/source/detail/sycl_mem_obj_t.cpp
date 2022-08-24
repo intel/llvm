@@ -11,16 +11,11 @@
 #include <detail/memory_manager.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <sycl/detail/sycl_mem_obj_t.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
-                         const size_t SizeInBytes, event AvailableEvent,
-                         std::unique_ptr<SYCLMemObjAllocator> Allocator)
-    : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
-                  SizeInBytes, AvailableEvent, std::move(Allocator)) {}
 
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
                          const size_t, event AvailableEvent,
@@ -111,10 +106,6 @@ const plugin &SYCLMemObjT::getPlugin() const {
   return (MInteropContext->getPlugin());
 }
 
-size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
-                                         cl_mem MemObject) {
-  return getBufSizeForContext(Context, pi::cast<pi_native_handle>(MemObject));
-}
 size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
                                          pi_native_handle MemObject) {
   size_t BufSize = 0;

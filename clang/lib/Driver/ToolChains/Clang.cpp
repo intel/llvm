@@ -3014,6 +3014,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       RoundingMathPresent = false;
       break;
 
+    case options::OPT_fcuda_flush_denormals_to_zero:
+    case options::OPT_fgpu_flush_denormals_to_zero:
+      DenormalFP32Math = llvm::DenormalMode::getPreserveSign();
+      break;
+
     case options::OPT_fdenormal_fp_math_EQ:
       DenormalFPMath = llvm::parseDenormalFPAttribute(A->getValue());
       DenormalFP32Math = DenormalFPMath;
@@ -9543,11 +9548,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto
 
-  // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (!(getToolChain().getTriple().isAMDGCN()) &&
-      TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                     options::OPT_fno_sycl_dead_args_optimization,
-                     isSYCLOptimizationO2orHigher(TCArgs)))
+  if (!(getToolChain().getTriple().isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())

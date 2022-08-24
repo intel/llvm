@@ -47,7 +47,7 @@ public:
     return get_property_helper<PropT>();
   }
 
-  template <typename PropT> bool has_property() const {
+  template <typename PropT> bool has_property() const noexcept {
     return has_property_helper<PropT>();
   }
 

@@ -39,11 +39,11 @@ on:
       lts_matrix:
         type: string
         required: false
-        default: ""
+        default: "[]"
       lts_aws_matrix:
         type: string
         required: false
-        default: ""
+        default: "[]"
       lts_cmake_extra_args:
         type: string
         required: false
@@ -162,7 +162,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ inputs.lts_aws_matrix != '' }}
+    if: ${{ inputs.lts_aws_matrix != '[]' }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
@@ -183,7 +183,7 @@ jobs:
 
   llvm_test_suite:
     needs: [build, aws-start]
-    if: ${{ !failure() && inputs.lts_matrix != '' }}
+    if: ${{ !failure() && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
@@ -234,7 +234,7 @@ jobs:
   aws-stop:
     name: Stop AWS
     needs: [ aws-start, llvm_test_suite ]
-    if: ${{ always() && inputs.lts_aws_matrix != '' }}
+    if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
