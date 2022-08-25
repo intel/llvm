@@ -304,12 +304,13 @@ protected:
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
-  using AccType = accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                           IsPlaceholder, PropertyListT>;
-
   // The class which allows to access value of N dimensional accessor using N
   // subscript operators, e.g. accessor[2][2][3]
-  template <int SubDims> class AccessorSubscript {
+  template <int SubDims,
+            typename AccType =
+                accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                         IsPlaceholder, PropertyListT>>
+  class AccessorSubscript {
     static constexpr int Dims = Dimensions;
 
     mutable id<Dims> MIDs;
@@ -2067,8 +2068,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::local, IsPlaceholder> :
+class __SYCL_SPECIAL_CLASS local_accessor_base :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::LocalAccessorBaseHost,
 #endif
@@ -2085,7 +2085,9 @@ protected:
   using AccessorCommonT::IsAccessAnyWrite;
   template <int Dims>
   using AccessorSubscript =
-      typename AccessorCommonT::template AccessorSubscript<Dims>;
+      typename AccessorCommonT::template AccessorSubscript<
+          Dims,
+          local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>>;
 
   using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
@@ -2108,7 +2110,7 @@ protected:
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor()
+  local_accessor_base()
       : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 protected:
@@ -2142,8 +2144,8 @@ public:
   using const_reference = const DataT &;
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
-  accessor(handler &, const detail::code_location CodeLoc =
-                          detail::code_location::current())
+  local_accessor_base(handler &, const detail::code_location CodeLoc =
+                                     detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}){}
 #else
@@ -2155,9 +2157,9 @@ public:
 
         template <int Dims = Dimensions,
                   typename = detail::enable_if_t<Dims == 0>>
-        accessor(handler &, const property_list &propList,
-                 const detail::code_location CodeLoc =
-                     detail::code_location::current())
+        local_accessor_base(handler &, const property_list &propList,
+                            const detail::code_location CodeLoc =
+                                detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2171,7 +2173,7 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
-  accessor(
+  local_accessor_base(
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
@@ -2186,10 +2188,10 @@ public:
 
         template <int Dims = Dimensions,
                   typename = detail::enable_if_t<(Dims > 0)>>
-        accessor(range<Dimensions> AllocationSize, handler &,
-                 const property_list &propList,
-                 const detail::code_location CodeLoc =
-                     detail::code_location::current())
+        local_accessor_base(range<Dimensions> AllocationSize, handler &,
+                            const property_list &propList,
+                            const detail::code_location CodeLoc =
+                                detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
@@ -2257,7 +2259,9 @@ public:
   }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
-  typename AccessorCommonT::template AccessorSubscript<Dims - 1>
+  typename AccessorCommonT::template AccessorSubscript<
+      Dims - 1,
+      local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>>
   operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
@@ -2266,8 +2270,79 @@ public:
     return local_ptr<DataT>(getQualifiedPtr());
   }
 
-  bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
-  bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
+  bool operator==(const local_accessor_base &Rhs) const {
+    return impl == Rhs.impl;
+  }
+  bool operator!=(const local_accessor_base &Rhs) const {
+    return !(*this == Rhs);
+  }
+};
+
+// TODO: Remove deprecated specialization once no longer needed
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder>
+class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
+                                    access::target::local, IsPlaceholder>
+    : public local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder> {
+
+  using local_acc =
+      local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
+
+  // Use base classes constructors
+  using local_acc::local_acc;
+
+#ifdef __SYCL_DEVICE_ONLY__
+
+  // __init needs to be defined within the class not through inheritance.
+  // Map this function to inherited func.
+  void __init(typename local_acc::ConcreteASPtrType Ptr,
+              range<local_acc::AdjustedDim> AccessRange,
+              range<local_acc::AdjustedDim> range,
+              id<local_acc::AdjustedDim> id) {
+    local_acc::__init(Ptr, AccessRange, range, id);
+  }
+
+public:
+  // Default constructor for objects later initialized with __init member.
+  accessor() {
+    local_acc::impl = detail::InitializedVal<local_acc::AdjustedDim,
+                                             range>::template get<0>();
+  }
+
+#endif
+};
+
+template <typename DataT, int Dimensions = 1>
+class __SYCL_SPECIAL_CLASS local_accessor
+    : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
+                                 access::placeholder::false_t> {
+
+  using local_acc =
+      local_accessor_base<DataT, Dimensions, access::mode::read_write,
+                          access::placeholder::false_t>;
+
+  // Use base classes constructors
+  using local_acc::local_acc;
+
+#ifdef __SYCL_DEVICE_ONLY__
+
+  // __init needs to be defined within the class not through inheritance.
+  // Map this function to inherited func.
+  void __init(typename local_acc::ConcreteASPtrType Ptr,
+              range<local_acc::AdjustedDim> AccessRange,
+              range<local_acc::AdjustedDim> range,
+              id<local_acc::AdjustedDim> id) {
+    local_acc::__init(Ptr, AccessRange, range, id);
+  }
+
+public:
+  // Default constructor for objects later initialized with __init member.
+  local_accessor() {
+    local_acc::impl = detail::InitializedVal<local_acc::AdjustedDim,
+                                             range>::template get<0>();
+  }
+
+#endif
 };
 
 /// Image accessors.

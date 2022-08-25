@@ -112,16 +112,35 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
   (void)Acc.get_size();
 }
 
-// CHECK: 0      | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t>
-// CHECK-NEXT: 0 |   class sycl::detail::LocalAccessorBaseHost (base)
-// CHECK-NEXT: 0 |     class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> impl
-// CHECK-NEXT: 0 |       class std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
-// CHECK-NEXT: 0 |         class std::__shared_ptr_access<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 0 |         element_type * _M_ptr
-// CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char[16] padding
+// CHECK:      0 | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t>
+// CHECK-NEXT: 0 |   class sycl::local_accessor_base<int, 1, sycl::access::mode::read_write, sycl::access::placeholder::false_t> (base)
+// CHECK-NEXT: 0 |     class sycl::detail::LocalAccessorBaseHost (base)
+// CHECK-NEXT: 0 |       class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> impl
+// CHECK-NEXT: 0 |         class std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 0 |           class std::__shared_ptr_access<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
+// CHECK-NEXT: 0 |           element_type * _M_ptr
+// CHECK-NEXT: 8 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 0 |     class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 16 |     char[16] padding
+// CHECK-NEXT: [sizeof=32, dsize=32, align=8,
+// CHECK-NEXT: nvsize=32, nvalign=8]
+
+void hostAcc(local_accessor<int, 1> Acc) {
+  (void)Acc.get_size();
+}
+
+// CHECK:      0 | class sycl::local_accessor<int, 1>
+// CHECK-NEXT: 0 |   class sycl::local_accessor_base<int, 1, sycl::access::mode::read_write, sycl::access::placeholder::false_t> (base)
+// CHECK-NEXT: 0 |     class sycl::detail::LocalAccessorBaseHost (base)
+// CHECK-NEXT: 0 |       class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> impl
+// CHECK-NEXT: 0 |         class std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 0 |           class std::__shared_ptr_access<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
+// CHECK-NEXT: 0 |           element_type * _M_ptr
+// CHECK-NEXT: 8 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 0 |     class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 16 |     char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
