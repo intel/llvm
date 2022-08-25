@@ -36,26 +36,28 @@ namespace math {
 
 #if __cplusplus >= 201703L
 template <typename Tp>
-typename std::enable_if<std::is_same_v<Tp, float>, float>::type saturate(Tp x) {
+std::enable_if_t<std::is_same_v<Tp, float>, float> saturate(Tp x) {
   return __imf_saturatef(x);
 }
 
-template <typename Tp> Tp copysign(Tp x, Tp y) {
-  static_assert(std::is_same_v<Tp, float> || std::is_same_v<Tp, double> ||
-                    std::is_same_v<Tp, sycl::half>,
-                "sycl::ext::intel::math::copysign only supports fp16, fp32, "
-                "fp64 version.");
-  if constexpr (std::is_same_v<Tp, float>)
-    return __imf_copysignf(x, y);
-  if constexpr (std::is_same_v<Tp, double>)
-    return __imf_copysign(x, y);
-  if constexpr (std::is_same_v<Tp, sycl::half>) {
-    static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
-                  "sycl::half is not compatible with _iml_half_internal.");
-    _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
-    _iml_half_internal yi = __builtin_bit_cast(_iml_half_internal, y);
-    return __builtin_bit_cast(sycl::half, __imf_copysignf16(xi, yi));
-  }
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, float>, float> copysign(Tp x, Tp y) {
+  return __imf_copysignf(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, double>, double> copysign(Tp x, Tp y) {
+  return __imf_copysign(x, y);
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> copysign(Tp x,
+                                                                      Tp y) {
+  static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
+                "sycl::half is not compatible with _iml_half_internal.");
+  _iml_half_internal xi = __builtin_bit_cast(_iml_half_internal, x);
+  _iml_half_internal yi = __builtin_bit_cast(_iml_half_internal, y);
+  return __builtin_bit_cast(sycl::half, __imf_copysignf16(xi, yi));
 }
 
 #endif
