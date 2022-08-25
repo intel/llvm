@@ -556,7 +556,6 @@ public:
   // AccessorDims also determines the dimensionality of some temp storage
   static constexpr int accessor_dim = data_dim_t<RedOutVar>::value;
   static constexpr int buffer_dim = (accessor_dim == 0) ? 1 : accessor_dim;
-  using rw_accessor_type = accessor<T, accessor_dim>;
   static constexpr bool has_float64_atomics =
       IsReduOptForAtomic64Op<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
@@ -599,7 +598,7 @@ public:
     } else {
       MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
       CGH.addReduction(MOutBufPtr);
-      return rw_accessor_type{*MOutBufPtr, CGH};
+      return accessor{*MOutBufPtr, CGH};
     }
   }
 
@@ -616,7 +615,7 @@ public:
   /// needs to be written to user's read-write accessor (if there is such).
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
-  rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
+  auto getWriteAccForPartialReds(size_t Size, handler &CGH) {
     if constexpr (!is_usm) {
       if (Size == 1) {
         CGH.associateWithHandler(&MRedOut, access::target::device);
@@ -627,16 +626,16 @@ public:
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
-    return rw_accessor_type{*MOutBufPtr, CGH};
+    return accessor{*MOutBufPtr, CGH};
   }
 
   /// If reduction is initialized with read-write accessor, which does not
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create global buffer with 'num_elements' initialized
   /// with identity value and return an accessor to that buffer.
-  template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics)>
-  std::enable_if_t<HasFastAtomics, rw_accessor_type>
-  getReadWriteAccessorToInitializedMem(handler &CGH) {
+  template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics),
+            typename = std::enable_if_t<HasFastAtomics>>
+  auto getReadWriteAccessorToInitializedMem(handler &CGH) {
     if constexpr (!is_usm) {
       if (!base::initializeToIdentity())
         return MRedOut;
@@ -653,7 +652,7 @@ public:
                                                 range<1>(num_elements));
     MOutBufPtr->set_final_data();
     CGH.addReduction(MOutBufPtr);
-    return rw_accessor_type{*MOutBufPtr, CGH};
+    return accessor{*MOutBufPtr, CGH};
   }
 
   accessor<int, 1, access::mode::read_write, access::target::device,
@@ -736,7 +735,6 @@ public:
   using algo::is_usm;
 
   using reducer_type = typename algo::reducer_type;
-  using rw_accessor_type = typename algo::rw_accessor_type;
 
   // Only scalar and 1D array reductions are supported by SYCL 2020.
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
@@ -1156,10 +1154,12 @@ template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
 ///
 /// Briefly: calls user's lambda, reduce() + atomic, INT +
 /// ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForNDRangeBothFastReduceAndAtomics(
-    handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-    Reduction &, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
+void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
+                                                  KernelType KernelFunc,
+                                                  const nd_range<Dims> &Range,
+                                                  Reduction &, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   using Name = __sycl_reduction_kernel<
       reduction::main_krn::NDRangeBothFastReduceAndAtomics, KernelName>;
@@ -1191,11 +1191,12 @@ template <class KernelName> struct NDRangeFastAtomicsOnly;
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForNDRangeFastAtomicsOnly(
-    handler &CGH, bool IsPow2WG, KernelType KernelFunc,
-    const nd_range<Dims> &Range, Reduction &,
-    typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
+void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
+                                         KernelType KernelFunc,
+                                         const nd_range<Dims> &Range,
+                                         Reduction &, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
 
@@ -1271,10 +1272,11 @@ template <class KernelName> struct NDRangeFastReduceOnly;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, reduce(), FP + ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForNDRangeFastReduceOnly(
-    handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-    Reduction &Redu, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
+void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
+                                        const nd_range<Dims> &Range,
+                                        Reduction &Redu, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
@@ -1317,11 +1319,12 @@ template <class KernelName> struct NDRangeBasic;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
 void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
                                KernelType KernelFunc,
                                const nd_range<Dims> &Range, Reduction &Redu,
-                               typename Reduction::rw_accessor_type Out) {
+                               AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
