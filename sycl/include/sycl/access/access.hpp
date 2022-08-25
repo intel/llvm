@@ -213,6 +213,8 @@ template <class T> struct remove_AS {
 #ifdef __SYCL_DEVICE_ONLY__
 template <class T> struct deduce_AS {
   // Undecorated pointers are considered generic.
+  // TODO: This assumes that the implementation uses generic as default. If
+  //       address space inference is used this may need to change.
   static const access::address_space value =
       access::address_space::generic_space;
 };

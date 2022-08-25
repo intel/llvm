@@ -438,7 +438,7 @@ struct select_cl_vector_or_scalar_or_ptr<
 // select_cl_mptr_or_vector_or_scalar_or_ptr does cl_* type selection for type
 // pointed by multi_ptr, for raw pointers, for element type of a vector type T,
 // and does scalar type substitution.  If T is not mutlti_ptr or vector or
-// scalar unmodified T is returned.
+// scalar or pointer unmodified T is returned.
 template <typename T, typename Enable = void>
 struct select_cl_mptr_or_vector_or_scalar_or_ptr;
 
