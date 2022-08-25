@@ -800,20 +800,31 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
 
   // Check device id for PVC.
   // TODO: change mechanism for detecting PVC once L0 provides an interface.
-  ImmCommandListsPreferred = (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
+  // At present even PVC doesn't automatically use immediate commandlists.
+  // Change this after more testing.
+  ImmCommandListsPreferred =
+      false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
   return PI_SUCCESS;
 }
 
-// Controls whether device-scope events are used, and how.
-enum EventsScope _pi_device::eventsScope() {
-  static const auto DeviceEventsStr =
+// Get value of device scope events env var setting or -1 if unset
+static const int DeviceEventsSetting = [] {
+  const char *DeviceEventsSettingStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+  if (!DeviceEventsSettingStr)
+    return -1;
+  return std::stoi(DeviceEventsSettingStr);
+}();
 
-  // Set default based on preferred type of commandlists on this device.
-  auto Default = ImmCommandListsPreferred ? OnDemandHostVisibleProxy
-                                          : LastCommandInBatchHostVisible;
-  switch (DeviceEventsStr ? std::atoi(DeviceEventsStr) : Default) {
+// Controls the scope of events.
+// If immediate commandlists are being used then use compatible event scopes.
+enum EventsScope _pi_device::eventsScope() {
+  // Set default based on type of commandlists being used.
+  auto Default = useImmediateCommandLists() ? OnDemandHostVisibleProxy
+                                            : LastCommandInBatchHostVisible;
+  // Override the default if user has explicitly chosen the events scope.
+  switch (DeviceEventsSetting) {
   case 0:
     return AllHostVisible;
   case 1:
@@ -824,17 +835,24 @@ enum EventsScope _pi_device::eventsScope() {
   return Default;
 }
 
+// Get value of immediate commandlists env var setting or -1 if unset
+static const int ImmediateCommandlistsSetting = [] {
+  const char *ImmediateCommandlistsSettingStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+  if (!ImmediateCommandlistsSettingStr)
+    return -1;
+  return std::stoi(ImmediateCommandlistsSettingStr);
+}();
+
 // Whether immediate commandlists will be used for kernel launches and copies.
 // The default is standard commandlists. Setting a value >=1 specifies use of
 // immediate commandlists. Note: when immediate commandlists are used then
 // device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
 // (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
 bool _pi_device::useImmediateCommandLists() {
-  static const char *ImmediateFlag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
-  if (!ImmediateFlag)
+  if (ImmediateCommandlistsSetting == -1)
     return ImmCommandListsPreferred;
-  return std::stoi(ImmediateFlag) > 0;
+  return ImmediateCommandlistsSetting;
 }
 
 pi_device _pi_context::getRootDevice() const {
@@ -6606,13 +6624,13 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
 
-  ZE_CALL(zeCommandListAppendMemoryCopy,
-          (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
-
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
+
+  ZE_CALL(zeCommandListAppendMemoryCopy,
+    (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
 
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
