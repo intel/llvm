@@ -386,3 +386,19 @@ Then the free device memory  can be obtained using the standard get\_info() inte
     if (dev.has(aspect::ext_intel_free_memory)) {
       auto FreeMemory = dev.get_info<info::device::ext_intel_free_memory>();
     }
+
+# Deprecated queries #
+
+The table below lists deprecated, that would soon be removed and their replacements:
+
+|Deprecated Descriptors | Replacement Descriptors |
+| ------------------------------- |--------------------------- |
+| info\:\:device\:\:ext\_intel\_device\_info\_uuid  | ext\:\:intel\:\:info\:\:device\:\:uuid |
+| info\:\:device\:\:ext\_intel\_pci\_address        | ext\:\:intel\:\:info\:\:device\:\:pci\_address |
+| info\:\:device\:\:ext\_intel\_gpu\_eu\_simd\_width  | ext\:\:intel\:\:info\:\:device\:\:gpu\_eu\_simd\_width |
+| info\:\:device\:\:ext\_intel\_gpu\__eu\_count       | ext\:\:intel\:\:info\:\:device\:\:gpu\__eu\_count      |
+| info\:\:device\:\:ext\_intel\_gpu\_slices               | ext\:\:intel\:\:info\:\:device\:\:gpu\_slices      |
+| info\:\:device\:\:ext\_intel\_gpu\_subslices\_per\_slice | ext\:\:intel\:\:info\:\:device\:\:gpu\_subslices\_per\_slice    |
+|info\:\:device\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice | ext\:\:intel\:\:info\:\:device\:\:gpu\_eu\_count\_per\_subslice |
+| info\:\:device\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu    | ext\:\:intel\:\:info\:\:device\:\:gpu\_hw\_threads\_per\_eu     |
+| info\:\:device\:\:ext\_intel\_max\_mem\_bandwidth | ext\:\:intel\:\:info\:\:device\:\:max\_mem\_bandwidth |

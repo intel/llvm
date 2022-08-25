@@ -68,13 +68,20 @@ assert(global_size[2] * global_size[1] * global_size[0] <= global_groups); //Mak
 
 gpu_queue.submit(work_range, ...);
 ```
+## Deprecated queries
+
+The table below lists the soon to be removed deprecated descriptors and their replacements:
+
+|Deprecated Descriptors| Replacement Decriptors|
+| -------------------- | --------------------  |
+| sycl::info::ext_oneapi_max_global_work_groups |sycl::ext::oneapi::experimental::info::max_global_work_groups |
+| sycl::info::ext_oneapi_max_work_groups_*N*d | sycl::ext::oneapi::experimental::info::max_work_groups\<*N*\> |
+
+* Note *N* can take the value 1,2, or 3
+
 
 ## Implementation
 
-### Deprecated queries
-
-Older versions of DPC++ used information descriptors with the inncorrect namespace; according to SYCL 2020 specification section 6.3.1 "Extension namespace" , `sycl::info::ext_oneapi_max_global_work_groups` is not allowed. 
-Some of those descriptors were also not templated, according to SYCL specification section 4.6.4.2 "Device information descriptors", e.g:  `ext_oneapi_max_work_groups_[1,2,3]d` . These information descriptors are still supported but deprecated.
 ### Consistency with existing checks
 
 The implementation already checks when enqueuing a kernel that the global and per dimension work-group number is smaller than `std::numeric_limits<int>::max`. This check is implemented in `sycl/include/sycl/handler.hpp`. For consistency, values returned by the two device descriptors are bound by this limit.
