@@ -29,6 +29,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -109,6 +110,38 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       Value mul = rewriter.create<LLVM::MulOp>(loc, offset, stride);
       baseOffset = rewriter.create<LLVM::AddOp>(loc, baseOffset, mul);
       targetMemRef.setOffset(rewriter, loc, baseOffset);
+    }
+
+    if (auto ST = sourceMemRefType.getElementType()
+                      .dyn_cast<mlir::LLVM::LLVMStructType>()) {
+      // According to MLIRASTConsumer::getMLIRType() in clang-mlir.cc, memref of
+      // struct type is only generated for struct that has at least one entry of
+      // SYCL type, otherwise a llvm pointer type is generated instead of a
+      // memref.
+      assert(any_of(ST.getBody(),
+                    [](Type Element) {
+                      return Element
+                          .isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
+                               mlir::sycl::RangeType,
+                               mlir::sycl::AccessorImplDeviceType,
+                               mlir::sycl::ArrayType, mlir::sycl::ItemType,
+                               mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
+                               mlir::sycl::GroupType>();
+                    }) &&
+             "Expecting at least one element type of the struct to be a SYCL "
+             "type");
+      // According to MLIRScanner::InitializeValueByInitListExpr() in
+      // clang-mlir.cc, when a memref element type is a struct type, the return
+      // type of a polygeist.subindex should be a memref of the element type of
+      // the struct.
+      auto elemPtrTy = LLVM::LLVMPointerType::get(
+          getTypeConverter()->convertType(viewMemRefType.getElementType()));
+      auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, idxs);
+      MemRefDescriptor nexRef = createMemRefDescriptor(
+          loc, viewMemRefType, gep, gep, sizes, strides, rewriter);
+
+      rewriter.replaceOp(subViewOp, {nexRef});
+      return success();
     }
 
     assert(getTypeConverter()->convertType(viewMemRefType.getElementType()) ==
