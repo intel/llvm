@@ -1,4 +1,5 @@
 add_mlir_conversion_library(MLIRSYCLToLLVM
+  DialectBuilder.cpp
   SYCLFuncRegistry.cpp
   SYCLToLLVM.cpp
   SYCLToLLVMPass.cpp

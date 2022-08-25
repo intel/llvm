@@ -26,7 +26,7 @@ class SYCLFuncRegistry;
 /// \class SYCLFuncDescriptor
 /// Represents a SYCL function (defined in a registry) that can be called by the
 /// compiler.
-/// Note: when a new enumerator is added the corresponding SYCLFuncDescriptor
+/// Note: when a new enumerator is added, the corresponding SYCLFuncDescriptor
 /// needs to be created in SYCLFuncRegistry constructor.
 class SYCLFuncDescriptor {
   friend class SYCLFuncRegistry;

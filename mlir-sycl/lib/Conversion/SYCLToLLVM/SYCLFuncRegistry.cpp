@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLFuncRegistry.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-func-registry"
@@ -19,29 +19,13 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
-// TODO: move in LLVMBuilder class when available.
-static FlatSymbolRefAttr getOrInsertFuncDecl(ModuleOp module, OpBuilder &b,
-                                             StringRef funcName,
-                                             Type resultType,
-                                             ArrayRef<Type> argsTypes,
-                                             bool isVarArg = false) {
-  if (!module.lookupSymbol<LLVM::LLVMFuncOp>(funcName)) {
-    OpBuilder::InsertionGuard guard(b);
-    b.setInsertionPointToStart(module.getBody());
-    LLVM::LLVMFunctionType funcType =
-        LLVM::LLVMFunctionType::get(resultType, argsTypes, isVarArg);
-    b.create<LLVM::LLVMFuncOp>(module.getLoc(), funcName, funcType);
-  }
-  return SymbolRefAttr::get(b.getContext(), funcName);
-}
-
 //===----------------------------------------------------------------------===//
 // SYCLFuncDescriptor
 //===----------------------------------------------------------------------===//
 
 void SYCLFuncDescriptor::declareFunction(ModuleOp &module, OpBuilder &b) {
-  // TODO: use LLVMBuilder once available.
-  funcRef = getOrInsertFuncDecl(module, b, name, outputTy, argTys);
+  LLVMBuilder builder(b, module.getLoc());
+  builder.getOrInsertFuncDecl(name, outputTy, argTys, module);
 }
 
 Value SYCLFuncDescriptor::call(FuncId id, ArrayRef<Value> args,
@@ -52,13 +36,10 @@ Value SYCLFuncDescriptor::call(FuncId id, ArrayRef<Value> args,
   if (!funcDesc.outputTy.isa<LLVM::LLVMVoidType>())
     funcOutputTys.emplace_back(funcDesc.outputTy);
 
-  // TODO: generate the call via LLVMBuilder here
-  //  LLVMBuilder builder(b, loc);
-  //  return builder.call(funcDesc.funcRef, ArrayRef<Type>(funcOutputsTys), args);
+  LLVMBuilder builder(b, loc);
+  LLVM::CallOp callOp = builder.genCall(funcDesc.funcRef, funcOutputTys, args);
   // TODO: we could check here the arguments against the function signature and 
   // assert if there is a mismatch.
-  auto callOp = b.create<LLVM::CallOp>(loc, ArrayRef<Type>(funcOutputTys),
-                                       funcDesc.funcRef, args);
   assert(callOp.getNumResults() == 1 && "expecting a single result");
 
   return callOp.getResult(0);
