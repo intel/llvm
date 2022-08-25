@@ -421,7 +421,7 @@ int main() {
   auto node_f1 = g.free(x, {node_c});
   auto node_f1 = g.free(y, {node_b});
 
-  auto exec = compile(q);
+  auto exec = g.compile(q);
 
   q.submit(exec).wait();
 
