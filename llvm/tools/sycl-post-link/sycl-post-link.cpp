@@ -665,6 +665,10 @@ processInputModule(std::unique_ptr<Module> M) {
   // if none were made.
   bool Modified = false;
 
+  // Propagate ESIMD attribute to wrapper functions to prevent
+  // spurious splits and kernel link errors.
+  Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
+
   // After linking device bitcode "llvm.used" holds references to the kernels
   // that are defined in the device image. But after splitting device image into
   // separate kernels we may end up with having references to kernel declaration
