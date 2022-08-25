@@ -22,13 +22,20 @@
 
 == Notice
 
-IMPORTANT: This specification is a draft.
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
 
-Copyright (c) 2021-2022 Intel Corporation. All rights reserved.
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
 
 == Dependencies
 
@@ -36,23 +43,21 @@ This extension is written against the SYCL 2020 specification, Revision 4.
 
 == Status
 
-Draft
-
-This is a preview extension specification, intended to provide early access to
-a feature for review and community feedback. When the feature matures, this
-specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are
-subject to change they are not intended to be used by shipping software
-products.
+This extension is implemented and fully supported by DPC++.
+[NOTE]
+====
+This extension is currently implemented in {dpcpp} only for GPU devices that support bfloat16 natively. Attempting to use this extension in
+kernels that run on other devices may result in undefined behavior.
+Be aware that the compiler is not able to issue a diagnostic to warn you if this happens.
+====
 
 == Version
 
 Revision: 5
 
-== Introduction
+== Overview
 
-This extension adds functionality to convert value of single-precision
+This extension adds functionality to convert values of single-precision
 floating-point type(`float`) to `bfloat16` type and vice versa. The extension
 doesn't add support for `bfloat16` type as such, instead it uses 16-bit integer
 type(`uint16_t`) as a storage for `bfloat16` values.
@@ -68,7 +73,9 @@ feature to a device that does not support it should cause a synchronous
 `errc::kernel_not_supported` exception to be thrown from the kernel invocation
 command (e.g. from `parallel_for`).
 
-== Feature test macro
+== Specification
+
+=== Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros". Therefore, an implementation
@@ -103,7 +110,7 @@ If the device doesn't have the aspect, objects of `bfloat16` class must not be
 used in the device code.
 
 **NOTE**: The `ext_oneapi_bfloat16` aspect is not yet supported.  The
-`bfloat16` class is currently supported only on Xe HP GPU and Nvidia GPUs with Compute Capability >= SM80.
+`bfloat16` class is currently supported only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80.
 
 == New `bfloat16` class
 
@@ -116,7 +123,6 @@ mode.
 namespace sycl {
 namespace ext {
 namespace oneapi {
-namespace experimental {
 
 class bfloat16 {
   using storage_t = uint16_t;
@@ -126,10 +132,6 @@ public:
   bfloat16() = default;
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
-
-  // Explicit conversion functions
-  static storage_t from_float(const float &a);
-  static float to_float(const storage_t &a);
 
   // Convert from float to bfloat16
   bfloat16(const float &a);
@@ -168,7 +170,6 @@ public:
   friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
 };
 
-} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
@@ -177,12 +178,6 @@ public:
 Table 1. Member functions of `bfloat16` class.
 |===
 | Member Function | Description
-
-|  `static storage_t from_float(const float &a);`
-|  Explicitly convert from `float` to `bfloat16`.
-
-|  `static float to_float(const storage_t &a);`
-|  Interpret `a` as `bfloat16` and explicitly convert it to `float`.
 
 | `bfloat16(const float& a);`
 | Construct `bfloat16` from `float`. Converts `float` to `bfloat16`.
@@ -251,7 +246,7 @@ Table 1. Member functions of `bfloat16` class.
 | Perform comparison operation OP between `lhs` `bfloat16` and `rhs` `bfloat16`
   values and return the result as a boolean value.
 
-OP is `==, !=, <, >, <=, >=`
+OP is `+==, !=, <, >, <=, >=+`
 
 | `template <typename T>
   friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
@@ -259,7 +254,7 @@ OP is `==, !=, <, >, <=, >=`
   template type `T` and return the result as a boolean value. Type `T` must be
   convertible to `float`.
 
-OP is `==, !=, <, >, <=, >=`
+OP is `+==, !=, <, >, <=, >=+`
 
 | `template <typename T>
   friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
@@ -267,26 +262,23 @@ OP is `==, !=, <, >, <=, >=`
   `bfloat16` value and return the result as a boolean value. Type `T` must be
   convertible to `float`.
 
-OP is `==, !=, <, >, <=, >=`
+OP is `+==, !=, <, >, <=, >=+`
 |===
 
 == Example
 
 [source]
 ----
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/sycl.hpp>
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
-using sycl::ext::oneapi::experimental::bfloat16;
-
-bfloat16 operator+(const bfloat16 &lhs, const bfloat16 &rhs) {
-  return static_cast<float>(lhs) + static_cast<float>(rhs);
-}
+using namespace sycl;
+using sycl::ext::oneapi::bfloat16;
 
 float foo(float a, float b) {
   // Convert from float to bfloat16.
-  bfloat16 A {a};
-  bfloat16 B {b};
+  bfloat16 A{a};
+  bfloat16 B{b};
 
   // Convert A and B from bfloat16 to float, do addition on floating-pointer
   // numbers, then convert the result to bfloat16 and store it in C.
@@ -296,18 +288,17 @@ float foo(float a, float b) {
   return C;
 }
 
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   float data[3] = {7.0, 8.1, 0.0};
-  sycl::device dev;
-  sycl::queue deviceQueue{dev};
-  sycl::buffer<float, 1> buf {data, sycl::range<1> {3}};
+  device dev;
+  queue deviceQueue{dev};
+  buffer buf{data, {3}};
 
-  if (dev.has(sycl::aspect::ext_oneapi_bfloat16)) {
-    deviceQueue.submit ([&] (sycl::handler& cgh) {
-      auto numbers = buf.get_access<sycl::access::mode::read_write> (cgh);
-      cgh.single_task<class simple_kernel> ([=] () {
-        numbers[2] = foo(numbers[0], numbers[1]);
-      });
+  if (dev.has(aspect::ext_oneapi_bfloat16)) {
+    deviceQueue.submit([&](handler &cgh) {
+      accessor numbers{buf, read_write};
+      cgh.single_task<class simple_kernel>(
+          [=]() { numbers[2] = foo(numbers[0], numbers[1]); });
     });
   }
   return 0;
@@ -325,11 +316,14 @@ The following functions are only available when `T` is `bfloat16` or `sycl::marr
 === fma
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::oneapi {
 
-template <typename T>
-T fma(T a, T b, T c);
-} // namespace sycl::ext::oneapi::experimental
+bfloat16 fma(bfloat16 a, bfloat16 b, bfloat16 c);
+
+template<size_t N>
+marray<bfloat16, N> fma(marray<bfloat16, N> a, marray<bfloat16, N> b, marray<bfloat16, N> c);
+
+} // namespace sycl::ext::oneapi
 ```
 
 ==== Description
@@ -340,10 +334,14 @@ Rounding of intermediate products shall not occur. The mantissa LSB rounds to th
 === fmax
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T fmax(T x, T y);
-} // namespace sycl::ext::oneapi::experimental
+namespace sycl::ext::oneapi {
+
+bfloat16 fmax(bfloat16 x, bfloat16 y);
+
+template<size_t N>
+marray<bfloat16, N> fmax(marray<bfloat16, N> x, marray<bfloat16, N> y);
+
+} // namespace sycl::ext::oneapi
 ```
 
 ==== Description
@@ -358,10 +356,14 @@ NaNs, `fmax()` returns a NaN.
 === fmin
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
-template <typename T>
-T fmin(T x, T y);
-} // namespace sycl::ext::oneapi::experimental
+namespace sycl::ext::oneapi {
+
+bfloat16 fmin(bfloat16 a, bfloat16 b);
+
+template<size_t N>
+marray<bfloat16, N> fmin(marray<bfloat16, N> a, marray<bfloat16, N> b);
+
+} // namespace sycl::ext::oneapi
 ```
 
 ==== Description
@@ -369,17 +371,19 @@ T fmin(T x, T y);
 Returns `y` if
 `y < x`, otherwise it
 returns `x`. If one argument is a
-NaN, `fmax()` returns the other
+NaN, `fmin()` returns the other
 argument. If both arguments are
-NaNs, `fmax()` returns a NaN.
+NaNs, `fmin()` returns a NaN.
 
 === fabs
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::oneapi {
+
 template <typename T>
 T fabs(T x);
-} // namespace sycl::ext::oneapi::experimental
+
+} // namespace sycl::ext::oneapi
 ```
 
 ==== Description
@@ -406,5 +410,5 @@ Compute absolute value of a `bfloat16`.
 |3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
 |4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific to oneapi
 |5|2022-04-05|Jack Kirk | Added section for bfloat16 math builtins
-|6|2022-08-03|Alexey Sotkin |Add `operator sycl::half()`
+|6|2022-08-24|Rajiv Deodhar |Add `operator sycl::half()` and some other conversions
 |========================================
