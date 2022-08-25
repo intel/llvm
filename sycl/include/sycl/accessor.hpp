@@ -1011,7 +1011,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1042,7 +1042,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1072,7 +1072,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1103,7 +1103,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1133,7 +1133,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1166,7 +1166,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1229,7 +1229,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1261,7 +1261,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1447,7 +1447,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1488,7 +1488,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1560,7 +1560,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1600,7 +1600,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1784,6 +1784,50 @@ public:
   constant_ptr<DataT> get_pointer() const {
     return constant_ptr<DataT>(getPointerAdjusted());
   }
+
+  // accessor::has_property for runtime properties is only available in host
+  // code. This restriction is not listed in the core spec and will be added in
+  // future versions.
+  template <typename Property>
+  typename sycl::detail::enable_if_t<
+      !ext::oneapi::is_compile_time_property<Property>::value, bool>
+  has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return AccessorBaseHost::impl->MPropertyList.has_property<Property>();
+#else
+    return false;
+#endif
+  }
+
+  // accessor::get_property for runtime properties is only available in host
+  // code. This restriction is not listed in the core spec and will be added in
+  // future versions.
+  template <typename Property,
+            typename = typename sycl::detail::enable_if_t<
+                !ext::oneapi::is_compile_time_property<Property>::value>>
+  Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return AccessorBaseHost::impl->MPropertyList.get_property<Property>();
+#else
+    return Property();
+#endif
+  }
+
+#if __cplusplus >= 201703L
+  template <typename Property>
+  static constexpr bool has_property(
+      typename std::enable_if_t<
+          ext::oneapi::is_compile_time_property<Property>::value> * = 0) {
+    return PropertyListT::template has_property<Property>();
+  }
+
+  template <typename Property>
+  static constexpr auto get_property(
+      typename std::enable_if_t<
+          ext::oneapi::is_compile_time_property<Property>::value> * = 0) {
+    return PropertyListT::template get_property<Property>();
+  }
+#endif
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
