@@ -759,16 +759,6 @@ constexpr void check_atomic() {
 /// @addtogroup sycl_esimd_memory_atomics
 /// @{
 
-/// LSC version of no argument variant of the \c atomic_update - accepts
-/// <tt>native::lsc::atomic_op</tt> instead of <tt>atomic_op</tt> as atomic
-/// operation template argument.
-template <native::lsc::atomic_op Op, typename T, int N>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
-                                     simd_mask<N> mask) {
-  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
-      p, offset, mask);
-}
-
 /// @anchor usm_atomic_update0
 /// @brief No-argument variant of the atomic update operation.
 ///
@@ -797,14 +787,6 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<unsigned, N> offset,
   vAddr += offset_i1;
   using T = typename detail::__raw_t<Tx>;
   return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
-}
-
-/// LSC version of the single-argument atomic update.
-template <native::lsc::atomic_op Op, typename T, int N>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
-                                     simd<T, N> src0, simd_mask<N> mask) {
-  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
-      p, offset, src0, mask);
 }
 
 /// @anchor usm_atomic_update1
@@ -847,15 +829,6 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<unsigned, N> offset,
     return __esimd_svm_atomic1<Op, T, N>(vAddr.data(), src0.data(),
                                          mask.data());
   }
-}
-
-/// LSC version of the two-argument atomic update.
-template <native::lsc::atomic_op Op, typename T, int N>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
-                                     simd<T, N> src0, simd<T, N> src1,
-                                     simd_mask<N> mask) {
-  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
-      p, offset, src0, src1, mask);
 }
 
 /// @anchor usm_atomic_update2

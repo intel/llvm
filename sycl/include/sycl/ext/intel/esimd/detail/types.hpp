@@ -36,6 +36,15 @@ template <typename BaseTy, typename RegionTy> class simd_view;
 
 namespace detail {
 
+/// Base case for checking if a type U is one of the types.
+template <typename U> constexpr bool is_type() { return false; }
+
+template <typename U, typename T, typename... Ts> constexpr bool is_type() {
+  using UU = typename std::remove_const_t<U>;
+  using TT = typename std::remove_const_t<T>;
+  return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
+}
+
 template <int N>
 using uint_type_t = std::conditional_t<
     N == 1, uint8_t,

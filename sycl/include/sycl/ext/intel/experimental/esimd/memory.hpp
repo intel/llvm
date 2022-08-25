@@ -283,15 +283,6 @@ lsc_format_ret(__ESIMD_NS::simd<T1, N> Vals) {
   return Formatted.template select<N, Stride>(0);
 }
 
-/// Base case for checking if a type U is one of the types.
-template <typename U> constexpr bool is_type() { return false; }
-
-template <typename U, typename T, typename... Ts> constexpr bool is_type() {
-  using UU = typename std::remove_const_t<U>;
-  using TT = typename std::remove_const_t<T>;
-  return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
-}
-
 /// Check the legality of lsc atomic call in terms of size and type.
 template <__ESIMD_NS::native::lsc::atomic_op Op, typename T, int N,
           unsigned NumSrc>
@@ -1607,6 +1598,39 @@ __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
 
 } // namespace esimd
 } // namespace experimental
+
+namespace esimd {
+
+/// LSC version of no argument variant of the \c atomic_update - accepts
+/// <tt>native::lsc::atomic_op</tt> instead of <tt>atomic_op</tt> as atomic
+/// operation template argument.
+template <native::lsc::atomic_op Op, typename T, int N>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
+                                     simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offset, mask);
+}
+
+/// LSC version of the single-argument atomic update.
+template <native::lsc::atomic_op Op, typename T, int N>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
+                                     simd<T, N> src0, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offset, src0, mask);
+}
+
+/// LSC version of the two-argument atomic update.
+template <native::lsc::atomic_op Op, typename T, int N>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
+                                     simd<T, N> src0, simd<T, N> src1,
+                                     simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offset, src0, src1, mask);
+}
+
+} // namespace esimd
+
+
 } // namespace intel
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
