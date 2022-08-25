@@ -1135,7 +1135,7 @@ get_device_info_host<info::device::built_in_kernels>() {
 }
 
 template <> inline platform get_device_info_host<info::device::platform>() {
-  return platform();
+  return createSyclObjFromImpl<platform>(platform_impl::getHostPlatformImpl());
 }
 
 template <> inline std::string get_device_info_host<info::device::name>() {

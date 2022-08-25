@@ -391,7 +391,8 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
 }
 
 Scheduler::Scheduler() {
-  sycl::device HostDevice;
+  sycl::device HostDevice =
+      createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
   sycl::context HostContext{HostDevice};
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),
@@ -448,7 +449,12 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   if (Cmds.empty())
-    return;
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
+    if (MDeferredCleanupCommands.empty())
+      return;
+  }
+
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to blocked commands, defer cleanup if
   // the lock wasn't acquired.

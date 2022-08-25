@@ -44,7 +44,7 @@ class filter_selector;
 /// \ingroup sycl_api
 class __SYCL_EXPORT platform {
 public:
-  /// Constructs a SYCL platform as a host platform.
+  /// Constructs a SYCL platform using the default device.
   platform();
 
   /// Constructs a SYCL platform instance from an OpenCL cl_platform_id.
