@@ -551,11 +551,7 @@ public:
   using result_type = T;
   using binary_operation = BinaryOperation;
 
-  // Buffers and accessors always describe scalar reductions (i.e. Dims == 0)
-  // The input buffer/accessor is allowed to have different dimensionality
-  // AccessorDims also determines the dimensionality of some temp storage
-  static constexpr int accessor_dim = data_dim_t<RedOutVar>::value;
-  static constexpr int buffer_dim = (accessor_dim == 0) ? 1 : accessor_dim;
+  static constexpr size_t dims = Dims;
   static constexpr bool has_float64_atomics =
       IsReduOptForAtomic64Op<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
@@ -565,7 +561,6 @@ public:
 
   static constexpr bool is_usm = std::is_same_v<RedOutVar, T *>;
 
-  static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
 
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
@@ -576,17 +571,18 @@ public:
   /// By default the local accessor elements are of the same type as the
   /// elements processed by the reduction, but may it be altered by specifying
   /// \p _T explicitly if need an accessor with elements of different type.
-  template <typename _T = result_type>
-  static accessor<_T, buffer_dim, access::mode::read_write,
-                  access::target::local>
+  ///
+  /// For array reductions we process them one element in a type to avoid stack
+  /// growth, so the dimensionality of the temporary buffer is always one.
+  template <class _T = result_type>
+  static accessor<_T, 1, access::mode::read_write, access::target::local>
   getReadWriteLocalAcc(size_t Size, handler &CGH) {
     return {Size, CGH};
   }
 
-  accessor<T, buffer_dim, access::mode::read>
-  getReadAccToPreviousPartialReds(handler &CGH) const {
+  auto getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
-    return {*MOutBufPtr, CGH};
+    return accessor{*MOutBufPtr, CGH, sycl::read_only};
   }
 
   template <bool IsOneWG>
@@ -596,15 +592,15 @@ public:
     if constexpr (IsOneWG) {
       return MRedOut;
     } else {
-      MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+      MOutBufPtr = std::make_shared<buffer<T, 1>>(range<1>(Size));
       CGH.addReduction(MOutBufPtr);
       return accessor{*MOutBufPtr, CGH};
     }
   }
 
-  template <class _T = T, int D = buffer_dim>
+  template <class _T = T>
   auto &getTempBuffer(size_t Size, handler &CGH) {
-    auto Buffer = std::make_shared<buffer<_T, D>>(range<1>(Size));
+    auto Buffer = std::make_shared<buffer<_T, 1>>(range<1>(Size));
     CGH.addReduction(Buffer);
     return *Buffer;
   }
@@ -624,7 +620,9 @@ public:
     }
 
     // Create a new output buffer and return an accessor to it.
-    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    //
+    // Array reductions are performed element-wise to avoid stack growth.
+    MOutBufPtr = std::make_shared<buffer<T, 1>>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
     return accessor{*MOutBufPtr, CGH};
   }
@@ -669,7 +667,7 @@ public:
   // On discrete (vs. integrated) GPUs it's faster to initialize memory with an
   // extra kernel than copy it from the host.
   template <typename Name> auto getGroupsCounterAccDiscrete(handler &CGH) {
-    auto &Buf = getTempBuffer<int, 1>(1, CGH);
+    auto &Buf = getTempBuffer<int>(1, CGH);
     std::shared_ptr<detail::queue_impl> QueueCopy = CGH.MQueue;
     auto Event = CGH.withAuxHandler(QueueCopy, [&](handler &InitHandler) {
       auto Acc = accessor{Buf, InitHandler, sycl::write_only, sycl::no_init};
@@ -690,7 +688,9 @@ public:
   }
 
 private:
-  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
+  // Array reduction is performed element-wise to avoid stack growth, hence
+  // 1-dimensional always.
+  std::shared_ptr<buffer<T, 1>> MOutBufPtr;
 
   /// User's accessor/USM pointer to where the reduction must be written.
   RedOutVar MRedOut;
