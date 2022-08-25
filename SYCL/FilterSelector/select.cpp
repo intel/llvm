@@ -23,7 +23,6 @@ int main() {
   std::vector<device> GPUs;
   std::vector<device> Accels;
   std::vector<device> Devs;
-  device host;
 
   CPUs = device::get_devices(info::device_type::cpu);
   GPUs = device::get_devices(info::device_type::gpu);

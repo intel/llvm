@@ -29,7 +29,6 @@ int main() {
     return 0;
 
   usm::alloc Kind;
-  device D;
 
   // Test device allocs
   array = (int *)malloc_device(N * sizeof(int), q);
@@ -48,7 +47,7 @@ int main() {
       return 3;
     }
   }
-  D = get_pointer_device(array, ctxt);
+  device D = get_pointer_device(array, ctxt);
   if (D != dev) {
     return 4;
   }

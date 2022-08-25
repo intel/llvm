@@ -37,8 +37,8 @@ int main() {
   assert((dev1 == dev2) && "Device 1 == Device 2");
   assert((plat1 == plat2) && "Platform 1 == Platform 2");
 
-  device h1;
-  device h2;
+  device h1{host_selector{}};
+  device h2{host_selector{}};
 
   assert(h1.is_host() && "Device h1 is host");
   assert(h2.is_host() && "Device h2 is host");
