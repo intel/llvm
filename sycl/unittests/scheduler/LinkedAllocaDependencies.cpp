@@ -31,7 +31,7 @@ public:
   void *allocateHostMem() { return nullptr; }
   void releaseMem(ContextImplPtr, void *) {}
   void releaseHostMem(void *) {}
-  size_t getSize() const override { return 10; }
+  size_t getSizeInBytes() const override { return 10; }
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 

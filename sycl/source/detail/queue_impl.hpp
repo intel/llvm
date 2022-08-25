@@ -530,7 +530,8 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    event Event;
+    event Event = detail::createSyclObjFromImpl<event>(
+        std::make_shared<detail::event_impl>());
 
     if (PostProcess) {
       bool IsKernel = Type == CG::Kernel;
