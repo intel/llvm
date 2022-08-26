@@ -170,6 +170,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         LibPostfix = ".obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
+      if (this->getToolChain().getTriple().isNVPTX()) {
+        // Linking SYCL Device libs requires libclc as well as libdevice
+        if ((InputFilename.find("nvidiacl") != InputFilename.npos ||
+             InputFilename.find("libdevice") != InputFilename.npos))
+          return true;
+        LibPostfix = ".cubin";
+      }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
