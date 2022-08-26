@@ -448,26 +448,14 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
       __ESIMD_EMU_DNS::SetSatur<T2,
                                 __ESIMD_EMU_DNS::is_inttype<RT>::value>::set();
 
-  constexpr __ESIMD_NS::uint ops_per_chan =
-      src1_precision == __ESIMD_ENS::argument_type::TF32 ||
-              src2_precision == __ESIMD_ENS::argument_type::TF32
-          ? 1
-      : src1_precision == __ESIMD_ENS::argument_type::BF16 ||
-              src1_precision == __ESIMD_ENS::argument_type::FP16 ||
-              src2_precision == __ESIMD_ENS::argument_type::BF16 ||
-              src2_precision == __ESIMD_ENS::argument_type::FP16
-          ? 2
-      : src1_precision == __ESIMD_ENS::argument_type::S8 ||
-              src1_precision == __ESIMD_ENS::argument_type::U8 ||
-              src2_precision == __ESIMD_ENS::argument_type::S8 ||
-              src2_precision == __ESIMD_ENS::argument_type::U8
-          ? 4
-          : 8;
-
   __ESIMD_NS::uint V = 0, U = 0, k = 0, temp = 0, src1_ops_per_dword = 0, p = 0;
 
   constexpr auto src1_el_bits = __esimd_dpas_bits_precision(src1_precision);
   constexpr auto src2_el_bits = __esimd_dpas_bits_precision(src2_precision);
+
+  constexpr auto max_el_bits = std::max(src1_el_bits, src2_el_bits);
+  constexpr __ESIMD_NS::uint ops_per_chan =
+      std::min(32 / max_el_bits, static_cast<__ESIMD_NS::uint>(8));
 
   uint32_t src1_signed =
       src1_precision == __ESIMD_ENS::argument_type::S2 ||
