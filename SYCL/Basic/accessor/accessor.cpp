@@ -740,5 +740,52 @@ int main() {
     }
   }
 
+  // Accessor common property interface
+  {
+    using namespace sycl::ext::oneapi;
+    int data[1] = {0};
+
+    // host accessor
+    try {
+      sycl::buffer<int, 1> buf_data(data, sycl::range<1>(1),
+                                    {sycl::property::buffer::use_host_ptr()});
+      accessor_property_list PL{no_alias, no_offset, sycl::no_init};
+      sycl::accessor acc_1(buf_data, PL);
+      static_assert(acc_1.has_property<property::no_alias>());
+      static_assert(acc_1.has_property<property::no_offset>());
+      assert(acc_1.has_property<sycl::property::no_init>());
+
+      static_assert(acc_1.get_property<property::no_alias>() == no_alias);
+      static_assert(acc_1.get_property<property::no_offset>() == no_offset);
+      // Should not throw "The property is not found"
+      auto noInit = acc_1.get_property<sycl::property::no_init>();
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what() << std::endl;
+    }
+
+    // base accessor
+    try {
+      sycl::buffer<int, 1> buf_data(data, sycl::range<1>(1),
+                                    {sycl::property::buffer::use_host_ptr()});
+      sycl::queue q;
+      accessor_property_list PL{no_alias, no_offset, sycl::no_init};
+
+      q.submit([&](sycl::handler &cgh) {
+        sycl::accessor acc_1(buf_data, PL);
+        static_assert(acc_1.has_property<property::no_alias>());
+        static_assert(acc_1.has_property<property::no_offset>());
+        assert(acc_1.has_property<sycl::property::no_init>());
+
+        static_assert(acc_1.get_property<property::no_alias>() == no_alias);
+        static_assert(acc_1.get_property<property::no_offset>() == no_offset);
+        // Should not throw "The property is not found"
+        auto noInit = acc_1.get_property<sycl::property::no_init>();
+      });
+      q.wait();
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what() << std::endl;
+    }
+  }
+
   std::cout << "Test passed" << std::endl;
 }
