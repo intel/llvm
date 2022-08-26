@@ -1760,8 +1760,7 @@ public:
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
-  typename AccessorCommonT::template AccessorSubscript<Dims - 1>
-  operator[](size_t Index) const {
+  auto operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
