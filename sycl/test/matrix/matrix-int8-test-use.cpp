@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -O2 -S -emit-llvm -o - %s | FileCheck %s
 
-// CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL" = type { [12 x [48 x [1 x [4 x [1 x i8]]]]] addrspace(4)* }
-// CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL.[[#]]" = type { [12 x [12 x [1 x [4 x [3 x i32]]]]]  addrspace(4)* }
-// CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL.[[#]]" = type { [48 x [12 x [1 x [4 x [2 x i8]]]]] addrspace(4)* }
+// CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL" = type { [12 x [48 x [5 x [4 x [1 x i8]]]]] addrspace(4)* }
+// CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL.[[#]]" = type { [12 x [12 x [5 x [4 x [3 x i32]]]]]  addrspace(4)* }
+// CHECK-DAG: %"struct.__spv::__spirv_JointMatrixINTEL.[[#]]" = type { [48 x [12 x [5 x [4 x [2 x i8]]]]] addrspace(4)* }
 
 #include <sycl/sycl.hpp>
 #include <iostream>

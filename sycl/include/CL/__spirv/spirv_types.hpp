@@ -112,7 +112,8 @@ enum class MatrixLayout : uint32_t {
   RowMajor = 0,
   ColumnMajor = 1,
   PackedA = 2,
-  PackedB = 3
+  PackedB = 3,
+  Unused = 4
 };
 
 enum class MatrixUse : uint32_t {
@@ -136,8 +137,6 @@ enum class MatrixUse : uint32_t {
 // information to SPIRV translator.
 // The long term solution would be to introduce a matrix type in Clang and use
 // it instead of this member.
-// We keep the Layout here since backend hasn't removed Layout support totally.
-// Once backend removed Layout, we will remove the Layout here.
 template <typename T, std::size_t R, std::size_t C, MatrixUse U, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup>
 struct __spirv_JointMatrixINTEL {
