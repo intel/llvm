@@ -83,6 +83,7 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 #define __SYCL_AFFINITY_DOMAIN_STRING_CASE(DOMAIN)                             \
   case DOMAIN:                                                                 \
     return #DOMAIN;
+
     __SYCL_AFFINITY_DOMAIN_STRING_CASE(
         sycl::info::partition_affinity_domain::numa)
     __SYCL_AFFINITY_DOMAIN_STRING_CASE(
