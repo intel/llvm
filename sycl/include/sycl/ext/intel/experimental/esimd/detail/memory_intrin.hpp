@@ -675,20 +675,18 @@ auto __esimd_emu_lsc_xatomic_offset_access_1(
         } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::sub) {
           __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                             src0[VecIdx]);
-        } else if constexpr (Op ==
-                             __ESIMD_NS::native::lsc::atomic_op::minsint) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smin) {
           __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
-        } else if constexpr (Op ==
-                             __ESIMD_NS::native::lsc::atomic_op::maxsint) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smax) {
           __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
-        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::min) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umin) {
           if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
           }
-        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::max) {
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umax) {
           if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx]);
@@ -781,7 +779,8 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
         if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
           __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx], src1[VecIdx]);
-        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpwr) {
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
           if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
             __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                         src0[VecIdx], src1[VecIdx]);
@@ -1734,18 +1733,18 @@ __esimd_lsc_xatomic_stateless_1(
       } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::sub) {
         __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
                                           src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::minsint) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smin) {
         __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                     src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::maxsint) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smax) {
         __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                     src0[VecIdx]);
-      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::min) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umin) {
         if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
         }
-      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::max) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umax) {
         if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx]);
@@ -1853,7 +1852,7 @@ __esimd_lsc_xatomic_stateless_2(
       if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
         __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                     src0[VecIdx], src1[VecIdx]);
-      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpwr) {
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
         if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
           __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
                                       src0[VecIdx], src1[VecIdx]);

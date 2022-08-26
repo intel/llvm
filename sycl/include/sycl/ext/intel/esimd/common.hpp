@@ -142,9 +142,11 @@ enum class atomic_op : uint8_t {
   /// Decrement: <code>*addr = *addr - 1</code>.
   dec = 0x3,
   /// Minimum: <code>*addr = min(*addr, src0)</code>.
-  min = 0x4,
+  umin = 0x4,
+  min __SYCL_DEPRECATED("use umin") = umin,
   /// Maximum: <code>*addr = max(*addr, src0)</code>.
-  max = 0x5,
+  umax = 0x5,
+  max __SYCL_DEPRECATED("use smax") = umax,
   /// Exchange. <code>*addr == src0;</code>
   xchg = 0x6,
   /// Compare and exchange. <code>if (*addr == src0) *sddr = src1;</code>
@@ -156,16 +158,19 @@ enum class atomic_op : uint8_t {
   /// Bit \c xor: <code>*addr = *addr | src0</code>.
   bit_xor = 0xa,
   /// Minimum (signed integer): <code>*addr = min(*addr, src0)</code>.
-  minsint = 0xb,
+  smin = 0xb,
+  minsint __SYCL_DEPRECATED("use smin") = smin,
   /// Maximum (signed integer): <code>*addr = max(*addr, src0)</code>.
-  maxsint = 0xc,
+  smax = 0xc,
+  maxsint __SYCL_DEPRECATED("use smax") = 0xc,
   /// Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
   fmax __SYCL_DEPRECATED("fmax" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x10,
   /// Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
   fmin __SYCL_DEPRECATED("fmin" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x11,
   /// Compare and exchange (floating point).
   /// <code>if (*addr == src0) *addr = src1;</code>
-  fcmpwr __SYCL_DEPRECATED("fcmpwr" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x12,
+  fcmpxchg = 0x12,
+  fcmpwr __SYCL_DEPRECATED("fcmpwr" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = fcmpxchg,
   fadd __SYCL_DEPRECATED("fadd" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x13,
   fsub __SYCL_DEPRECATED("fsub" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x14,
   load = 0x15,
