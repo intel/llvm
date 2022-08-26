@@ -320,87 +320,129 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 
     // svgenfloat acos (svgenfloat x)
     template <typename T>
-    std::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
-  return __sycl_std::__invoke_acos<T>(x);
+    std::enable_if_t<
+        detail::is_svgenfloat_convertible<T>::value,
+        typename detail::is_svgenfloat_convertible<T>::to_type> acos(T x)
+        __NOEXC {
+  return __sycl_std::__invoke_acos<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat acosh (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> acosh(T x) __NOEXC {
-  return __sycl_std::__invoke_acosh<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+acosh(T x) __NOEXC {
+  return __sycl_std::__invoke_acosh<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat acospi (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> acospi(T x) __NOEXC {
-  return __sycl_std::__invoke_acospi<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+acospi(T x) __NOEXC {
+  return __sycl_std::__invoke_acospi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat asin (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> asin(T x) __NOEXC {
-  return __sycl_std::__invoke_asin<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+asin(T x) __NOEXC {
+  return __sycl_std::__invoke_asin<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat asinh (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> asinh(T x) __NOEXC {
-  return __sycl_std::__invoke_asinh<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+asinh(T x) __NOEXC {
+  return __sycl_std::__invoke_asinh<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat asinpi (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> asinpi(T x) __NOEXC {
-  return __sycl_std::__invoke_asinpi<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+asinpi(T x) __NOEXC {
+  return __sycl_std::__invoke_asinpi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat atan (svgenfloat y_over_x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atan(T y_over_x) __NOEXC {
-  return __sycl_std::__invoke_atan<T>(y_over_x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+atan(T y_over_x) __NOEXC {
+  return __sycl_std::__invoke_atan<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(y_over_x);
 }
 
 // svgenfloat atan2 (svgenfloat y, svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atan2(T y, T x) __NOEXC {
-  return __sycl_std::__invoke_atan2<T>(y, x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+atan2(T y, T x) __NOEXC {
+  return __sycl_std::__invoke_atan2<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(y, x);
 }
 
 // svgenfloat atanh (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atanh(T x) __NOEXC {
-  return __sycl_std::__invoke_atanh<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+atanh(T x) __NOEXC {
+  return __sycl_std::__invoke_atanh<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat atanpi (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atanpi(T x) __NOEXC {
-  return __sycl_std::__invoke_atanpi<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+atanpi(T x) __NOEXC {
+  return __sycl_std::__invoke_atanpi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat atan2pi (svgenfloat y, svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atan2pi(T y, T x) __NOEXC {
-  return __sycl_std::__invoke_atan2pi<T>(y, x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+atan2pi(T y, T x) __NOEXC {
+  return __sycl_std::__invoke_atan2pi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(y, x);
 }
 
 // svgenfloat cbrt (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> cbrt(T x) __NOEXC {
-  return __sycl_std::__invoke_cbrt<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+cbrt(T x) __NOEXC {
+  return __sycl_std::__invoke_cbrt<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat ceil (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> ceil(T x) __NOEXC {
-  return __sycl_std::__invoke_ceil<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+ceil(T x) __NOEXC {
+  return __sycl_std::__invoke_ceil<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat copysign (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> copysign(T x,
-                                                              T y) __NOEXC {
-  return __sycl_std::__invoke_copysign<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+copysign(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_copysign<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat cos (svgenfloat x)
@@ -411,26 +453,38 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> cos(T x) __NOEXC {
 
 // svgenfloat cosh (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> cosh(T x) __NOEXC {
-  return __sycl_std::__invoke_cosh<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+cosh(T x) __NOEXC {
+  return __sycl_std::__invoke_cosh<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat cospi (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> cospi(T x) __NOEXC {
-  return __sycl_std::__invoke_cospi<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+cospi(T x) __NOEXC {
+  return __sycl_std::__invoke_cospi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat erfc (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> erfc(T x) __NOEXC {
-  return __sycl_std::__invoke_erfc<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+erfc(T x) __NOEXC {
+  return __sycl_std::__invoke_erfc<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat erf (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> erf(T x) __NOEXC {
-  return __sycl_std::__invoke_erf<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+erf(T x) __NOEXC {
+  return __sycl_std::__invoke_erf<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat exp (svgenfloat x )
@@ -453,39 +507,56 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp10(T x) __NOEXC {
 
 // svgenfloat expm1 (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> expm1(T x) __NOEXC {
-  return __sycl_std::__invoke_expm1<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+expm1(T x) __NOEXC {
+  return __sycl_std::__invoke_expm1<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat fabs (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fabs(T x) __NOEXC {
-  return __sycl_std::__invoke_fabs<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+fabs(T x) __NOEXC {
+  return __sycl_std::__invoke_fabs<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat fdim (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fdim(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fdim<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+fdim(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_fdim<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat floor (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> floor(T x) __NOEXC {
-  return __sycl_std::__invoke_floor<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+floor(T x) __NOEXC {
+  return __sycl_std::__invoke_floor<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat fma (svgenfloat a, svgenfloat b, svgenfloat c)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fma(T a, T b,
-                                                         T c) __NOEXC {
-  return __sycl_std::__invoke_fma<T>(a, b, c);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+fma(T a, T b, T c) __NOEXC {
+  return __sycl_std::__invoke_fma<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(a, b, c);
 }
 
 // svgenfloat fmax (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmax(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmax<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+fmax(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_fmax<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat fmax (svgenfloat x, sgenfloat y)
@@ -497,8 +568,11 @@ fmax(T x, typename T::element_type y) __NOEXC {
 
 // svgenfloat fmin (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmin(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmin<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+fmin(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_fmin<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat fmin (svgenfloat x, sgenfloat y)
@@ -510,39 +584,54 @@ fmin(T x, typename T::element_type y) __NOEXC {
 
 // svgenfloat fmod (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmod(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmod<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+fmod(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_fmod<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat fract (svgenfloat x, genfloatptr iptr)
 template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value &&
+                     detail::is_genfloatptr<T2>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
 fract(T x, T2 iptr) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_fract<T>(x, iptr);
+  detail::check_vector_size<
+      typename detail::is_svgenfloat_convertible<T>::to_type, T2>();
+  return __sycl_std::__invoke_fract<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, iptr);
 }
 
 // svgenfloat frexp (svgenfloat x, genintptr exp)
 template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value &&
+                     detail::is_genintptr<T2>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
 frexp(T x, T2 exp) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_frexp<T>(x, exp);
+  detail::check_vector_size<
+      typename detail::is_svgenfloat_convertible<T>::to_type, T2>();
+  return __sycl_std::__invoke_frexp<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, exp);
 }
 
 // svgenfloat hypot (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> hypot(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_hypot<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+hypot(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_hypot<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // genint ilogb (svgenfloat x)
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::change_base_type_t<T, int> ilogb(T x) __NOEXC {
-  return __sycl_std::__invoke_ilogb<detail::change_base_type_t<T, int>>(x);
+template <typename T, typename = std::enable_if_t<
+                          detail::is_svgenfloat_convertible<T>::value>>
+detail::change_base_type_t<
+    typename detail::is_svgenfloat_convertible<T>::to_type, int>
+ilogb(T x) __NOEXC {
+  return __sycl_std::__invoke_ilogb<detail::change_base_type_t<
+      typename detail::is_svgenfloat_convertible<T>::to_type, int>>(x);
 }
 
 // float ldexp (float x, int k)
@@ -570,17 +659,23 @@ ldexp(T x, T2 k) __NOEXC {
 
 // svgenfloat lgamma (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> lgamma(T x) __NOEXC {
-  return __sycl_std::__invoke_lgamma<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+lgamma(T x) __NOEXC {
+  return __sycl_std::__invoke_lgamma<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat lgamma_r (svgenfloat x, genintptr signp)
 template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value &&
+                     detail::is_genintptr<T2>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
 lgamma_r(T x, T2 signp) __NOEXC {
-  detail::check_vector_size<T, T2>();
-  return __sycl_std::__invoke_lgamma_r<T>(x, signp);
+  detail::check_vector_size<
+      typename detail::is_svgenfloat_convertible<T>::to_type, T2>();
+  return __sycl_std::__invoke_lgamma_r<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, signp);
 }
 
 // svgenfloat log (svgenfloat x)
@@ -603,33 +698,47 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log10(T x) __NOEXC {
 
 // svgenfloat log1p (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> log1p(T x) __NOEXC {
-  return __sycl_std::__invoke_log1p<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+log1p(T x) __NOEXC {
+  return __sycl_std::__invoke_log1p<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat logb (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> logb(T x) __NOEXC {
-  return __sycl_std::__invoke_logb<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+logb(T x) __NOEXC {
+  return __sycl_std::__invoke_logb<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat mad (svgenfloat a, svgenfloat b, svgenfloat c)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> mad(T a, T b,
-                                                         T c) __NOEXC {
-  return __sycl_std::__invoke_mad<T>(a, b, c);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+mad(T a, T b, T c) __NOEXC {
+  return __sycl_std::__invoke_mad<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(a, b, c);
 }
 
 // svgenfloat maxmag (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> maxmag(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_maxmag<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+maxmag(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_maxmag<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat minmag (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> minmag(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_minmag<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+minmag(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_minmag<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat modf (svgenfloat x, genfloatptr iptr)
@@ -650,15 +759,20 @@ detail::nan_return_t<T> nan(T nancode) __NOEXC {
 
 // svgenfloat nextafter (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> nextafter(T x,
-                                                               T y) __NOEXC {
-  return __sycl_std::__invoke_nextafter<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+nextafter(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_nextafter<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat pow (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> pow(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_pow<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+pow(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_pow<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat pown (svgenfloat x, genint y)
@@ -678,9 +792,11 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> powr(T x, T y) __NOEXC {
 
 // svgenfloat remainder (svgenfloat x, svgenfloat y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> remainder(T x,
-                                                               T y) __NOEXC {
-  return __sycl_std::__invoke_remainder<T>(x, y);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+remainder(T x, T y) __NOEXC {
+  return __sycl_std::__invoke_remainder<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y);
 }
 
 // svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
@@ -694,8 +810,11 @@ remquo(T x, T y, T2 quo) __NOEXC {
 
 // svgenfloat rint (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> rint(T x) __NOEXC {
-  return __sycl_std::__invoke_rint<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+rint(T x) __NOEXC {
+  return __sycl_std::__invoke_rint<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat rootn (svgenfloat x, genint y)
@@ -709,8 +828,11 @@ rootn(T x, T2 y) __NOEXC {
 
 // svgenfloat round (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> round(T x) __NOEXC {
-  return __sycl_std::__invoke_round<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+round(T x) __NOEXC {
+  return __sycl_std::__invoke_round<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat rsqrt (svgenfloat x)
@@ -736,14 +858,20 @@ sincos(T x, T2 cosval) __NOEXC {
 
 // svgenfloat sinh (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> sinh(T x) __NOEXC {
-  return __sycl_std::__invoke_sinh<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+sinh(T x) __NOEXC {
+  return __sycl_std::__invoke_sinh<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat sinpi (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> sinpi(T x) __NOEXC {
-  return __sycl_std::__invoke_sinpi<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+sinpi(T x) __NOEXC {
+  return __sycl_std::__invoke_sinpi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat sqrt (svgenfloat x)
@@ -760,26 +888,38 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> tan(T x) __NOEXC {
 
 // svgenfloat tanh (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> tanh(T x) __NOEXC {
-  return __sycl_std::__invoke_tanh<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+tanh(T x) __NOEXC {
+  return __sycl_std::__invoke_tanh<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat tanpi (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> tanpi(T x) __NOEXC {
-  return __sycl_std::__invoke_tanpi<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+tanpi(T x) __NOEXC {
+  return __sycl_std::__invoke_tanpi<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat tgamma (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> tgamma(T x) __NOEXC {
-  return __sycl_std::__invoke_tgamma<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+tgamma(T x) __NOEXC {
+  return __sycl_std::__invoke_tgamma<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // svgenfloat trunc (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> trunc(T x) __NOEXC {
-  return __sycl_std::__invoke_trunc<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+trunc(T x) __NOEXC {
+  return __sycl_std::__invoke_trunc<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // other marray math functions
@@ -873,10 +1013,18 @@ nan(marray<T, N> nancode) __NOEXC {
 
 /* --------------- 4.13.5 Common functions. ---------------------------------*/
 // svgenfloat clamp (svgenfloat x, svgenfloat minval, svgenfloat maxval)
+// geninteger clamp (geninteger x, geninteger minval, geninteger maxval)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> clamp(T x, T minval,
-                                                           T maxval) __NOEXC {
-  return __sycl_std::__invoke_fclamp<T>(x, minval, maxval);
+std::enable_if_t<detail::is_svgentype_convertible<T>::value,
+                 typename detail::is_svgentype_convertible<T>::to_type>
+clamp(T x, T minval, T maxval) __NOEXC {
+  using to_t = typename detail::is_svgentype_convertible<T>::to_type;
+  if constexpr (detail::is_svgenfloat<to_t>::value)
+    return __sycl_std::__invoke_fclamp<to_t>(x, minval, maxval);
+  else if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_clamp<to_t>(x, minval, maxval);
+  else if constexpr (detail::is_ugeninteger<to_t>::value)
+    return __sycl_std::__invoke_u_clamp<to_t>(x, minval, maxval);
 }
 
 // vgenfloath clamp (vgenfloath x, half minval, half maxval)
@@ -891,21 +1039,48 @@ clamp(T x, typename T::element_type minval,
 
 // svgenfloat degrees (svgenfloat radians)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T>
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
 degrees(T radians) __NOEXC {
-  return __sycl_std::__invoke_degrees<T>(radians);
+  return __sycl_std::__invoke_degrees<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(radians);
 }
 
 // svgenfloat abs (svgenfloat x)
+// ugeninteger abs (geninteger x)
+// igeninteger abs (geninteger x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> abs(T x) __NOEXC {
-  return __sycl_std::__invoke_fabs<T>(x);
+std::enable_if_t<detail::is_svgentype_convertible<T>::value,
+                 typename detail::is_svgentype_convertible<T>::to_type>
+abs(T x) __NOEXC {
+  using to_t = typename detail::is_svgentype_convertible<T>::to_type;
+  if constexpr (detail::is_svgenfloat<to_t>::value) {
+    return __sycl_std::__invoke_fabs<to_t>(x);
+  } else if constexpr (detail::is_igeninteger<to_t>::value) {
+    auto res = __sycl_std::__invoke_s_abs<detail::make_unsigned_t<to_t>>(x);
+    if constexpr (detail::is_vigeninteger<to_t>::value)
+      return res.template convert<detail::vector_element_t<to_t>>();
+    else
+      return detail::make_signed_t<decltype(res)>(res);
+  } else if constexpr (detail::is_ugeninteger<to_t>::value) {
+    return __sycl_std::__invoke_u_abs<to_t>(x);
+  }
 }
 
 // svgenfloat max (svgenfloat x, svgenfloat y)
+// igeninteger max (igeninteger x, igeninteger y)
+// ugeninteger max (ugeninteger x, ugeninteger y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T>(max)(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmax_common<T>(x, y);
+std::enable_if_t<detail::is_svgentype_convertible<T>::value,
+                 typename detail::is_svgentype_convertible<T>::to_type>(max)(
+    T x, T y) __NOEXC {
+  using to_t = typename detail::is_svgentype_convertible<T>::to_type;
+  if constexpr (detail::is_svgenfloat<to_t>::value)
+    return __sycl_std::__invoke_fmax_common<to_t>(x, y);
+  else if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_max<to_t>(x, y);
+  else if constexpr (detail::is_ugeninteger<to_t>::value)
+    return __sycl_std::__invoke_u_max<to_t>(x, y);
 }
 
 // vgenfloatf max (vgenfloatf x, float y)
@@ -918,9 +1093,19 @@ std::enable_if_t<detail::is_vgenfloat<T>::value, T>(max)(
 }
 
 // svgenfloat min (svgenfloat x, svgenfloat y)
+// igeninteger min (igeninteger x, igeninteger y)
+// ugeninteger min (ugeninteger x, ugeninteger y)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T>(min)(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmin_common<T>(x, y);
+std::enable_if_t<detail::is_svgentype_convertible<T>::value,
+                 typename detail::is_svgentype_convertible<T>::to_type>(min)(
+    T x, T y) __NOEXC {
+  using to_t = typename detail::is_svgentype_convertible<T>::to_type;
+  if constexpr (detail::is_svgenfloat<to_t>::value)
+    return __sycl_std::__invoke_fmin_common<to_t>(x, y);
+  else if constexpr (detail::is_igeninteger<to_t>::value)
+    return __sycl_std::__invoke_s_min<to_t>(x, y);
+  else if constexpr (detail::is_ugeninteger<to_t>::value)
+    return __sycl_std::__invoke_u_min<to_t>(x, y);
 }
 
 // vgenfloatf min (vgenfloatf x, float y)
@@ -934,9 +1119,11 @@ std::enable_if_t<detail::is_vgenfloat<T>::value, T>(min)(
 
 // svgenfloat mix (svgenfloat x, svgenfloat y, svgenfloat a)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> mix(T x, T y,
-                                                         T a) __NOEXC {
-  return __sycl_std::__invoke_mix<T>(x, y, a);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+mix(T x, T y, T a) __NOEXC {
+  return __sycl_std::__invoke_mix<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x, y, a);
 }
 
 // vgenfloatf mix (vgenfloatf x, vgenfloatf y, float a)
@@ -950,15 +1137,20 @@ mix(T x, T y, typename T::element_type a) __NOEXC {
 
 // svgenfloat radians (svgenfloat degrees)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T>
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
 radians(T degrees) __NOEXC {
-  return __sycl_std::__invoke_radians<T>(degrees);
+  return __sycl_std::__invoke_radians<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(degrees);
 }
 
 // svgenfloat step (svgenfloat edge, svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> step(T edge, T x) __NOEXC {
-  return __sycl_std::__invoke_step<T>(edge, x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+step(T edge, T x) __NOEXC {
+  return __sycl_std::__invoke_step<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(edge, x);
 }
 
 // vgenfloatf step (float edge, vgenfloatf x)
@@ -972,9 +1164,11 @@ step(typename T::element_type edge, T x) __NOEXC {
 
 // svgenfloat smoothstep (svgenfloat edge0, svgenfloat edge1, svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T>
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
 smoothstep(T edge0, T edge1, T x) __NOEXC {
-  return __sycl_std::__invoke_smoothstep<T>(edge0, edge1, x);
+  return __sycl_std::__invoke_smoothstep<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(edge0, edge1, x);
 }
 
 // vgenfloatf smoothstep (float edge0, float edge1, vgenfloatf x)
@@ -989,8 +1183,11 @@ smoothstep(typename T::element_type edge0, typename T::element_type edge1,
 
 // svgenfloat sign (svgenfloat x)
 template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> sign(T x) __NOEXC {
-  return __sycl_std::__invoke_sign<T>(x);
+std::enable_if_t<detail::is_svgenfloat_convertible<T>::value,
+                 typename detail::is_svgenfloat_convertible<T>::to_type>
+sign(T x) __NOEXC {
+  return __sycl_std::__invoke_sign<
+      typename detail::is_svgenfloat_convertible<T>::to_type>(x);
 }
 
 // marray common functions
@@ -1069,22 +1266,6 @@ __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(
 #undef __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL
 
 /* --------------- 4.13.4 Integer functions. --------------------------------*/
-// ugeninteger abs (geninteger x)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> abs(T x) __NOEXC {
-  return __sycl_std::__invoke_u_abs<T>(x);
-}
-
-// igeninteger abs (geninteger x)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> abs(T x) __NOEXC {
-  auto res = __sycl_std::__invoke_s_abs<detail::make_unsigned_t<T>>(x);
-  if constexpr (detail::is_vigeninteger<T>::value) {
-    return res.template convert<detail::vector_element_t<T>>();
-  } else
-    return detail::make_signed_t<decltype(res)>(res);
-}
-
 // ugeninteger abs_diff (geninteger x, geninteger y)
 template <typename T>
 std::enable_if_t<detail::is_ugeninteger<T>::value, T> abs_diff(T x,
@@ -1135,20 +1316,6 @@ std::enable_if_t<detail::is_igeninteger<T>::value, T> rhadd(T x, T y) __NOEXC {
 template <typename T>
 std::enable_if_t<detail::is_ugeninteger<T>::value, T> rhadd(T x, T y) __NOEXC {
   return __sycl_std::__invoke_u_rhadd<T>(x, y);
-}
-
-// geninteger clamp (geninteger x, geninteger minval, geninteger maxval)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T> clamp(T x, T minval,
-                                                            T maxval) __NOEXC {
-  return __sycl_std::__invoke_s_clamp<T>(x, minval, maxval);
-}
-
-// geninteger clamp (geninteger x, geninteger minval, geninteger maxval)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T> clamp(T x, T minval,
-                                                            T maxval) __NOEXC {
-  return __sycl_std::__invoke_u_clamp<T>(x, minval, maxval);
 }
 
 // geninteger clamp (geninteger x, sgeninteger minval, sgeninteger maxval)
@@ -1221,18 +1388,6 @@ std::enable_if_t<detail::is_ugeninteger<T>::value, T> mad_sat(T a, T b,
   return __sycl_std::__invoke_u_mad_sat<T>(a, b, c);
 }
 
-// igeninteger max (igeninteger x, igeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T>(max)(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_s_max<T>(x, y);
-}
-
-// ugeninteger max (ugeninteger x, ugeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T>(max)(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_u_max<T>(x, y);
-}
-
 // igeninteger max (vigeninteger x, sigeninteger y)
 template <typename T>
 std::enable_if_t<detail::is_vigeninteger<T>::value, T>(max)(
@@ -1245,18 +1400,6 @@ template <typename T>
 std::enable_if_t<detail::is_vugeninteger<T>::value, T>(max)(
     T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_u_max<T>(x, T(y));
-}
-
-// igeninteger min (igeninteger x, igeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_igeninteger<T>::value, T>(min)(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_s_min<T>(x, y);
-}
-
-// ugeninteger min (ugeninteger x, ugeninteger y)
-template <typename T>
-std::enable_if_t<detail::is_ugeninteger<T>::value, T>(min)(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_u_min<T>(x, y);
 }
 
 // vigeninteger min (vigeninteger x, sigeninteger y)

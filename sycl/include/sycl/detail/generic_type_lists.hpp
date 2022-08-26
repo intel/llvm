@@ -558,6 +558,9 @@ using scalar_basic_list =
 using vector_basic_list =
     type_list<vector_signed_basic_list, vector_unsigned_basic_list>;
 
+using scalar_vector_basic_list =
+    type_list<scalar_basic_list, vector_basic_list>;
+
 using marray_basic_list =
     type_list<marray_signed_basic_list, marray_unsigned_basic_list>;
 

@@ -263,6 +263,8 @@ using is_gen_based_on_type_sizeof =
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
+template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
+
 template <typename> struct get_vec_size {
   static constexpr int size = 1;
 };
@@ -270,6 +272,17 @@ template <typename> struct get_vec_size {
 template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
+
+// is_marray
+template <typename> struct is_marray : std::false_type {};
+template <typename T, std::size_t N>
+struct is_marray<sycl::marray<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
+
+// is_marray_or_vec_v
+template <typename T>
+constexpr bool is_marray_or_vec_v = is_marray_v<T> || is_vec_v<T>;
 
 // is_integral
 template <typename T>
@@ -473,6 +486,85 @@ template <typename T> struct function_traits {};
 template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
   using ret_type = Ret;
   using args_type = std::tuple<Args...>;
+};
+
+template <typename CandT> constexpr int GetConversionPriority() {
+  if constexpr (std::is_floating_point_v<CandT> ||
+                std::is_same<std::remove_cv_t<CandT>, half>::value ||
+                std::is_same<std::remove_cv_t<CandT>, half_impl::half>::value) {
+    // For floating point values we prioritize the largest representation.
+    return 3100 + sizeof(CandT);
+  } else if constexpr (std::is_integral_v<CandT>) {
+    // For integrals we prefer the smallest possible implicit representation.
+    return 3032 - sizeof(CandT);
+  } else if constexpr (is_marray_v<CandT>) {
+    // Marray has lower priority than scalars, but higher priority than vec.
+    return GetConversionPriority<marray_element_t<CandT>>() - 1000;
+  } else if constexpr (is_vec_v<CandT>) {
+    // Vec takes lowest priority. Smaller vectors are preferred.
+    return GetConversionPriority<vector_element_t<CandT>>() - 1984 -
+           vector_size<CandT>::value;
+  }
+}
+
+// Find most suitable convertible type.
+// If either candidate is the same type as T, they take absolute priority.
+// Otherwise, the conversion with the highest priority wins.
+template <typename T, typename CandT1, typename CandT2>
+struct select_most_suitable_conversion {
+  static constexpr bool CandT1_is_same = std::is_same_v<T, CandT1>;
+  static constexpr bool CandT2_is_same = std::is_same_v<T, CandT2>;
+  static constexpr bool CandT1_takes_prio =
+      GetConversionPriority<CandT1>() >= GetConversionPriority<CandT2>();
+  using type = std::conditional_t<
+      CandT1_is_same, CandT1,
+      std::conditional_t<
+          CandT2_is_same, CandT2,
+          std::conditional_t<CandT1_takes_prio, CandT1, CandT2>>>;
+};
+template <typename T, typename CandT>
+struct select_most_suitable_conversion<T, CandT, void> {
+  using type = CandT;
+};
+template <typename T, typename CandT>
+struct select_most_suitable_conversion<T, void, CandT> {
+  using type = CandT;
+};
+template <typename T> struct select_most_suitable_conversion<T, void, void> {
+  using type = void;
+};
+
+template <typename T, typename TypeList, typename = void>
+struct is_convertible : public is_convertible<T, tail_t<TypeList>> {};
+
+// Fast path to stop if we find the exact type.
+template <typename T, typename TypeList>
+struct is_convertible<T, TypeList,
+                      std::enable_if_t<std::is_same<std::remove_cv_t<T>,
+                                                    head_t<TypeList>>::value>> {
+  using to_type = T;
+  static constexpr bool value = true;
+};
+
+// Otherwise, find the most suitable conversion recursively.
+template <typename T, typename TypeList>
+struct is_convertible<
+    T, TypeList,
+    std::enable_if_t<
+        std::is_convertible<std::remove_cv_t<T>, head_t<TypeList>>::value &&
+        !std::is_same<std::remove_cv_t<T>, head_t<TypeList>>::value>> {
+  using tail_is_convertible = is_convertible<T, tail_t<TypeList>>;
+  using new_type = copy_cv_qualifiers_t<T, head_t<TypeList>>;
+  using to_type = std::conditional_t<
+      !tail_is_convertible::value, new_type,
+      typename select_most_suitable_conversion<
+          T, new_type, typename tail_is_convertible::to_type>::type>;
+  static constexpr bool value = true;
+};
+
+template <typename T> struct is_convertible<T, empty_type_list> {
+  using to_type = void;
+  static constexpr bool value = false;
 };
 
 } // namespace detail

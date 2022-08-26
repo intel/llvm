@@ -272,6 +272,14 @@ using is_genptr = std::bool_constant<
 
 template <typename T> using is_nan_type = is_contained<T, gtl::nan_list>;
 
+template <typename T>
+using is_svgenfloat_convertible =
+    is_convertible<T, gtl::scalar_vector_floating_list>;
+
+template <typename T>
+using is_svgentype_convertible =
+    is_convertible<T, gtl::scalar_vector_basic_list>;
+
 // nan_types
 template <typename T, typename Enable = void> struct nan_types;
 
