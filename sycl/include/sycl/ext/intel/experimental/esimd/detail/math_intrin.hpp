@@ -12,12 +12,15 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, SZ>
+  sycl::ext::intel::esimd::detail::vector_type_t<                              \
+      sycl::ext::intel::esimd::detail::__raw_t<T>, SZ>
 #define __ESIMD_cpp_vec_t(T, SZ)                                               \
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__cpp_t<T>, SZ>
+  sycl::ext::intel::esimd::detail::vector_type_t<                              \
+      sycl::ext::intel::esimd::detail::__cpp_t<T>, SZ>
 
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)

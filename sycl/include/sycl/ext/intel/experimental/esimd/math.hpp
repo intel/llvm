@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
@@ -1979,8 +1981,9 @@ dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
       __ESIMD_NS::simd<T2, N2> src2,
       std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
-      src1_precision == src2_precision && src1_precision == argument_type::FP16;
+      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
+      (src1_precision == src2_precision) &&
+      (src1_precision == argument_type::FP16);
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&
                            src1_precision == src2_precision &&
@@ -2052,7 +2055,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 dpasw2(__ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
        std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
+      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
       src1_precision == src2_precision && src1_precision == argument_type::FP16;
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&

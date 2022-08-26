@@ -932,8 +932,9 @@ protected:
 
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
-  template <typename, int, access::mode, access::target, access::placeholder,
-            typename>
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
   friend class accessor;
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1760,8 +1761,7 @@ public:
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
-  typename AccessorCommonT::template AccessorSubscript<Dims - 1>
-  operator[](size_t Index) const {
+  auto operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
