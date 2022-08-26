@@ -485,7 +485,25 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  __ESIMD_DNS::vector_type_t<Ty, N> Output = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+    // Keeping original values for return + 'load'
+    Output[AddrIdx] = *((Ty *)addrs[AddrIdx]);
+    if constexpr (Op == __ESIMD_NS::atomic_op::inc) {
+      __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)addrs[AddrIdx],
+                                        static_cast<Ty>(1));
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::dec) {
+      __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)addrs[AddrIdx],
+                                        static_cast<Ty>(1));
+    }
+  }
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -500,17 +518,59 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 {
   __ESIMD_DNS::vector_type_t<Ty, N> retv;
 
-  for (int i = 0; i < N; i++) {
-    if (pred[i]) {
-      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
 
-      switch (Op) {
-      case __ESIMD_NS::atomic_op::add:
-        retv[i] = __ESIMD_DNS::atomic_add_fetch<Ty>(p, src0[i]);
-        break;
-      default:
-        __ESIMD_UNSUPPORTED_ON_HOST;
+    // Keeping original values for return
+    retv[AddrIdx] = *((Ty *)addrs[AddrIdx]);
+
+    if constexpr (Op == __ESIMD_NS::atomic_op::store) {
+      __ESIMD_DNS::atomic_store<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::add) {
+      __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::sub) {
+      __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::minsint) {
+      __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::maxsint) {
+      __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::min) {
+      if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
       }
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::max) {
+      if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+      }
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::fadd) {
+      if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+      }
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::fsub) {
+      if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+      }
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::fmin) {
+      if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+      }
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::fmax) {
+      if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+      }
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_and) {
+      // TODO : Type Check? Integral type only?
+      __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_or) {
+      // TODO : Type Check? Integral type only?
+      __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_xor) {
+      // TODO : Type Check? Integral type only?
+      __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
     }
   }
 
@@ -528,7 +588,27 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  __ESIMD_DNS::vector_type_t<Ty, N> retv;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+    // Keeping original values for return
+    retv[AddrIdx] = *((Ty *)addrs[AddrIdx]);
+    if constexpr (Op == __ESIMD_NS::atomic_op::cmpxchg) {
+      __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx], src0[AddrIdx],
+                                  src1[AddrIdx]);
+    } else if constexpr (Op == __ESIMD_NS::atomic_op::fcmpwr) {
+      if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+        __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx], src0[AddrIdx],
+                                    src1[AddrIdx]);
+      }
+    }
+  }
+  return retv;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
