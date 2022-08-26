@@ -20,6 +20,8 @@
 // CHECK-DAG: [[ACCESSORIMPLDEVICE_2:%"class.cl::sycl::detail::AccessorImplDevice.*]] = type { [[ID_2]], [[RANGE_2]], [[RANGE_2]] }
 // CHECK-DAG: [[ACCESSOR_1:%"class.cl::sycl::accessor.*]] = type { [[ACCESSORIMPLDEVICE_1]], { i32 addrspace(1)* } }
 // CHECK-DAG: [[ACCESSOR_2:%"class.cl::sycl::accessor.*]] = type { [[ACCESSORIMPLDEVICE_2]], { i64 addrspace(1)* } }
+// CHECK: define void @test_array.1([[ARRAY_1]] %0)
+// CHECK: define void @test_array.2([[ARRAY_2]] %0)
 // CHECK: define void @test_id([[ID_1]] %0, [[ID_1]] %1)
 // CHECK: define void @test_range.1([[RANGE_1]] %0)
 // CHECK: define void @test_range.2([[RANGE_2]] %0)
@@ -28,6 +30,12 @@
 // CEHCK: define void @test_accessor.2([[ACCESSOR_2]] %0)
 
 module {
+  func.func @test_array.1(%arg0: !sycl.array<[1], (memref<1xi64>)>) {
+    return
+  }
+  func.func @test_array.2(%arg0: !sycl.array<[2], (memref<2xi64>)>) {
+    return
+  }
   func.func @test_id(%arg0: !sycl.id<1>, %arg1: !sycl.id<1>) {
     return
   }

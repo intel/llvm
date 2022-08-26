@@ -50,6 +50,20 @@ static Optional<Type> getArrayTy(MLIRContext &context, unsigned dimNum,
 // Type conversion
 //===----------------------------------------------------------------------===//
 
+/// Converts SYCL array type to LLVM type.
+static Optional<Type> convertArrayType(sycl::ArrayType type,
+                                       LLVMTypeConverter &converter) {
+  assert(type.getBody().size() == 1 &&
+         "Expecting SYCL array body to have size 1");
+  assert(type.getBody()[0].isa<MemRefType>() &&
+         "Expecting SYCL array body entry to be MemRefType");
+  assert(type.getBody()[0].cast<MemRefType>().getElementType() ==
+             converter.getIndexType() &&
+         "Expecting SYCL array body entry element type to be the index type");
+  return getArrayTy(converter.getContext(), type.getDimension(),
+                    converter.getIndexType());
+}
+
 /// Converts SYCL range or id type to LLVM type, given \p dimNum - number of
 /// dimensions, \p name - the expected LLVM type name, \p converter - LLVM type
 /// converter.
@@ -127,8 +141,7 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
     return convertAccessorType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::ArrayType type) {
-    llvm_unreachable("SYCLToLLVM - sycl::ArrayType not handle (yet)");
-    return llvm::None;
+    return convertArrayType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::GroupType type) {
     llvm_unreachable("SYCLToLLVM - sycl::GroupType not handle (yet)");
