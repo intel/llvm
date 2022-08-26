@@ -77,6 +77,31 @@ read_execution_bitfield(pi_device_exec_capabilities bits) {
   return result;
 }
 
+inline std::string
+affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
+  switch (AffinityDomain) {
+#define __SYCL_AFFINITY_DOMAIN_STRING_CASE(DOMAIN)                             \
+  case DOMAIN:                                                                 \
+    return #DOMAIN;
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::numa)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L4_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L3_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L2_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L1_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::next_partitionable)
+#undef __SYCL_AFFINITY_DOMAIN_STRING_CASE
+  default:
+    assert(false && "Missing case for affinity domain.");
+    return "unknown";
+  }
+}
+
 // Mapping expected SYCL return types to those returned by PI calls
 template <typename T> struct sycl_to_pi {
   using type = T;
