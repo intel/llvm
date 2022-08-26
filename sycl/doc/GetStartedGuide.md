@@ -46,7 +46,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)
 
-Alternatively, you can use Docker image, that has everything you need for building
+Alternatively, you can use a Docker image that has everything you need for building
 pre-installed:
 
 ```
