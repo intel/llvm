@@ -59,8 +59,10 @@ struct ABar {
 };
 
 template <typename T> void fooBar() {
-  // expected-error@+1 2 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
+  // expected-error@+2 {{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
+  // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   static device_global<T> c;
+  // expected-error@+2 {{'device_global' member variable 'd' should be publicly accessible from namespace scope}}
   // expected-error@+1 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<T> d;
 }

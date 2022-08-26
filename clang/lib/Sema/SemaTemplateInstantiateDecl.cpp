@@ -1617,12 +1617,11 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
     if (SemaRef.getLangOpts().SYCLIsDevice &&
         SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             Var->getType())) {
-      if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
+      if (!Var->hasGlobalStorage())
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope);
-      }
 
-      if (Var->getAccess() == AS_private)
+      if (Var->getAccess() != AS_public)
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_not_publicly_accessible)
             << Var;
