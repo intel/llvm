@@ -1,12 +1,18 @@
 // REQUIRES: cuda
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s -o %t.out
+//
+/// Also test the experimental CUDA interop interface
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %s -o %t.out
 // expected-no-diagnostics
 
-// Test for experimental CUDA interop API
+// Test for legacy and experimental CUDA interop API
 
-#define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
+#ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
+#endif
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -73,6 +79,7 @@ int main() {
   // behavior of these template functions is defined by the SYCL backend
   // specification document.
 
+#ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
   backend_input_t<backend::ext_oneapi_cuda, device> InteropDeviceInput{
       cu_device};
   device InteropDevice =
@@ -85,6 +92,7 @@ int main() {
   event InteropEvent = make_event<backend::ext_oneapi_cuda>(cu_event, Context);
 
   queue InteropQueue = make_queue<backend::ext_oneapi_cuda>(cu_queue, Context);
+#endif
 
   return 0;
 }
