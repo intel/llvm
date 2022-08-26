@@ -21,6 +21,10 @@ struct Baz {
 private:
   // expected-error@+1{{'device_global' member variable 'f' should be publicly accessible from namespace scope}}
   static device_global<int> f;
+
+protected:
+  // expected-error@+1{{'device_global' member variable 'g' should be publicly accessible from namespace scope}}
+  static device_global<int> g;
 };
 
 device_global<int> Baz::f;
@@ -39,6 +43,12 @@ device_global<int> same_name; // OK
 struct BBar {
 private:
   struct BarInsider {
+    // expected-error@+1{{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
+    static device_global<float> c;
+  };
+
+protected:
+  struct BarInsiderProtected {
     // expected-error@+1{{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
     static device_global<float> c;
   };
@@ -83,6 +93,15 @@ public:
   device_global<T> e;
   // expected-error@+1 2 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
   device_global<int> f;
+
+protected:
+  // expected-error@+1 2 {{'device_global' member variable 'g' should be publicly accessible from namespace scope}}
+  static device_global<T> g;
+  // expected-error@+1 2 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
+  device_global<T> h;
+  // expected-error@+2 {{'device_global' member variable 'i' should be publicly accessible from namespace scope}}
+  // expected-error@+1 2 {{'device_global' variable must be a static data member or declared in global or namespace scope}}
+  device_global<int> i;
 };
 
 // expected-note@+1 {{in instantiation of template class 'TS<int>' requested here}}
