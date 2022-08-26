@@ -111,7 +111,7 @@ range<3> image_plain::get_range() const { return impl->get_range(); }
 
 range<2> image_plain::get_pitch() const { return impl->get_pitch(); }
 
-size_t image_plain::get_size() const { return impl->size(); }
+size_t image_plain::get_size() const { return impl->getSizeInBytes(); }
 
 size_t image_plain::get_count() const { return impl->get_count(); }
 

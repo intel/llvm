@@ -197,5 +197,11 @@ int main() {
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
 
+  // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
+        LocalAcc(sycl::range<1>(1), CGH);
+  });
+
   return 0;
 }
