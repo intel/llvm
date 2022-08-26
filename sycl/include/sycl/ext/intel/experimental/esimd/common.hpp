@@ -18,10 +18,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
+namespace ext::intel::experimental::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -298,9 +295,6 @@ enum class split_barrier_action : uint8_t {
 
 /// @} sycl_esimd_core
 
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

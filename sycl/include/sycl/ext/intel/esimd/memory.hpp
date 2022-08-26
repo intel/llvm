@@ -693,14 +693,10 @@ namespace detail {
 ///
 template <__ESIMD_NS::atomic_op Op, typename T, int N, unsigned NumSrc>
 constexpr void check_atomic() {
-  if constexpr (!detail::isPowerOf2(N, 32)) {
-    static_assert((detail::isPowerOf2(N, 32)),
-                  "Execution size 1, 2, 4, 8, 16, 32 are supported");
-  }
-  if constexpr (NumSrc != __ESIMD_DNS::get_num_args<Op>()) {
-    static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
-                  "wrong number of operands");
-  }
+  static_assert((detail::isPowerOf2(N, 32)),
+                "Execution size 1, 2, 4, 8, 16, 32 are supported");
+  static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
+                "wrong number of operands");
   constexpr bool IsInt2BytePlus =
       std::is_integral_v<T> && (sizeof(T) >= sizeof(uint16_t));
 
@@ -711,20 +707,15 @@ constexpr void check_atomic() {
                 Op == __ESIMD_NS::atomic_op::dec ||
                 Op == __ESIMD_NS::atomic_op::load) {
 
-    if constexpr (!IsInt2BytePlus) {
-      static_assert(IsInt2BytePlus,
-                    "Integral 16-bit or wider type is expected");
-    }
+    static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
   }
   // FP ops (are always delegated to native::lsc::<Op>)
   if constexpr (Op == __ESIMD_NS::atomic_op::fmax ||
                 Op == __ESIMD_NS::atomic_op::fmin ||
                 Op == __ESIMD_NS::atomic_op::fadd ||
                 Op == __ESIMD_NS::atomic_op::fsub) {
-    if constexpr (!is_type<T, float, sycl::half>()) {
-      static_assert((is_type<T, float, sycl::half>()),
-                    "Type F or HF is expected");
-    }
+    static_assert((is_type<T, float, sycl::half>()),
+                  "Type F or HF is expected");
   }
   if constexpr (Op == __ESIMD_NS::atomic_op::add ||
                 Op == __ESIMD_NS::atomic_op::sub ||
@@ -735,10 +726,7 @@ constexpr void check_atomic() {
                 Op == __ESIMD_NS::atomic_op::bit_xor ||
                 Op == __ESIMD_NS::atomic_op::minsint ||
                 Op == __ESIMD_NS::atomic_op::maxsint) {
-    if constexpr (!IsInt2BytePlus) {
-      static_assert(IsInt2BytePlus,
-                    "Integral 16-bit or wider type is expected");
-    }
+    static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
     constexpr bool IsSignedMinmax = (Op == __ESIMD_NS::atomic_op::minsint) ||
                                     (Op == __ESIMD_NS::atomic_op::maxsint);
     constexpr bool IsUnsignedMinmax = (Op == __ESIMD_NS::atomic_op::min) ||
@@ -746,11 +734,8 @@ constexpr void check_atomic() {
 
     if constexpr (IsSignedMinmax || IsUnsignedMinmax) {
       constexpr bool SignOK = std::is_signed_v<T> == IsSignedMinmax;
-
-      if constexpr (!SignOK) {
-        static_assert(SignOK, "Signed/unsigned integer type expected for "
-                              "signed/unsigned min/max operation");
-      }
+      static_assert(SignOK, "Signed/unsigned integer type expected for "
+                            "signed/unsigned min/max operation");
     }
   }
 }

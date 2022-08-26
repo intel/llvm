@@ -14,7 +14,6 @@
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
-// #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
   sycl::ext::intel::esimd::detail::vector_type_t<                              \

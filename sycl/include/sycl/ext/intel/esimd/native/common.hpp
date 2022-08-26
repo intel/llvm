@@ -16,9 +16,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace esimd {
+namespace ext::intel::esimd {
 namespace native {
 namespace lsc {
 
@@ -41,33 +39,31 @@ namespace lsc {
 /// <tt>lsc_atomic_update<atomic_op::inc>(...);</tt> with default cache and data
 /// size controls.
 enum class atomic_op : uint8_t {
-  inc = 0x08,     // atomic integer increment
-  dec = 0x09,     // atomic integer decrement
-  load = 0x0a,    // atomic load
-  store = 0x0b,   // atomic store
-  add = 0x0c,     // atomic integer add
-  sub = 0x0d,     // atomic integer subtract
-  minsint = 0x0e, // atomic signed int min
-  maxsint = 0x0f, // atomic signed int max
-  min = 0x10,     // atomic unsigned int min
-  max = 0x11,     // atomic unsigned int max
-  cmpxchg = 0x12, // atomic int compare and swap
-  fadd = 0x13,    // floating-point add
-  fsub = 0x14,    // floating-point subtract
-  fmin = 0x15,    // floating-point min
-  fmax = 0x16,    // floating-point max
-  fcmpwr = 0x17,  // floating-point CAS
-  bit_and = 0x18, // logical (bitwise) AND
-  bit_or = 0x19,  // logical (bitwise) OR
-  bit_xor = 0x1a, // logical (bitwise) XOR
+  inc = 0x08,      // atomic integer increment
+  dec = 0x09,      // atomic integer decrement
+  load = 0x0a,     // atomic load
+  store = 0x0b,    // atomic store
+  add = 0x0c,      // atomic integer add
+  sub = 0x0d,      // atomic integer subtract
+  smin = 0x0e,     // atomic signed int min
+  smax = 0x0f,     // atomic signed int max
+  umin = 0x10,     // atomic unsigned int min
+  umax = 0x11,     // atomic unsigned int max
+  cmpxchg = 0x12,  // atomic int compare and swap
+  fadd = 0x13,     // floating-point add
+  fsub = 0x14,     // floating-point subtract
+  fmin = 0x15,     // floating-point min
+  fmax = 0x16,     // floating-point max
+  fcmpxchg = 0x17, // floating-point CAS
+  bit_and = 0x18,  // logical (bitwise) AND
+  bit_or = 0x19,   // logical (bitwise) OR
+  bit_xor = 0x1a,  // logical (bitwise) XOR
 };
 
 /// @} sycl_esimd_memory_lsc
 
 } // namespace lsc
 } // namespace native
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

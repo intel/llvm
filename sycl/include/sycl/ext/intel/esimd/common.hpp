@@ -33,9 +33,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace esimd {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -72,6 +70,9 @@ ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n) {
   return (n & (n - 1)) == 0;
 }
 
+/// Check at compile time if given 32 bit positive integer is both:
+/// - a power of 2
+/// - less or equal to given limit
 ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n, unsigned int limit) {
   return (n & (n - 1)) == 0 && n <= limit;
 }
@@ -187,10 +188,10 @@ template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
   } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store ||
                        Op == __ESIMD_NS::native::lsc::atomic_op::add ||
                        Op == __ESIMD_NS::native::lsc::atomic_op::sub ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::minsint ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::maxsint ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::min ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::max ||
+                       Op == __ESIMD_NS::native::lsc::atomic_op::smin ||
+                       Op == __ESIMD_NS::native::lsc::atomic_op::smax ||
+                       Op == __ESIMD_NS::native::lsc::atomic_op::umin ||
+                       Op == __ESIMD_NS::native::lsc::atomic_op::umax ||
                        Op == __ESIMD_NS::native::lsc::atomic_op::fadd ||
                        Op == __ESIMD_NS::native::lsc::atomic_op::fsub ||
                        Op == __ESIMD_NS::native::lsc::atomic_op::fmin ||
@@ -200,7 +201,7 @@ template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
                        Op == __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
     return 1;
   } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fcmpwr) {
+                       Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
     return 2;
   } else {
     return -1; // error
@@ -229,9 +230,9 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
   case __ESIMD_NS::atomic_op::dec:
     return __ESIMD_NS::native::lsc::atomic_op::dec;
   case __ESIMD_NS::atomic_op::min:
-    return __ESIMD_NS::native::lsc::atomic_op::min;
+    return __ESIMD_NS::native::lsc::atomic_op::umin;
   case __ESIMD_NS::atomic_op::max:
-    return __ESIMD_NS::native::lsc::atomic_op::max;
+    return __ESIMD_NS::native::lsc::atomic_op::umax;
   case __ESIMD_NS::atomic_op::cmpxchg:
     return __ESIMD_NS::native::lsc::atomic_op::cmpxchg;
   case __ESIMD_NS::atomic_op::bit_and:
@@ -241,15 +242,15 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
   case __ESIMD_NS::atomic_op::bit_xor:
     return __ESIMD_NS::native::lsc::atomic_op::bit_xor;
   case __ESIMD_NS::atomic_op::minsint:
-    return __ESIMD_NS::native::lsc::atomic_op::minsint;
+    return __ESIMD_NS::native::lsc::atomic_op::smin;
   case __ESIMD_NS::atomic_op::maxsint:
-    return __ESIMD_NS::native::lsc::atomic_op::maxsint;
+    return __ESIMD_NS::native::lsc::atomic_op::smax;
   case __ESIMD_NS::atomic_op::fmax:
     return __ESIMD_NS::native::lsc::atomic_op::fmax;
   case __ESIMD_NS::atomic_op::fmin:
     return __ESIMD_NS::native::lsc::atomic_op::fmin;
   case __ESIMD_NS::atomic_op::fcmpwr:
-    return __ESIMD_NS::native::lsc::atomic_op::fcmpwr;
+    return __ESIMD_NS::native::lsc::atomic_op::fcmpxchg;
   case __ESIMD_NS::atomic_op::fadd:
     return __ESIMD_NS::native::lsc::atomic_op::fadd;
   case __ESIMD_NS::atomic_op::fsub:
@@ -274,9 +275,9 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
     return __ESIMD_NS::atomic_op::inc;
   case __ESIMD_NS::native::lsc::atomic_op::dec:
     return __ESIMD_NS::atomic_op::dec;
-  case __ESIMD_NS::native::lsc::atomic_op::min:
+  case __ESIMD_NS::native::lsc::atomic_op::umin:
     return __ESIMD_NS::atomic_op::min;
-  case __ESIMD_NS::native::lsc::atomic_op::max:
+  case __ESIMD_NS::native::lsc::atomic_op::umax:
     return __ESIMD_NS::atomic_op::max;
   case __ESIMD_NS::native::lsc::atomic_op::cmpxchg:
     return __ESIMD_NS::atomic_op::cmpxchg;
@@ -286,15 +287,15 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
     return __ESIMD_NS::atomic_op::bit_or;
   case __ESIMD_NS::native::lsc::atomic_op::bit_xor:
     return __ESIMD_NS::atomic_op::bit_xor;
-  case __ESIMD_NS::native::lsc::atomic_op::minsint:
+  case __ESIMD_NS::native::lsc::atomic_op::smin:
     return __ESIMD_NS::atomic_op::minsint;
-  case __ESIMD_NS::native::lsc::atomic_op::maxsint:
+  case __ESIMD_NS::native::lsc::atomic_op::smax:
     return __ESIMD_NS::atomic_op::maxsint;
   case __ESIMD_NS::native::lsc::atomic_op::fmax:
     return __ESIMD_NS::atomic_op::fmax;
   case __ESIMD_NS::native::lsc::atomic_op::fmin:
     return __ESIMD_NS::atomic_op::fmin;
-  case __ESIMD_NS::native::lsc::atomic_op::fcmpwr:
+  case __ESIMD_NS::native::lsc::atomic_op::fcmpxchg:
     return __ESIMD_NS::atomic_op::fcmpwr;
   case __ESIMD_NS::native::lsc::atomic_op::fadd:
     return __ESIMD_NS::atomic_op::fadd;
@@ -323,8 +324,6 @@ template <__ESIMD_NS::atomic_op Op> constexpr int get_num_args() {
 
 } // namespace detail
 
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

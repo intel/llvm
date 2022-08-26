@@ -295,7 +295,7 @@ constexpr void check_lsc_atomic() {
     static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
                   "wrong number of operands");
   }
-  if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpwr) {
+  if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
     if constexpr (!is_type<T, float, sycl::half>()) {
       static_assert((is_type<T, float, sycl::half>()),
                     "Type F or HF is expected");
@@ -1629,8 +1629,6 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
 }
 
 } // namespace esimd
-
-
 } // namespace intel
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
