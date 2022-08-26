@@ -932,8 +932,9 @@ protected:
 
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
-  template <typename, int, access::mode, access::target, access::placeholder,
-            typename>
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
   friend class accessor;
 
 #ifndef __SYCL_DEVICE_ONLY__
