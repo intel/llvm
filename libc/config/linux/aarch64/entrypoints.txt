@@ -103,6 +103,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     # sys/stat.h entrypoints
     libc.src.sys.stat.chmod
     libc.src.sys.stat.fchmod
+    libc.src.sys.stat.fchmodat
     libc.src.sys.stat.mkdir
     libc.src.sys.stat.mkdirat
 
@@ -111,9 +112,15 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.unistd.close
     libc.src.unistd.fchdir
     libc.src.unistd.fsync
+    libc.src.unistd.link
+    libc.src.unistd.linkat
     libc.src.unistd.lseek
     libc.src.unistd.read
+    libc.src.unistd.readlink
+    libc.src.unistd.readlinkat
     libc.src.unistd.rmdir
+    libc.src.unistd.symlink
+    libc.src.unistd.symlinkat
     libc.src.unistd.unlink
     libc.src.unistd.unlinkat
     libc.src.unistd.write

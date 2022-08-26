@@ -11958,6 +11958,16 @@ void Sema::CheckHLSLEntryPoint(FunctionDecl *FD) {
     }
     break;
   }
+
+  for (const auto *Param : FD->parameters()) {
+    if (!Param->hasAttr<HLSLAnnotationAttr>()) {
+      // FIXME: Handle struct parameters where annotations are on struct fields.
+      Diag(FD->getLocation(), diag::err_hlsl_missing_semantic_annotation);
+      Diag(Param->getLocation(), diag::note_previous_decl) << Param;
+      FD->setInvalidDecl();
+    }
+  }
+  // FIXME: Verify return type semantic annotation.
 }
 
 bool Sema::CheckForConstantInitializer(Expr *Init, QualType DclT) {
@@ -18200,6 +18210,11 @@ static void ComputeSpecialMemberFunctionsEligiblity(Sema &S,
 
   for (auto *Decl : Record->decls()) {
     auto *MD = dyn_cast<CXXMethodDecl>(Decl);
+    if (!MD) {
+      auto *FTD = dyn_cast<FunctionTemplateDecl>(Decl);
+      if (FTD)
+        MD = dyn_cast<CXXMethodDecl>(FTD->getTemplatedDecl());
+    }
     if (!MD)
       continue;
     if (auto *CD = dyn_cast<CXXConstructorDecl>(MD)) {

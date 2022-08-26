@@ -1050,12 +1050,12 @@ llvm.func @llvm_noalias(%arg0: !llvm.ptr<f32> {llvm.noalias}) {
 }
 
 // CHECK-LABEL: define void @byvalattr(ptr byval(i32) %
-llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval}) {
+llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval = i32}) {
   llvm.return
 }
 
 // CHECK-LABEL: define void @sretattr(ptr sret(i32) %
-llvm.func @sretattr(%arg0: !llvm.ptr<i32> {llvm.sret}) {
+llvm.func @sretattr(%arg0: !llvm.ptr<i32> {llvm.sret = i32}) {
   llvm.return
 }
 
@@ -1937,3 +1937,11 @@ llvm.func @vararg_function(%arg0: i32, ...) {
   // CHECK: ret void
   llvm.return
 }
+
+// -----
+
+// Function attributes: readnone
+
+// CHECK: declare void @readnone_function() #[[ATTR:[0-9]+]]
+// CHECK: attributes #[[ATTR]] = { readnone }
+llvm.func @readnone_function() attributes {llvm.readnone}
