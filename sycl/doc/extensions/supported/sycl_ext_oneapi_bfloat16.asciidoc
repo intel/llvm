@@ -109,8 +109,7 @@ supports conversion of values of `float` type to `bfloat16` and back.
 If the device doesn't have the aspect, objects of `bfloat16` class must not be
 used in the device code.
 
-**NOTE**: The `ext_oneapi_bfloat16` aspect is not yet supported.  The
-`bfloat16` class is currently supported only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80.
+**NOTE**: The `bfloat16` class is currently supported only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80.
 
 == New `bfloat16` class
 
@@ -137,9 +136,8 @@ public:
   bfloat16(const float &a);
   bfloat16 &operator=(const float &a);
 
-  // Convert bfloat16 to floating-point types
+  // Convert bfloat16 to float
   operator float() const;
-  operator sycl::half() const;
 
   // Convert bfloat16 to bool type
   explicit operator bool();
@@ -187,9 +185,6 @@ Table 1. Member functions of `bfloat16` class.
 
 | `operator float() const;`
 |  Return `bfloat16` value converted to `float`.
-
-| `operator sycl::half() const;`
-| Return `bfloat16` value converted to `sycl::half`.
 
 | `explicit operator bool() { /* ... */ }`
 | Convert `bfloat16` to `bool` type. Return `false` if the `value` equals to
@@ -269,7 +264,6 @@ OP is `+==, !=, <, >, <=, >=+`
 
 [source]
 ----
-#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -280,27 +274,33 @@ float foo(float a, float b) {
   bfloat16 A{a};
   bfloat16 B{b};
 
-  // Convert A and B from bfloat16 to float, do addition on floating-pointer
+  // Convert A and B from bfloat16 to float, do addition on floating-point
   // numbers, then convert the result to bfloat16 and store it in C.
   bfloat16 C = A + B;
 
   // Return the result converted from bfloat16 to float.
+  // return sycl::ext::oneapi::float(C);
   return C;
 }
 
 int main(int argc, char *argv[]) {
   float data[3] = {7.0, 8.1, 0.0};
-  device dev;
+  device dev{gpu_selector()};
   queue deviceQueue{dev};
-  buffer buf{data, {3}};
+  buffer<float, 1> buf{data, 3};
 
   if (dev.has(aspect::ext_oneapi_bfloat16)) {
     deviceQueue.submit([&](handler &cgh) {
-      accessor numbers{buf, read_write};
+      accessor numbers{buf, cgh, read_write};
       cgh.single_task<class simple_kernel>(
           [=]() { numbers[2] = foo(numbers[0], numbers[1]); });
     });
+  } else {
+    std::cout << "No bfloat16 support\n";
+    return 1;
   }
+  host_accessor hostOutAcc{buf, read_only};
+  std::cout << "Result = " << hostOutAcc[2] << std::endl;
   return 0;
 }
 ----
@@ -410,5 +410,5 @@ Compute absolute value of a `bfloat16`.
 |3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
 |4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific to oneapi
 |5|2022-04-05|Jack Kirk | Added section for bfloat16 math builtins
-|6|2022-08-24|Rajiv Deodhar |Add `operator sycl::half()` and some other conversions
+|6|2022-08-24|Rajiv Deodhar |Move bfloat16 from experimental to supported
 |========================================

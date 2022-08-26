@@ -87,7 +87,6 @@ public:
 
   // Implicit conversion from bfloat16 to float
   operator float() const { return to_float(value); }
-  operator sycl::half() const { return to_float(value); }
 
   // Get raw bits representation of bfloat16
   storage_t raw() const { return value; }
