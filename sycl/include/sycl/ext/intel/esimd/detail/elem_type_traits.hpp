@@ -113,15 +113,6 @@ enum class CmpOp { lt, lte, gte, gt, eq, ne };
 
 enum class UnaryOp { minus, plus, bit_not, log_not };
 
-// If given type is a special "wrapper" element type.
-template <class T>
-static inline constexpr bool is_wrapper_elem_type_v =
-    std::is_same_v<T, sycl::half>;
-
-template <class T>
-static inline constexpr bool is_valid_simd_elem_type_v =
-    (is_vectorizable_v<T> || is_wrapper_elem_type_v<T>);
-
 struct invalid_raw_element_type;
 
 // Default (unusable) definition of the element type traits.
@@ -150,6 +141,17 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   static inline constexpr bool use_native_cpp_ops = true;
   static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
+
+// If given type is a special "wrapper" element type.
+template <class T> using raw_t = typename element_type_traits<T>::RawT;
+template <class T>
+static inline constexpr bool is_wrapper_elem_type_v =
+    !std::is_same_v<raw_t<T>, invalid_raw_element_type> &&
+    !std::is_same_v<raw_t<T>, T>;
+
+template <class T>
+static inline constexpr bool is_valid_simd_elem_type_v =
+    (is_vectorizable_v<T> || is_wrapper_elem_type_v<T>);
 
 // --- Type conversions
 
