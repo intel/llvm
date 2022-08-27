@@ -296,8 +296,8 @@ constexpr void check_lsc_atomic() {
                   "wrong number of operands");
   }
   if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    if constexpr (!is_type<T, float, sycl::half>()) {
-      static_assert((is_type<T, float, sycl::half>()),
+    if constexpr (!__ESIMD_DNS::is_type<T, float, sycl::half>()) {
+      static_assert((__ESIMD_DNS::is_type<T, float, sycl::half>()),
                     "Type F or HF is expected");
     }
   } else {

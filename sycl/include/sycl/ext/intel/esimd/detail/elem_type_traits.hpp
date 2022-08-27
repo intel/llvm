@@ -81,7 +81,9 @@
 
 #pragma once
 
-#include <sycl/ext/intel/esimd/detail/types.hpp>
+#include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types_elementary.hpp>
 
 #include <sycl/half_type.hpp>
 
@@ -116,7 +118,7 @@ enum class UnaryOp { minus, plus, bit_not, log_not };
 struct invalid_raw_element_type;
 
 // Default (unusable) definition of the element type traits.
-template <class T, class SFINAE> struct element_type_traits {
+template <class T, class SFINAE = void> struct element_type_traits {
   // The raw element type of the underlying clang vector used as a
   // storage.
   using RawT = invalid_raw_element_type;
@@ -142,12 +144,16 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
 
+template <class T>
+using __raw_t = typename __ESIMD_DNS::element_type_traits<T>::RawT;
+template <class T>
+using __cpp_t = typename __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+
 // If given type is a special "wrapper" element type.
-template <class T> using raw_t = typename element_type_traits<T>::RawT;
 template <class T>
 static inline constexpr bool is_wrapper_elem_type_v =
-    !std::is_same_v<raw_t<T>, invalid_raw_element_type> &&
-    !std::is_same_v<raw_t<T>, T>;
+    !std::is_same_v<__raw_t<T>, invalid_raw_element_type> &&
+    !std::is_same_v<__raw_t<T>, T>;
 
 template <class T>
 static inline constexpr bool is_valid_simd_elem_type_v =
@@ -266,8 +272,8 @@ ESIMD_INLINE DstRawVecTy convert_vector(SrcRawVecTy Val) {
     //     v
     // DstRawVecTy (of DstWrapperTy)
     //
-    using DstStdT = typename element_type_traits<DstWrapperTy>::EnclosingCppT;
-    using SrcStdT = typename element_type_traits<SrcWrapperTy>::EnclosingCppT;
+    using DstStdT = __cpp_t<DstWrapperTy>;
+    using SrcStdT = __cpp_t<SrcWrapperTy>;
     using SrcConv = wrapper_type_converter<SrcWrapperTy, SrcStdT>;
     using DstConv = wrapper_type_converter<DstWrapperTy, DstStdT>;
     using DstStdVecT = vector_type_t<DstStdT, N>;
@@ -423,7 +429,7 @@ ESIMD_INLINE T binary_op_default(T X, T Y) {
 // involves conversion to an std C++ type, performing the op and converting
 // back.
 template <BinOp Op, class T> ESIMD_INLINE T __esimd_binary_op(T X, T Y) {
-  using T1 = typename element_type_traits<T>::EnclosingCppT;
+  using T1 = __cpp_t<T>;
   T1 X1 = convert_scalar<T1, T>(X);
   T1 Y1 = convert_scalar<T1, T>(Y);
   return convert_scalar<T>(binary_op_default<Op, T1>(X1, Y1));
@@ -452,7 +458,7 @@ ESIMD_INLINE RawVecT vector_binary_op_default(RawVecT X, RawVecT Y) {
 // back.
 template <BinOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
 ESIMD_INLINE RawVecT __esimd_vector_binary_op(RawVecT X, RawVecT Y) {
-  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
+  using T1 = __cpp_t<ElemT>;
   using VecT1 = vector_type_t<T1, N>;
   VecT1 X1 = convert_vector<T1, ElemT, N>(X);
   VecT1 Y1 = convert_vector<T1, ElemT, N>(Y);
@@ -487,7 +493,7 @@ ESIMD_INLINE T unary_op_default(T X) {
 // involves conversion to an std C++ type, performing the op and converting
 // back.
 template <UnaryOp Op, class T> ESIMD_INLINE T __esimd_unary_op(T X) {
-  using T1 = typename element_type_traits<T>::EnclosingCppT;
+  using T1 = __cpp_t<T>;
   T1 X1 = convert_scalar<T1, T>(X);
   return convert_scalar<T>(unary_op_default<Op, T1>(X1));
 }
@@ -517,7 +523,7 @@ ESIMD_INLINE RawVecT vector_unary_op_default(RawVecT X) {
 template <UnaryOp Op, class ElemT, int N,
           class RawVecT = __rv_t<__hlp<ElemT, N>>>
 ESIMD_INLINE RawVecT __esimd_vector_unary_op(RawVecT X) {
-  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
+  using T1 = __cpp_t<ElemT>;
   using VecT1 = vector_type_t<T1, N>;
   VecT1 X1 = convert_vector<T1, ElemT, N>(X);
   return convert_vector<ElemT, T1, N>(vector_unary_op_default<Op, T1, N>(X1));
@@ -548,7 +554,7 @@ ESIMD_INLINE RetT vector_comparison_op_default(RawVecT X, RawVecT Y) {
 template <CmpOp Op, class ElemT, int N, class H = __hlp<ElemT, N>,
           class RetT = __cmp_t<H>, class RawVecT = __rv_t<H>>
 ESIMD_INLINE RetT __esimd_vector_comparison_op(RawVecT X, RawVecT Y) {
-  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
+  using T1 = __cpp_t<ElemT>;
   using VecT1 = vector_type_t<T1, N>;
   VecT1 X1 = convert_vector<T1, ElemT, N>(X);
   VecT1 Y1 = convert_vector<T1, ElemT, N>(Y);
@@ -598,91 +604,6 @@ public:
 template <typename T>
 static inline constexpr bool is_generic_floating_point_v =
     element_type_traits<T>::is_floating_point;
-
-// Get computation type of a binary operator given its operand types:
-// - if both types are arithmetic - return CPP's "common real type" of the
-//   computation (matches C++)
-// - if both types are simd types, they must be of the same length N,
-//   and the returned type is simd<T, N>, where N is the "common real type" of
-//   the element type of the operands (diverges from clang)
-// - otherwise, one type is simd and another is arithmetic - the simd type is
-//   returned (matches clang)
-
-struct invalid_computation_type;
-
-template <class T1, class T2, class SFINAE = void> struct computation_type {
-  using type = invalid_computation_type;
-};
-
-template <class T1, class T2>
-struct computation_type<T1, T2,
-                        std::enable_if_t<is_valid_simd_elem_type_v<T1> &&
-                                         is_valid_simd_elem_type_v<T2>>> {
-private:
-  template <class T> using tr = element_type_traits<T>;
-  template <class T>
-  using native_t =
-      std::conditional_t<tr<T>::use_native_cpp_ops, typename tr<T>::RawT,
-                         typename tr<T>::EnclosingCppT>;
-  static inline constexpr bool is_wr1 = is_wrapper_elem_type_v<T1>;
-  static inline constexpr bool is_wr2 = is_wrapper_elem_type_v<T2>;
-  static inline constexpr bool is_fp1 = is_generic_floating_point_v<T1>;
-  static inline constexpr bool is_fp2 = is_generic_floating_point_v<T2>;
-
-public:
-  using type = std::conditional_t<
-      !is_wr1 && !is_wr2,
-      // T1 and T2 are both std C++ types - use std C++ type promotion
-      decltype(std::declval<T1>() + std::declval<T2>()),
-      std::conditional_t<
-          std::is_same_v<T1, T2>,
-          // Types are the same wrapper type - return any
-          T1,
-          std::conditional_t<is_fp1 != is_fp2,
-                             // One of the types is floating-point - return it
-                             // (e.g. computation_type<int, sycl::half> will
-                             // yield sycl::half)
-                             std::conditional_t<is_fp1, T1, T2>,
-                             // both are either floating point or integral -
-                             // return result of C++ promotion of the native
-                             // types
-                             decltype(std::declval<native_t<T1>>() +
-                                      std::declval<native_t<T2>>())>>>;
-};
-
-template <class T1, class T2>
-struct computation_type<
-    T1, T2,
-    std::enable_if_t<is_simd_like_type_v<T1> || is_simd_like_type_v<T2>>> {
-private:
-  using Ty1 = element_type_t<T1>;
-  using Ty2 = element_type_t<T2>;
-  using EltTy = typename computation_type<Ty1, Ty2>::type;
-
-  static constexpr int N1 = [] {
-    if constexpr (is_simd_like_type_v<T1>) {
-      return T1::length;
-    } else {
-      return 0;
-    }
-  }();
-  static constexpr int N2 = [] {
-    if constexpr (is_simd_like_type_v<T2>) {
-      return T2::length;
-    } else {
-      return 0;
-    }
-  }();
-  static_assert((N1 == N2) || (N1 == 0) || (N2 == 0), "size mismatch");
-  static constexpr int N = N1 ? N1 : N2;
-
-public:
-  using type = simd<EltTy, N>;
-};
-
-template <class T1, class T2 = T1>
-using computation_type_t =
-    typename computation_type<remove_cvref_t<T1>, remove_cvref_t<T2>>::type;
 
 ////////////////////////////////////////////////////////////////////////////////
 // sycl::half traits
