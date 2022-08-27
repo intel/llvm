@@ -785,6 +785,8 @@ static bool addSYCLDefaultTriple(Compilation &C,
   /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (!C.getDriver().isSYCLDefaultTripleImplied())
     return false;
+  if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
+    return false;
   for (const auto &SYCLTriple : SYCLTriples) {
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
         SYCLTriple.isSPIR())
@@ -1057,6 +1059,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ),
       {"per_kernel", "per_source", "auto", "off"});
 
+  Arg *SYCLForceTarget =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
+  if (SYCLForceTarget) {
+    StringRef Val(SYCLForceTarget->getValue());
+    llvm::Triple TT(MakeSYCLDeviceTriple(Val));
+    if (!isValidSYCLTriple(TT))
+      Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+  }
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
@@ -1066,6 +1076,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
+
+        // Multiple targets are currently not supported when using
+        // -fsycl-force-target as the bundler does not allow for multiple
+        // outputs of the same target.
+        if (SYCLForceTarget && SYCLTargetsValues->getNumValues() > 1)
+          Diag(clang::diag::err_drv_multiple_target_with_forced_target)
+              << SYCLTargetsValues->getAsString(C.getInputArgs())
+              << SYCLForceTarget->getAsString(C.getInputArgs());
+
         for (StringRef Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(MakeSYCLDeviceTriple(Val));
           if (!isValidSYCLTriple(TT)) {
