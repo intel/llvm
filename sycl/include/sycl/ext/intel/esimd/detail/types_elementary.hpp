@@ -11,7 +11,7 @@
 
 #pragma once
 
-// ONLY C++ STANDARD HEADERS SHOULD BE INCLUDED:
+// ESIMD HEADERS SHOULD NOT BE INCLUDED HERE
 #include <cstdint>
 #include <type_traits>
 
