@@ -52,7 +52,7 @@ template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
     Ty _old, _new;
     CmpxchgTy<Ty> _old_bits, _new_bits;
     do {
-      _old = expected;
+      _old = *ptr;
       _new = _old + val;
       _old_bits = *(CmpxchgTy<Ty> *)&_old;
       _new_bits = *(CmpxchgTy<Ty> *)&_new;
@@ -75,7 +75,7 @@ template <typename Ty> Ty atomic_sub_fetch(Ty *ptr, Ty val) {
     Ty _old, _new;
     CmpxchgTy<Ty> _old_bits, _new_bits;
     do {
-      _old = expected;
+      _old = *ptr;
       _new = _old - val;
       _old_bits = *(CmpxchgTy<Ty> *)&_old;
       _new_bits = *(CmpxchgTy<Ty> *)&_new;
