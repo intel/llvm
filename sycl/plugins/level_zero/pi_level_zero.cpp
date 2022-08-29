@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <string>
@@ -5436,6 +5437,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
+  ze_result_t ZeResult = ZE_RESULT_SUCCESS;
   if (Queue->Device->useImmediateCommandLists() &&
       IndirectAccessTrackingEnabled) {
     // If using immediate commandlists then gathering of indirect
@@ -5452,19 +5454,43 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     ContextsLock.lock();
     Queue->CaptureIndirectAccesses();
     // Add the command to the command list, which implies submission.
-    ZE_CALL(zeCommandListAppendLaunchKernel,
-            (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-             ZeEvent, (*Event)->WaitList.Length,
-             (*Event)->WaitList.ZeEventList));
+    ZeResult = ZE_CALL_NOCHECK(
+        zeCommandListAppendLaunchKernel,
+        (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
+         ZeEvent, (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   } else {
     // Add the command to the command list for later submission.
     // No lock is needed here, unlike the immediate commandlist case above,
     // because the kernels are not actually submitted yet. Kernels will be
     // submitted only when the comamndlist is closed. Then, a lock is held.
-    ZE_CALL(zeCommandListAppendLaunchKernel,
-            (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-             ZeEvent, (*Event)->WaitList.Length,
-             (*Event)->WaitList.ZeEventList));
+    ZeResult = ZE_CALL_NOCHECK(
+        zeCommandListAppendLaunchKernel,
+        (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
+         ZeEvent, (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
+  }
+
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+      uint32_t SourceAttributesLength = 0U;
+      ZE_CALL(zeKernelGetSourceAttributes,
+              (Kernel->ZeKernel, &SourceAttributesLength, nullptr));
+      char *SourceAttributes = new char[SourceAttributesLength];
+      ZE_CALL(zeKernelGetSourceAttributes,
+              (Kernel->ZeKernel, &SourceAttributesLength, &SourceAttributes));
+      const std::string AttributesString(
+          SourceAttributes, SourceAttributes + SourceAttributesLength);
+      delete[] SourceAttributes;
+
+      const std::regex InvalidKernelAttributeRegex("invalid_kernel\\(.*\\)");
+      std::smatch InvalidKernelAttributeMatch;
+      if (std::regex_search(AttributesString, InvalidKernelAttributeMatch,
+                            InvalidKernelAttributeRegex)) {
+        setErrorMessage(InvalidKernelAttributeMatch.str().c_str(),
+                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+      }
+    }
+    return mapError(ZeResult);
   }
 
   zePrint("calling zeCommandListAppendLaunchKernel() with"
