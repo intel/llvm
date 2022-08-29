@@ -1621,7 +1621,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope);
 
-      if (Var->getAccess() != AS_public)
+      if (Var->getAccess() == AS_private || Var->getAccess() == AS_protected)
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_not_publicly_accessible)
             << Var;
