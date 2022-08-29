@@ -378,7 +378,7 @@ void Scheduler::enqueueUnblockedCommands(
     Command *Cmd = static_cast<Command *>(CmdEvent->getCommand());
     assert(Cmd &&
            "Event with blocked command must always has not NULL command");
-    //std::ignore = Cmd->unblockCommand(UnblockedDep);
+    // std::ignore = Cmd->unblockCommand(UnblockedDep);
 
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);

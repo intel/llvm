@@ -73,15 +73,13 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
-    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-    {
+    if (Command *DepCmd = static_cast<Command *>(Event->getCommand())) {
       if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
         return false;
     }
   }
 
-  if (Cmd->hasBlockingDeps() && !Blocking)
-  {
+  if (Cmd->hasBlockingDeps() && !Blocking) {
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
     return false;
   }

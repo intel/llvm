@@ -98,6 +98,7 @@ bool CheckTestExecutionRequirements(const platform &plt) {
     return false;
   }
   return true;
+}
 
 void VerifyTaskStructureValidness(
     detail::Command *NewCmd, const std::vector<EventImplPtr> &BlockingTasks) {
@@ -165,7 +166,8 @@ inline constexpr auto DisablePostEnqueueCleanupName =
 //   EventImplPtr Cmd2Event = Cmd2->getEvent();
 
 //   detail::EnqueueResultT Result;
-//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result,
+//   detail::BlockingT::NON_BLOCKING));
 
 //   // Preconditions for post enqueue checks
 //   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
@@ -213,7 +215,8 @@ TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
   VerifyTaskStructureValidness(Cmd2, BlockingTaskEvents);
 
   detail::EnqueueResultT Result;
-  EXPECT_FALSE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+  EXPECT_FALSE(
+      MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
 
   // Preconditions for post enqueue checks
   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
@@ -342,7 +345,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   EXPECT_FALSE(Cmd1->isSuccessfullyEnqueued());
   EXPECT_FALSE(Cmd2->isSuccessfullyEnqueued());
   EXPECT_EQ(Cmd1Event->get_info<info::event::command_execution_status>(),
-          info::event_command_status::submitted);
+            info::event_command_status::submitted);
 
   EXPECT_FALSE(
       MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));

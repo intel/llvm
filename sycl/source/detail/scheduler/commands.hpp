@@ -141,12 +141,14 @@ public:
   }
 
   bool isEnqueueManuallyBlocked() const {
-    return MIsManuallyBlocked && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+    return MIsManuallyBlocked &&
+           MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
   }
 
   bool hasBlockingDeps() const {
-    return (std::any_of(MBlockingExplicitDeps.begin(), MBlockingExplicitDeps.end(),
-    [](const EventImplPtr& Dep) { return !Dep->isComplete(); }));
+    return (std::any_of(
+        MBlockingExplicitDeps.begin(), MBlockingExplicitDeps.end(),
+        [](const EventImplPtr &Dep) { return !Dep->isComplete(); }));
   }
 
   const QueueImplPtr &getQueue() const { return MQueue; }
@@ -228,16 +230,17 @@ public:
 
   bool MIsManuallyBlocked = false;
   enum class BlockReason : int { HostAccessor = 0, HostTask };
-  // Returns previous value of MBlockCounter for awareness. Could be easily ignored. 
-  // uint32_t blockCommand(const EventImplPtr& BlockingDep, BlockReason Reason = BlockReason::HostTask)
+  // Returns previous value of MBlockCounter for awareness. Could be easily
+  // ignored. uint32_t blockCommand(const EventImplPtr& BlockingDep, BlockReason
+  // Reason = BlockReason::HostTask)
   // {
   //   MBlockCounter++;
-  //   MBlockingExplicitDeps.insert(BlockingDep); 
+  //   MBlockingExplicitDeps.insert(BlockingDep);
   //   MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   //   //MBlockReason = Reason;
   // }
-  // // Returns previous value of MBlockCounter for awareness. Could be easily ignored. 
-  // uint32_t unblockCommand(const EventImplPtr& BlockingDep)
+  // // Returns previous value of MBlockCounter for awareness. Could be easily
+  // ignored. uint32_t unblockCommand(const EventImplPtr& BlockingDep)
   // {
   //   MBlockCounter--;
   //   MBlockingExplicitDeps.erase(BlockingDep);
@@ -287,8 +290,10 @@ protected:
 
   friend class DispatchHostTask;
 
-  // Contains list of blocking dependencies. New commands depending on this one usually walks through the list and inherit "active" dependencies (which are not complete).
-  // MBlockingExplicitDeps is fully cleaned up after this command successfull enqueue.
+  // Contains list of blocking dependencies. New commands depending on this one
+  // usually walks through the list and inherit "active" dependencies (which are
+  // not complete). MBlockingExplicitDeps is fully cleaned up after this command
+  // successfull enqueue.
   std::unordered_set<EventImplPtr> &MBlockingExplicitDeps;
   /// Contains list of commands that depend on the host command explicitly (by
   /// depends_on). Not involved into cleanup process since it is one-way link
@@ -323,7 +328,8 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-  // Only have reasonable value while MEnqueueStatus = SyclEnqueueBlocked is true
+  // Only have reasonable value while MEnqueueStatus = SyclEnqueueBlocked is
+  // true
   BlockReason MBlockReason;
 
   /// Describes the status of the command.

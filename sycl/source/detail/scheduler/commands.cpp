@@ -617,7 +617,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
             static_cast<Command *>(BlockingCmdEvent->getCommand());
         BlockingCmd && !BlockingCmdEvent->isComplete()) {
       MBlockingExplicitDeps.insert(BlockingCmdEvent);
-      //std::ignore = blockCommand(BlockingCmdEvent);
+      // std::ignore = blockCommand(BlockingCmdEvent);
       BlockingCmd->removeBlockedUser(DepEvent);
       BlockingCmd->addBlockedUser(this->MEvent);
     }
@@ -632,7 +632,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
     // now.
     if (DepCmd && !DepEvent->isComplete()) {
       // Blocks new command and prevent waiting on event
-      //std::ignore = blockCommand(DepEvent);
+      // std::ignore = blockCommand(DepEvent);
       MBlockingExplicitDeps.insert(DepEvent);
       DepCmd->addBlockedUser(this->MEvent);
     }
