@@ -260,7 +260,7 @@ int main(void) {
   auto arith_ops = esimd_test::ArithBinaryOps;
   passed &= test<unsigned char, int, 1, BinOp, VSf, IDf>(arith_ops, q);
   passed &= test<char, float, 7, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  passed &= test<short, double, 7, BinOp, VSf, IDf>(arith_ops, q);
+  passed &= test<short, double, 7, BinOp, VEf, IDf>(arith_ops, q, 1e-15);
   passed &= test<float, float, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
   passed &= test<half, char, 1, BinOp, verify_n, IDf>(arith_ops, q, 1);
   passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(arith_ops, q, 1);
