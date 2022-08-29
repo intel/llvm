@@ -85,8 +85,19 @@ public:
     return *this;
   }
 
+  // Implicit conversion from sycl::half to bfloat16
+  bfloat16(const sycl::half &a) { value = from_float(a); }
+
+  bfloat16 &operator=(const sycl::half &rhs) {
+    value = from_float(rhs);
+    return *this;
+  }
+
   // Implicit conversion from bfloat16 to float
   operator float() const { return to_float(value); }
+
+  // Implicit conversion from bfloat16 to sycl::half
+  operator sycl::half() const { return to_float(value); }
 
   // Get raw bits representation of bfloat16
   storage_t raw() const { return value; }

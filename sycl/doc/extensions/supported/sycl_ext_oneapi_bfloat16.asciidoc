@@ -138,6 +138,13 @@ public:
 
   // Convert bfloat16 to float
   operator float() const;
+  
+  // Convert from sycl::half to bfloat16
+  bfloat16(const sycl::half &a);
+  bfloat16 &operator=(const sycl::half &a);
+
+  // Convert bfloat16 to sycl::half
+  operator sycl::half() const;
 
   // Convert bfloat16 to bool type
   explicit operator bool();
