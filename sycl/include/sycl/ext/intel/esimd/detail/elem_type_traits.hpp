@@ -81,6 +81,8 @@
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/types_elementary.hpp>
 
+#include <utility>
+
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
@@ -569,7 +571,7 @@ template <UnaryOp Op, class WrapperT>
 ESIMD_INLINE WrapperT scalar_unary_op_traits<Op, WrapperT>::impl(WrapperT X) {
   using T1 = __cpp_t<WrapperT>;
   T1 X1 = convert_scalar<T1, WrapperT>(X);
-  return convert_scalar<T>(unary_op_default<Op, T1>(X1));
+  return convert_scalar<WrapperT>(unary_op_default<Op, T1>(X1));
 }
 
 // Default (inefficient) implementation of a vector unary operation, which
@@ -596,7 +598,7 @@ vector_comparison_op_traits<Op, WrapperT, N>::impl(__raw_vec_t<WrapperT, N> X,
   using VecT1 = vector_type_t<T1, N>;
   VecT1 X1 = convert_vector<T1, WrapperT, N>(X);
   VecT1 Y1 = convert_vector<T1, WrapperT, N>(Y);
-  return convert_vector<element_type_t<__cmp_t<WrapperT, N>>, T1, N>(
+  return convert_vector<vector_element_type_t<__cmp_t<WrapperT, N>>, T1, N>(
       vector_comparison_op_default<Op, T1, N>(X1, Y1));
 }
 

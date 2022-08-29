@@ -110,6 +110,20 @@ template <class T>
 static inline constexpr bool is_clang_vector_type_v =
     is_clang_vector_type<T>::value;
 
+template <class T> struct vector_element_type;
+
+template <class T, int N> struct vector_element_type<vector_type_t<T, N>> {
+  using type = T;
+};
+
+template <class T, int N>
+struct vector_element_type<T __attribute__((ext_vector_type(N)))> {
+  using type = T;
+};
+
+template <class T>
+using vector_element_type_t = typename vector_element_type<T>::type;
+
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
