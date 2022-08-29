@@ -1,6 +1,7 @@
 // RUN: polygeist-opt --convert-polygeist-to-llvm %s | FileCheck %s
 
-// CHECK: [[GEP:%.*]] = llvm.getelementptr {{.*}} : (!llvm.ptr<struct<([[SYCLIDSTRUCT:struct<"class.cl::sycl::id.1"]], {{.*}} -> !llvm.ptr<[[SYCLIDSTRUCT]], {{.*}}
+// CHECK: [[ZERO:%.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK: [[GEP:%.*]] = llvm.getelementptr {{.*}}[[[ZERO]], 0] : (!llvm.ptr<struct<([[SYCLIDSTRUCT:struct<"class.cl::sycl::id.1"]], {{.*}} -> !llvm.ptr<[[SYCLIDSTRUCT]], {{.*}}
 // CHECK: [[MEMREF:%.*]] = llvm.mlir.undef : !llvm.struct<(ptr<[[SYCLIDSTRUCT]], {{.*}}
 // CHECK: {{.*}} = llvm.insertvalue [[GEP]], [[MEMREF]][0] : !llvm.struct<(ptr<[[SYCLIDSTRUCT]], {{.*}}
 

@@ -114,6 +114,15 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
 
     if (auto ST = sourceMemRefType.getElementType()
                       .dyn_cast<mlir::LLVM::LLVMStructType>()) {
+      assert(sourceMemRefType.getShape().size() ==
+                 viewMemRefType.getShape().size() &&
+             "Expecting the input and output MemRef size to be the same");
+      // The first index (zero) takes a pointer to the structure.
+      Value zero = rewriter.create<LLVM::ConstantOp>(
+          loc, idxs[0].getType(),
+          rewriter.getIntegerAttr(idxs[0].getType(), 0));
+      Value idxs[] = {zero, transformed.index()};
+
       // According to MLIRASTConsumer::getMLIRType() in clang-mlir.cc, memref of
       // struct type is only generated for struct that has at least one entry of
       // SYCL type, otherwise a llvm pointer type is generated instead of a
