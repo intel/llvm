@@ -33,11 +33,10 @@ SYCL specification refer to that revision.
 
 **_NOTE:_** _This document describes the current design and API for the matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX) and DPAS. We are going to work with the community on incrementally improving
-the API to bring them closer to standard C++ (aligned with the `std::mdspan` and `std::mdarray` proposals) and SYCL in the next several months._
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX) and DPAS_
 
 ## Introduction
-This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
+This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, DPAS in Intel GPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
 
 ## Feature test macro
 
@@ -52,39 +51,42 @@ value to determine which of the extension's APIs the implementation supports.
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial extension implementation on Intel AMX.  Base features are supported.
-|2     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
+|1     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
+|2     |joint matrix type has a new `use` parameter. `layout` on matrix is unused. JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
 |======================
 
 ## New `joint_matrix` class
-We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, shape, the memory layout, and the memory scope of the matrix. This results into the following description:
+We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, shape, the matrix use, the memory layout, and the memory scope of the matrix. This results into the following description:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent, 
-          matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
+          matrix_use use, matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
 struct joint_matrix {
     joint_matrix(Group g) {}
 };
 }
 ```
 
-
-#### Memory Scope
-In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
-
-IMPORTANT: In the current implementation, only the subgroup scope is supported
-
-When the group is a `sycl::sub_group`, a matrix is declared as follows:
-
-```c++
-joint_matrix<int8_t, tM, tN> tA(sg); 
-```
-
 #### Shape
 The same class `joint_matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
 
 IMPORTANT: In the current implementation, only the static extent is supported
+
+#### Use
+Specifying the usage of the matrix: matrix left (A), matrix right (B) or accumuator (C) is required by backend implementations to reason about the layout of the matrix in regiters.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+enum class matrix_use {
+  a,
+  b,
+  accumulator,
+};
+}
+```
+
+IMPORTANT: In both AMX and DPAS support, `use` template parameter is required
 
 
 #### Layout
@@ -95,29 +97,34 @@ namespace sycl::ext::oneapi::experimental::matrix {
 enum class matrix_layout {
   row_major,
   col_major,
-  packed_a,
-  packed_b
+  packed,
+  unused,
 };
 }
 ```
 
-Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows: 
+IMPORTANT: In both AMX and DPAS support, layout template parameter is unused and will be ignored if specified
+
+#### Memory Scope
+In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
+
+IMPORTANT: In the current implementation, only the subgroup scope is supported
+
+When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
 ```c++
-joint_matrix<int8_t, K, N, packed_b> tB(sg);
-```   
-IMPORTANT: In the current implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
-
+joint_matrix<int8_t, tM, tN, matrix_use::matrix_a> tA(sg); 
+```
 
 
 ## Matrix Operations and their Execution Scope
 We define three new functions needed to perform the main and common operations on matrices namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the tensor hardware implements new features.
 
-The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). `stride` describes the number of elements between consecutive rows for row major and packed layout,  columns for column major layout. 
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed`). `stride` describes the number of elements between consecutive rows for row major and packed layout,  columns for column major layout. 
 
-Note that for getting maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` when matrix `C` is column major, `packed_b` when matrix `C` is row major), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+Note that for getting maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose the `packed` layout to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
 	
-IMPORTANT: In the current implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
+IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B must be `packed_b` or `row_major`. Automatic VNNI transform is supported. The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
@@ -129,10 +136,10 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout,
+          matrix_use U, matrix_layout L,
           access::address_space Space>
-  void joint_matrix_load(Group sg, joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
-		    multi_ptr<T, Space> src, size_t stride, matrix_layout MemLayout);
+  void joint_matrix_load(Group sg, joint_matrix<T, NumRows, NumCols, U, L, Group> &res,
+		    multi_ptr<T, Space> src, size_t stride, matrix_layout memL);
 }
 ```
 This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS.
@@ -142,9 +149,9 @@ This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout L,
+          matrix_use U, matrix_layout L,
           access::address_space Space>	  
-  void joint_matrix_store(Group sg, joint_matrix<T, NumRows, NumCols, L, Group> &res,
+  void joint_matrix_store(Group sg, joint_matrix<T, NumRows, NumCols, U, L, Group> &res,
 		     multi_ptr<T, Space> src, size_t stride, matrix_layout memL);
 }
 ```
@@ -158,8 +165,8 @@ namespace sycl::ext::oneapi::experimental::matrix {
           std::size_t M, std::size_t K, std::size_t N,
 	  matrix_layout La, matrix_layout Lb,
           matrix_layout Lc>
-  joint_matrix<Group, Tc, M, N, Lc> joint_matrix_mad(Group sg, joint_matrix<Ta, M, K, La, Group> A,
-               joint_matrix<Tb, K, N, Lb, Group> B, joint_matrix<Tc, M, N, Lc, Group> C);
+  joint_matrix<Group, Tc, M, N, matrix_use::accumulator, Lc, Group> joint_matrix_mad(Group sg, joint_matrix<Ta, M, K, matrix_use::matrix_a, La, Group> A,
+               joint_matrix<Tb, K, N, matrix_use::matrix_b, Lb, Group> B, joint_matrix<Tc, M, N, matrix_use::accumulator, Lc, Group> C);
 }
 ```
 The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
@@ -171,8 +178,8 @@ The current interface presented above assumes that all the matrices are directly
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout L, typename Tv>
-  void joint_matrix_fill(Group sg, joint_matrix<T, NumRows, NumCols, L, Group> &m, Tv v);
+           matrix_use U, matrix_layout L, typename Tv>
+  void joint_matrix_fill(Group sg, joint_matrix<T, NumRows, NumCols, U, L, Group> &m, Tv v);
 }
 ```
 IMPORTANT: In the current implementation, only the subgroup scope is supported.  
@@ -211,18 +218,18 @@ The code listing below shows a synopsis of these new APIs.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major,
+          matrix_use U, matrix_layout L = matrix_layout::unused,
           typename Group = sycl::sub_group>
 struct joint_matrix {
-   wi_data<T, NumRows, NumCols, Layout, Group> get_wi_data();
+   wi_data<T, NumRows, NumCols, U, L, Group> get_wi_data();
 };
-template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
+template <typename T, size_t NumRows, size_t NumCols, matrix_use U, matrix_layout L, typename Group>
 class wi_data {
   size_t length();
-  wi_element<T, NumRows, NumCols, Layout, Group> operator[](size_t i);
+  wi_element<T, NumRows, NumCols, U, L, Group> operator[](size_t i);
 };
 template <typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major,
+          matrix_use U, matrix_layout L = matrix_layout::unused,
           typename Group = sycl::sub_group>
 class wi_element {
   operator T();
@@ -304,15 +311,13 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    const auto sg_startx = global_idx - item.get_local_id(0);
    const auto sg_starty = global_idy - item.get_local_id(1);
    sub_group sg = item.get_sub_group();
-   joint_matrix<int8_t, tM, tK> tA(sg);
-   // For B, since current implementation does not support non packed layout,
-   // users need to specify the packed_b layout
-   joint_matrix<int8_t, tK, tN, packed_b> tB(sg);
-   joint_matrix<int32_t, tM, tN> tC(sg);
+   joint_matrix<int8_t, tM, tK, a> tA(sg);
+   joint_matrix<int8_t, tK, tN, b> tB(sg);
+   joint_matrix<int32_t, tM, tN, accumulator> tC(sg);
    joint_matrix_fill(sg, tC, 0);
    for (int k = 0; k < K; k += tk) {
      joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K, matrix_layout::row_major);
-     joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN*4, N*4, matrix_layout::packed_b); // VNNI
+     joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN*4, N*4, matrix_layout::packed); // VNNI
      tC = joint_matrix_mad(sg, tA, tB, tC);
    }
    auto wi_data_c = matC.get_wi_data();             
@@ -400,12 +405,12 @@ struct tpu_params<
   static constexpr std::size_t defaultK =
       (K != 0) ? K : ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
-  using joint_matrix_a = joint_matrix<Ta, defaultM, defaultK, Layout, Group>;
-  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
-  using joint_matrix_b = joint_matrix<Tb, defaultK, defaultN, Layout, Group>;
-  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
-  using joint_matrix_c = joint_matrix<Tc, defaultM, defaultN, Layout, Group>;
+  template <matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
+  using joint_matrix_a = joint_matrix<Ta, defaultM, defaultK, matrix_use::a, Layout, Group>;
+  template <matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
+  using joint_matrix_b = joint_matrix<Tb, defaultK, defaultN, matrix_use::b Layout, Group>;
+  template <matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
+  using joint_matrix_c = joint_matrix<Tc, defaultM, defaultN, matrix_use::accumulator, Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations
                           // because Intel AMX hardware supports dynamic sizes
@@ -450,12 +455,12 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   static constexpr std::size_t defaultN = 16;
   static constexpr std::size_t defaultK = ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
-  using joint_matrix_a = joint_matrix<Ta, defaultM, defaultK, Layout, Group>;
-  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
-  using joint_matrix_b = joint_matrix<Tb, defaultK, defaultN, Layout, Group>;
-  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
-  using joint_matrix_c = joint_matrix<Tc, defaultM, defaultN, Layout, Group>;
+  template <matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
+  using joint_matrix_a = joint_matrix<Ta, defaultM, defaultK, matrix_use::a, Layout, Group>;
+  template <matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
+  using joint_matrix_b = joint_matrix<Tb, defaultK, defaultN, matrix_use::b Layout, Group>;
+  template <matrix_layout Layout = matrix_layout::unused, typename Group = sub_group>
+  using joint_matrix_c = joint_matrix<Tc, defaultM, defaultN, matrix_use::accumulator Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
@@ -562,7 +567,7 @@ size_t NDRangeN = N / myparams::defaultN;
 //if M,N,K do not multiply the default sizes, padding has to be done 
 // device code: the matrices are constructed using the default dimensions  
 myparams::joint_matrix_a sub_a(sg);  
-myparams::joint_matrix_b<matrix_layout::packed_b> sub_b(sg);  
+myparams::joint_matrix_b sub_b(sg);  
 myparams::joint_matrix_c sub_c(sg);
 
 ```
@@ -577,22 +582,11 @@ constexpr int msize_remainder = break_dimension_remainder(params, M);
 constexpr int nsize = params.combinations[0].nsize;
 constexpr int ksize = params.combinations[0].ksize;
 // device code:
-joint_matrix<int8_t, msize, ksize> sub_a(sg);
-joint_matrix<int8_t, ksize, nsize, matrix_layout::packed_b> sub_b(sg);
-joint_matrix<int, msize, nsize> sub_c(sg);
+joint_matrix<int8_t, msize, ksize, matrix_use::a> sub_a(sg);
+joint_matrix<int8_t, ksize, nsize, matrix_use::b> sub_b(sg);
+joint_matrix<int, msize, nsize, matrix_use::accumulator> sub_c(sg);
 //Remainder handling
 ```
-
-//No don't need to provide more details in this section because the query interface can serve this. 
-
-//## Implementation Status
-
-//### oneAPI 2022.0 release
-//For oneAPI 2022.0 release, a JIT implementation has been made available on both Intel AMX and DPAS hardware of the specific features discussed above. In this case, there is no need to specify any architectural options to the command line. The static query interface can be used to guide the usage of this API. 
-// The DPAS and Intel AMX implementations support the logical capability support of the HW
-
-
-
 
 ## Future-looking API
 
@@ -601,7 +595,7 @@ The current experimental API uses `joint_` semantics to define the memory scope 
 
 
 ```c++
-multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN>>(sg);
+multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN, matrix_use::a>>(sg);
 ```
 We did not utilize this extension for this matrix API version because sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not clear yet. 
 
@@ -640,7 +634,6 @@ for (int i = 0; i < length; ++i) {
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
-- Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform 
 - Change the names default sizes in the query from defaultM, defaultN, defaultK to M,N,K
 - Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
 - Add a more realistic and complete example that shows the value of the general query
@@ -654,4 +647,5 @@ for (int i = 0; i < length; ++i) {
 |1   |2021-04-13 |Dounia Khaldi |Initial public working draft.
 |2   |2021-10-05 |Dounia Khaldi |JIT implementation on both Intel AMX and DPAS
 |3   |2022-05-16 |Dounia Khaldi |Add matrix fill and piece-wise operations support
+|4   |2022-08-25 |Dounia Khaldi |Update the matrix spec by adding the new matrix use parameter and remove reference to the AOT AMX initial implementation 
 |======================
