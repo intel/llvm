@@ -130,7 +130,6 @@ template <typename Ty> Ty atomic_min(Ty *ptr, Ty val) {
                                           __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
     return _new;
   } else {
-    using CmpxchgTy = __ESIMD_DNS::uint_type_t<sizeof(Ty)>;
     Ty _old, _new;
     CmpxchgTy<Ty> _old_bits, _new_bits;
     do {
@@ -159,7 +158,6 @@ template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
                                           __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
     return _new;
   } else {
-    using CmpxchgTy = __ESIMD_DNS::uint_type_t<sizeof(Ty)>;
     Ty _old, _new;
     CmpxchgTy<Ty> _old_bits, _new_bits;
     do {
