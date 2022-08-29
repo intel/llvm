@@ -1710,14 +1710,14 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_VERSION: {
     std::stringstream s;
     int major;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
     s << major;
 
     int minor;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&minor,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);

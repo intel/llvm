@@ -1666,8 +1666,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     std::stringstream s;
 
     hipDeviceProp_t props;
-    cl::sycl::detail::pi::assertion(
-        hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
 #if defined(__HIP_PLATFORM_NVIDIA__)
     s << props.major << "." << props.minor;
 #elif defined(__HIP_PLATFORM_AMD__)
