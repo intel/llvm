@@ -16,11 +16,12 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-// Forward declaration
+// Forward declarations
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
           typename PropertyListT>
 class accessor;
+template <typename dataT, int dimensions> class local_accessor;
 
 /// Provides constructors for address space qualified and non address space
 /// qualified pointers to allow interoperability between plain C++ and OpenCL C.
@@ -151,6 +152,11 @@ public:
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
+  // Only if Space == local_space || generic_space
+  template <int dimensions>
+  multi_ptr(local_accessor<ElementType, dimensions> Accessor)
+      : multi_ptr(Accessor.get_pointer()) {}
+
   // Only if Space == constant_space
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
@@ -202,6 +208,19 @@ public:
   multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                      access::target::local, isPlaceholder, PropertyListT>
                 Accessor)
+      : multi_ptr(Accessor.get_pointer()) {}
+
+  // Only if Space == local_space || generic_space and element type is const
+  template <
+      int dimensions, access::address_space _Space = Space,
+      typename ET = ElementType,
+      typename = typename detail::enable_if_t<
+          _Space == Space &&
+          (Space == access::address_space::generic_space ||
+           Space == access::address_space::local_space) &&
+          std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
+  multi_ptr(
+      local_accessor<typename detail::remove_const_t<ET>, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space and element type is const
@@ -422,6 +441,16 @@ public:
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
+  // Only if Space == local_space || generic_space
+  template <
+      typename ElementType, int dimensions,
+      access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space && (Space == access::address_space::generic_space ||
+                              Space == access::address_space::local_space)>>
+  multi_ptr(local_accessor<ElementType, dimensions> Accessor)
+      : multi_ptr(Accessor.get_pointer()) {}
+
   // Only if Space == constant_space
   template <
       typename ElementType, int dimensions, access::mode Mode,
@@ -546,6 +575,16 @@ public:
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
+  // Only if Space == local_space || generic_space
+  template <
+      typename ElementType, int dimensions,
+      access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space && (Space == access::address_space::generic_space ||
+                              Space == access::address_space::local_space)>>
+  multi_ptr(local_accessor<ElementType, dimensions> Accessor)
+      : multi_ptr(Accessor.get_pointer()) {}
+
   // Only if Space == constant_space
   template <
       typename ElementType, int dimensions, access::mode Mode,
@@ -596,6 +635,9 @@ template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
 multi_ptr(accessor<T, dimensions, Mode, access::target::local, isPlaceholder,
                    PropertyListT>)
+    -> multi_ptr<T, access::address_space::local_space>;
+template <int dimensions, class T>
+multi_ptr(local_accessor<T, dimensions>)
     -> multi_ptr<T, access::address_space::local_space>;
 #endif
 

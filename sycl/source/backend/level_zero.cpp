@@ -61,12 +61,6 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
 }
 
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
-                                   pi_native_handle NativeHandle) {
-  return make_context(DeviceList, NativeHandle, false);
-}
-
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<program>
 __SYCL_EXPORT program make_program(const context &Context,
@@ -96,12 +90,6 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
   return detail::make_queue(NativeHandle, Context, Device, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
-}
-
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
-  return make_queue(Context, NativeHandle, false);
 }
 
 //----------------------------------------------------------------------------

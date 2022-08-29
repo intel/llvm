@@ -1003,8 +1003,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<
-      ext::oneapi::detail::AreAllButLastReductions<RestT...>::value, event>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
@@ -1134,8 +1133,7 @@ private:
   /// \param Range specifies the global work space of the kernel
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename... RestT>
-  std::enable_if_t<
-      ext::oneapi::detail::AreAllButLastReductions<RestT...>::value, event>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
