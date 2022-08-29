@@ -81,6 +81,8 @@ public:
 
   std::shared_ptr<sycl::detail::event_impl> getEvent() { return MEvent; }
 
+  using Command::MBlockingExplicitDeps;
+
 protected:
   sycl::detail::Requirement MRequirement;
 };
@@ -156,6 +158,10 @@ public:
   }
 
   ReadLockT acquireGraphReadLock() { return ReadLockT{MGraphLock}; }
+  WriteLockT acquireOriginSchedGraphWriteLock() {
+    Scheduler &Sched = Scheduler::getInstance();
+    return WriteLockT(Sched.MGraphLock, std::defer_lock);
+  }
 
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,

@@ -615,8 +615,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   for (const auto &BlockingCmdEvent : DepEvent->getBlockingExplicitDeps()) {
     if (Command *BlockingCmd =
             static_cast<Command *>(BlockingCmdEvent->getCommand());
-        BlockingCmd && BlockingCmd->isBlocking()) {
+        BlockingCmd && !BlockingCmdEvent->isComplete()) {
       MBlockingExplicitDeps.insert(BlockingCmdEvent);
+      //std::ignore = blockCommand(BlockingCmdEvent);
       BlockingCmd->removeBlockedUser(DepEvent);
       BlockingCmd->addBlockedUser(this->MEvent);
     }
@@ -629,8 +630,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
     // Skip DepEvent command check (== HOST_TASK) because of isBlocking
     // condition than checks MBlocking field that is true only for host task
     // now.
-    if (DepCmd && DepCmd->isBlocking()) {
+    if (DepCmd && !DepEvent->isComplete()) {
       // Blocks new command and prevent waiting on event
+      //std::ignore = blockCommand(DepEvent);
       MBlockingExplicitDeps.insert(DepEvent);
       DepCmd->addBlockedUser(this->MEvent);
     }
@@ -734,7 +736,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     return true;
 
   // If the command is blocked from enqueueing
-  if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
     // Exit if enqueue type is not blocking
     if (!Blocking) {
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
@@ -1756,7 +1758,6 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     MEvent->setNeedsCleanupAfterWait(true);
     // Host Task is the only natively blocking task that will enqueue dependents
     // on completion.
-    MBlockingTask = true;
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
              (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
               static_cast<CGExecKernel *>(MCommandGroup.get())

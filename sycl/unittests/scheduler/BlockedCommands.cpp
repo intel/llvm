@@ -16,7 +16,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   MockCommand MockCmd(detail::getSyclObjImpl(MQueue));
 
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  MockCmd.MIsBlockable = true;
+  MockCmd.MIsManuallyBlocked = true;
   MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
   MockScheduler MS;
@@ -52,21 +52,21 @@ TEST_F(SchedulerTest, BlockedCommands) {
 TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   MockCommand A(detail::getSyclObjImpl(MQueue));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  A.MIsBlockable = true;
+  A.MIsManuallyBlocked = true;
   A.MRetVal = CL_SUCCESS;
 
   MockCommand B(detail::getSyclObjImpl(MQueue));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  B.MIsBlockable = true;
+  B.MIsManuallyBlocked = true;
   B.MRetVal = CL_SUCCESS;
 
   MockCommand C(detail::getSyclObjImpl(MQueue));
   C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  C.MIsBlockable = true;
+  C.MIsManuallyBlocked = true;
 
   MockCommand D(detail::getSyclObjImpl(MQueue));
   D.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  D.MIsBlockable = true;
+  D.MIsManuallyBlocked = true;
   D.MRetVal = CL_SUCCESS;
 
   addEdge(&A, &B, nullptr);
@@ -99,7 +99,7 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
 TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   MockCommand A(detail::getSyclObjImpl(MQueue));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  A.MIsBlockable = true;
+  A.MIsManuallyBlocked = true;
 
   MockCommand B(detail::getSyclObjImpl(MQueue));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
@@ -137,17 +137,15 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
 }
 
-// This unit test is for workaround described in GraphProcessor::enqueueCommand
-// method.
 TEST_F(SchedulerTest, EnqueueHostDependency) {
   MockCommand A(detail::getSyclObjImpl(MQueue));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  A.MIsBlockable = true;
+  A.MIsManuallyBlocked = true;
   A.MRetVal = CL_SUCCESS;
 
   MockCommand B(detail::getSyclObjImpl(MQueue));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  B.MIsBlockable = true;
+  B.MIsManuallyBlocked = true;
   B.MRetVal = CL_SUCCESS;
 
   sycl::detail::EventImplPtr DepEvent{
@@ -167,14 +165,14 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   // "Graph" is quoted as we don't have this dependency in MDeps. Instead, we
   // have this dependecy as result of handler::depends_on() call.
 
-  EXPECT_CALL(A, enqueue).Times(1);
+  EXPECT_CALL(A, enqueue).Times(0);
   EXPECT_CALL(B, enqueue).Times(1);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
-  ASSERT_TRUE(Enqueued) << "The command should be enqueued\n";
-  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueSuccess, Res.MResult)
-      << "Enqueue operation should return successfully.\n";
+  ASSERT_FALSE(Enqueued) << "The command should not be enqueued\n";
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
+      << "Enqueue operation should return as blocked.\n";
 }

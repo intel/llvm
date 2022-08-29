@@ -140,8 +140,13 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
-  bool isEnqueueBlocked() const {
-    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+  bool isEnqueueManuallyBlocked() const {
+    return MIsManuallyBlocked && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+  }
+
+  bool hasBlockingDeps() const {
+    return (std::any_of(MBlockingExplicitDeps.begin(), MBlockingExplicitDeps.end(),
+    [](const EventImplPtr& Dep) { return !Dep->isComplete(); }));
   }
 
   const QueueImplPtr &getQueue() const { return MQueue; }
@@ -211,7 +216,6 @@ public:
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
-  bool isBlocking() const { return MBlockingTask && !MEvent->isComplete(); }
   void addBlockedUser(const EventImplPtr &NewUser) {
     MBlockedUsers.insert(NewUser);
   }
@@ -222,6 +226,25 @@ public:
     return MBlockedUsers;
   }
 
+  bool MIsManuallyBlocked = false;
+  enum class BlockReason : int { HostAccessor = 0, HostTask };
+  // Returns previous value of MBlockCounter for awareness. Could be easily ignored. 
+  // uint32_t blockCommand(const EventImplPtr& BlockingDep, BlockReason Reason = BlockReason::HostTask)
+  // {
+  //   MBlockCounter++;
+  //   MBlockingExplicitDeps.insert(BlockingDep); 
+  //   MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+  //   //MBlockReason = Reason;
+  // }
+  // // Returns previous value of MBlockCounter for awareness. Could be easily ignored. 
+  // uint32_t unblockCommand(const EventImplPtr& BlockingDep)
+  // {
+  //   MBlockCounter--;
+  //   MBlockingExplicitDeps.erase(BlockingDep);
+  //   if (MBlockCounter == 0 && !MIsManuallyBlocked)
+  //     MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  //   //MBlockReason = Reason;
+  // }
 protected:
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
@@ -233,11 +256,6 @@ protected:
   /// See processDepEvent for details.
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
-  std::unordered_set<EventImplPtr> &MBlockingExplicitDeps;
-  /// Contains list of commands that depend on the host command explicitly (by
-  /// depends_on). Not involved into cleanup process since it is one-way link
-  /// and not holds resources.
-  std::unordered_set<EventImplPtr> MBlockedUsers;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -266,10 +284,18 @@ protected:
   CommandType MType;
   /// Mutex used to protect enqueueing from race conditions
   std::mutex MEnqueueMtx;
-  /// Usually used by host task in replacement of empty task usage
-  bool MBlockingTask;
 
   friend class DispatchHostTask;
+
+  // Contains list of blocking dependencies. New commands depending on this one usually walks through the list and inherit "active" dependencies (which are not complete).
+  // MBlockingExplicitDeps is fully cleaned up after this command successfull enqueue.
+  std::unordered_set<EventImplPtr> &MBlockingExplicitDeps;
+  /// Contains list of commands that depend on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  std::unordered_set<EventImplPtr> MBlockedUsers;
+  // Shows how many blocking dependencies we have.
+  std::atomic_uint32_t MBlockCounter;
 
 public:
   const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
@@ -284,8 +310,7 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
-  /// Indicates whether the command can be blocked from enqueueing.
-  bool MIsBlockable = false;
+
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
@@ -298,9 +323,7 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-  enum class BlockReason : int { HostAccessor = 0, HostTask };
-
-  // Only have reasonable value while MIsBlockable is true
+  // Only have reasonable value while MEnqueueStatus = SyclEnqueueBlocked is true
   BlockReason MBlockReason;
 
   /// Describes the status of the command.

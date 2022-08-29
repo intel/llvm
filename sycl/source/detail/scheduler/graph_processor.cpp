@@ -53,7 +53,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return true;
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() && !Blocking) {
+  if (Cmd->isEnqueueManuallyBlocked() && !Blocking) {
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
     return false;
   }
@@ -74,8 +74,16 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+    {
       if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
         return false;
+    }
+  }
+
+  if (Cmd->hasBlockingDeps() && !Blocking)
+  {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
   }
 
   // Only graph read lock is to be held here.

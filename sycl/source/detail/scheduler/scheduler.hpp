@@ -781,6 +781,7 @@ protected:
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
+  friend class ::MockScheduler;
 
   /// Stream buffers structure.
   ///
