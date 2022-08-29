@@ -39,7 +39,7 @@ enum class address_space : int {
 } // namespace access
 
 // Dummy aspect enum with limited enumerators
-enum class aspect {
+enum class __attribute__((sycl_type(aspect))) aspect {
   host = 0,
   cpu = 1,
   gpu = 2,
@@ -54,7 +54,7 @@ class property_list {};
 namespace ext {
 namespace intel {
 namespace property {
-struct buffer_location {
+struct __attribute__((sycl_type(buffer_location))) buffer_location {
   template <int> class instance {};
 };
 } // namespace property
@@ -64,7 +64,7 @@ struct buffer_location {
 namespace ext {
 namespace oneapi {
 template <typename... properties>
-class accessor_property_list {};
+class __attribute__((sycl_type(accessor_property_list))) accessor_property_list {};
 
 // device_global type decorated with attributes
 template <typename T>
@@ -131,7 +131,7 @@ template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
           typename propertyListT = ext::oneapi::accessor_property_list<>>
-class __attribute__((sycl_special_class)) accessor {
+class __attribute__((sycl_special_class)) __attribute__((sycl_type(accessor))) accessor {
 public:
   void use(void) const {}
   void use(void *) const {}
@@ -194,7 +194,7 @@ struct _ImageImplT {
 };
 
 template <typename dataT, int dimensions, access::mode accessmode>
-class __attribute__((sycl_special_class)) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+class __attribute__((sycl_special_class))  __attribute__((sycl_type(accessor))) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
 public:
   void use(void) const {}
   template <typename... T>
@@ -240,12 +240,12 @@ struct get_kernel_name_t<auto_name, Type> {
 };
 
 template <int dimensions = 1>
-class group {
+class __attribute__((sycl_type(group))) group {
 public:
   group() = default; // fake constructor
 };
 
-class kernel_handler {
+class __attribute__((sycl_type(kernel_handler))) kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
 };
 
@@ -373,7 +373,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 template <typename T, typename ID = T>
-class spec_constant {
+class __attribute__((sycl_type(spec_constant))) spec_constant {
 public:
   spec_constant() {}
   explicit constexpr spec_constant(T defaultVal) : DefaultValue(defaultVal) {}

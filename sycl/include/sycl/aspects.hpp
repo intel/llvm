@@ -12,7 +12,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-enum class aspect {
+enum class __SYCL_TYPE(aspect) aspect {
   host = 0,
   cpu = 1,
   gpu = 2,

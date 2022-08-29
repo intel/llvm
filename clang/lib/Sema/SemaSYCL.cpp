@@ -67,79 +67,36 @@ static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
-namespace {
+static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
+  const auto *RD = Ty->getAsCXXRecordDecl();
+  if (!RD)
+    return false;
 
-/// Various utilities.
-class Util {
-public:
-  using DeclContextDesc = std::pair<Decl::Kind, StringRef>;
+  if (const SYCLTypeAttr *Attr = RD->getAttr<SYCLTypeAttr>())
+    return Attr->getType() == TypeName;
 
-  template <size_t N>
-  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
-                                                       const char (&Str)[N]) {
-    // FIXME: This SHOULD be able to use the StringLiteral constructor here
-    // instead, however this seems to fail with an 'invalid string literal' note
-    // on the correct constructor in some build configurations.  We need to
-    // figure that out before reverting this to use the StringLiteral
-    // constructor.
-    return DeclContextDesc{K, StringRef{Str, N - 1}};
-  }
+  if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RD))
+    if (CXXRecordDecl *TemplateDecl =
+            CTSD->getSpecializedTemplate()->getTemplatedDecl())
+      if (const SYCLTypeAttr *Attr = TemplateDecl->getAttr<SYCLTypeAttr>())
+        return Attr->getType() == TypeName;
 
-  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
-                                                       StringRef SR) {
-    return DeclContextDesc{K, SR};
-  }
+  return false;
+}
 
-  static bool isSyclSpecialType(QualType Ty);
+// FIXME: Accessor property lists should be modified to use compile-time
+// properties. Once implemented, this function (and possibly all/most code
+// in SemaSYCL.cpp handling no_alias and buffer_location property) can be
+// removed.
+static bool isAccessorPropertyType(QualType Ty,
+                                   SYCLTypeAttr::SYCLType TypeName) {
+  if (const auto *RD = Ty->getAsCXXRecordDecl())
+    if (const auto *Parent = dyn_cast<CXXRecordDecl>(RD->getParent()))
+      if (const SYCLTypeAttr *Attr = Parent->getAttr<SYCLTypeAttr>())
+        return Attr->getType() == TypeName;
 
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// accessor_property_list class.
-  static bool isAccessorPropertyListType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// no_alias class.
-  static bool isSyclAccessorNoAliasPropertyType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// buffer_location class.
-  static bool isSyclBufferLocationType(QualType Ty);
-
-  /// Checks whether given clang type is a standard SYCL API class with given
-  /// name.
-  /// \param Ty    the clang type being checked
-  /// \param Name  the class name checked against
-  /// \param Tmpl  whether the class is template instantiation or simple record
-  static bool isSyclType(QualType Ty, StringRef Name, bool Tmpl = false);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// specialization constant class.
-  static bool isSyclSpecConstantType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// specialization id class.
-  static bool isSyclSpecIdType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
-  /// kernel_handler class.
-  static bool isSyclKernelHandlerType(QualType Ty);
-
-  // Checks declaration context hierarchy.
-  /// \param DC     the context of the item to be checked.
-  /// \param Scopes the declaration scopes leading from the item context to the
-  ///               translation unit (excluding the latter)
-  static bool matchContext(const DeclContext *DC,
-                           ArrayRef<Util::DeclContextDesc> Scopes);
-
-  /// Checks whether given clang type is declared in the given hierarchy of
-  /// declaration contexts.
-  /// \param Ty         the clang type being checked
-  /// \param Scopes     the declaration scopes leading from the type to the
-  ///     translation unit (excluding the latter)
-  static bool matchQualifiedTypeName(QualType Ty,
-                                     ArrayRef<Util::DeclContextDesc> Scopes);
-};
-
-} // anonymous namespace
+  return false;
+}
 
 ExprResult Sema::ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT) {
   TypeSourceInfo *TInfo = nullptr;
@@ -924,7 +881,7 @@ public:
       // not a direct call - continue search
       return true;
     QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
-    if (!Util::isSyclType(Ty, "group", true /*Tmpl*/))
+    if (!isSyclType(Ty, SYCLTypeAttr::group))
       // not a member of sycl::group - continue search
       return true;
     auto Name = Callee->getName();
@@ -944,7 +901,7 @@ private:
 };
 
 static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
-  return Util::isSyclType(VD->getType(), "private_memory", true /*Tmpl*/);
+  return isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
 }
 
 static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
@@ -1064,7 +1021,7 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
   auto IsHandlerLambda = [](ParmVarDecl *PVD) {
-    return Util::isSyclKernelHandlerType(PVD->getType());
+    return isSyclType(PVD->getType(), SYCLTypeAttr::kernel_handler);
   };
 
   assert(llvm::count_if(KernelCallerFunc->parameters(), IsHandlerLambda) <= 1 &&
@@ -1186,7 +1143,8 @@ class KernelObjVisitor {
     for (const auto &Base : Range) {
       QualType BaseTy = Base.getType();
       // Handle accessor class as base
-      if (Util::isSyclSpecialType(BaseTy)) {
+      if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(
+              BaseTy)) {
         (void)std::initializer_list<int>{
             (Handlers.handleSyclSpecialType(Owner, Base, BaseTy), 0)...};
       } else
@@ -1268,9 +1226,9 @@ class KernelObjVisitor {
   template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType FieldTy, HandlerTys &... Handlers) {
-    if (Util::isSyclSpecialType(FieldTy))
+    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(FieldTy))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
-    else if (Util::isSyclSpecConstantType(FieldTy))
+    else if (isSyclType(FieldTy, SYCLTypeAttr::spec_constant))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
@@ -1553,7 +1511,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
           Loc, diag::err_sycl_invalid_accessor_property_template_param);
 
     QualType PropListTy = PropList.getAsType();
-    if (!Util::isAccessorPropertyListType(PropListTy))
+    if (!isSyclType(PropListTy, SYCLTypeAttr::accessor_property_list))
       return SemaRef.Diag(
           Loc, diag::err_sycl_invalid_accessor_property_template_param);
 
@@ -1579,7 +1537,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
                    diag::err_sycl_invalid_accessor_property_list_template_param)
                << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
       QualType PropTy = Prop->getAsType();
-      if (Util::isSyclBufferLocationType(PropTy) &&
+      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::buffer_location) &&
           checkBufferLocationType(PropTy, Loc))
         return true;
     }
@@ -1612,10 +1570,10 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
   bool checkSyclSpecialType(QualType Ty, SourceRange Loc) {
-    assert(Util::isSyclSpecialType(Ty) &&
+    assert(SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(Ty) &&
            "Should only be called on sycl special class types.");
     const RecordDecl *RecD = Ty->getAsRecordDecl();
-    if (IsSIMD && !Util::isSyclType(Ty, "accessor", true /*Tmp*/))
+    if (IsSIMD && !isSyclType(Ty, SYCLTypeAttr::accessor))
       return SemaRef.Diag(Loc.getBegin(),
                           diag::err_sycl_esimd_not_supported_for_type)
              << RecD;
@@ -1893,9 +1851,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
       QualType PropTy = Prop->getAsType();
-      if (Util::isSyclAccessorNoAliasPropertyType(PropTy))
+      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::no_alias))
         handleNoAliasProperty(Param, PropTy, Loc);
-      if (Util::isSyclBufferLocationType(PropTy))
+      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::buffer_location))
         handleBufferLocationProperty(Param, PropTy, Loc);
     }
   }
@@ -1953,7 +1911,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
         KernelDecl->hasAttr<SYCLSimdAttr>() &&
-                Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
+                isSyclType(FieldTy, SYCLTypeAttr::accessor)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -1978,7 +1936,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
       if (ParamTy.getTypePtr()->isPointerType() &&
-          Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
+          isSyclType(FieldTy, SYCLTypeAttr::accessor))
         handleAccessorType(RecordDecl, FD->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
@@ -2074,7 +2032,7 @@ public:
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
         KernelDecl->hasAttr<SYCLSimdAttr>() &&
-                Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
+                isSyclType(FieldTy, SYCLTypeAttr::accessor)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -2093,7 +2051,7 @@ public:
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
       if (ParamTy.getTypePtr()->isPointerType() &&
-          Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
+          isSyclType(FieldTy, SYCLTypeAttr::accessor))
         handleAccessorType(RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
@@ -2215,7 +2173,7 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        (IsSIMD && Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
+        (IsSIMD && isSyclType(FieldTy, SYCLTypeAttr::accessor))
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -3134,7 +3092,7 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
-    if (Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)) {
+    if (isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
       const auto *AccTy =
           cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
@@ -4861,7 +4819,7 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
   // Step 1: ensure that this is of the correct type template specialization.
-  if (!Util::isSyclSpecIdType(VD->getType()) &&
+  if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
       !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
           VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
@@ -5043,7 +5001,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
     // was a deduced type.
-    if (!Util::isSyclSpecIdType(VD->getType()) &&
+    if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
         !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             VD->getType()))
       continue;
@@ -5118,133 +5076,4 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
   }
   return true;
-}
-
-// -----------------------------------------------------------------------------
-// Utility class methods
-// -----------------------------------------------------------------------------
-bool Util::isSyclSpecialType(const QualType Ty) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-  if (!RecTy)
-    return false;
-  return RecTy->hasAttr<SYCLSpecialClassAttr>();
-}
-
-bool Util::isSyclSpecConstantType(QualType Ty) {
-  std::array<DeclContextDesc, 6> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "spec_constant")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclSpecIdType(QualType Ty) {
-  std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(clang::Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "specialization_id")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclKernelHandlerType(QualType Ty) {
-  std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "kernel_handler")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
-  std::array<DeclContextDesc, 7> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "no_alias"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "instance")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclBufferLocationType(QualType Ty) {
-  std::array<DeclContextDesc, 7> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "intel"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "instance")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
-  Decl::Kind ClassDeclKind =
-      Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
-  std::array<DeclContextDesc, 3> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(ClassDeclKind, Name)};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isAccessorPropertyListType(QualType Ty) {
-  std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "accessor_property_list")};
-  return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::matchContext(const DeclContext *Ctx,
-                        ArrayRef<Util::DeclContextDesc> Scopes) {
-  // The idea: check the declaration context chain starting from the item
-  // itself. At each step check the context is of expected kind
-  // (namespace) and name.
-  StringRef Name = "";
-
-  for (const auto &Scope : llvm::reverse(Scopes)) {
-    Decl::Kind DK = Ctx->getDeclKind();
-    if (DK != Scope.first)
-      return false;
-
-    switch (DK) {
-    case Decl::Kind::ClassTemplateSpecialization:
-      // ClassTemplateSpecializationDecl inherits from CXXRecordDecl
-    case Decl::Kind::CXXRecord:
-      Name = cast<CXXRecordDecl>(Ctx)->getName();
-      break;
-    case Decl::Kind::Namespace:
-      Name = cast<NamespaceDecl>(Ctx)->getName();
-      break;
-    default:
-      llvm_unreachable("matchContext: decl kind not supported");
-    }
-    if (Name != Scope.second)
-      return false;
-    Ctx = Ctx->getParent();
-  }
-  return Ctx->isTranslationUnit() ||
-         (Ctx->isExternCXXContext() &&
-          Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
-}
-
-bool Util::matchQualifiedTypeName(QualType Ty,
-                                  ArrayRef<Util::DeclContextDesc> Scopes) {
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-
-  if (!RecTy)
-    return false; // only classes/structs supported
-  const auto *Ctx = cast<DeclContext>(RecTy);
-  return Util::matchContext(Ctx, Scopes);
 }
