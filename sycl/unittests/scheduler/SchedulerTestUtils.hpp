@@ -215,8 +215,8 @@ public:
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
       : sycl::handler(Queue, IsHost) {}
   // Methods
-  using sycl::handler::MImpl;
   using sycl::handler::getType;
+  using sycl::handler::MImpl;
 
   sycl::detail::NDRDescT &getNDRDesc() { return MNDRDesc; }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
@@ -266,7 +266,7 @@ public:
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     throw sycl::runtime_error("Unhandled type of command group",
-                              CL_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
 
     return nullptr;
   }

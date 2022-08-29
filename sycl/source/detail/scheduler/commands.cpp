@@ -214,7 +214,7 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // At this stage dependency is definitely pi task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
-    const auto &WorkerQueue = getWorkerQueue();
+    const QueueImplPtr &WorkerQueue = getWorkerQueue();
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
         WorkerQueue->isInOrder() && !isHostTask())
       continue;

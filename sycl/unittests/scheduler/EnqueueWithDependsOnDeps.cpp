@@ -33,11 +33,10 @@ public:
     case sycl::detail::CG::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle),
-          getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
-          getRequirements(), getEvents(), getArgs(), getKernelName(),
-          getOSModuleHandle(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), getCodeLoc()));
+          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
+          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
+          getKernelName(), getOSModuleHandle(), getStreamStorage(),
+          MImpl->MAuxiliaryResources, getCGType(), getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {
@@ -49,7 +48,7 @@ public:
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                CL_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
     }
 
     return CommandGroup;
@@ -75,7 +74,7 @@ detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
             DevQueue->get_context());
     auto ExecBundle = sycl::build(KernelBundle);
     MockCGH.use_kernel_bundle(ExecBundle);
-    MockCGH.single_task<TestKernel<>>([]{});
+    MockCGH.single_task<TestKernel<>>([] {});
   }
 
   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
@@ -85,6 +84,20 @@ detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
                IsHost ? MS.getDefaultHostQueue() : DevQueue, ToEnqueue);
   EXPECT_EQ(ToEnqueue.size(), 0u);
   return NewCmd;
+}
+
+bool CheckTestExecutionRequirements(const platform &plt) {
+  if (plt.is_host()) {
+    std::cout << "Not run due to host-only environment\n";
+    return false;
+  }
+  // This test only contains device image for SPIR-V capable devices.
+  if (plt.get_backend() != sycl::backend::opencl &&
+      plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
+    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
+    return false;
+  }
+  return true;
 }
 
 inline constexpr auto DisablePostEnqueueCleanupName =
@@ -99,16 +112,8 @@ TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
 
   default_selector Selector;
   platform Plt{Selector};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
+  if (!CheckTestExecutionRequirements(Plt))
     return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
 
   queue QueueDev(context(Plt), Selector);
   MockScheduler MS;
@@ -148,16 +153,8 @@ TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
 
   default_selector Selector;
   platform Plt{Selector};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
+  if (!CheckTestExecutionRequirements(Plt))
     return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -195,16 +192,8 @@ TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
 
   default_selector Selector;
   platform Plt{Selector};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
+  if (!CheckTestExecutionRequirements(Plt))
     return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -242,16 +231,9 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
 
   default_selector Selector;
   platform Plt{Selector};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
+  if (!CheckTestExecutionRequirements(Plt))
     return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
+
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -364,16 +346,9 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
 
   default_selector Selector;
   platform Plt{Selector};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
+  if (!CheckTestExecutionRequirements(Plt))
     return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
+
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWaitCustom);
