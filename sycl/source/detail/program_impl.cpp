@@ -505,29 +505,6 @@ void program_impl::create_pi_program_with_kernel_name(
   MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
-template <>
-uint32_t program_impl::get_info<info::program::reference_count>() const {
-  if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_ERROR_INVALID_PROGRAM);
-  }
-  pi_uint32 Result;
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram,
-                                           PI_PROGRAM_INFO_REFERENCE_COUNT,
-                                           sizeof(pi_uint32), &Result, nullptr);
-  return Result;
-}
-
-template <> context program_impl::get_info<info::program::context>() const {
-  return get_context();
-}
-
-template <>
-std::vector<device> program_impl::get_info<info::program::devices>() const {
-  return get_devices();
-}
-
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
