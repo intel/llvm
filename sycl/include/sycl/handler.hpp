@@ -1754,8 +1754,8 @@ public:
   }
 
   // This version of parallel_for may handle one or more reductions packed in
-  // \p Rest argument. Note thought that the last element in \p Rest pack is
-  // the kernel function.
+  // \p Rest argument. The last element in \p Rest pack is the kernel function,
+  // everything else is reduction(s).
   // TODO: this variant is currently enabled for 2+ reductions only as the
   // versions handling 1 reduction variable are more efficient right now.
   //
