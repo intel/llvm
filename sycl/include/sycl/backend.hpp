@@ -190,7 +190,6 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const device &TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
-// TODO: Remove when allowed.
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
