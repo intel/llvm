@@ -662,18 +662,13 @@ bool _pi_queue::supportsInOrderQueueOptimization(bool HostVisible,
   bool ProfilingEnabled = (Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
   switch (CachingLevel) {
   case DeviceScopeInternalOnly:
-    return isInOrderQueue() && isDiscardEvents() && !ProfilingEnabled &&
-                   !HostVisible && IsDiscarded
+    return isInOrderQueue() && !ProfilingEnabled && !HostVisible && IsDiscarded
                ? true
                : false;
   case AllDeviceScope:
-    return isInOrderQueue() && isDiscardEvents() && !ProfilingEnabled &&
-                   !HostVisible
-               ? true
-               : false;
+    return isInOrderQueue() && !ProfilingEnabled && !HostVisible ? true : false;
   case AllEvents:
-    return isInOrderQueue() && isDiscardEvents() && !ProfilingEnabled ? true
-                                                                      : false;
+    return isInOrderQueue() && !ProfilingEnabled ? true : false;
   default:
     die("Unexpected mode");
   }
@@ -715,7 +710,9 @@ inline static pi_result createEventAndAssociateQueue(
     bool ForceHostVisible = false) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  bool HostVisible = ForceHostVisible ? true : Queue->Device->eventsScope() == AllHostVisible;
+  *Event = nullptr;
+  bool HostVisible =
+      ForceHostVisible ? true : Queue->Device->eventsScope() == AllHostVisible;
 
   // If the queue supports optimization for the requested type of event
   // then try to get it from cache.
@@ -6784,7 +6781,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    PI_CALL(piEventRelease(Event));
+    PI_CALL(piEventReleaseInternal(Event));
     return PI_SUCCESS;
   };
 
