@@ -1847,9 +1847,7 @@ void ExecCGCommand::emitInstrumentationData() {
         Program = detail::getSyclObjImpl(SyclKernel)
                       ->getDeviceImage()
                       ->get_program_ref();
-      } else if (nullptr != KernelCG->MSyclKernel) {
-        // Since the sycl::program class is removed from the compiler - do nothing
-      } else {
+      } else if (KernelCG->MSyclKernel == nullptr) {
         std::tie(Kernel, KernelMutex, Program) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 KernelCG->MOSModuleHandle, MQueue->getContextImplPtr(),
