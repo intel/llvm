@@ -494,12 +494,11 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
       continue;
     }
     // Keeping original values for return + 'load'
-    Output[AddrIdx] = *((Ty *)addrs[AddrIdx]);
     if constexpr (Op == __ESIMD_NS::atomic_op::inc) {
-      __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)addrs[AddrIdx],
+      Output[AddrIdx] = __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)addrs[AddrIdx],
                                         static_cast<Ty>(1));
     } else if constexpr (Op == __ESIMD_NS::atomic_op::dec) {
-      __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)addrs[AddrIdx],
+      Output[AddrIdx] = __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)addrs[AddrIdx],
                                         static_cast<Ty>(1));
     }
   }
@@ -598,15 +597,8 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     }
     // Keeping original values for return
     retv[AddrIdx] = *((Ty *)addrs[AddrIdx]);
-    if constexpr (Op == __ESIMD_NS::atomic_op::cmpxchg) {
-      __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx], src0[AddrIdx],
-                                  src1[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::fcmpwr) {
-      if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
-        __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx], src0[AddrIdx],
-                                    src1[AddrIdx]);
-      }
-    }
+    static_assert((Op == __ESIMD_NS::atomic_op::cmpxchg) || (Op == __ESIMD_NS::atomic_op::fcmpxchg));
+    Output[AddrIdx] =  __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx], src0[AddrIdx], src1[AddrIdx]);
   }
   return retv;
 }
