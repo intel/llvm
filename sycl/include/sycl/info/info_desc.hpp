@@ -15,9 +15,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-#ifdef __SYCL_INTERNAL_API
-class program;
-#endif
 class device;
 class platform;
 class kernel_id;

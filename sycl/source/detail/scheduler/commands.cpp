@@ -26,7 +26,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/program.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -1849,9 +1848,7 @@ void ExecCGCommand::emitInstrumentationData() {
                       ->getDeviceImage()
                       ->get_program_ref();
       } else if (nullptr != KernelCG->MSyclKernel) {
-        auto SyclProg = detail::getSyclObjImpl(
-            KernelCG->MSyclKernel->get_info<info::kernel::program>());
-        Program = SyclProg->getHandleRef();
+        // Since the sycl::program class is removed from the compiler - do nothing
       } else {
         std::tie(Kernel, KernelMutex, Program) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -2148,18 +2145,6 @@ pi_int32 enqueueImpKernel(
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
-
-    auto SyclProg =
-        detail::getSyclObjImpl(MSyclKernel->get_info<info::kernel::program>());
-    Program = SyclProg->getHandleRef();
-    if (SyclProg->is_cacheable()) {
-      RT::PiKernel FoundKernel = nullptr;
-      std::tie(FoundKernel, KernelMutex, std::ignore) =
-          detail::ProgramManager::getInstance().getOrCreateKernel(
-              OSModuleHandle, ContextImpl, DeviceImpl, KernelName,
-              SyclProg.get());
-      assert(FoundKernel == Kernel);
-    }
   } else {
     std::tie(Kernel, KernelMutex, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(

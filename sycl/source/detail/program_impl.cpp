@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
 

@@ -67,12 +67,6 @@ template <> struct interop<backend::ext_oneapi_level_zero, platform> {
   using type = ze_driver_handle_t;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-#endif
-
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
 template <typename DataT, int Dimensions, access::mode AccessMode>
@@ -219,16 +213,6 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, platform> {
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, platform> {
   using type = ze_driver_handle_t;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-#endif
 
 template <bundle_state State>
 struct BackendInput<backend::ext_oneapi_level_zero, kernel_bundle<State>> {

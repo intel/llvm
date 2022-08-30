@@ -14,7 +14,6 @@
 #include <sycl/detail/common_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/device.hpp>
-#include <sycl/program.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
@@ -33,6 +32,8 @@ class kernel;
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+
+enum class program_state { none = 0, compiled = 1, linked = 2 };
 
 class program_impl {
 public:
