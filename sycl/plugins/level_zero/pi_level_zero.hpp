@@ -1077,7 +1077,22 @@ struct _pi_queue : _pi_object {
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
 
-  // Data structures and methods for optimizing events usage in in-order queues.
+  // Below are data structures and methods for optimizing events usage in scope
+  // of the same queue. We have more information for events reuse within the
+  // same in-order queue. An event can be reused on the queue even before it is
+  // synchronized because prior commands in the same queue guarantee its
+  // completion. I.e. as soon as some command is submitted to the in-order queue
+  // then it means that it depends on the previous command and the event
+  // associated with the previous command can be reset and reused for the next
+  // command submission:
+  //    previous command -> Event1
+  //    command (depends on Event1) -> Event2
+  //    next command (depends on Event2) -> (reset and reuse Event1 here)
+  // Such dependency chain is maintained only in scope of the same in-order
+  // queue. To be able to reuse event across queues we need to wait when event
+  // is completed and its external references are gone which almost always means
+  // that event is ready to be destroyed and we already have context-level cache
+  // of events for that.
 
   // Copy of the last command event which is suitable for reuse.
   // It will be put into the cache when new command is submitted to the in-order
@@ -1446,6 +1461,16 @@ struct _pi_event : _pi_object {
 
   bool hasExternalRefs() { return RefCountExternal != 0; }
 
+  // IsDiscarded means that the event was explicitly discarded, i.e. a pointer
+  // to the event is not visible externally at all from the moment of creation.
+  // We reuse events in in-order queues based on depependency chain between
+  // commands in such queues. IsDiscarded flag is used to limit this
+  // optimization only for explicitely discarded events because it is the safest
+  // approach.
+  // TODO: This flag can be removed once confirmed that more aggressive
+  // optimization (for all events without external references, i.e. including
+  // events which may have been visible externally at the moment of creation but
+  // then became invisible at some point) is safe and doesn't have any issues.
   bool IsDiscarded = false;
 
   // Reset _pi_event object.
