@@ -2350,6 +2350,7 @@ template <typename Reduction, typename... RestT>
 void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
+  std::ignore = Redu;
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
 
