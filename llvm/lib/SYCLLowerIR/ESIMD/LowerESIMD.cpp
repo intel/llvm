@@ -654,7 +654,7 @@ public:
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
-    };
+        {"bf_cvt", {"bf.cvt", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -1102,6 +1102,15 @@ static void translateGetSurfaceIndex(CallInst &CI) {
   auto SV =
       Builder.CreatePtrToInt(opnd, IntegerType::getInt32Ty(CI.getContext()));
   auto *SI = cast<CastInst>(SV);
+  SI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(SI);
+}
+
+static void translateBitcast(CallInst &CI) {
+  auto opnd = CI.getArgOperand(0);
+  IRBuilder<> Builder(&CI);
+  auto BC = Builder.CreateBitCast(opnd, CI.getType());
+  auto *SI = cast<CastInst>(BC);
   SI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(SI);
 }
@@ -1763,6 +1772,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
       if (Name.startswith("__esimd_get_surface_index")) {
         translateGetSurfaceIndex(*CI);
+        ToErase.push_back(CI);
+        continue;
+      }
+      if (Name.startswith("__esimd_bitcast")) {
+        translateBitcast(*CI);
         ToErase.push_back(CI);
         continue;
       }
