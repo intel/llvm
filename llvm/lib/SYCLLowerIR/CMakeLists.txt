@@ -58,6 +58,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerWGScope.cpp
   LowerWGLocalMemory.cpp
   MutatePrintfAddrspace.cpp
+  PropagateAspectsUsage.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
