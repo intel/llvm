@@ -27,7 +27,7 @@ template <typename Ty> Ty atomic_load(Ty *ptr) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  return __atomic_load(ptr, __ATOMIC_SEQ_CST);
+  return __atomic_load_n((CmpxchgTy<Ty> *)ptr, __ATOMIC_SEQ_CST);
 #endif
 }
 
@@ -36,17 +36,19 @@ template <typename Ty> Ty atomic_store(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  __atomic_store(ptr, val, __ATOMIC_SEQ_CST);
+  Ty ret = atomic_load<Ty>((CmpxchgTy<Ty> *)ptr);
+  __atomic_store_n((CmpxchgTy<Ty> *)ptr, val, __ATOMIC_SEQ_CST);
+  return ret;
 #endif
 }
 
-template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
+template <typename Ty> Ty atomic_add(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   if constexpr (std::is_integral_v<Ty>) {
-    return __atomic_add_fetch(ptr, val, __ATOMIC_SEQ_CST);
+    return __atomic_fetch_add(ptr, val, __ATOMIC_SEQ_CST);
   } else {
     // For Floating type
     Ty _old, _new;
@@ -56,20 +58,21 @@ template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
       _new = _old + val;
       _old_bits = *(CmpxchgTy<Ty> *)&_old;
       _new_bits = *(CmpxchgTy<Ty> *)&_new;
-    } while (!__atomic_compare_exchange_n(ptr, &_old_bits, _new_bits, false,
-                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    } while (!__atomic_compare_exchange_n((CmpxchgTy<Ty> *)ptr, &_old_bits,
+                                          _new_bits, false, __ATOMIC_SEQ_CST,
+                                          __ATOMIC_SEQ_CST));
+    return _old;
   }
 #endif
 }
 
-template <typename Ty> Ty atomic_sub_fetch(Ty *ptr, Ty val) {
+template <typename Ty> Ty atomic_sub(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   if constexpr (std::is_integral_v<Ty>) {
-    return __atomic_sub_fetch(ptr, val, __ATOMIC_SEQ_CST);
+    return __atomic_fetch_sub(ptr, val, __ATOMIC_SEQ_CST);
   } else {
     // For Floating type
     Ty _old, _new;
@@ -79,40 +82,41 @@ template <typename Ty> Ty atomic_sub_fetch(Ty *ptr, Ty val) {
       _new = _old - val;
       _old_bits = *(CmpxchgTy<Ty> *)&_old;
       _new_bits = *(CmpxchgTy<Ty> *)&_new;
-    } while (!__atomic_compare_exchange_n(ptr, &_old_bits, _new_bits, false,
-                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    } while (!__atomic_compare_exchange_n((CmpxchgTy<Ty> *)ptr, &_old_bits,
+                                          _new_bits, false, __ATOMIC_SEQ_CST,
+                                          __ATOMIC_SEQ_CST));
+    return _old;
   }
 #endif
 }
 
-template <typename Ty> Ty atomic_and_fetch(Ty *ptr, Ty val) {
+template <typename Ty> Ty atomic_and(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   static_assert(std::is_integral<Ty>::value);
-  return __atomic_and_fetch(ptr, val, __ATOMIC_SEQ_CST);
+  return __atomic_fetch_and(ptr, val, __ATOMIC_SEQ_CST);
 #endif
 }
 
-template <typename Ty> Ty atomic_or_fetch(Ty *ptr, Ty val) {
+template <typename Ty> Ty atomic_or(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   static_assert(std::is_integral<Ty>::value);
-  return __atomic_or_fetch(ptr, val, __ATOMIC_SEQ_CST);
+  return __atomic_fetch_or(ptr, val, __ATOMIC_SEQ_CST);
 #endif
 }
 
-template <typename Ty> Ty atomic_xor_fetch(Ty *ptr, Ty val) {
+template <typename Ty> Ty atomic_xor(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   static_assert(std::is_integral<Ty>::value);
-  return __atomic_xor_fetch(ptr, val, __ATOMIC_SEQ_CST);
+  return __atomic_fetch_xor(ptr, val, __ATOMIC_SEQ_CST);
 #endif
 }
 
@@ -128,7 +132,7 @@ template <typename Ty> Ty atomic_min(Ty *ptr, Ty val) {
       _new = std::min<Ty>(_old, val);
     } while (!__atomic_compare_exchange_n(ptr, &_old, _new, false,
                                           __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    return _old;
   } else {
     Ty _old, _new;
     CmpxchgTy<Ty> _old_bits, _new_bits;
@@ -137,9 +141,10 @@ template <typename Ty> Ty atomic_min(Ty *ptr, Ty val) {
       _new = std::min(_old, val);
       _old_bits = *(CmpxchgTy<Ty> *)&_old;
       _new_bits = *(CmpxchgTy<Ty> *)&_new;
-    } while (!__atomic_compare_exchange_n(ptr, &_old_bits, _new_bits, false,
-                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    } while (!__atomic_compare_exchange_n((CmpxchgTy<Ty> *)ptr, &_old_bits,
+                                          _new_bits, false, __ATOMIC_SEQ_CST,
+                                          __ATOMIC_SEQ_CST));
+    return _old;
   }
 #endif
 }
@@ -156,7 +161,7 @@ template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
       _new = std::max<Ty>(_old, val);
     } while (!__atomic_compare_exchange_n(ptr, &_old, _new, false,
                                           __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    return _old;
   } else {
     Ty _old, _new;
     CmpxchgTy<Ty> _old_bits, _new_bits;
@@ -165,9 +170,10 @@ template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
       _new = std::max(_old, val);
       _old_bits = *(CmpxchgTy<Ty> *)&_old;
       _new_bits = *(CmpxchgTy<Ty> *)&_new;
-    } while (!__atomic_compare_exchange_n(ptr, &_old_bits, _new_bits, false,
+    } while (!__atomic_compare_exchange_n((CmpxchgTy<Ty> *)(CmpxchgTy<Ty> *)ptr,
+                                          &_old_bits, _new_bits, false,
                                           __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    return _old;
   }
 #endif
 }
@@ -178,25 +184,24 @@ template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty desired, Ty expected) {
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
   if constexpr (std::is_integral_v<Ty>) {
-    Ty _old = expected;
-    __atomic_compare_exchange_n(ptr, &_old, desired, false, __ATOMIC_SEQ_CST,
+    Ty local = expected;
+    __atomic_compare_exchange_n(ptr, &local, desired, false, __ATOMIC_SEQ_CST,
                                 __ATOMIC_SEQ_CST);
-    return *ptr;
+    // if exchange occured, this means 'local=expected=*ptr'. So local
+    // is returned as old val
+    // if exchange did not occur, *ptr value compared against 'local'
+    // is stored in 'local'. So local is returned as old val
+    return local;
   } else {
-    Ty _old, _new;
-    CmpxchgTy<Ty> _old_bits, _new_bits;
-    do {
-      _old = expected;
-      _new = desired;
-      _old_bits = *(CmpxchgTy<Ty> *)&_old;
-      _new_bits = *(CmpxchgTy<Ty> *)&_new;
-    } while (!__atomic_compare_exchange_n(ptr, &_old_bits, _new_bits, false,
-                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-    return _new;
+    CmpxchgTy<Ty> desired_bits = *(CmpxchgTy<Ty> *)&desired;
+    CmpxchgTy<Ty> local_bits = *(CmpxchgTy<Ty> *)&expected;
+    __atomic_compare_exchange_n((CmpxchgTy<Ty> *)ptr, &local_bits,
+                                desired_bits, false, __ATOMIC_SEQ_CST,
+                                __ATOMIC_SEQ_CST);
+    return *((Ty *)&local_bits);
   }
 #endif
 }
-
 } // namespace __ESIMD_DNS
 
 /// @endcond ESIMD_DETAIL
