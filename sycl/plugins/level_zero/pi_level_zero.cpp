@@ -3144,6 +3144,12 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
             (ZeDevice, &MemCount, MemHandles.data()));
 
     for (auto &ZesMemHandle : MemHandles) {
+      ZesStruct<zes_mem_properties_t> ZeMemProperties;
+      ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
+      // Only report HBM which zeMemAllocDevice allocates from.
+      if (ZeMemProperties.type != ZES_MEM_TYPE_HBM)
+        continue;
+
       ZesStruct<zes_mem_state_t> ZeMemState;
       ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
       FreeMemory += ZeMemState.free;
