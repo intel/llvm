@@ -77,6 +77,32 @@ read_execution_bitfield(pi_device_exec_capabilities bits) {
   return result;
 }
 
+inline std::string
+affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
+  switch (AffinityDomain) {
+#define __SYCL_AFFINITY_DOMAIN_STRING_CASE(DOMAIN)                             \
+  case DOMAIN:                                                                 \
+    return #DOMAIN;
+
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::numa)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L4_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L3_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L2_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L1_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::next_partitionable)
+#undef __SYCL_AFFINITY_DOMAIN_STRING_CASE
+  default:
+    assert(false && "Missing case for affinity domain.");
+    return "unknown";
+  }
+}
+
 // Mapping expected SYCL return types to those returned by PI calls
 template <typename T> struct sycl_to_pi {
   using type = T;
@@ -1135,7 +1161,7 @@ get_device_info_host<info::device::built_in_kernels>() {
 }
 
 template <> inline platform get_device_info_host<info::device::platform>() {
-  return platform();
+  return createSyclObjFromImpl<platform>(platform_impl::getHostPlatformImpl());
 }
 
 template <> inline std::string get_device_info_host<info::device::name>() {
@@ -1358,6 +1384,14 @@ inline detail::uuid_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint64_t
+get_device_info_host<info::device::ext_intel_free_memory>() {
+  throw runtime_error(
+      "Obtaining the device free memory is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 

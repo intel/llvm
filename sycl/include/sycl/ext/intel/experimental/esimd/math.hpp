@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
@@ -1759,7 +1761,8 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename Sat = __ESIMD_NS::saturation_off_tag>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 dpas(__ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-     __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+     __ESIMD_NS::simd<T2, N2> src2,
+     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   // types: dst, src0, src1, src2
   // ud, d | ud, d | ub,b,u4,s4,u2,s2 | ub,b,u4,s4,u2,s2
   constexpr bool check_integer =
@@ -1892,7 +1895,8 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename Sat = __ESIMD_NS::saturation_off_tag>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 dpas(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-     __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+     __ESIMD_NS::simd<T2, N2> src2,
+     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   return dpas<src1_precision, src2_precision, T, systolic_depth, repeat_count>(
       src0, src1, src2, sat);
 }
@@ -1909,9 +1913,9 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<T1, N1> src1,
-                                        __ESIMD_NS::simd<T2, N2> src2,
-                                        Sat sat = {}) {
+__ESIMD_API __ESIMD_NS::simd<T, N>
+dpas(__ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
+     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
 
   static_assert(__ESIMD_DNS::is_fp_or_dword_type<T>::value,
                 "Dst must be FP or DWORD type");
@@ -1974,10 +1978,12 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename Sat = __ESIMD_NS::saturation_off_tag>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-      __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+      __ESIMD_NS::simd<T2, N2> src2,
+      std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
-      src1_precision == src2_precision && src1_precision == argument_type::FP16;
+      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
+      (src1_precision == src2_precision) &&
+      (src1_precision == argument_type::FP16);
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&
                            src1_precision == src2_precision &&
@@ -2045,11 +2051,11 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
-                                          __ESIMD_NS::simd<T2, N2> src2,
-                                          Sat sat = {}) {
+__ESIMD_API __ESIMD_NS::simd<T, N>
+dpasw2(__ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
+       std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
+      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
       src1_precision == src2_precision && src1_precision == argument_type::FP16;
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&

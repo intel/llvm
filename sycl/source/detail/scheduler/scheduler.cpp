@@ -391,7 +391,8 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
 }
 
 Scheduler::Scheduler() {
-  sycl::device HostDevice;
+  sycl::device HostDevice =
+      createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
   sycl::context HostContext{HostDevice};
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),

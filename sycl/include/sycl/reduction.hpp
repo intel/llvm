@@ -95,15 +95,15 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<((sycl::detail::is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                   sycl::detail::is_sgeninteger<T>::value) &&
-                  sycl::detail::IsValidAtomicType<T>::value &&
-                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitOR<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitXOR<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitAND<T, BinaryOperation>::value)>;
+    bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
+                   is_sgeninteger<T>::value) &&
+                  IsValidAtomicType<T>::value &&
+                  (IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value ||
+                   IsBitOR<T, BinaryOperation>::value ||
+                   IsBitXOR<T, BinaryOperation>::value ||
+                   IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -119,10 +119,10 @@ using IsReduOptForAtomic64Op =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<(sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value) &&
-                  sycl::detail::is_sgenfloat<T>::value && sizeof(T) == 8>;
+    bool_constant<(IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value) &&
+                  is_sgenfloat<T>::value && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -135,12 +135,12 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<((sycl::detail::is_sgeninteger<T>::value &&
+    bool_constant<((is_sgeninteger<T>::value &&
                     (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   sycl::detail::is_sgenfloat<T>::value) &&
-                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
+                   is_sgenfloat<T>::value) &&
+                  (IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -191,45 +191,45 @@ template <class Reducer> class combiner {
 
 public:
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsPlus<_T, BinaryOp>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
+              is_geninteger<_T>::value>
   operator++() {
     static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsPlus<_T, BinaryOp>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
+              is_geninteger<_T>::value>
   operator++(int) {
     static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsPlus<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
   operator+=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsMultiplies<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
   operator*=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsBitOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
   operator|=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsBitXOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
   operator^=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && sycl::detail::IsBitAND<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
   operator&=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
@@ -266,7 +266,7 @@ public:
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-              sycl::detail::IsPlus<_T, _BinaryOperation>::value>
+              IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
@@ -277,7 +277,7 @@ public:
             typename _T = Ty, class _BinaryOperation = BinaryOp>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-              sycl::detail::IsBitOR<_T, _BinaryOperation>::value>
+              IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
@@ -288,7 +288,7 @@ public:
             typename _T = Ty, class _BinaryOperation = BinaryOp>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-              sycl::detail::IsBitXOR<_T, _BinaryOperation>::value>
+              IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
@@ -299,7 +299,7 @@ public:
             typename _T = Ty, class _BinaryOperation = BinaryOp>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, _T>::value &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-              sycl::detail::IsBitAND<_T, _BinaryOperation>::value &&
+              IsBitAND<_T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -313,7 +313,7 @@ public:
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-              sycl::detail::IsMinimum<_T, _BinaryOperation>::value>
+              IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
@@ -325,7 +325,7 @@ public:
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-              sycl::detail::IsMaximum<_T, _BinaryOperation>::value>
+              IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
@@ -339,15 +339,15 @@ public:
 /// It stores a copy of the identity and binary operation associated with the
 /// reduction.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 0 && Extent == 1 && View == false &&
-                  !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                     !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                                   !sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 0 && Extent == 1 && View == false &&
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -371,15 +371,15 @@ private:
 /// It allows to reduce the size of the 'reducer' object by not holding
 /// the identity field inside it and allows to add a default constructor.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 0 && Extent == 1 && View == false &&
-                  sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                     detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                                   sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 0 && Extent == 1 && View == false &&
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -390,7 +390,7 @@ public:
   }
 
   static T getIdentity() {
-    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
+    return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t) { return MValue; }
@@ -419,15 +419,15 @@ private:
 /// Specialization of 'reducer' class for array reductions exposing the
 /// subscript operator.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 1 && View == false &&
-                  !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 1 && View == false &&
+                     !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 1 && View == false &&
-                                   !sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 1 && View == false &&
+                      !detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -449,15 +449,15 @@ private:
 /// Specialization of 'reducer' class for array reductions accepting a span
 /// in cases where the identity value is known.
 template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, View,
-              std::enable_if_t<
-                  Dims == 1 && View == false &&
-                  sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    std::enable_if_t<Dims == 1 && View == false &&
+                     detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public detail::combiner<
           reducer<T, BinaryOperation, Dims, Extent, View,
-                  std::enable_if_t<Dims == 1 && View == false &&
-                                   sycl::detail::IsKnownIdentityOp<
-                                       T, BinaryOperation>::value>>> {
+                  std::enable_if_t<
+                      Dims == 1 && View == false &&
+                      detail::IsKnownIdentityOp<T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -469,7 +469,7 @@ public:
   }
 
   static T getIdentity() {
-    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
+    return detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
@@ -491,14 +491,14 @@ protected:
 public:
   /// Returns the statically known identity value.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value,
+  enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
               _T> constexpr getIdentity() {
-    return sycl::detail::known_identity_impl<_BinaryOperation, _T>::value;
+    return known_identity_impl<_BinaryOperation, _T>::value;
   }
 
   /// Returns the identity value given by user.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<!sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
+  enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
     return MIdentity;
   }
@@ -515,29 +515,6 @@ protected:
   BinaryOperation MBinaryOp;
   bool InitializeToIdentity;
 };
-
-template <class T> struct is_rw_acc_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::placeholder IsPlaceholder,
-          typename PropList>
-struct is_rw_acc_t<accessor<T, AccessorDims, access::mode::read_write,
-                            access::target::device, IsPlaceholder, PropList>>
-    : public std::true_type {};
-
-template <class T> struct is_dw_acc_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::placeholder IsPlaceholder,
-          typename PropList>
-struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
-                            access::target::device, IsPlaceholder, PropList>>
-    : public std::true_type {};
-
-template <class T> struct is_placeholder_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::mode Mode, typename PropList>
-struct is_placeholder_t<accessor<T, AccessorDims, Mode, access::target::device,
-                                 access::placeholder::true_t, PropList>>
-    : public std::true_type {};
 
 // Used for determining dimensions for temporary storage (mainly).
 template <class T> struct data_dim_t {
@@ -574,17 +551,7 @@ public:
   using result_type = T;
   using binary_operation = BinaryOperation;
 
-  // Buffers and accessors always describe scalar reductions (i.e. Dims == 0)
-  // The input buffer/accessor is allowed to have different dimensionality
-  // AccessorDims also determines the dimensionality of some temp storage
-  static constexpr int accessor_dim = data_dim_t<RedOutVar>::value;
-  static constexpr int buffer_dim = (accessor_dim == 0) ? 1 : accessor_dim;
-  static constexpr access::placeholder is_placeholder =
-      is_placeholder_t<RedOutVar>::value ? access::placeholder::true_t
-                                         : access::placeholder::false_t;
-  using rw_accessor_type = accessor<T, accessor_dim, access::mode::read_write,
-                                    access::target::device, is_placeholder,
-                                    ext::oneapi::accessor_property_list<>>;
+  static constexpr size_t dims = Dims;
   static constexpr bool has_float64_atomics =
       IsReduOptForAtomic64Op<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
@@ -594,13 +561,6 @@ public:
 
   static constexpr bool is_usm = std::is_same_v<RedOutVar, T *>;
 
-  static constexpr bool is_rw_acc = is_rw_acc_t<RedOutVar>::value;
-  static constexpr bool is_dw_acc = is_dw_acc_t<RedOutVar>::value;
-  static constexpr bool is_acc = is_rw_acc | is_dw_acc;
-  static_assert(!is_rw_acc || !is_dw_acc, "Can be only one at once!");
-  static_assert(!is_usm || !is_acc, "Can be only one at once!");
-
-  static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
 
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
@@ -611,39 +571,36 @@ public:
   /// By default the local accessor elements are of the same type as the
   /// elements processed by the reduction, but may it be altered by specifying
   /// \p _T explicitly if need an accessor with elements of different type.
-  template <typename _T = result_type>
-  static accessor<_T, buffer_dim, access::mode::read_write,
-                  access::target::local>
+  ///
+  /// For array reductions we process them one element in a type to avoid stack
+  /// growth, so the dimensionality of the temporary buffer is always one.
+  template <class _T = result_type>
+  static accessor<_T, 1, access::mode::read_write, access::target::local>
   getReadWriteLocalAcc(size_t Size, handler &CGH) {
     return {Size, CGH};
   }
 
-  accessor<T, buffer_dim, access::mode::read>
-  getReadAccToPreviousPartialReds(handler &CGH) const {
+  auto getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
-    return {*MOutBufPtr, CGH};
+    return accessor{*MOutBufPtr, CGH, sycl::read_only};
   }
 
   template <bool IsOneWG>
   auto getWriteMemForPartialReds(size_t Size, handler &CGH) {
     // If there is only one WG we can avoid creation of temporary buffer with
     // partial sums and write directly into user's reduction variable.
-    //
-    // Current implementation doesn't allow that in case of DW accessor used for
-    // reduction because C++ types for it and for temporary storage don't match,
-    // hence the second part of the check.
-    if constexpr (IsOneWG && !is_dw_acc) {
+    if constexpr (IsOneWG) {
       return MRedOut;
     } else {
-      MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+      MOutBufPtr = std::make_shared<buffer<T, 1>>(range<1>(Size));
       CGH.addReduction(MOutBufPtr);
-      return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+      return accessor{*MOutBufPtr, CGH};
     }
   }
 
-  template <class _T = T, int D = buffer_dim>
+  template <class _T = T>
   auto &getTempBuffer(size_t Size, handler &CGH) {
-    auto Buffer = std::make_shared<buffer<_T, D>>(range<1>(Size));
+    auto Buffer = std::make_shared<buffer<_T, 1>>(range<1>(Size));
     CGH.addReduction(Buffer);
     return *Buffer;
   }
@@ -654,8 +611,8 @@ public:
   /// needs to be written to user's read-write accessor (if there is such).
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
-  rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if constexpr (is_rw_acc) {
+  auto getWriteAccForPartialReds(size_t Size, handler &CGH) {
+    if constexpr (!is_usm) {
       if (Size == 1) {
         CGH.associateWithHandler(&MRedOut, access::target::device);
         return MRedOut;
@@ -663,24 +620,24 @@ public:
     }
 
     // Create a new output buffer and return an accessor to it.
-    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    //
+    // Array reductions are performed element-wise to avoid stack growth.
+    MOutBufPtr = std::make_shared<buffer<T, 1>>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return accessor{*MOutBufPtr, CGH};
   }
 
   /// If reduction is initialized with read-write accessor, which does not
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create global buffer with 'num_elements' initialized
   /// with identity value and return an accessor to that buffer.
-  template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics)>
-  std::enable_if_t<HasFastAtomics, rw_accessor_type>
-  getReadWriteAccessorToInitializedMem(handler &CGH) {
-    if constexpr (is_rw_acc) {
+  template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics),
+            typename = std::enable_if_t<HasFastAtomics>>
+  auto getReadWriteAccessorToInitializedMem(handler &CGH) {
+    if constexpr (!is_usm) {
       if (!base::initializeToIdentity())
         return MRedOut;
     }
-    assert(!(is_dw_acc && !base::initializeToIdentity()) &&
-           "Unexpected condition!");
 
     // TODO: Move to T[] in C++20 to simplify handling here
     // auto RWReduVal = std::make_shared<T[num_elements]>();
@@ -693,7 +650,7 @@ public:
                                                 range<1>(num_elements));
     MOutBufPtr->set_final_data();
     CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    return accessor{*MOutBufPtr, CGH};
   }
 
   accessor<int, 1, access::mode::read_write, access::target::device,
@@ -710,7 +667,7 @@ public:
   // On discrete (vs. integrated) GPUs it's faster to initialize memory with an
   // extra kernel than copy it from the host.
   template <typename Name> auto getGroupsCounterAccDiscrete(handler &CGH) {
-    auto &Buf = getTempBuffer<int, 1>(1, CGH);
+    auto &Buf = getTempBuffer<int>(1, CGH);
     std::shared_ptr<detail::queue_impl> QueueCopy = CGH.MQueue;
     auto Event = CGH.withAuxHandler(QueueCopy, [&](handler &InitHandler) {
       auto Acc = accessor{Buf, InitHandler, sycl::write_only, sycl::no_init};
@@ -731,24 +688,9 @@ public:
   }
 
 private:
-  template <typename BufferT>
-  rw_accessor_type createHandlerWiredReadWriteAccessor(handler &CGH,
-                                                       BufferT Buffer) {
-    // TODO:
-    // SYCL 2020: The accessor template parameter IsPlaceholder is allowed to be
-    // specified, but it has no bearing on whether the accessor instance is a
-    // placeholder. This is determined solely by the constructor used to create
-    // the instance. The associated type access::placeholder is also deprecated.
-    if constexpr (is_placeholder == access::placeholder::true_t) {
-      rw_accessor_type Acc(Buffer);
-      CGH.require(Acc);
-      return Acc;
-    } else {
-      return {Buffer, CGH};
-    }
-  }
-
-  std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
+  // Array reduction is performed element-wise to avoid stack growth, hence
+  // 1-dimensional always.
+  std::shared_ptr<buffer<T, 1>> MOutBufPtr;
 
   /// User's accessor/USM pointer to where the reduction must be written.
   RedOutVar MRedOut;
@@ -765,7 +707,7 @@ private:
   using self = reduction_impl<T, BinaryOperation, Dims, Extent, RedOutVar>;
 
   static constexpr bool is_known_identity =
-      sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value;
+      IsKnownIdentityOp<T, BinaryOperation>::value;
 
   // TODO: Do we also need chooseBinOp?
   static constexpr T chooseIdentity(const T &Identity) {
@@ -790,22 +732,18 @@ private:
   }
 
 public:
-  using algo::is_acc;
-  using algo::is_dw_acc;
-  using algo::is_rw_acc;
   using algo::is_usm;
 
   using reducer_type = typename algo::reducer_type;
-  using rw_accessor_type = typename algo::rw_accessor_type;
 
   // Only scalar and 1D array reductions are supported by SYCL 2020.
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
 
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
-            enable_if_t<_self::is_known_identity && _self::is_acc> * = nullptr>
+            enable_if_t<_self::is_known_identity && !_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), is_dw_acc, Acc) {
+      : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -824,9 +762,8 @@ public:
 
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self,
-            std::enable_if_t<_self::is_known_identity && _self::is_rw_acc> * =
-                nullptr>
+  template <typename _self = self, std::enable_if_t<_self::is_known_identity &&
+                                                    !_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, Acc) {
@@ -838,9 +775,9 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _self = self, enable_if_t<_self::is_acc> * = nullptr>
+  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(chooseIdentity(Identity), BOp, is_dw_acc, Acc) {
+      : algo(chooseIdentity(Identity), BOp, false, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -856,7 +793,7 @@ public:
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
 
   /// For placeholder accessor.
-  template <typename _self = self, enable_if_t<_self::is_rw_acc> * = nullptr>
+  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
                  BinaryOperation BOp, bool InitializeToIdentity)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
@@ -880,8 +817,8 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
 /// must do that to avoid name collisions.
 template <template <typename...> class Namer, class KernelName, class... Ts>
 using __sycl_reduction_kernel =
-    std::conditional_t<std::is_same<KernelName, sycl::detail::auto_name>::value,
-                       sycl::detail::auto_name, Namer<KernelName, Ts...>>;
+    std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
+                       Namer<KernelName, Ts...>>;
 
 /// Called in device code. This function iterates through the index space
 /// by assigning contiguous chunks to each work-group, then iterating
@@ -907,7 +844,7 @@ void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
   size_t End = GroupEnd;
   size_t Stride = NdId.get_local_range(0);
   for (size_t I = Start; I < End; I += Stride)
-    F(sycl::detail::getDelinearizedId(Range, I), Reducer);
+    F(getDelinearizedId(Range, I), Reducer);
 }
 
 namespace reduction {
@@ -937,7 +874,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
     for (size_t E = LID; E < NElements; E += NDId.get_local_range(0)) {
       GroupSum[E] = Reducer.getIdentity();
     }
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
 
     // Each work-item has its own reducer to combine
     Reducer.template atomic_combine<access::address_space::local_space>(
@@ -945,7 +882,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
 
     // Single work-item performs finalization for entire work-group
     // TODO: Opportunity to parallelize across elements
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
     if (LID == 0) {
       for (size_t E = 0; E < NElements; ++E) {
         Reducer.getElement(E) = GroupSum[E];
@@ -973,7 +910,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   size_t NWorkGroups = NDRange.get_group_range().size();
 
   auto &Out = Redu.getUserRedVar();
-  if constexpr (Reduction::is_acc)
+  if constexpr (!Reduction::is_usm)
     associateWithHandler(CGH, &Out, access::target::device);
 
   auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
@@ -985,8 +922,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
   // Integrated/discrete GPUs have different faster path.
   auto NWorkGroupsFinished =
-      sycl::detail::getDeviceFromHandler(CGH)
-              .get_info<info::device::host_unified_memory>()
+      getDeviceFromHandler(CGH).get_info<info::device::host_unified_memory>()
           ? Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH)
           : Redu.template getGroupsCounterAccDiscrete<InitName>(CGH);
 
@@ -1037,7 +973,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
       DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
     }
 
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       // Reduce each result separately
       // TODO: Opportunity to parallelize across elements.
@@ -1105,7 +1041,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       LocalReds[LID] = Reducer.getElement(E);
       if (LID == 0)
         LocalReds[WGSize] = Identity;
-      sycl::detail::workGroupBarrier();
+      workGroupBarrier();
 
       // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
       // LocalReds[WGSize] accumulates last/odd elements when the step
@@ -1116,7 +1052,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
           LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
         else if (LID == CurStep && (PrevStep & 0x1))
           LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-        sycl::detail::workGroupBarrier();
+        workGroupBarrier();
         PrevStep = CurStep;
       }
 
@@ -1140,7 +1076,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
           ++NFinished == NWorkGroups && NWorkGroups > 1;
     }
 
-    sycl::detail::workGroupBarrier();
+    workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       // Reduce each result separately
       // TODO: Opportunity to parallelize across elements
@@ -1154,7 +1090,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
         LocalReds[LID] = LocalSum;
         if (LID == 0)
           LocalReds[WGSize] = Identity;
-        sycl::detail::workGroupBarrier();
+        workGroupBarrier();
 
         size_t PrevStep = WGSize;
         for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
@@ -1162,7 +1098,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
             LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
           else if (LID == CurStep && (PrevStep & 0x1))
             LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          sycl::detail::workGroupBarrier();
+          workGroupBarrier();
           PrevStep = CurStep;
         }
         if (LID == 0) {
@@ -1174,7 +1110,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       }
     }
   });
-  return Reduction::is_usm || Reduction::is_dw_acc;
+  return Reduction::is_usm;
 }
 
 /// Returns "true" if the result has to be saved to user's variable by
@@ -1218,10 +1154,12 @@ template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
 ///
 /// Briefly: calls user's lambda, reduce() + atomic, INT +
 /// ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForNDRangeBothFastReduceAndAtomics(
-    handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-    Reduction &, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
+void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
+                                                  KernelType KernelFunc,
+                                                  const nd_range<Dims> &Range,
+                                                  Reduction &, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   using Name = __sycl_reduction_kernel<
       reduction::main_krn::NDRangeBothFastReduceAndAtomics, KernelName>;
@@ -1253,11 +1191,12 @@ template <class KernelName> struct NDRangeFastAtomicsOnly;
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForNDRangeFastAtomicsOnly(
-    handler &CGH, bool IsPow2WG, KernelType KernelFunc,
-    const nd_range<Dims> &Range, Reduction &,
-    typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
+void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
+                                         KernelType KernelFunc,
+                                         const nd_range<Dims> &Range,
+                                         Reduction &, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
 
@@ -1333,10 +1272,11 @@ template <class KernelName> struct NDRangeFastReduceOnly;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, reduce(), FP + ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForNDRangeFastReduceOnly(
-    handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-    Reduction &Redu, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
+void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
+                                        const nd_range<Dims> &Range,
+                                        Reduction &Redu, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
@@ -1379,11 +1319,12 @@ template <class KernelName> struct NDRangeBasic;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          class AccTy>
 void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
                                KernelType KernelFunc,
                                const nd_range<Dims> &Range, Reduction &Redu,
-                               typename Reduction::rw_accessor_type Out) {
+                               AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
@@ -2139,7 +2080,7 @@ void associateReduAccsWithHandler(handler &CGH,
                                   std::tuple<Reductions...> &ReduTuple,
                                   std::index_sequence<Is...>) {
   auto ProcessOne = [&CGH](auto Redu) {
-    if constexpr (decltype(Redu)::is_acc) {
+    if constexpr (!decltype(Redu)::is_usm) {
       associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
     }
   };
@@ -2409,18 +2350,6 @@ template <typename Reduction, typename... RestT>
 void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
-  if constexpr (Reduction::is_dw_acc) {
-    event CopyEvent = withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
-      auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
-      auto OutAcc = Redu.getUserRedVar();
-      associateWithHandler(CopyHandler, &Redu.getUserRedVar(),
-                           access::target::device);
-      if (!Events.empty())
-        CopyHandler.depends_on(Events.back());
-      CopyHandler.copy(InAcc, OutAcc);
-    });
-    Events.push_back(CopyEvent);
-  }
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
 
@@ -2475,7 +2404,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
                const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
-  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var}, CGH,
+  return detail::make_reduction<BinaryOperation, 0, 1>(accessor{Var, CGH}, CGH,
                                                        InitializeToIdentity);
 }
 
@@ -2539,7 +2468,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1>(
-      accessor{Var}, CGH, Identity, Combiner, InitializeToIdentity);
+      accessor{Var, CGH}, CGH, Identity, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by

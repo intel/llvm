@@ -1411,6 +1411,11 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
+  template <typename DataT, int Dims>
+  void set_arg(int ArgIndex, local_accessor<DataT, Dims> Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
+  }
+
   /// Sets arguments for OpenCL interoperability kernels.
   ///
   /// Registers pack of arguments(Args) with indexes starting from 0.
@@ -1741,7 +1746,7 @@ public:
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm || Reduction::is_dw_acc) {
+    if (Reduction::is_usm) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });

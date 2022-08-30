@@ -11,13 +11,15 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/id.hpp>
+#include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-template <typename, int, access::mode, access::target, access::placeholder,
-          typename>
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
 class accessor;
 
 namespace ext {
@@ -80,12 +82,14 @@ public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false, bool IsESIMDAcc = false)
+                   bool IsSubBuffer = false, bool IsESIMDAcc = false,
+                   const property_list &PropertyList = {})
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode),
         MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {}
+        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc),
+        MPropertyList(PropertyList) {}
 
   ~AccessorImplHost();
 
@@ -130,20 +134,27 @@ public:
   // Outdated, leaving to preserve ABI.
   // TODO: Remove during next major release.
   bool MIsESIMDAcc;
+
+  // To preserve runtime properties
+  property_list MPropertyList;
 };
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 
 class AccessorBaseHost {
 public:
+  template <typename PropertyListT = property_list>
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false) {
+                   bool IsSubBuffer = false,
+                   const PropertyListT &PropertyList = {}) {
     impl = std::shared_ptr<AccessorImplHost>(
         new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                              (detail::SYCLMemObjI *)SYCLMemObject, Dims,
-                             ElemSize, OffsetInBytes, IsSubBuffer));
+                             ElemSize, OffsetInBytes, IsSubBuffer,
+                             /* IsESIMDAcc = */ false,
+                             PropertyList));
   }
 
 protected:
@@ -161,8 +172,9 @@ protected:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
-  template <typename, int, access::mode, access::target, access::placeholder,
-            typename>
+  template <typename DataT, int Dimensions, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder,
+            typename PropertyListT>
   friend class accessor;
 
   AccessorImplPtr impl;
