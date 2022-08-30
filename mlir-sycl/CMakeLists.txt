@@ -70,6 +70,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 add_subdirectory(include/mlir)
 add_subdirectory(lib)
 add_subdirectory(test)
+add_subdirectory(tools)
 
 install(DIRECTORY include/
   DESTINATION include

@@ -115,8 +115,9 @@ LLVM::ExtractValueOp LLVMBuilder::genExtractValue(Type type, Value container,
                                       getI64ArrayAttr(position));
 }
 
-LLVM::CallOp LLVMBuilder::genCall(FlatSymbolRefAttr funcSym, ArrayRef<Type> resTypes,
-                           ArrayRef<Value> operands) const {
+LLVM::CallOp LLVMBuilder::genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,
+                                  ValueRange operands) const {
+  assert(funcSym && "Expecting a valid function symbol");
   return create<LLVM::CallOp>(resTypes, funcSym, operands);
 }
 

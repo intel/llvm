@@ -21,7 +21,7 @@ def ConvertSYCLToLLVM : Pass<"convert-sycl-to-llvm", "ModuleOp"> {
     See docs/SYCLToLLVMDialectConversion/ for more details.
     TODO: add docs referenced above.
   }];
-  let constructor = "mlir::createConvertSYCLToLLVMPass()";
+  let constructor = "mlir::sycl::createConvertSYCLToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
 }
 

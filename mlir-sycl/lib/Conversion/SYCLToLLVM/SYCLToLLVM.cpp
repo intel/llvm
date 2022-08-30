@@ -13,22 +13,47 @@
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
+#include "mlir/Conversion/SYCLToLLVM/SYCLFuncRegistry.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
 
-#define DEBUG_TYPE "sycl-to-llvm-pattern"
+#define DEBUG_TYPE "sycl-to-llvm"
 
 using namespace mlir;
+using namespace mlir::sycl;
 
 //===----------------------------------------------------------------------===//
 // Utility functions
 //===----------------------------------------------------------------------===//
+
+// Returns true if the given type is 'memref<?xSYCLType>', and false otherwise.
+template <typename SYCLType> static bool isMemRefOf(const Type &type) {
+  if (!type.isa<MemRefType>())
+    return false;
+
+  MemRefType memRefTy = type.cast<MemRefType>();
+  ArrayRef<int64_t> shape = memRefTy.getShape();
+  if (shape.size() != 1 || shape[0] != -1)
+    return false;
+
+  return memRefTy.getElementType().isa<SYCLType>();
+}
+
+// Returns the element type of 'memref<?xSYCLType>'.
+template <typename SYCLType>
+static SYCLType getElementType(const Type &type) {
+  assert(isMemRefOf<SYCLType>(type) && "Expecting memref<?xsycl::<type>>");
+  Type elemType = type.cast<MemRefType>().getElementType();
+  return elemType.cast<SYCLType>();
+}
 
 // Get LLVM type of "class.cl::sycl::detail::array" with \p dimNum number of
 // dimensions and element type \p type.
@@ -129,6 +154,84 @@ static Optional<Type> convertAccessorType(sycl::AccessorType type,
 }
 
 //===----------------------------------------------------------------------===//
+// ConstructorPattern - Converts `sycl.constructor` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class ConstructorPattern final
+    : public SYCLToLLVMConversion<sycl::SYCLConstructorOp> {
+public:
+  using SYCLToLLVMConversion<sycl::SYCLConstructorOp>::SYCLToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(sycl::SYCLConstructorOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    StringRef typeStr = op.Type();
+    if (typeStr == "id")
+      return rewriteIdConstructor(op, opAdaptor, rewriter);
+
+    LLVM_DEBUG(llvm::dbgs() << "op: "; op.dump(); llvm::dbgs() << "\n");
+    llvm_unreachable("Unhandled sycl.constructor type");
+
+    return failure();
+  }
+
+  /// Rewrite sycl.constructor() { type = @id } to a LLVM call to the
+  /// appropriate constructor function for sycl::id.
+  LogicalResult
+  rewriteIdConstructor(SYCLConstructorOp op, OpAdaptor opAdaptor,
+                       ConversionPatternRewriter &rewriter) const {
+    assert(op.Type() == "id" && "Unexpected sycl.constructor type");
+    LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
+               llvm::dbgs() << "\n");
+
+    ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
+    const auto &registry = SYCLFuncRegistry::create(module, rewriter);
+    ValueRange args(op.Args());
+    assert(args.size() > 0 && "Expecting at least one argument (the this ptr)");
+
+    // Multikey map used to lookup the specific sycl::id's ctor to call.
+    // Given 'sycl::id<dim>(args)' the key is the pair {size(args), dim}.
+    const std::map<std::pair<int, int>, SYCLFuncDescriptor::FuncId>
+        lookupCtorId = {
+            {{1, 1}, SYCLFuncDescriptor::FuncId::Id1CtorDefault},
+            {{1, 2}, SYCLFuncDescriptor::FuncId::Id2CtorDefault},
+            {{1, 3}, SYCLFuncDescriptor::FuncId::Id3CtorDefault},
+            {{2, 1}, SYCLFuncDescriptor::FuncId::Id1CtorSizeT},
+            {{2, 2}, SYCLFuncDescriptor::FuncId::Id2CtorSizeT},
+            {{2, 3}, SYCLFuncDescriptor::FuncId::Id3CtorSizeT},
+            {{3, 1}, SYCLFuncDescriptor::FuncId::Id1CtorRange},
+            {{3, 2}, SYCLFuncDescriptor::FuncId::Id2CtorRange},
+            {{3, 3}, SYCLFuncDescriptor::FuncId::Id3CtorRange},
+            {{4, 1}, SYCLFuncDescriptor::FuncId::Id1CtorItem},
+            {{4, 2}, SYCLFuncDescriptor::FuncId::Id2CtorItem},
+            {{4, 3}, SYCLFuncDescriptor::FuncId::Id3CtorItem},
+        };
+
+    // Lookup the ctor function to use.
+    auto arg0ElemTy = getElementType<mlir::sycl::IDType>(args[0].getType());   
+    auto key = std::make_pair(args.size(), arg0ElemTy.getDimension());
+    SYCLFuncDescriptor::FuncId funcId = lookupCtorId.at(key);
+
+    // Generate an LLVM call to the appropriate ctor.
+    SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
+                             rewriter, op.getLoc());
+
+    LLVM_DEBUG({
+      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      if (!func)
+        func = op->getParentOfType<func::FuncOp>();
+
+      assert(func && "Could not find parent function");
+      llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
+                   << *func << "\n";
+    });
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -169,4 +272,6 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
   populateSYCLToLLVMTypeConversion(typeConverter);
+
+  patterns.add<ConstructorPattern>(patterns.getContext(), typeConverter);
 }

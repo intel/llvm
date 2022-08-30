@@ -54,7 +54,7 @@ public:
   // clang-format on
 
   // Call the SYCL constructor identified by \p id with the given \p args.
-  static Value call(FuncId id, ArrayRef<Value> args,
+  static Value call(FuncId id, ValueRange args,
                     const SYCLFuncRegistry &registry, OpBuilder &b,
                     Location loc);
 

@@ -75,8 +75,8 @@ public:
   LLVM::BitcastOp genBitcast(Type type, Value val) const;
   LLVM::ExtractValueOp genExtractValue(Type type, Value container,
                                        ArrayRef<int64_t> pos) const;
-  LLVM::CallOp genCall(FlatSymbolRefAttr funcSym, ArrayRef<Type> resTypes,
-                       ArrayRef<Value> operands) const;
+  LLVM::CallOp genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,
+                       ValueRange operands) const;
   LLVM::ConstantOp genConstant(Type type, double val) const;
   LLVM::SExtOp genSignExtend(Type type, Value val) const;
 };

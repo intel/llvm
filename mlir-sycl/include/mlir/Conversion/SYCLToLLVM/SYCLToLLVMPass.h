@@ -13,15 +13,19 @@
 #ifndef MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVMPASS_H
 #define MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVMPASS_H
 
+#include "mlir/Pass/Pass.h"
 #include <memory>
 
 namespace mlir {
 class ModuleOp;
 template <typename T> class OperationPass;
 
+namespace sycl {
+
 /// Creates a pass to convert SYCL operations to the LLVMIR dialect.
 std::unique_ptr<OperationPass<ModuleOp>> createConvertSYCLToLLVMPass();
 
+} // namespace sycl
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVMPASS_H

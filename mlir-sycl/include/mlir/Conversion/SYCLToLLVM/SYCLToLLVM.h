@@ -14,6 +14,7 @@
 #define MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVM_H
 
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 
 namespace mlir {
 class LLVMTypeConverter;

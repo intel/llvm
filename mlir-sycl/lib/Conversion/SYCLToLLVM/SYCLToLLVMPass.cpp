@@ -45,6 +45,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
     signalPassFailure();
 }
 
-std::unique_ptr<OperationPass<ModuleOp>> mlir::createConvertSYCLToLLVMPass() {
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::sycl::createConvertSYCLToLLVMPass() {
   return std::make_unique<ConvertSYCLToLLVMPass>();
 }
