@@ -166,6 +166,14 @@ template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
   return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
 }
 
+template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
+  return ZES_STRUCTURE_TYPE_MEM_STATE;
+}
+
+template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
+  return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
+}
+
 // The helpers to properly default initialize Level-Zero descriptor and
 // properties structures.
 template <class T> struct ZeStruct : public T {

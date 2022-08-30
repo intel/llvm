@@ -3144,6 +3144,34 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                   ZeDevicePciProperties.address.function);
     return ReturnValue(AddressBuffer);
   }
+
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
+      setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
+                      PI_SUCCESS);
+      return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+    }
+    uint64_t FreeMemory = 0;
+    uint32_t MemCount = 0;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
+    std::vector<zes_mem_handle_t> MemHandles(MemCount);
+    ZE_CALL(zesDeviceEnumMemoryModules,
+            (ZeDevice, &MemCount, MemHandles.data()));
+
+    for (auto &ZesMemHandle : MemHandles) {
+      ZesStruct<zes_mem_properties_t> ZeMemProperties;
+      ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
+      // Only report HBM which zeMemAllocDevice allocates from.
+      if (ZeMemProperties.type != ZES_MEM_TYPE_HBM)
+        continue;
+
+      ZesStruct<zes_mem_state_t> ZeMemState;
+      ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
+      FreeMemory += ZeMemState.free;
+    }
+    return ReturnValue(FreeMemory);
+  }
+
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
                       Device->ZeDeviceProperties->numSubslicesPerSlice *

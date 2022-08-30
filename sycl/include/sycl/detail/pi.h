@@ -50,9 +50,11 @@
 // 10.12 Change enum value PI_MEM_ADVICE_UNKNOWN from 0 to 999, and set enum
 // PI_MEM_ADVISE_RESET to 0.
 // 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS queue property.
+// 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
+// piDeviceGetInfo.
 
 #define _PI_H_VERSION_MAJOR 10
-#define _PI_H_VERSION_MINOR 13
+#define _PI_H_VERSION_MINOR 14
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -272,6 +274,7 @@ typedef enum {
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   // Return true if sub-device should do its own program build
   PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
+  PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY = 0x10029,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,

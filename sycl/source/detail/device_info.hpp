@@ -1387,6 +1387,14 @@ get_device_info_host<info::device::ext_intel_device_info_uuid>() {
       PI_ERROR_INVALID_DEVICE);
 }
 
+template <>
+inline uint64_t
+get_device_info_host<info::device::ext_intel_free_memory>() {
+  throw runtime_error(
+      "Obtaining the device free memory is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
