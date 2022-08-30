@@ -84,6 +84,11 @@ static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
   return false;
 }
 
+static isSyclAccessorType(QualType Ty) {
+  return isSyclType(Ty, SYCLTypeAttr::accessor) ||
+         isSyclType(Ty, SYCLTypeAttr::local_accessor);
+}
+
 // FIXME: Accessor property lists should be modified to use compile-time
 // properties. Once implemented, this function (and possibly all/most code
 // in SemaSYCL.cpp handling no_alias and buffer_location property) can be
@@ -978,7 +983,11 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 }
 
 /// \return the target of given SYCL accessor type
-static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
+static target getAccessTarget(QualType FieldTy,
+                              const ClassTemplateSpecializationDecl *AccTy) {
+  if (Util::isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+    return local;
+
   return static_cast<target>(
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
@@ -1573,7 +1582,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     assert(SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(Ty) &&
            "Should only be called on sycl special class types.");
     const RecordDecl *RecD = Ty->getAsRecordDecl();
-    if (IsSIMD && !isSyclType(Ty, SYCLTypeAttr::accessor))
+    if (IsSIMD && !isSyclAccessorType(Ty))
       return SemaRef.Diag(Loc.getBegin(),
                           diag::err_sycl_esimd_not_supported_for_type)
              << RecD;
@@ -1885,19 +1894,24 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   // Additional processing is required for accessor type.
-  void handleAccessorType(const CXXRecordDecl *RecordDecl, SourceLocation Loc) {
+  void handleAccessorType(QualType FieldTy, const CXXRecordDecl *RecordDecl,
+                          SourceLocation Loc) {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
-    // Get access mode of accessor.
-    const auto *AccessorSpecializationDecl =
-        cast<ClassTemplateSpecializationDecl>(RecordDecl);
-    const TemplateArgument &AccessModeArg =
-        AccessorSpecializationDecl->getTemplateArgs().get(2);
+
+    // If "accessor" type check if read only
+    if (Util::isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
+      // Get access mode of accessor.
+      const auto *AccessorSpecializationDecl =
+          cast<ClassTemplateSpecializationDecl>(RecordDecl);
+      const TemplateArgument &AccessModeArg =
+          AccessorSpecializationDecl->getTemplateArgs().get(2);
+      if (isReadOnlyAccessor(AccessModeArg))
+        Params.back()->addAttr(
+            SYCLAccessorReadonlyAttr::CreateImplicit(SemaRef.getASTContext()));
+    }
 
     // Add implicit attribute to parameter decl when it is a read only
     // SYCL accessor.
-    if (isReadOnlyAccessor(AccessModeArg))
-      Params.back()->addAttr(
-          SYCLAccessorReadonlyAttr::CreateImplicit(SemaRef.getASTContext()));
     Params.back()->addAttr(
         SYCLAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
   }
@@ -1910,8 +1924,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() &&
-                isSyclType(FieldTy, SYCLTypeAttr::accessor)
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -1935,9 +1948,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // handleAccessorPropertyList. If new classes with property list are
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
-      if (ParamTy.getTypePtr()->isPointerType() &&
-          isSyclType(FieldTy, SYCLTypeAttr::accessor))
-        handleAccessorType(RecordDecl, FD->getBeginLoc());
+      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(FieldTy))
+        handleAccessorType(FieldTy, RecordDecl, FD->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2031,8 +2043,7 @@ public:
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() &&
-                isSyclType(FieldTy, SYCLTypeAttr::accessor)
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -2050,9 +2061,8 @@ public:
       // handleAccessorPropertyList. If new classes with property list are
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
-      if (ParamTy.getTypePtr()->isPointerType() &&
-          isSyclType(FieldTy, SYCLTypeAttr::accessor))
-        handleAccessorType(RecordDecl, BS.getBeginLoc());
+      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(FieldTy))
+        handleAccessorType(FieldTy, RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2172,10 +2182,9 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName =
-        (IsSIMD && isSyclType(FieldTy, SYCLTypeAttr::accessor))
-            ? InitESIMDMethodName
-            : InitMethodName;
+    llvm::StringLiteral MethodName = (IsSIMD && isSyclAccessorType(FieldTy))
+                                         ? InitESIMDMethodName
+                                         : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
@@ -3082,7 +3091,7 @@ public:
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-    int Info = getAccessTarget(AccTy) | (Dims << 11);
+    int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
     Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                         CurOffset +
                             offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
@@ -3092,14 +3101,14 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
-    if (isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
+    if (isSyclAccessorType(FieldTy)) {
       const auto *AccTy =
           cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-      int Info = getAccessTarget(AccTy) | (Dims << 11);
+      int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));

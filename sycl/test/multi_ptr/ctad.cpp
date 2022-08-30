@@ -16,11 +16,13 @@ int main() {
   using deviceAcc = sycl::accessor<int, 1, mode::read, target::device>;
   using globlAcc = sycl::accessor<int, 1, mode::read, target::global_buffer>;
   using constAcc = sycl::accessor<int, 1, mode::read, target::constant_buffer>;
-  using localAcc = sycl::accessor<int, 1, mode::read, target::local>;
+  using localAcc = sycl::local_accessor<int, 1>;
+  using localAccDep = sycl::accessor<int, 1, mode::read, target::local>;
   using deviceCTAD = decltype(sycl::multi_ptr(std::declval<deviceAcc>()));
   using globlCTAD = decltype(sycl::multi_ptr(std::declval<globlAcc>()));
   using constCTAD = decltype(sycl::multi_ptr(std::declval<constAcc>()));
   using localCTAD = decltype(sycl::multi_ptr(std::declval<localAcc>()));
+  using localCTADDep = decltype(sycl::multi_ptr(std::declval<localAccDep>()));
   using deviceMPtr = sycl::multi_ptr<int, address_space::global_space>;
   using globlMPtr = sycl::multi_ptr<int, address_space::global_space>;
   using constMPtr = sycl::multi_ptr<int, address_space::constant_space>;
@@ -30,4 +32,5 @@ int main() {
   static_assert(std::is_same<globlCTAD, globlMPtr>::value);
   static_assert(std::is_same<constCTAD, constMPtr>::value);
   static_assert(std::is_same<localCTAD, localMPtr>::value);
+  static_assert(std::is_same<localCTADDep, localMPtr>::value);
 }
