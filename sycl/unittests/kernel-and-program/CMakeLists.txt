@@ -1,4 +1,5 @@
 add_sycl_unittest(KernelAndProgramTests OBJECT
+  Cache.cpp
   MultipleDevsCache.cpp
   DeviceInfo.cpp
   PersistentDeviceCodeCache.cpp
