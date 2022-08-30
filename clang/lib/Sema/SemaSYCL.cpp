@@ -84,7 +84,7 @@ static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
   return false;
 }
 
-static isSyclAccessorType(QualType Ty) {
+static bool isSyclAccessorType(QualType Ty) {
   return isSyclType(Ty, SYCLTypeAttr::accessor) ||
          isSyclType(Ty, SYCLTypeAttr::local_accessor);
 }
@@ -985,7 +985,7 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(QualType FieldTy,
                               const ClassTemplateSpecializationDecl *AccTy) {
-  if (Util::isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+  if (isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
     return local;
 
   return static_cast<target>(
@@ -1899,7 +1899,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
 
     // If "accessor" type check if read only
-    if (Util::isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
+    if (isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
       // Get access mode of accessor.
       const auto *AccessorSpecializationDecl =
           cast<ClassTemplateSpecializationDecl>(RecordDecl);

@@ -208,7 +208,7 @@ public:
 };
 
 template <typename dataT, int dimensions>
-class __attribute__((sycl_special_class))
+class __attribute__((sycl_special_class)) __attribute__((sycl_type(local_accessor)))
 local_accessor: public accessor<dataT,
         dimensions, access::mode::read_write,
         access::target::local> {
