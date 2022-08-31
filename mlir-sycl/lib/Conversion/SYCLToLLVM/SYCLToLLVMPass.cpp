@@ -12,6 +12,7 @@
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVMPass.h"
 #include "../PassDetail.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -35,6 +36,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   RewritePatternSet patterns(context);
 
   sycl::populateSYCLToLLVMConversionPatterns(converter, patterns);
+  populateFuncToLLVMConversionPatterns(converter, patterns);
 
   ConversionTarget target(*context);
   target.addIllegalDialect<sycl::SYCLDialect>();
