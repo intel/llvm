@@ -192,8 +192,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
                          PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          PI_DEVICE_INFO_IMAGE_SRGB)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_free_memory, pi_uint64,
-                         PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
                          PI_MEM_PROPERTIES_CHANNEL)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16, bool,

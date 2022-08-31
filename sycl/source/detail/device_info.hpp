@@ -1542,8 +1542,7 @@ get_device_info_host<info::device::ext_intel_device_info_uuid>() {
 }
 
 template <>
-inline uint64_t
-get_device_info_host<info::device::ext_intel_free_memory>() {
+inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
   throw runtime_error(
       "Obtaining the device free memory is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);

@@ -366,7 +366,7 @@ The extension supports this query in version 4 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| info\:\:device\:\:ext\_intel\_free\_memory | uint64\_t| Returns the memory avialble on the device in units of bytes.|
+| ext\:\:intel\:\:info\:\:device\:\:free\_memory | uint64\_t| Returns the memory avialble on the device in units of bytes.|
 
 
 ## Aspects ##
@@ -384,7 +384,7 @@ An invalid object runtime error will be thrown if the device does not support as
 Then the free device memory  can be obtained using the standard get\_info() interface.
 
     if (dev.has(aspect::ext_intel_free_memory)) {
-      auto FreeMemory = dev.get_info<info::device::ext_intel_free_memory>();
+      auto FreeMemory = dev.get_info<ext::intel::info::device::free_memory>();
     }
 
 # Deprecated queries #
