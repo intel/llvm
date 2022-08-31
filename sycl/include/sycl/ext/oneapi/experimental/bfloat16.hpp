@@ -63,13 +63,9 @@ public:
     return __spirv_ConvertBF16ToFINTEL(a);
 #endif
 #else
-    union {
-      uint32_t bits;
-      float res;
-    } val;
-    val.bits = a;
-    val.bits <<= 16;
-    return val.res;
+    uint32_t bits = a;
+    bits <<= 16;
+    return sycl::bit_cast<float>(bits);
 #endif
   }
 
