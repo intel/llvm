@@ -128,11 +128,6 @@ static void testEventStatusCheck(detail::Command *Cmd,
 TEST_F(SchedulerTest, QueueFlushing) {
   default_selector Selector;
   platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
@@ -172,9 +167,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                     QueueImplA};
     testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
 
-    device HostDevice{host_selector{}};
-    detail::QueueImplPtr DefaultHostQueue{
-        new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
+    detail::QueueImplPtr DefaultHostQueue{new detail::queue_impl(
+        detail::device_impl::getHostDeviceImpl(), {}, {})};
     detail::AllocaCommand HostAllocaCmd =
         detail::AllocaCommand(DefaultHostQueue, MockReq);
 

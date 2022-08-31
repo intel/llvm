@@ -517,11 +517,6 @@ TEST(Assert, TestPositive) {
   // Preliminary checks
   {
     sycl::platform Plt{sycl::default_selector()};
-    if (Plt.is_host()) {
-      printf("Test is not supported on host, skipping\n");
-      return;
-    }
-
     if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
       printf("Test is not supported on CUDA platform, skipping\n");
       return;
@@ -573,12 +568,6 @@ TEST(Assert, TestAssertServiceKernelHidden) {
 
 TEST(Assert, TestInteropKernelNegative) {
   sycl::platform Plt{sycl::default_selector()};
-
-  if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    return;
-  }
-
   const sycl::backend Backend = Plt.get_backend();
 
   if (Backend == sycl::backend::ext_oneapi_cuda ||
@@ -611,12 +600,6 @@ TEST(Assert, TestInteropKernelNegative) {
 
 TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::platform Plt{sycl::default_selector()};
-
-  if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    return;
-  }
-
   const sycl::backend Backend = Plt.get_backend();
 
   if (Backend == sycl::backend::ext_oneapi_cuda ||
@@ -650,12 +633,6 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
 
 TEST(Assert, TestKernelFromSourceNegative) {
   sycl::platform Plt{sycl::default_selector()};
-
-  if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    return;
-  }
-
   const sycl::backend Backend = Plt.get_backend();
 
   if (Backend == sycl::backend::ext_oneapi_cuda ||

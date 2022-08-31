@@ -28,7 +28,9 @@ protected:
       }
     }
   };
-  sycl::queue MQueue = sycl::queue(sycl::host_selector{}, MAsyncHandler);
+  sycl::queue MQueue = sycl::queue(
+      createSyclObjFromImpl<sycl::device>(device_impl::getHostDeviceImpl()),
+      MAsyncHandler);
 };
 
 std::shared_ptr<Command>

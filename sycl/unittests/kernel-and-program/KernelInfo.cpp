@@ -91,13 +91,6 @@ public:
 
 protected:
   void SetUp() override {
-    if (Plt.is_host()) {
-      std::clog << "This test is only supported on non-host platforms.\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
-      return;
-    }
-
     Mock = std::make_unique<unittest::PiMock>(Plt);
 
     Mock->redefine<detail::PiApiKind::piKernelGetGroupInfo>(
@@ -119,10 +112,6 @@ protected:
 };
 
 TEST_F(KernelInfoTest, GetPrivateMemUsage) {
-  if (Plt.is_host()) {
-    return;
-  }
-
   context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
   TestContext.reset(new TestCtx(Ctx));

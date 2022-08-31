@@ -37,7 +37,7 @@ public:
 
 static sycl::device getDeviceWithHostUnifiedMemory() {
   for (sycl::device &D : sycl::device::get_devices()) {
-    if (!D.is_host() && D.get_info<sycl::info::device::host_unified_memory>())
+    if (D.get_info<sycl::info::device::host_unified_memory>())
       return D;
   }
   return {};
@@ -45,11 +45,6 @@ static sycl::device getDeviceWithHostUnifiedMemory() {
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::device Dev = getDeviceWithHostUnifiedMemory();
-  if (Dev.is_host()) {
-    std::cerr << "Not run: no non-host devices with host unified memory support"
-              << std::endl;
-    return;
-  }
 
   // 1. create two commands: alloca + alloca and link them
   // 2. call Scheduler::GraphBuilder::getOrCreateAllocaForReq
@@ -60,9 +55,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::queue Queue1{Dev};
   sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
 
-  sycl::device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+      detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
       /*PropList=*/{}));
 
   auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,

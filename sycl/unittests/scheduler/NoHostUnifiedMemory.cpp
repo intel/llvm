@@ -88,12 +88,6 @@ redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
 }
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   queue Q;
   unittest::PiMock Mock{Q};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
@@ -109,9 +103,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
       redefinedMemCreateWithNativeHandle);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
-  device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
-      new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
+      new detail::queue_impl(detail::device_impl::getHostDeviceImpl(), {}, {})};
 
   MockScheduler MS;
   // Check non-host alloca with non-discard access mode

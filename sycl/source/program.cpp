@@ -57,7 +57,11 @@ program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }
 
-bool program::is_host() const { return impl->is_host(); }
+bool program::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "program::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 void program::compile_with_source(std::string kernelSource,
                                   std::string compileOptions) {

@@ -188,10 +188,6 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
 
 static void performChecks() {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";

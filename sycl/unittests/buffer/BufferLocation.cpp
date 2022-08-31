@@ -75,7 +75,7 @@ public:
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+    if (Plt.get_backend() != sycl::backend::opencl) {
       std::cout << "This test is only supported on OpenCL backend\n";
       std::cout << "Current platform is "
                 << Plt.get_info<sycl::info::platform::name>();
@@ -98,7 +98,7 @@ protected:
 
 // Test that buffer_location was passed correctly
 TEST_F(BufferTest, BufferLocationOnly) {
-  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+  if (Plt.get_backend() != sycl::backend::opencl) {
     return;
   }
 
@@ -128,7 +128,7 @@ TEST_F(BufferTest, BufferLocationOnly) {
 // Test that buffer_location was passed correcty if there is one more accessor
 // property and buffer_location is correctly chaned by creating new accessors
 TEST_F(BufferTest, BufferLocationWithAnotherProp) {
-  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+  if (Plt.get_backend() != sycl::backend::opencl) {
     return;
   }
 
@@ -198,7 +198,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
 // Test that there is no buffer_location property
 TEST_F(BufferTest, WOBufferLocation) {
-  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+  if (Plt.get_backend() != sycl::backend::opencl) {
     return;
   }
 

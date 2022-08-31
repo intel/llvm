@@ -35,10 +35,6 @@ namespace detail {
 static int getDevicePreference(const device &Device) {
   int Score = 0;
 
-  // No preferences for host devices.
-  if (Device.is_host())
-    return Score;
-
   // Strongly prefer devices with available images.
   auto &program_manager = sycl::detail::ProgramManager::getInstance();
   if (program_manager.hasCompatibleImage(Device))
@@ -154,9 +150,6 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
   if (dev.is_cpu())
     Score += 300;
 
-  if (dev.is_host())
-    Score += 100;
-
   // Since we deprecate SYCL_BE and SYCL_DEVICE_TYPE,
   // we should not disallow accelerator to be chosen.
   // But this device type gets the lowest heuristic point.
@@ -221,16 +214,6 @@ int cpu_selector::operator()(const device &dev) const {
 
 int accelerator_selector::operator()(const device &dev) const {
   return accelerator_selector_v(dev);
-}
-
-int host_selector::operator()(const device &dev) const {
-  int Score = detail::REJECT_DEVICE_SCORE;
-
-  if (dev.is_host()) {
-    Score = 1000;
-    Score += detail::getDevicePreference(dev);
-  }
-  return Score;
 }
 
 namespace ext {

@@ -111,7 +111,7 @@ public:
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    if (Plt.get_backend() != backend::opencl) {
       return;
     }
 
@@ -140,7 +140,7 @@ protected:
 // Test that program is retained for each device and each kernel is released
 // once
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+  if (Plt.get_backend() != backend::opencl) {
     return;
   }
   {

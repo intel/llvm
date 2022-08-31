@@ -71,12 +71,6 @@ using enable_if_is_function_pointer_t = typename detail::enable_if_t<
 template <class FuncType, enable_if_is_function_pointer_t<FuncType> = 0>
 device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
                                              program &P, device &D) {
-  // TODO: drop function name argument and map host function pointer directly
-  // to a device function pointer
-  if (D.is_host()) {
-    return reinterpret_cast<device_func_ptr_holder_t>(F);
-  }
-
   if (program_state::linked != P.get_state()) {
     throw invalid_parameter_error(
         "Program must be built before passing to get_device_func_ptr",

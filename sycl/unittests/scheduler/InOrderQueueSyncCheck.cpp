@@ -48,7 +48,7 @@ public:
 // Only check events dependency in queue_impl::finalizeHandler
 TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on "
               << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";

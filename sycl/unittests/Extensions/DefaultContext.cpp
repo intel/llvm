@@ -26,10 +26,6 @@ TEST(DefaultContextTest, DefaultContextTest) {
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
   sycl::platform Plt1{sycl::default_selector()};
-  if (Plt1.is_host()) {
-    std::cout << "Host platform does not support PI mock.\n";
-    return;
-  }
   sycl::unittest::PiMock Mock1{Plt1};
   setupDefaultMockAPIs(Mock1);
 
@@ -56,10 +52,6 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Host platform does not support PI mock.\n";
-    return;
-  }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 

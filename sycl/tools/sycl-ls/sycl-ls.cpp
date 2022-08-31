@@ -166,7 +166,6 @@ int main(int argc, char **argv) {
 
   // Print built-in device selectors choice
   printSelectorChoice(default_selector(), "default_selector()      : ");
-  printSelectorChoice(host_selector(), "host_selector()         : ");
   printSelectorChoice(accelerator_selector(), "accelerator_selector()  : ");
   printSelectorChoice(cpu_selector(), "cpu_selector()          : ");
   printSelectorChoice(gpu_selector(), "gpu_selector()          : ");

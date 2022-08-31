@@ -37,12 +37,6 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
 
   default_selector Selector;
   device Device = Selector.select_device();
-  // ConnectCmd will not be created for host contextx
-  if (Device.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   struct QueueRelatedObjects {
     context Context;
     queue Queue;

@@ -202,11 +202,6 @@ static void checkCleanupOnLeafUpdate(
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
   default_selector Selector;
   platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   // Enforce creation of linked commands to test all sites of calling cleanup.
   unittest::ScopedEnvVar HostUnifiedMemoryVar{
       HostUnifiedMemoryName, "1",
@@ -251,9 +246,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
         MS.addEmptyCmd(Leaf, {&MockReq}, QueueImpl,
                        detail::Command::BlockReason::HostTask, ToEnqueue);
       });
-  device HostDevice{host_selector{}};
   detail::QueueImplPtr DefaultHostQueue{
-      new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
+      new detail::queue_impl(detail::device_impl::getHostDeviceImpl(), {}, {})};
   checkCleanupOnLeafUpdate(
       MS, DefaultHostQueue, Buf, MockReq, [&](detail::MemObjRecord *Record) {
         MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);

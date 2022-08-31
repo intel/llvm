@@ -119,7 +119,8 @@ public:
   ///
   /// \param OriginalPlatform is a reference to a SYCL platform.
   explicit PiMock(const sycl::platform &OriginalPlatform) {
-    assert(!OriginalPlatform.is_host() && "PI mock isn't supported for host");
+    assert(!detail::getSyclObjImpl(OriginalPlatform)->is_host() &&
+           "PI mock isn't supported for host");
     // Extract impl and plugin handles
     std::shared_ptr<detail::platform_impl> ImplPtr =
         detail::getSyclObjImpl(OriginalPlatform);
@@ -137,9 +138,6 @@ public:
     MPlatform = OriginalPlatform;
     OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
   }
-
-  /// Explicit construction from a host_selector is forbidden.
-  PiMock(const sycl::host_selector &HostSelector) = delete;
 
   PiMock(PiMock &&Other) {
     MPlatform = std::move(Other.MPlatform);

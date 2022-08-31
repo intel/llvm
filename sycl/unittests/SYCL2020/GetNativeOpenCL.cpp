@@ -89,11 +89,6 @@ TEST(GetNative, GetNativeHandle) {
     std::cout << "Test is created for opencl only" << std::endl;
     return;
   }
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return;
-  }
   TestCounter = 0;
 
   unittest::PiMock Mock{Plt};

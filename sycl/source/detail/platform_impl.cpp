@@ -75,7 +75,7 @@ static bool IsBannedPlatform(platform Platform) {
   // where CUDA is available, the OpenCL support is disabled.
   //
   auto IsNVIDIAOpenCL = [](platform Platform) {
-    if (Platform.is_host())
+    if (getSyclObjImpl(Platform)->is_host())
       return false;
 
     const bool HasCUDA = Platform.get_info<info::platform::name>().find(
@@ -136,14 +136,6 @@ std::vector<platform> platform_impl::get_platforms() {
   // guaranteed to be destroyed before function-local static variables as they
   // may be initialized after.
   GlobalHandler::registerDefaultContextReleaseHandler();
-
-  // The host platform should always be available unless not allowed by the
-  // SYCL_DEVICE_FILTER
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-  if (!FilterList || FilterList->backendCompatible(backend::host))
-    Platforms.emplace_back(
-        createSyclObjFromImpl<platform>(platform_impl::getHostPlatformImpl()));
 
   return Platforms;
 }
@@ -236,20 +228,6 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
-  if (is_host() && (DeviceType == info::device_type::host ||
-                    DeviceType == info::device_type::all)) {
-    // If SYCL_DEVICE_FILTER is set, check if filter contains host.
-    device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-    if (!FilterList || FilterList->containsHost()) {
-      Res.push_back(
-          createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
-    }
-  }
-
-  // If any DeviceType other than host was requested for host platform,
-  // an empty vector will be returned.
-  if (is_host() || DeviceType == info::device_type::host)
-    return Res;
 
   pi_uint32 NumDevices = 0;
   const detail::plugin &Plugin = getPlugin();

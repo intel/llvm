@@ -149,6 +149,8 @@ public:
   cl_program get() const;
 
   /// \return true if this SYCL program is a host program.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Compiles the SYCL kernel function into the encapsulated raw program.

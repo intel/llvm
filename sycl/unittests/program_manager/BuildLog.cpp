@@ -89,7 +89,7 @@ TEST(BuildLog, OutputNothingOnLevel1) {
 
   sycl::platform Plt{sycl::default_selector()};
   // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     GTEST_SKIP_("Test is not supported on this platform");
   }
@@ -127,7 +127,7 @@ TEST(BuildLog, OutputLogOnLevel2) {
 
   sycl::platform Plt{sycl::default_selector()};
   // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     GTEST_SKIP_("Test is not supported on this platform");
   }

@@ -76,10 +76,6 @@ static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(SpecializationConstant, DefaultValuesAreSet) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
@@ -121,10 +117,6 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
 
 TEST(SpecializationConstant, DefaultValuesAreOverriden) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
@@ -173,10 +165,6 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
 
 TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
@@ -232,10 +220,6 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
 
 TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
@@ -292,10 +276,6 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
 
 TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";

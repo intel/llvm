@@ -136,7 +136,7 @@ public:
   }
 
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl)
+    if (Plt.get_backend() != backend::opencl)
       GTEST_SKIP();
 
     if (RootSYCLCacheDir == "")
@@ -162,7 +162,7 @@ public:
   }
 
   PersistentDeviceCodeCache() : Plt{default_selector()} {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    if (Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
       std::clog << "Current platform is "
                 << Plt.get_info<info::platform::name>();

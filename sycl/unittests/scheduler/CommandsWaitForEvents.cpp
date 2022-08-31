@@ -66,11 +66,6 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
 
 TEST_F(SchedulerTest, CommandsWaitForEvents) {
   default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
-
   platform Plt{Selector};
   unittest::PiMock Mock{Plt};
 
@@ -91,9 +86,8 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   std::shared_ptr<detail::event_impl> E2(
       new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
 
-  sycl::device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+      detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
       /*PropList=*/{}));
 
   MockCommand Cmd(DefaultHostQueue);

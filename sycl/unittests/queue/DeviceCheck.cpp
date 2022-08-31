@@ -97,10 +97,6 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
   platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "The test is not supported on host, skipping" << std::endl;
-    GTEST_SKIP();
-  }
   PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
   // Create default context normally to avoid issues during its release, which
   // takes plase after Mock is destroyed.

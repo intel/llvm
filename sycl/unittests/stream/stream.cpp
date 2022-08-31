@@ -31,11 +31,6 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 
 TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI buffers created in that case"
-              << std::endl;
-    return;
-  }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";

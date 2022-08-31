@@ -79,11 +79,6 @@ pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
 TEST_F(SchedulerTest, InOrderQueueDeps) {
   default_selector Selector;
   platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
@@ -102,9 +97,8 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   sycl::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);
 
-  device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
-      new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
+      new detail::queue_impl(detail::device_impl::getHostDeviceImpl(), {}, {})};
 
   MockScheduler MS;
 

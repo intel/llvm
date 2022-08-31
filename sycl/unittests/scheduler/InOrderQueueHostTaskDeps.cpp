@@ -35,10 +35,6 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   default_selector Selector;
   platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
   // This test only contains device image for SPIR-V capable devices.
   if (Plt.get_backend() != sycl::backend::opencl &&
       Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {

@@ -26,10 +26,6 @@ pi_result piKernelCreateRedefine(pi_program, const char *, pi_kernel *) {
 
 TEST(PiMockTest, ConstructFromQueue) {
   queue NormalQ;
-  if (NormalQ.is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
   queue MockQ;
   unittest::PiMock Mock(MockQ);
 
@@ -47,10 +43,6 @@ TEST(PiMockTest, ConstructFromQueue) {
 
 TEST(PiMockTest, ConstructFromPlatform) {
   platform NormalPlatform(default_selector{});
-  if (NormalPlatform.is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
   platform MockPlatform(default_selector{});
   unittest::PiMock Mock(MockPlatform);
 
@@ -68,10 +60,6 @@ TEST(PiMockTest, ConstructFromPlatform) {
 
 TEST(PiMockTest, RedefineAPI) {
   sycl::default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
   unittest::PiMock Mock(Selector);
   const auto &MockPiPlugin =
       detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();

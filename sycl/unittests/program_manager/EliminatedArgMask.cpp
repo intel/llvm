@@ -194,7 +194,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on "
               << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";

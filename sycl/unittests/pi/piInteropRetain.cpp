@@ -24,11 +24,6 @@ pi_result redefinedQueueRetain(pi_queue Queue) {
 }
 
 bool preparePiMock(platform &Plt) {
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return false;
-  }
   if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() !=
       backend::opencl) {
     std::cout << "Not run on non-OpenCL backend" << std::endl;

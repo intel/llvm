@@ -34,7 +34,7 @@ public:
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    if (Plt.get_backend() != backend::opencl) {
       std::cout << "This test is only supported on OpenCL backend\n";
       std::cout << "Current platform is "
                 << Plt.get_info<sycl::info::platform::name>();
@@ -56,7 +56,7 @@ protected:
 
 // Test that events are destructed in correct time
 TEST_F(EventDestructionTest, EventDestruction) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+  if (Plt.get_backend() != backend::opencl) {
     return;
   }
   sycl::context Context{Plt};
@@ -133,7 +133,7 @@ TEST_F(EventDestructionTest, EventDestruction) {
 
 // Test for event::get_wait_list
 TEST_F(EventDestructionTest, GetWaitList) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+  if (Plt.get_backend() != backend::opencl) {
     return;
   }
   ReleaseCounter = 0;
