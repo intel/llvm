@@ -9,6 +9,7 @@
 
 #include <sycl/sycl.hpp>
 
+// clang-format off
 // cxx14-error@* {{static assertion failed due to requirement '201402L >= 201703L'}}
 //
 // The next warning is not emitted in device compilation for some reason
@@ -16,6 +17,7 @@
 //
 // The next warning is emitted for windows only
 // expected-warning@* 0-1 {{Alignment of class vec is not in accordance with SYCL specification requirements, a limitation of the MSVC compiler(Error C2719).Requested alignment applied, limited at 64.}}
+// clang-format on
 
 class KernelName1;
 

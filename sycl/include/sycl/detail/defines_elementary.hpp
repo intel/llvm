@@ -105,4 +105,5 @@
 #define __SYCL_WARNING(msg) __pragma(message(msg))
 #endif // __GNUC__
 
-static_assert(__cplusplus >= 201703L, "DPCPP does not support C++ version earlier than C++17.");
+static_assert(__cplusplus >= 201703L,
+              "DPCPP does not support C++ version earlier than C++17.");
