@@ -119,6 +119,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   if (OC == OpControlBarrier) {
     visitCallSPIRVControlBarrier(&CI);
   }
+  if (isSplitBarrierINTELOpCode(OC)) {
+    visitCallSPIRVSplitBarrierINTEL(&CI, OC);
+    return;
+  }
   if (isAtomicOpCode(OC)) {
     visitCallSPIRVAtomicBuiltin(&CI, OC);
     return;

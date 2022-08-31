@@ -424,6 +424,9 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
   _SPIRV_OP(bitfield_extract_unsigned, BitFieldUExtract)
   _SPIRV_OP(bit_reverse, BitReverse)
+  // cl_khr_split_work_group_barrier
+  _SPIRV_OP(intel_work_group_barrier_arrive, ControlBarrierArriveINTEL)
+  _SPIRV_OP(intel_work_group_barrier_wait, ControlBarrierWaitINTEL)
 #undef _SPIRV_OP
 }
 
@@ -1030,7 +1033,9 @@ public:
     } else if (NameRef.contains("barrier")) {
       addUnsignedArg(0);
       if (NameRef.equals("work_group_barrier") ||
-          NameRef.equals("sub_group_barrier"))
+          NameRef.equals("sub_group_barrier") ||
+          NameRef.equals("intel_work_group_barrier_arrive") ||
+          NameRef.equals("intel_work_group_barrier_wait"))
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
     } else if (NameRef.startswith("atomic_work_item_fence")) {
       addUnsignedArg(0);
