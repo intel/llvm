@@ -171,6 +171,8 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
+  ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;

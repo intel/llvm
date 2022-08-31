@@ -1847,7 +1847,10 @@ void ExecCGCommand::emitInstrumentationData() {
         Program = detail::getSyclObjImpl(SyclKernel)
                       ->getDeviceImage()
                       ->get_program_ref();
-      } else if (KernelCG->MSyclKernel == nullptr) {
+      } else if (nullptr != KernelCG->MSyclKernel) {
+        auto SyclProg = KernelCG->MSyclKernel->getProgramImpl();
+        Program = SyclProg->getHandleRef();
+      } else {
         std::tie(Kernel, KernelMutex, Program) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 KernelCG->MOSModuleHandle, MQueue->getContextImplPtr(),
@@ -2143,6 +2146,16 @@ pi_int32 enqueueImpKernel(
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
+    auto SyclProg = MSyclKernel->getProgramImpl();
+    Program = SyclProg->getHandleRef();
+    if (SyclProg->is_cacheable()) {
+      RT::PiKernel FoundKernel = nullptr;
+      std::tie(FoundKernel, KernelMutex, std::ignore) =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              OSModuleHandle, ContextImpl, DeviceImpl, KernelName,
+              SyclProg.get());
+      assert(FoundKernel == Kernel);
+    }
   } else {
     std::tie(Kernel, KernelMutex, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
