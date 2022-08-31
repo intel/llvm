@@ -13,6 +13,7 @@
 
 #if !defined(__SYCL_DEVICE_ONLY__)
 #include <cmath>
+#include <cstring> // for std::memcpy
 #endif
 
 namespace sycl {
@@ -65,7 +66,9 @@ public:
 #else
     uint32_t bits = a;
     bits <<= 16;
-    return *(reinterpret_cast<float *>(&bits));
+    float res;
+    std::memcpy(&res, &bits, sizeof(res));
+    return res;
 #endif
   }
 
