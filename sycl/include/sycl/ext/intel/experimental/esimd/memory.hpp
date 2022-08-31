@@ -442,6 +442,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
+/// @param pred is predicate.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
@@ -450,10 +451,11 @@ template <typename T, uint8_t NElts = 1,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
-lsc_block_load(AccessorTy acc, uint32_t offset) {
+lsc_block_load(AccessorTy acc, uint32_t offset,
+               __ESIMD_NS::simd_mask<1> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset, pred));
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -467,7 +469,6 @@ lsc_block_load(AccessorTy acc, uint32_t offset) {
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
   auto si = __ESIMD_NS::get_surface_index(acc);
   return __esimd_lsc_load_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
@@ -533,12 +534,14 @@ lsc_gather(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
+/// @param pred is predicate
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_block_load(const T *p) {
+__ESIMD_API __ESIMD_NS::simd<T, NElts>
+lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
@@ -551,7 +554,6 @@ __ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_block_load(const T *p) {
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   return __esimd_lsc_load_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                                     _VS, _Transposed, N>(pred.data(),
@@ -861,6 +863,7 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param vals is values to store.
+/// @param pred is predicate.
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
@@ -868,10 +871,11 @@ template <typename T, uint8_t NElts = 1,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset,
-                __ESIMD_NS::simd<T, NElts> vals) {
+                __ESIMD_NS::simd<T, NElts> vals,
+                __ESIMD_NS::simd_mask<1> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   lsc_block_store<T, NElts, DS, L1H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals);
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -885,7 +889,6 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
   auto si = __ESIMD_NS::get_surface_index(acc);
   __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
@@ -951,11 +954,13 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param vals is values to store.
+/// @param pred is predicate
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals) {
+__ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
+                                 __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
@@ -968,7 +973,6 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals) {
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   __esimd_lsc_store_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                               _Transposed, N>(pred.data(), addrs.data(),
