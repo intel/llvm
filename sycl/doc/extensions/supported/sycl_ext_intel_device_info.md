@@ -16,6 +16,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 1     | Initial extension version\. Base features are supported |
 | 2     | Device UUID is supported |
 | 3     | HW threads per EU device query is supported |
+| 4     | Free device memory query is supported |
 
 
 # Device UUID #
@@ -346,4 +347,42 @@ Then the maximum memory bandwidth can be obtained using the standard get\_info()
 
     if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
       auto maxBW = dev.get_info<info::device::ext_intel_max_mem_bandwidth>();
+    }
+
+# Free Global Memory #
+
+A new device descriptor will be added which will provide the number of bytes of free global memory for the device.
+
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform. NOTE: one may need to set
+ZES_ENABLE_SYSMAN=1 to fully enable this extension.
+
+
+## Version ##
+
+The extension supports this query in version 4 and later.
+
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_free\_memory | uint64\_t| Returns the memory avialble on the device in units of bytes.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_free\_memory, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_free\_memory.
+
+
+## Example Usage ##
+
+Then the free device memory  can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_free_memory)) {
+      auto FreeMemory = dev.get_info<info::device::ext_intel_free_memory>();
     }

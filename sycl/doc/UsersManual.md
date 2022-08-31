@@ -225,6 +225,14 @@ and not recommended to use in production environment.
 
     NOTE: This option is currently only supported on Linux.
 
+**`-fsycl-force-target=<T>`**
+
+    When used along with '-fsycl-targets', force the device object being
+    unbundled to match the target <T> given.  This allows the user to override
+    the expected unbundling type even though the target given does not match.
+    The forced target applies to all objects, archives and default device
+    libraries.
+
 ## Intel FPGA specific options
 
 **`-fintelfpga`**

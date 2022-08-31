@@ -17,7 +17,7 @@ namespace access {
 enum class target {
   global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
   constant_buffer = 2015,
-  local = 2016,
+  local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
   host_buffer = 2018,
   host_image = 2019,
@@ -205,8 +205,11 @@ template <class T> struct remove_AS {
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <class T> struct deduce_AS {
-  static_assert(!std::is_same<typename detail::remove_AS<T>::type, T>::value,
-                "Only types with address space attributes are supported");
+  // Undecorated pointers are considered generic.
+  // TODO: This assumes that the implementation uses generic as default. If
+  //       address space inference is used this may need to change.
+  static const access::address_space value =
+      access::address_space::generic_space;
 };
 
 template <class T> struct remove_AS<__OPENCL_GLOBAL_AS__ T> {

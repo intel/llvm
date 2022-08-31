@@ -317,7 +317,8 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
   if (StringRef(D.Dir).startswith(SysRoot) &&
       (D.getVFS().exists(D.Dir + "/../lib/libc++.so") ||
-       Args.hasArg(options::OPT_fsycl)))
+       Args.hasArg(options::OPT_fsycl) ||
+       D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
     addPathIfExists(D, D.Dir + "/../lib", Paths);
 
   addPathIfExists(D, concat(SysRoot, "/lib"), Paths);
