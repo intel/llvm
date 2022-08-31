@@ -456,10 +456,11 @@ struct BuiltinArgTypeMangleInfo {
   bool IsLocalArgBlock;
   SPIR::TypePrimitiveEnum Enum;
   unsigned Attr;
+  PointerIndirectPair PointerElementType;
   BuiltinArgTypeMangleInfo()
       : IsSigned(true), IsVoidPtr(false), IsEnum(false), IsSampler(false),
         IsAtomic(false), IsLocalArgBlock(false), Enum(SPIR::PRIMITIVE_NONE),
-        Attr(0) {}
+        Attr(0), PointerElementType(nullptr, false) {}
 };
 
 /// Information for mangling builtin function.
@@ -468,92 +469,61 @@ public:
   /// Translate builtin function name and set
   /// argument attributes and unsigned args.
   BuiltinFuncMangleInfo(const std::string &UniqName = "")
-      : LocalArgBlockIdx(-1), VarArgIdx(-1), DontMangle(false) {
+      : VarArgIdx(-1), DontMangle(false) {
     if (!UniqName.empty())
       init(UniqName);
   }
   virtual ~BuiltinFuncMangleInfo() {}
   const std::string &getUnmangledName() const { return UnmangledName; }
-  void addUnsignedArg(int Ndx) { UnsignedArgs.insert(Ndx); }
+  void addUnsignedArg(int Ndx) {
+    if (Ndx == -1)
+      return addUnsignedArgs(0, 10); // 10 is enough for everybody, right?
+    getTypeMangleInfo(Ndx).IsSigned = false;
+  }
   void addUnsignedArgs(int StartNdx, int StopNdx) {
     assert(StartNdx < StopNdx && "wrong parameters");
     for (int I = StartNdx; I <= StopNdx; ++I)
       addUnsignedArg(I);
   }
-  void addVoidPtrArg(int Ndx) { VoidPtrArgs.insert(Ndx); }
-  void addSamplerArg(int Ndx) { SamplerArgs.insert(Ndx); }
-  void addAtomicArg(int Ndx) { AtomicArgs.insert(Ndx); }
-  void setLocalArgBlock(int Ndx) {
-    assert(0 <= Ndx && "it is not allowed to set less than zero index");
-    LocalArgBlockIdx = Ndx;
+  void addVoidPtrArg(unsigned Ndx) { getTypeMangleInfo(Ndx).IsVoidPtr = true; }
+  void addSamplerArg(unsigned Ndx) { getTypeMangleInfo(Ndx).IsSampler = true; }
+  void addAtomicArg(unsigned Ndx) { getTypeMangleInfo(Ndx).IsAtomic = true; }
+  void setLocalArgBlock(unsigned Ndx) {
+    getTypeMangleInfo(Ndx).IsLocalArgBlock = true;
   }
-  void setEnumArg(int Ndx, SPIR::TypePrimitiveEnum Enum) {
-    EnumArgs[Ndx] = Enum;
+  void setEnumArg(unsigned Ndx, SPIR::TypePrimitiveEnum Enum) {
+    auto &Info = getTypeMangleInfo(Ndx);
+    Info.IsEnum = true;
+    Info.Enum = Enum;
   }
-  void setArgAttr(int Ndx, unsigned Attr) { Attrs[Ndx] = Attr; }
+  void setArgAttr(unsigned Ndx, unsigned Attr) {
+    getTypeMangleInfo(Ndx).Attr = Attr;
+  }
   void setVarArg(int Ndx) {
     assert(0 <= Ndx && "it is not allowed to set less than zero index");
     VarArgIdx = Ndx;
   }
   void setAsDontMangle() { DontMangle = true; }
-  bool isArgUnsigned(int Ndx) {
-    return UnsignedArgs.count(-1) || UnsignedArgs.count(Ndx);
-  }
-  bool isArgVoidPtr(int Ndx) {
-    return VoidPtrArgs.count(-1) || VoidPtrArgs.count(Ndx);
-  }
-  bool isArgSampler(int Ndx) { return SamplerArgs.count(Ndx); }
-  bool isArgAtomic(int Ndx) { return AtomicArgs.count(Ndx); }
-  bool isLocalArgBlock(int Ndx) { return LocalArgBlockIdx == Ndx; }
-  bool isArgEnum(int Ndx, SPIR::TypePrimitiveEnum *Enum = nullptr) {
-    auto Loc = EnumArgs.find(Ndx);
-    if (Loc == EnumArgs.end())
-      Loc = EnumArgs.find(-1);
-    if (Loc == EnumArgs.end())
-      return false;
-    if (Enum)
-      *Enum = Loc->second;
-    return true;
-  }
   bool avoidMangling() { return DontMangle; }
-  unsigned getArgAttr(int Ndx) {
-    auto Loc = Attrs.find(Ndx);
-    if (Loc == Attrs.end())
-      Loc = Attrs.find(-1);
-    if (Loc == Attrs.end())
-      return 0;
-    return Loc->second;
-  }
   // get ellipsis index, single ellipsis at the end of the function is possible
   // only return value < 0 if none
   int getVarArg() const { return VarArgIdx; }
-  BuiltinArgTypeMangleInfo getTypeMangleInfo(int Ndx) {
-    BuiltinArgTypeMangleInfo Info;
-    Info.IsSigned = !isArgUnsigned(Ndx);
-    Info.IsVoidPtr = isArgVoidPtr(Ndx);
-    Info.IsEnum = isArgEnum(Ndx, &Info.Enum);
-    Info.IsSampler = isArgSampler(Ndx);
-    Info.IsAtomic = isArgAtomic(Ndx);
-    Info.IsLocalArgBlock = isLocalArgBlock(Ndx);
-    Info.Attr = getArgAttr(Ndx);
+  BuiltinArgTypeMangleInfo &getTypeMangleInfo(unsigned Ndx) {
+    while (Ndx >= ArgInfo.size())
+      ArgInfo.emplace_back();
+    BuiltinArgTypeMangleInfo &Info = ArgInfo[Ndx];
     return Info;
   }
   virtual void init(StringRef UniqUnmangledName) {
     UnmangledName = UniqUnmangledName.str();
   }
 
+  void fillPointerElementTypes(ArrayRef<PointerIndirectPair>);
+
 protected:
   std::string UnmangledName;
-  std::set<int> UnsignedArgs; // unsigned arguments, or -1 if all are unsigned
-  std::set<int> VoidPtrArgs;  // void pointer arguments, or -1 if all are void
-                              // pointer
-  std::set<int> SamplerArgs;  // sampler arguments
-  std::set<int> AtomicArgs;   // atomic arguments
-  std::map<int, SPIR::TypePrimitiveEnum> EnumArgs; // enum arguments
-  std::map<int, unsigned> Attrs;                   // argument attributes
-  int LocalArgBlockIdx; // index of a block with local arguments, idx < 0 if
-                        // none
-  int VarArgIdx;        // index of ellipsis argument, idx < 0 if none
+  std::vector<BuiltinArgTypeMangleInfo> ArgInfo;
+  int VarArgIdx; // index of ellipsis argument, idx < 0 if none
 private:
   bool DontMangle; // clang doesn't apply mangling for some builtin functions
                    // (i.e. enqueue_kernel)
@@ -597,7 +567,8 @@ void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr);
 void addFnAttr(CallInst *Call, Attribute::AttrKind Attr);
 void saveLLVMModule(Module *M, const std::string &OutputFile);
 std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed);
-std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed);
+std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed,
+                                 Type *PointerElementType = nullptr);
 SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target);
 
 /// Add decorations to a SPIR-V entry.
@@ -681,7 +652,8 @@ StringRef dePrefixSPIRVName(StringRef R, SmallVectorImpl<StringRef> &Postfix);
 /// Get a canonical function name for a SPIR-V op code.
 std::string getSPIRVFuncName(Op OC, StringRef PostFix = "");
 
-std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned = false);
+std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned = false,
+                             Type *PointerElementType = nullptr);
 
 std::string getSPIRVFuncName(SPIRVBuiltinVariableKind BVKind);
 
@@ -784,6 +756,7 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
 /// Add a call instruction for SPIR-V builtin function.
 CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
                            ArrayRef<Value *> Args, AttributeList *Attrs,
+                           ArrayRef<Type *> PointerElementTypes,
                            Instruction *Pos, StringRef InstName);
 
 /// Add a call of spir_block_bind function.
@@ -888,7 +861,8 @@ std::string getPostfix(Decoration Dec, unsigned Value = 0);
 /// Get postfix _R{ReturnType} for return type
 /// The returned postfix does not includ "_" at the beginning
 std::string getPostfixForReturnType(CallInst *CI, bool IsSigned = false);
-std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned = false);
+std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned = false,
+                                    Type *PointerElementType = nullptr);
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V,
                                        bool IsSigned = false);
@@ -1012,6 +986,7 @@ inline void getParameterTypes(CallInst *CI,
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
                                            ArrayRef<Type *> ArgTys,
+                                           ArrayRef<PointerIndirectPair> PETs,
                                            Type *RetTy = nullptr);
 
 /// Mangle a function in SPIR-V friendly IR manner
@@ -1023,7 +998,8 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \param Types of arguments of SPIR-V built-in function
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC, ArrayRef<Type *> ArgTys);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys,
+                                           ArrayRef<PointerIndirectPair> PETs);
 
 /// Cast a function to a void(void) funtion pointer.
 Constant *castToVoidFuncPtr(Function *F);

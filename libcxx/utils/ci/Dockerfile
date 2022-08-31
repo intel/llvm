@@ -33,12 +33,6 @@ FROM ubuntu:jammy
 # Make sure apt-get doesn't try to prompt for stuff like our time zone, etc.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# This dummy command is meant to be edited from time to time, which causes the
-# CI builders to rebuild their copy of the Docker image. This is not a great
-# solution, however without that, the CI builders will keep the same cached
-# Docker image forever.
-RUN echo 6
-
 RUN apt-get update && apt-get install -y bash curl
 
 # Install various tools used by the build or the test suite
@@ -78,13 +72,17 @@ RUN ln -fs /usr/bin/clang++-$LLVM_LATEST_VERSION /usr/bin/c++ && [ -e $(readlink
 RUN ln -fs /usr/bin/clang-$LLVM_LATEST_VERSION /usr/bin/cc && [ -e $(readlink /usr/bin/cc) ]
 
 # Install clang-format
-RUN apt-get install -y clang-format-$LLVM_LATEST_VERSION
+RUN apt-get update && apt-get install -y clang-format-$LLVM_LATEST_VERSION
 RUN ln -s /usr/bin/clang-format-$LLVM_LATEST_VERSION /usr/bin/clang-format && [ -e $(readlink /usr/bin/clang-format) ]
 RUN ln -s /usr/bin/git-clang-format-$LLVM_LATEST_VERSION /usr/bin/git-clang-format && [ -e $(readlink /usr/bin/git-clang-format) ]
 
 # Install clang-tidy
-RUN apt-get install -y clang-tidy-$LLVM_LATEST_VERSION
+RUN apt-get update && apt-get install -y clang-tidy-$LLVM_LATEST_VERSION
 RUN ln -s /usr/bin/clang-tidy-$LLVM_LATEST_VERSION /usr/bin/clang-tidy && [ -e $(readlink /usr/bin/clang-tidy) ]
+
+# Install clang-tools
+RUN apt-get update && apt-get install -y clang-tools-$LLVM_LATEST_VERSION
+RUN ln -s /usr/bin/clang-query-$LLVM_LATEST_VERSION /usr/bin/clang-query && [ -e $(readlink /usr/bin/clang-query) ]
 
 # Install the most recent GCC, like clang install the previous version as a transition.
 ENV GCC_LATEST_VERSION=12

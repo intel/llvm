@@ -8,30 +8,30 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
 #include <optional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
-using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -46,7 +46,9 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete);
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
   ///
@@ -66,17 +68,12 @@ public:
   /// \return true if this event is a SYCL host event.
   bool is_host();
 
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
-
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -86,13 +83,13 @@ public:
   /// pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Clean up the command associated with the event. Assumes that the task this
   /// event is associated with has been completed.
   ///
   /// \param Self is a pointer to this event.
-  void cleanupCommand(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void cleanupCommand(std::shared_ptr<sycl::detail::event_impl> Self) const;
 
   /// Queries this event for profiling information.
   ///
@@ -105,15 +102,12 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info();
+  template <typename Param> typename Param::return_type get_profiling_info();
 
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info();
+  template <typename Param> typename Param::return_type get_info();
 
   ~event_impl();
 
@@ -218,6 +212,15 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Checks if an event is in a fully intialized state. Default-constructed
+  /// events will return true only after having initialized its native event,
+  /// while other events will assume that they are fully initialized at
+  /// construction, relying on external sources to supply member data.
+  ///
+  /// \return true if the event is considered to be in a fully initialized
+  /// state.
+  bool isInitialized() const noexcept { return MIsInitialized; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -234,7 +237,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
@@ -264,10 +266,10 @@ private:
   std::condition_variable cv;
 
   friend std::vector<RT::PiEvent>
-  getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                  std::shared_ptr<cl::sycl::detail::context_impl> Context);
+  getOrWaitEvents(std::vector<sycl::event> DepEvents,
+                  std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

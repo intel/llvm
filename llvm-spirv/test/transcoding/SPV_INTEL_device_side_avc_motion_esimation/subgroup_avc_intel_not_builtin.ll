@@ -4,7 +4,7 @@
 ;   intel_sub_group_avc_mce_ime_boo();
 ; }
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s
 
 ; Checks that a function with a name started from 'intel_sub_group_avc_' prefix,

@@ -2707,7 +2707,7 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
   // We explictly allow bool elements in ext_vector_type for C/C++.
   bool IsNoBoolVecLang = getLangOpts().OpenCL || getLangOpts().OpenCLCPlusPlus;
   if ((!T->isDependentType() && !T->isIntegerType() &&
-       !T->isRealFloatingType()) ||
+       !T->isRealFloatingType()) || T->isBitIntType() ||
       (IsNoBoolVecLang && T->isBooleanType())) {
     Diag(AttrLoc, diag::err_attribute_invalid_vector_type) << T;
     return QualType();
@@ -5565,7 +5565,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           // in ClsType; hence we wrap ClsType into an ElaboratedType.
           // NOTE: in particular, no wrap occurs if ClsType already is an
           // Elaborated, DependentName, or DependentTemplateSpecialization.
-          if (NNSPrefix && isa<TemplateSpecializationType>(NNS->getAsType()))
+          if (isa<TemplateSpecializationType>(NNS->getAsType()))
             ClsType = Context.getElaboratedType(ETK_None, NNSPrefix, ClsType);
           break;
         }
@@ -6117,19 +6117,19 @@ namespace {
       }
     }
     void VisitElaboratedTypeLoc(ElaboratedTypeLoc TL) {
-      ElaboratedTypeKeyword Keyword
-        = TypeWithKeyword::getKeywordForTypeSpec(DS.getTypeSpecType());
       if (DS.getTypeSpecType() == TST_typename) {
         TypeSourceInfo *TInfo = nullptr;
         Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
-        if (TInfo) {
-          TL.copy(TInfo->getTypeLoc().castAs<ElaboratedTypeLoc>());
-          return;
-        }
+        if (TInfo)
+          if (auto ETL = TInfo->getTypeLoc().getAs<ElaboratedTypeLoc>()) {
+            TL.copy(ETL);
+            return;
+          }
       }
-      TL.setElaboratedKeywordLoc(Keyword != ETK_None
-                                 ? DS.getTypeSpecTypeLoc()
-                                 : SourceLocation());
+      const ElaboratedType *T = TL.getTypePtr();
+      TL.setElaboratedKeywordLoc(T->getKeyword() != ETK_None
+                                     ? DS.getTypeSpecTypeLoc()
+                                     : SourceLocation());
       const CXXScopeSpec& SS = DS.getTypeSpecScope();
       TL.setQualifierLoc(SS.getWithLocInContext(Context));
       Visit(TL.getNextTypeLoc().getUnqualifiedLoc());
@@ -8736,17 +8736,8 @@ bool Sema::hasStructuralCompatLayout(Decl *D, Decl *Suggested) {
   return Ctx.IsEquivalent(D, Suggested);
 }
 
-/// Determine whether there is any declaration of \p D that was ever a
-///        definition (perhaps before module merging) and is currently visible.
-/// \param D The definition of the entity.
-/// \param Suggested Filled in with the declaration that should be made visible
-///        in order to provide a definition of this entity.
-/// \param OnlyNeedComplete If \c true, we only need the type to be complete,
-///        not defined. This only matters for enums with a fixed underlying
-///        type, since in all other cases, a type is complete if and only if it
-///        is defined.
-bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
-                                bool OnlyNeedComplete) {
+bool Sema::hasAcceptableDefinition(NamedDecl *D, NamedDecl **Suggested,
+                                   AcceptableKind Kind, bool OnlyNeedComplete) {
   // Easy case: if we don't have modules, all declarations are visible.
   if (!getLangOpts().Modules && !getLangOpts().ModulesLocalVisibility)
     return true;
@@ -8772,12 +8763,13 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
       // of it will do.
       *Suggested = nullptr;
       for (auto *Redecl : ED->redecls()) {
-        if (isVisible(Redecl))
+        if (isAcceptable(Redecl, Kind))
           return true;
         if (Redecl->isThisDeclarationADefinition() ||
             (Redecl->isCanonicalDecl() && !*Suggested))
           *Suggested = Redecl;
       }
+
       return false;
     }
     D = ED->getDefinition();
@@ -8790,13 +8782,14 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
       VD = Pattern;
     D = VD->getDefinition();
   }
+
   assert(D && "missing definition for pattern of instantiated definition");
 
   *Suggested = D;
 
-  auto DefinitionIsVisible = [&] {
+  auto DefinitionIsAcceptable = [&] {
     // The (primary) definition might be in a visible module.
-    if (isVisible(D))
+    if (isAcceptable(D, Kind))
       return true;
 
     // A visible module might have a merged definition instead.
@@ -8814,17 +8807,49 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
     return false;
   };
 
-  if (DefinitionIsVisible())
+  if (DefinitionIsAcceptable())
     return true;
 
   // The external source may have additional definitions of this entity that are
   // visible, so complete the redeclaration chain now and ask again.
   if (auto *Source = Context.getExternalSource()) {
     Source->CompleteRedeclChain(D);
-    return DefinitionIsVisible();
+    return DefinitionIsAcceptable();
   }
 
   return false;
+}
+
+/// Determine whether there is any declaration of \p D that was ever a
+///        definition (perhaps before module merging) and is currently visible.
+/// \param D The definition of the entity.
+/// \param Suggested Filled in with the declaration that should be made visible
+///        in order to provide a definition of this entity.
+/// \param OnlyNeedComplete If \c true, we only need the type to be complete,
+///        not defined. This only matters for enums with a fixed underlying
+///        type, since in all other cases, a type is complete if and only if it
+///        is defined.
+bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
+                                bool OnlyNeedComplete) {
+  return hasAcceptableDefinition(D, Suggested, Sema::AcceptableKind::Visible,
+                                 OnlyNeedComplete);
+}
+
+/// Determine whether there is any declaration of \p D that was ever a
+///        definition (perhaps before module merging) and is currently
+///        reachable.
+/// \param D The definition of the entity.
+/// \param Suggested Filled in with the declaration that should be made
+/// reachable
+///        in order to provide a definition of this entity.
+/// \param OnlyNeedComplete If \c true, we only need the type to be complete,
+///        not defined. This only matters for enums with a fixed underlying
+///        type, since in all other cases, a type is complete if and only if it
+///        is defined.
+bool Sema::hasReachableDefinition(NamedDecl *D, NamedDecl **Suggested,
+                                  bool OnlyNeedComplete) {
+  return hasAcceptableDefinition(D, Suggested, Sema::AcceptableKind::Reachable,
+                                 OnlyNeedComplete);
 }
 
 /// Locks in the inheritance model for the given class and all of its bases.
@@ -8896,20 +8921,19 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
   // Check that any necessary explicit specializations are visible. For an
   // enum, we just need the declaration, so don't check this.
   if (Def && !isa<EnumDecl>(Def))
-    checkSpecializationVisibility(Loc, Def);
+    checkSpecializationReachability(Loc, Def);
 
   // If we have a complete type, we're done.
   if (!Incomplete) {
-    // If we know about the definition but it is not visible, complain.
-    NamedDecl *SuggestedDef = nullptr;
+    NamedDecl *Suggested = nullptr;
     if (Def &&
-        !hasVisibleDefinition(Def, &SuggestedDef, /*OnlyNeedComplete*/true)) {
+        !hasReachableDefinition(Def, &Suggested, /*OnlyNeedComplete=*/true)) {
       // If the user is going to see an error here, recover by making the
       // definition visible.
       bool TreatAsComplete = Diagnoser && !isSFINAEContext();
-      if (Diagnoser && SuggestedDef)
-        diagnoseMissingImport(Loc, SuggestedDef, MissingImportKind::Definition,
-                              /*Recover*/TreatAsComplete);
+      if (Diagnoser && Suggested)
+        diagnoseMissingImport(Loc, Suggested, MissingImportKind::Definition,
+                              /*Recover*/ TreatAsComplete);
       return !TreatAsComplete;
     } else if (Def && !TemplateInstCallbacks.empty()) {
       CodeSynthesisContext TempInst;
@@ -9170,15 +9194,8 @@ QualType Sema::getElaboratedType(ElaboratedTypeKeyword Keyword,
                                  TagDecl *OwnedTagDecl) {
   if (T.isNull())
     return T;
-  NestedNameSpecifier *NNS;
-  if (SS.isValid())
-    NNS = SS.getScopeRep();
-  else {
-    if (Keyword == ETK_None)
-      return T;
-    NNS = nullptr;
-  }
-  return Context.getElaboratedType(Keyword, NNS, T, OwnedTagDecl);
+  return Context.getElaboratedType(
+      Keyword, SS.isValid() ? SS.getScopeRep() : nullptr, T, OwnedTagDecl);
 }
 
 QualType Sema::BuildTypeofExprType(Expr *E) {

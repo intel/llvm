@@ -11,6 +11,7 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "lldb/Core/Communication.h"
 #include "lldb/Host/MainLoop.h"
@@ -84,6 +85,17 @@ public:
 
   Status InitializeConnection(std::unique_ptr<Connection> connection);
 
+  struct DebuggedProcess {
+    enum class Flag {
+      vkilled = (1u << 0),
+
+      LLVM_MARK_AS_BITMASK_ENUM(vkilled)
+    };
+
+    std::unique_ptr<NativeProcessProtocol> process_up;
+    Flag flags;
+  };
+
 protected:
   MainLoop &m_mainloop;
   MainLoop::ReadHandleUP m_network_handle_up;
@@ -93,13 +105,11 @@ protected:
   NativeProcessProtocol *m_current_process;
   NativeProcessProtocol *m_continue_process;
   std::recursive_mutex m_debugged_process_mutex;
-  std::unordered_map<lldb::pid_t, std::unique_ptr<NativeProcessProtocol>>
-      m_debugged_processes;
+  std::unordered_map<lldb::pid_t, DebuggedProcess> m_debugged_processes;
 
   Communication m_stdio_communication;
   MainLoop::ReadHandleUP m_stdio_handle_up;
 
-  lldb::StateType m_inferior_prev_state = lldb::StateType::eStateInvalid;
   llvm::StringMap<std::unique_ptr<llvm::MemoryBuffer>> m_xfer_buffer_map;
   std::mutex m_saved_registers_mutex;
   std::unordered_map<uint32_t, lldb::DataBufferSP> m_saved_registers_map;
@@ -107,6 +117,8 @@ protected:
   bool m_thread_suffix_supported = false;
   bool m_list_threads_in_stop_reply = false;
   bool m_non_stop = false;
+  bool m_disabling_non_stop = false;
+  std::deque<std::string> m_stdio_notification_queue;
   std::deque<std::string> m_stop_notification_queue;
 
   NativeProcessProtocol::Extension m_extensions_supported = {};
@@ -129,6 +141,8 @@ protected:
 
   PacketResult Handle_k(StringExtractorGDBRemote &packet);
 
+  PacketResult Handle_vKill(StringExtractorGDBRemote &packet);
+
   PacketResult Handle_qProcessInfo(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qC(StringExtractorGDBRemote &packet);
@@ -143,6 +157,9 @@ protected:
 
   PacketResult Handle_QListThreadsInStopReply(StringExtractorGDBRemote &packet);
 
+  PacketResult ResumeProcess(NativeProcessProtocol &process,
+                             const ResumeActionList &actions);
+
   PacketResult Handle_C(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_c(StringExtractorGDBRemote &packet);
@@ -154,6 +171,9 @@ protected:
   PacketResult Handle_stop_reason(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qRegisterInfo(StringExtractorGDBRemote &packet);
+
+  void AddProcessThreads(StreamGDBRemote &response,
+                         NativeProcessProtocol &process, bool &had_any);
 
   PacketResult Handle_qfThreadInfo(StringExtractorGDBRemote &packet);
 
@@ -229,6 +249,10 @@ protected:
 
   PacketResult Handle_QNonStop(StringExtractorGDBRemote &packet);
 
+  PacketResult HandleNotificationAck(std::deque<std::string> &queue);
+
+  PacketResult Handle_vStdio(StringExtractorGDBRemote &packet);
+
   PacketResult Handle_vStopped(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_vCtrlC(StringExtractorGDBRemote &packet);
@@ -238,6 +262,8 @@ protected:
   PacketResult Handle_qMemTags(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_QMemTags(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_T(StringExtractorGDBRemote &packet);
 
   void SetCurrentThreadID(lldb::tid_t tid);
 
@@ -264,6 +290,9 @@ protected:
   // in non-stop mode, no response otherwise.
   PacketResult SendContinueSuccessResponse();
 
+  void AppendThreadIDToResponse(Stream &response, lldb::pid_t pid,
+                                lldb::tid_t tid);
+
 private:
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> BuildTargetXml();
 
@@ -288,15 +317,6 @@ private:
   void StartSTDIOForwarding();
 
   void StopSTDIOForwarding();
-
-  // Read thread-id from packet.  If the thread-id is correct, returns it.
-  // Otherwise, returns the error.
-  //
-  // If allow_all is true, then the pid/tid value of -1 ('all') will be allowed.
-  // In any case, the function assumes that exactly one inferior is being
-  // debugged and rejects pid values that do no match that inferior.
-  llvm::Expected<lldb::tid_t> ReadTid(StringExtractorGDBRemote &packet,
-                                      bool allow_all, lldb::pid_t default_pid);
 
   // Call SetEnabledExtensions() with appropriate flags on the process.
   void SetEnabledExtensions(NativeProcessProtocol &process);

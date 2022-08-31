@@ -64,7 +64,7 @@ constexpr void test(std::array<int, N> in) {
     std::same_as<std::ranges::in_out_result<In, Out>> decltype(auto) ret =
       std::ranges::move_backward(In(in.data()), Sent(In(in.data() + in.size())), Out(out.data() + out.size()));
     assert(in == out);
-    assert(base(ret.in) == in.data());
+    assert(base(ret.in) == in.data() + in.size());
     assert(base(ret.out) == out.data());
   }
   {
@@ -73,7 +73,7 @@ constexpr void test(std::array<int, N> in) {
     std::same_as<std::ranges::in_out_result<In, Out>> decltype(auto) ret =
         std::ranges::move_backward(range, Out(out.data() + out.size()));
     assert(in == out);
-    assert(base(ret.in) == in.data());
+    assert(base(ret.in) == in.data() + in.size());
     assert(base(ret.out) == out.data());
   }
 }
@@ -92,6 +92,14 @@ constexpr void test_in_iterators() {
   test_iterators<bidirectional_iterator<int*>, Out>();
   test_iterators<random_access_iterator<int*>, Out>();
   test_iterators<contiguous_iterator<int*>, Out>();
+}
+
+template <class Out>
+constexpr void test_proxy_in_iterators() {
+  test_iterators<ProxyIterator<bidirectional_iterator<int*>>, Out, sentinel_wrapper<ProxyIterator<bidirectional_iterator<int*>>>>();
+  test_iterators<ProxyIterator<bidirectional_iterator<int*>>, Out>();
+  test_iterators<ProxyIterator<random_access_iterator<int*>>, Out>();
+  test_iterators<ProxyIterator<contiguous_iterator<int*>>, Out>();
 }
 
 struct IteratorWithMoveIter {
@@ -119,6 +127,10 @@ constexpr bool test() {
   test_in_iterators<random_access_iterator<int*>>();
   test_in_iterators<contiguous_iterator<int*>>();
 
+  test_proxy_in_iterators<ProxyIterator<bidirectional_iterator<int*>>>();
+  test_proxy_in_iterators<ProxyIterator<random_access_iterator<int*>>>();
+  test_proxy_in_iterators<ProxyIterator<contiguous_iterator<int*>>>();
+
   { // check that a move-only type works
     {
       MoveOnly a[] = {1, 2, 3};
@@ -138,6 +150,29 @@ constexpr bool test() {
     }
   }
 
+  { // check that a move-only type works for ProxyIterator
+    {
+      MoveOnly a[] = {1, 2, 3};
+      MoveOnly b[3];
+      ProxyRange proxyA{a};
+      ProxyRange proxyB{b};
+      std::ranges::move_backward(proxyA, std::ranges::next(proxyB.begin(), std::end(proxyB)));
+      assert(b[0].get() == 1);
+      assert(b[1].get() == 2);
+      assert(b[2].get() == 3);
+    }
+    {
+      MoveOnly a[] = {1, 2, 3};
+      MoveOnly b[3];
+      ProxyRange proxyA{a};
+      ProxyRange proxyB{b};
+      std::ranges::move_backward(std::begin(proxyA), std::end(proxyA),  std::ranges::next(proxyB.begin(), std::end(proxyB)));
+      assert(b[0].get() == 1);
+      assert(b[1].get() == 2);
+      assert(b[2].get() == 3);
+    }
+  }
+
   { // check that ranges::dangling is returned
     std::array<int, 4> out;
     std::same_as<std::ranges::in_out_result<std::ranges::dangling, int*>> auto ret =
@@ -151,7 +186,7 @@ constexpr bool test() {
     std::array<int, 4> out;
     std::same_as<std::ranges::in_out_result<int*, int*>> auto ret =
         std::ranges::move_backward(std::views::all(in), out.data() + out.size());
-    assert(ret.in == in.data());
+    assert(ret.in == in.data() + in.size());
     assert(ret.out == out.data());
     assert(in == out);
   }
@@ -171,7 +206,7 @@ constexpr bool test() {
       std::array<MoveOnce, 4> in {};
       std::array<MoveOnce, 4> out {};
       auto ret = std::ranges::move_backward(in.begin(), in.end(), out.end());
-      assert(ret.in == in.begin());
+      assert(ret.in == in.end());
       assert(ret.out == out.begin());
       assert(std::all_of(out.begin(), out.end(), [](const auto& e) { return e.moved; }));
     }
@@ -179,7 +214,7 @@ constexpr bool test() {
       std::array<MoveOnce, 4> in {};
       std::array<MoveOnce, 4> out {};
       auto ret = std::ranges::move_backward(in, out.end());
-      assert(ret.in == in.begin());
+      assert(ret.in == in.end());
       assert(ret.out == out.begin());
       assert(std::all_of(out.begin(), out.end(), [](const auto& e) { return e.moved; }));
     }
@@ -204,7 +239,7 @@ constexpr bool test() {
       out[2].next = &out[1];
       out[2].canMove = true;
       auto ret = std::ranges::move_backward(in, out.end());
-      assert(ret.in == in.begin());
+      assert(ret.in == in.end());
       assert(ret.out == out.begin());
       assert(out[0].canMove);
       assert(out[1].canMove);
@@ -217,7 +252,7 @@ constexpr bool test() {
       out[2].next = &out[1];
       out[2].canMove = true;
       auto ret = std::ranges::move_backward(in.begin(), in.end(), out.end());
-      assert(ret.in == in.begin());
+      assert(ret.in == in.end());
       assert(ret.out == out.begin());
       assert(out[0].canMove);
       assert(out[1].canMove);
@@ -230,7 +265,7 @@ constexpr bool test() {
       int a[] = {1, 2, 3, 4};
       std::array<int, 4> b;
       auto ret = std::ranges::move_backward(IteratorWithMoveIter(a), IteratorWithMoveIter(a + 4), b.data() + b.size());
-      assert(ret.in == a);
+      assert(ret.in == a + 4);
       assert(ret.out == b.data());
       assert((b == std::array {42, 42, 42, 42}));
     }
@@ -239,7 +274,7 @@ constexpr bool test() {
       std::array<int, 4> b;
       auto range = std::ranges::subrange(IteratorWithMoveIter(a), IteratorWithMoveIter(a + 4));
       auto ret = std::ranges::move_backward(range, b.data() + b.size());
-      assert(ret.in == a);
+      assert(ret.in == a + 4);
       assert(ret.out == b.data());
       assert((b == std::array {42, 42, 42, 42}));
     }

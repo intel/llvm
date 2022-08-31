@@ -22,7 +22,7 @@
 ; As a workaround we store original names in OpString instruction:
 ; OpString "kernel_arg_type.%kernel_name%.typename0,typename1,..."
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv -preserve-ocl-kernel-arg-type-metadata-through-string %t.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV-WORKAROUND
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt

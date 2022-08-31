@@ -49,7 +49,8 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-unnamed-lambda`**
 
     Enables/Disables unnamed SYCL lambda kernels support.
-    Disabled by default.
+    The default value depends on the SYCL language standard: it is enabled
+    by default for SYCL 2020, and disabled for SYCL 1.2.1.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -215,6 +216,22 @@ and not recommended to use in production environment.
     device libraries for VTune(R). This provides annotations to intercept
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
+
+**`-f[no-]sycl-link-huge-device-code`**
+
+    Place device code later in the linked binary in order to avoid precluding
+    32-bit PC relative relocations between surrounding ELF sections when device
+    code is larger than 2GiB. This is disabled by default.
+
+    NOTE: This option is currently only supported on Linux.
+
+**`-fsycl-force-target=<T>`**
+
+    When used along with '-fsycl-targets', force the device object being
+    unbundled to match the target <T> given.  This allows the user to override
+    the expected unbundling type even though the target given does not match.
+    The forced target applies to all objects, archives and default device
+    libraries.
 
 ## Intel FPGA specific options
 

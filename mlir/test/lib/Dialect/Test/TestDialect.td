@@ -41,6 +41,7 @@ def Test_Dialect : Dialect {
      ::mlir::Type parseType(::mlir::DialectAsmParser &parser) const override;
      void printType(::mlir::Type type,
                     ::mlir::DialectAsmPrinter &printer) const override;
+
   private:
     // Storage for a custom fallback interface.
     void *fallbackEffectOpInterfaces;

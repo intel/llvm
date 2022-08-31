@@ -98,7 +98,7 @@
 ; (!"llvm.loop.ivdep.*" <-> LoopControlDependency*Mask)
 ; into a separate test file
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-ext=+all -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV

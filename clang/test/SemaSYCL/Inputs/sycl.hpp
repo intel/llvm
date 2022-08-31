@@ -3,8 +3,8 @@
 
 // Shared code for SYCL tests
 
-inline namespace cl {
 namespace sycl {
+inline namespace _V1 {
 namespace access {
 
 enum class target {
@@ -207,6 +207,26 @@ public:
 #endif
 };
 
+template <typename dataT, int dimensions>
+class __attribute__((sycl_special_class))
+local_accessor: public accessor<dataT,
+        dimensions, access::mode::read_write,
+        access::target::local> {
+public:
+  void use(void) const {}
+  template <typename... T>
+  void use(T... args) {}
+  template <typename... T>
+  void use(T... args) const {}
+  _ImplT<dimensions> impl;
+
+private:
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(__attribute__((opencl_local)) dataT *Ptr, range<dimensions> AccessRange,
+              range<dimensions> MemRange, id<dimensions> Offset) {}
+#endif
+};
+
 struct sampler_impl {
 #ifdef __SYCL_DEVICE_ONLY__
   __ocl_sampler_t m_Sampler;
@@ -338,7 +358,7 @@ public:
   void __finalize() {}
 
 private:
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  sycl::accessor<char, 1, sycl::access::mode::read_write> Acc;
   int FlushBufferSize;
 };
 
@@ -384,7 +404,7 @@ private:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // inline namespace _V1
 } // namespace sycl
-} // namespace cl
 
 #endif

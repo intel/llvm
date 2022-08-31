@@ -185,6 +185,25 @@ typedef llvm::ImmutableMap<ConstructedObjectKey, SVal>
 REGISTER_TRAIT_WITH_PROGRAMSTATE(ObjectsUnderConstruction,
                                  ObjectsUnderConstructionMap)
 
+// This trait is responsible for storing the index of the element that is to be
+// constructed in the next iteration. As a result a CXXConstructExpr is only
+// stored if it is array type. Also the index is the index of the continuous
+// memory region, which is important for multi-dimensional arrays. E.g:: int
+// arr[2][2]; assume arr[1][1] will be the next element under construction, so
+// the index is 3.
+typedef llvm::ImmutableMap<
+    std::pair<const CXXConstructExpr *, const LocationContext *>, unsigned>
+    IndexOfElementToConstructMap;
+REGISTER_TRAIT_WITH_PROGRAMSTATE(IndexOfElementToConstruct,
+                                 IndexOfElementToConstructMap)
+
+// This trait is responsible for holding our pending ArrayInitLoopExprs.
+// It pairs the LocationContext and the initializer CXXConstructExpr with
+// the size of the array that's being copy initialized.
+typedef llvm::ImmutableMap<
+    std::pair<const CXXConstructExpr *, const LocationContext *>, unsigned>
+    PendingInitLoopMap;
+REGISTER_TRAIT_WITH_PROGRAMSTATE(PendingInitLoop, PendingInitLoopMap)
 //===----------------------------------------------------------------------===//
 // Engine construction and deletion.
 //===----------------------------------------------------------------------===//
@@ -441,16 +460,100 @@ ProgramStateRef ExprEngine::createTemporaryRegionIfNeeded(
   return State;
 }
 
+ProgramStateRef ExprEngine::setIndexOfElementToConstruct(
+    ProgramStateRef State, const CXXConstructExpr *E,
+    const LocationContext *LCtx, unsigned Idx) {
+  auto Key = std::make_pair(E, LCtx->getStackFrame());
+
+  assert(!State->contains<IndexOfElementToConstruct>(Key) || Idx > 0);
+
+  return State->set<IndexOfElementToConstruct>(Key, Idx);
+}
+
+Optional<unsigned> ExprEngine::getPendingInitLoop(ProgramStateRef State,
+                                                  const CXXConstructExpr *E,
+                                                  const LocationContext *LCtx) {
+
+  return Optional<unsigned>::create(
+      State->get<PendingInitLoop>({E, LCtx->getStackFrame()}));
+}
+
+ProgramStateRef ExprEngine::removePendingInitLoop(ProgramStateRef State,
+                                                  const CXXConstructExpr *E,
+                                                  const LocationContext *LCtx) {
+  auto Key = std::make_pair(E, LCtx->getStackFrame());
+
+  assert(E && State->contains<PendingInitLoop>(Key));
+  return State->remove<PendingInitLoop>(Key);
+}
+
+ProgramStateRef ExprEngine::setPendingInitLoop(ProgramStateRef State,
+                                               const CXXConstructExpr *E,
+                                               const LocationContext *LCtx,
+                                               unsigned Size) {
+  auto Key = std::make_pair(E, LCtx->getStackFrame());
+
+  assert(!State->contains<PendingInitLoop>(Key) && Size > 0);
+
+  return State->set<PendingInitLoop>(Key, Size);
+}
+
+Optional<unsigned>
+ExprEngine::getIndexOfElementToConstruct(ProgramStateRef State,
+                                         const CXXConstructExpr *E,
+                                         const LocationContext *LCtx) {
+
+  return Optional<unsigned>::create(
+      State->get<IndexOfElementToConstruct>({E, LCtx->getStackFrame()}));
+}
+
+ProgramStateRef
+ExprEngine::removeIndexOfElementToConstruct(ProgramStateRef State,
+                                            const CXXConstructExpr *E,
+                                            const LocationContext *LCtx) {
+  auto Key = std::make_pair(E, LCtx->getStackFrame());
+
+  assert(E && State->contains<IndexOfElementToConstruct>(Key));
+  return State->remove<IndexOfElementToConstruct>(Key);
+}
+
 ProgramStateRef
 ExprEngine::addObjectUnderConstruction(ProgramStateRef State,
                                        const ConstructionContextItem &Item,
                                        const LocationContext *LC, SVal V) {
   ConstructedObjectKey Key(Item, LC->getStackFrame());
+
+  const Expr *Init = nullptr;
+
+  if (auto DS = dyn_cast_or_null<DeclStmt>(Item.getStmtOrNull())) {
+    if (auto VD = dyn_cast_or_null<VarDecl>(DS->getSingleDecl()))
+      Init = VD->getInit();
+  }
+
+  if (auto LE = dyn_cast_or_null<LambdaExpr>(Item.getStmtOrNull()))
+    Init = *(LE->capture_init_begin() + Item.getIndex());
+
+  if (!Init && !Item.getStmtOrNull())
+    Init = Item.getCXXCtorInitializer()->getInit();
+
+  // In an ArrayInitLoopExpr the real initializer is returned by
+  // getSubExpr().
+  if (const auto *AILE = dyn_cast_or_null<ArrayInitLoopExpr>(Init))
+    Init = AILE->getSubExpr();
+
   // FIXME: Currently the state might already contain the marker due to
   // incorrect handling of temporaries bound to default parameters.
-  assert(!State->get<ObjectsUnderConstruction>(Key) ||
-         Key.getItem().getKind() ==
-             ConstructionContextItem::TemporaryDestructorKind);
+  // The state will already contain the marker if we construct elements
+  // in an array, as we visit the same statement multiple times before
+  // the array declaration. The marker is removed when we exit the
+  // constructor call.
+  assert((!State->get<ObjectsUnderConstruction>(Key) ||
+          Key.getItem().getKind() ==
+              ConstructionContextItem::TemporaryDestructorKind ||
+          State->contains<IndexOfElementToConstruct>(
+              {dyn_cast_or_null<CXXConstructExpr>(Init), LC})) &&
+         "The object is already marked as `UnderConstruction`, when it's not "
+         "supposed to!");
   return State->set<ObjectsUnderConstruction>(Key, V);
 }
 
@@ -582,6 +685,69 @@ printObjectsUnderConstructionJson(raw_ostream &Out, ProgramStateRef State,
   }
 }
 
+static void printIndicesOfElementsToConstructJson(
+    raw_ostream &Out, ProgramStateRef State, const char *NL,
+    const LocationContext *LCtx, const ASTContext &Context,
+    unsigned int Space = 0, bool IsDot = false) {
+  using KeyT = std::pair<const Expr *, const LocationContext *>;
+
+  PrintingPolicy PP =
+      LCtx->getAnalysisDeclContext()->getASTContext().getPrintingPolicy();
+
+  ++Space;
+  bool HasItem = false;
+
+  // Store the last key.
+  KeyT LastKey;
+  for (const auto &I : State->get<IndexOfElementToConstruct>()) {
+    const KeyT &Key = I.first;
+    if (Key.second != LCtx)
+      continue;
+
+    if (!HasItem) {
+      Out << "[" << NL;
+      HasItem = true;
+    }
+
+    LastKey = Key;
+  }
+
+  for (const auto &I : State->get<IndexOfElementToConstruct>()) {
+    const KeyT &Key = I.first;
+    unsigned Value = I.second;
+    if (Key.second != LCtx)
+      continue;
+
+    Indent(Out, Space, IsDot) << "{ ";
+
+    // Expr
+    const Expr *E = Key.first;
+    Out << "\"stmt_id\": " << E->getID(Context);
+
+    // Kind - hack to display the current index
+    Out << ", \"kind\": \"Cur: " << Value - 1 << "\"";
+
+    // Pretty-print
+    Out << ", \"pretty\": ";
+    Out << "\"" << E->getStmtClassName() << " "
+        << E->getSourceRange().printToString(Context.getSourceManager()) << " '"
+        << QualType::getAsString(E->getType().split(), PP);
+    Out << "'\"";
+
+    Out << ", \"value\": \"Next: " << Value << "\" }";
+
+    if (Key != LastKey)
+      Out << ',';
+    Out << NL;
+  }
+
+  if (HasItem)
+    Indent(Out, --Space, IsDot) << ']'; // End of "location_context".
+  else {
+    Out << "null ";
+  }
+}
+
 void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
                            const LocationContext *LCtx, const char *NL,
                            unsigned int Space, bool IsDot) const {
@@ -596,6 +762,23 @@ void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
 
     --Space;
     Indent(Out, Space, IsDot) << "]," << NL; // End of "constructing_objects".
+  } else {
+    Out << "null," << NL;
+  }
+
+  Indent(Out, Space, IsDot) << "\"index_of_element\": ";
+  if (LCtx && !State->get<IndexOfElementToConstruct>().isEmpty()) {
+    ++Space;
+
+    auto &Context = getContext();
+    Out << '[' << NL;
+    LCtx->printJson(Out, NL, Space, IsDot, [&](const LocationContext *LC) {
+      printIndicesOfElementsToConstructJson(Out, State, NL, LC, Context, Space,
+                                            IsDot);
+    });
+
+    --Space;
+    Indent(Out, Space, IsDot) << "]," << NL; // End of "index_of_element".
   } else {
     Out << "null," << NL;
   }
@@ -961,8 +1144,9 @@ void ExprEngine::ProcessAutomaticObjDtor(const CFGAutomaticObjDtor Dtor,
   // This workaround will just run the first destructor (which will still
   // invalidate the entire array).
   EvalCallOptions CallOpts;
-  Region = makeZeroElementRegion(state, loc::MemRegionVal(Region), varType,
-                                 CallOpts.IsArrayCtorOrDtor).getAsRegion();
+  Region = makeElementRegion(state, loc::MemRegionVal(Region), varType,
+                             CallOpts.IsArrayCtorOrDtor)
+               .getAsRegion();
 
   VisitCXXDestructor(varType, Region, Dtor.getTriggerStmt(),
                      /*IsBase=*/false, Pred, Dst, CallOpts);
@@ -1045,8 +1229,7 @@ void ExprEngine::ProcessMemberDtor(const CFGMemberDtor D,
   // This workaround will just run the first destructor (which will still
   // invalidate the entire array).
   EvalCallOptions CallOpts;
-  FieldVal = makeZeroElementRegion(State, FieldVal, T,
-                                   CallOpts.IsArrayCtorOrDtor);
+  FieldVal = makeElementRegion(State, FieldVal, T, CallOpts.IsArrayCtorOrDtor);
 
   VisitCXXDestructor(T, FieldVal.getAsRegion(), CurDtor->getBody(),
                      /*IsBase=*/false, Pred, Dst, CallOpts);
@@ -1105,7 +1288,7 @@ void ExprEngine::ProcessTemporaryDtor(const CFGTemporaryDtor D,
       CallOpts.IsArrayCtorOrDtor = true;
     }
   } else {
-    // We'd eventually need to makeZeroElementRegion() trick here,
+    // We'd eventually need to makeElementRegion() trick here,
     // but for now we don't have the respective construction contexts,
     // so MR would always be null in this case. Do nothing for now.
   }
@@ -1262,9 +1445,13 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::OMPTaskLoopDirectiveClass:
     case Stmt::OMPTaskLoopSimdDirectiveClass:
     case Stmt::OMPMasterTaskLoopDirectiveClass:
+    case Stmt::OMPMaskedTaskLoopDirectiveClass:
     case Stmt::OMPMasterTaskLoopSimdDirectiveClass:
+    case Stmt::OMPMaskedTaskLoopSimdDirectiveClass:
     case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
+    case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
     case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
+    case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
     case Stmt::OMPDistributeDirectiveClass:
     case Stmt::OMPDistributeParallelForDirectiveClass:
     case Stmt::OMPDistributeParallelForSimdDirectiveClass:
@@ -2550,7 +2737,7 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
         MD->getParent()->isLambda()) {
       // Lookup the field of the lambda.
       const CXXRecordDecl *CXXRec = MD->getParent();
-      llvm::DenseMap<const VarDecl *, FieldDecl *> LambdaCaptureFields;
+      llvm::DenseMap<const ValueDecl *, FieldDecl *> LambdaCaptureFields;
       FieldDecl *LambdaThisCaptureField;
       CXXRec->getCaptureFields(LambdaCaptureFields, LambdaThisCaptureField);
 
@@ -2605,7 +2792,10 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
 
     SVal Base = state->getLValue(DD, LCtx);
     if (DD->getType()->isReferenceType()) {
-      Base = state->getSVal(Base.getAsRegion());
+      if (const MemRegion *R = Base.getAsRegion())
+        Base = state->getSVal(R);
+      else
+        Base = UnknownVal();
     }
 
     SVal V = UnknownVal();
@@ -2626,12 +2816,27 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
 
       V = state->getLValue(BD->getType(), Idx, Base);
     }
-    // Handle binding to tuple-like strcutures
-    else if (BD->getHoldingVar()) {
-      // FIXME: handle tuples
-      return;
+    // Handle binding to tuple-like structures
+    else if (const auto *HV = BD->getHoldingVar()) {
+      V = state->getLValue(HV, LCtx);
+
+      if (HV->getType()->isReferenceType()) {
+        if (const MemRegion *R = V.getAsRegion())
+          V = state->getSVal(R);
+        else
+          V = UnknownVal();
+      }
     } else
       llvm_unreachable("An unknown case of structured binding encountered!");
+
+    // In case of tuple-like types the references are already handled, so we
+    // don't want to handle them again.
+    if (BD->getType()->isReferenceType() && !BD->getHoldingVar()) {
+      if (const MemRegion *R = V.getAsRegion())
+        V = state->getSVal(R);
+      else
+        V = UnknownVal();
+    }
 
     Bldr.generateNode(Ex, Pred, state->BindExpr(Ex, LCtx, V), nullptr,
                       ProgramPoint::PostLValueKind);
@@ -2655,6 +2860,11 @@ void ExprEngine::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *Ex,
   const Expr *Arr = Ex->getCommonExpr()->getSourceExpr();
 
   for (auto *Node : CheckerPreStmt) {
+
+    // The constructor visitior has already taken care of everything.
+    if (isa<CXXConstructExpr>(Ex->getSubExpr()))
+      break;
+
     const LocationContext *LCtx = Node->getLocationContext();
     ProgramStateRef state = Node->getState();
 

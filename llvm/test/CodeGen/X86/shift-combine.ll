@@ -180,7 +180,7 @@ define i64 @ashr_add_shl_i32(i64 %r) nounwind {
 define i64 @ashr_add_shl_i8(i64 %r) nounwind {
 ; X32-LABEL: ashr_add_shl_i8:
 ; X32:       # %bb.0:
-; X32-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X32-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X32-NEXT:    addb $2, %al
 ; X32-NEXT:    movsbl %al, %eax
 ; X32-NEXT:    movl %eax, %edx
@@ -204,8 +204,8 @@ define <4 x i32> @ashr_add_shl_v4i8(<4 x i32> %r) nounwind {
 ; X32-NEXT:    pushl %edi
 ; X32-NEXT:    pushl %esi
 ; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X32-NEXT:    movb {{[0-9]+}}(%esp), %cl
-; X32-NEXT:    movb {{[0-9]+}}(%esp), %dl
+; X32-NEXT:    movzbl {{[0-9]+}}(%esp), %ecx
+; X32-NEXT:    movzbl {{[0-9]+}}(%esp), %edx
 ; X32-NEXT:    movb {{[0-9]+}}(%esp), %ch
 ; X32-NEXT:    movb {{[0-9]+}}(%esp), %dh
 ; X32-NEXT:    incb %dh
@@ -417,4 +417,92 @@ then:
 
 if:
   unreachable
+}
+
+; The mul here is the equivalent of (neg (shl X, 32)).
+define i64 @ashr_add_neg_shl_i32(i64 %r) nounwind {
+; X32-LABEL: ashr_add_neg_shl_i32:
+; X32:       # %bb.0:
+; X32-NEXT:    movl $1, %eax
+; X32-NEXT:    subl {{[0-9]+}}(%esp), %eax
+; X32-NEXT:    movl %eax, %edx
+; X32-NEXT:    sarl $31, %edx
+; X32-NEXT:    retl
+;
+; X64-LABEL: ashr_add_neg_shl_i32:
+; X64:       # %bb.0:
+; X64-NEXT:    movl $1, %eax
+; X64-NEXT:    subl %edi, %eax
+; X64-NEXT:    cltq
+; X64-NEXT:    retq
+  %conv = mul i64 %r, -4294967296
+  %sext = add i64 %conv, 4294967296
+  %conv1 = ashr i64 %sext, 32
+  ret i64 %conv1
+}
+
+; The mul here is the equivalent of (neg (shl X, 56)).
+define i64 @ashr_add_neg_shl_i8(i64 %r) nounwind {
+; X32-LABEL: ashr_add_neg_shl_i8:
+; X32:       # %bb.0:
+; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-NEXT:    shll $24, %eax
+; X32-NEXT:    movl $33554432, %edx # imm = 0x2000000
+; X32-NEXT:    subl %eax, %edx
+; X32-NEXT:    movl %edx, %eax
+; X32-NEXT:    sarl $24, %eax
+; X32-NEXT:    sarl $31, %edx
+; X32-NEXT:    retl
+;
+; X64-LABEL: ashr_add_neg_shl_i8:
+; X64:       # %bb.0:
+; X64-NEXT:    movb $2, %al
+; X64-NEXT:    subb %dil, %al
+; X64-NEXT:    movsbq %al, %rax
+; X64-NEXT:    retq
+  %conv = mul i64 %r, -72057594037927936
+  %sext = add i64 %conv, 144115188075855872
+  %conv1 = ashr i64 %sext, 56
+  ret i64 %conv1
+}
+
+; The mul here is the equivalent of (neg (shl X, 24)).
+define <4 x i32> @ashr_add_neg_shl_v4i8(<4 x i32> %r) nounwind {
+; X32-LABEL: ashr_add_neg_shl_v4i8:
+; X32:       # %bb.0:
+; X32-NEXT:    pushl %edi
+; X32-NEXT:    pushl %esi
+; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-NEXT:    movb $1, %cl
+; X32-NEXT:    movb $1, %dl
+; X32-NEXT:    subb {{[0-9]+}}(%esp), %dl
+; X32-NEXT:    movsbl %dl, %edx
+; X32-NEXT:    movb $1, %ch
+; X32-NEXT:    subb {{[0-9]+}}(%esp), %ch
+; X32-NEXT:    movsbl %ch, %esi
+; X32-NEXT:    movb $1, %ch
+; X32-NEXT:    subb {{[0-9]+}}(%esp), %ch
+; X32-NEXT:    movsbl %ch, %edi
+; X32-NEXT:    subb {{[0-9]+}}(%esp), %cl
+; X32-NEXT:    movsbl %cl, %ecx
+; X32-NEXT:    movl %ecx, 12(%eax)
+; X32-NEXT:    movl %edi, 8(%eax)
+; X32-NEXT:    movl %esi, 4(%eax)
+; X32-NEXT:    movl %edx, (%eax)
+; X32-NEXT:    popl %esi
+; X32-NEXT:    popl %edi
+; X32-NEXT:    retl $4
+;
+; X64-LABEL: ashr_add_neg_shl_v4i8:
+; X64:       # %bb.0:
+; X64-NEXT:    pslld $24, %xmm0
+; X64-NEXT:    movdqa {{.*#+}} xmm1 = [16777216,16777216,16777216,16777216]
+; X64-NEXT:    psubd %xmm0, %xmm1
+; X64-NEXT:    psrad $24, %xmm1
+; X64-NEXT:    movdqa %xmm1, %xmm0
+; X64-NEXT:    retq
+  %conv = mul <4 x i32> %r, <i32 -16777216, i32 -16777216, i32 -16777216, i32 -16777216>
+  %sext = add <4 x i32> %conv, <i32 16777216, i32 16777216, i32 16777216, i32 16777216>
+  %conv1 = ashr <4 x i32> %sext, <i32 24, i32 24, i32 24, i32 24>
+  ret <4 x i32> %conv1
 }

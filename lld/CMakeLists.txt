@@ -70,13 +70,15 @@ if(LLD_BUILT_STANDALONE)
   if (NOT LLVM_CONFIG_FOUND)
     # Pull values from LLVMConfig.cmake.  We can drop this once the llvm-config
     # path is removed.
-    set(MAIN_INCLUDE_DIR "${LLVM_INCLUDE_DIR}")
+    set(INCLUDE_DIRS ${LLVM_INCLUDE_DIRS})
     set(LLVM_OBJ_DIR "${LLVM_BINARY_DIR}")
     # N.B. this is just a default value, the CACHE PATHs below can be overridden.
     set(MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../llvm")
+  else()
+    set(INCLUDE_DIRS "${LLVM_BINARY_DIR}/include" "${MAIN_INCLUDE_DIR}")
   endif()
 
-  set(LLVM_MAIN_INCLUDE_DIR "${MAIN_INCLUDE_DIR}" CACHE PATH "Path to llvm/include")
+  set(LLVM_INCLUDE_DIRS ${INCLUDE_DIRS} CACHE PATH "Path to llvm/include and any other header dirs needed")
   set(LLVM_BINARY_DIR "${LLVM_OBJ_ROOT}" CACHE PATH "Path to LLVM build tree")
   set(LLVM_MAIN_SRC_DIR "${MAIN_SRC_DIR}" CACHE PATH "Path to LLVM source tree")
 
@@ -95,7 +97,7 @@ if(LLD_BUILT_STANDALONE)
 
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
 
-  include_directories("${LLVM_BINARY_DIR}/include" ${LLVM_INCLUDE_DIRS})
+  include_directories(${LLVM_INCLUDE_DIRS})
   link_directories(${LLVM_LIBRARY_DIRS})
 
   if(LLVM_INCLUDE_TESTS)
@@ -155,6 +157,10 @@ if(LLD_BUILT_STANDALONE)
     set(XAR_LIB xar)
   endif()
 endif() # standalone
+
+set(LLD_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
+mark_as_advanced(LLD_TOOLS_INSTALL_DIR)
 
 set(LLD_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LLD_INCLUDE_DIR ${LLD_SOURCE_DIR}/include )

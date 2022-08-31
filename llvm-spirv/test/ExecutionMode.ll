@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -spirv-text -o %t
+; RUN: llvm-as < %s | llvm-spirv -spirv-text -o %t
 ; RUN: FileCheck < %t %s
 
 ; check for magic number followed by version 1.1

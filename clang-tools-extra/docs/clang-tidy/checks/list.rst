@@ -78,6 +78,7 @@ Clang-Tidy Checks
    `boost-use-to-string <boost/use-to-string.html>`_, "Yes"
    `bugprone-argument-comment <bugprone/argument-comment.html>`_, "Yes"
    `bugprone-assert-side-effect <bugprone/assert-side-effect.html>`_,
+   `bugprone-assignment-in-if-condition <bugprone/assignment-in-if-condition.html>`_,
    `bugprone-bad-signal-to-kill-thread <bugprone/bad-signal-to-kill-thread.html>`_,
    `bugprone-bool-pointer-implicit-conversion <bugprone/bool-pointer-implicit-conversion.html>`_, "Yes"
    `bugprone-branch-clone <bugprone/branch-clone.html>`_,
@@ -293,6 +294,7 @@ Clang-Tidy Checks
    `objc-dealloc-in-category <objc/dealloc-in-category.html>`_,
    `objc-forbidden-subclassing <objc/forbidden-subclassing.html>`_,
    `objc-missing-hash <objc/missing-hash.html>`_,
+   `objc-nsdate-formatter <objc/nsdate-formatter.html>`_,
    `objc-nsinvocation-argument-lifetime <objc/nsinvocation-argument-lifetime.html>`_, "Yes"
    `objc-property-declaration <objc/property-declaration.html>`_, "Yes"
    `objc-super-self <objc/super-self.html>`_, "Yes"

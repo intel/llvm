@@ -393,7 +393,6 @@ class _LocalProcess(_BaseProcess):
             stdout=open(
                 os.devnull) if not self._trace_on else None,
             stdin=PIPE,
-            preexec_fn=lldbplatformutil.enable_attach,
             env=env)
 
     def terminate(self):
@@ -2473,6 +2472,14 @@ FileCheck output:
             error = "{} ({}) != {} ({})".format(
                 lldbutil.state_type_to_str(first), first,
                 lldbutil.state_type_to_str(second), second)
+            self.fail(self._formatMessage(msg, error))
+
+    """Assert two stop reasons are equal"""
+    def assertStopReason(self, first, second, msg=None):
+        if first != second:
+            error = "{} ({}) != {} ({})".format(
+                lldbutil.stop_reason_to_str(first), first,
+                lldbutil.stop_reason_to_str(second), second)
             self.fail(self._formatMessage(msg, error))
 
     def createTestTarget(self, file_path=None, msg=None,

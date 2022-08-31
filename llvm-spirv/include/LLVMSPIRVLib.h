@@ -57,7 +57,7 @@ void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
 void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSaddWithOverflowLegacyPass(PassRegistry &);
+void initializeSPIRVLowerSaddIntrinsicsLegacyPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
 void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
 void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
@@ -105,6 +105,10 @@ std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg);
+
+/// This contains a pair of the pointer element type and an indirection
+/// parameter (to capture cases where an array of OpenCL types is used).
+typedef llvm::PointerIntPair<llvm::Type *, 1, bool> PointerIndirectPair;
 
 } // End namespace SPIRV
 
@@ -156,8 +160,13 @@ bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
                             const SPIRV::TranslatorOpts &Opts);
 
 /// \brief Mangle OpenCL builtin function function name.
+/// If any type in ArgTypes is a pointer type, the corresponding entry in
+/// ArgPointerTypes should contain the type should point to. If there are no
+/// pointer-typed arguments in ArgTypes, then ArgPointerTypes may be empty.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
-                         ArrayRef<Type *> ArgTypes, std::string &MangledName);
+                         ArrayRef<Type *> ArgTypes,
+                         ArrayRef<SPIRV::PointerIndirectPair> ArgPointerTypes,
+                         std::string &MangledName);
 
 /// Create a pass for translating LLVM to SPIR-V.
 ModulePass *createLLVMToSPIRVLegacy(SPIRV::SPIRVModule *);
@@ -183,7 +192,7 @@ ModulePass *createSPIRVLowerOCLBlocksLegacy();
 ModulePass *createSPIRVLowerMemmoveLegacy();
 
 /// Create a pass for lowering llvm.sadd.with.overflow
-ModulePass *createSPIRVLowerSaddWithOverflowLegacy();
+ModulePass *createSPIRVLowerSaddIntrinsicsLegacy();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVMLegacy();

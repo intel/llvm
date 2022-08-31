@@ -57,7 +57,6 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -292,7 +291,8 @@ namespace {
 LLVM_ATTRIBUTE_USED void linkComponents() {
   errs() << (void *)&llvm_orc_registerEHFrameSectionWrapper
          << (void *)&llvm_orc_deregisterEHFrameSectionWrapper
-         << (void *)&llvm_orc_registerJITLoaderGDBWrapper;
+         << (void *)&llvm_orc_registerJITLoaderGDBWrapper
+         << (void *)&llvm_orc_registerJITLoaderGDBAllocAction;
 }
 
 //===----------------------------------------------------------------------===//
@@ -536,9 +536,9 @@ int main(int argc, char **argv, char * const *envp) {
   builder.setMCPU(codegen::getCPUStr());
   builder.setMAttrs(codegen::getFeatureList());
   if (auto RM = codegen::getExplicitRelocModel())
-    builder.setRelocationModel(RM.getValue());
+    builder.setRelocationModel(RM.value());
   if (auto CM = codegen::getExplicitCodeModel())
-    builder.setCodeModel(CM.getValue());
+    builder.setCodeModel(CM.value());
   builder.setErrorStr(&ErrorMsg);
   builder.setEngineKind(ForceInterpreter
                         ? EngineKind::Interpreter

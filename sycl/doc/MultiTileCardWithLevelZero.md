@@ -46,8 +46,8 @@ The root-device in such cases can be partitioned to sub-devices, each correspond
 ``` C++	
 try {
   vector<device> SubDevices = RootDevice.create_sub_devices<
-  cl::sycl::info::partition_property::partition_by_affinity_domain>(
-  cl::sycl::info::partition_affinity_domain::next_partitionable);
+  sycl::info::partition_property::partition_by_affinity_domain>(
+  sycl::info::partition_affinity_domain::next_partitionable);
 }
 ```
 

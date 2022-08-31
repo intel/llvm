@@ -20,7 +20,9 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
+#include "clang/Analysis/FlowSensitive/NoopAnalysis.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/OperatorKinds.h"
@@ -46,8 +48,9 @@ static BoolValue &evaluateBooleanEquality(const Expr &LHS, const Expr &RHS,
 
 class TransferVisitor : public ConstStmtVisitor<TransferVisitor> {
 public:
-  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env)
-      : StmtToEnv(StmtToEnv), Env(Env) {}
+  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
+                  TransferOptions Options)
+      : StmtToEnv(StmtToEnv), Env(Env), Options(Options) {}
 
   void VisitBinaryOperator(const BinaryOperator *S) {
     const Expr *LHS = S->getLHS();
@@ -249,6 +252,16 @@ public:
         break;
 
       Env.setStorageLocation(*S, *SubExprLoc);
+      break;
+    }
+    case CK_NullToPointer:
+    case CK_NullToMemberPointer: {
+      auto &Loc = Env.createStorageLocation(S->getType());
+      Env.setStorageLocation(*S, Loc);
+
+      auto &NullPointerVal =
+          Env.getOrCreateNullPointerValue(S->getType()->getPointeeType());
+      Env.setValue(Loc, NullPointerVal);
       break;
     }
     default:
@@ -493,6 +506,41 @@ public:
       if (ArgLoc == nullptr)
         return;
       Env.setStorageLocation(*S, *ArgLoc);
+    } else if (const FunctionDecl *F = S->getDirectCallee()) {
+      // This case is for context-sensitive analysis.
+      if (!Options.ContextSensitive)
+        return;
+
+      const ControlFlowContext *CFCtx = Env.getControlFlowContext(F);
+      if (!CFCtx)
+        return;
+
+      // FIXME: We don't support context-sensitive analysis of recursion, so
+      // we should return early here if `F` is the same as the `FunctionDecl`
+      // holding `S` itself.
+
+      auto ExitBlock = CFCtx->getCFG().getExit().getBlockID();
+
+      auto CalleeEnv = Env.pushCall(S);
+
+      // FIXME: Use the same analysis as the caller for the callee. Note,
+      // though, that doing so would require support for changing the analysis's
+      // ASTContext.
+      assert(
+          CFCtx->getDecl() != nullptr &&
+          "ControlFlowContexts in the environment should always carry a decl");
+      auto Analysis = NoopAnalysis(CFCtx->getDecl()->getASTContext(),
+                                   DataflowAnalysisOptions());
+
+      auto BlockToOutputState =
+          dataflow::runDataflowAnalysis(*CFCtx, Analysis, CalleeEnv);
+      assert(BlockToOutputState);
+      assert(ExitBlock < BlockToOutputState->size());
+
+      auto ExitState = (*BlockToOutputState)[ExitBlock];
+      assert(ExitState);
+
+      Env.popCall(ExitState->Env);
     }
   }
 
@@ -554,11 +602,11 @@ public:
     Env.setValue(Loc, *Val);
 
     if (Type->isStructureOrClassType()) {
-      for (auto IT : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
-        const FieldDecl *Field = std::get<0>(IT);
+      for (auto It : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
+        const FieldDecl *Field = std::get<0>(It);
         assert(Field != nullptr);
 
-        const Expr *Init = std::get<1>(IT);
+        const Expr *Init = std::get<1>(It);
         assert(Init != nullptr);
 
         if (Value *InitVal = Env.getValue(*Init, SkipPast::None))
@@ -623,10 +671,12 @@ private:
 
   const StmtToEnvMap &StmtToEnv;
   Environment &Env;
+  TransferOptions Options;
 };
 
-void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env) {
-  TransferVisitor(StmtToEnv, Env).Visit(&S);
+void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env,
+              TransferOptions Options) {
+  TransferVisitor(StmtToEnv, Env, Options).Visit(&S);
 }
 
 } // namespace dataflow

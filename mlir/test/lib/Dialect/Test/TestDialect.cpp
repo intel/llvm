@@ -14,6 +14,7 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -59,9 +60,22 @@ static_assert(OpTrait::hasSingleBlockImplicitTerminator<
               "hasSingleBlockImplicitTerminator does not match "
               "SingleBlockImplicitTerminatorOp");
 
+struct TestResourceBlobManagerInterface
+    : public ResourceBlobManagerDialectInterfaceBase<
+          TestDialectResourceBlobHandle> {
+  using ResourceBlobManagerDialectInterfaceBase<
+      TestDialectResourceBlobHandle>::ResourceBlobManagerDialectInterfaceBase;
+};
+
 // Test support for interacting with the AsmPrinter.
 struct TestOpAsmInterface : public OpAsmDialectInterface {
   using OpAsmDialectInterface::OpAsmDialectInterface;
+  TestOpAsmInterface(Dialect *dialect, TestResourceBlobManagerInterface &mgr)
+      : OpAsmDialectInterface(dialect), blobManager(mgr) {}
+
+  //===------------------------------------------------------------------===//
+  // Aliases
+  //===------------------------------------------------------------------===//
 
   AliasResult getAlias(Attribute attr, raw_ostream &os) const final {
     StringAttr strAttr = attr.dyn_cast<StringAttr>();
@@ -106,8 +120,50 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
         return AliasResult::FinalAlias;
       }
     }
+    if (auto recType = type.dyn_cast<TestRecursiveType>()) {
+      if (recType.getName() == "type_to_alias") {
+        // We only make alias for a specific recursive type.
+        os << "testrec";
+        return AliasResult::FinalAlias;
+      }
+    }
     return AliasResult::NoAlias;
   }
+
+  //===------------------------------------------------------------------===//
+  // Resources
+  //===------------------------------------------------------------------===//
+
+  std::string
+  getResourceKey(const AsmDialectResourceHandle &handle) const override {
+    return cast<TestDialectResourceBlobHandle>(handle).getKey().str();
+  }
+
+  FailureOr<AsmDialectResourceHandle>
+  declareResource(StringRef key) const final {
+    return blobManager.insert(key);
+  }
+
+  LogicalResult parseResource(AsmParsedResourceEntry &entry) const final {
+    FailureOr<AsmResourceBlob> blob = entry.parseAsBlob();
+    if (failed(blob))
+      return failure();
+
+    // Update the blob for this entry.
+    blobManager.update(entry.getKey(), std::move(*blob));
+    return success();
+  }
+
+  void
+  buildResources(Operation *op,
+                 const SetVector<AsmDialectResourceHandle> &referencedResources,
+                 AsmResourceBuilder &provider) const final {
+    blobManager.buildResources(provider, referencedResources.getArrayRef());
+  }
+
+private:
+  /// The blob manager for the dialect.
+  TestResourceBlobManagerInterface &blobManager;
 };
 
 struct TestDialectFoldInterface : public DialectFoldInterface {
@@ -305,8 +361,11 @@ void TestDialect::initialize() {
   registerDynamicOp(getDynamicOneOperandTwoResultsOp(this));
   registerDynamicOp(getDynamicCustomParserPrinterOp(this));
 
-  addInterfaces<TestOpAsmInterface, TestDialectFoldInterface,
-                TestInlinerInterface, TestReductionPatternInterface>();
+  auto &blobInterface = addInterface<TestResourceBlobManagerInterface>();
+  addInterface<TestOpAsmInterface>(blobInterface);
+
+  addInterfaces<TestDialectFoldInterface, TestInlinerInterface,
+                TestReductionPatternInterface>();
   allowUnknownOperations();
 
   // Instantiate our fallback op interface that we'll use on specific
@@ -1021,6 +1080,36 @@ LogicalResult OpWithInferTypeInterfaceOp::inferReturnTypes(
   return success();
 }
 
+// TODO: We should be able to only define either inferReturnType or
+// refineReturnType, currently only refineReturnType can be omitted.
+LogicalResult OpWithRefineTypeInterfaceOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &returnTypes) {
+  returnTypes.clear();
+  return OpWithRefineTypeInterfaceOp::refineReturnTypes(
+      context, location, operands, attributes, regions, returnTypes);
+}
+
+LogicalResult OpWithRefineTypeInterfaceOp::refineReturnTypes(
+    MLIRContext *, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &returnTypes) {
+  if (operands[0].getType() != operands[1].getType()) {
+    return emitOptionalError(location, "operand type mismatch ",
+                             operands[0].getType(), " vs ",
+                             operands[1].getType());
+  }
+  // TODO: Add helper to make this more concise to write.
+  if (returnTypes.empty())
+    returnTypes.resize(1, nullptr);
+  if (returnTypes[0] && returnTypes[0] != operands[0].getType())
+    return emitOptionalError(location,
+                             "required first operand and result to match");
+  returnTypes[0] = operands[0].getType();
+  return success();
+}
+
 LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
     MLIRContext *context, Optional<Location> location, ValueShapeRange operands,
     DictionaryAttr attributes, RegionRange regions,
@@ -1310,8 +1399,8 @@ void RegionIfOp::getSuccessorRegions(
     Optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   // We always branch to the join region.
-  if (index.hasValue()) {
-    if (index.getValue() < 2)
+  if (index.has_value()) {
+    if (index.value() < 2)
       regions.push_back(RegionSuccessor(&getJoinRegion(), getJoinArgs()));
     else
       regions.push_back(RegionSuccessor(getResults()));

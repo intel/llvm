@@ -114,9 +114,9 @@ static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
   Optional<const FuncAnalysisState *> maybeState =
       state.getDialectState<FuncAnalysisState>(
           func::FuncDialect::getDialectNamespace());
-  if (!maybeState.hasValue())
+  if (!maybeState.has_value())
     return FuncOpAnalysisState::NotAnalyzed;
-  const auto &analyzedFuncOps = maybeState.getValue()->analyzedFuncOps;
+  const auto &analyzedFuncOps = maybeState.value()->analyzedFuncOps;
   auto it = analyzedFuncOps.find(funcOp);
   if (it == analyzedFuncOps.end())
     return FuncOpAnalysisState::NotAnalyzed;
@@ -305,8 +305,13 @@ struct CallOpInterface
 
       // Retrieve buffers for tensor operands.
       Value buffer = newOperands[idx];
-      if (!buffer)
-        buffer = getBuffer(rewriter, opOperand.get(), options);
+      if (!buffer) {
+        FailureOr<Value> maybeBuffer =
+            getBuffer(rewriter, opOperand.get(), options);
+        if (failed(maybeBuffer))
+          return failure();
+        buffer = *maybeBuffer;
+      }
 
       // Caller / callee type mismatch is handled with a CastOp.
       auto memRefType = funcType.getInput(idx);

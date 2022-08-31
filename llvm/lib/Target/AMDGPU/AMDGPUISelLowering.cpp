@@ -314,16 +314,16 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
                       MVT::v5i32, MVT::v5f32, MVT::v6i32, MVT::v6f32,
                       MVT::v7i32, MVT::v7f32, MVT::v8i32, MVT::v8f32},
                      Custom);
-  setOperationAction(ISD::EXTRACT_SUBVECTOR,
-                     {MVT::v2f16,  MVT::v2i16,  MVT::v4f16,  MVT::v4i16,
-                      MVT::v2f32,  MVT::v2i32,  MVT::v3f32,  MVT::v3i32,
-                      MVT::v4f32,  MVT::v4i32,  MVT::v5f32,  MVT::v5i32,
-                      MVT::v6f32,  MVT::v6i32,  MVT::v7f32,  MVT::v7i32,
-                      MVT::v8f32,  MVT::v8i32,  MVT::v16f32, MVT::v16i32,
-                      MVT::v32f32, MVT::v32i32, MVT::v2f64,  MVT::v2i64,
-                      MVT::v3f64,  MVT::v3i64,  MVT::v4f64,  MVT::v4i64,
-                      MVT::v8f64,  MVT::v8i64,  MVT::v16f64, MVT::v16i64},
-                     Custom);
+  setOperationAction(
+      ISD::EXTRACT_SUBVECTOR,
+      {MVT::v2f16,  MVT::v2i16,  MVT::v4f16,  MVT::v4i16,  MVT::v2f32,
+       MVT::v2i32,  MVT::v3f32,  MVT::v3i32,  MVT::v4f32,  MVT::v4i32,
+       MVT::v5f32,  MVT::v5i32,  MVT::v6f32,  MVT::v6i32,  MVT::v7f32,
+       MVT::v7i32,  MVT::v8f32,  MVT::v8i32,  MVT::v16f16, MVT::v16i16,
+       MVT::v16f32, MVT::v16i32, MVT::v32f32, MVT::v32i32, MVT::v2f64,
+       MVT::v2i64,  MVT::v3f64,  MVT::v3i64,  MVT::v4f64,  MVT::v4i64,
+       MVT::v8f64,  MVT::v8i64,  MVT::v16f64, MVT::v16i64},
+      Custom);
 
   setOperationAction(ISD::FP16_TO_FP, MVT::f64, Expand);
   setOperationAction(ISD::FP_TO_FP16, {MVT::f64, MVT::f32}, Custom);
@@ -1279,6 +1279,11 @@ SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
   if (((SrcVT == MVT::v8f16 && VT == MVT::v4f16) ||
        (SrcVT == MVT::v8i16 && VT == MVT::v4i16)) &&
       (Start == 0 || Start == 4))
+    return Op;
+
+  if (((SrcVT == MVT::v16f16 && VT == MVT::v8f16) ||
+       (SrcVT == MVT::v16i16 && VT == MVT::v8i16)) &&
+      (Start == 0 || Start == 8))
     return Op;
 
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
@@ -2451,7 +2456,8 @@ SDValue AMDGPUTargetLowering::LowerUINT_TO_FP(SDValue Op,
     SDLoc DL(Op);
 
     SDValue IntToFp32 = DAG.getNode(Op.getOpcode(), DL, MVT::f32, Src);
-    SDValue FPRoundFlag = DAG.getIntPtrConstant(0, SDLoc(Op));
+    SDValue FPRoundFlag =
+        DAG.getIntPtrConstant(0, SDLoc(Op), /*isTarget=*/true);
     SDValue FPRound =
         DAG.getNode(ISD::FP_ROUND, DL, MVT::f16, IntToFp32, FPRoundFlag);
 
@@ -2491,7 +2497,8 @@ SDValue AMDGPUTargetLowering::LowerSINT_TO_FP(SDValue Op,
     SDValue Src = Op.getOperand(0);
 
     SDValue IntToFp32 = DAG.getNode(Op.getOpcode(), DL, MVT::f32, Src);
-    SDValue FPRoundFlag = DAG.getIntPtrConstant(0, SDLoc(Op));
+    SDValue FPRoundFlag =
+        DAG.getIntPtrConstant(0, SDLoc(Op), /*isTarget=*/true);
     SDValue FPRound =
         DAG.getNode(ISD::FP_ROUND, DL, MVT::f16, IntToFp32, FPRoundFlag);
 
@@ -4798,6 +4805,8 @@ AMDGPUTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   case AtomicRMWInst::Nand:
   case AtomicRMWInst::FAdd:
   case AtomicRMWInst::FSub:
+  case AtomicRMWInst::FMax:
+  case AtomicRMWInst::FMin:
     return AtomicExpansionKind::CmpXChg;
   default:
     return AtomicExpansionKind::None;

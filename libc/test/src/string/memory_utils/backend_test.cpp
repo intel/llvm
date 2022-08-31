@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/CPP/Array.h"
 #include "src/__support/CPP/ArrayRef.h"
 #include "src/__support/CPP/Bit.h"
+#include "src/__support/CPP/array.h"
 #include "src/__support/architectures.h"
 #include "src/string/memory_utils/backends.h"
 #include "utils/UnitTest/Test.h"
@@ -16,7 +16,7 @@
 
 namespace __llvm_libc {
 
-template <size_t Size> using Buffer = cpp::Array<char, Size>;
+template <size_t Size> using Buffer = cpp::array<char, Size>;
 
 static char GetRandomChar() {
   // Implementation of C++ minstd_rand seeded with 123456789.
@@ -84,7 +84,7 @@ using FunctionTypes = testing::TypeList< //
     >;
 
 TYPED_TEST(LlvmLibcMemoryBackend, splat, FunctionTypes) {
-  for (auto value : cpp::Array<uint8_t, 3>{0u, 1u, 255u}) {
+  for (auto value : cpp::array<uint8_t, 3>{0u, 1u, 255u}) {
     alignas(64) const auto stored = ParamType::splat(bit_cast<ubyte>(value));
     for (size_t i = 0; i < ParamType::SIZE; ++i)
       EXPECT_EQ(bit_cast<uint8_t>(stored[i]), value);
@@ -93,12 +93,12 @@ TYPED_TEST(LlvmLibcMemoryBackend, splat, FunctionTypes) {
 
 TYPED_TEST(LlvmLibcMemoryBackend, notEquals, FunctionTypes) {
   alignas(64) const auto a = GetRandomBuffer<ParamType::SIZE>();
-  EXPECT_EQ(ParamType::notEquals(a, a), 0UL);
+  EXPECT_EQ(ParamType::notEquals(a, a), uint64_t(0));
   for (size_t i = 0; i < a.size(); ++i) {
     alignas(64) auto b = a;
     ++b[i];
-    EXPECT_NE(ParamType::notEquals(a, b), 0UL);
-    EXPECT_NE(ParamType::notEquals(b, a), 0UL);
+    EXPECT_NE(ParamType::notEquals(a, b), uint64_t(0));
+    EXPECT_NE(ParamType::notEquals(b, a), uint64_t(0));
   }
 }
 

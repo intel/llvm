@@ -43,13 +43,6 @@ using namespace lld::elf;
 bool InputFile::isInGroup;
 uint32_t InputFile::nextGroupId;
 
-SmallVector<std::unique_ptr<MemoryBuffer>> elf::memoryBuffers;
-SmallVector<BinaryFile *, 0> elf::binaryFiles;
-SmallVector<BitcodeFile *, 0> elf::bitcodeFiles;
-SmallVector<BitcodeFile *, 0> elf::lazyBitcodeFiles;
-SmallVector<ELFFileBase *, 0> elf::objectFiles;
-SmallVector<SharedFile *, 0> elf::sharedFiles;
-
 std::unique_ptr<TarWriter> elf::tar;
 
 // Returns "<internal>", "foo.a(bar.o)" or "baz.o".
@@ -96,6 +89,92 @@ static ELFKind getELFKind(MemoryBufferRef mb, StringRef archiveName) {
   return (endian == ELFDATA2LSB) ? ELF64LEKind : ELF64BEKind;
 }
 
+// For ARM only, to set the EF_ARM_ABI_FLOAT_SOFT or EF_ARM_ABI_FLOAT_HARD
+// flag in the ELF Header we need to look at Tag_ABI_VFP_args to find out how
+// the input objects have been compiled.
+static void updateARMVFPArgs(const ARMAttributeParser &attributes,
+                             const InputFile *f) {
+  Optional<unsigned> attr =
+      attributes.getAttributeValue(ARMBuildAttrs::ABI_VFP_args);
+  if (!attr)
+    // If an ABI tag isn't present then it is implicitly given the value of 0
+    // which maps to ARMBuildAttrs::BaseAAPCS. However many assembler files,
+    // including some in glibc that don't use FP args (and should have value 3)
+    // don't have the attribute so we do not consider an implicit value of 0
+    // as a clash.
+    return;
+
+  unsigned vfpArgs = *attr;
+  ARMVFPArgKind arg;
+  switch (vfpArgs) {
+  case ARMBuildAttrs::BaseAAPCS:
+    arg = ARMVFPArgKind::Base;
+    break;
+  case ARMBuildAttrs::HardFPAAPCS:
+    arg = ARMVFPArgKind::VFP;
+    break;
+  case ARMBuildAttrs::ToolChainFPPCS:
+    // Tool chain specific convention that conforms to neither AAPCS variant.
+    arg = ARMVFPArgKind::ToolChain;
+    break;
+  case ARMBuildAttrs::CompatibleFPAAPCS:
+    // Object compatible with all conventions.
+    return;
+  default:
+    error(toString(f) + ": unknown Tag_ABI_VFP_args value: " + Twine(vfpArgs));
+    return;
+  }
+  // Follow ld.bfd and error if there is a mix of calling conventions.
+  if (config->armVFPArgs != arg && config->armVFPArgs != ARMVFPArgKind::Default)
+    error(toString(f) + ": incompatible Tag_ABI_VFP_args");
+  else
+    config->armVFPArgs = arg;
+}
+
+// The ARM support in lld makes some use of instructions that are not available
+// on all ARM architectures. Namely:
+// - Use of BLX instruction for interworking between ARM and Thumb state.
+// - Use of the extended Thumb branch encoding in relocation.
+// - Use of the MOVT/MOVW instructions in Thumb Thunks.
+// The ARM Attributes section contains information about the architecture chosen
+// at compile time. We follow the convention that if at least one input object
+// is compiled with an architecture that supports these features then lld is
+// permitted to use them.
+static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
+  Optional<unsigned> attr =
+      attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
+  if (!attr)
+    return;
+  auto arch = attr.value();
+  switch (arch) {
+  case ARMBuildAttrs::Pre_v4:
+  case ARMBuildAttrs::v4:
+  case ARMBuildAttrs::v4T:
+    // Architectures prior to v5 do not support BLX instruction
+    break;
+  case ARMBuildAttrs::v5T:
+  case ARMBuildAttrs::v5TE:
+  case ARMBuildAttrs::v5TEJ:
+  case ARMBuildAttrs::v6:
+  case ARMBuildAttrs::v6KZ:
+  case ARMBuildAttrs::v6K:
+    config->armHasBlx = true;
+    // Architectures used in pre-Cortex processors do not support
+    // The J1 = 1 J2 = 1 Thumb branch range extension, with the exception
+    // of Architecture v6T2 (arm1156t2-s and arm1156t2f-s) that do.
+    break;
+  default:
+    // All other Architectures have BLX and extended branch encoding
+    config->armHasBlx = true;
+    config->armJ1J2BranchEncoding = true;
+    if (arch != ARMBuildAttrs::v6_M && arch != ARMBuildAttrs::v6S_M)
+      // All Architectures used in Cortex processors with the exception
+      // of v6-M and v6S-M have the MOVT and MOVW instructions.
+      config->armHasMovtMovw = true;
+    break;
+  }
+}
+
 InputFile::InputFile(Kind k, MemoryBufferRef m)
     : mb(m), groupId(nextGroupId), fileKind(k) {
   // All files within the same --{start,end}-group get the same group ID.
@@ -123,7 +202,7 @@ Optional<MemoryBufferRef> elf::readFile(StringRef path) {
   }
 
   MemoryBufferRef mbref = (*mbOrErr)->getMemBufferRef();
-  memoryBuffers.push_back(std::move(*mbOrErr)); // take MB ownership
+  ctx->memoryBuffers.push_back(std::move(*mbOrErr)); // take MB ownership
 
   if (tar)
     tar->append(relativeToRoot(path), mbref.getBuffer());
@@ -152,12 +231,12 @@ static bool isCompatible(InputFile *file) {
   }
 
   InputFile *existing = nullptr;
-  if (!objectFiles.empty())
-    existing = objectFiles[0];
-  else if (!sharedFiles.empty())
-    existing = sharedFiles[0];
-  else if (!bitcodeFiles.empty())
-    existing = bitcodeFiles[0];
+  if (!ctx->objectFiles.empty())
+    existing = ctx->objectFiles[0];
+  else if (!ctx->sharedFiles.empty())
+    existing = ctx->sharedFiles[0];
+  else if (!ctx->bitcodeFiles.empty())
+    existing = ctx->bitcodeFiles[0];
   std::string with;
   if (existing)
     with = " with " + toString(existing);
@@ -171,7 +250,7 @@ template <class ELFT> static void doParseFile(InputFile *file) {
 
   // Binary file
   if (auto *f = dyn_cast<BinaryFile>(file)) {
-    binaryFiles.push_back(f);
+    ctx->binaryFiles.push_back(f);
     f->parse();
     return;
   }
@@ -179,7 +258,7 @@ template <class ELFT> static void doParseFile(InputFile *file) {
   // Lazy object file
   if (file->lazy) {
     if (auto *f = dyn_cast<BitcodeFile>(file)) {
-      lazyBitcodeFiles.push_back(f);
+      ctx->lazyBitcodeFiles.push_back(f);
       f->parseLazy();
     } else {
       cast<ObjFile<ELFT>>(file)->parseLazy();
@@ -198,13 +277,13 @@ template <class ELFT> static void doParseFile(InputFile *file) {
 
   // LLVM bitcode file
   if (auto *f = dyn_cast<BitcodeFile>(file)) {
-    bitcodeFiles.push_back(f);
+    ctx->bitcodeFiles.push_back(f);
     f->parse<ELFT>();
     return;
   }
 
   // Regular object file
-  objectFiles.push_back(cast<ELFFileBase>(file));
+  ctx->objectFiles.push_back(cast<ELFFileBase>(file));
   cast<ObjFile<ELFT>>(file)->parse();
 }
 
@@ -263,6 +342,65 @@ StringRef InputFile::getNameForScript() const {
     nameForScriptCache = (archiveName + Twine(':') + getName()).str();
 
   return nameForScriptCache;
+}
+
+// An ELF object file may contain a `.deplibs` section. If it exists, the
+// section contains a list of library specifiers such as `m` for libm. This
+// function resolves a given name by finding the first matching library checking
+// the various ways that a library can be specified to LLD. This ELF extension
+// is a form of autolinking and is called `dependent libraries`. It is currently
+// unique to LLVM and lld.
+static void addDependentLibrary(StringRef specifier, const InputFile *f) {
+  if (!config->dependentLibraries)
+    return;
+  if (Optional<std::string> s = searchLibraryBaseName(specifier))
+    driver->addFile(saver().save(*s), /*withLOption=*/true);
+  else if (Optional<std::string> s = findFromSearchPaths(specifier))
+    driver->addFile(saver().save(*s), /*withLOption=*/true);
+  else if (fs::exists(specifier))
+    driver->addFile(specifier, /*withLOption=*/false);
+  else
+    error(toString(f) +
+          ": unable to find library from dependent library specifier: " +
+          specifier);
+}
+
+// Record the membership of a section group so that in the garbage collection
+// pass, section group members are kept or discarded as a unit.
+template <class ELFT>
+static void handleSectionGroup(ArrayRef<InputSectionBase *> sections,
+                               ArrayRef<typename ELFT::Word> entries) {
+  bool hasAlloc = false;
+  for (uint32_t index : entries.slice(1)) {
+    if (index >= sections.size())
+      return;
+    if (InputSectionBase *s = sections[index])
+      if (s != &InputSection::discarded && s->flags & SHF_ALLOC)
+        hasAlloc = true;
+  }
+
+  // If any member has the SHF_ALLOC flag, the whole group is subject to garbage
+  // collection. See the comment in markLive(). This rule retains .debug_types
+  // and .rela.debug_types.
+  if (!hasAlloc)
+    return;
+
+  // Connect the members in a circular doubly-linked list via
+  // nextInSectionGroup.
+  InputSectionBase *head;
+  InputSectionBase *prev = nullptr;
+  for (uint32_t index : entries.slice(1)) {
+    InputSectionBase *s = sections[index];
+    if (!s || s == &InputSection::discarded)
+      continue;
+    if (prev)
+      prev->nextInSectionGroup = s;
+    else
+      head = s;
+    prev = s;
+  }
+  if (prev)
+    prev->nextInSectionGroup = head;
 }
 
 template <class ELFT> DWARFCache *ObjFile<ELFT>::getDwarf() {
@@ -457,65 +595,6 @@ template <class ELFT> void ObjFile<ELFT>::initializeJustSymbols() {
   sections.resize(numELFShdrs);
 }
 
-// An ELF object file may contain a `.deplibs` section. If it exists, the
-// section contains a list of library specifiers such as `m` for libm. This
-// function resolves a given name by finding the first matching library checking
-// the various ways that a library can be specified to LLD. This ELF extension
-// is a form of autolinking and is called `dependent libraries`. It is currently
-// unique to LLVM and lld.
-static void addDependentLibrary(StringRef specifier, const InputFile *f) {
-  if (!config->dependentLibraries)
-    return;
-  if (Optional<std::string> s = searchLibraryBaseName(specifier))
-    driver->addFile(*s, /*withLOption=*/true);
-  else if (Optional<std::string> s = findFromSearchPaths(specifier))
-    driver->addFile(*s, /*withLOption=*/true);
-  else if (fs::exists(specifier))
-    driver->addFile(specifier, /*withLOption=*/false);
-  else
-    error(toString(f) +
-          ": unable to find library from dependent library specifier: " +
-          specifier);
-}
-
-// Record the membership of a section group so that in the garbage collection
-// pass, section group members are kept or discarded as a unit.
-template <class ELFT>
-static void handleSectionGroup(ArrayRef<InputSectionBase *> sections,
-                               ArrayRef<typename ELFT::Word> entries) {
-  bool hasAlloc = false;
-  for (uint32_t index : entries.slice(1)) {
-    if (index >= sections.size())
-      return;
-    if (InputSectionBase *s = sections[index])
-      if (s != &InputSection::discarded && s->flags & SHF_ALLOC)
-        hasAlloc = true;
-  }
-
-  // If any member has the SHF_ALLOC flag, the whole group is subject to garbage
-  // collection. See the comment in markLive(). This rule retains .debug_types
-  // and .rela.debug_types.
-  if (!hasAlloc)
-    return;
-
-  // Connect the members in a circular doubly-linked list via
-  // nextInSectionGroup.
-  InputSectionBase *head;
-  InputSectionBase *prev = nullptr;
-  for (uint32_t index : entries.slice(1)) {
-    InputSectionBase *s = sections[index];
-    if (!s || s == &InputSection::discarded)
-      continue;
-    if (prev)
-      prev->nextInSectionGroup = s;
-    else
-      head = s;
-    prev = s;
-  }
-  if (prev)
-    prev->nextInSectionGroup = head;
-}
-
 template <class ELFT>
 void ObjFile<ELFT>::initializeSections(bool ignoreComdats,
                                        const llvm::object::ELFFile<ELFT> &obj) {
@@ -690,92 +769,6 @@ void ObjFile<ELFT>::initializeSections(bool ignoreComdats,
     handleSectionGroup<ELFT>(this->sections, entries);
 }
 
-// For ARM only, to set the EF_ARM_ABI_FLOAT_SOFT or EF_ARM_ABI_FLOAT_HARD
-// flag in the ELF Header we need to look at Tag_ABI_VFP_args to find out how
-// the input objects have been compiled.
-static void updateARMVFPArgs(const ARMAttributeParser &attributes,
-                             const InputFile *f) {
-  Optional<unsigned> attr =
-      attributes.getAttributeValue(ARMBuildAttrs::ABI_VFP_args);
-  if (!attr)
-    // If an ABI tag isn't present then it is implicitly given the value of 0
-    // which maps to ARMBuildAttrs::BaseAAPCS. However many assembler files,
-    // including some in glibc that don't use FP args (and should have value 3)
-    // don't have the attribute so we do not consider an implicit value of 0
-    // as a clash.
-    return;
-
-  unsigned vfpArgs = *attr;
-  ARMVFPArgKind arg;
-  switch (vfpArgs) {
-  case ARMBuildAttrs::BaseAAPCS:
-    arg = ARMVFPArgKind::Base;
-    break;
-  case ARMBuildAttrs::HardFPAAPCS:
-    arg = ARMVFPArgKind::VFP;
-    break;
-  case ARMBuildAttrs::ToolChainFPPCS:
-    // Tool chain specific convention that conforms to neither AAPCS variant.
-    arg = ARMVFPArgKind::ToolChain;
-    break;
-  case ARMBuildAttrs::CompatibleFPAAPCS:
-    // Object compatible with all conventions.
-    return;
-  default:
-    error(toString(f) + ": unknown Tag_ABI_VFP_args value: " + Twine(vfpArgs));
-    return;
-  }
-  // Follow ld.bfd and error if there is a mix of calling conventions.
-  if (config->armVFPArgs != arg && config->armVFPArgs != ARMVFPArgKind::Default)
-    error(toString(f) + ": incompatible Tag_ABI_VFP_args");
-  else
-    config->armVFPArgs = arg;
-}
-
-// The ARM support in lld makes some use of instructions that are not available
-// on all ARM architectures. Namely:
-// - Use of BLX instruction for interworking between ARM and Thumb state.
-// - Use of the extended Thumb branch encoding in relocation.
-// - Use of the MOVT/MOVW instructions in Thumb Thunks.
-// The ARM Attributes section contains information about the architecture chosen
-// at compile time. We follow the convention that if at least one input object
-// is compiled with an architecture that supports these features then lld is
-// permitted to use them.
-static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
-  Optional<unsigned> attr =
-      attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
-  if (!attr.hasValue())
-    return;
-  auto arch = attr.getValue();
-  switch (arch) {
-  case ARMBuildAttrs::Pre_v4:
-  case ARMBuildAttrs::v4:
-  case ARMBuildAttrs::v4T:
-    // Architectures prior to v5 do not support BLX instruction
-    break;
-  case ARMBuildAttrs::v5T:
-  case ARMBuildAttrs::v5TE:
-  case ARMBuildAttrs::v5TEJ:
-  case ARMBuildAttrs::v6:
-  case ARMBuildAttrs::v6KZ:
-  case ARMBuildAttrs::v6K:
-    config->armHasBlx = true;
-    // Architectures used in pre-Cortex processors do not support
-    // The J1 = 1 J2 = 1 Thumb branch range extension, with the exception
-    // of Architecture v6T2 (arm1156t2-s and arm1156t2f-s) that do.
-    break;
-  default:
-    // All other Architectures have BLX and extended branch encoding
-    config->armHasBlx = true;
-    config->armJ1J2BranchEncoding = true;
-    if (arch != ARMBuildAttrs::v6_M && arch != ARMBuildAttrs::v6S_M)
-      // All Architectures used in Cortex processors with the exception
-      // of v6-M and v6S-M have the MOVT and MOVW instructions.
-      config->armHasMovtMovw = true;
-    break;
-  }
-}
-
 // If a source file is compiled with x86 hardware-assisted call flow control
 // enabled, the generated object file contains feature flags indicating that
 // fact. This function reads the feature flags and returns it.
@@ -878,8 +871,8 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
     if (Error e = attributes.parse(contents, config->ekind == ELF32LEKind
                                                  ? support::little
                                                  : support::big)) {
-      auto *isec = make<InputSection>(*this, sec, name);
-      warn(toString(isec) + ": " + llvm::toString(std::move(e)));
+      InputSection isec(*this, sec, name);
+      warn(toString(&isec) + ": " + llvm::toString(std::move(e)));
     } else {
       updateSupportedARMFeatures(attributes);
       updateARMVFPArgs(attributes, this);
@@ -900,8 +893,8 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
     RISCVAttributeParser attributes;
     ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(sec));
     if (Error e = attributes.parse(contents, support::little)) {
-      auto *isec = make<InputSection>(*this, sec, name);
-      warn(toString(isec) + ": " + llvm::toString(std::move(e)));
+      InputSection isec(*this, sec, name);
+      warn(toString(&isec) + ": " + llvm::toString(std::move(e)));
     } else {
       // FIXME: Validate arch tag contains C if and only if EF_RISCV_RVC is
       // present.
@@ -979,7 +972,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
       return &InputSection::discarded;
     }
 
-    // An object file cmpiled for split stack, but where some of the
+    // An object file compiled for split stack, but where some of the
     // functions were compiled with the no_split_stack_attribute will
     // include a .note.GNU-no-split-stack section.
     if (name == ".note.GNU-no-split-stack") {
@@ -1397,7 +1390,7 @@ template <class ELFT> void SharedFile::parse() {
   if (!wasInserted)
     return;
 
-  sharedFiles.push_back(this);
+  ctx->sharedFiles.push_back(this);
 
   verdefs = parseVerdefs<ELFT>(obj.base(), verdefSec);
   std::vector<uint32_t> verneeds = parseVerneed<ELFT>(obj, verneedSec);
@@ -1717,34 +1710,27 @@ void BinaryFile::parse() {
                                        data.size(), 0, nullptr});
 }
 
-InputFile *elf::createObjectFile(MemoryBufferRef mb, StringRef archiveName,
-                                 uint64_t offsetInArchive) {
-  if (isBitcode(mb))
-    return make<BitcodeFile>(mb, archiveName, offsetInArchive, /*lazy=*/false);
-
+ELFFileBase *elf::createObjFile(MemoryBufferRef mb, StringRef archiveName,
+                                bool lazy) {
+  ELFFileBase *f;
   switch (getELFKind(mb, archiveName)) {
   case ELF32LEKind:
-    return make<ObjFile<ELF32LE>>(mb, archiveName);
+    f = make<ObjFile<ELF32LE>>(mb, archiveName);
+    break;
   case ELF32BEKind:
-    return make<ObjFile<ELF32BE>>(mb, archiveName);
+    f = make<ObjFile<ELF32BE>>(mb, archiveName);
+    break;
   case ELF64LEKind:
-    return make<ObjFile<ELF64LE>>(mb, archiveName);
+    f = make<ObjFile<ELF64LE>>(mb, archiveName);
+    break;
   case ELF64BEKind:
-    return make<ObjFile<ELF64BE>>(mb, archiveName);
+    f = make<ObjFile<ELF64BE>>(mb, archiveName);
+    break;
   default:
     llvm_unreachable("getELFKind");
   }
-}
-
-InputFile *elf::createLazyFile(MemoryBufferRef mb, StringRef archiveName,
-                               uint64_t offsetInArchive) {
-  if (isBitcode(mb))
-    return make<BitcodeFile>(mb, archiveName, offsetInArchive, /*lazy=*/true);
-
-  auto *file =
-      cast<ELFFileBase>(createObjectFile(mb, archiveName, offsetInArchive));
-  file->lazy = true;
-  return file;
+  f->lazy = lazy;
+  return f;
 }
 
 template <class ELFT> void ObjFile<ELFT>::parseLazy() {
@@ -1770,7 +1756,7 @@ template <class ELFT> void ObjFile<ELFT>::parseLazy() {
 }
 
 bool InputFile::shouldExtractForCommon(StringRef name) {
-  if (isBitcode(mb))
+  if (isa<BitcodeFile>(this))
     return isBitcodeNonCommonDef(mb, name, archiveName);
 
   return isNonCommonDef(mb, name, archiveName);

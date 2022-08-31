@@ -81,7 +81,7 @@ public:
       return rewriteDynamicShape(embox, rewriter, shapeVal);
     if (auto boxTy = embox.getType().dyn_cast<fir::BoxType>())
       if (auto seqTy = boxTy.getEleTy().dyn_cast<fir::SequenceType>())
-        if (seqTy.hasConstantShape())
+        if (!seqTy.hasDynamicExtents())
           return rewriteStaticShape(embox, rewriter, seqTy);
     return mlir::failure();
   }
@@ -261,7 +261,6 @@ public:
 class CodeGenRewrite : public fir::CodeGenRewriteBase<CodeGenRewrite> {
 public:
   void runOn(mlir::Operation *op, mlir::Region &region) {
-    // auto op = getOperation();
     auto &context = getContext();
     mlir::OpBuilder rewriter(&context);
     mlir::ConversionTarget target(context);

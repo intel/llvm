@@ -261,9 +261,10 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
     flags |= decimal::AlwaysSign;
   }
   bool noLeadingSpaces{editWidth == 0};
+  int scale{edit.modes.scale}; // 'kP' value
   if (editWidth == 0) { // "the processor selects the field width"
     if (edit.digits.has_value()) { // E0.d
-      if (editDigits == 0) { // E0.0
+      if (editDigits == 0 && scale <= 0) { // E0.0
         significantDigits = 1;
       }
     } else { // E0
@@ -274,7 +275,6 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
   }
   bool isEN{edit.variation == 'N'};
   bool isES{edit.variation == 'S'};
-  int scale{edit.modes.scale}; // 'kP' value
   int zeroesAfterPoint{0};
   if (isEN) {
     scale = IsZero() ? 1 : 3;
@@ -419,15 +419,22 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
       canIncrease = false; // only once
       continue;
     } else if (expo == -fracDigits && convertedDigits > 0) {
-      if (rounding != decimal::FortranRounding::RoundToZero) {
-        // Convert again without rounding so that we can round here
-        rounding = decimal::FortranRounding::RoundToZero;
-        continue;
-      } else if (converted.str[signLength] >= '5') {
-        // Value rounds up to a scaled 1 (e.g., 0.06 for F5.1 -> 0.1)
+      if ((rounding == decimal::FortranRounding::RoundUp &&
+              *converted.str != '-') ||
+          (rounding == decimal::FortranRounding::RoundDown &&
+              *converted.str == '-') ||
+          (rounding == decimal::FortranRounding::RoundToZero &&
+              rounding != edit.modes.round && // it changed below
+              converted.str[signLength] >= '5')) {
+        // Round up/down to a scaled 1
         ++expo;
         convertedDigits = 0;
         trailingOnes = 1;
+      } else if (rounding != decimal::FortranRounding::RoundToZero) {
+        // Convert again with truncation so first digit can be checked
+        // on the next iteration by the code above
+        rounding = decimal::FortranRounding::RoundToZero;
+        continue;
       } else {
         // Value rounds down to zero
         expo = 0;
@@ -524,7 +531,12 @@ bool RealOutputEditing<binaryPrecision>::EditListDirectedOutput(
     return EditEorDOutput(edit);
   }
   int expo{converted.decimalExponent};
-  if (expo < 0 || expo > BinaryFloatingPoint::decimalPrecision) {
+  // The decimal precision of 16-bit floating-point types is very low,
+  // so use a reasonable cap of 6 to allow more values to be emitted
+  // with Fw.d editing.
+  static constexpr int maxExpo{
+      std::max(6, BinaryFloatingPoint::decimalPrecision)};
+  if (expo < 0 || expo > maxExpo) {
     DataEdit copy{edit};
     copy.modes.scale = 1; // 1P
     return EditEorDOutput(copy);

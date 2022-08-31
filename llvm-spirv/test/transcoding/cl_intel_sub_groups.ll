@@ -33,7 +33,7 @@
 ;    intel_sub_group_block_write_ul2(lp, ul2);
 ;}
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o - -spirv-text --spirv-ext=+SPV_INTEL_subgroups | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_subgroups
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc

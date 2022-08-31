@@ -289,6 +289,21 @@ don't find anyone present, chances are they happen to be off that day.
     - Monthly, 2nd Thursday of the month at 17:00 BST - London time (9:00am PT except for 2 weeks in spring), 1 hour slot.
     - `GoogleMeet <https://meet.google.com/kdy-fdbv-nuk>`__
     - English, Russian, German (not fluently)
+  * - Alexey Bader
+    - SYCL compiler, offload tools, OpenCL and SPIR-V, how to contribute.
+    - Monthly, 2nd Monday of the month at 9:30am PT, for 30 minutes.
+    - `GoogleMeet <https://meet.google.com/pdz-xhns-uus>`__
+    - English, Russian
+  * - Maksim Panchenko
+    - BOLT internals, IR, new passes, proposals, etc.
+    - Monthly, 2nd Wednesday of the month at 11:00am PT, for 30 minutes.
+    - `Zoom <https://fb.zoom.us/j/97065697120?pwd=NTFaUWJjZW9uVkJuaVlPTE9qclE3dz09>`__
+    - English, Russian
+  * - Michal Paszkowski
+    - SPIR-V backend, IGC, OpenCL, and IR transformations
+    - Monthly, 3rd Thursday of the month at 21:00 Warsaw/Poland time, 1 hour slot.
+    - `MS Teams <https://teams.microsoft.com/l/meetup-join/19%3ameeting_ODRmN2UwYTgtODdiOS00N2VkLTgxZjgtNDUxYjI3YmNkM2Ri%40thread.v2/0?context=%7b%22Tid%22%3a%2246c98d88-e344-4ed4-8496-4ed7712e255d%22%2c%22Oid%22%3a%220c2b140d-8412-4963-a118-0f7534426b65%22%7d>`__
+    - English, Polish
 
 
 Guidance for office hours hosts

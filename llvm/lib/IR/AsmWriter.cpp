@@ -62,6 +62,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypeFinder.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
@@ -610,11 +611,12 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     OS << '>';
     return;
   }
-  case Type::DXILPointerTyID:
-    // DXIL pointer types are only handled by the DirectX backend. To avoid
-    // extra dependencies we just print the pointer's address here.
-    OS << "dxil-ptr (" << Ty << ")";
+  case Type::TypedPointerTyID: {
+    TypedPointerType *TPTy = cast<TypedPointerType>(Ty);
+    OS << "typedptr(" << *TPTy->getElementType() << ", "
+       << TPTy->getAddressSpace() << ")";
     return;
+  }
   }
   llvm_unreachable("Invalid TypeID");
 }
@@ -1589,10 +1591,6 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
       if (OI+1 != CE->op_end())
         Out << ", ";
     }
-
-    if (CE->hasIndices())
-      for (unsigned I : CE->getIndices())
-        Out << ", " << I;
 
     if (CE->isCast()) {
       Out << " to ";
@@ -3542,8 +3540,8 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
       Out << ", no_sanitize_address";
     if (MD.NoHWAddress)
       Out << ", no_sanitize_hwaddress";
-    if (MD.NoMemtag)
-      Out << ", no_sanitize_memtag";
+    if (MD.Memtag)
+      Out << ", sanitize_memtag";
     if (MD.IsDynInit)
       Out << ", sanitize_address_dyninit";
   }
@@ -4264,7 +4262,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
       Out << ", align " << A->value();
     }
 
-    unsigned AddrSpace = AI->getType()->getAddressSpace();
+    unsigned AddrSpace = AI->getAddressSpace();
     if (AddrSpace != 0) {
       Out << ", addrspace(" << AddrSpace << ')';
     }
@@ -4299,9 +4297,9 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     bool PrintAllTypes = false;
     Type *TheType = Operand->getType();
 
-    // Select, Store and ShuffleVector always print all types.
-    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I)
-        || isa<ReturnInst>(I)) {
+    // Select, Store, ShuffleVector and CmpXchg always print all types.
+    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I) ||
+        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I)) {
       PrintAllTypes = true;
     } else {
       for (unsigned i = 1, E = I.getNumOperands(); i != E; ++i) {

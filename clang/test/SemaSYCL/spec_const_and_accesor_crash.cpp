@@ -10,10 +10,10 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 }
 
 int main() {
-  cl::sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const> spec_const;
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessor;
-  // CHECK: FieldDecl {{.*}} implicit referenced spec_const 'cl::sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const>'
-  // CHECK: FieldDecl {{.*}} implicit referenced accessor 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write>'
+  sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const> spec_const;
+  sycl::accessor<int, 1, sycl::access::mode::read_write> accessor;
+  // CHECK: FieldDecl {{.*}} implicit referenced spec_const 'sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const>'
+  // CHECK: FieldDecl {{.*}} implicit referenced accessor 'sycl::accessor<int, 1, sycl::access::mode::read_write>'
   kernel<class MyKernel>([spec_const, accessor]() {});
   return 0;
 }

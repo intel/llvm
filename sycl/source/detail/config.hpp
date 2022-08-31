@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/global_handler.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
@@ -22,8 +22,8 @@
 #include <string>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifdef DISABLE_CONFIG_FROM_ENV
@@ -101,6 +101,11 @@ template <ConfigID Config> class SYCLConfigBase;
   };
 #include "config.def"
 #undef CONFIG
+
+#define INVALID_CONFIG_EXCEPTION(BASE, MSG)                                    \
+  sycl::exception(sycl::make_error_code(sycl::errc::invalid),                  \
+                  "Invalid value for " + std::string{BASE::MConfigName} +      \
+                      " environment variable: " + MSG)
 
 template <ConfigID Config> class SYCLConfig {
   using BaseT = SYCLConfigBase<Config>;
@@ -467,6 +472,127 @@ private:
   }
 };
 
+template <> class SYCLConfig<SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE> {
+  using BaseT = SYCLConfigBase<SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE>;
+
+  struct ParsedValue {
+    size_t CPU = 0;
+    size_t GPU = 0;
+    size_t Accelerator = 0;
+  };
+
+public:
+  static size_t get(info::device_type DeviceType) {
+    ParsedValue Value = getCachedValue();
+    return getRefByDeviceType(Value, DeviceType);
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static size_t &getRefByDeviceType(ParsedValue &Value,
+                                    info::device_type DeviceType) {
+    switch (DeviceType) {
+    case info::device_type::cpu:
+      return Value.CPU;
+    case info::device_type::gpu:
+      return Value.GPU;
+    case info::device_type::accelerator:
+      return Value.Accelerator;
+    default:
+      // Expect to get here if user used wrong device type. Include wildcard
+      // in the message even though it's handled in the caller.
+      throw INVALID_CONFIG_EXCEPTION(
+          BaseT, "Device types must be \"cpu\", \"gpu\", \"acc\", or \"*\".");
+    }
+  }
+
+  static ParsedValue parseValue() {
+    const char *ValueRaw = BaseT::getRawValue();
+    ParsedValue Result{};
+
+    // Default to 0 to signify an unset value.
+    if (!ValueRaw)
+      return Result;
+
+    std::string ValueStr{ValueRaw};
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
+
+    // Iterate over all configurations.
+    size_t Start = 0, End = 0;
+    do {
+      End = ValueStr.find(',', Start);
+      if (End == std::string::npos)
+        End = ValueStr.size();
+
+      // Get a substring of the current configuration pair.
+      std::string DeviceConfigStr = ValueStr.substr(Start, End - Start);
+
+      // Find the delimiter in the configuration pair.
+      size_t ConfigDelimLoc = DeviceConfigStr.find(':');
+      if (ConfigDelimLoc == std::string::npos)
+        throw INVALID_CONFIG_EXCEPTION(
+            BaseT, "Device-value pair \"" + DeviceConfigStr +
+                       "\" does not contain the ':' delimiter.");
+
+      // Split configuration pair into its constituents.
+      std::string DeviceConfigTypeStr =
+          DeviceConfigStr.substr(0, ConfigDelimLoc);
+      std::string DeviceConfigValueStr = DeviceConfigStr.substr(
+          ConfigDelimLoc + 1, DeviceConfigStr.size() - ConfigDelimLoc - 1);
+
+      // Find the device type in the "device type map".
+      auto DeviceTypeIter = std::find_if(
+          std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
+          [&](auto Element) { return DeviceConfigTypeStr == Element.first; });
+      if (DeviceTypeIter == DeviceTypeMap.end())
+        throw INVALID_CONFIG_EXCEPTION(
+            BaseT,
+            "\"" + DeviceConfigTypeStr + "\" is not a recognized device type.");
+
+      // Parse the configuration value.
+      int DeviceConfigValue = 1;
+      try {
+        DeviceConfigValue = std::stoi(DeviceConfigValueStr);
+      } catch (...) {
+        throw INVALID_CONFIG_EXCEPTION(
+            BaseT, "Value \"" + DeviceConfigValueStr + "\" must be a number");
+      }
+
+      if (DeviceConfigValue < 1)
+        throw INVALID_CONFIG_EXCEPTION(BaseT,
+                                       "Value \"" + DeviceConfigValueStr +
+                                           "\" must be larger than zero");
+
+      if (DeviceTypeIter->second == info::device_type::all) {
+        // Set all configuration values if we got the device-type wildcard.
+        Result.GPU = DeviceConfigValue;
+        Result.CPU = DeviceConfigValue;
+        Result.Accelerator = DeviceConfigValue;
+      } else {
+        // Try setting the corresponding configuration.
+        getRefByDeviceType(Result, DeviceTypeIter->second) = DeviceConfigValue;
+      }
+
+      // Move to the start of the next configuration. If the start is outside
+      // the full value string we are done.
+      Start = End + 1;
+    } while (Start < ValueStr.size());
+    return Result;
+  }
+
+  static ParsedValue getCachedValue(bool ResetCache = false) {
+    static ParsedValue Val = parseValue();
+    if (ResetCache)
+      Val = parseValue();
+    return Val;
+  }
+};
+
+#undef INVALID_CONFIG_EXCEPTION
+
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

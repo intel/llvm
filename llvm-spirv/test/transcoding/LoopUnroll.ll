@@ -36,7 +36,7 @@
 ; Command:
 ; clang -cc1 -triple spir64 -O0 LoopUnroll.cl -emit-llvm -o /test/SPIRV/transcoding/LoopUnroll.ll
 
-; RUN: llvm-as -opaque-pointers=0 < %s > %t.bc
+; RUN: llvm-as < %s > %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV

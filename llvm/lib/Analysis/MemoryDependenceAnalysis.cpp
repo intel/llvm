@@ -139,10 +139,12 @@ static ModRefInfo GetLocation(const Instruction *Inst, MemoryLocation &Loc,
     return ModRefInfo::ModRef;
   }
 
-  if (const CallInst *CI = isFreeCall(Inst, &TLI)) {
-    // calls to free() deallocate the entire structure
-    Loc = MemoryLocation::getAfter(CI->getArgOperand(0));
-    return ModRefInfo::Mod;
+  if (const CallBase *CB = dyn_cast<CallBase>(Inst)) {
+    if (Value *FreedOp = getFreedOperand(CB, &TLI)) {
+      // calls to free() deallocate the entire structure
+      Loc = MemoryLocation::getAfter(FreedOp);
+      return ModRefInfo::Mod;
+    }
   }
 
   if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst)) {
@@ -608,7 +610,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
     // If necessary, perform additional analysis.
     if (isModAndRefSet(MR))
       MR = BatchAA.callCapturesBefore(Inst, MemLoc, &DT);
-    switch (clearMust(MR)) {
+    switch (MR) {
     case ModRefInfo::NoModRef:
       // If the call has no effect on the queried pointer, just ignore it.
       continue;

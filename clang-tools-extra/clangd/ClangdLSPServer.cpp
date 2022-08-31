@@ -534,10 +534,11 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
        }},
       {"completionProvider",
        llvm::json::Object{
-           {"allCommitCharacters",
-            {" ", "\t", "(", ")", "[", "]", "{",  "}", "<",
-             ">", ":",  ";", ",", "+", "-", "/",  "*", "%",
-             "^", "&",  "#", "?", ".", "=", "\"", "'", "|"}},
+           // We don't set `(` etc as allCommitCharacters as they interact
+           // poorly with snippet results.
+           // See https://github.com/clangd/vscode-clangd/issues/357
+           // Hopefully we can use them one day without this side-effect:
+           //     https://github.com/microsoft/vscode/issues/42544
            {"resolveProvider", false},
            // We do extra checks, e.g. that > is part of ->.
            {"triggerCharacters", {".", "<", ">", ":", "\"", "/", "*"}},
@@ -663,9 +664,9 @@ void ClangdLSPServer::onDocumentDidOpen(
 void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
   auto WantDiags = WantDiagnostics::Auto;
-  if (Params.wantDiagnostics.hasValue())
-    WantDiags = Params.wantDiagnostics.getValue() ? WantDiagnostics::Yes
-                                                  : WantDiagnostics::No;
+  if (Params.wantDiagnostics)
+    WantDiags = Params.wantDiagnostics.value() ? WantDiagnostics::Yes
+                                               : WantDiagnostics::No;
 
   PathRef File = Params.textDocument.uri.file();
   auto Code = Server->getDraft(File);
@@ -1397,14 +1398,15 @@ static void increment(std::string &S) {
 
 void ClangdLSPServer::onSemanticTokens(const SemanticTokensParams &Params,
                                        Callback<SemanticTokens> CB) {
+  auto File = Params.textDocument.uri.file();
   Server->semanticHighlights(
       Params.textDocument.uri.file(),
-      [this, File(Params.textDocument.uri.file().str()), CB(std::move(CB))](
+      [this, File(File.str()), CB(std::move(CB)), Code(Server->getDraft(File))](
           llvm::Expected<std::vector<HighlightingToken>> HT) mutable {
         if (!HT)
           return CB(HT.takeError());
         SemanticTokens Result;
-        Result.tokens = toSemanticTokens(*HT);
+        Result.tokens = toSemanticTokens(*HT, *Code);
         {
           std::lock_guard<std::mutex> Lock(SemanticTokensMutex);
           auto &Last = LastSemanticTokens[File];
@@ -1420,14 +1422,15 @@ void ClangdLSPServer::onSemanticTokens(const SemanticTokensParams &Params,
 void ClangdLSPServer::onSemanticTokensDelta(
     const SemanticTokensDeltaParams &Params,
     Callback<SemanticTokensOrDelta> CB) {
+  auto File = Params.textDocument.uri.file();
   Server->semanticHighlights(
       Params.textDocument.uri.file(),
-      [this, PrevResultID(Params.previousResultId),
-       File(Params.textDocument.uri.file().str()), CB(std::move(CB))](
+      [this, PrevResultID(Params.previousResultId), File(File.str()),
+       CB(std::move(CB)), Code(Server->getDraft(File))](
           llvm::Expected<std::vector<HighlightingToken>> HT) mutable {
         if (!HT)
           return CB(HT.takeError());
-        std::vector<SemanticToken> Toks = toSemanticTokens(*HT);
+        std::vector<SemanticToken> Toks = toSemanticTokens(*HT, *Code);
 
         SemanticTokensOrDelta Result;
         {

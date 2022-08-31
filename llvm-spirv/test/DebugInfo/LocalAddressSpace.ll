@@ -4,7 +4,7 @@
 ;}
 ; clang -cc1 -triple spir -disable-llvm-passes -triple spir /work/tmp/tmp.cl -O0 -debug-info-kind=standalone -emit-llvm -o /work/llvm/projects/llvm-spirv/test/DebugInfo/LocalAddressSpace.ll
 
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll

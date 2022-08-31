@@ -122,7 +122,7 @@ class TestRecognizeBreakpoint(GDBRemoteTestBase):
         # Now continue and we will fake hitting a breakpoint.
         process.Continue()
 
-        self.assertEqual(process.GetState(),lldb.eStateStopped, "Process is stopped")
+        self.assertState(process.GetState(),lldb.eStateStopped, "Process is stopped")
         num_threads = len(process.threads)
 
         num_threads = len(process.threads)
@@ -137,5 +137,5 @@ class TestRecognizeBreakpoint(GDBRemoteTestBase):
         self.assertEqual(thread_1.GetName(), "three", "Thread_0 is called three")
 
         self.assertTrue(thread_1.IsValid(), "Thread_1 is valid")
-        self.assertEqual(thread_1.GetStopReason(), lldb.eStopReasonBreakpoint, "Stopped at breakpoint")
+        self.assertStopReason(thread_1.GetStopReason(), lldb.eStopReasonBreakpoint, "Stopped at breakpoint")
         

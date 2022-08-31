@@ -46,12 +46,14 @@ define i8 @cttz_i8(i8 %x)  {
 define i16 @cttz_i16(i16 %x)  {
 ; X86-LABEL: cttz_i16:
 ; X86:       # %bb.0:
-; X86-NEXT:    bsfw {{[0-9]+}}(%esp), %ax
+; X86-NEXT:    bsfl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: cttz_i16:
 ; X64:       # %bb.0:
-; X64-NEXT:    bsfw %di, %ax
+; X64-NEXT:    bsfl %edi, %eax
+; X64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-NEXT:    retq
 ;
 ; X86-CLZ-LABEL: cttz_i16:
@@ -302,7 +304,7 @@ define i64 @ctlz_i64(i64 %x) {
 define i8 @ctlz_i8_zero_test(i8 %n) {
 ; X86-LABEL: ctlz_i8_zero_test:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    testb %al, %al
 ; X86-NEXT:    je .LBB8_1
 ; X86-NEXT:  # %bb.2: # %cond.false
@@ -512,7 +514,7 @@ define i64 @ctlz_i64_zero_test(i64 %n) {
 define i8 @cttz_i8_zero_test(i8 %n) {
 ; X86-LABEL: cttz_i8_zero_test:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    testb %al, %al
 ; X86-NEXT:    je .LBB12_1
 ; X86-NEXT:  # %bb.2: # %cond.false
@@ -565,10 +567,12 @@ define i16 @cttz_i16_zero_test(i16 %n) {
 ; X86-NEXT:    testw %ax, %ax
 ; X86-NEXT:    je .LBB13_1
 ; X86-NEXT:  # %bb.2: # %cond.false
-; X86-NEXT:    bsfw %ax, %ax
+; X86-NEXT:    bsfl %eax, %eax
+; X86-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    retl
 ; X86-NEXT:  .LBB13_1:
 ; X86-NEXT:    movw $16, %ax
+; X86-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: cttz_i16_zero_test:
@@ -576,20 +580,27 @@ define i16 @cttz_i16_zero_test(i16 %n) {
 ; X64-NEXT:    testw %di, %di
 ; X64-NEXT:    je .LBB13_1
 ; X64-NEXT:  # %bb.2: # %cond.false
-; X64-NEXT:    bsfw %di, %ax
+; X64-NEXT:    bsfl %edi, %eax
+; X64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-NEXT:    retq
 ; X64-NEXT:  .LBB13_1:
 ; X64-NEXT:    movw $16, %ax
+; X64-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-NEXT:    retq
 ;
 ; X86-CLZ-LABEL: cttz_i16_zero_test:
 ; X86-CLZ:       # %bb.0:
-; X86-CLZ-NEXT:    tzcntw {{[0-9]+}}(%esp), %ax
+; X86-CLZ-NEXT:    movl $65536, %eax # imm = 0x10000
+; X86-CLZ-NEXT:    orl {{[0-9]+}}(%esp), %eax
+; X86-CLZ-NEXT:    tzcntl %eax, %eax
+; X86-CLZ-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X86-CLZ-NEXT:    retl
 ;
 ; X64-CLZ-LABEL: cttz_i16_zero_test:
 ; X64-CLZ:       # %bb.0:
-; X64-CLZ-NEXT:    tzcntw %di, %ax
+; X64-CLZ-NEXT:    orl $65536, %edi # imm = 0x10000
+; X64-CLZ-NEXT:    tzcntl %edi, %eax
+; X64-CLZ-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X64-CLZ-NEXT:    retq
   %tmp1 = call i16 @llvm.cttz.i16(i16 %n, i1 false)
   ret i16 %tmp1
@@ -819,7 +830,7 @@ define i32 @ctlz_bsr_zero_test(i32 %n) {
 define i8 @cttz_i8_knownbits(i8 %x)  {
 ; X86-LABEL: cttz_i8_knownbits:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    orb $2, %al
 ; X86-NEXT:    movzbl %al, %eax
 ; X86-NEXT:    bsfl %eax, %eax
@@ -836,7 +847,7 @@ define i8 @cttz_i8_knownbits(i8 %x)  {
 ;
 ; X86-CLZ-LABEL: cttz_i8_knownbits:
 ; X86-CLZ:       # %bb.0:
-; X86-CLZ-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-CLZ-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-CLZ-NEXT:    orb $2, %al
 ; X86-CLZ-NEXT:    movzbl %al, %eax
 ; X86-CLZ-NEXT:    tzcntl %eax, %eax
@@ -859,7 +870,7 @@ define i8 @cttz_i8_knownbits(i8 %x)  {
 define i8 @ctlz_i8_knownbits(i8 %x)  {
 ; X86-LABEL: ctlz_i8_knownbits:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    orb $64, %al
 ; X86-NEXT:    movzbl %al, %eax
 ; X86-NEXT:    bsrl %eax, %eax
@@ -878,7 +889,7 @@ define i8 @ctlz_i8_knownbits(i8 %x)  {
 ;
 ; X86-CLZ-LABEL: ctlz_i8_knownbits:
 ; X86-CLZ:       # %bb.0:
-; X86-CLZ-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-CLZ-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-CLZ-NEXT:    orb $64, %al
 ; X86-CLZ-NEXT:    movzbl %al, %eax
 ; X86-CLZ-NEXT:    lzcntl %eax, %eax

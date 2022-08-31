@@ -317,7 +317,8 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
   if (StringRef(D.Dir).startswith(SysRoot) &&
       (D.getVFS().exists(D.Dir + "/../lib/libc++.so") ||
-       Args.hasArg(options::OPT_fsycl)))
+       Args.hasArg(options::OPT_fsycl) ||
+       D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
     addPathIfExists(D, D.Dir + "/../lib", Paths);
 
   addPathIfExists(D, concat(SysRoot, "/lib"), Paths);
@@ -705,8 +706,11 @@ void Linux::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
 }
 
 bool Linux::isPIEDefault(const llvm::opt::ArgList &Args) const {
-  return CLANG_DEFAULT_PIE_ON_LINUX || getTriple().isAndroid() ||
-         getTriple().isMusl() || getSanitizerArgs(Args).requiresPIE();
+  // TODO: Remove the special treatment for Flang once its frontend driver can
+  // generate position independent code.
+  return !getDriver().IsFlangMode() &&
+         (CLANG_DEFAULT_PIE_ON_LINUX || getTriple().isAndroid() ||
+          getTriple().isMusl() || getSanitizerArgs(Args).requiresPIE());
 }
 
 bool Linux::IsAArch64OutlineAtomicsDefault(const ArgList &Args) const {

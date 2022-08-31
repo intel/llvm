@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
+#include <sycl/detail/pi.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace {
 class EnqueueMemTest : public testing::TestWithParam<detail::plugin> {

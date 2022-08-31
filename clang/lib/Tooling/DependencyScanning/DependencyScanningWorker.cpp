@@ -28,8 +28,9 @@ namespace {
 class DependencyConsumerForwarder : public DependencyFileGenerator {
 public:
   DependencyConsumerForwarder(std::unique_ptr<DependencyOutputOptions> Opts,
-                              DependencyConsumer &C)
-      : DependencyFileGenerator(*Opts), Opts(std::move(Opts)), C(C) {}
+                              StringRef WorkingDirectory, DependencyConsumer &C)
+      : DependencyFileGenerator(*Opts), WorkingDirectory(WorkingDirectory),
+        Opts(std::move(Opts)), C(C) {}
 
   void finishedMainFile(DiagnosticsEngine &Diags) override {
     C.handleDependencyOutputOpts(*Opts);
@@ -37,11 +38,13 @@ public:
     for (const auto &File : getDependencies()) {
       CanonPath = File;
       llvm::sys::path::remove_dots(CanonPath, /*remove_dot_dot=*/true);
+      llvm::sys::fs::make_absolute(WorkingDirectory, CanonPath);
       C.handleFileDependency(CanonPath);
     }
   }
 
 private:
+  StringRef WorkingDirectory;
   std::unique_ptr<DependencyOutputOptions> Opts;
   DependencyConsumer &C;
 };
@@ -221,8 +224,8 @@ public:
     switch (Format) {
     case ScanningOutputFormat::Make:
       ScanInstance.addDependencyCollector(
-          std::make_shared<DependencyConsumerForwarder>(std::move(Opts),
-                                                        Consumer));
+          std::make_shared<DependencyConsumerForwarder>(
+              std::move(Opts), WorkingDirectory, Consumer));
       break;
     case ScanningOutputFormat::Full:
       ScanInstance.addDependencyCollector(std::make_shared<ModuleDepCollector>(
@@ -264,7 +267,8 @@ private:
 } // end anonymous namespace
 
 DependencyScanningWorker::DependencyScanningWorker(
-    DependencyScanningService &Service)
+    DependencyScanningService &Service,
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
     : Format(Service.getFormat()), OptimizeArgs(Service.canOptimizeArgs()) {
   PCHContainerOps = std::make_shared<PCHContainerOperations>();
   PCHContainerOps->registerReader(
@@ -274,8 +278,8 @@ DependencyScanningWorker::DependencyScanningWorker(
   PCHContainerOps->registerWriter(
       std::make_unique<ObjectFilePCHContainerWriter>());
 
-  auto OverlayFS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
-      llvm::vfs::createPhysicalFileSystem());
+  auto OverlayFS =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(std::move(FS));
   InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   OverlayFS->pushOverlay(InMemoryFS);
   RealFS = OverlayFS;

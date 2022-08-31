@@ -9,14 +9,14 @@
 // Detailed description of the tests cases can be seen per test function.
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/device_binary_image.hpp>
-#include <CL/sycl/detail/os_util.hpp>
 #include <cstdio>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <optional>
+#include <sycl/detail/device_binary_image.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 #define ASSERT_NO_ERROR(x)                                                     \
@@ -39,7 +39,7 @@ static void set_env(const char *name, const char *value) {
 }
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 /* Vector of programs which can be used for testing
  */

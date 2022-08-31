@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <memory>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   bool SupportOOO = true;
@@ -174,7 +174,7 @@ TEST(QueueWait, QueueWaitTest) {
   // Test behaviour for emulating an OOO queue with multiple in-order ones.
   TestContext = {};
   TestContext.SupportOOO = false;
-  Q = {Ctx, default_selector()};
+  Q = queue{Ctx, default_selector()};
   Q.memset(HostAlloc, 42, 1);
   // The event is kept alive in this case to call wait.
   ASSERT_EQ(TestContext.EventReferenceCount, 1);

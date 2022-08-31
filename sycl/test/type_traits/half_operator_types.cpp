@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace std;
 
 template <typename T1, typename T_rtn> void math_operator_helper() {

@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 
 // generic work-group split barrier
@@ -573,7 +575,226 @@ void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
   } // yWrite loop
 }
 
-#endif
+/// Helper function for zero-source LSC-atomic operation accessing BTI
+/// or SLM
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_xatomic_offset_access_0(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, const char *BaseAddr,
+    const int BufByteWidth) {
+
+  assert(BaseAddr != nullptr &&
+         "Invalid BaseAddr for lsc_xatomic_operation under emulation!!");
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-access base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc) {
+          __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            static_cast<Ty>(1));
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::dec) {
+          __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            static_cast<Ty>(1));
+        }
+      }
+    }
+  }
+  return Output;
+}
+
+/// Helper function for one-source LSC-atomic operation accessing BTI
+/// or SLM
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_xatomic_offset_access_1(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, const char *BaseAddr,
+    const int BufByteWidth,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0) {
+
+  assert(BaseAddr != nullptr &&
+         "Invalid BaseAddr for lsc_xatomic_operation under emulation!!");
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip input vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-write base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+
+        // Keeping original values for return
+        Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store) {
+          __ESIMD_DNS::atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::add) {
+          __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::sub) {
+          __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smin) {
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smax) {
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umin) {
+          if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
+          }
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umax) {
+          if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
+          }
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fadd) {
+          if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                              src0[VecIdx]);
+          }
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fsub) {
+          if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                              src0[VecIdx]);
+          }
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmin) {
+          if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
+          }
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmax) {
+          if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx]);
+          }
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::bit_and) {
+          // TODO : Type Check? Integral type only?
+          __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_or) {
+          // TODO : Type Check? Integral type only?
+          __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                           src0[VecIdx]);
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
+          // TODO : Type Check? Integral type only?
+          __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
+        }
+      }
+    }
+  }
+  return Output;
+}
+
+/// Helper function for two-source LSC-atomic operation accessing BTI
+/// or SLM
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_xatomic_offset_access_2(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, const char *BaseAddr,
+    const int BufByteWidth,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1) {
+
+  assert(BaseAddr != nullptr &&
+         "Invalid BaseAddr for lsc_xatomic_operation under emulation!!");
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output;
+
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip input vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-write base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+
+        // Keeping original values for return
+        Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
+          __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx], src1[VecIdx]);
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
+          if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+            __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                        src0[VecIdx], src1[VecIdx]);
+          }
+        }
+      }
+    }
+  }
+  return Output;
+}
+
+// End : Shared utility/helper functions for LSC support under
+// emulation
+#endif // __SYCL_DEVICE_ONLY__
 
 /// SLM gather.
 /// Supported platforms: DG2, PVC
@@ -1110,7 +1331,7 @@ __esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1122,8 +1343,13 @@ __esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_xatomic_offset_access_0<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets,
+                                           I->__cm_emu_get_slm_ptr(), INT_MAX);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1143,7 +1369,7 @@ __esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1157,8 +1383,13 @@ __esimd_lsc_xatomic_slm_1(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_xatomic_offset_access_1<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, I->__cm_emu_get_slm_ptr(), INT_MAX, src0);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1179,7 +1410,7 @@ __esimd_lsc_xatomic_slm_1(
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1194,8 +1425,13 @@ __esimd_lsc_xatomic_slm_2(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_xatomic_offset_access_2<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, I->__cm_emu_get_slm_ptr(), INT_MAX, src0, src1);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1216,11 +1452,12 @@ __esimd_lsc_xatomic_slm_2(
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param surf_ind is the surface index.
-template <
-    typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, __ESIMD_ENS::cache_hint L1H,
-    __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-    __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-    __ESIMD_EDNS::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
@@ -1229,8 +1466,22 @@ __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  char *accessBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &accessBase, &width, &mutexLock);
+
+  // Mutex is not needed as __atomic_* functions are used within
+  // helper function being called
+  // std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_xatomic_offset_access_0<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets, accessBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1252,11 +1503,12 @@ __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param surf_ind is the surface index.
-template <
-    typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, __ESIMD_ENS::cache_hint L1H,
-    __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-    __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-    __ESIMD_EDNS::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_1(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
@@ -1267,8 +1519,23 @@ __esimd_lsc_xatomic_bti_1(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  char *accessBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &accessBase, &width, &mutexLock);
+
+  // Mutex is not needed as __atomic_* functions are used within
+  // helper function being called
+  // std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_xatomic_offset_access_1<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets, accessBase, width,
+                                           src0);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1291,11 +1558,12 @@ __esimd_lsc_xatomic_bti_1(
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
 /// @param surf_ind is the surface index.
-template <
-    typename Ty, __ESIMD_EDNS::lsc_atomic_op Op, __ESIMD_ENS::cache_hint L1H,
-    __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-    __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-    __ESIMD_EDNS::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_2(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
@@ -1307,8 +1575,23 @@ __esimd_lsc_xatomic_bti_2(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  char *accessBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &accessBase, &width, &mutexLock);
+
+  // Mutex is not needed as __atomic_* functions are used within
+  // helper function being called
+  // std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_xatomic_offset_access_2<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets, accessBase, width,
+                                           src0, src1);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1327,7 +1610,7 @@ __esimd_lsc_xatomic_bti_2(
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1339,8 +1622,45 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      // Keeping original values for return + 'load'
+      Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc) {
+        __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          static_cast<Ty>(1));
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::dec) {
+        __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          static_cast<Ty>(1));
+      }
+    }
+  }
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1361,7 +1681,7 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -1375,8 +1695,96 @@ __esimd_lsc_xatomic_stateless_1(
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      // Keeping original values for return
+      Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store) {
+        __ESIMD_DNS::atomic_store<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::add) {
+        __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::sub) {
+        __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smin) {
+        __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                    src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::smax) {
+        __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                    src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umin) {
+        if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+        }
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::umax) {
+        if constexpr (!__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+        }
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fadd) {
+        if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_add_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
+        }
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fsub) {
+        if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_sub_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                            src0[VecIdx]);
+        }
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmin) {
+        if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_min<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+        }
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fmax) {
+        if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_max<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx]);
+        }
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_and) {
+        // TODO : Type Check? Integral type only?
+        __ESIMD_DNS::atomic_and_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_or) {
+        // TODO : Type Check? Integral type only?
+        __ESIMD_DNS::atomic_or_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                         src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
+        // TODO : Type Check? Integral type only?
+        __ESIMD_DNS::atomic_xor_fetch<Ty>((Ty *)(BaseAddr + ByteDistance),
+                                          src0[VecIdx]);
+      }
+    }
+  }
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1397,23 +1805,62 @@ __esimd_lsc_xatomic_stateless_1(
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
-template <typename Ty, __ESIMD_EDNS::lsc_atomic_op Op,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
           __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_stateless_2(
-    __ESIMD_DNS::simd_mask_storage_t<N> pred,
-    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> Addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (Pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = Addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      // Keeping original values for return
+      Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
+        __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                    src0[VecIdx], src1[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
+        if constexpr (__ESIMD_DNS::is_fp_type<Ty>::value) {
+          __ESIMD_DNS::atomic_cmpxchg((Ty *)(BaseAddr + ByteDistance),
+                                      src0[VecIdx], src1[VecIdx]);
+        }
+      }
+    }
+  }
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 

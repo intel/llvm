@@ -11,17 +11,17 @@
 #define __SYCL_INTERNAL_API
 #endif
 
-#include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
 class TestKernel;
 
 static std::string BuildOpts;
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -37,8 +37,8 @@ template <> struct KernelInfo<TestKernel> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
                                         pi_program *) {

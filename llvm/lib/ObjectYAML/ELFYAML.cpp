@@ -518,6 +518,14 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AVR_ARCH_XMEGA7, EF_AVR_ARCH_MASK);
     BCase(EF_AVR_LINKRELAX_PREPARED);
     break;
+  case ELF::EM_LOONGARCH:
+    BCaseMask(EF_LOONGARCH_BASE_ABI_ILP32S, EF_LOONGARCH_BASE_ABI_MASK);
+    BCaseMask(EF_LOONGARCH_BASE_ABI_ILP32F, EF_LOONGARCH_BASE_ABI_MASK);
+    BCaseMask(EF_LOONGARCH_BASE_ABI_ILP32D, EF_LOONGARCH_BASE_ABI_MASK);
+    BCaseMask(EF_LOONGARCH_BASE_ABI_LP64S, EF_LOONGARCH_BASE_ABI_MASK);
+    BCaseMask(EF_LOONGARCH_BASE_ABI_LP64F, EF_LOONGARCH_BASE_ABI_MASK);
+    BCaseMask(EF_LOONGARCH_BASE_ABI_LP64D, EF_LOONGARCH_BASE_ABI_MASK);
+    break;
   case ELF::EM_RISCV:
     BCase(EF_RISCV_RVC);
     BCaseMask(EF_RISCV_FLOAT_ABI_SOFT, EF_RISCV_FLOAT_ABI);
@@ -654,7 +662,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
   ECase(SHT_LLVM_SYMPART);
   ECase(SHT_LLVM_PART_EHDR);
   ECase(SHT_LLVM_PART_PHDR);
+  ECase(SHT_LLVM_BB_ADDR_MAP_V0);
   ECase(SHT_LLVM_BB_ADDR_MAP);
+  ECase(SHT_LLVM_OFFLOADING);
   ECase(SHT_GNU_ATTRIBUTES);
   ECase(SHT_GNU_HASH);
   ECase(SHT_GNU_verdef);
@@ -1639,6 +1649,7 @@ void MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::mapping(
       Section.reset(new ELFYAML::CallGraphProfileSection());
     sectionMapping(IO, *cast<ELFYAML::CallGraphProfileSection>(Section.get()));
     break;
+  case ELF::SHT_LLVM_BB_ADDR_MAP_V0:
   case ELF::SHT_LLVM_BB_ADDR_MAP:
     if (!IO.outputting())
       Section.reset(new ELFYAML::BBAddrMapSection());
@@ -1768,6 +1779,8 @@ void MappingTraits<ELFYAML::StackSizeEntry>::mapping(
 void MappingTraits<ELFYAML::BBAddrMapEntry>::mapping(
     IO &IO, ELFYAML::BBAddrMapEntry &E) {
   assert(IO.getContext() && "The IO context is not initialized");
+  IO.mapRequired("Version", E.Version);
+  IO.mapOptional("Feature", E.Feature, Hex8(0));
   IO.mapOptional("Address", E.Address, Hex64(0));
   IO.mapOptional("NumBlocks", E.NumBlocks);
   IO.mapOptional("BBEntries", E.BBEntries);

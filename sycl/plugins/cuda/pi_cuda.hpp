@@ -25,7 +25,7 @@
 #define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
-#include "CL/sycl/detail/pi.h"
+#include "sycl/detail/pi.h"
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -33,6 +33,7 @@
 #include <cuda.h>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <numeric>
 #include <stdint.h>

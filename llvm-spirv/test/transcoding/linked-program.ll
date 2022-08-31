@@ -1,6 +1,6 @@
 ; REQUIRES: spirv-link
 ;
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: spirv-link %t.spv -o %t.linked.spv

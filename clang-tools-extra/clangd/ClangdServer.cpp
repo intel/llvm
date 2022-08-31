@@ -166,6 +166,7 @@ ClangdServer::Options::operator TUScheduler::Options() const {
   Opts.StorePreamblesInMemory = StorePreamblesInMemory;
   Opts.UpdateDebounce = UpdateDebounce;
   Opts.ContextProvider = ContextProvider;
+  Opts.PreambleThrottler = PreambleThrottler;
   return Opts;
 }
 
@@ -411,10 +412,10 @@ void ClangdServer::codeComplete(PathRef File, Position Pos,
       clang::clangd::trace::Span Tracer("Completion results callback");
       CB(std::move(Result));
     }
-    if (SpecFuzzyFind && SpecFuzzyFind->NewReq.hasValue()) {
+    if (SpecFuzzyFind && SpecFuzzyFind->NewReq) {
       std::lock_guard<std::mutex> Lock(CachedCompletionFuzzyFindRequestMutex);
       CachedCompletionFuzzyFindRequestByFile[File] =
-          SpecFuzzyFind->NewReq.getValue();
+          SpecFuzzyFind->NewReq.value();
     }
     // SpecFuzzyFind is only destroyed after speculative fuzzy find finishes.
     // We don't want `codeComplete` to wait for the async call if it doesn't use
@@ -833,14 +834,17 @@ void ClangdServer::documentSymbols(llvm::StringRef File,
 
 void ClangdServer::foldingRanges(llvm::StringRef File,
                                  Callback<std::vector<FoldingRange>> CB) {
-  auto Action =
-      [CB = std::move(CB)](llvm::Expected<InputsAndAST> InpAST) mutable {
-        if (!InpAST)
-          return CB(InpAST.takeError());
-        CB(clangd::getFoldingRanges(InpAST->AST));
-      };
-  WorkScheduler->runWithAST("FoldingRanges", File, std::move(Action),
-                            Transient);
+  auto Code = getDraft(File);
+  if (!Code)
+    return CB(llvm::make_error<LSPError>(
+        "trying to compute folding ranges for non-added document",
+        ErrorCode::InvalidParams));
+  auto Action = [CB = std::move(CB), Code = std::move(*Code)]() mutable {
+    CB(clangd::getFoldingRanges(Code));
+  };
+  // We want to make sure folding ranges are always available for all the open
+  // files, hence prefer runQuick to not wait for operations on other files.
+  WorkScheduler->runQuick("FoldingRanges", File, std::move(Action));
 }
 
 void ClangdServer::findType(llvm::StringRef File, Position Pos,

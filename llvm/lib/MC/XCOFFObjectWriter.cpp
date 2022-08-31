@@ -180,9 +180,14 @@ struct DwarfSectionEntry : public SectionEntry {
   // For DWARF section entry.
   std::unique_ptr<XCOFFSection> DwarfSect;
 
+  // For DWARF section, we must use real size in the section header. MemorySize
+  // is for the size the DWARF section occupies including paddings.
+  uint32_t MemorySize;
+
   DwarfSectionEntry(StringRef N, int32_t Flags,
                     std::unique_ptr<XCOFFSection> Sect)
-      : SectionEntry(N, Flags | XCOFF::STYP_DWARF), DwarfSect(std::move(Sect)) {
+      : SectionEntry(N, Flags | XCOFF::STYP_DWARF), DwarfSect(std::move(Sect)),
+        MemorySize(0) {
     assert(DwarfSect->MCSec->isDwarfSect() &&
            "This should be a DWARF section!");
     assert(N.size() <= XCOFF::NameSize && "section name too long");
@@ -200,8 +205,8 @@ class XCOFFObjectWriter : public MCObjectWriter {
   uint64_t SymbolTableOffset = 0;
   uint16_t SectionCount = 0;
   uint64_t RelocationEntryOffset = 0;
-  StringRef SourceFileName = ".file";
   std::vector<std::pair<std::string, size_t>> FileNames;
+  bool HasVisibility = false;
 
   support::endian::Writer W;
   std::unique_ptr<MCXCOFFObjectTargetWriter> TargetObjectWriter;
@@ -248,7 +253,7 @@ class XCOFFObjectWriter : public MCObjectWriter {
 
   CsectGroup &getCsectGroup(const MCSectionXCOFF *MCSec);
 
-  virtual void reset() override;
+  void reset() override;
 
   void executePostLayoutBinding(MCAssembler &, const MCAsmLayout &) override;
 
@@ -271,6 +276,7 @@ class XCOFFObjectWriter : public MCObjectWriter {
   void writeSymbolEntryForDwarfSection(const XCOFFSection &DwarfSectionRef,
                                        int16_t SectionIndex);
   void writeFileHeader();
+  void writeAuxFileHeader();
   void writeSectionHeaderTable();
   void writeSections(const MCAssembler &Asm, const MCAsmLayout &Layout);
   void writeSectionForControlSectionEntry(const MCAssembler &Asm,
@@ -304,14 +310,9 @@ class XCOFFObjectWriter : public MCObjectWriter {
   void assignAddressesAndIndices(const MCAsmLayout &);
   void finalizeSectionInfo();
 
-  // TODO aux header support not implemented.
-  bool needsAuxiliaryHeader() const { return false; }
-
-  // Returns the size of the auxiliary header to be written to the object file.
   size_t auxiliaryHeaderSize() const {
-    assert(!needsAuxiliaryHeader() &&
-           "Auxiliary header support not implemented.");
-    return 0;
+    // 64-bit object files have no auxiliary header.
+    return HasVisibility && !is64Bit() ? XCOFF::AuxFileHeaderSizeShort : 0;
   }
 
 public:
@@ -463,6 +464,9 @@ void XCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
 
     const MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(&S);
     const MCSectionXCOFF *ContainingCsect = getContainingCsect(XSym);
+
+    if (XSym->getVisibilityType() != XCOFF::SYM_V_UNSPECIFIED)
+      HasVisibility = true;
 
     if (ContainingCsect->getCSectType() == XCOFF::XTY_ER) {
       // Handle undefined symbol.
@@ -644,6 +648,7 @@ uint64_t XCOFFObjectWriter::writeObject(MCAssembler &Asm,
   uint64_t StartOffset = W.OS.tell();
 
   writeFileHeader();
+  writeAuxFileHeader();
   writeSectionHeaderTable();
   writeSections(Asm, Layout);
   writeRelocations();
@@ -684,12 +689,6 @@ void XCOFFObjectWriter::writeSymbolEntry(StringRef SymbolName, uint64_t Value,
     W.write<uint32_t>(Value);
   }
   W.write<int16_t>(SectionNumber);
-  // Basic/Derived type. See the description of the n_type field for symbol
-  // table entries for a detailed description. Since we don't yet support
-  // visibility, and all other bits are either optionally set or reserved, this
-  // is always zero.
-  if (SymbolType != 0)
-    report_fatal_error("Emitting non-zero visibilities is not supported yet.");
   // TODO Set the function indicator (bit 10, 0x0020) for functions
   // when debugging is enabled.
   W.write<uint16_t>(SymbolType);
@@ -769,16 +768,30 @@ void XCOFFObjectWriter::writeFileHeader() {
   W.write<int32_t>(0); // TimeStamp
   writeWord(SymbolTableOffset);
   if (is64Bit()) {
-    W.write<uint16_t>(0); // AuxHeaderSize. No optional header for an object
-                          // file that is not to be loaded.
+    W.write<uint16_t>(auxiliaryHeaderSize());
     W.write<uint16_t>(0); // Flags
     W.write<int32_t>(SymbolTableEntryCount);
   } else {
     W.write<int32_t>(SymbolTableEntryCount);
-    W.write<uint16_t>(0); // AuxHeaderSize. No optional header for an object
-                          // file that is not to be loaded.
+    W.write<uint16_t>(auxiliaryHeaderSize());
     W.write<uint16_t>(0); // Flags
   }
+}
+
+void XCOFFObjectWriter::writeAuxFileHeader() {
+  if (!auxiliaryHeaderSize())
+    return;
+  W.write<uint16_t>(0); // Magic
+  W.write<uint16_t>(
+      XCOFF::NEW_XCOFF_INTERPRET); // Version. The new interpretation of the
+                                   // n_type field in the symbol table entry is
+                                   // used in XCOFF32.
+  W.write<uint32_t>(Sections[0]->Size);    // TextSize
+  W.write<uint32_t>(Sections[1]->Size);    // InitDataSize
+  W.write<uint32_t>(Sections[2]->Size);    // BssDataSize
+  W.write<uint32_t>(0);                    // EntryPointAddr
+  W.write<uint32_t>(Sections[0]->Address); // TextStartAddr
+  W.write<uint32_t>(Sections[1]->Address); // DataStartAddr
 }
 
 void XCOFFObjectWriter::writeSectionHeaderTable() {
@@ -982,6 +995,7 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
   // Section indices are 1-based in XCOFF.
   int32_t SectionIndex = 1;
   bool HasTDataSection = false;
+  uint32_t PaddingsBeforeDwarf = 0;
 
   for (auto *Section : Sections) {
     const bool IsEmpty =
@@ -1041,6 +1055,19 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
     Section->Size = Address - Section->Address;
   }
 
+  // Start to generate DWARF sections. Sections other than DWARF section use
+  // DefaultSectionAlign as the default alignment, while DWARF sections have
+  // their own alignments. If these two alignments are not the same, we need
+  // some paddings here and record the paddings bytes for FileOffsetToData
+  // calculation.
+  if (!DwarfSections.empty())
+    PaddingsBeforeDwarf =
+        alignTo(Address,
+                (*DwarfSections.begin()).DwarfSect->MCSec->getAlignment()) -
+        Address;
+
+  DwarfSectionEntry *LastDwarfSection = nullptr;
+
   for (auto &DwarfSection : DwarfSections) {
     assert((SectionIndex <= MaxSectionIndex) && "Section index overflow!");
 
@@ -1068,8 +1095,19 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
     // For DWARF section, we must use the real size which may be not aligned.
     DwarfSection.Size = DwarfSect.Size = Layout.getSectionAddressSize(MCSec);
 
-    // Make the Address align to default alignment for follow section.
-    Address = alignTo(DwarfSect.Address + DwarfSect.Size, DefaultSectionAlign);
+    Address = DwarfSection.Address + DwarfSection.Size;
+
+    if (LastDwarfSection)
+      LastDwarfSection->MemorySize =
+          DwarfSection.Address - LastDwarfSection->Address;
+    LastDwarfSection = &DwarfSection;
+  }
+  if (LastDwarfSection) {
+    // Make the final DWARF section address align to the default section
+    // alignment for follow contents.
+    Address = alignTo(LastDwarfSection->Address + LastDwarfSection->Size,
+                      DefaultSectionAlign);
+    LastDwarfSection->MemorySize = Address - LastDwarfSection->Address;
   }
 
   SymbolTableEntryCount = SymbolTableIndex;
@@ -1092,19 +1130,15 @@ void XCOFFObjectWriter::assignAddressesAndIndices(const MCAsmLayout &Layout) {
       report_fatal_error("Section raw data overflowed this object file.");
   }
 
-  for (auto &DwarfSection : DwarfSections) {
-    // Address of csect sections are always aligned to DefaultSectionAlign, but
-    // address of DWARF section are aligned to Section alignment which may be
-    // bigger than DefaultSectionAlign, need to execlude the padding bits.
-    RawPointer =
-        alignTo(RawPointer, DwarfSection.DwarfSect->MCSec->getAlignment());
+  // Increase the raw pointer for the padding bytes between csect sections and
+  // DWARF sections.
+  if (!DwarfSections.empty())
+    RawPointer += PaddingsBeforeDwarf;
 
+  for (auto &DwarfSection : DwarfSections) {
     DwarfSection.FileOffsetToData = RawPointer;
-    // Some section entries, like DWARF section size is not aligned, so
-    // RawPointer may be not aligned.
-    RawPointer += DwarfSection.Size;
-    // Make sure RawPointer is aligned.
-    RawPointer = alignTo(RawPointer, DefaultSectionAlign);
+
+    RawPointer += DwarfSection.MemorySize;
 
     assert(RawPointer <= MaxRawDataSize &&
            "Section raw data overflowed this object file.");

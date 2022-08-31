@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/backend.hpp>
-#include <CL/sycl/program.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/program.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
@@ -193,7 +193,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 
 // Specialization of sycl::make_buffer with event for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = detail::default_buffer_allocator<T>>
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
@@ -208,7 +208,7 @@ make_buffer(
 
 // Specialization of sycl::make_buffer for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = detail::default_buffer_allocator<T>>
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
@@ -221,25 +221,10 @@ make_buffer(
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
-// TODO: remove this specialization when generic is changed to call
-// .GetNative() instead of .get_native() member of kernel_bundle.
-template <>
-inline auto get_native<backend::ext_oneapi_level_zero>(
-    const kernel_bundle<bundle_state::executable> &Obj)
-    -> backend_return_t<backend::ext_oneapi_level_zero,
-                        kernel_bundle<bundle_state::executable>> {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::ext_oneapi_level_zero)
-    throw runtime_error(errc::backend_mismatch, "Backends mismatch",
-                        PI_ERROR_INVALID_OPERATION);
-
-  return Obj.template getNative<backend::ext_oneapi_level_zero>();
-}
-
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
-  using namespace ext::oneapi::level_zero;
+using namespace ext::oneapi::level_zero;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

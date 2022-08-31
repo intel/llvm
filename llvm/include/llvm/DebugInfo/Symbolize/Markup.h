@@ -9,7 +9,7 @@
 /// \file
 /// This file declares the log symbolizer markup data model and parser.
 ///
-/// \todo Add a link to the reference documentation once added.
+/// See https://llvm.org/docs/SymbolizerMarkupFormat.html
 ///
 //===----------------------------------------------------------------------===//
 
@@ -83,6 +83,10 @@ public:
   ///
   /// \returns the next markup node or None if none remain.
   Optional<MarkupNode> nextNode();
+
+  bool isSGR(const MarkupNode &Node) const {
+    return SGRSyntax.match(Node.Text);
+  }
 
 private:
   Optional<MarkupNode> parseElement(StringRef Line);

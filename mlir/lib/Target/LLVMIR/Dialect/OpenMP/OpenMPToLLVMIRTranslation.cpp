@@ -28,9 +28,9 @@ using namespace mlir;
 namespace {
 static llvm::omp::ScheduleKind
 convertToScheduleKind(Optional<omp::ClauseScheduleKind> schedKind) {
-  if (!schedKind.hasValue())
+  if (!schedKind.has_value())
     return llvm::omp::OMP_SCHEDULE_Default;
-  switch (schedKind.getValue()) {
+  switch (schedKind.value()) {
   case omp::ClauseScheduleKind::Static:
     return llvm::omp::OMP_SCHEDULE_Static;
   case omp::ClauseScheduleKind::Dynamic:
@@ -677,6 +677,30 @@ convertOmpSingle(omp::SingleOp &singleOp, llvm::IRBuilderBase &builder,
   return bodyGenStatus;
 }
 
+/// Converts an OpenMP task construct into LLVM IR using OpenMPIRBuilder.
+static LogicalResult
+convertOmpTaskOp(omp::TaskOp taskOp, llvm::IRBuilderBase &builder,
+                 LLVM::ModuleTranslation &moduleTranslation) {
+  using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
+  LogicalResult bodyGenStatus = success();
+  if (taskOp.if_expr() || taskOp.final_expr() || taskOp.untiedAttr() ||
+      taskOp.mergeableAttr() || taskOp.in_reductions() || taskOp.priority() ||
+      !taskOp.allocate_vars().empty()) {
+    return taskOp.emitError("unhandled clauses for translation to LLVM IR");
+  }
+  auto bodyCB = [&](InsertPointTy allocaIP, InsertPointTy codegenIP) {
+    builder.restoreIP(codegenIP);
+    convertOmpOpRegions(taskOp.region(), "omp.task.region", builder,
+                        moduleTranslation, bodyGenStatus);
+  };
+  llvm::OpenMPIRBuilder::InsertPointTy allocaIP =
+      findAllocaInsertPoint(builder, moduleTranslation);
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
+  builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createTask(
+      ompLoc, allocaIP, bodyCB, !taskOp.untied()));
+  return bodyGenStatus;
+}
+
 /// Converts an OpenMP workshare loop into LLVM IR using OpenMPIRBuilder.
 static LogicalResult
 convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
@@ -696,15 +720,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   if (loop.schedule_chunk_var()) {
     llvm::Value *chunkVar =
         moduleTranslation.lookupValue(loop.schedule_chunk_var());
-    llvm::Type *chunkVarType = chunkVar->getType();
-    assert(chunkVarType->isIntegerTy() &&
-           "chunk size must be one integer expression");
-    if (chunkVarType->getIntegerBitWidth() < ivType->getIntegerBitWidth())
-      chunk = builder.CreateSExt(chunkVar, ivType);
-    else if (chunkVarType->getIntegerBitWidth() > ivType->getIntegerBitWidth())
-      chunk = builder.CreateTrunc(chunkVar, ivType);
-    else
-      chunk = chunkVar;
+    chunk = builder.CreateSExtOrTrunc(chunkVar, ivType);
   }
 
   SmallVector<omp::ReductionDeclareOp> reductionDecls;
@@ -950,7 +966,14 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   llvm::CanonicalLoopInfo *loopInfo =
       ompBuilder->collapseLoops(ompLoc.DL, loopInfos, {});
 
-  ompBuilder->applySimd(ompLoc.DL, loopInfo);
+  llvm::ConstantInt *simdlen = nullptr;
+  if (llvm::Optional<uint64_t> simdlenVar = loop.simdlen())
+    simdlen = builder.getInt64(simdlenVar.value());
+
+  ompBuilder->applySimd(
+      loopInfo,
+      loop.if_expr() ? moduleTranslation.lookupValue(loop.if_expr()) : nullptr,
+      simdlen);
 
   builder.restoreIP(afterIP);
   return success();
@@ -1374,6 +1397,9 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
       })
       .Case([&](omp::SingleOp op) {
         return convertOmpSingle(op, builder, moduleTranslation);
+      })
+      .Case([&](omp::TaskOp op) {
+        return convertOmpTaskOp(op, builder, moduleTranslation);
       })
       .Case<omp::YieldOp, omp::TerminatorOp, omp::ReductionDeclareOp,
             omp::CriticalDeclareOp>([](auto op) {

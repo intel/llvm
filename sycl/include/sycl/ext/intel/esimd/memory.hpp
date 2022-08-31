@@ -10,17 +10,18 @@
 
 #pragma once
 
-#include <CL/sycl/half_type.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
+#include <sycl/half_type.hpp>
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_memory
 /// @{
@@ -65,8 +66,6 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
         detail::AccessorPrivateProxy::getNativeImageObj(acc));
   }
 }
-
-#define __ESIMD_GET_SURF_HANDLE(acc) get_surface_index(acc)
 
 // TODO @Pennycook
 // {quote}
@@ -344,7 +343,7 @@ ESIMD_INLINE
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
-  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  const auto si = __ESIMD_NS::get_surface_index(acc);
 
   if constexpr (sizeof(T) < 4) {
     using Tint = std::conditional_t<std::is_integral_v<T>, T,
@@ -689,103 +688,65 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 
 /// @} sycl_esimd_memory
 
-/// @cond ESIMD_DETAIL
-
 namespace detail {
 /// Check the legality of an atomic call in terms of size and type.
 ///
-template <atomic_op Op, typename T, int N, unsigned NumSrc>
-constexpr bool check_atomic() {
-  if constexpr (!detail::isPowerOf2(N, 32)) {
-    static_assert((detail::isPowerOf2(N, 32)),
-                  "Execution size 1, 2, 4, 8, 16, 32 are supported");
-    return false;
-  }
+template <__ESIMD_NS::atomic_op Op, typename T, int N, unsigned NumSrc>
+constexpr void check_atomic() {
+  static_assert((detail::isPowerOf2(N, 32)),
+                "Execution size 1, 2, 4, 8, 16, 32 are supported");
+  static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
+                "wrong number of operands");
+  constexpr bool IsInt2BytePlus =
+      std::is_integral_v<T> && (sizeof(T) >= sizeof(uint16_t));
 
-  // No source operands.
-  if constexpr (Op == atomic_op::inc || Op == atomic_op::dec) {
-    if constexpr (NumSrc != 0) {
-      static_assert(NumSrc == 0, "No source operands are expected");
-      return false;
-    }
-    if constexpr (!is_type<T, uint16_t, uint32_t, uint64_t>()) {
-      static_assert((is_type<T, uint16_t, uint32_t, uint64_t>()),
-                    "Type UW, UD or UQ is expected");
-      return false;
-    }
-    return true;
-  }
+  if constexpr (Op == __ESIMD_NS::atomic_op::xchg ||
+                Op == __ESIMD_NS::atomic_op::cmpxchg ||
+                Op == __ESIMD_NS::atomic_op::predec ||
+                Op == __ESIMD_NS::atomic_op::inc ||
+                Op == __ESIMD_NS::atomic_op::dec ||
+                Op == __ESIMD_NS::atomic_op::load) {
 
-  // One source integer operand.
-  if constexpr (Op == atomic_op::add || Op == atomic_op::sub ||
-                Op == atomic_op::min || Op == atomic_op::max ||
-                Op == atomic_op::xchg || Op == atomic_op::bit_and ||
-                Op == atomic_op::bit_or || Op == atomic_op::bit_xor ||
-                Op == atomic_op::minsint || Op == atomic_op::maxsint) {
-    if constexpr (NumSrc != 1) {
-      static_assert(NumSrc == 1, "One source operand is expected");
-      return false;
-    }
-    if constexpr ((Op != atomic_op::minsint && Op != atomic_op::maxsint) &&
-                  !is_type<T, uint16_t, uint32_t, uint64_t>()) {
-      static_assert((is_type<T, uint16_t, uint32_t, uint64_t>()),
-                    "Type UW, UD or UQ is expected");
-      return false;
-    }
-    if constexpr ((Op == atomic_op::minsint || Op == atomic_op::maxsint) &&
-                  !is_type<T, int16_t, int32_t, int64_t>()) {
-      static_assert((is_type<T, int16_t, int32_t, int64_t>()),
-                    "Type W, D or Q is expected");
-      return false;
-    }
-    return true;
+    static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
   }
+  // FP ops (are always delegated to native::lsc::<Op>)
+  if constexpr (Op == __ESIMD_NS::atomic_op::fmax ||
+                Op == __ESIMD_NS::atomic_op::fmin ||
+                Op == __ESIMD_NS::atomic_op::fadd ||
+                Op == __ESIMD_NS::atomic_op::fsub) {
+    static_assert((is_type<T, float, sycl::half>()),
+                  "Type F or HF is expected");
+  }
+  if constexpr (Op == __ESIMD_NS::atomic_op::add ||
+                Op == __ESIMD_NS::atomic_op::sub ||
+                Op == __ESIMD_NS::atomic_op::min ||
+                Op == __ESIMD_NS::atomic_op::max ||
+                Op == __ESIMD_NS::atomic_op::bit_and ||
+                Op == __ESIMD_NS::atomic_op::bit_or ||
+                Op == __ESIMD_NS::atomic_op::bit_xor ||
+                Op == __ESIMD_NS::atomic_op::minsint ||
+                Op == __ESIMD_NS::atomic_op::maxsint) {
+    static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
+    constexpr bool IsSignedMinmax = (Op == __ESIMD_NS::atomic_op::minsint) ||
+                                    (Op == __ESIMD_NS::atomic_op::maxsint);
+    constexpr bool IsUnsignedMinmax = (Op == __ESIMD_NS::atomic_op::min) ||
+                                      (Op == __ESIMD_NS::atomic_op::max);
 
-  // One source float operand.
-  if constexpr (Op == atomic_op::fmax || Op == atomic_op::fmin ||
-                Op == atomic_op::fadd || Op == atomic_op::fsub) {
-    if constexpr (NumSrc != 1) {
-      static_assert(NumSrc == 1, "One source operand is expected");
-      return false;
+    if constexpr (IsSignedMinmax || IsUnsignedMinmax) {
+      constexpr bool SignOK = std::is_signed_v<T> == IsSignedMinmax;
+      static_assert(SignOK, "Signed/unsigned integer type expected for "
+                            "signed/unsigned min/max operation");
     }
-    if constexpr (!is_type<T, float, sycl::half>()) {
-      static_assert((is_type<T, float, sycl::half>()),
-                    "Type F or HF is expected");
-      return false;
-    }
-    return true;
   }
-
-  // Two source operands.
-  if constexpr (Op == atomic_op::cmpxchg || Op == atomic_op::fcmpwr) {
-    if constexpr (NumSrc != 2) {
-      static_assert(NumSrc == 2, "Two source operands are expected");
-      return false;
-    }
-    if constexpr (Op == atomic_op::cmpxchg &&
-                  !is_type<T, uint16_t, uint32_t, uint64_t>()) {
-      static_assert((is_type<T, uint16_t, uint32_t, uint64_t>()),
-                    "Type UW, UD or UQ is expected");
-      return false;
-    }
-    if constexpr (Op == atomic_op::fcmpwr && !is_type<T, float, sycl::half>()) {
-      static_assert((is_type<T, float, sycl::half>()),
-                    "Type F or HF is expected");
-      return false;
-    }
-    return true;
-  }
-  // Unsupported svm atomic Op.
-  return false;
 }
 } // namespace detail
-
-/// @endcond ESIMD_DETAIL
 
 /// @addtogroup sycl_esimd_memory_atomics
 /// @{
 
 /// @anchor usm_atomic_update0
+/// @brief No-argument variant of the atomic update operation.
+///
 /// Atomically updates \c N memory locations represented by a USM pointer and
 /// a vector of offsets relative to the pointer, and returns a vector of old
 /// values found at the memory locations before update. The update operation
@@ -802,16 +763,20 @@ constexpr bool check_atomic() {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, N, 0>(), simd<Tx, N>>
-atomic_update(Tx *p, simd<unsigned, N> offset, simd_mask<N> mask) {
+template <atomic_op Op, typename Tx, int N>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<unsigned, N> offset,
+                                      simd_mask<N> mask) {
+  detail::check_atomic<Op, Tx, N, 0>();
   simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
+  using T = typename detail::__raw_t<Tx>;
   return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
 }
 
 /// @anchor usm_atomic_update1
+/// @brief Single-argument variant of the atomic update operation.
+///
 /// Atomically updates \c N memory locations represented by a USM pointer and
 /// a vector of offsets relative to the pointer, and returns a vector of old
 /// values found at the memory locations before update. The update operation
@@ -832,14 +797,23 @@ atomic_update(Tx *p, simd<unsigned, N> offset, simd_mask<N> mask) {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, N, 1>(), simd<Tx, N>>
-atomic_update(Tx *p, simd<unsigned, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask) {
-  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
-  vAddr += offset_i1;
-  return __esimd_svm_atomic1<Op, T, N>(vAddr.data(), src0.data(), mask.data());
+template <atomic_op Op, typename Tx, int N>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<unsigned, N> offset,
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
+  if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
+                (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
+    // Auto-convert FP atomics to LSC version. Warning is given - see enum.
+    return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
+                                                                mask);
+  } else {
+    detail::check_atomic<Op, Tx, N, 1>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
+    vAddr += offset_i1;
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_svm_atomic1<Op, T, N>(vAddr.data(), src0.data(),
+                                         mask.data());
+  }
 }
 
 /// @anchor usm_atomic_update2
@@ -861,15 +835,23 @@ atomic_update(Tx *p, simd<unsigned, N> offset, simd<Tx, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, N, 2>(), simd<Tx, N>>
-atomic_update(Tx *p, simd<unsigned, N> offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask) {
-  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
-  vAddr += offset_i1;
-  return __esimd_svm_atomic2<Op, T, N>(vAddr.data(), src0.data(), src1.data(),
-                                       mask.data());
+template <atomic_op Op, typename Tx, int N>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<unsigned, N> offset,
+                                      simd<Tx, N> src0, simd<Tx, N> src1,
+                                      simd_mask<N> mask) {
+  if constexpr (Op == atomic_op::fcmpwr) {
+    // Auto-convert FP atomics to LSC version. Warning is given - see enum.
+    return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
+                                                                src1, mask);
+  } else {
+    detail::check_atomic<Op, Tx, N, 2>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
+    vAddr += offset_i1;
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_svm_atomic2<Op, T, N>(vAddr.data(), src0.data(), src1.data(),
+                                         mask.data());
+  }
 }
 
 /// @} sycl_esimd_memory_atomics
@@ -894,7 +876,9 @@ enum fence_mask : uint8_t {
   local_barrier = 0x20,
   /// Flush L1 read - only data cache.
   l1_flush_ro_data = 0x40,
-  /// Enable thread scheduling barrier.
+  /// Creates a software (compiler) barrier, which does not generate
+  /// any instruction and only prevents instruction scheduler from
+  /// reordering instructions across this barrier at compile time.
   sw_barrier = 0x80
 };
 
@@ -996,7 +980,7 @@ __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 
-  const auto SI = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  const auto SI = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_gather4_masked_scaled2<T, N, RGBAMask>(
       SI, 0 /*global_offset*/, offsets.data(), mask.data());
 }
@@ -1017,7 +1001,7 @@ slm_scatter_rgba(simd<uint32_t, N> offsets,
                  simd<T, N * get_num_channels_enabled(Mask)> vals,
                  simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<Mask>();
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
   constexpr int global_offset = 0;
   __esimd_scatter4_scaled<T, N, decltype(si), Mask, Scale>(
@@ -1044,7 +1028,7 @@ __ESIMD_API simd<T, N> slm_block_load(uint32_t offset) {
   static_assert(Sz <= 16 * detail::OperandSize::OWORD,
                 "block size must be at most 16 owords");
 
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_oword_ld<detail::__raw_t<T>, N>(si, offset >> 4);
 }
 
@@ -1067,7 +1051,7 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, N> vals) {
                 "block must be 1, 2, 4 or 8 owords long");
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   // offset in genx.oword.st is in owords
   __esimd_oword_st<detail::__raw_t<T>, N>(si, offset >> 4, vals.data());
 }
@@ -1076,9 +1060,10 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, N> vals) {
 /// See description of template and function parameters in @ref
 /// usm_atomic_update0 "atomic update" operation docs.
 template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, N, 0>(), simd<Tx, N>>
-slm_atomic_update(simd<uint32_t, N> offsets, simd_mask<N> mask) {
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+__ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
+                                          simd_mask<N> mask) {
+  detail::check_atomic<Op, T, N, 0>();
+  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offsets.data());
 }
 
@@ -1086,10 +1071,10 @@ slm_atomic_update(simd<uint32_t, N> offsets, simd_mask<N> mask) {
 /// See description of template and function parameters in @ref
 /// usm_atomic_update1 "atomic update" operation docs.
 template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, N, 1>(), simd<Tx, N>>
-slm_atomic_update(simd<uint32_t, N> offsets, simd<Tx, N> src0,
-                  simd_mask<N> mask) {
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+__ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
+                                          simd<Tx, N> src0, simd_mask<N> mask) {
+  detail::check_atomic<Op, T, N, 1>();
+  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offsets.data(),
                                          src0.data());
 }
@@ -1098,10 +1083,11 @@ slm_atomic_update(simd<uint32_t, N> offsets, simd<Tx, N> src0,
 /// See description of template and function parameters in @ref
 /// usm_atomic_update2 "atomic update" operation docs.
 template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, N, 2>(), simd<Tx, N>>
-slm_atomic_update(simd<uint32_t, N> offsets, simd<Tx, N> src0, simd<Tx, N> src1,
-                  simd_mask<N> mask) {
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+__ESIMD_API simd<Tx, N> slm_atomic_update(simd<uint32_t, N> offsets,
+                                          simd<Tx, N> src0, simd<Tx, N> src1,
+                                          simd_mask<N> mask) {
+  detail::check_atomic<Op, T, N, 2>();
+  const auto si = __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
   return __esimd_dword_atomic2<Op, T, N>(mask.data(), si, offsets.data(),
                                          src0.data(), src1.data());
 }
@@ -1134,7 +1120,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
 
-  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  const auto si = __ESIMD_NS::get_surface_index(acc);
   using SurfIndTy = decltype(si);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
@@ -1174,7 +1160,7 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
-  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  const auto si = __ESIMD_NS::get_surface_index(acc);
   using SurfIndTy = decltype(si);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
@@ -1197,8 +1183,6 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @} sycl_esimd_memory
-
-#undef __ESIMD_GET_SURF_HANDLE
 
 /// @cond EXCLUDE
 
@@ -1496,5 +1480,6 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
 } // namespace detail
 /// @endcond EXCLUDE
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

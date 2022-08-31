@@ -129,4 +129,4 @@ At the end of this window we will increment major version of the DPC++ library
 1. If there is a need to add a new field in `sycl::handler` or/and
    `sycl::detail::CG` classes it can be done without breaking ABI using the
    approach described in the comment at the beggining of
-   [cg.hpp](../../include/CL/sycl/detail/cg.hpp)
+   [cg.hpp](../../include/sycl/detail/cg.hpp)

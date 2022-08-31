@@ -397,34 +397,41 @@ namespace {
 class OffsetGetter {
 public:
   explicit OffsetGetter(InputSectionBase &sec) {
-    if (auto *eh = dyn_cast<EhInputSection>(&sec))
-      pieces = eh->pieces;
+    if (auto *eh = dyn_cast<EhInputSection>(&sec)) {
+      cies = eh->cies;
+      fdes = eh->fdes;
+      i = cies.begin();
+      j = fdes.begin();
+    }
   }
 
   // Translates offsets in input sections to offsets in output sections.
   // Given offset must increase monotonically. We assume that Piece is
   // sorted by inputOff.
   uint64_t get(uint64_t off) {
-    if (pieces.empty())
+    if (cies.empty())
       return off;
 
-    while (i != pieces.size() && pieces[i].inputOff + pieces[i].size <= off)
-      ++i;
-    if (i == pieces.size())
-      fatal(".eh_frame: relocation is not in any piece");
-
-    // Pieces must be contiguous, so there must be no holes in between.
-    assert(pieces[i].inputOff <= off && "Relocation not in any piece");
+    while (j != fdes.end() && j->inputOff <= off)
+      ++j;
+    auto it = j;
+    if (j == fdes.begin() || j[-1].inputOff + j[-1].size <= off) {
+      while (i != cies.end() && i->inputOff <= off)
+        ++i;
+      if (i == cies.begin() || i[-1].inputOff + i[-1].size <= off)
+        fatal(".eh_frame: relocation is not in any piece");
+      it = i;
+    }
 
     // Offset -1 means that the piece is dead (i.e. garbage collected).
-    if (pieces[i].outputOff == -1)
+    if (it[-1].outputOff == -1)
       return -1;
-    return pieces[i].outputOff + off - pieces[i].inputOff;
+    return it[-1].outputOff + (off - it[-1].inputOff);
   }
 
 private:
-  ArrayRef<EhSectionPiece> pieces;
-  size_t i = 0;
+  ArrayRef<EhSectionPiece> cies, fdes;
+  ArrayRef<EhSectionPiece>::iterator i, j;
 };
 
 // This class encapsulates states needed to scan relocations for one
@@ -958,8 +965,8 @@ bool RelocationScanner::isStaticLinkTimeConstant(RelExpr e, RelType type,
                                                  const Symbol &sym,
                                                  uint64_t relOff) const {
   // These expressions always compute a constant
-  if (oneof<R_GOTPLT, R_GOT_OFF, R_MIPS_GOT_LOCAL_PAGE, R_MIPS_GOTREL,
-            R_MIPS_GOT_OFF, R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC,
+  if (oneof<R_GOTPLT, R_GOT_OFF, R_RELAX_HINT, R_MIPS_GOT_LOCAL_PAGE,
+            R_MIPS_GOTREL, R_MIPS_GOT_OFF, R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC,
             R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
             R_PLT_PC, R_PLT_GOTPLT, R_PPC32_PLTREL, R_PPC64_CALL_PLT,
             R_PPC64_RELAX_TOC, R_RISCV_ADD, R_AARCH64_GOT_PAGE>(e))
@@ -1695,7 +1702,7 @@ void elf::postScanRelocations() {
 
   // Local symbols may need the aforementioned non-preemptible ifunc and GOT
   // handling. They don't need regular PLT.
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx->objectFiles)
     for (Symbol *sym : file->getLocalSymbols())
       fn(*sym);
 }
@@ -2118,7 +2125,9 @@ bool ThunkCreator::normalizeExistingThunk(Relocation &rel, uint64_t src) {
 // made no changes. If the target requires range extension thunks, currently
 // ARM, then any future change in offset between caller and callee risks a
 // relocation out of range error.
-bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
+bool ThunkCreator::createThunks(uint32_t pass,
+                                ArrayRef<OutputSection *> outputSections) {
+  this->pass = pass;
   bool addressesChanged = false;
 
   if (pass == 0 && target->getThunkSectionSpacing())
@@ -2180,7 +2189,6 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
 
   // Merge all created synthetic ThunkSections back into OutputSection
   mergeThunks(outputSections);
-  ++pass;
   return addressesChanged;
 }
 

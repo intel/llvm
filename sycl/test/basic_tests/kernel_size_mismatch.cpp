@@ -3,7 +3,7 @@
 // Tests for static assertion failure when kernel lambda mismatches between host
 // and device.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue Q;
@@ -13,7 +13,7 @@ int main() {
      (void)A;
     // expected-no-diagnostics
 #else
-  // expected-error-re@CL/sycl/handler.hpp:* {{static_assert failed due to requirement '{{.*}}' "Unexpected kernel lambda size. This can be caused by an external host compiler producing a lambda with an unexpected layout. This is a limitation of the compiler."}}
+  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement '{{.*}}': Unexpected kernel lambda size. This can be caused by an external host compiler producing a lambda with an unexpected layout. This is a limitation of the compiler.}}
 #endif
    }).wait();
 }

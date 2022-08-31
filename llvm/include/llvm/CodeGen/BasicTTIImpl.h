@@ -603,11 +603,12 @@ public:
   bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
                                    AssumptionCache &AC, TargetLibraryInfo *TLI,
                                    DominatorTree *DT,
-                                   const LoopAccessInfo *LAI) {
-    return BaseT::preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
+                                   LoopVectorizationLegality *LVL,
+                                   InterleavedAccessInfo *IAI) {
+    return BaseT::preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LVL, IAI);
   }
 
-  bool emitGetActiveLaneMask() {
+  PredicationStyle emitGetActiveLaneMask() {
     return BaseT::emitGetActiveLaneMask();
   }
 
@@ -681,6 +682,10 @@ public:
 
   virtual bool enableWritePrefetching() const {
     return getST()->enableWritePrefetching();
+  }
+
+  virtual bool shouldPrefetchAddressSpace(unsigned AS) const {
+    return getST()->shouldPrefetchAddressSpace(AS);
   }
 
   /// @}
@@ -1203,11 +1208,12 @@ public:
     if (CostKind != TTI::TCK_RecipThroughput)
       return Cost;
 
+    const DataLayout &DL = this->getDataLayout();
     if (Src->isVectorTy() &&
         // In practice it's not currently possible to have a change in lane
         // length for extending loads or truncating stores so both types should
         // have the same scalable property.
-        TypeSize::isKnownLT(Src->getPrimitiveSizeInBits(),
+        TypeSize::isKnownLT(DL.getTypeStoreSizeInBits(Src),
                             LT.second.getSizeInBits())) {
       // This is a vector load that legalizes to a larger type than the vector
       // itself. Unless the corresponding extending load or truncating store is
@@ -1417,6 +1423,26 @@ public:
     default:
       break;
 
+    case Intrinsic::powi:
+      if (auto *RHSC = dyn_cast<ConstantInt>(Args[1])) {
+        bool ShouldOptForSize = I->getParent()->getParent()->hasOptSize();
+        if (getTLI()->isBeneficialToExpandPowI(RHSC->getSExtValue(),
+                                               ShouldOptForSize)) {
+          // The cost is modeled on the expansion performed by ExpandPowI in
+          // SelectionDAGBuilder.
+          APInt Exponent = RHSC->getValue().abs();
+          unsigned ActiveBits = Exponent.getActiveBits();
+          unsigned PopCount = Exponent.countPopulation();
+          InstructionCost Cost = (ActiveBits + PopCount - 2) *
+                                 thisT()->getArithmeticInstrCost(
+                                     Instruction::FMul, RetTy, CostKind);
+          if (RHSC->getSExtValue() < 0)
+            Cost += thisT()->getArithmeticInstrCost(Instruction::FDiv, RetTy,
+                                                    CostKind);
+          return Cost;
+        }
+      }
+      break;
     case Intrinsic::cttz:
       // FIXME: If necessary, this should go in target-specific overrides.
       if (RetVF.isScalar() && getTLI()->isCheapToSpeculateCttz())
@@ -1453,7 +1479,7 @@ public:
       // The cost of materialising a constant integer vector.
       return TargetTransformInfo::TCC_Basic;
     }
-    case Intrinsic::experimental_vector_extract: {
+    case Intrinsic::vector_extract: {
       // FIXME: Handle case where a scalable vector is extracted from a scalable
       // vector
       if (isa<ScalableVectorType>(RetTy))
@@ -1463,7 +1489,7 @@ public:
                                      cast<VectorType>(Args[0]->getType()), None,
                                      Index, cast<VectorType>(RetTy));
     }
-    case Intrinsic::experimental_vector_insert: {
+    case Intrinsic::vector_insert: {
       // FIXME: Handle case where a scalable vector is inserted into a scalable
       // vector
       if (isa<ScalableVectorType>(Args[1]->getType()))
@@ -2293,25 +2319,38 @@ public:
            thisT()->getVectorInstrCost(Instruction::ExtractElement, Ty, 0);
   }
 
-  InstructionCost getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned,
-                                              Type *ResTy, VectorType *Ty,
-                                              TTI::TargetCostKind CostKind) {
+  InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
+                                           Type *ResTy, VectorType *Ty,
+                                           Optional<FastMathFlags> FMF,
+                                           TTI::TargetCostKind CostKind) {
     // Without any native support, this is equivalent to the cost of
-    // vecreduce.add(ext) or if IsMLA vecreduce.add(mul(ext, ext))
+    // vecreduce.op(ext).
     VectorType *ExtTy = VectorType::get(ResTy, Ty);
-    InstructionCost RedCost = thisT()->getArithmeticReductionCost(
-        Instruction::Add, ExtTy, None, CostKind);
-    InstructionCost MulCost = 0;
+    InstructionCost RedCost =
+        thisT()->getArithmeticReductionCost(Opcode, ExtTy, FMF, CostKind);
     InstructionCost ExtCost = thisT()->getCastInstrCost(
         IsUnsigned ? Instruction::ZExt : Instruction::SExt, ExtTy, Ty,
         TTI::CastContextHint::None, CostKind);
-    if (IsMLA) {
-      MulCost =
-          thisT()->getArithmeticInstrCost(Instruction::Mul, ExtTy, CostKind);
-      ExtCost *= 2;
-    }
 
-    return RedCost + MulCost + ExtCost;
+    return RedCost + ExtCost;
+  }
+
+  InstructionCost getMulAccReductionCost(bool IsUnsigned, Type *ResTy,
+                                         VectorType *Ty,
+                                         TTI::TargetCostKind CostKind) {
+    // Without any native support, this is equivalent to the cost of
+    // vecreduce.add(mul(ext, ext)).
+    VectorType *ExtTy = VectorType::get(ResTy, Ty);
+    InstructionCost RedCost = thisT()->getArithmeticReductionCost(
+        Instruction::Add, ExtTy, None, CostKind);
+    InstructionCost ExtCost = thisT()->getCastInstrCost(
+        IsUnsigned ? Instruction::ZExt : Instruction::SExt, ExtTy, Ty,
+        TTI::CastContextHint::None, CostKind);
+
+    InstructionCost MulCost =
+        thisT()->getArithmeticInstrCost(Instruction::Mul, ExtTy, CostKind);
+
+    return RedCost + MulCost + 2 * ExtCost;
   }
 
   InstructionCost getVectorSplitCost() { return 1; }

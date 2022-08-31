@@ -1112,8 +1112,9 @@ namespace {
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
     const SYCLIntelFPGALoopCountAttr *
     TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
-    const SYCLIntelFPGAPipelineAttr *
-    TransformSYCLIntelFPGAPipelineAttr(const SYCLIntelFPGAPipelineAttr *SI);
+    const SYCLIntelFPGAMaxReinvocationDelayAttr *
+    TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
+        const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1605,11 +1606,12 @@ const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
 }
 
-const SYCLIntelFPGAPipelineAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAPipelineAttr(
-    const SYCLIntelFPGAPipelineAttr *PA) {
-  Expr *TransformedExpr = getDerived().TransformExpr(PA->getValue()).get();
-  return getSema().BuildSYCLIntelFPGAPipelineAttr(*PA, TransformedExpr);
+const SYCLIntelFPGAMaxReinvocationDelayAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
+    const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD) {
+  Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGAMaxReinvocationDelayAttr(*MRD,
+                                                              TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
@@ -2137,7 +2139,7 @@ TemplateInstantiator::TransformNestedRequirement(
       bool CheckSucceeded =
           SemaRef.CheckConstraintExpression(TransConstraint.get());
       (void)CheckSucceeded;
-      assert(CheckSucceeded || Trap.hasErrorOccurred() &&
+      assert((CheckSucceeded || Trap.hasErrorOccurred()) &&
                                    "CheckConstraintExpression failed, but "
                                    "did not produce a SFINAE error");
     }
@@ -2148,7 +2150,7 @@ TemplateInstantiator::TransformNestedRequirement(
       bool CheckFailed = SemaRef.CheckConstraintSatisfaction(
           TransConstraint.get(), Satisfaction);
       (void)CheckFailed;
-      assert(!CheckFailed || Trap.hasErrorOccurred() &&
+      assert((!CheckFailed || Trap.hasErrorOccurred()) &&
                                  "CheckConstraintSatisfaction failed, "
                                  "but did not produce a SFINAE error");
     }

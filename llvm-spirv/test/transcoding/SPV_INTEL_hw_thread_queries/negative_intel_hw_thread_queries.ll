@@ -1,7 +1,7 @@
 ; Negative test for SPV_INTEL_hw_thread_queries feature
 ; Check for errors in case if the extension is not enabled, but the appropriate
 ; SPV-IR patter is found
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: InvalidModule: Invalid SPIR-V module: Intel HW thread queries must be enabled by SPV_INTEL_hw_thread_queries extension.

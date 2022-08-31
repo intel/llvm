@@ -18,10 +18,12 @@
 namespace lldb_private {
 namespace trace_intel_pt {
 
-/// This struct represents a point in the intel pt trace that the decoder can start decoding from without errors.
+/// This struct represents a point in the intel pt trace that the decoder can
+/// start decoding from without errors.
 struct IntelPTThreadSubtrace {
-  /// The memory offset of a PSB packet that is a synchronization point for the decoder. A decoder normally looks first
-  /// for a PSB packet and then it starts decoding.
+  /// The memory offset of a PSB packet that is a synchronization point for the
+  /// decoder. A decoder normally looks first for a PSB packet and then it
+  /// starts decoding.
   uint64_t psb_offset;
   /// The timestamp associated with the PSB packet above.
   uint64_t tsc;
@@ -42,11 +44,15 @@ struct IntelPTThreadContinousExecution {
   bool operator<(const IntelPTThreadContinousExecution &o) const;
 };
 
-/// Decode a raw Intel PT trace for a single thread given in \p buffer and append the decoded
-/// instructions and errors in \p decoded_thread. It uses the low level libipt
-/// library underneath.
-void DecodeSingleTraceForThread(DecodedThread &decoded_thread, TraceIntelPT &trace_intel_pt,
-                 llvm::ArrayRef<uint8_t> buffer);
+/// Decode a raw Intel PT trace for a single thread given in \p buffer and
+/// append the decoded instructions and errors in \p decoded_thread. It uses the
+/// low level libipt library underneath.
+///
+/// \return
+///   An \a llvm::Error if the decoder couldn't be properly set up.
+llvm::Error DecodeSingleTraceForThread(DecodedThread &decoded_thread,
+                                       TraceIntelPT &trace_intel_pt,
+                                       llvm::ArrayRef<uint8_t> buffer);
 
 /// Decode a raw Intel PT trace for a single thread that was collected in a per
 /// cpu core basis.
@@ -66,25 +72,42 @@ void DecodeSingleTraceForThread(DecodedThread &decoded_thread, TraceIntelPT &tra
 ///   A list of chunks of timed executions of the same given thread. It is used
 ///   to identify if some executions have missing intel pt data and also to
 ///   determine in which core a certain part of the execution ocurred.
-void DecodeSystemWideTraceForThread(
+///
+/// \return
+///   An \a llvm::Error if the decoder couldn't be properly set up, i.e. no
+///   instructions were attempted to be decoded.
+llvm::Error DecodeSystemWideTraceForThread(
     DecodedThread &decoded_thread, TraceIntelPT &trace_intel_pt,
     const llvm::DenseMap<lldb::cpu_id_t, llvm::ArrayRef<uint8_t>> &buffers,
     const std::vector<IntelPTThreadContinousExecution> &executions);
 
-/// Given an intel pt trace, split it in chunks delimited by PSB packets. Each of these chunks
-/// is guaranteed to have been executed continuously.
+/// Given an intel pt trace, split it in chunks delimited by PSB packets. Each
+/// of these chunks is guaranteed to have been executed continuously.
 ///
 /// \param[in] trace_intel_pt
-///   The main Trace object that contains all the information related to the trace session.
+///   The main Trace object that contains all the information related to the
+///   trace session.
 ///
 /// \param[in] buffer
-///   The intel pt buffer that belongs to a single thread or to a single cpu core.
+///   The intel pt buffer that belongs to a single thread or to a single cpu
+///   core.
 ///
 /// \return
-///   A list of continuous executions sorted by time, or an \a llvm::Error in case of failures.
+///   A list of continuous executions sorted by time, or an \a llvm::Error in
+///   case of failures.
 llvm::Expected<std::vector<IntelPTThreadSubtrace>>
 SplitTraceInContinuousExecutions(TraceIntelPT &trace_intel_pt,
                                  llvm::ArrayRef<uint8_t> buffer);
+
+/// Find the lowest TSC in the given trace.
+///
+/// \return
+///     The lowest TSC value in this trace if available, \a llvm::None if the
+///     trace is empty or the trace contains no timing information, or an \a
+///     llvm::Error if it was not possible to set up the decoder.
+llvm::Expected<llvm::Optional<uint64_t>>
+FindLowestTSCInTrace(TraceIntelPT &trace_intel_pt,
+                     llvm::ArrayRef<uint8_t> buffer);
 
 } // namespace trace_intel_pt
 } // namespace lldb_private

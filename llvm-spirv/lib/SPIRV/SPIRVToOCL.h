@@ -70,7 +70,7 @@ public:
   /// containing {[get_image_width | get_image_dim], get_image_array_size}
   /// for all images except image1d_t which is always converted into
   /// get_image_width returning scalar result.
-  void visitCallSPRIVImageQuerySize(CallInst *CI);
+  void visitCallSPIRVImageQuerySize(CallInst *CI);
 
   /// Transform __spirv_(NonUniform)Group* to {work_group|sub_group}_*.
   ///
@@ -241,6 +241,9 @@ public:
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
 
+  void translateOpaqueTypes();
+
+private:
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -267,9 +270,15 @@ public:
 
   void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
 
-  void translateOpaqueTypes();
   std::string translateOpaqueType(StringRef STName);
 
+  /// Mutate the argument list based on (optional) image operands at position
+  /// ImOpArgIndex.  Set IsSigned according to any SignExtend/ZeroExtend Image
+  /// Operands present in Args, or default to signed if there are none.
+  void mutateArgsForImageOperands(std::vector<Value *> &Args,
+                                  unsigned ImOpArgIndex, bool &IsSigned);
+
+protected:
   Module *M;
   LLVMContext *Ctx;
 };

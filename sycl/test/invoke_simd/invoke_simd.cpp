@@ -1,4 +1,4 @@
-// RUN: %clangxx -c -fsycl %s
+// RUN: %clangxx -c -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s
 
 // The tests checks that invoke_simd API is compileable.
 
@@ -7,17 +7,17 @@
 // they are fully supported.
 #define __INVOKE_SIMD_ENABLE_ALL_CALLABLES
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
+#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
 #include <type_traits>
 
 using namespace sycl::ext::oneapi::experimental;
-using namespace cl::sycl;
+using namespace sycl;
 namespace esimd = sycl::ext::intel::esimd;
 
 constexpr int VL = 16;
@@ -35,9 +35,9 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
   return a + b;
 }
 
-SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
-                                      int i) SYCL_ESIMD_FUNCTION;
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
+                                          int i) SYCL_ESIMD_FUNCTION;
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
@@ -66,7 +66,7 @@ inline auto createExceptionHandler() {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << "sycl::exception: " << e0.what() << std::endl;
       } catch (std::exception &e) {
         std::cout << "std::exception: " << e.what() << std::endl;
@@ -99,11 +99,11 @@ int main(void) {
     C[i] = -1;
   }
 
-  cl::sycl::range<1> GlobalRange{Size};
+  sycl::range<1> GlobalRange{Size};
   // Number of workitems in each workgroup.
-  cl::sycl::range<1> LocalRange{GroupSize};
+  sycl::range<1> LocalRange{GroupSize};
 
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
   try {
     auto e = q.submit([&](handler &cgh) {
@@ -126,7 +126,7 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
   }
@@ -151,9 +151,9 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
-                                      int i) SYCL_ESIMD_FUNCTION {
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
+                                          int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
   return res;
 }
@@ -307,4 +307,3 @@ void check_not_f(char ch) {
   assert_is_not_func(capt_lambda);
   assert_is_not_func(non_capt_lambda);
 }
-// }

@@ -22,7 +22,7 @@ else()
   set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libigfxcmrt_emu${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
-set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/v2022-05-06/intel-cmemu-1.0.22.u20.04-release.x86_64.tar.xz")
+set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/v2022-07-06/intel-cmemu-1.0.23.u20.04-release.x86_64.tar.xz")
 set (DEFAULT_CM_EMU_SOURCE_URL "https://github.com/intel/cm-cpu-emulation.git")
 
 if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) OR (DEFINED USE_LOCAL_CM_EMU_SOURCE))
@@ -104,7 +104,7 @@ endif()
 
 add_sycl_plugin(esimd_emulator
   SOURCES
-    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_esimd_emulator.cpp"
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"

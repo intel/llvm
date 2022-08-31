@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/common_info.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/common_info.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 const char *stringifyErrorCode(pi_int32 error) {
@@ -21,7 +21,7 @@ const char *stringifyErrorCode(pi_int32 error) {
 #define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
   case NAME:                                                                   \
     return MSG;
-#include <CL/sycl/detail/pi_error.def>
+#include <sycl/detail/pi_error.def>
 #undef _PI_ERRC
 #undef _PI_ERRC_WITH_MSG
 
@@ -50,5 +50,5 @@ std::vector<std::string> split_string(const std::string &str, char delimeter) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

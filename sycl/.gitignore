@@ -1,2 +1,2 @@
-include/CL/sycl/version.hpp
-include/CL/sycl/feature_test.hpp
+include/sycl/version.hpp
+include/sycl/feature_test.hpp

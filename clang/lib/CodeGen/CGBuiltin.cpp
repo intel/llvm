@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ABIInfo.h"
 #include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
 #include "CGObjCRuntime.h"
@@ -11939,7 +11940,7 @@ Value *CodeGenFunction::EmitBPFBuiltinExpr(unsigned BuiltinID,
          "unexpected BPF builtin");
 
   // A sequence number, injected into IR builtin functions, to
-  // prevent CSE given the only difference of the funciton
+  // prevent CSE given the only difference of the function
   // may just be the debuginfo metadata.
   static uint32_t BuiltinSeqNum;
 
@@ -16240,7 +16241,7 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     auto Pair = EmitAtomicCompareExchange(
         LV, RValue::get(OldVal), RValue::get(Op2), E->getExprLoc(),
         llvm::AtomicOrdering::Monotonic, llvm::AtomicOrdering::Monotonic, true);
-    // Unlike c11's atomic_compare_exchange, accroding to
+    // Unlike c11's atomic_compare_exchange, according to
     // https://www.ibm.com/docs/en/xl-c-and-cpp-aix/16.1?topic=functions-compare-swap-compare-swaplp
     // > In either case, the contents of the memory location specified by addr
     // > are copied into the memory location specified by old_val_addr.
@@ -16865,6 +16866,69 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
                                    {NodePtr->getType(), RayDir->getType()});
     return Builder.CreateCall(F, {NodePtr, RayExtent, RayOrigin, RayDir,
                                   RayInverseDir, TextureDescr});
+  }
+
+  case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w64: {
+
+    // These operations perform a matrix multiplication and accumulation of
+    // the form:
+    //             D = A * B + C
+    // The return type always matches the type of matrix C.
+    unsigned ArgForMatchingRetType;
+    unsigned BuiltinWMMAOp;
+
+    switch (BuiltinID) {
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_f32_16x16x16_f16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_f32_16x16x16_bf16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_f16_16x16x16_f16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_bf16_16x16x16_bf16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w64:
+      ArgForMatchingRetType = 4;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_i32_16x16x16_iu8;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w64:
+      ArgForMatchingRetType = 4;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_i32_16x16x16_iu4;
+      break;
+    }
+
+    SmallVector<Value *, 6> Args;
+    for (int i = 0, e = E->getNumArgs(); i != e; ++i)
+      Args.push_back(EmitScalarExpr(E->getArg(i)));
+
+    Function *F = CGM.getIntrinsic(BuiltinWMMAOp,
+                                   {Args[ArgForMatchingRetType]->getType()});
+
+    return Builder.CreateCall(F, Args);
   }
 
   // amdgcn workitem
@@ -21094,12 +21158,41 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
   SmallVector<Value *, 4> Ops;
   llvm::Type *ResultType = ConvertType(E->getType());
 
-  for (unsigned i = 0, e = E->getNumArgs(); i != e; i++)
-    Ops.push_back(EmitScalarExpr(E->getArg(i)));
+  // Find out if any arguments are required to be integer constant expressions.
+  unsigned ICEArguments = 0;
+  ASTContext::GetBuiltinTypeError Error;
+  getContext().GetBuiltinType(BuiltinID, Error, &ICEArguments);
+  if (Error == ASTContext::GE_Missing_type) {
+    // Vector intrinsics don't have a type string.
+    assert(BuiltinID >= clang::RISCV::FirstRVVBuiltin &&
+           BuiltinID <= clang::RISCV::LastRVVBuiltin);
+    ICEArguments = 0;
+    if (BuiltinID == RISCVVector::BI__builtin_rvv_vget_v ||
+        BuiltinID == RISCVVector::BI__builtin_rvv_vset_v)
+      ICEArguments = 1 << 1;
+  } else {
+    assert(Error == ASTContext::GE_None && "Unexpected error");
+  }
+
+  for (unsigned i = 0, e = E->getNumArgs(); i != e; i++) {
+    // If this is a normal argument, just emit it as a scalar.
+    if ((ICEArguments & (1 << i)) == 0) {
+      Ops.push_back(EmitScalarExpr(E->getArg(i)));
+      continue;
+    }
+
+    // If this is required to be a constant, constant fold it so that we know
+    // that the generated intrinsic gets a ConstantInt.
+    Ops.push_back(llvm::ConstantInt::get(
+        getLLVMContext(), *E->getArg(i)->getIntegerConstantExpr(getContext())));
+  }
 
   Intrinsic::ID ID = Intrinsic::not_intrinsic;
   unsigned NF = 1;
   constexpr unsigned TAIL_UNDISTURBED = 0;
+  constexpr unsigned TAIL_AGNOSTIC = 1;
+  constexpr unsigned TAIL_AGNOSTIC_MASK_AGNOSTIC = 3;
+  int DefaultPolicy = TAIL_UNDISTURBED;
 
   // Required for overloaded intrinsics.
   llvm::SmallVector<llvm::Type *, 2> IntrinsicTypes;

@@ -56,7 +56,7 @@
 #include "SPIRVLowerConstExpr.h"
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVLowerOCLBlocks.h"
-#include "SPIRVLowerSaddWithOverflow.h"
+#include "SPIRVLowerSaddIntrinsics.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVModule.h"
@@ -275,8 +275,10 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
              StructTy->element_end();
     }
 
-    if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
-      Type *ElTy = PtrTy->getPointerElementType();
+    // Opaque pointers are translated to i8*, so they're not going to create
+    // recursive types.
+    if (Ty->isPointerTy() && !Ty->isOpaquePointerTy()) {
+      Type *ElTy = Ty->getNonOpaquePointerElementType();
       if (auto *FTy = dyn_cast<FunctionType>(ElTy)) {
         // If we have a function pointer, then argument types and return type of
         // the referenced function also need to be checked
@@ -338,7 +340,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
-    auto ET = T->getPointerElementType();
+    auto *ET = T->isOpaquePointerTy() ? Type::getInt8Ty(T->getContext())
+                                      : T->getNonOpaquePointerElementType();
     auto AddrSpc = T->getPointerAddressSpace();
     return transPointerType(ET, AddrSpc);
   }
@@ -567,15 +570,25 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     if (Loc != PointeeTypeMap.end()) {
       return Loc->second;
     }
-    SPIRVType *TranslatedTy = BM->addPointerType(
-        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
-        ElementType);
+    SPIRVType *TranslatedTy = transPointerType(ElementType, AddrSpc);
     PointeeTypeMap[TypeKey] = TranslatedTy;
     return TranslatedTy;
   }
 
   llvm_unreachable("Not implemented!");
   return nullptr;
+}
+
+SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
+  std::string TypeKey = (Twine((uintptr_t)ET) + Twine(AddrSpc)).str();
+  auto Loc = PointeeTypeMap.find(TypeKey);
+  if (Loc != PointeeTypeMap.end())
+    return Loc->second;
+
+  SPIRVType *TranslatedTy = BM->addPointerType(
+      SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
+  PointeeTypeMap[TypeKey] = TranslatedTy;
+  return TranslatedTy;
 }
 
 // Representation in LLVM IR before the translator is a pointer array wrapped
@@ -709,7 +722,8 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
       if (!Ty) {
         Ty = Arg.getType();
         if (Ty->isPointerTy())
-          PointeeTy = Ty->getNonOpaquePointerElementType();
+          PointeeTy =
+              Scavenger->getArgumentPointerElementType(F, Arg.getArgNo());
       }
       SPIRVType *TransTy = nullptr;
       if (Ty->isPointerTy())
@@ -721,8 +735,13 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
 
     return getSPIRVFunctionType(RT, PT);
   }
-  return transPointerType(Ty->getNonOpaquePointerElementType(),
-                          Ty->getPointerAddressSpace());
+
+  auto PointeeTy = Scavenger->getPointerElementType(V);
+  auto AddrSpace = Ty->getPointerAddressSpace();
+  if (auto *AsTy = dyn_cast<Type *>(PointeeTy))
+    return transPointerType(AsTy, AddrSpace);
+  return transPointerType(transScavengedType(cast<Value *>(PointeeTy)),
+                          AddrSpace);
 }
 
 SPIRVType *
@@ -1190,8 +1209,19 @@ SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
   return BI;
 }
 
-SPIRV::SPIRVInstruction *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
-                                                         SPIRVBasicBlock *BB) {
+SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
+                                            SPIRVBasicBlock *BB) {
+  if (isa<BitCastInst>(U) && U->getType()->isPointerTy()) {
+    if (isa<ConstantPointerNull>(U->getOperand(0))) {
+      SPIRVType *ExpectedTy = transScavengedType(U);
+      return BM->addNullConstant(bcast<SPIRVTypePointer>(ExpectedTy));
+    }
+    if (isa<UndefValue>(U->getOperand(0))) {
+      SPIRVType *ExpectedTy = transScavengedType(U);
+      return BM->addUndef(ExpectedTy);
+    }
+  }
+
   Op BOC = OpNop;
   if (auto Cast = dyn_cast<AddrSpaceCastInst>(U)) {
     const auto SrcAddrSpace = Cast->getSrcTy()->getPointerAddressSpace();
@@ -1250,8 +1280,8 @@ SPIRV::SPIRVInstruction *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
   }
 
   auto Op = transValue(U->getOperand(0), BB, true, FuncTransMode::Pointer);
-  return BM->addUnaryInst(transBoolOpCode(Op, BOC), transType(U->getType()), Op,
-                          BB);
+  SPIRVType *TransTy = transScavengedType(U);
+  return BM->addUnaryInst(transBoolOpCode(Op, BOC), TransTy, Op, BB);
 }
 
 /// This helper class encapsulates information extraction from
@@ -1727,6 +1757,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   if (isa<Constant>(V)) {
     auto BV = transConstant(V);
     assert(BV);
+    // Don't store opaque pointer constants in the map--we might reuse the wrong
+    // type for (e.g.) a null value if we do so.
+    if (V->getType()->isOpaquePointerTy())
+      return BV;
     return mapValue(V, BV);
   }
 
@@ -1738,7 +1772,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   }
 
   if (CreateForward)
-    return mapValue(V, BM->addForward(transType(V->getType())));
+    return mapValue(V, BM->addForward(transScavengedType(V)));
 
   if (StoreInst *ST = dyn_cast<StoreInst>(V)) {
     if (ST->isAtomic())
@@ -1953,8 +1987,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                          FuncTransMode::Pointer));
       IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
     }
-    return mapValue(
-        V, BM->addPhiInst(transType(Phi->getType()), IncomingPairs, BB));
+    return mapValue(V,
+                    BM->addPhiInst(transScavengedType(Phi), IncomingPairs, BB));
   }
 
   if (auto Ext = dyn_cast<ExtractValueInst>(V)) {
@@ -3721,6 +3755,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       }
       II->replaceAllUsesWith(II->getOperand(0));
     } else {
+      // TODO: Check for opaque pointer requirements.
       auto *Ty = transType(II->getType());
       auto *BI = dyn_cast<BitCastInst>(II->getOperand(0));
       if (AnnotationString == kOCLBuiltinName::FPGARegIntel) {
@@ -3913,6 +3948,7 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       }
     }
 
+    // TODO: Check for opaque pointer requirements.
     return addDecorations(
         BM->addExtInst(
             transType(CI->getType()), BM->getExtInstSetId(ExtSetKind), ExtOp,
@@ -3948,6 +3984,7 @@ SPIRVValue *LLVMToSPIRVBase::transIndirectCallInst(CallInst *CI,
   if (BM->getErrorLog().checkError(
           BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_function_pointers),
           SPIRVEC_FunctionPointers, CI)) {
+    // TODO: Check for opaque pointer requirements.
     return BM->addIndirectCallInst(
         transValue(CI->getCalledOperand(), BB), transType(CI->getType()),
         transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
@@ -4303,6 +4340,9 @@ bool LLVMToSPIRVBase::translate() {
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
 
+  // Use the type scavenger to recover pointer element types.
+  Scavenger = std::make_unique<SPIRVTypeScavenger>(*M);
+
   // Transform SPV-IR builtin calls to builtin variables.
   if (!transWorkItemBuiltinCallsToVariables())
     return false;
@@ -4471,7 +4511,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         break;
       case spv::ExecutionModeLocalSize:
       case spv::ExecutionModeLocalSizeHint: {
-        unsigned X, Y, Z;
+        unsigned X = 0, Y = 0, Z = 0;
         N.get(X).get(Y).get(Z);
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
@@ -4479,7 +4519,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       case spv::ExecutionModeMaxWorkgroupSizeINTEL: {
         if (BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_kernel_attributes)) {
-          unsigned X, Y, Z;
+          unsigned X = 0, Y = 0, Z = 0;
           N.get(X).get(Y).get(Z);
           BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
               BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
@@ -5157,7 +5197,7 @@ void addPassesForSPIRV(ModulePassManager &PassMgr,
   PassMgr.addPass(SPIRVLowerConstExprPass());
   PassMgr.addPass(SPIRVLowerBoolPass());
   PassMgr.addPass(SPIRVLowerMemmovePass());
-  PassMgr.addPass(SPIRVLowerSaddWithOverflowPass());
+  PassMgr.addPass(SPIRVLowerSaddIntrinsicsPass());
   PassMgr.addPass(createModuleToFunctionPassAdaptor(
       SPIRVLowerBitCastToNonStandardTypePass(Opts)));
 }
@@ -5179,6 +5219,24 @@ bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
 
 namespace {
 
+VersionNumber getVersionFromTriple(const Triple &TT, SPIRVErrorLog &ErrorLog) {
+  switch (TT.getSubArch()) {
+  case Triple::SPIRVSubArch_v10:
+    return VersionNumber::SPIRV_1_0;
+  case Triple::SPIRVSubArch_v11:
+    return VersionNumber::SPIRV_1_1;
+  case Triple::SPIRVSubArch_v12:
+    return VersionNumber::SPIRV_1_2;
+  case Triple::SPIRVSubArch_v13:
+    return VersionNumber::SPIRV_1_3;
+  case Triple::SPIRVSubArch_v14:
+    return VersionNumber::SPIRV_1_4;
+  default:
+    ErrorLog.checkError(false, SPIRVEC_InvalidSubArch, TT.getArchName().str());
+    return VersionNumber::MaximumVersion;
+  }
+}
+
 bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
                           const SPIRV::TranslatorOpts &Opts) {
   // Perform the conversion and write the resulting SPIR-V if an ostream has
@@ -5188,6 +5246,20 @@ bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
   std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule(Opts));
   if (!isValidLLVMModule(M, BM->getErrorLog()))
     return false;
+
+  // If the module carries a SPIR-V triple with a version subarch, target
+  // that SPIR-V version.
+  Triple TargetTriple(M->getTargetTriple());
+  if ((TargetTriple.getArch() == Triple::spirv32 ||
+       TargetTriple.getArch() == Triple::spirv64) &&
+      TargetTriple.getSubArch() != Triple::NoSubArch) {
+    VersionNumber ModuleVer =
+        getVersionFromTriple(TargetTriple, BM->getErrorLog());
+    if (!BM->getErrorLog().checkError(ModuleVer <= Opts.getMaxVersion(),
+                                      SPIRVEC_TripleMaxVersionIncompatible))
+      return false;
+    BM->setMinSPIRVVersion(ModuleVer);
+  }
 
   ModulePassManager PassMgr;
   addPassesForSPIRV(PassMgr, Opts);

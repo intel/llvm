@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/usm.hpp>
 #include <detail/event_impl.hpp>
+#include <sycl/usm.hpp>
 
 #include <helpers/PiMock.hpp>
 

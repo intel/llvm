@@ -84,6 +84,20 @@ static Type *getBlockStructType(Value *Parameter) {
   return ParamType;
 }
 
+/// Return one of the SPIR-V 1.4 SignExtend or ZeroExtend image operands
+/// for a demangled function name, or 0 if the function does not return an
+/// integer type (e.g. read_imagef).
+static unsigned getImageSignZeroExt(StringRef DemangledName) {
+  bool IsSigned = !DemangledName.endswith("ui") && DemangledName.back() == 'i';
+  bool IsUnsigned = DemangledName.endswith("ui");
+
+  if (IsSigned)
+    return ImageOperandsMask::ImageOperandsSignExtendMask;
+  if (IsUnsigned)
+    return ImageOperandsMask::ImageOperandsZeroExtendMask;
+  return 0;
+}
+
 bool OCLToSPIRVLegacy::runOnModule(Module &M) {
   setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
   return runOCLToSPIRV(M);
@@ -266,7 +280,7 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
   }
   if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0) {
     if (MangledName.find(kMangledName::Sampler) != StringRef::npos) {
-      visitCallReadImageWithSampler(&CI, MangledName);
+      visitCallReadImageWithSampler(&CI, MangledName, DemangledName);
       return;
     }
     if (MangledName.find("msaa") != StringRef::npos) {
@@ -309,8 +323,21 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
     return;
   }
   if (DemangledName == kOCLBuiltinName::Dot &&
-      !(CI.getOperand(0)->getType()->isVectorTy())) {
+      (CI.getOperand(0)->getType()->isFloatTy() ||
+       CI.getOperand(1)->getType()->isDoubleTy())) {
     visitCallDot(&CI);
+    return;
+  }
+  if (DemangledName == kOCLBuiltinName::Dot ||
+      DemangledName == kOCLBuiltinName::DotAccSat) {
+    if (CI.getOperand(0)->getType()->isVectorTy()) {
+      auto *VT = (VectorType *)(CI.getOperand(0)->getType());
+      if (!isa<llvm::IntegerType>(VT->getElementType())) {
+        visitCallBuiltinSimple(&CI, MangledName, DemangledName);
+        return;
+      }
+    }
+    visitCallDot(&CI, MangledName, DemangledName);
     return;
   }
   if (DemangledName == kOCLBuiltinName::FMin ||
@@ -973,7 +1000,8 @@ void OCLToSPIRVBase::visitCallReadImageMSAA(CallInst *CI,
 }
 
 void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
-                                                   StringRef MangledName) {
+                                                   StringRef MangledName,
+                                                   StringRef DemangledName) {
   assert(MangledName.find(kMangledName::Sampler) != StringRef::npos);
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   Function *Func = CI->getCalledFunction();
@@ -994,27 +1022,32 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
         Value *SampledImgArgs[] = {Args[0], Args[1]};
         auto SampledImg = addCallInstSPIRV(
             M, getSPIRVFuncName(OpSampledImage), SampledImgTy, SampledImgArgs,
-            nullptr, CI, kSPIRVName::TempSampledImage);
+            nullptr, {ArgStructTys[0], ArgStructTys[1]}, CI,
+            kSPIRVName::TempSampledImage);
 
         Args[0] = SampledImg;
         Args.erase(Args.begin() + 1, Args.begin() + 2);
 
+        unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+        unsigned ImgOpMaskInsIndex = Args.size();
         switch (Args.size()) {
         case 2: // no lod
-          Args.push_back(getInt32(M, ImageOperandsMask::ImageOperandsLodMask));
+          ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+          ImgOpMaskInsIndex = Args.size();
           Args.push_back(getFloat32(M, 0.f));
           break;
         case 3: // explicit lod
-          Args.insert(Args.begin() + 2,
-                      getInt32(M, ImageOperandsMask::ImageOperandsLodMask));
+          ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+          ImgOpMaskInsIndex = 2;
           break;
         case 4: // gradient
-          Args.insert(Args.begin() + 2,
-                      getInt32(M, ImageOperandsMask::ImageOperandsGradMask));
+          ImgOpMask |= ImageOperandsMask::ImageOperandsGradMask;
+          ImgOpMaskInsIndex = 2;
           break;
         default:
           assert(0 && "read_image* with unhandled number of args!");
         }
+        Args.insert(Args.begin() + ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
 
         // SPIR-V instruction always returns 4-element vector
         if (IsRetScalar)
@@ -1130,18 +1163,31 @@ void OCLToSPIRVBase::visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
 void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
                                              StringRef DemangledName) {
   OCLBuiltinTransInfo Info;
-  if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0)
+  if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0) {
     Info.UniqName = kOCLBuiltinName::ReadImage;
+    unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+    if (ImgOpMask) {
+      Info.PostProc = [&](std::vector<Value *> &Args) {
+        Args.push_back(getInt32(M, ImgOpMask));
+      };
+    }
+  }
 
   if (DemangledName.find(kOCLBuiltinName::WriteImage) == 0) {
     Info.UniqName = kOCLBuiltinName::WriteImage;
     Info.PostProc = [&](std::vector<Value *> &Args) {
+      unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+      unsigned ImgOpMaskInsIndex = Args.size();
       if (Args.size() == 4) // write with lod
       {
         auto Lod = Args[2];
         Args.erase(Args.begin() + 2);
-        Args.push_back(getInt32(M, ImageOperandsMask::ImageOperandsLodMask));
+        ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+        ImgOpMaskInsIndex = Args.size();
         Args.push_back(Lod);
+      }
+      if (ImgOpMask) {
+        Args.insert(Args.begin() + ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
       }
     };
   }
@@ -1271,6 +1317,105 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI) {
   Value *FMulVal = Builder.CreateFMul(CI->getOperand(0), CI->getOperand(1));
   CI->replaceAllUsesWith(FMulVal);
   CI->eraseFromParent();
+}
+
+void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
+                                  StringRef DemangledName) {
+  // translation for dot function calls,
+  // to differentiate between integer dot products
+
+  SmallVector<Value *, 3> Args;
+  Args.push_back(CI->getOperand(0));
+  Args.push_back(CI->getOperand(1));
+  bool IsFirstSigned, IsSecondSigned;
+  bool IsDot = DemangledName == kOCLBuiltinName::Dot;
+  std::string FunName = (IsDot) ? "DotKHR" : "DotAccSatKHR";
+  if (CI->arg_size() > 2) {
+    Args.push_back(CI->getOperand(2));
+  }
+  if (CI->arg_size() > 3) {
+    Args.push_back(CI->getOperand(3));
+  }
+  if (CI->getOperand(0)->getType()->isVectorTy()) {
+    if (IsDot) {
+      // dot(char4, char4) _Z3dotDv4_cS_
+      // dot(char4, uchar4) _Z3dotDv4_cDv4_h
+      // dot(uchar4, char4) _Z3dotDv4_hDv4_c
+      // dot(uchar4, uchar4) _Z3dotDv4_hS_
+      // or
+      // dot(short2, short2) _Z3dotDv2_sS_
+      // dot(short2, ushort2) _Z3dotDv2_sDv2_t
+      // dot(ushort2, short2) _Z3dotDv2_tDv2_s
+      // dot(ushort2, ushort2) _Z3dotDv2_tS_
+      assert(MangledName.startswith("_Z3dotDv"));
+      if (MangledName[MangledName.size() - 1] == '_') {
+        IsFirstSigned = ((MangledName[MangledName.size() - 3] == 'c') ||
+                         (MangledName[MangledName.size() - 3] == 's'));
+        IsSecondSigned = IsFirstSigned;
+      } else {
+        IsFirstSigned = ((MangledName[MangledName.size() - 6] == 'c') ||
+                         (MangledName[MangledName.size() - 6] == 's'));
+        IsSecondSigned = ((MangledName[MangledName.size() - 1] == 'c') ||
+                          (MangledName[MangledName.size() - 1] == 's'));
+      }
+    } else {
+      // dot_acc_sat(char4, char4, int) _Z11dot_acc_satDv4_cS_i
+      // dot_acc_sat(char4, uchar4, int) _Z11dot_acc_satDv4_cDv4_hi
+      // dot_acc_sat(uchar4, char4, int) _Z11dot_acc_satDv4_hDv4_ci
+      // dot_acc_sat(uchar4, uchar4, uint) _Z11dot_acc_satDv4_hS_j
+      // or
+      // dot_acc_sat(short2, short2, int) _Z11dot_acc_satDv4_sS_i
+      // dot_acc_sat(short2, ushort2, int) _Z11dot_acc_satDv4_sDv4_ti
+      // dot_acc_sat(ushort2, short2, int) _Z11dot_acc_satDv4_tDv4_si
+      // dot_acc_sat(ushort2, ushort2, uint) _Z11dot_acc_satDv4_tS_j
+      assert(MangledName.startswith("_Z11dot_acc_satDv"));
+      IsFirstSigned = ((MangledName[19] == 'c') || (MangledName[19] == 's'));
+      IsSecondSigned = (MangledName[20] == 'S'
+                            ? IsFirstSigned
+                            : ((MangledName[MangledName.size() - 2] == 'c') ||
+                               (MangledName[MangledName.size() - 2] == 's')));
+    }
+  } else {
+    // for packed format
+    // dot(int, int, int) _Z3dotiii
+    // dot(int, uint, int) _Z3dotiji
+    // dot(uint, int, int) _Z3dotjii
+    // dot(uint, uint, int) _Z3dotjji
+    // or
+    // dot_acc_sat(int, int, int, int) _Z11dot_acc_satiiii
+    // dot_acc_sat(int, uint, int, int) _Z11dot_acc_satijii
+    // dot_acc_sat(uint, int, int, int) _Z11dot_acc_satjiii
+    // dot_acc_sat(uint, uint, int, int) _Z11dot_acc_satjjii
+    assert(MangledName.startswith("_Z3dot") ||
+           MangledName.startswith("_Z11dot_acc_sat"));
+    IsFirstSigned = (IsDot) ? (MangledName[MangledName.size() - 3] == 'i')
+                            : (MangledName[MangledName.size() - 4] == 'i');
+    IsSecondSigned = (IsDot) ? (MangledName[MangledName.size() - 2] == 'i')
+                             : (MangledName[MangledName.size() - 3] == 'i');
+  }
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstSPIRV(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // If arguments are in order unsigned -> signed
+        // then the translator should swap them,
+        // so that the OpSUDotKHR can be used properly
+        if (IsFirstSigned == false && IsSecondSigned == true) {
+          std::swap(Args[0], Args[1]);
+        }
+        Op OC;
+        if (IsDot) {
+          OC = (IsFirstSigned != IsSecondSigned
+                    ? OpSUDot
+                    : ((IsFirstSigned) ? OpSDot : OpUDot));
+        } else {
+          OC = (IsFirstSigned != IsSecondSigned
+                    ? OpSUDotAccSat
+                    : ((IsFirstSigned) ? OpSDotAccSat : OpUDotAccSat));
+        }
+        return getSPIRVFuncName(OC);
+      },
+      &Attrs);
 }
 
 void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
@@ -1613,12 +1758,15 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
       getSubgroupAVCIntelTyKind(CI->getCalledFunction()->getName());
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
-  auto *MCETy =
-      PointerType::get(getSubgroupAVCIntelMCEType(M, MCETName), SPIRAS_Private);
+  auto *MCESTy = getSubgroupAVCIntelMCEType(M, MCETName);
+  auto *MCETy = PointerType::get(MCESTy, SPIRAS_Private);
   std::string ToMCEFName = Prefix + OpKind + "_convert_to_mce_" + TyKind;
   Op ToMCEOC = OpNop;
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(ToMCEFName, &ToMCEOC);
   assert(ToMCEOC != OpNop && "Invalid Subgroup AVC Intel built-in call");
+
+  SmallVector<StructType *, 2> ParamTys;
+  getParameterTypes(CI, ParamTys);
 
   if (std::strcmp(TyKind, "payload") == 0) {
     // Wrapper built-ins which take the 'payload_t' argument return it as
@@ -1634,16 +1782,16 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
         [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
           Ret = MCETy;
           // Create conversion function call for the last operand
-          Args[Args.size() - 1] =
-              addCallInstSPIRV(M, getSPIRVFuncName(ToMCEOC), MCETy,
-                               Args[Args.size() - 1], nullptr, CI, "");
+          Args[Args.size() - 1] = addCallInstSPIRV(
+              M, getSPIRVFuncName(ToMCEOC), MCETy, Args[Args.size() - 1],
+              nullptr, {ParamTys[Args.size() - 1]}, CI, "");
 
           return getSPIRVFuncName(WrappedOC);
         },
         [=](CallInst *NewCI) -> Instruction * {
           // Create conversion function call for the return result
           return addCallInstSPIRV(M, getSPIRVFuncName(FromMCEOC), CI->getType(),
-                                  NewCI, nullptr, CI, "");
+                                  NewCI, nullptr, {MCESTy}, CI, "");
         },
         &Attrs);
   } else {
@@ -1654,9 +1802,9 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
         [=](CallInst *, std::vector<Value *> &Args) {
           // Create conversion function call for the last
           // operand
-          Args[Args.size() - 1] =
-              addCallInstSPIRV(M, getSPIRVFuncName(ToMCEOC), MCETy,
-                               Args[Args.size() - 1], nullptr, CI, "");
+          Args[Args.size() - 1] = addCallInstSPIRV(
+              M, getSPIRVFuncName(ToMCEOC), MCETy, Args[Args.size() - 1],
+              nullptr, {ParamTys[Args.size() - 1]}, CI, "");
 
           return getSPIRVFuncName(WrappedOC);
         },
@@ -1694,6 +1842,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
                "Invalid Subgroup AVC Intel built-in call");
         auto SamplerIt = Args.begin() + (TyIt - ParamTys.begin());
         auto *SamplerVal = *SamplerIt;
+        auto *SamplerTy = *TyIt;
         Args.erase(SamplerIt);
         ParamTys.erase(TyIt);
 
@@ -1713,7 +1862,8 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
 
           Value *SampledImgArgs[] = {Args[I], SamplerVal};
           Args[I] = addCallInstSPIRV(M, getSPIRVFuncName(OpVmeImageINTEL),
-                                     SampledImgTy, SampledImgArgs, nullptr, CI,
+                                     SampledImgTy, SampledImgArgs, nullptr,
+                                     {ParamTys[I], SamplerTy}, CI,
                                      kSPIRVName::TempSampledImage);
         }
         return getSPIRVFuncName(OC);

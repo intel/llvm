@@ -28,7 +28,7 @@ public:
   GrammarBuilder(std::vector<std::string> &Diagnostics)
       : Diagnostics(Diagnostics) {}
 
-  std::unique_ptr<Grammar> build(llvm::StringRef BNF) {
+  Grammar build(llvm::StringRef BNF) {
     auto Specs = eliminateOptional(parse(BNF));
 
     assert(llvm::all_of(Specs,
@@ -64,10 +64,10 @@ public:
            UniqueAttributeValues.insert(KV.second);
       }
     }
-    llvm::for_each(UniqueNonterminals, [&T](llvm::StringRef Name) {
+    for (llvm::StringRef Name : UniqueNonterminals) {
       T->Nonterminals.emplace_back();
       T->Nonterminals.back().Name = Name.str();
-    });
+    }
     assert(T->Nonterminals.size() < (1 << (SymbolBits - 1)) &&
            "Too many nonterminals to fit in SymbolID bits!");
     llvm::sort(T->Nonterminals, [](const GrammarTable::Nonterminal &L,
@@ -76,10 +76,11 @@ public:
     });
     // Add an empty string for the corresponding sentinel unset attribute.
     T->AttributeValues.push_back("");
-    llvm::for_each(UniqueAttributeValues, [&T](llvm::StringRef Name) {
+    UniqueAttributeValues.erase("");
+    for (llvm::StringRef Name : UniqueAttributeValues) {
       T->AttributeValues.emplace_back();
       T->AttributeValues.back() = Name.str();
-    });
+    }
     llvm::sort(T->AttributeValues);
     assert(T->AttributeValues.front() == "");
 
@@ -122,8 +123,8 @@ public:
         ++End;
       T->Nonterminals[SID].RuleRange = {Start, End};
     }
-    auto G = std::make_unique<Grammar>(std::move(T));
-    diagnoseGrammar(*G);
+    Grammar G(std::move(T));
+    diagnoseGrammar(G);
     return G;
   }
 
@@ -255,13 +256,18 @@ private:
              "Didn't find the attribute in AttrValues!");
       return It - T.AttributeValues.begin();
     };
-    for (const auto &KV : Spec.Sequence.back().Attributes) {
-      if (KV.first == "guard") {
-        R.Guard = LookupExtensionID(KV.second);
-        continue;
+    for (unsigned I = 0; I < Spec.Sequence.size(); ++I) {
+      for (const auto &KV : Spec.Sequence[I].Attributes) {
+        if (KV.first == "guard") {
+          R.Guarded = true;
+        } else if (KV.first == "recover") {
+          R.Recovery = LookupExtensionID(KV.second);
+          R.RecoveryIndex = I;
+        } else {
+          Diagnostics.push_back(
+              llvm::formatv("Unknown attribute '{0}'", KV.first).str());
+        }
       }
-      Diagnostics.push_back(
-          llvm::formatv("Unknown attribute '{0}'", KV.first).str());
     }
   }
 
@@ -341,8 +347,8 @@ private:
 };
 } // namespace
 
-std::unique_ptr<Grammar>
-Grammar::parseBNF(llvm::StringRef BNF, std::vector<std::string> &Diagnostics) {
+Grammar Grammar::parseBNF(llvm::StringRef BNF,
+                          std::vector<std::string> &Diagnostics) {
   Diagnostics.clear();
   return GrammarBuilder(Diagnostics).build(BNF);
 }

@@ -261,9 +261,10 @@ public:
                                   lldb::SymbolType symbol_type,
                                   SymbolContextList &sc_list);
 
-  void FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
-                                       lldb::SymbolType symbol_type,
-                                       SymbolContextList &sc_list);
+  void FindSymbolsMatchingRegExAndType(
+      const RegularExpression &regex, lldb::SymbolType symbol_type,
+      SymbolContextList &sc_list,
+      Mangled::NamePreference mangling_preference = Mangled::ePreferDemangled);
 
   /// Find a function symbols in the object file's symbol table.
   ///
@@ -300,7 +301,7 @@ public:
   /// containing function.  If it is not inlined, then the block will be NULL.
   ///
   /// \param[in] name
-  ///     The name of the compile unit we are looking for.
+  ///     The name of the function we are looking for.
   ///
   /// \param[in] name_type_mask
   ///     A bit mask of bits that indicate what kind of names should
