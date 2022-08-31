@@ -52,6 +52,7 @@ private:
     return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 #endif
   }
+
   static float to_float(const storage_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -70,12 +71,13 @@ private:
 #endif
   }
 
-public:
   static bfloat16 from_bits(const storage_t &a) {
     bfloat16 res;
     res.value = a;
     return res;
   }
+
+public:
 
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
