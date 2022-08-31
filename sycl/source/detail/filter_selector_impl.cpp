@@ -142,7 +142,8 @@ int filter_selector_impl::operator()(const device &Dev) const {
         BackendOK = (BE == Filter.Backend);
     }
     if (Filter.HasDeviceType) {
-      sycl::info::device_type DT = Dev.get_info<sycl::info::device::device_type>();
+      sycl::info::device_type DT =
+          Dev.get_info<sycl::info::device::device_type>();
       // DeviceType is okay if the filter is set 'all'.
       if (Filter.DeviceType == sycl::info::device_type::all)
         DeviceTypeOK = true;

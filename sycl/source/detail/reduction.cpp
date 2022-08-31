@@ -119,20 +119,24 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
     size_t CPUMaxWGSize = PrefWGConfig::get(sycl::info::device_type::cpu);
     if (CPUMaxWGSize == 0)
       return 16;
-    size_t DevMaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
+    size_t DevMaxWGSize =
+        Dev.get_info<sycl::info::device::max_work_group_size>();
     return std::min(CPUMaxWGSize, DevMaxWGSize);
   }
 
   // If the user has specified an explicit preferred work-group size we use
   // that.
   if (Dev.is_gpu() && PrefWGConfig::get(sycl::info::device_type::gpu)) {
-    size_t DevMaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
-    return std::min(PrefWGConfig::get(sycl::info::device_type::gpu), DevMaxWGSize);
+    size_t DevMaxWGSize =
+        Dev.get_info<sycl::info::device::max_work_group_size>();
+    return std::min(PrefWGConfig::get(sycl::info::device_type::gpu),
+                    DevMaxWGSize);
   }
 
   if (Dev.is_accelerator() &&
       PrefWGConfig::get(sycl::info::device_type::accelerator)) {
-    size_t DevMaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
+    size_t DevMaxWGSize =
+        Dev.get_info<sycl::info::device::max_work_group_size>();
     return std::min(PrefWGConfig::get(sycl::info::device_type::accelerator),
                     DevMaxWGSize);
   }
