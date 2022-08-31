@@ -2342,34 +2342,6 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   return NWorkGroups;
 }
 
-inline void
-reduSaveFinalResultToUserMemHelper(std::vector<event> &,
-                                   std::shared_ptr<detail::queue_impl>, bool) {}
-
-template <typename Reduction, typename... RestT>
-void reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
-    bool IsHost, Reduction &Redu, RestT... Rest) {
-  reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
-}
-
-/// Creates additional kernels that copy the accumulated/final results from
-/// reductions accessors to either user's accessor or user's USM memory.
-/// Returns the event to the last kernel copying data or nullptr if no
-/// additional kernels created.
-template <typename... Reduction, size_t... Is>
-std::shared_ptr<event>
-reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
-                             bool IsHost, std::tuple<Reduction...> &ReduTuple,
-                             std::index_sequence<Is...>) {
-  std::vector<event> Events;
-  reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost,
-                                     std::get<Is>(ReduTuple)...);
-  if (!Events.empty())
-    return std::make_shared<event>(Events.back());
-  return std::shared_ptr<event>();
-}
-
 template <typename Reduction> size_t reduGetMemPerWorkItemHelper(Reduction &) {
   return sizeof(typename Reduction::result_type);
 }

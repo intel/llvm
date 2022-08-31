@@ -1614,7 +1614,30 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   // Only add this if we aren't instantiating a variable template.  We'll end up
   // adding the VarTemplateSpecializationDecl later.
   if (!InstantiatingVarTemplate) {
-    SemaRef.addSyclVarDecl(Var);
+    if (SemaRef.getLangOpts().SYCLIsDevice &&
+        SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Var->getType())) {
+      if (!Var->hasGlobalStorage())
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_incorrect_scope);
+
+      if (Var->getAccess() == AS_private || Var->getAccess() == AS_protected)
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_not_publicly_accessible)
+            << Var;
+
+      if (Var->isStaticLocal()) {
+        const DeclContext *DC = Var->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            SemaRef.Diag(D->getLocation(),
+                         diag::err_sycl_device_global_incorrect_scope);
+            break;
+          }
+          DC = DC->getParent();
+        }
+      }
+    }
     if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
       if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
               Var->getType()))
@@ -1622,6 +1645,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
                      diag::err_sycl_attribute_not_device_global)
             << SYCLDevice;
     }
+    SemaRef.addSyclVarDecl(Var);
   }
   return Var;
 }
@@ -1711,6 +1735,17 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
 
   Field->setImplicit(D->isImplicit());
   Field->setAccess(D->getAccess());
+  // Static members are not processed here, so error out if we have a device
+  // global without checking access modifier.
+  if (SemaRef.getLangOpts().SYCLIsDevice) {
+    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Field->getType())) {
+      SemaRef.Diag(D->getLocation(),
+                   diag::err_sycl_device_global_incorrect_scope);
+      Field->setInvalidDecl();
+      return nullptr;
+    }
+  }
   Owner->addDecl(Field);
 
   return Field;

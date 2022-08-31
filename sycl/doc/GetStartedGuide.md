@@ -25,6 +25,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
       - [Run DPC++ E2E test suite](#run-dpc-e2e-test-suite)
       - [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
     - [Run simple DPC++ application](#run-simple-dpc-application)
+    - [Build DPC++ application with CMake](#build-dpc-application-with-cmake)
     - [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
     - [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
   - [C++ standard](#c-standard)
@@ -46,7 +47,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)
 
-Alternatively, you can use Docker image, that has everything you need for building
+Alternatively, you can use a Docker image that has everything you need for building
 pre-installed:
 
 ```
@@ -708,6 +709,34 @@ device selectors (e.g. `sycl::cpu_selector`, `sycl::gpu_selector`,
 [Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
+
+### Build DPC++ application with CMake
+
+DPC++ applications can be built with CMake by simply using DPC++ as the C++
+compiler and by adding the SYCL specific flags. For example assuming `clang++`
+is on the `PATH`, a minimal `CMakeLists.txt` file for the sample above would be:
+
+```cmake
+cmake_minimum_required(VERSION 3.14)
+
+# Modifying the compiler should be done before the project line
+set(CMAKE_CXX_COMPILER "clang++")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
+
+project(simple-sycl-app)
+
+add_executable(simple-sycl-app simple-sycl-app.cpp)
+```
+
+NOTE: compiling SYCL programs requires passing the SYCL flags to `clang++` for
+both the compilation and linking stages, so using `add_compile_options` to pass
+the SYCL flags is not enough on its own, they should also be passed to
+`add_link_options`, or more simply the SYCL flags can just be added to
+`CMAKE_CXX_FLAGS`.
+
+NOTE: When linking a SYCL application, `clang++` will implicitly link it against
+`libsycl.so`, so there is no need to add `-lsycl` to `target_link_libraries` in
+the CMake.
 
 ### Code the program for a specific GPU
 
