@@ -13,7 +13,6 @@
 
 #if !defined(__SYCL_DEVICE_ONLY__)
 #include <cmath>
-#include <cstring> // for std::memcpy
 #endif
 
 namespace sycl {
@@ -64,11 +63,13 @@ public:
     return __spirv_ConvertBF16ToFINTEL(a);
 #endif
 #else
-    uint32_t bits = a;
-    bits <<= 16;
-    float res;
-    std::memcpy(&res, &bits, sizeof(res));
-    return res;
+    union {
+      uint32_t bits;
+      float res;
+    } val;
+    val.bits = a;
+    val.bits <<= 16;
+    return val.res;
 #endif
   }
 
