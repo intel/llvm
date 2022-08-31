@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" -o %t1.exe %s
-// RUN: %RUN_ON_HOST %t1.exe
+// RUN: %t1.exe
 // REQUIRES: system-linux
 //==------- fsycl-host-compiler.cpp - external host compiler test ----------==//
 //
@@ -24,11 +24,13 @@ int main() {
 
   {
     buffer<int, 1> b(data, range<1>(3), {property::buffer::use_host_ptr()});
+    auto B = b.get_access<access::mode::write>();
     queue q;
     q.submit([&](handler &cgh) {
-      auto B = b.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<class test>(range<1>(3), [=](id<1> idx) {
-        B[idx] = 1;
+      cgh.host_task([=]() {
+        B[0] = 1;
+        B[1] = 1;
+        B[2] = 1;
       });
     });
   }
