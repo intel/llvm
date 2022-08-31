@@ -737,7 +737,7 @@ private:
         "unexpected layout. This is a limitation of the compiler."
         "In many cases the difference is related to capturing constexpr "
         "variables. In such cases removing constexpr specifier aligns the "
-        "captures between host/device compilers.");
+        "captures between the host compiler and the device compiler.");
 
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
