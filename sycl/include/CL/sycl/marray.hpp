@@ -17,6 +17,29 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+template <std::size_t N, std::size_t SizeOfT>
+constexpr std::size_t vecAlignment() {
+  static_assert(N > 0, "Invalid number of elements.");
+  static_assert(SizeOfT > 0, "Invalid size of T.");
+  // First find the "previous" vector num elements.
+  size_t res = N >= 16  ? 16
+               : N >= 8 ? 8
+               : N >= 4 ? 4
+               : N >= 3 ? 3
+               : N >= 2 ? 2
+                        : 1;
+  // Then calculate the alignment size in bytes, making sure it's power of 2.
+  res *= SizeOfT;
+  res--;
+  res |= res >> 1;
+  res |= res >> 2;
+  res |= res >> 4;
+  res |= res >> 8;
+  res |= res >> 16;
+  res++;
+  return res;
+}
+
 /// Provides a cross-patform math array class template that works on
 /// SYCL devices as well as in host C++ code.
 ///
@@ -298,7 +321,7 @@ public:
     }
     return Ret;
   }
-};
+} __attribute__((aligned(vecAlignment<NumElements, sizeof(Type)>())));
 
 #define __SYCL_MAKE_MARRAY_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = cl::sycl::marray<TYPE, N>;
