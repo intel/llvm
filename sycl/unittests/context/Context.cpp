@@ -44,7 +44,7 @@ TEST_F(ContextTest, MoveAssignmentConstructor) {
   size_t hash = std::hash<context>()(Context);
   context WillMovedContext(deviceB);
   WillMovedContext = std::move(Context);
-  ASSERT_EQ(hash, std::hash<context>(WillMovedContext));
+  ASSERT_EQ(hash, std::hash<context>()(WillMovedContext));
 }
 
 TEST_F(ContextTest, CopyConstructor) {
@@ -62,6 +62,6 @@ TEST_F(ContextTest, CopyAssignmentOperator) {
   context WillContextCopy(deviceB);
   WillContextCopy = Context;
   ASSERT_EQ(hash, std::hash<context>()(Context));
-  ASSERT_EQ(hash, std::hash<context>()(WilContextCopy));
+  ASSERT_EQ(hash, std::hash<context>()(WillContextCopy));
   ASSERT_EQ(Context, WillContextCopy);
 }
