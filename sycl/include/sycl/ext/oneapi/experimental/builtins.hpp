@@ -112,9 +112,7 @@ inline __SYCL_ALWAYS_INLINE
 // size two as a simple general optimization. A more complex implementation
 // using larger vectorizations for large marray sizes is possible; however more
 // testing is required in order to ascertain the performance implications for
-// all backends. Currently the compiler does not produce vectorized loads and
-// stores from this implementation for all backends. It would be wise to
-// investigate how this can be fixed first.
+// all backends.
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same<T, half>::value ||
                                                  std::is_same<T, float>::value,
