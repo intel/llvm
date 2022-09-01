@@ -103,6 +103,10 @@ static bool isAccessorPropertyType(QualType Ty,
   return false;
 }
 
+static bool isSyclSpecialType(QualType Ty, Sema &S) {
+  return S.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(Ty);
+}
+
 ExprResult Sema::ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT) {
   TypeSourceInfo *TInfo = nullptr;
   QualType QT = GetTypeFromParser(PT, &TInfo);
@@ -1152,11 +1156,10 @@ class KernelObjVisitor {
     for (const auto &Base : Range) {
       QualType BaseTy = Base.getType();
       // Handle accessor class as base
-      if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(
-              BaseTy)) {
+      if (isSyclSpecialType(BaseTy, SemaRef))
         (void)std::initializer_list<int>{
             (Handlers.handleSyclSpecialType(Owner, Base, BaseTy), 0)...};
-      } else
+      else
         // For all other bases, visit the record
         visitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), BaseTy,
                     Handlers...);
@@ -1235,7 +1238,7 @@ class KernelObjVisitor {
   template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType FieldTy, HandlerTys &... Handlers) {
-    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(FieldTy))
+    if (isSyclSpecialType(FieldTy, SemaRef))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
     else if (isSyclType(FieldTy, SYCLTypeAttr::spec_constant))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
@@ -1579,7 +1582,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
   bool checkSyclSpecialType(QualType Ty, SourceRange Loc) {
-    assert(SemaRef.isTypeDecoratedWithDeclAttribute<SYCLSpecialClassAttr>(Ty) &&
+    assert(isSyclSpecialType(Ty, SemaRef) &&
            "Should only be called on sycl special class types.");
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (IsSIMD && !isSyclAccessorType(Ty))

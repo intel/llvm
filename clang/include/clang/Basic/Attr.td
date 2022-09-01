@@ -1282,7 +1282,7 @@ def SYCLSpecialClass: InheritableAttr {
 }
 
 def SYCLType: InheritableAttr {
-  let Spellings = [Clang<"sycl_type">];
+  let Spellings = [CXX11<"__sycl_detail__", "sycl_type">];
   let Subjects = SubjectList<[CXXRecord, Enum], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Args = [EnumArgument<"Type", "SYCLType",
@@ -1295,7 +1295,7 @@ def SYCLType: InheritableAttr {
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect"]>];
   // Only used internally by SYCL implementation
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def SYCLDeviceHas : InheritableAttr {

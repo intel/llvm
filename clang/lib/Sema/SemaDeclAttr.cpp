@@ -10563,7 +10563,7 @@ SYCLTypeAttr *Sema::MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
                                       SYCLTypeAttr::SYCLType TypeName) {
   if (const auto ExistingAttr = D->getAttr<SYCLTypeAttr>()) {
     if (ExistingAttr->getType() != TypeName) {
-      Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute)
+      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute)
           << ExistingAttr;
       Diag(CI.getLoc(), diag::note_previous_attribute);
     }
@@ -10584,7 +10584,7 @@ static void handleSYCLTypeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   SYCLTypeAttr::SYCLType Type;
 
   if (!SYCLTypeAttr::ConvertStrToSYCLType(II->getName(), Type)) {
-    S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported) << AL << II;
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_not_supported) << AL << II;
     return;
   }
 
