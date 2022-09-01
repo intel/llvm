@@ -18,7 +18,7 @@ namespace matrix {
 
 enum class matrix_use { a, b, accumulator };
 
-enum class layout { row_major, col_major, packed_a, packed_b, unused };
+enum class layout { row_major, col_major, packed, unused };
 
 namespace precision {
 class tf32 {
