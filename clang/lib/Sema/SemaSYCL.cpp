@@ -72,13 +72,13 @@ static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
   if (!RD)
     return false;
 
-  if (const SYCLTypeAttr *Attr = RD->getAttr<SYCLTypeAttr>())
+  if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
     return Attr->getType() == TypeName;
 
   if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RD))
     if (CXXRecordDecl *TemplateDecl =
             CTSD->getSpecializedTemplate()->getTemplatedDecl())
-      if (const SYCLTypeAttr *Attr = TemplateDecl->getAttr<SYCLTypeAttr>())
+      if (const auto *Attr = TemplateDecl->getAttr<SYCLTypeAttr>())
         return Attr->getType() == TypeName;
 
   return false;
@@ -97,7 +97,7 @@ static bool isAccessorPropertyType(QualType Ty,
                                    SYCLTypeAttr::SYCLType TypeName) {
   if (const auto *RD = Ty->getAsCXXRecordDecl())
     if (const auto *Parent = dyn_cast<CXXRecordDecl>(RD->getParent()))
-      if (const SYCLTypeAttr *Attr = Parent->getAttr<SYCLTypeAttr>())
+      if (const auto *Attr = Parent->getAttr<SYCLTypeAttr>())
         return Attr->getType() == TypeName;
 
   return false;

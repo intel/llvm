@@ -10431,7 +10431,7 @@ bool isDeviceAspectType(const QualType Ty) {
   if (!ET)
     return false;
 
-  if (const SYCLTypeAttr *Attr = ET->getDecl()->getAttr<SYCLTypeAttr>())
+  if (const auto *Attr = ET->getDecl()->getAttr<SYCLTypeAttr>())
     return Attr->getType() == SYCLTypeAttr::aspect;
 
   return false;
@@ -10561,7 +10561,7 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 SYCLTypeAttr *Sema::MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
                                       SYCLTypeAttr::SYCLType TypeName) {
-  if (const auto ExistingAttr = D->getAttr<SYCLTypeAttr>()) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLTypeAttr>()) {
     if (ExistingAttr->getType() != TypeName) {
       Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute)
           << ExistingAttr;
