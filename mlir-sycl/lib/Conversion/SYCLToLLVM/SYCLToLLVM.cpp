@@ -202,36 +202,32 @@ public:
   LogicalResult
   matchAndRewrite(sycl::SYCLConstructorOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    StringRef typeStr = op.Type();
-    if (typeStr == "id")
-      return rewriteIdConstructor(op, opAdaptor, rewriter);
-
-    LLVM_DEBUG(llvm::dbgs() << "op: "; op.dump(); llvm::dbgs() << "\n");
-    llvm_unreachable("Unhandled sycl.constructor type");
-
-    return failure();
+    Twine name = op.Type() + "Ctor";
+    return rewriteConstructor(SYCLFuncDescriptor::nameToFuncIdKind(name), op,
+                              opAdaptor, rewriter);
   }
 
-  /// Rewrite sycl.constructor() { type = @id } to a LLVM call to the
-  /// appropriate constructor function for sycl::id.
-  LogicalResult
-  rewriteIdConstructor(SYCLConstructorOp op, OpAdaptor opAdaptor,
-                       ConversionPatternRewriter &rewriter) const {
-    assert(op.Type() == "id" && "Unexpected sycl.constructor type");
+private:
+  /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
+  /// constructor function.
+  LogicalResult rewriteConstructor(SYCLFuncDescriptor::FuncIdKind ctorKind,
+                                   SYCLConstructorOp op, OpAdaptor opAdaptor,
+                                   ConversionPatternRewriter &rewriter) const {
+    assert((ctorKind != SYCLFuncDescriptor::FuncIdKind::Unknown) &&
+           "Unexpected ctorKind");
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    MLIRContext *context = module.getContext();
-
-    // Lookup the ctor function to use.
     const auto &registry = SYCLFuncRegistry::create(module, rewriter);
-    auto voidTy = LLVM::LLVMVoidType::get(context);
-    SYCLFuncDescriptor::FuncId funcId =
-        registry.getFuncId(SYCLFuncDescriptor::FuncIdKind::IdCtor, voidTy,
-                           opAdaptor.Args().getTypes());
 
-    // Generate an LLVM call to the appropriate ctor.
+    /// Lookup the FuncId corresponding to the ctor function to use, which is
+    /// determined based on 'ctorKind) the kind of constructor to search for, and
+    /// the LLVM types of the sycl.constructor arguments.
+    SYCLFuncDescriptor::FuncId funcId = registry.getFuncId(
+        ctorKind, LLVM::LLVMVoidType::get(module.getContext()),
+        opAdaptor.Args().getTypes());
+
     SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
                              rewriter, op.getLoc());
 
