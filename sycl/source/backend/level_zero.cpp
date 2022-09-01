@@ -78,7 +78,7 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, nullptr, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
 }
@@ -87,7 +87,7 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, Device, KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, &Device, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
 }
