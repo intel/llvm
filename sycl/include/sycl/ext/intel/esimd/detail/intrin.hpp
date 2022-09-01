@@ -337,19 +337,6 @@ __esimd_wrindirect(__ESIMD_DNS::vector_type_t<T, N> OldVal,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// TODO should be replaced by std::bit_cast once C++20 is supported.
-template <class To, class From,
-          class = std::enable_if_t<sizeof(From) == sizeof(To)>>
-__ESIMD_INTRIN To __esimd_bitcast(From Src)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  auto *Ptr = reinterpret_cast<To *>(&Src);
-  return *Ptr;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
 #ifdef __SYCL_DEVICE_ONLY__
 // This intrinsic requires one of the types to be _Float16, which is absent on
 // host, so it can't be represented on host. Callers must emulate it.

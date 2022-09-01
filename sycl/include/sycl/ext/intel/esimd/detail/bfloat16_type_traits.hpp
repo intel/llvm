@@ -25,8 +25,7 @@ using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
 
 template <> struct element_type_traits<bfloat16> {
   // TODO map the raw type to __bf16 once SPIRV target supports it:
-  using RawT =
-      typename std::invoke_result_t<decltype(&bfloat16::raw), bfloat16>;
+  using RawT = uint_type_t<sizeof(bfloat16)>;
   // Nearest standard enclosing C++ type to delegate natively unsupported
   // operations to:
   using EnclosingCppT = float;
@@ -54,12 +53,12 @@ template <int N> struct vector_conversion_traits<bfloat16, N> {
     using RawVecT = vector_type_t<vc_be_bfloat16_raw_t, N>;
     RawVecT ConvVal = __esimd_bf_cvt<vc_be_bfloat16_raw_t, StdT, N>(Val);
     // cast from _Float16 to int16_t:
-    return __esimd_bitcast<vector_type_t<RawT, N>>(ConvVal);
+    return sycl::bit_cast<vector_type_t<RawT, N>>(ConvVal);
 #else
     vector_type_t<RawT, N> Output = 0;
 
     for (int i = 0; i < N; i++) {
-      Output[i] = bfloat16(Val[i]).raw();
+      Output[i] = sycl::bit_cast<RawT>(Val[i]);
     }
     return Output;
 #endif // __SYCL_DEVICE_ONLY__
@@ -69,26 +68,28 @@ template <int N> struct vector_conversion_traits<bfloat16, N> {
   convert_to_cpp(vector_type_t<RawT, N> Val) {
 #ifdef __SYCL_DEVICE_ONLY__
     using RawVecT = vector_type_t<vc_be_bfloat16_raw_t, N>;
-    RawVecT Bits = __esimd_bitcast<RawVecT>(Val);
+    RawVecT Bits = sycl::bit_cast<RawVecT>(Val);
     return __esimd_bf_cvt<StdT, vc_be_bfloat16_raw_t, N>(Bits);
 #else
     vector_type_t<StdT, N> Output;
 
     for (int i = 0; i < N; i++) {
-      Output[i] = bfloat16::from_bits(Val[i]);
+      Output[i] = sycl::bit_cast<bfloat16>(Val[i]);
     }
     return Output;
 #endif // __SYCL_DEVICE_ONLY__
   }
 };
 
+// TODO: remove bitcasts from the scalar_conversion_traits, and replace with
+// sycl::bit_cast directly
 template <> struct scalar_conversion_traits<bfloat16> {
   using RawT = __raw_t<bfloat16>;
 
-  static ESIMD_INLINE RawT bitcast_to_raw(bfloat16 Val) { return Val.raw(); }
+  static ESIMD_INLINE RawT bitcast_to_raw(bfloat16 Val) { return sycl::bit_cast<RawT>(Val); }
 
   static ESIMD_INLINE bfloat16 bitcast_to_wrapper(RawT Val) {
-    return bfloat16::from_bits(Val);
+    return sycl::bit_cast<bfloat16>(Val);
   }
 };
 
