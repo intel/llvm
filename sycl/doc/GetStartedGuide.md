@@ -756,7 +756,6 @@ int main() {
     using namespace sycl::info;
 
     const std::string DeviceName = Device.get_info<device::name>();
-    const std::string DeviceVendor = Device.get_info<device::vendor>();
     bool match = Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
     return match ? 1 : -1;
   };
