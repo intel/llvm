@@ -124,3 +124,34 @@ func.func @id3CtorItem(%arg0: memref<?x!sycl.id<3>>, %arg1: i64, %arg2: i64, %ar
 }
 
 // -----
+
+//===-------------------------------------------------------------------------------------------------===//
+// Constructors sycl::id<n>::id(sycl::id<n> const&)
+//===-------------------------------------------------------------------------------------------------===//
+
+// CHECK: llvm.func @_ZN2cl4sycl2idILi1EEC1ERKS2_([[THIS_PTR_TYPE:!llvm.struct<\(ptr<struct<"class.cl::sycl::id.1",.*]], [[THIS_PTR_TYPE]])
+func.func @id1CopyCtor(%arg0: memref<?x!sycl.id<1>>, %arg1: memref<?x!sycl.id<1>>) {
+  // CHECK: llvm.call @_ZN2cl4sycl2idILi1EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()  
+ "sycl.constructor"(%arg0, %arg1) {Type = @id} : (memref<?x!sycl.id<1>>, memref<?x!sycl.id<1>>) -> ()
+  return
+}
+
+// -----
+
+// CHECK: llvm.func @_ZN2cl4sycl2idILi2EEC1ERKS2_([[THIS_PTR_TYPE:!llvm.struct<\(ptr<struct<"class.cl::sycl::id.2",.*]], [[THIS_PTR_TYPE]])
+func.func @id2CopyCtor(%arg0: memref<?x!sycl.id<2>>, %arg1: memref<?x!sycl.id<2>>) {
+  // CHECK: llvm.call @_ZN2cl4sycl2idILi2EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
+ "sycl.constructor"(%arg0, %arg1) {Type = @id} : (memref<?x!sycl.id<2>>, memref<?x!sycl.id<2>>) -> ()  
+  return
+}
+
+// -----
+
+// CHECK: llvm.func @_ZN2cl4sycl2idILi3EEC1ERKS2_([[THIS_PTR_TYPE:!llvm.struct<\(ptr<struct<"class.cl::sycl::id.3",.*]], [[THIS_PTR_TYPE]])
+func.func @id3CopyCtor(%arg0: memref<?x!sycl.id<3>>, %arg1: memref<?x!sycl.id<3>>) {
+  // CHECK: llvm.call @_ZN2cl4sycl2idILi3EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
+ "sycl.constructor"(%arg0, %arg1) {Type = @id} : (memref<?x!sycl.id<3>>, memref<?x!sycl.id<3>>) -> ()
+  return
+}
+
+// -----

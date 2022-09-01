@@ -32,10 +32,34 @@ void SYCLFuncDescriptor::declareFunction(ModuleOp &module, OpBuilder &b) {
   funcRef = builder.getOrInsertFuncDecl(name, outputTy, argTys, module);
 }
 
-Value SYCLFuncDescriptor::call(FuncId id, ValueRange args,
+bool SYCLFuncDescriptor::isIdCtor(FuncId funcId) {
+  switch (funcId) {
+  case FuncId::Id1CtorDefault:
+  case FuncId::Id2CtorDefault:
+  case FuncId::Id3CtorDefault:
+  case FuncId::Id1CtorSizeT:
+  case FuncId::Id2CtorSizeT:
+  case FuncId::Id3CtorSizeT:
+  case FuncId::Id1CtorRange:
+  case FuncId::Id2CtorRange:
+  case FuncId::Id3CtorRange:
+  case FuncId::Id1CtorItem:
+  case FuncId::Id2CtorItem:
+  case FuncId::Id3CtorItem:
+  case FuncId::Id1CopyCtor:
+  case FuncId::Id2CopyCtor:
+  case FuncId::Id3CopyCtor:
+    return true;
+  default:;
+  }
+
+  return false;
+}
+
+Value SYCLFuncDescriptor::call(FuncId funcId, ValueRange args,
                                const SYCLFuncRegistry &registry, OpBuilder &b,
                                Location loc) {
-  const SYCLFuncDescriptor &funcDesc = registry.getFuncDesc(id);
+  const SYCLFuncDescriptor &funcDesc = registry.getFuncDesc(funcId);
   LLVM_DEBUG(
       llvm::dbgs() << "Creating SYCLFuncDescriptor::call to funcDesc.funcRef: "
                    << funcDesc.funcRef << "\n");
@@ -59,12 +83,54 @@ Value SYCLFuncDescriptor::call(FuncId id, ValueRange args,
 
 SYCLFuncRegistry *SYCLFuncRegistry::instance = nullptr;
 
-const SYCLFuncRegistry SYCLFuncRegistry::create(
-    ModuleOp &module, OpBuilder &builder) {
+const SYCLFuncRegistry SYCLFuncRegistry::create(ModuleOp &module,
+                                                OpBuilder &builder) {
   if (!instance)
     instance = new SYCLFuncRegistry(module, builder);
 
   return *instance;
+}
+
+SYCLFuncDescriptor::FuncId
+SYCLFuncRegistry::getFuncId(SYCLFuncDescriptor::FuncIdKind funcIdKind,
+                            Type retType, TypeRange argTypes) const {
+  assert(funcIdKind != SYCLFuncDescriptor::FuncIdKind::Unknown &&
+         "Invalid funcIdKind");
+
+  // Determines whether the given funcId has kind that matches the given
+  // funcIdKind.
+  auto kindMatches = [](SYCLFuncDescriptor::FuncId funcId,
+                        SYCLFuncDescriptor::FuncIdKind funcIdKind) {
+    bool foundMatch = false;
+    switch (funcIdKind) {
+    case SYCLFuncDescriptor::FuncIdKind::IdCtor:
+      foundMatch = SYCLFuncDescriptor::isIdCtor(funcId);
+      break;
+    default:
+      foundMatch = false;
+    }
+    return foundMatch;
+  };
+
+  for (const auto &entry : registry) {
+    // Skip through entries that do not match the requested funcIdKind.
+    if (!kindMatches(entry.second.id, funcIdKind))
+      continue;
+
+    // Ensure that the entry has return and arguments type that match the one
+    // provided.
+    if (retType != entry.second.outputTy ||
+        argTypes.size() != entry.second.argTys.size())
+      continue;
+    if (!std::equal(argTypes.begin(), argTypes.end(),
+                    entry.second.argTys.begin()))
+      continue;
+
+    return entry.second.id;
+  }
+
+  llvm_unreachable("Unimplemented descriptor");
+  return SYCLFuncDescriptor::FuncId::Unknown;
 }
 
 SYCLFuncRegistry::SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder)
@@ -144,6 +210,22 @@ SYCLFuncRegistry::SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder)
           SYCLFuncDescriptor::FuncId::Id3CtorItem,
           "_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm",
           voidTy, {id3PtrTy, i64Ty, i64Ty, i64Ty}),
+
+      // cl::sycl::id<1>::id(cl::sycl::id<1> const&)
+      SYCLFuncDescriptor(
+          SYCLFuncDescriptor::FuncId::Id1CopyCtor,
+          "_ZN2cl4sycl2idILi1EEC1ERKS2_",
+          voidTy, {id1PtrTy, id1PtrTy}),
+      // cl::sycl::id<2>::id(cl::sycl::id<2> const&)
+      SYCLFuncDescriptor(
+          SYCLFuncDescriptor::FuncId::Id2CopyCtor,
+          "_ZN2cl4sycl2idILi2EEC1ERKS2_",
+          voidTy, {id2PtrTy, id2PtrTy}),
+      // cl::sycl::id<3>::id(cl::sycl::id<3> const&)
+      SYCLFuncDescriptor(
+          SYCLFuncDescriptor::FuncId::Id3CopyCtor,
+          "_ZN2cl4sycl2idILi3EEC1ERKS2_",
+          voidTy, {id3PtrTy, id3PtrTy}),
   };
   // clang-format on
 

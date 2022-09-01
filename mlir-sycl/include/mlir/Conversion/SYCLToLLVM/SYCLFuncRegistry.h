@@ -35,6 +35,8 @@ public:
   /// Enumerates SYCL functions.
   // clang-format off
   enum class FuncId {
+    Unknown, 
+
     // Member functions for the sycl:id<n> class.
     Id1CtorDefault, // sycl::id<1>::id()
     Id2CtorDefault, // sycl::id<2>::id()
@@ -48,10 +50,19 @@ public:
     Id1CtorItem,    // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
     Id2CtorItem,    // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
     Id3CtorItem,    // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-
+    Id1CopyCtor,    // sycl::id<1>::id(sycl::id<1> const&)
+    Id2CopyCtor,    // sycl::id<2>::id(sycl::id<2> const&)
+    Id3CopyCtor,    // sycl::id<3>::id(sycl::id<3> const&)
+    
     // Member functions for ..TODO..
   };
   // clang-format on
+
+  /// Enumerates the kind of FuncId.
+  enum class FuncIdKind {
+    Unknown,
+    IdCtor, // any sycl::id<n> constructors
+  };
 
   // Call the SYCL constructor identified by \p id with the given \p args.
   static Value call(FuncId id, ValueRange args,
@@ -65,8 +76,11 @@ private:
       : id(id), name(name), outputTy(outputTy),
         argTys(argTys.begin(), argTys.end()) {}
 
-  // Inject the declaration for this function into the module.
+  /// Inject the declaration for this function into the module.
   void declareFunction(ModuleOp &module, OpBuilder &b);
+
+  /// Returns true if the given \p funcId is for a sycl::id<n> constructor.
+  static bool isIdCtor(FuncId funcId);
 
 private:
   FuncId id;                   // unique identifier for a SYCL function
@@ -86,11 +100,17 @@ public:
   static const SYCLFuncRegistry create(ModuleOp &module, OpBuilder &builder);
 
   const SYCLFuncDescriptor &getFuncDesc(SYCLFuncDescriptor::FuncId id) const {
-    assert(
-        (registry.find(id) != registry.end()) &&
-        "function identified by 'id' not found in the SYCL function registry");
+    assert((registry.find(id) != registry.end()) &&
+           "function identified by 'id' not found in the SYCL function "
+           "registry");
     return registry.at(id);
   }
+
+  // Returns the SYCLFuncDescriptor::FuncId corresponding to the function
+  // descriptor that matches the given signature and funcIdKind.
+  SYCLFuncDescriptor::FuncId
+  getFuncId(SYCLFuncDescriptor::FuncIdKind funcIdKind, Type retType,
+            TypeRange argTypes) const;
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);

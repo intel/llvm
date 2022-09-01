@@ -185,32 +185,14 @@ public:
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    const auto &registry = SYCLFuncRegistry::create(module, rewriter);
-    ValueRange args(op.Args());
-    assert(args.size() > 0 && "Expecting at least one argument (the this ptr)");
-
-    // Multikey map used to lookup the specific sycl::id's ctor to call.
-    // Given 'sycl::id<dim>(args)' the key is the pair {size(args), dim}.
-    const std::map<std::pair<int, int>, SYCLFuncDescriptor::FuncId>
-        lookupCtorId = {
-            {{1, 1}, SYCLFuncDescriptor::FuncId::Id1CtorDefault},
-            {{1, 2}, SYCLFuncDescriptor::FuncId::Id2CtorDefault},
-            {{1, 3}, SYCLFuncDescriptor::FuncId::Id3CtorDefault},
-            {{2, 1}, SYCLFuncDescriptor::FuncId::Id1CtorSizeT},
-            {{2, 2}, SYCLFuncDescriptor::FuncId::Id2CtorSizeT},
-            {{2, 3}, SYCLFuncDescriptor::FuncId::Id3CtorSizeT},
-            {{3, 1}, SYCLFuncDescriptor::FuncId::Id1CtorRange},
-            {{3, 2}, SYCLFuncDescriptor::FuncId::Id2CtorRange},
-            {{3, 3}, SYCLFuncDescriptor::FuncId::Id3CtorRange},
-            {{4, 1}, SYCLFuncDescriptor::FuncId::Id1CtorItem},
-            {{4, 2}, SYCLFuncDescriptor::FuncId::Id2CtorItem},
-            {{4, 3}, SYCLFuncDescriptor::FuncId::Id3CtorItem},
-        };
+    MLIRContext *context = module.getContext();
 
     // Lookup the ctor function to use.
-    auto arg0ElemTy = getElementType<mlir::sycl::IDType>(args[0].getType());   
-    auto key = std::make_pair(args.size(), arg0ElemTy.getDimension());
-    SYCLFuncDescriptor::FuncId funcId = lookupCtorId.at(key);
+    const auto &registry = SYCLFuncRegistry::create(module, rewriter);    
+    auto voidTy = LLVM::LLVMVoidType::get(context);
+    SYCLFuncDescriptor::FuncId funcId =
+        registry.getFuncId(SYCLFuncDescriptor::FuncIdKind::IdCtor, voidTy,
+                           opAdaptor.Args().getTypes());
 
     // Generate an LLVM call to the appropriate ctor.
     SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
