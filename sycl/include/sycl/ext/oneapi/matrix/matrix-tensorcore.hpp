@@ -509,13 +509,13 @@ struct joint_matrix_store_impl {
 #endif // __cplusplus >= 201703L
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
+template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::layout LayoutB,
           typename Cond = void>
 struct joint_matrix_mad_impl {
   void mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T2, M, N,
+               T3, M, N,
                sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
                sycl::ext::oneapi::experimental::matrix::layout::unused,
                sycl::sub_group> &D,
@@ -567,11 +567,11 @@ constexpr int get_layout_pair_id<
 
 #if __cplusplus >= 201703L // if constexpr usage
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
+template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::layout LayoutB>
 struct joint_matrix_mad_impl<
-    T1, T2, M, K, N, LayoutA, LayoutB,
+    T1, T2, T3, M, K, N, LayoutA, LayoutB,
     typename std::enable_if_t<
         (LayoutA ==
              sycl::ext::oneapi::experimental::matrix::layout::row_major ||
@@ -582,7 +582,7 @@ struct joint_matrix_mad_impl<
          LayoutB ==
              sycl::ext::oneapi::experimental::matrix::layout::col_major)>> {
   void mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T2, M, N,
+               T3, M, N,
                sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
                sycl::ext::oneapi::experimental::matrix::layout::unused,
                sycl::sub_group> &D,
@@ -614,15 +614,29 @@ struct joint_matrix_mad_impl<
         auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
         auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
         if constexpr (std::is_same<T2, float>::value) {
+          if constexpr (std::is_same<T3, float>::value) {
           __hmma_m16n16k16_mma_f32f32(
               reinterpret_cast<float *>(&D.wi_marray), ptrA, ptrB,
               reinterpret_cast<float const *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
+          } else {
+            __hmma_m16n16k16_mma_f16f32(
+              reinterpret_cast<int32_t *>(&D.wi_marray), ptrA, ptrB,
+              reinterpret_cast<float const *>(&C.wi_marray),
+              get_layout_pair_id<LayoutA, LayoutB>(), 0);
+          }
         } else if constexpr (std::is_same<T2, half>::value) {
+          if constexpr (std::is_same<T3, float>::value) {
+          __hmma_m16n16k16_mma_f32f16(
+              reinterpret_cast<float *>(&D.wi_marray), ptrA, ptrB,
+              reinterpret_cast<int const *>(&C.wi_marray),
+              get_layout_pair_id<LayoutA, LayoutB>(), 0);
+          } else {
           __hmma_m16n16k16_mma_f16f16(
               reinterpret_cast<int32_t *>(&D.wi_marray), ptrA, ptrB,
               reinterpret_cast<int32_t const *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
+          }
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
                            std::is_same<T1, sycl::ext::oneapi::experimental::
@@ -807,11 +821,11 @@ void joint_matrix_store(
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename Group, typename T1, typename T2, std::size_t M,
+template <typename Group, typename T1, typename T2, typename T3, std::size_t M,
           std::size_t K, std::size_t N, layout LayoutA, layout LayoutB>
 void joint_matrix_mad(
     Group sg,
-    joint_matrix<T2, M, N, matrix_use::accumulator,
+    joint_matrix<T3, M, N, matrix_use::accumulator,
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &D,
     joint_matrix<T1, M, K, matrix_use::a, LayoutA, Group> &A,
@@ -820,7 +834,7 @@ void joint_matrix_mad(
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &C) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_mad_impl<T1, T2, M, K, N, LayoutA,
+  sycl::ext::oneapi::detail::joint_matrix_mad_impl<T1, T2, T3, M, K, N, LayoutA,
                                                    LayoutB>{}
       .mad(D, A, B, C);
 #else
