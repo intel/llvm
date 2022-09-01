@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -verify %s
 
 // Diagnostic tests for sycl_type() attribute
 
