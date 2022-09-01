@@ -2,8 +2,6 @@
 
 // Diagnostic tests for sycl_type() attribute
 
-#include "sycl.hpp"
-
 // expected-error@+1{{'sycl_type' attribute only applies to classes}}
 [[__sycl_detail__::sycl_type(accessor)]] int a;
 
