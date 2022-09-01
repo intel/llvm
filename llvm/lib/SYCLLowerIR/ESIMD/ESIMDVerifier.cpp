@@ -46,6 +46,7 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::sin<.+>",
     "^sycl::_V1::log<.+>",
     "^sycl::_V1::exp<.+>",
+    "^sycl::_V1::bit_cast<.+>",
     "^sycl::_V1::operator.+<.+>",
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",

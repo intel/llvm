@@ -58,7 +58,7 @@ template <int N> struct vector_conversion_traits<bfloat16, N> {
     vector_type_t<RawT, N> Output = 0;
 
     for (int i = 0; i < N; i++) {
-      Output[i] = sycl::bit_cast<RawT>(Val[i]);
+      Output[i] = sycl::bit_cast<RawT>(static_cast<bfloat16>(Val[i]));
     }
     return Output;
 #endif // __SYCL_DEVICE_ONLY__
