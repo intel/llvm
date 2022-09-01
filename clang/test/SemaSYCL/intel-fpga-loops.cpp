@@ -26,6 +26,8 @@ void foo() {
   [[intel::loop_count_avg(6)]] int l[10];
   // expected-error@+1{{'loop_count' attribute cannot be applied to a declaration}}
   [[intel::loop_count(8)]] int m[10];
+  // expected-error@+1 {{'max_reinvocation_delay' attribute cannot be applied to a declaration}}
+  [[intel::max_reinvocation_delay(1)]] int n[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -122,6 +124,9 @@ void boo() {
   // expected-error@+1 {{'loop_count' attribute takes one argument}}
   [[intel::loop_count(6, 9)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // expected-error@+1 {{'max_reinvocation_delay' attribute takes one argument}}
+  [[intel::max_reinvocation_delay(5, 2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -215,6 +220,12 @@ void goo() {
       a[i] = 0;
   // expected-error@+1 {{'loop_count' attribute requires a non-negative integral compile time constant expression}}
   [[intel::loop_count(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'max_reinvocation_delay' attribute requires a positive integral compile time constant expression}}
+  [[intel::max_reinvocation_delay(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
+  [[intel::max_reinvocation_delay("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -334,6 +345,11 @@ void zoo() {
   // expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count'}}
   [[intel::loop_count(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::max_reinvocation_delay(1)]]
+  // expected-error@+1{{duplicate Intel FPGA loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -374,6 +390,10 @@ void loop_attrs_compatibility() {
     a[i] = 0;
   [[intel::loop_count(8)]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
+  // expected-error@+2 {{'disable_loop_pipelining' and 'max_reinvocation_delay' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::max_reinvocation_delay(1)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template<int A, int B, int C>
@@ -534,6 +554,19 @@ void loop_count_control_dependent() {
       a[i] = 0;
 }
 
+template <int A, int B, int C>
+void max_reinvocation_delay_dependent() {
+  int a[10];
+  // expected-error@+1 {{'max_reinvocation_delay' attribute requires a positive integral compile time constant expression}}
+  [[intel::max_reinvocation_delay(C)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(A)]]
+  [[intel::max_reinvocation_delay(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
 void check_max_concurrency_expression() {
   int a[10];
   // Test that checks expression is not a constant expression.
@@ -630,6 +663,22 @@ void check_loop_count_expression() {
       a[i] = 0;
 }
 
+void check_max_reinvocation_delay_expression() {
+  int a[10];
+  // Test that checks expression is not a constant expression.
+  // expected-note@+1{{declared here}}
+  int foo;
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::max_reinvocation_delay(foo + 1)]] for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::max_reinvocation_delay(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+      a[i] = 0;
+}
+
 // Test that checks wrong template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 struct S {};
@@ -671,6 +720,12 @@ void check_loop_attr_template_instantiation() {
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::loop_count(Ty{})]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::max_reinvocation_delay(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
 }
 
 int main() {
@@ -693,12 +748,14 @@ int main() {
       speculated_iterations_dependent<1, 8, -3, 0>(); // expected-note{{in instantiation of function template specialization 'speculated_iterations_dependent<1, 8, -3, 0>' requested here}}
       loop_coalesce_dependent<-1, 4,  0>(); // expected-note{{in instantiation of function template specialization 'loop_coalesce_dependent<-1, 4, 0>' requested here}}
       loop_count_control_dependent<3, 2, -1>(); // expected-note{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
+      max_reinvocation_delay_dependent<1, 3, 0>(); // expected-note{{in instantiation of function template specialization 'max_reinvocation_delay_dependent<1, 3, 0>' requested here}}
       check_max_concurrency_expression();
       check_max_interleaving_expression();
       check_speculated_iterations_expression();
       check_loop_coalesce_expression();
       check_initiation_interval_expression();
       check_loop_count_expression();
+      check_max_reinvocation_delay_expression();
       check_loop_attr_template_instantiation<S>(); //expected-note{{in instantiation of function template specialization 'check_loop_attr_template_instantiation<S>' requested here}}
       check_loop_attr_template_instantiation<float>(); //expected-note{{in instantiation of function template specialization 'check_loop_attr_template_instantiation<float>' requested here}}
     });

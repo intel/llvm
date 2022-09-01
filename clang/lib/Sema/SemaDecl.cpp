@@ -7678,13 +7678,32 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTSCSpec(TSCS);
   }
 
-  // Global variables with types decorated with device_global attribute must be
-  // static if they are declared in SYCL device code.
   if (getLangOpts().SYCLIsDevice) {
-    if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
-        isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            NewVD->getType()))
-      Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
+    // device_global array is not allowed.
+    if (const ArrayType *AT = getASTContext().getAsArrayType(NewVD->getType()))
+      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              AT->getElementType()))
+        Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
+
+    // Global variables with types decorated with device_global attribute must
+    // be static if they are declared in SYCL device code.
+    if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            NewVD->getType())) {
+      if (SCSpec == DeclSpec::SCS_static) {
+        const DeclContext *DC = NewVD->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            Diag(D.getIdentifierLoc(),
+                 diag::err_sycl_device_global_incorrect_scope);
+            break;
+          }
+          DC = DC->getParent();
+        }
+      } else if (!NewVD->hasGlobalStorage()) {
+        Diag(D.getIdentifierLoc(),
+             diag::err_sycl_device_global_incorrect_scope);
+      }
+    }
 
     // Static variables declared inside SYCL device code must be const or
     // constexpr unless their types are decorated with global_variable_allowed

@@ -46,7 +46,9 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete);
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
   ///
@@ -210,6 +212,20 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Returns worker queue for command.
+  ///
+  /// @return a reference to MWorkerQueue.
+  QueueImplPtr &getWorkerQueue() { return MWorkerQueue; };
+
+  /// Checks if an event is in a fully intialized state. Default-constructed
+  /// events will return true only after having initialized its native event,
+  /// while other events will assume that they are fully initialized at
+  /// construction, relying on external sources to supply member data.
+  ///
+  /// \return true if the event is considered to be in a fully initialized
+  /// state.
+  bool isInitialized() const noexcept { return MIsInitialized; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -231,6 +247,8 @@ private:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+
+  QueueImplPtr MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;

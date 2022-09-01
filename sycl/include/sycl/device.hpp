@@ -46,7 +46,7 @@ class filter_selector;
 /// \ingroup sycl_api
 class __SYCL_EXPORT device {
 public:
-  /// Constructs a SYCL device instance as a host device.
+  /// Constructs a SYCL device instance using the default device.
   device();
 
   /// Constructs a SYCL device instance from an OpenCL cl_device_id

@@ -8,6 +8,7 @@ on:
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
+    - '.github/workflows/sycl_update_gpu_driver.yml'
     - 'devops/containers/**'
     - 'devops/scripts/install_drivers.sh'
     - 'devops/scripts/install_build_tools.sh'
@@ -26,11 +27,13 @@ jobs:
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
+    - name: 'PR commits + 1'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
     - uses: actions/checkout@v2
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         persist-credentials: false
-        fetch-depth: 2
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
     - name: Run clang-format
       uses: ./devops/actions/clang-format
 

@@ -9,12 +9,12 @@
 #pragma once
 
 #include "sycl/detail/pi.h"
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
-#include <sycl/detail/sycl_mem_obj_t.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 #include <sycl/types.hpp>
@@ -81,10 +81,10 @@ public:
     BaseT::handleHostData(HostData, RequiredAlign);
   }
 
-  template <typename T>
-  buffer_impl(const std::shared_ptr<T> &HostData, const size_t SizeInBytes,
-              size_t RequiredAlign, const property_list &Props,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator)
+  buffer_impl(const std::shared_ptr<const void> &HostData,
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator, bool IsConstPtr)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
@@ -93,48 +93,28 @@ public:
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_ERROR_INVALID_OPERATION);
 
-    BaseT::handleHostData(HostData, RequiredAlign);
+    BaseT::handleHostData(std::const_pointer_cast<void>(HostData),
+                          RequiredAlign, IsConstPtr);
+  }
+
+  buffer_impl(const std::function<void(void *)> &CopyFromInput,
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props,
+              std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
+              bool IsConstPtr)
+      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
+    if (Props.has_property<
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+      throw sycl::invalid_object_error(
+          "The use_pinned_host_memory cannot be used with host pointer",
+          PI_ERROR_INVALID_OPERATION);
+
+    BaseT::handleHostData(CopyFromInput, RequiredAlign, IsConstPtr);
   }
 
   template <typename T>
   using EnableIfNotConstIterator =
       enable_if_t<!iterator_to_const_type_t<T>::value, T>;
-
-  template <class InputIterator>
-  buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
-
-    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
-          "Buffer constructor from a pair of iterator values cannot have the "
-          "use_host_ptr property.",
-          PI_ERROR_INVALID_OPERATION);
-
-    BaseT::handleHostData(First, Last, RequiredAlign);
-  }
-
-  template <typename T>
-  using EnableIfConstIterator =
-      enable_if_t<iterator_to_const_type_t<T>::value, T>;
-
-  template <class InputIterator>
-  buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, size_t RequiredAlign,
-              const property_list &Props,
-              std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : BaseT(SizeInBytes, Props, std::move(Allocator)) {
-
-    if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error(
-          "Buffer constructor from a pair of iterator values cannot have the "
-          "use_host_ptr property.",
-          PI_ERROR_INVALID_OPERATION);
-
-    BaseT::handleHostData(First, Last, RequiredAlign);
-  }
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,

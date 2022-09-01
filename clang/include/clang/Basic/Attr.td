@@ -1247,17 +1247,17 @@ def CUDAShared : InheritableAttr {
 }
 def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 
-def SYCLDevice : InheritableAttr {
-  let Spellings = [GNU<"sycl_device">];
-  let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLDeviceDocs];
-}
-
 def GlobalStorageNonLocalVar : SubsetSubject<Var,
                                              [{S->hasGlobalStorage() &&
                                                !S->isLocalVarDeclOrParm()}],
                                              "global variables">;
+
+def SYCLDevice : InheritableAttr {
+  let Spellings = [GNU<"sycl_device">];
+  let Subjects = SubjectList<[Function, GlobalStorageNonLocalVar]>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLDeviceDocs];
+}
 
 def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];
@@ -2383,6 +2383,18 @@ def SYCLIntelFPGANofusion : StmtAttr {
   let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
+
+def SYCLIntelFPGAMaxReinvocationDelay : StmtAttr {
+  let Spellings = [CXX11<"intel", "max_reinvocation_delay">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let IsStmtDependent = 1;
+  let Documentation = [SYCLIntelFPGAMaxReinvocationDelayAttrDocs];
+}
+def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
+                        SYCLIntelFPGAMaxReinvocationDelay]>;
 
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&

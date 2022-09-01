@@ -2668,9 +2668,7 @@
 ?mad@__host_std@cl@@YANNNN@Z
 ?makeDir@OSUtil@detail@sycl@cl@@SAHPEBD@Z
 ?make_context@detail@sycl@cl@@YA?AVcontext@23@_KAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
-?make_context@level_zero@oneapi@ext@sycl@cl@@YA?AVcontext@45@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K@Z
 ?make_context@level_zero@oneapi@ext@sycl@cl@@YA?AVcontext@45@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K_N@Z
-?make_context@level_zero@sycl@cl@@YA?AVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K@Z
 ?make_context@level_zero@sycl@cl@@YA?AVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K_N@Z
 ?make_context@opencl@sycl@cl@@YA?AVcontext@23@_K@Z
 ?make_device@detail@sycl@cl@@YA?AVdevice@23@_KW4backend@23@@Z
@@ -2697,9 +2695,7 @@
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@AEBVdevice@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
 ?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@_K_N@Z
-?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K@Z
 ?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K_N@Z
-?make_queue@level_zero@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K@Z
 ?make_queue@level_zero@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K_N@Z
 ?make_queue@opencl@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K@Z
 ?malloc@sycl@cl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@@Z

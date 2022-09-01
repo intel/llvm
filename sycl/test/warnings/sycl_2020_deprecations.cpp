@@ -208,5 +208,11 @@ int main() {
   // expected-warning@+1{{'host_selector' is deprecated: Use a callable function instead.}}
   sycl::host_selector hs{};
 
+  // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
+        LocalAcc(sycl::range<1>(1), CGH);
+  });
+
   return 0;
 }
