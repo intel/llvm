@@ -9,93 +9,6 @@
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
-// Platform
-
-inline pi_result redefinedPlatformsGetCommon(pi_uint32 num_entries,
-                                             pi_platform *platforms,
-                                             pi_uint32 *num_platforms) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedPlatformGetInfoCommon(pi_platform platform,
-                                                pi_platform_info param_name,
-                                                size_t param_value_size,
-                                                void *param_value,
-                                                size_t *param_value_size_ret) {
-  return PI_SUCCESS;
-}
-
-inline pi_result
-redefinedExtPlatformGetNativeHandleCommon(pi_platform platform,
-                                          pi_native_handle *nativeHandle) {
-  return PI_SUCCESS;
-}
-
-inline pi_result
-redefinedExtPlatformCreateWithNativeHandleCommon(pi_native_handle nativeHandle,
-                                                 pi_platform *platform) {
-  return PI_SUCCESS;
-}
-
-// Device
-
-inline pi_result redefinedDevicesGetCommon(pi_platform platform,
-                                           pi_device_type device_type,
-                                           pi_uint32 num_entries,
-                                           pi_device *devices,
-                                           pi_uint32 *num_devices) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedDeviceGetInfoCommon(pi_device device,
-                                              pi_device_info param_name,
-                                              size_t param_value_size,
-                                              void *param_value,
-                                              size_t *param_value_size_ret) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedDeviceRetainCommon(pi_device device) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedDeviceReleaseCommon(pi_device device) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedExtDeviceSelectBinaryCommon(
-    pi_device device, pi_device_binary *binaries, pi_uint32 num_binaries,
-    pi_uint32 *selected_binary_ind) {
-  *selected_binary_ind = 0;
-  return PI_SUCCESS;
-}
-
-inline pi_result
-redefinedExtGetDeviceFunctionPointerCommon(pi_device device, pi_program program,
-                              const char *function_name,
-                              pi_uint64 *function_pointer_ret) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedDevicePartitionCommon(
-    pi_device device, const pi_device_partition_property *properties,
-    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
-  return PI_SUCCESS;
-}
-
-inline pi_result
-redefinedExtDeviceGetNativeHandleCommon(pi_device device,
-                                        pi_native_handle *nativeHandle) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedExtDeviceCreateWithNativeHandleCommon(
-    pi_native_handle nativeHandle, pi_platform platform, pi_device *device) {
-  return PI_SUCCESS;
-}
-
-// Other
-
 inline pi_result redefinedProgramCreateCommon(pi_context, const void *, size_t,
                                               pi_program *ret_program) {
   *ret_program = reinterpret_cast<pi_program>(1);
@@ -248,33 +161,16 @@ inline pi_result redefinedKernelGetGroupInfoCommon(
   }
   return PI_SUCCESS;
 }
+inline pi_result redefinedDeviceSelectBinary(pi_device device,
+                                             pi_device_binary *binaries,
+                                             pi_uint32 num_binaries,
+                                             pi_uint32 *selected_binary_ind) {
+  *selected_binary_ind = 0;
+  return PI_SUCCESS;
+}
 
 inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-
-  // Platform
-  Mock.redefine<PiApiKind::piPlatformsGet>(redefinedPlatformsGetCommon);
-  Mock.redefine<PiApiKind::piPlatformGetInfo>(redefinedPlatformGetInfoCommon);
-  Mock.redefine<PiApiKind::piextPlatformGetNativeHandle>(
-      redefinedExtPlatformGetNativeHandleCommon);
-  Mock.redefine<PiApiKind::piextPlatformCreateWithNativeHandle>(
-      redefinedExtPlatformCreateWithNativeHandleCommon);
-
-  // Device
-  Mock.redefine<PiApiKind::piDevicesGet>(redefinedDevicesGetCommon);
-  Mock.redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfoCommon);
-  Mock.redefine<PiApiKind::piDevicePartition>(redefinedDevicePartitionCommon);
-  Mock.redefine<PiApiKind::piDeviceRetain>(redefinedDeviceRetainCommon);
-  Mock.redefine<PiApiKind::piDeviceRelease>(redefinedDeviceReleaseCommon);
-  Mock.redefine<PiApiKind::piextDeviceSelectBinary>(
-      redefinedExtDeviceSelectBinaryCommon);
-  Mock.redefine<PiApiKind::piextGetDeviceFunctionPointer>(
-      redefinedExtGetDeviceFunctionPointerCommon);
-  Mock.redefine<PiApiKind::piextDeviceGetNativeHandle>(
-      redefinedExtDeviceGetNativeHandleCommon);
-  Mock.redefine<PiApiKind::piextDeviceCreateWithNativeHandle>(
-      redefinedExtDeviceCreateWithNativeHandleCommon);
-
   Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreateCommon);
   Mock.redefine<PiApiKind::piProgramCreateWithBinary>(
       redefinedProgramCreateWithBinary);
@@ -297,4 +193,6 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piEventRelease>(redefinedEventReleaseCommon);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCommon);
+  Mock.redefine<PiApiKind::piextDeviceSelectBinary>(
+      redefinedDeviceSelectBinary);
 }
