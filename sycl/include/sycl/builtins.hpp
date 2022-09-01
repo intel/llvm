@@ -23,9 +23,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
-  vec<T, 2> res;
-  std::memcpy(&res, &x[start], sizeof(vec<T, 2>));
-  return res;
+  return {x[start], x[start + 1]};
 }
 } // namespace detail
 
