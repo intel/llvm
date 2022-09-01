@@ -54,11 +54,9 @@ public:
 };
 
 int main() {
-  device HostDevice =
-      createSyclObjFromImpl<device>(detail::device_impl::getHostDeviceImpl());
-  TestQueue Queue1(HostDevice);
-  TestQueue Queue2(HostDevice);
-  TestQueue Queue3(HostDevice);
+  TestQueue Queue1(sycl::host_selector{});
+  TestQueue Queue2(sycl::host_selector{});
+  TestQueue Queue3(sycl::host_selector{});
 
   std::vector<int> Data(1);
 
