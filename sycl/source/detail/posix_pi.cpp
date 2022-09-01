@@ -29,7 +29,11 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return so;
 }
 
-int unloadOsLibrary(void *Library) { return dlclose(Library); }
+int unloadOsLibrary(void *Library) {
+  if (!Library)
+    return 0;
+  return dlclose(Library);
+}
 
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());

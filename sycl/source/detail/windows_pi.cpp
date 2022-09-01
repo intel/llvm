@@ -41,6 +41,8 @@ void *loadOsLibrary(const std::string &PluginPath) {
 }
 
 int unloadOsLibrary(void *Library) {
+  if (!Library)
+    return 1;
   return (int)FreeLibrary((HMODULE)Library);
 }
 

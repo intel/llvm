@@ -27,7 +27,10 @@
 
 #pragma once
 
+#include "PiMockPlugin.hpp"
+#include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/plugin.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
@@ -61,6 +64,23 @@ namespace RT = detail::pi;
   }
 #include <sycl/detail/pi.def>
 #undef _PI_API
+
+class PiMockPlugin {
+public:
+  PiMockPlugin() {
+    auto RTPlugin = std::make_shared<RT::PiPlugin>(
+        RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
+                     getMockedFunctionPointers()});
+
+    // FIXME: which backend to pass here? does it affect anything?
+    plugin_ptr = std::make_shared<detail::plugin>(RTPlugin, backend::opencl,
+                                                  /*Library=*/nullptr);
+    detail::GlobalHandler::instance().getPlugins().push_back(*plugin_ptr);
+  }
+
+private:
+  std::shared_ptr<detail::plugin> plugin_ptr;
+};
 
 /// The PiMock class wraps an instance of a SYCL platform class,
 /// and manages all mock redefinitions for the underlying plugin.
