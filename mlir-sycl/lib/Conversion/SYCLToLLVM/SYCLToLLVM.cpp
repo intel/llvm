@@ -48,8 +48,7 @@ template <typename SYCLType> static bool isMemRefOf(const Type &type) {
 }
 
 // Returns the element type of 'memref<?xSYCLType>'.
-template <typename SYCLType>
-static SYCLType getElementType(const Type &type) {
+template <typename SYCLType> static SYCLType getElementType(const Type &type) {
   assert(isMemRefOf<SYCLType>(type) && "Expecting memref<?xsycl::<type>>");
   Type elemType = type.cast<MemRefType>().getElementType();
   return elemType.cast<SYCLType>();
@@ -121,36 +120,74 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
                             converter);
 }
 
+/// Create a LLVM struct type with name \p name, and the converted \p body as
+/// the body.
+static Optional<Type> convertBodyType(StringRef name,
+                                      llvm::ArrayRef<mlir::Type> body,
+                                      LLVMTypeConverter &converter) {
+  auto convertedTy =
+      LLVM::LLVMStructType::getIdentified(&converter.getContext(), name);
+  if (!convertedTy.isInitialized()) {
+    SmallVector<Type> convertedElemTypes;
+    convertedElemTypes.reserve(body.size());
+    if (failed(converter.convertTypes(body, convertedElemTypes)))
+      return llvm::None;
+    if (failed(convertedTy.setBody(convertedElemTypes, /*isPacked=*/false)))
+      return llvm::None;
+  }
+
+  return convertedTy;
+}
+
 /// Converts SYCL accessor implement device type to LLVM type.
 static Optional<Type>
 convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
                               LLVMTypeConverter &converter) {
-  SmallVector<Type> convertedElemTypes;
-  convertedElemTypes.reserve(type.getBody().size());
-  if (failed(converter.convertTypes(type.getBody(), convertedElemTypes)))
-    return llvm::None;
-
-  return LLVM::LLVMStructType::getNewIdentified(
-      &converter.getContext(), "class.cl::sycl::detail::AccessorImplDevice",
-      convertedElemTypes, /*isPacked=*/false);
+  return convertBodyType("class.cl::sycl::detail::AccessorImplDevice" +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
 }
 
 /// Converts SYCL accessor type to LLVM type.
 static Optional<Type> convertAccessorType(sycl::AccessorType type,
                                           LLVMTypeConverter &converter) {
-  SmallVector<Type> convertedElemTypes;
-  convertedElemTypes.reserve(type.getBody().size());
-  if (failed(converter.convertTypes(type.getBody(), convertedElemTypes)))
-    return llvm::None;
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(),
+      "class.cl::sycl::accessor" + std::to_string(type.getDimension()));
+  if (!convertedTy.isInitialized()) {
+    SmallVector<Type> convertedElemTypes;
+    convertedElemTypes.reserve(type.getBody().size());
+    if (failed(converter.convertTypes(type.getBody(), convertedElemTypes)))
+      return llvm::None;
 
-  auto ptrTy = LLVM::LLVMPointerType::get(type.getType(), /*addressSpace=*/1);
-  auto structTy =
-      LLVM::LLVMStructType::getLiteral(&converter.getContext(), ptrTy);
-  convertedElemTypes.push_back(structTy);
+    auto ptrTy = LLVM::LLVMPointerType::get(type.getType(), /*addressSpace=*/1);
+    auto structTy =
+        LLVM::LLVMStructType::getLiteral(&converter.getContext(), ptrTy);
+    convertedElemTypes.push_back(structTy);
 
-  return LLVM::LLVMStructType::getNewIdentified(
-      &converter.getContext(), "class.cl::sycl::accessor", convertedElemTypes,
-      /*isPacked=*/false);
+    if (failed(convertedTy.setBody(convertedElemTypes, /*isPacked=*/false)))
+      return llvm::None;
+  }
+
+  return convertedTy;
+}
+
+/// Converts SYCL item base type to LLVM type.
+static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
+                                          LLVMTypeConverter &converter) {
+  return convertBodyType("class.cl::sycl::detail::ItemBase." +
+                             std::to_string(type.getDimension()) +
+                             (type.getWithOffset() ? ".true" : ".false"),
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL item type to LLVM type.
+static Optional<Type> convertItemType(sycl::ItemType type,
+                                      LLVMTypeConverter &converter) {
+  return convertBodyType("class.cl::sycl::item." +
+                             std::to_string(type.getDimension()) +
+                             (type.getWithOffset() ? ".true" : ".false"),
+                         type.getBody(), converter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -188,7 +225,7 @@ public:
     MLIRContext *context = module.getContext();
 
     // Lookup the ctor function to use.
-    const auto &registry = SYCLFuncRegistry::create(module, rewriter);    
+    const auto &registry = SYCLFuncRegistry::create(module, rewriter);
     auto voidTy = LLVM::LLVMVoidType::get(context);
     SYCLFuncDescriptor::FuncId funcId =
         registry.getFuncId(SYCLFuncDescriptor::FuncIdKind::IdCtor, voidTy,
@@ -235,12 +272,10 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion(
       [&](sycl::IDType type) { return convertIDType(type, typeConverter); });
   typeConverter.addConversion([&](sycl::ItemBaseType type) {
-    llvm_unreachable("SYCLToLLVM - sycl::ItemBaseType not handle (yet)");
-    return llvm::None;
+    return convertItemBaseType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::ItemType type) {
-    llvm_unreachable("SYCLToLLVM - sycl::ItemType not handle (yet)");
-    return llvm::None;
+    return convertItemType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::NdItemType type) {
     llvm_unreachable("SYCLToLLVM - sycl::NdItemType not handle (yet)");
