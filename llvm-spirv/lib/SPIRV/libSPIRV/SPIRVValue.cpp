@@ -103,8 +103,7 @@ void SPIRVValue::setNoIntegerDecorationWrap(bool HasNoIntegerWrap) {
       NoIntegerWrapDecoration == DecorationNoSignedWrap ? "nsw" : "nuw";
 #endif // _SPIRVDBG
   if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
-    Module->setMinSPIRVVersion(
-        static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4));
+    Module->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
     addDecorate(new SPIRVDecorate(NoIntegerWrapDecoration, this));
     SPIRVDBG(spvdbgs() << "Set " << InstStr << " for obj " << Id << "\n")
   } else if (Module->isAllowedToUseExtension(

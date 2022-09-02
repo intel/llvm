@@ -1393,8 +1393,7 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
       else if (S == "llvm.loop.unroll.count" &&
                !(LoopControl & LoopControlDontUnrollMask)) {
         if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
-          BM->setMinSPIRVVersion(
-              static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4));
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
           size_t I = getMDOperandAsInt(Node, 1);
           ParametersToSort.emplace_back(spv::LoopControlPartialCountMask, I);
           LoopControl |= spv::LoopControlPartialCountMask;
@@ -4225,8 +4224,7 @@ LLVMToSPIRVBase::collectEntryPointInterfaces(SPIRVFunction *SF, Function *F) {
       SPIRVWord ModuleVersion = static_cast<SPIRVWord>(BM->getSPIRVVersion());
       if (AS != SPIRAS_Input && AS != SPIRAS_Output &&
           ModuleVersion < static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4))
-        BM->setMinSPIRVVersion(
-            static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4));
+        BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
       Interface.push_back(ValueMap[&GV]->getId());
     }
   }
@@ -4581,8 +4579,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       case spv::ExecutionModeRoundingModeRTE:
       case spv::ExecutionModeRoundingModeRTZ: {
         if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
-          BM->setMinSPIRVVersion(
-              static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4));
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
           AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
         } else if (BM->isAllowedToUseExtension(
                        ExtensionID::SPV_KHR_float_controls)) {
