@@ -97,7 +97,7 @@ static Optional<Type> convertBodyType(StringRef name,
 static Optional<Type>
 convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
                               LLVMTypeConverter &converter) {
-  return convertBodyType("class.cl::sycl::detail::AccessorImplDevice" +
+  return convertBodyType("class.cl::sycl::detail::AccessorImplDevice." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
@@ -107,7 +107,7 @@ static Optional<Type> convertAccessorType(sycl::AccessorType type,
                                           LLVMTypeConverter &converter) {
   auto convertedTy = LLVM::LLVMStructType::getIdentified(
       &converter.getContext(),
-      "class.cl::sycl::accessor" + std::to_string(type.getDimension()));
+      "class.cl::sycl::accessor." + std::to_string(type.getDimension()));
   if (!convertedTy.isInitialized()) {
     SmallVector<Type> convertedElemTypes;
     convertedElemTypes.reserve(type.getBody().size());

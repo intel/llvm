@@ -80,6 +80,7 @@ void SYCLFuncDescriptor::declareFunction(ModuleOp &module, OpBuilder &b) {
 
 bool SYCLAccessorFuncDescriptor::isValid(FuncId funcId) const {
   switch (funcId) {
+  case FuncId::AccessorInt1ReadWriteGlobalBufferFalseCtorDefault:
   case FuncId::AccessorInt1ReadWriteGlobalBufferFalseInit:
     return true;
   default:
@@ -180,11 +181,12 @@ SYCLFuncRegistry::getFuncId(SYCLFuncDescriptor::FuncKind funcKind, Type retType,
       continue;
     }
     if (desc.argTys.size() != argTypes.size()) {
-      LLVM_DEBUG(llvm::dbgs() << "\tskip, number of arguments does not match\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "\tskip, number of arguments does not match\n");
       continue;
     }
     if (!std::equal(argTypes.begin(), argTypes.end(), desc.argTys.begin())) {
-      LLVM_DEBUG(llvm::dbgs() << "\tskip, arguments types do not match\n");      
+      LLVM_DEBUG(llvm::dbgs() << "\tskip, arguments types do not match\n");
       continue;
     }
 
@@ -212,18 +214,34 @@ void SYCLFuncRegistry::declareAccessorFuncDescriptors(
   MLIRContext *context = module.getContext();
   auto voidTy = LLVM::LLVMVoidType::get(context);
   auto i32Ty = IntegerType::get(context, 32);
-  auto i32PtrTy = LLVM::LLVMPointerType::get(i32Ty);
-  Type accessorInt1ReadWriteGlobalBufferPtrTy =
-      converter.convertType(MemRefType::get(
-          -1, AccessorType::get(context, i32Ty, 1, MemoryAccessMode::ReadWrite,
-                                MemoryTargetMode::GlobalBuffer, {})));
-  Type id1Ty = converter.convertType(IDType::get(context, 1));
-  Type range1Ty = converter.convertType(RangeType::get(context, 1));
+  auto i32PtrTy = converter.convertType(MemRefType::get(-1, i32Ty));
+
+  constexpr unsigned int dim = 1;
+  Type id1SYCLTy = IDType::get(context, dim);
+  Type range1SYCLTy = RangeType::get(context, dim);
+  Type accessorImplDeviceSYCLTy = AccessorImplDeviceType::get(
+      context, dim, {id1SYCLTy, range1SYCLTy, range1SYCLTy});
+  Type accessorInt1ReadWriteGlobalBufferSYCLTy = AccessorType::get(
+      context, i32Ty, dim, MemoryAccessMode::ReadWrite,
+      MemoryTargetMode::GlobalBuffer, {accessorImplDeviceSYCLTy});
+  Type accessorInt1ReadWriteGlobalBufferPtrTy = converter.convertType(
+      MemRefType::get(-1, accessorInt1ReadWriteGlobalBufferSYCLTy));
+
+  Type id1Ty = converter.convertType(id1SYCLTy);
+  Type range1Ty = converter.convertType(range1SYCLTy);
 
   // Construct the SYCL functions descriptors for the sycl::accessor<n> type.
   // Descriptor format: (enum, function name, signature).
   // clang-format off
   std::vector<SYCLFuncDescriptor> descriptors = {
+      // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
+      //   accessor()
+      SYCLAccessorFuncDescriptor(
+          FuncId::AccessorInt1ReadWriteGlobalBufferFalseCtorDefault,
+          "_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_"
+          "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_"
+          "property_listIJEEEEC2Ev",
+          voidTy, {accessorInt1ReadWriteGlobalBufferPtrTy}),
       // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
       //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
       SYCLAccessorFuncDescriptor(

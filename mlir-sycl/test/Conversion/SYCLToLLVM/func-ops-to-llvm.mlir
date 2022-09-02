@@ -1,6 +1,20 @@
 // RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
 
 //===-------------------------------------------------------------------------------------------------===//
+// Constructors for sycl::accessor<t, d, m, t, p>::accessor()
+//===-------------------------------------------------------------------------------------------------===//
+
+// CHECK: llvm.func @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev([[THIS_PTR_TYPE:!llvm.struct<\(ptr<struct<"class.cl::sycl::accessor.1",.*]])
+!sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>
+func.func @accessorInt1ReadWriteGlobalBufferFalseCtor(%arg0: memref<?x!sycl_accessor_1_i32_read_write_global_buffer>) {
+  // CHECK: llvm.call @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
+  sycl.constructor(%arg0) {Type = @accessor} : (memref<?x!sycl_accessor_1_i32_read_write_global_buffer>) -> () 
+  return
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
 // Constructors for sycl::id<n>::id()
 //===-------------------------------------------------------------------------------------------------===//
 

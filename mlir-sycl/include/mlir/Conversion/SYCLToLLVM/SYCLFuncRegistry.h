@@ -41,8 +41,10 @@ public:
     Unknown, 
 
     // Member functions for the sycl:accessor class.
-    AccessorInt1ReadWriteGlobalBufferFalseInit,  // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
-                                                 //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
+    AccessorInt1ReadWriteGlobalBufferFalseCtorDefault, // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
+                                                       //   accessor()
+    AccessorInt1ReadWriteGlobalBufferFalseInit,        // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
+                                                       //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
 
     // Member functions for the sycl:id<n> class.
     Id1CtorDefault, // sycl::id<1>::id()
