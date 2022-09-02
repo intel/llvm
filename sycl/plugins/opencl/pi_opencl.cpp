@@ -228,8 +228,18 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16: {
+    size_t extSize;
+    cl_bool result = clGetDeviceInfo(
+        cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
+    std::string extStr(extSize, '\0');
+    result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
+                             extSize, &extStr.front(), nullptr);
+    result =
+        (extStr.find("cl_intel_bfloat16_conversions") != std::string::npos);
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));

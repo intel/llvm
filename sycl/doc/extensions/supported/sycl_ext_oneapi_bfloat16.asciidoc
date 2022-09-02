@@ -46,7 +46,7 @@ This extension is written against the SYCL 2020 specification, Revision 5.
 This extension is implemented and fully supported by DPC++.
 [NOTE]
 ====
-This extension is currently implemented in `dpcpp` only for GPU devices that support `bfloat16` natively. Attempting to use this extension in
+This extension is currently implemented in DPC++ only for GPU devices that support `bfloat16` natively. Attempting to use this extension in
 kernels that run on other devices may result in undefined behavior.
 Be aware that the compiler is not able to issue a diagnostic to warn you if this happens.
 ====
@@ -86,15 +86,12 @@ enum class aspect {
 }
 ----
 
-If a SYCL device has the `ext_oneapi_bfloat16` aspect, then it natively
-supports conversion of values of `float` type to `bfloat16` and back.
-
 This extension is an optional kernel feature as described in section 5.7 of the SYCL 2020 spec, with the associated aspect `ext_oneapi_bfloat16`. Applications can query whether the device has this aspect to determine if it supports kernels that use `bfloat16`. Attempting to submit a kernel using `bfloat16` to a device that does not support it causes a synchronous `errc::kernel_not_supported` exception to be thrown from the kernel invocation command (e.g. from `parallel_for`).
 
 [NOTE]
 ====
-. DPC++ does not currently implement the `errc::kernel_not_supported` exception in this case. Attempting to submit a kernel using `bfloat16` to a device that does not have the `ext_oneapi_bfloat16` aspect results in undefined behavior.
-. The `bfloat16` class is currently supported only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80.
+. DPC++ does not currently implement the `errc::kernel_not_supported` exception in this case. Attempting to submit a kernel using `bfloat16` to a device that does not have the `ext_oneapi_bfloat16` aspect results in undefined behavior. 
+. The `bfloat16` class is currently supported only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. 
 ====
 
 
@@ -259,7 +256,7 @@ OP is `+==, !=, <, >, <=, >=+`
 OP is `+==, !=, <, >, <=, >=+`
 |===
 
-== Example
+=== Example
 
 [source]
 ----
@@ -302,7 +299,7 @@ int main(int argc, char *argv[]) {
 }
 ----
 
-== New bfloat16 math functions
+=== New bfloat16 math functions
 
 Many applications will require dedicated functions that take parameters of type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions. These functions can be used as element wise operations on matrices, supplementing the `bfloat16` support in the `sycl_ext_oneapi_matrix` extension.
 
@@ -310,7 +307,7 @@ The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point mat
 
 
 
-=== fma
+==== fma
 
 ```c++
 namespace sycl::ext::oneapi {
@@ -323,12 +320,12 @@ marray<bfloat16, N> fma(marray<bfloat16, N> a, marray<bfloat16, N> b, marray<bfl
 } // namespace sycl::ext::oneapi
 ```
 
-==== Description
+===== Description
 
 Returns the correctly rounded floating-point representation of the sum of `c` with the infinitely precise product of `a` and `b`.
 Rounding of intermediate products shall not occur. The mantissa LSB rounds to the nearest even. Subnormal numbers are supported.
 
-=== fmax
+==== fmax
 
 ```c++
 namespace sycl::ext::oneapi {
@@ -341,7 +338,7 @@ marray<bfloat16, N> fmax(marray<bfloat16, N> x, marray<bfloat16, N> y);
 } // namespace sycl::ext::oneapi
 ```
 
-==== Description
+===== Description
 
 Returns `y` if
 `x < y`, otherwise it
@@ -350,7 +347,7 @@ NaN, `fmax()` returns the other
 argument. If both arguments are
 NaNs, `fmax()` returns a NaN.
 
-=== fmin
+==== fmin
 
 ```c++
 namespace sycl::ext::oneapi {
@@ -363,7 +360,7 @@ marray<bfloat16, N> fmin(marray<bfloat16, N> a, marray<bfloat16, N> b);
 } // namespace sycl::ext::oneapi
 ```
 
-==== Description
+===== Description
 
 Returns `y` if
 `y < x`, otherwise it
@@ -372,7 +369,7 @@ NaN, `fmin()` returns the other
 argument. If both arguments are
 NaNs, `fmin()` returns a NaN.
 
-=== fabs
+==== fabs
 
 ```c++
 namespace sycl::ext::oneapi {
@@ -383,7 +380,7 @@ T fabs(T x);
 } // namespace sycl::ext::oneapi
 ```
 
-==== Description
+===== Description
 
 Compute absolute value of a `bfloat16`.
 
