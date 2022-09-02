@@ -77,6 +77,8 @@ public:
     Range1CopyCtor,    // sycl::range<1>::range(sycl::range<1> const&)
     Range2CopyCtor,    // sycl::range<2>::range(sycl::range<2> const&)
     Range3CopyCtor,    // sycl::range<3>::range(sycl::range<3> const&)
+
+    Arr1CtorSizeT,  // sycl::detail::array<1>::array<1>(std::enable_if<(1)==(1), unsigned long>::type)
   };
   // clang-format on
 

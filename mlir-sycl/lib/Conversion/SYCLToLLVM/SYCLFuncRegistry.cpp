@@ -15,6 +15,7 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "llvm/Support/Debug.h"
 
@@ -249,8 +250,14 @@ void SYCLFuncRegistry::declareIdFuncDescriptors(LLVMTypeConverter &converter,
       converter.convertType(MemRefType::get(-1, IDType::get(context, 2)));
   Type id3PtrTy =
       converter.convertType(MemRefType::get(-1, IDType::get(context, 3)));
+
   auto voidTy = LLVM::LLVMVoidType::get(context);
   auto i64Ty = IntegerType::get(context, 64);
+  auto indexTy = IndexType::get(context);
+
+  auto arrayMemref = mlir::MemRefType::get(1, indexTy);
+  Type arr1PtrTy =
+      converter.convertType(mlir::MemRefType::get(-1, arrayMemref));
 
   // Construct the SYCL functions descriptors for the sycl::id<n> type.
   // Descriptor format: (enum, function name, signature).
@@ -304,7 +311,6 @@ void SYCLFuncRegistry::declareIdFuncDescriptors(LLVMTypeConverter &converter,
       SYCLIdFuncDescriptor(FuncId::Id3Ctor3SizeT,
           "_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm",
           voidTy, {id3PtrTy, i64Ty, i64Ty, i64Ty}),
-
       // sycl::id<1>::id(sycl::id<1> const&)
       SYCLIdFuncDescriptor(FuncId::Id1CopyCtor,
           "_ZN2cl4sycl2idILi1EEC1ERKS2_", voidTy, {id1PtrTy, id1PtrTy}),

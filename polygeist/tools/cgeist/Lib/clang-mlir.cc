@@ -10,6 +10,7 @@
 
 #include "clang-mlir.h"
 #include "TypeUtils.h"
+#include "mlir/Conversion/SYCLToLLVM/SYCLFuncRegistry.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -45,7 +46,6 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
-static bool DEBUG_FUNCTION = false;
 static bool BREAKPOINT_FUNCTION = false;
 
 using namespace std;
@@ -56,6 +56,7 @@ using namespace llvm::opt;
 using namespace mlir;
 using namespace mlir::arith;
 using namespace mlir::func;
+using namespace mlir::sycl;
 using namespace mlirclang;
 
 static cl::opt<bool>
@@ -67,6 +68,10 @@ static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
 
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
+
+static cl::opt<bool> DebugFunction(
+    "debug-function", cl::init(false),
+    cl::desc("Print informations about functions being processed."));
 
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
@@ -111,6 +116,34 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
     : Glob(Glob), module(module), builder(module->getContext()),
       loc(builder.getUnknownLoc()), ThisCapture(nullptr), LTInfo(LTInfo) {}
 
+void MLIRScanner::initSupportedConstructors() {
+  // List from SYCLFuncRegistry.cpp Please modify as new constructors are
+  // added to that file.
+  supportedCons.insert("_ZN2cl4sycl2idILi1EEC1Ev");
+  supportedCons.insert("_ZN2cl4sycl2idILi2EEC1Ev");
+  supportedCons.insert("_ZN2cl4sycl2idILi3EEC1Ev");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi3EEC1ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi3EEC1ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm");
+  supportedCons.insert(
+      "_ZN2cl4sycl2idILi3EEC1ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm");
+  supportedCons.insert("_ZN2cl4sycl6detail5arrayILi1EEC1ILi1EEENSt9enable_"
+                       "ifIXeqT_Li1EEmE4typeE");
+}
+
 void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   this->function = function;
   this->EmittingFunctionDecl = fd;
@@ -120,6 +153,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
     llvm::errs() << *fd << "\n";
   }
 
+  initSupportedConstructors();
   setEntryAndAllocBlock(function.addEntryBlock());
 
   unsigned i = 0;
@@ -1363,6 +1397,16 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
   return VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0);
 }
 
+static void getMangledFuncName(std::string &name, const FunctionDecl *FD,
+                               CodeGen::CodeGenModule &CGM) {
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+  else
+    name = CGM.getMangledName(FD).str();
+}
+
 ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
                                                 VarDecl *name, unsigned memtype,
                                                 mlir::Value op,
@@ -1439,11 +1483,33 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     assert(obj.isReference);
   }
 
-  /// If the constructor is part of the SYCL namespace, we do not want the
+  /// If the constructor is part of the SYCL namespace, we may not want the
   /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit dequeu,
-  /// since we will create it's equivalent with SYCL operations.
-  const auto ShouldEmit = !mlirclang::isNamespaceSYCL(
+  /// since we will create it's equivalent with SYCL operations. Please note
+  /// that we still generate some constructors that we need for lowering some
+  /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
+  /// looking them up in our "registry" of supported constructors.
+
+  bool ShouldEmit = !mlirclang::isNamespaceSYCL(
       cons->getConstructor()->getEnclosingNamespaceContext());
+
+  if (const FunctionDecl *FuncDecl =
+          dyn_cast<FunctionDecl>(cons->getConstructor())) {
+    std::string name;
+    getMangledFuncName(name, FuncDecl, Glob.CGM);
+    name = (PrefixABI + name);
+
+    if (DebugFunction) {
+      llvm::dbgs() << "Starting codegen of " << name << "\n";
+    }
+    if (isSupportedConstructor(name)) {
+      if (DebugFunction) {
+        llvm::dbgs() << "Function found in registry, continue codegen-ing...\n";
+      }
+      ShouldEmit = true;
+    }
+  }
+
   auto tocall =
       Glob.GetOrCreateMLIRFunction(cons->getConstructor(), ShouldEmit);
 
@@ -4262,12 +4328,7 @@ mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateFreeFunction() {
 mlir::LLVM::LLVMFuncOp
 MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   std::string name;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
-  else
-    name = CGM.getMangledName(FD).str();
+  getMangledFuncName(name, FD, CGM);
 
   if (name != "malloc" && name != "free")
     name = (PrefixABI + name);
@@ -4630,25 +4691,20 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
   return globalPtr;
 }
 
-mlir::func::FuncOp
-MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
-                                         const bool ShouldEmit,
-                                         bool getDeviceStub) {
+mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
+    const FunctionDecl *FD, const bool ShouldEmit, bool getDeviceStub) {
   assert(FD->getTemplatedKind() !=
          FunctionDecl::TemplatedKind::TK_FunctionTemplate);
   assert(
       FD->getTemplatedKind() !=
       FunctionDecl::TemplatedKind::TK_DependentFunctionTemplateSpecialization);
+
   std::string name;
   if (getDeviceStub)
     name =
         CGM.getMangledName(GlobalDecl(FD, KernelReferenceKind::Kernel)).str();
-  else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
-    name = CGM.getMangledName(FD).str();
+    getMangledFuncName(name, FD, CGM);
 
   name = (PrefixABI + name);
 
@@ -4855,7 +4911,7 @@ void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     const FunctionDecl *FD = functionsToEmit.front();
 
-    if (BREAKPOINT_FUNCTION && DEBUG_FUNCTION) {
+    if (BREAKPOINT_FUNCTION && DebugFunction) {
       printf("\n");
       printf("-- FUNCTION BEING EMITTED : \033[0;32m %s \033[0m -- \n",
              FD->getNameAsString().c_str());
@@ -4870,14 +4926,7 @@ void MLIRASTConsumer::run() {
                TK_DependentFunctionTemplateSpecialization);
     std::string name;
 
-    if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-      name =
-          CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-    else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-      name =
-          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
-    else
-      name = CGM.getMangledName(FD).str();
+    getMangledFuncName(name, FD, CGM);
 
     if (done.count(name))
       continue;
@@ -4886,7 +4935,7 @@ void MLIRASTConsumer::run() {
     auto Function = GetOrCreateMLIRFunction(FD, true);
     ms.init(Function, FD);
 
-    if (BREAKPOINT_FUNCTION && DEBUG_FUNCTION) {
+    if (BREAKPOINT_FUNCTION && DebugFunction) {
       printf("\n");
       Function.dump();
       printf("\n");
@@ -4926,7 +4975,7 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       HandleDeclContext(NS);
       continue;
     }
-    FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(D);
+    const FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(D);
     if (!fd) {
       continue;
     }
@@ -4953,14 +5002,7 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       externLinkage = false;
 
     std::string name;
-    if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
-      name =
-          CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-    else if (auto CC = dyn_cast<CXXDestructorDecl>(fd))
-      name =
-          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
-    else
-      name = CGM.getMangledName(fd).str();
+    getMangledFuncName(name, fd, CGM);
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5002,7 +5044,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       HandleDeclContext(NS);
       continue;
     }
-    FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
+    const FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
     if (!fd) {
       continue;
     }
@@ -5034,14 +5076,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       externLinkage = false;
 
     std::string name;
-    if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
-      name =
-          CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-    else if (auto CC = dyn_cast<CXXDestructorDecl>(fd))
-      name =
-          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
-    else
-      name = CGM.getMangledName(fd).str();
+    getMangledFuncName(name, fd, CGM);
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))

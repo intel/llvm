@@ -155,6 +155,12 @@ private:
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
 
+  llvm::SmallSet<std::string, 4> supportedCons;
+  void initSupportedConstructors();
+  bool isSupportedConstructor(std::string name) const {
+    return supportedCons.contains(name);
+  }
+
   // ValueCategory getValue(std::string name);
 
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
