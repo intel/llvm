@@ -138,7 +138,8 @@ enum class MatrixUse : uint32_t {
 // The long term solution would be to introduce a matrix type in Clang and use
 // it instead of this member.
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
-          Scope::Flag S = Scope::Flag::Subgroup, MatrixUse U = MatrixUse::Unnecessary>
+          Scope::Flag S = Scope::Flag::Subgroup,
+          MatrixUse U = MatrixUse::Unnecessary>
 struct __spirv_JointMatrixINTEL {
   T(*Value)
   [R][C][static_cast<size_t>(L) + 1][static_cast<size_t>(S) + 1]
