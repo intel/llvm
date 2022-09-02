@@ -130,7 +130,8 @@ int test(queue &Q, size_t NWorkItems, size_t WGSize, RedTys... Reds) {
          [&](auto... SyclReds) {
            CGH.parallel_for<Name>(
                NDR, SyclReds..., [=](nd_item<1> NDIt, auto &...Reducers) {
-                 static_assert(sizeof...(Reducers) == 4);
+                 static_assert(sizeof...(Reducers) == 4 ||
+                               sizeof...(Reducers) == 2);
                  // No C++20, so don't have explicit template param lists in
                  // lambda and can't unfold std::integer_sequence to write
                  // generic code here.
@@ -139,8 +140,10 @@ int test(queue &Q, size_t NWorkItems, size_t WGSize, RedTys... Reds) {
 
                  std::get<0>(ReducersTuple).combine(std::get<0>(InAcc)[I]);
                  std::get<1>(ReducersTuple).combine(std::get<1>(InAcc)[I]);
-                 std::get<2>(ReducersTuple).combine(std::get<2>(InAcc)[I]);
-                 std::get<3>(ReducersTuple).combine(std::get<3>(InAcc)[I]);
+                 if constexpr (sizeof...(Reds) == 4) {
+                   std::get<2>(ReducersTuple).combine(std::get<2>(InAcc)[I]);
+                   std::get<3>(ReducersTuple).combine(std::get<3>(InAcc)[I]);
+                 }
 
                  return;
                });
@@ -185,6 +188,13 @@ int main() {
                                         init_to_identity()),
         RedFactory<UseUSM, usm::alloc::device>{}.get<int>(
             Q, GSize, 0, 8000, std::plus<>{}, init_to_identity()));
+
+  // Use buffers only to verify same mangled kernel name isn't used twice inside
+  // implementation.
+  Error += test<class Case3>(
+      Q, GSize, WGSize,
+      RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{}),
+      RedFactory<UseBuf>{}.get<int>(Q, GSize, 0, 2000, std::plus<>{}));
 
   printFinalStatus(Error);
   return Error;
