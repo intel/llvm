@@ -335,25 +335,23 @@ public:
   using type = decltype(check(T()));
 };
 
-template <typename T, typename = typename detail::enable_if_t<
-                          TryToGetPointerT<T>::value, std::true_type>>
-typename TryToGetPointerVecT<T>::type TryToGetPointer(T &t) {
+template <
+    typename To, typename From,
+    typename = typename detail::enable_if_t<TryToGetPointerT<From>::value>>
+To ConvertNonVectorType(From &t) {
   // TODO find the better way to get the pointer to underlying data from vec
   // class
-  return reinterpret_cast<typename TryToGetPointerVecT<T>::type>(t.get());
+  return reinterpret_cast<To>(t.get());
 }
 
-template <typename T>
-typename TryToGetPointerVecT<T *>::type TryToGetPointer(T *t) {
-  // TODO find the better way to get the pointer to underlying data from vec
-  // class
-  return reinterpret_cast<typename TryToGetPointerVecT<T *>::type>(t);
+template <typename To, typename From> To ConvertNonVectorType(From *t) {
+  return reinterpret_cast<To>(t);
 }
 
-template <typename T, typename = typename detail::enable_if_t<
-                          !TryToGetPointerT<T>::value, std::false_type>>
-T TryToGetPointer(T &t) {
-  return t;
+template <typename To, typename From>
+typename detail::enable_if_t<!TryToGetPointerT<From>::value, To>
+ConvertNonVectorType(From &t) {
+  return static_cast<To>(t);
 }
 
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
@@ -398,13 +396,14 @@ using select_cl_scalar_t = conditional_t<
         conditional_t<std::is_same<T, half>::value,
                       sycl::detail::half_impl::BIsRepresentationT, T>>>;
 
-// select_cl_vector_or_scalar does cl_* type selection for element type of
-// a vector type T and does scalar type substitution.  If T is not
-// vector or scalar unmodified T is returned.
-template <typename T, typename Enable = void> struct select_cl_vector_or_scalar;
+// select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
+// of a vector type T, pointer type substitution, and scalar type substitution.
+// If T is not vector, scalar, or pointer unmodified T is returned.
+template <typename T, typename Enable = void>
+struct select_cl_vector_or_scalar_or_ptr;
 
 template <typename T>
-struct select_cl_vector_or_scalar<
+struct select_cl_vector_or_scalar_or_ptr<
     T, typename detail::enable_if_t<is_vgentype<T>::value>> {
   using type =
       // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
@@ -417,17 +416,31 @@ struct select_cl_vector_or_scalar<
 };
 
 template <typename T>
-struct select_cl_vector_or_scalar<
-    T, typename detail::enable_if_t<!is_vgentype<T>::value>> {
+struct select_cl_vector_or_scalar_or_ptr<
+    T, typename detail::enable_if_t<!is_vgentype<T>::value &&
+                                    !std::is_pointer<T>::value>> {
   using type = select_cl_scalar_t<T>;
 };
 
-// select_cl_mptr_or_vector_or_scalar does cl_* type selection for type
-// pointed by multi_ptr or for element type of a vector type T and does
-// scalar type substitution.  If T is not mutlti_ptr or vector or scalar
-// unmodified T is returned.
+template <typename T>
+struct select_cl_vector_or_scalar_or_ptr<
+    T, typename detail::enable_if_t<!is_vgentype<T>::value &&
+                                    std::is_pointer<T>::value>> {
+  using elem_ptr_type = typename select_cl_vector_or_scalar_or_ptr<
+      std::remove_pointer_t<T>>::type *;
+#ifdef __SYCL_DEVICE_ONLY__
+  using type = typename DecoratedType<elem_ptr_type, deduce_AS<T>::value>::type;
+#else
+  using type = elem_ptr_type;
+#endif
+};
+
+// select_cl_mptr_or_vector_or_scalar_or_ptr does cl_* type selection for type
+// pointed by multi_ptr, for raw pointers, for element type of a vector type T,
+// and does scalar type substitution.  If T is not mutlti_ptr or vector or
+// scalar or pointer unmodified T is returned.
 template <typename T, typename Enable = void>
-struct select_cl_mptr_or_vector_or_scalar;
+struct select_cl_mptr_or_vector_or_scalar_or_ptr;
 
 // this struct helps to use std::uint8_t instead of std::byte,
 // which is not supported on device
@@ -444,25 +457,25 @@ template <> struct TypeHelper<std::byte> {
 template <typename T> using type_helper = typename TypeHelper<T>::RetType;
 
 template <typename T>
-struct select_cl_mptr_or_vector_or_scalar<
+struct select_cl_mptr_or_vector_or_scalar_or_ptr<
     T, typename detail::enable_if_t<is_genptr<T>::value &&
                                     !std::is_pointer<T>::value>> {
-  using type = multi_ptr<typename select_cl_vector_or_scalar<
+  using type = multi_ptr<typename select_cl_vector_or_scalar_or_ptr<
                              type_helper<typename T::element_type>>::type,
                          T::address_space>;
 };
 
 template <typename T>
-struct select_cl_mptr_or_vector_or_scalar<
+struct select_cl_mptr_or_vector_or_scalar_or_ptr<
     T, typename detail::enable_if_t<!is_genptr<T>::value ||
                                     std::is_pointer<T>::value>> {
-  using type = typename select_cl_vector_or_scalar<T>::type;
+  using type = typename select_cl_vector_or_scalar_or_ptr<T>::type;
 };
 
 // All types converting shortcut.
 template <typename T>
 using SelectMatchingOpenCLType_t =
-    typename select_cl_mptr_or_vector_or_scalar<T>::type;
+    typename select_cl_mptr_or_vector_or_scalar_or_ptr<T>::type;
 
 // Converts T to OpenCL friendly
 //
@@ -492,7 +505,7 @@ typename detail::enable_if_t<!(is_vgentype<FROM>::value &&
                                  sizeof(TO) == sizeof(FROM),
                              TO>
 convertDataToType(FROM t) {
-  return TryToGetPointer(t);
+  return ConvertNonVectorType<TO>(t);
 }
 
 // Used for all, any and select relational built-in functions
