@@ -216,9 +216,7 @@ template <typename T, T param> struct compatibility_param_traits {};
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
                                           PiCode)                              \
   namespace Namespace::info::DescType {                                        \
-  template <> struct Desc {                                                    \
-    using return_type = ReturnT;                                               \
-  };                                                                           \
+  template <> struct Desc { using return_type = ReturnT; };                    \
   }
 namespace ext {
 namespace oneapi::experimental::info::device {
