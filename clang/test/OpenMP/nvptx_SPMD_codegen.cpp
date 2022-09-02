@@ -1,9 +1,9 @@
 // Test target codegen - host bc file has to be created first.
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -fopenmp -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
@@ -11,13 +11,13 @@
 int a;
 
 // CHECK-NOT: @__omp_offloading_{{.+}}_exec_mode = weak constant i8 1
-// CHECK-DAG: [[DISTR_LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2050, i32 3, i32 0, i8* getelementptr inbounds
-// CHECK-DAG: [[FOR_LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 514, i32 3, i32 0, i8* getelementptr inbounds
-// CHECK-DAG: [[LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 3, i32 0, i8* getelementptr inbounds
-// CHECK-DAG: [[DISTR_FULL:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2050, i32 1, i32 0, i8* getelementptr inbounds
-// CHECK-DAG: [[FULL:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 1, i32 0, i8* getelementptr inbounds
-// CHECK-DAG: [[BAR_LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 66, i32 3, i32 0, i8* getelementptr inbounds
-// CHECK-DAG: [[BAR_FULL:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 66, i32 1, i32 0, i8* getelementptr inbounds
+// CHECK-DAG: [[DISTR_LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2050, i32 3, i32 {{[0-9]+}}, i8* getelementptr inbounds
+// CHECK-DAG: [[FOR_LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 514, i32 3, i32 {{[0-9]+}}, i8* getelementptr inbounds
+// CHECK-DAG: [[LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 3, i32 {{[0-9]+}}, i8* getelementptr inbounds
+// CHECK-DAG: [[DISTR_FULL:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2050, i32 1, i32 {{[0-9]+}}, i8* getelementptr inbounds
+// CHECK-DAG: [[FULL:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 1, i32 {{[0-9]+}}, i8* getelementptr inbounds
+// CHECK-DAG: [[BAR_LIGHT:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 66, i32 3, i32 {{[0-9]+}}, i8* getelementptr inbounds
+// CHECK-DAG: [[BAR_FULL:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 66, i32 1, i32 {{[0-9]+}}, i8* getelementptr inbounds
 // CHECK-NOT: @__omp_offloading_{{.+}}_exec_mode = weak constant i8 1
 
 void foo() {

@@ -13,15 +13,17 @@
 #ifndef LLVM_ANALYSIS_INLINECOST_H
 #define LLVM_ANALYSIS_INLINECOST_H
 
-#include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/Analysis/InlineModelFeatureMaps.h"
-#include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/IR/PassManager.h"
 #include <cassert>
 #include <climits>
 
 namespace llvm {
-class AssumptionCacheTracker;
+class AssumptionCache;
+class OptimizationRemarkEmitter;
 class BlockFrequencyInfo;
 class CallBase;
 class DataLayout;
@@ -42,7 +44,7 @@ const int OptMinSizeThreshold = 5;
 const int OptAggressiveThreshold = 250;
 
 // Various magic constants used to adjust heuristics.
-const int InstrCost = 5;
+int getInstrCost();
 const int IndirectCallThreshold = 100;
 const int LoopPenalty = 25;
 const int LastCallToStaticBonus = 15000;
@@ -53,6 +55,9 @@ const unsigned TotalAllocaSizeRecursiveCaller = 1024;
 /// Do not inline dynamic allocas that have been constant propagated to be
 /// static allocas above this amount in bytes.
 const uint64_t MaxSimplifiedDynamicAllocaToInline = 65536;
+
+const char FunctionInlineCostMultiplierAttributeName[] =
+    "function-inline-cost-multiplier";
 } // namespace InlineConstants
 
 // The cost-benefit pair computed by cost-benefit analysis.
@@ -218,6 +223,8 @@ struct InlineParams {
   Optional<bool> AllowRecursiveCall = false;
 };
 
+Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind);
+
 /// Generate the parameters to tune the inline cost analysis based only on the
 /// commandline options.
 InlineParams getInlineParams();
@@ -237,7 +244,7 @@ InlineParams getInlineParams(unsigned OptLevel, unsigned SizeOptLevel);
 
 /// Return the cost associated with a callsite, including parameter passing
 /// and the call/return instruction.
-int getCallsiteCost(CallBase &Call, const DataLayout &DL);
+int getCallsiteCost(const CallBase &Call, const DataLayout &DL);
 
 /// Get an InlineCost object representing the cost of inlining this
 /// callsite.

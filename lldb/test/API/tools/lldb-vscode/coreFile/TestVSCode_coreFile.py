@@ -14,8 +14,6 @@ import os
 
 class TestVSCode_coreFile(lldbvscode_testcase.VSCodeTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIfWindows
     @skipIfRemote
     @skipIfLLVMTargetMissing("X86")
@@ -44,6 +42,7 @@ class TestVSCode_coreFile(lldbvscode_testcase.VSCodeTestCaseBase):
 
     @skipIfWindows
     @skipIfRemote
+    @skipIfLLVMTargetMissing("X86")
     def test_core_file_source_mapping(self):
         ''' Test that sourceMap property is correctly applied when loading a core '''
         current_dir = os.path.dirname(os.path.realpath(__file__))

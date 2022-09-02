@@ -2,7 +2,7 @@
 // RUN: mlir-opt -test-extract-fixed-outer-loops='test-outer-loop-sizes=7,4' %s | FileCheck %s --check-prefixes=COMMON,TILE_74
 
 // COMMON-LABEL: @rectangular
-func @rectangular(%arg0: memref<?x?xf32>) {
+func.func @rectangular(%arg0: memref<?x?xf32>) {
   %c2 = arith.constant 2 : index
   %c44 = arith.constant 44 : index
   %c1 = arith.constant 1 : index
@@ -41,11 +41,11 @@ func @rectangular(%arg0: memref<?x?xf32>) {
     // Upper bound for the inner loop min(%i + %step, %c44).
     // COMMON:      %[[stepped:.*]] = arith.addi %[[i]], %[[step]]
     // COMMON-NEXT: arith.cmpi slt, %c44, %[[stepped]]
-    // COMMON-NEXT: %[[ub:.*]] = select {{.*}}, %c44, %[[stepped]]
+    // COMMON-NEXT: %[[ub:.*]] = arith.select {{.*}}, %c44, %[[stepped]]
     //
     // TILE_74:      %[[stepped2:.*]] = arith.addi %[[j]], %[[step2]]
     // TILE_74-NEXT: arith.cmpi slt, %c44, %[[stepped2]]
-    // TILE_74-NEXT: %[[ub2:.*]] = select {{.*}}, %c44, %[[stepped2]]
+    // TILE_74-NEXT: %[[ub2:.*]] = arith.select {{.*}}, %c44, %[[stepped2]]
 
     // Created inner scf.
     // COMMON:scf.for %[[ii:.*]] = %[[i]] to %[[ub:.*]] step %c1
@@ -66,7 +66,7 @@ func @rectangular(%arg0: memref<?x?xf32>) {
 }
 
 // COMMON-LABEL: @triangular
-func @triangular(%arg0: memref<?x?xf32>) {
+func.func @triangular(%arg0: memref<?x?xf32>) {
   %c2 = arith.constant 2 : index
   %c44 = arith.constant 44 : index
   %c1 = arith.constant 1 : index
@@ -109,10 +109,10 @@ func @triangular(%arg0: memref<?x?xf32>) {
     // Upper bound for the inner loop min(%i + %step, %c44).
     // COMMON:      %[[stepped:.*]] = arith.addi %[[i]], %[[step]]
     // COMMON-NEXT: arith.cmpi slt, %c44, %[[stepped]]
-    // COMMON-NEXT: %[[ub:.*]] = select {{.*}}, %c44, %[[stepped]]
+    // COMMON-NEXT: %[[ub:.*]] = arith.select {{.*}}, %c44, %[[stepped]]
     // TILE_74:      %[[stepped2:.*]] = arith.addi %[[j]], %[[step2]]
     // TILE_74-NEXT: arith.cmpi slt, %[[i]], %[[stepped2]]
-    // TILE_74-NEXT: %[[ub2:.*]] = select {{.*}}, %[[i]], %[[stepped2]]
+    // TILE_74-NEXT: %[[ub2:.*]] = arith.select {{.*}}, %[[i]], %[[stepped2]]
     //
     // Created inner scf.
     // COMMON:scf.for %[[ii:.*]] = %[[i]] to %[[ub:.*]] step %c1

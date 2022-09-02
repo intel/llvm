@@ -59,9 +59,8 @@ const Type *HeuristicResolver::getPointeeType(const Type *T) const {
   if (!T)
     return nullptr;
 
-  if (T->isPointerType()) {
-    return T->getAs<PointerType>()->getPointeeType().getTypePtrOrNull();
-  }
+  if (T->isPointerType())
+    return T->castAs<PointerType>()->getPointeeType().getTypePtrOrNull();
 
   // Try to handle smart pointer types.
 
@@ -121,8 +120,8 @@ std::vector<const NamedDecl *> HeuristicResolver::resolveMemberExpr(
     return {};
   if (const auto *BT = BaseType->getAs<BuiltinType>()) {
     // If BaseType is the type of a dependent expression, it's just
-    // represented as BultinType::Dependent which gives us no information. We
-    // can get further by analyzing the depedent expression.
+    // represented as BuiltinType::Dependent which gives us no information. We
+    // can get further by analyzing the dependent expression.
     Expr *Base = ME->isImplicitAccess() ? nullptr : ME->getBase();
     if (Base && BT->getKind() == BuiltinType::Dependent) {
       BaseType = resolveExprToType(Base);

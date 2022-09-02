@@ -28,7 +28,6 @@ posix_defines = [
     "HAVE_DEREGISTER_FRAME=1",
     "HAVE_LIBPTHREAD=1",
     "HAVE_PTHREAD_GETNAME_NP=1",
-    "HAVE_PTHREAD_GETSPECIFIC=1",
     "HAVE_PTHREAD_H=1",
     "HAVE_PTHREAD_SETNAME_NP=1",
     "HAVE_REGISTER_FRAME=1",
@@ -43,7 +42,6 @@ linux_defines = posix_defines + [
     "HAVE_LINK_H=1",
     "HAVE_LSEEK64=1",
     "HAVE_MALLINFO=1",
-    "HAVE_POSIX_FALLOCATE=1",
     "HAVE_SBRK=1",
     "HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC=1",
 ]
@@ -87,6 +85,8 @@ llvm_config_defines = os_defines + select({
     "@bazel_tools//src/conditions:darwin_arm64": native_arch_defines("AArch64", "arm64-apple-darwin"),
     "@bazel_tools//src/conditions:darwin_x86_64": native_arch_defines("X86", "x86_64-unknown-darwin"),
     "@bazel_tools//src/conditions:linux_aarch64": native_arch_defines("AArch64", "aarch64-unknown-linux-gnu"),
+    "@bazel_tools//src/conditions:linux_ppc64le": native_arch_defines("PowerPC", "powerpc64le-unknown-linux-gnu"),
+    "@bazel_tools//src/conditions:linux_s390x": native_arch_defines("SystemZ", "systemz-unknown-linux_gnu"),
     "//conditions:default": native_arch_defines("X86", "x86_64-unknown-linux-gnu"),
 }) + [
     # These shouldn't be needed by the C++11 standard, but are for some

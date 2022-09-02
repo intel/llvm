@@ -41,6 +41,7 @@
 #ifndef SPIRVREADER_H
 #define SPIRVREADER_H
 
+#include "SPIRVInternal.h"
 #include "SPIRVModule.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -82,6 +83,8 @@ public:
   Type *transType(SPIRVType *BT, bool IsClassMember = false);
   std::string transTypeToOCLTypeName(SPIRVType *BT, bool IsSigned = true);
   std::vector<Type *> transTypeVector(const std::vector<SPIRVType *> &);
+  std::vector<PointerIndirectPair>
+  getPointerElementTypes(llvm::ArrayRef<SPIRVType *> Tys);
   bool translate();
   bool transAddressingModel();
 
@@ -211,9 +214,7 @@ private:
   std::string transOCLImageTypeName(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLSampledImageTypeName(SPIRV::SPIRVTypeSampledImage *ST);
   std::string transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT);
-  std::string transOCLPipeTypeName(
-      SPIRV::SPIRVTypePipe *ST, bool UseSPIRVFriendlyFormat = false,
-      SPIRVAccessQualifierKind PipeAccess = AccessQualifierReadOnly);
+  std::string transPipeTypeName(SPIRV::SPIRVTypePipe *ST);
   std::string transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST);
   std::string transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLPipeTypeAccessQualifier(SPIRV::SPIRVTypePipe *ST);
@@ -233,8 +234,8 @@ private:
                                                  int64_t Parameter);
   template <class Source, class Func> bool foreachFuncCtlMask(Source, Func);
   llvm::GlobalValue::LinkageTypes transLinkageType(const SPIRVValue *V);
-  Instruction *transOCLAllAny(SPIRVInstruction *BI, BasicBlock *BB);
-  Instruction *transOCLRelational(SPIRVInstruction *BI, BasicBlock *BB);
+  Instruction *transAllAny(SPIRVInstruction *BI, BasicBlock *BB);
+  Instruction *transRelational(SPIRVInstruction *BI, BasicBlock *BB);
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
@@ -243,6 +244,11 @@ private:
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
+  void transVarDecorationsToMetadata(SPIRVValue *BV, Value *V);
+  void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
+  void
+  transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,
+                                             SPIRVTypeFunction *CalledFnTy);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV

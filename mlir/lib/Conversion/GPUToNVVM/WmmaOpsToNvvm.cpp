@@ -13,7 +13,7 @@
 
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -293,7 +293,7 @@ static Value createMinMaxF(OpBuilder &builder, Location loc, Value lhs,
       loc, lhs.getType(),
       builder.getFloatAttr(floatType,
                            APFloat::getQNaN(floatType.getFloatSemantics())));
-  return builder.create<LLVM::SelectOp>(loc, isNan, sel, nan);
+  return builder.create<LLVM::SelectOp>(loc, isNan, nan, sel);
 }
 
 static Value createScalarOp(OpBuilder &builder, Location loc,
@@ -358,22 +358,19 @@ struct WmmaElementwiseOpToNVVMLowering
 
 } // namespace
 
-namespace mlir {
-
 /// Return the LLVMStructureType corresponding to the MMAMatrixType `type`.
-LLVM::LLVMStructType convertMMAToLLVMType(gpu::MMAMatrixType type) {
+LLVM::LLVMStructType mlir::convertMMAToLLVMType(gpu::MMAMatrixType type) {
   NVVM::MMAFrag frag = convertOperand(type.getOperand());
   NVVM::MMATypes eltType = getElementType(type);
   std::pair<Type, unsigned> typeInfo =
-      inferMMAType(eltType, frag, type.getContext());
+      NVVM::inferMMAType(eltType, frag, type.getContext());
   return LLVM::LLVMStructType::getLiteral(
       type.getContext(), SmallVector<Type, 8>(typeInfo.second, typeInfo.first));
 }
 
-void populateGpuWMMAToNVVMConversionPatterns(LLVMTypeConverter &converter,
-                                             RewritePatternSet &patterns) {
-  patterns.insert<WmmaLoadOpToNVVMLowering, WmmaMmaOpToNVVMLowering,
-                  WmmaStoreOpToNVVMLowering, WmmaConstantOpToNVVMLowering,
-                  WmmaElementwiseOpToNVVMLowering>(converter);
+void mlir::populateGpuWMMAToNVVMConversionPatterns(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+  patterns.add<WmmaLoadOpToNVVMLowering, WmmaMmaOpToNVVMLowering,
+               WmmaStoreOpToNVVMLowering, WmmaConstantOpToNVVMLowering,
+               WmmaElementwiseOpToNVVMLowering>(converter);
 }
-} // namespace mlir

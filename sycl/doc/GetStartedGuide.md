@@ -11,7 +11,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu)
+    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-emulator)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -25,6 +25,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
       - [Run DPC++ E2E test suite](#run-dpc-e2e-test-suite)
       - [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
     - [Run simple DPC++ application](#run-simple-dpc-application)
+    - [Build DPC++ application with CMake](#build-dpc-application-with-cmake)
     - [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
     - [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
   - [C++ standard](#c-standard)
@@ -37,7 +38,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 * `git` - [Download](https://git-scm.com/downloads)
 * `cmake` version 3.14 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/release/python-2716/)
+* `python` - [Download](https://www.python.org/downloads/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
@@ -46,7 +47,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)
 
-Alternatively, you can use Docker image, that has everything you need
+Alternatively, you can use a Docker image that has everything you need for building
 pre-installed:
 
 ```
@@ -54,7 +55,7 @@ docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llv
 ```
 
 This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](dev/DockerBKMs.md) for more info on Docker
+instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on Docker
 commands.
 
 ### Create DPC++ workspace
@@ -116,14 +117,15 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
-* `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
-* `--no-werror` -> Don't treat warnings as errors when compiling llvm
+* `--werror` -> treat warnings as errors when compiling LLVM
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* '--enable-esimd-cpu-emulation' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
+  supported targets
 * `--shared-libs` -> Build shared libraries
-* `-t` -> Build type (debug or release)
+* `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
@@ -168,22 +170,36 @@ There is experimental support for DPC++ for CUDA devices.
 
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
-the CUDA backend has experimental Windows support, windows subsystem for 
+the CUDA backend has Windows support; windows subsystem for
 linux (WSL) is not needed to build and run the CUDA backend.
 
-Enabling this flag requires an installation of
+Enabling this flag requires an installation of at least
 [CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
 
-Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
-a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 
-operating systems with any GPU compatible with SM 50 or above. The default 
-SM for the NVIDIA CUDA backend is 5.0. Users can specify lower values, 
-but some features may not be supported. Windows CUDA support is experimental
-as it is not currently tested on the CI.
+Errors may occur if DPC++ is built with a toolkit version which is higher than
+the CUDA driver version. In order to check that the CUDA driver and toolkits
+match, use the CUDA executable `deviceQuery` which is usually found in 
+`$CUDA_INSTALL_DIR/cuda/extras/demo_suite/deviceQuery`.
+
+**_NOTE:_** An installation of at least
+[CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
+there is a known issue with some math builtins when using -O1/O2/O3
+Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
+earlier versions of the CUDA toolkit: see
+[this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
+
+An installation of at least
+[CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
+is required to fully utilize Turing (SM 75) devices and to enable Ampere (SM 80)
+core features.
+
+The CUDA backend should work on Windows or Linux operating systems with any
+GPU compatible with SM 50 or above. The default SM for the NVIDIA CUDA backend
+is 5.0. Users can specify lower values, but some features may not be supported.
 
 **Non-standard CUDA location**
 
@@ -216,6 +232,16 @@ Enabling this flag requires an installation of
 ROCm on the system, for instruction on how to install this refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
+The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it
+is installed somewhere else, the directory must be provided through
+the CMake variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed
+using the `--cmake-opt` option of `configure.py` as follows:
+
+```
+python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
+```
+
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0 and
 using the MI50 (gfx906) and MI100 (gfx908) devices.
 
@@ -224,16 +250,6 @@ The AMDGPU backend generates a standard ELF [ELF] relocatable code object that c
 produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target.
 The LLD project is enabled by default when configuring for HIP. For more details
 on building LLD refer to [LLD Build Guide](https://lld.llvm.org/).
-
-The following CMake variables can be updated to change where CMake is looking
-for the HIP installation:
-
-* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`: Path to HIP include directory (default
-  `/opt/rocm/hip/include`).
-* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`: Path to HSA include directory (default
-  `/opt/rocm/hsa/include`).
-* `SYCL_BUILD_PI_HIP_AMD_LIBRARY`: Path to HIP runtime library (default
-  `/opt/rocm/hip/lib/libamdhip64.so`).
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
@@ -261,37 +277,23 @@ CUDA 11, and using a GeForce 1060 device.
 There is experimental support for DPC++ for using ESIMD CPU Emulation
 
 This feature supports ESIMD CPU Emulation using CM_EMU library [CM
-Emulation
-project](https://github.com/intel/cm-cpu-emulation). Pre-built library
-package will be downloaded and installed in your deploy directory
-during toolchain build.
+Emulation project](https://github.com/intel/cm-cpu-emulation). The
+library package will be generated from source codes downloaded from
+its open source project and installed in your deploy directory during
+toolchain build.
 
 To enable support for ESIMD CPU emulation, follow the instructions for
-the Linux DPC++ toolchain, but add the `--enable-esimd-cpu-emulation'.
+the Linux DPC++ toolchain, but add the `--enable-esimd-emulator'.
 
 Enabling this flag requires following packages installed.
 
 * Ubuntu 20.04
     * libva-dev / 2.7.0-2
-    * libva-drm2 / 2.7.0-2
-    * libva-glx2 / 2.7.0-2
-    * libva-wayland2 / 2.7.0-2
-    * libva-x11-2 / 2.7.0-2
-    * libva2 / focal 2.7.0-2
     * libffi-dev / 3.3-4
-    * libffi7 / 3.3-4
-    * libdrm-amdgpu1
-    * libdrm-common
-    * libdrm-dev
-    * libdrm-intel1
-    * libdrm-nouveau2
-    * libdrm-radeon1
-    * libdrm2
+    * libtool
 * RHEL 8.*
     * libffi
     * libffi-devel
-    * libdrm
-    * libdrm-devel
     * libva
     * libva-devel
 
@@ -305,6 +307,7 @@ the following tools need to be installed:
 
 * doxygen
 * graphviz
+* sphinx
 
 Then you'll need to add the following options to your CMake configuration
 command:
@@ -448,7 +451,7 @@ command:
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
-[Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+[Ahead of time compilation](design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
 AOT compiler for each device type:
 
@@ -509,17 +512,17 @@ python $DPCPP_HOME/llvm/buildbot/check.py
 ```bat
 python %DPCPP_HOME%\llvm\buildbot\check.py
 ```
-
+Make sure that psutil package is installed.
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
 skipped.
 
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
-If testing with HIP for AMD make sure to specify the GPU being used
-by adding `-hip-amd-arch=<target>`to buildbot/configure.py or add 
-`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` 
-to the CMake variable `SYCL_CLANG_EXTRA_FLAGS`.
+If testing with HIP for AMD, the lit tests will use `gfx906` as the default
+architecture. It is possible to change it by adding
+`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
+variable `SYCL_CLANG_EXTRA_FLAGS`.
 
 #### Run DPC++ E2E test suite
 
@@ -533,24 +536,8 @@ implementation conformance to Khronos\* SYCL\* specification. DPC++ compiler is
 expected to pass significant number of tests, and it keeps improving.
 
 Follow Khronos\* SYCL\* CTS instructions from
-[README](https://github.com/KhronosGroup/SYCL-CTS#sycl-121-conformance-test-suite)
+[README](https://github.com/KhronosGroup/SYCL-CTS#configuration--compilation)
 file to obtain test sources and instructions how build and execute the tests.
-
-To configure testing of DPC++ toochain set
-`SYCL_IMPLEMENTATION=Intel_SYCL` and
-`Intel_SYCL_ROOT=<path to the SYCL installation>` CMake variables.
-
-**Linux**:
-
-```bash
-cmake -DIntel_SYCL_ROOT=$DPCPP_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
-```
-
-**Windows (64-bit)**:
-
-```bat
-cmake -DIntel_SYCL_ROOT=%DPCPP_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
-```
 
 ### Run simple DPC++ application
 
@@ -567,33 +554,33 @@ A simple DPC++ or SYCL\* program consists of following parts:
 Creating a file `simple-sycl-app.cpp` with the following C++/SYCL code:
 
 ```c++
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   // Creating buffer of 4 ints to be used inside the kernel code
-  cl::sycl::buffer<cl::sycl::cl_int, 1> Buffer(4);
+  sycl::buffer<sycl::cl_int, 1> Buffer(4);
 
   // Creating SYCL queue
-  cl::sycl::queue Queue;
+  sycl::queue Queue;
 
   // Size of index space for kernel
-  cl::sycl::range<1> NumOfWorkItems{Buffer.size()};
+  sycl::range<1> NumOfWorkItems{Buffer.size()};
 
   // Submitting command group(work) to queue
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     // Getting write only access to the buffer on a device
-    auto Accessor = Buffer.get_access<cl::sycl::access::mode::write>(cgh);
+    auto Accessor = Buffer.get_access<sycl::access::mode::write>(cgh);
     // Executing kernel
     cgh.parallel_for<class FillBuffer>(
-        NumOfWorkItems, [=](cl::sycl::id<1> WIid) {
+        NumOfWorkItems, [=](sycl::id<1> WIid) {
           // Fill buffer with indexes
-          Accessor[WIid] = (cl::sycl::cl_int)WIid.get(0);
+          Accessor[WIid] = (sycl::cl_int)WIid.get(0);
         });
   });
 
   // Getting read only access to the buffer on the host.
   // Implicit barrier waiting for queue to complete the work.
-  const auto HostAccessor = Buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = Buffer.get_access<sycl::access::mode::read>();
 
   // Check the results
   bool MismatchFound = false;
@@ -674,7 +661,7 @@ clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o si
 
 Additionally, user can pass specific options of AOT compiler to
 the DPC++ compiler using ```-Xsycl-target-backend``` option, see
-[Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
+[Device code formats](design/CompilerAndRuntimeDesign.md#device-code-formats) for
 more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
@@ -700,7 +687,7 @@ The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
+if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
 
 **Linux & Windows (64-bit)**:
 
@@ -718,36 +705,64 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
-device selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
-[Intel FPGA selector(s)](extensions/IntelFPGA/FPGASelector.md)) as
+device selectors (e.g. `sycl::cpu_selector`, `sycl::gpu_selector`,
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 
+### Build DPC++ application with CMake
+
+DPC++ applications can be built with CMake by simply using DPC++ as the C++
+compiler and by adding the SYCL specific flags. For example assuming `clang++`
+is on the `PATH`, a minimal `CMakeLists.txt` file for the sample above would be:
+
+```cmake
+cmake_minimum_required(VERSION 3.14)
+
+# Modifying the compiler should be done before the project line
+set(CMAKE_CXX_COMPILER "clang++")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
+
+project(simple-sycl-app)
+
+add_executable(simple-sycl-app simple-sycl-app.cpp)
+```
+
+NOTE: compiling SYCL programs requires passing the SYCL flags to `clang++` for
+both the compilation and linking stages, so using `add_compile_options` to pass
+the SYCL flags is not enough on its own, they should also be passed to
+`add_link_options`, or more simply the SYCL flags can just be added to
+`CMAKE_CXX_FLAGS`.
+
+NOTE: When linking a SYCL application, `clang++` will implicitly link it against
+`libsycl.so`, so there is no need to add `-lsycl` to `target_link_libraries` in
+the CMake.
+
 ### Code the program for a specific GPU
 
-To specify OpenCL device SYCL provides the abstract `cl::sycl::device_selector`
+To specify OpenCL device SYCL provides the abstract `sycl::device_selector`
 class which the can be used to define how the runtime should select the best
 device.
 
-The method `cl::sycl::device_selector::operator()` of the SYCL
-`cl::sycl::device_selector` is an abstract member function which takes a
+The method `sycl::device_selector::operator()` of the SYCL
+`sycl::device_selector` is an abstract member function which takes a
 reference to a SYCL device and returns an integer score. This abstract member
 function can be implemented in a derived class to provide a logic for selecting
 a SYCL device. SYCL runtime uses the device for with the highest score is
-returned. Such object can be passed to `cl::sycl::queue` and `cl::sycl::device`
+returned. Such object can be passed to `sycl::queue` and `sycl::device`
 constructors.
 
-The example below illustrates how to use `cl::sycl::device_selector` to create
+The example below illustrates how to use `sycl::device_selector` to create
 device and queue objects bound to Intel GPU device:
 
 ```c++
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
-  class NEOGPUDeviceSelector : public cl::sycl::device_selector {
+  class NEOGPUDeviceSelector : public sycl::device_selector {
   public:
-    int operator()(const cl::sycl::device &Device) const override {
-      using namespace cl::sycl::info;
+    int operator()(const sycl::device &Device) const override {
+      using namespace sycl::info;
 
       const std::string DeviceName = Device.get_info<device::name>();
       const std::string DeviceVendor = Device.get_info<device::vendor>();
@@ -758,9 +773,9 @@ int main() {
 
   NEOGPUDeviceSelector Selector;
   try {
-    cl::sycl::queue Queue(Selector);
-    cl::sycl::device Device(Selector);
-  } catch (cl::sycl::invalid_parameter_error &E) {
+    sycl::queue Queue(Selector);
+    sycl::device Device(Selector);
+  } catch (sycl::invalid_parameter_error &E) {
     std::cout << E.what() << std::endl;
   }
 }
@@ -771,10 +786,10 @@ The device selector below selects an NVIDIA device only, and won't execute if
 there is none.
 
 ```c++
-class CUDASelector : public cl::sycl::device_selector {
+class CUDASelector : public sycl::device_selector {
   public:
-    int operator()(const cl::sycl::device &Device) const override {
-      using namespace cl::sycl::info;
+    int operator()(const sycl::device &Device) const override {
+      using namespace sycl::info;
       const std::string DriverVersion = Device.get_info<device::driver_version>();
 
       if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
@@ -830,6 +845,24 @@ which contains all the symbols required.
   GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
 * The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
+* `sycl::sqrt` is not correctly rounded by default as the SYCL specification
+  allows lower precision, when porting from CUDA it may be helpful to use
+  `-fsycl-fp32-prec-sqrt` to use the correctly rounded square root, this is
+  significantly slower but matches the default precision used by `nvcc`, and
+  this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
+  it defaults to `false`.
+* No Opt (O0) uses the IPSCCP compiler pass by default, although the IPSCCP pass
+  can be switched off at O0 using the `-mllvm -use-ipsccp-nvptx-O0=false` flag at
+  the user's discretion.
+  The reason that the IPSCCP pass is used by default even at O0 is that there is
+  currently an unresolved issue with the nvvm-reflect compiler pass: This pass is
+  used to pick the correct branches depending on the SM version which can be
+  optionally specified by the `--cuda-gpu-arch` flag.
+  If the arch flag is not specified by the user, the default value, SM 50, is used.
+  Without the execution of the IPSCCP pass at -O0 when using a low SM version,
+  dead instructions which require a higher SM version can remain. Since
+  corresponding issues occur in other backends future work will aim for a
+  universal solution to these issues.
 
 ### HIP back-end limitations
 
@@ -846,11 +879,8 @@ which contains all the symbols required.
 
 ## Find More
 
-* DPC++ specification:
-[https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 2020 specification:
-[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
-* oneAPI Level Zero specification:
-[https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
+* [DPC++ specification](https://spec.oneapi.io/versions/latest/elements/dpcpp/source/index.html)
+* [SYCL\* specification](https://www.khronos.org/registry/SYCL)
+* [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 
-\*Other names and brands may be claimed as the property of others.
+<sub>\*Other names and brands may be claimed as the property of others.</sub>

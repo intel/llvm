@@ -18,26 +18,6 @@ namespace tidy {
 namespace misc {
 
 namespace {
-// FIXME: Move ASTMatcher library.
-AST_POLYMORPHIC_MATCHER_P(
-    forEachTemplateArgument,
-    AST_POLYMORPHIC_SUPPORTED_TYPES(ClassTemplateSpecializationDecl,
-                                    TemplateSpecializationType, FunctionDecl),
-    clang::ast_matchers::internal::Matcher<TemplateArgument>, InnerMatcher) {
-  ArrayRef<TemplateArgument> TemplateArgs =
-      clang::ast_matchers::internal::getTemplateSpecializationArgs(Node);
-  clang::ast_matchers::internal::BoundNodesTreeBuilder Result;
-  bool Matched = false;
-  for (const auto &Arg : TemplateArgs) {
-    clang::ast_matchers::internal::BoundNodesTreeBuilder ArgBuilder(*Builder);
-    if (InnerMatcher.matches(Arg, Finder, &ArgBuilder)) {
-      Matched = true;
-      Result.addMatch(ArgBuilder);
-    }
-  }
-  *Builder = std::move(Result);
-  return Matched;
-}
 
 AST_MATCHER_P(DeducedTemplateSpecializationType, refsToTemplatedDecl,
               clang::ast_matchers::internal::Matcher<NamedDecl>, DeclMatcher) {
@@ -45,6 +25,7 @@ AST_MATCHER_P(DeducedTemplateSpecializationType, refsToTemplatedDecl,
     return DeclMatcher.matches(*TD, Finder, Builder);
   return false;
 }
+
 } // namespace
 
 // A function that helps to tell whether a TargetDecl in a UsingDecl will be
@@ -60,13 +41,10 @@ static bool shouldCheckDecl(const Decl *TargetDecl) {
 void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(usingDecl(isExpansionInMainFile()).bind("using"), this);
   auto DeclMatcher = hasDeclaration(namedDecl().bind("used"));
-  Finder->addMatcher(loc(enumType(DeclMatcher)), this);
-  Finder->addMatcher(loc(recordType(DeclMatcher)), this);
   Finder->addMatcher(loc(templateSpecializationType(DeclMatcher)), this);
   Finder->addMatcher(loc(deducedTemplateSpecializationType(
                          refsToTemplatedDecl(namedDecl().bind("used")))),
                      this);
-  Finder->addMatcher(declRefExpr().bind("used"), this);
   Finder->addMatcher(callExpr(callee(unresolvedLookupExpr().bind("used"))),
                      this);
   Finder->addMatcher(
@@ -76,6 +54,12 @@ void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(loc(templateSpecializationType(forEachTemplateArgument(
                          templateArgument().bind("used")))),
                      this);
+  // Cases where we can identify the UsingShadowDecl directly, rather than
+  // just its target.
+  // FIXME: cover more cases in this way, as the AST supports it.
+  auto ThroughShadowMatcher = throughUsingDecl(namedDecl().bind("usedShadow"));
+  Finder->addMatcher(declRefExpr(ThroughShadowMatcher), this);
+  Finder->addMatcher(loc(usingType(ThroughShadowMatcher)), this);
 }
 
 void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
@@ -134,6 +118,12 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
   // marked after a corresponding using decl has been found.
   if (const auto *Used = Result.Nodes.getNodeAs<NamedDecl>("used")) {
     RemoveNamedDecl(Used);
+    return;
+  }
+
+  if (const auto *UsedShadow =
+          Result.Nodes.getNodeAs<UsingShadowDecl>("usedShadow")) {
+    removeFromFoundDecls(UsedShadow->getTargetDecl());
     return;
   }
 

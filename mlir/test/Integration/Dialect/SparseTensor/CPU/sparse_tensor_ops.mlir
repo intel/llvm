@@ -1,11 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --linalg-bufferize --convert-linalg-to-loops \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-math-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -28,7 +21,7 @@
 
 module {
   // Scales a sparse tensor into a new sparse tensor.
-  func @tensor_scale(%arga: tensor<?x?x?xf64, #ST1>) -> tensor<?x?x?xf64, #ST2> {
+  func.func @tensor_scale(%arga: tensor<?x?x?xf64, #ST1>) -> tensor<?x?x?xf64, #ST2> {
     %s = arith.constant 2.0 : f64
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -36,7 +29,7 @@ module {
     %d0 = tensor.dim %arga, %c0 : tensor<?x?x?xf64, #ST1>
     %d1 = tensor.dim %arga, %c1 : tensor<?x?x?xf64, #ST1>
     %d2 = tensor.dim %arga, %c2 : tensor<?x?x?xf64, #ST1>
-    %xm = sparse_tensor.init [%d0, %d1, %d2] : tensor<?x?x?xf64, #ST2>
+    %xm = bufferization.alloc_tensor(%d0, %d1, %d2) : tensor<?x?x?xf64, #ST2>
     %0 = linalg.generic #trait_scale
        ins(%arga: tensor<?x?x?xf64, #ST1>)
         outs(%xm: tensor<?x?x?xf64, #ST2>) {
@@ -48,7 +41,7 @@ module {
   }
 
   // Driver method to call and verify tensor kernel.
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %d1 = arith.constant -1.0 : f64
 
@@ -83,8 +76,8 @@ module {
     vector.print %v2 : vector<32xf64>
 
     // Release the resources.
-    sparse_tensor.release %st : tensor<?x?x?xf64, #ST1>
-    sparse_tensor.release %0  : tensor<?x?x?xf64, #ST2>
+    bufferization.dealloc_tensor %st : tensor<?x?x?xf64, #ST1>
+    bufferization.dealloc_tensor %0  : tensor<?x?x?xf64, #ST2>
     return
   }
 }

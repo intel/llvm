@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/sycl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
@@ -61,12 +61,6 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
 }
 
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
-                                   pi_native_handle NativeHandle) {
-  return make_context(DeviceList, NativeHandle, false);
-}
-
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<program>
 __SYCL_EXPORT program make_program(const context &Context,
@@ -89,10 +83,13 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                             backend::ext_oneapi_level_zero);
 }
 
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
-  return make_queue(Context, NativeHandle, false);
+__SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
+  const auto &ContextImpl = getSyclObjImpl(Context);
+  return detail::make_queue(NativeHandle, Context, Device, KeepOwnership,
+                            ContextImpl->get_async_handler(),
+                            backend::ext_oneapi_level_zero);
 }
 
 //----------------------------------------------------------------------------
@@ -107,5 +104,5 @@ __SYCL_EXPORT event make_event(const context &Context,
 } // namespace level_zero
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

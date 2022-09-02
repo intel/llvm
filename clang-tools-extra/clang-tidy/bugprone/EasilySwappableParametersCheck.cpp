@@ -23,42 +23,53 @@ namespace optutils = clang::tidy::utils::options;
 static constexpr std::size_t DefaultMinimumLength = 2;
 
 /// The default value for ignored parameter names.
-static const std::string DefaultIgnoredParameterNames =
-    optutils::serializeStringList({"\"\"", "iterator", "Iterator", "begin",
-                                   "Begin", "end", "End", "first", "First",
-                                   "last", "Last", "lhs", "LHS", "rhs", "RHS"});
+static constexpr llvm::StringLiteral DefaultIgnoredParameterNames = "\"\";"
+                                                                    "iterator;"
+                                                                    "Iterator;"
+                                                                    "begin;"
+                                                                    "Begin;"
+                                                                    "end;"
+                                                                    "End;"
+                                                                    "first;"
+                                                                    "First;"
+                                                                    "last;"
+                                                                    "Last;"
+                                                                    "lhs;"
+                                                                    "LHS;"
+                                                                    "rhs;"
+                                                                    "RHS";
 
 /// The default value for ignored parameter type suffixes.
-static const std::string DefaultIgnoredParameterTypeSuffixes =
-    optutils::serializeStringList({"bool",
-                                   "Bool",
-                                   "_Bool",
-                                   "it",
-                                   "It",
-                                   "iterator",
-                                   "Iterator",
-                                   "inputit",
-                                   "InputIt",
-                                   "forwardit",
-                                   "ForwardIt",
-                                   "bidirit",
-                                   "BidirIt",
-                                   "constiterator",
-                                   "const_iterator",
-                                   "Const_Iterator",
-                                   "Constiterator",
-                                   "ConstIterator",
-                                   "RandomIt",
-                                   "randomit",
-                                   "random_iterator",
-                                   "ReverseIt",
-                                   "reverse_iterator",
-                                   "reverse_const_iterator",
-                                   "ConstReverseIterator",
-                                   "Const_Reverse_Iterator",
-                                   "const_reverse_iterator",
-                                   "Constreverseiterator",
-                                   "constreverseiterator"});
+static constexpr llvm::StringLiteral DefaultIgnoredParameterTypeSuffixes =
+    "bool;"
+    "Bool;"
+    "_Bool;"
+    "it;"
+    "It;"
+    "iterator;"
+    "Iterator;"
+    "inputit;"
+    "InputIt;"
+    "forwardit;"
+    "ForwardIt;"
+    "bidirit;"
+    "BidirIt;"
+    "constiterator;"
+    "const_iterator;"
+    "Const_Iterator;"
+    "Constiterator;"
+    "ConstIterator;"
+    "RandomIt;"
+    "randomit;"
+    "random_iterator;"
+    "ReverseIt;"
+    "reverse_iterator;"
+    "reverse_const_iterator;"
+    "ConstReverseIterator;"
+    "Const_Reverse_Iterator;"
+    "const_reverse_iterator;"
+    "Constreverseiterator;"
+    "constreverseiterator";
 
 /// The default value for the QualifiersMix check option.
 static constexpr bool DefaultQualifiersMix = false;
@@ -1317,7 +1328,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
   if (AfterFirstStdConv) {
     LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Standard "
                                "Pre-Conversion found!\n");
-    ImplicitSeq.AfterFirstStandard = AfterFirstStdConv.getValue();
+    ImplicitSeq.AfterFirstStandard = *AfterFirstStdConv;
     WorkType = ImplicitSeq.AfterFirstStandard;
   }
 
@@ -1337,7 +1348,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
       if (ConversionOperatorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
                                    "conversion operator.\n");
-        ImplicitSeq.update(ConversionOperatorResult.getValue());
+        ImplicitSeq.update(*ConversionOperatorResult);
         WorkType = ImplicitSeq.getTypeAfterUserDefinedConversion();
         FoundConversionOperator = true;
       }
@@ -1352,7 +1363,7 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
       if (ConvCtorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
                                    "converting constructor.\n");
-        ImplicitSeq.update(ConvCtorResult.getValue());
+        ImplicitSeq.update(*ConvCtorResult);
         WorkType = ImplicitSeq.getTypeAfterUserDefinedConversion();
         FoundConvertingCtor = true;
       }
@@ -1541,7 +1552,7 @@ static bool isIgnoredParameter(const TheCheck &Check, const ParmVarDecl *Node) {
   LLVM_DEBUG(llvm::dbgs() << "\tType name is '" << NodeTypeName << "'\n");
   if (!NodeTypeName.empty()) {
     if (llvm::any_of(Check.IgnoredParameterTypeSuffixes,
-                     [NodeTypeName](const std::string &E) {
+                     [NodeTypeName](StringRef E) {
                        return !E.empty() && NodeTypeName.endswith(E);
                      })) {
       LLVM_DEBUG(llvm::dbgs() << "\tType suffix ignored.\n");
@@ -1672,7 +1683,7 @@ public:
         if (CalledFn->getParamDecl(Idx) == PassedToParam)
           TargetIdx.emplace(Idx);
 
-      assert(TargetIdx.hasValue() && "Matched, but didn't find index?");
+      assert(TargetIdx && "Matched, but didn't find index?");
       TargetParams[PassedParamOfThisFn].insert(
           {CalledFn->getCanonicalDecl(), *TargetIdx});
     }

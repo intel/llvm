@@ -103,8 +103,7 @@ private:
 
   /// Checks whether the given LLVM::CallOp is a vulkan launch call op.
   bool isVulkanLaunchCallOp(LLVM::CallOp callOp) {
-    return (callOp.getCallee() &&
-            callOp.getCallee().getValue() == kVulkanLaunch &&
+    return (callOp.getCallee() && *callOp.getCallee() == kVulkanLaunch &&
             callOp.getNumOperands() >= kVulkanLaunchNumConfigOperands);
   }
 
@@ -112,7 +111,7 @@ private:
   /// op.
   bool isCInterfaceVulkanLaunchCallOp(LLVM::CallOp callOp) {
     return (callOp.getCallee() &&
-            callOp.getCallee().getValue() == kCInterfaceVulkanLaunch &&
+            *callOp.getCallee() == kCInterfaceVulkanLaunch &&
             callOp.getNumOperands() >= kVulkanLaunchNumConfigOperands);
   }
 
@@ -222,7 +221,7 @@ void VulkanLaunchFuncToVulkanCallsPass::createBindMemRefCalls(
   Value descriptorSet = builder.create<LLVM::ConstantOp>(
       loc, getInt32Type(), builder.getI32IntegerAttr(0));
 
-  for (auto en :
+  for (const auto &en :
        llvm::enumerate(cInterfaceVulkanLaunchCallOp.getOperands().drop_front(
            kVulkanLaunchNumConfigOperands))) {
     // Create LLVM constant for the descriptor binding index.

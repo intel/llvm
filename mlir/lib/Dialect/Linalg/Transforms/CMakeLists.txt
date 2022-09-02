@@ -1,23 +1,31 @@
 add_mlir_dialect_library(MLIRLinalgTransforms
+  BubbleUpExtractSlice.cpp
+  BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   CodegenStrategy.cpp
-  ComprehensiveBufferizePass.cpp
+  ConstantFold.cpp
+  DecomposeLinalgOps.cpp
   Detensorize.cpp
-  Distribution.cpp
   DropUnitDims.cpp
   ElementwiseOpFusion.cpp
   ElementwiseToLinalg.cpp
+  FusePadOpWithLinalgProducer.cpp
   Fusion.cpp
   FusionOnTensors.cpp
   Generalization.cpp
   Hoisting.cpp
   HoistPadding.cpp
+  InitTensorToAllocTensor.cpp
   InlineScalarOperands.cpp
   Interchange.cpp
   Loops.cpp
   LinalgStrategyPasses.cpp
+  NamedOpConversions.cpp
   Promotion.cpp
+  Split.cpp
+  SplitReduction.cpp
   Tiling.cpp
+  TilingInterfaceImpl.cpp
   Transforms.cpp
   Vectorization.cpp
 
@@ -28,35 +36,38 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRLinalgPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffine
-  MLIRAffineBufferizableOpInterfaceImpl
+  MLIRAffineDialect
   MLIRAffineUtils
   MLIRAnalysis
-  MLIRArithBufferizableOpInterfaceImpl
-  MLIRArithmetic
-  MLIRBufferizableOpInterface
-  MLIRComplex
-  MLIRComprehensiveBufferize
+  MLIRArithmeticDialect
+  MLIRArithmeticTransforms
+  MLIRArithmeticUtils
+  MLIRBufferizationDialect
+  MLIRBufferizationTransforms
+  MLIRComplexDialect
+  MLIRDialectUtils
+  MLIRFuncDialect
+  MLIRFuncToLLVM
+  MLIRFuncTransforms
   MLIRInferTypeOpInterface
   MLIRIR
-  MLIRMemRef
-  MLIRLinalg
+  MLIRMemRefDialect
+  MLIRLinalgDialect
   MLIRLinalgAnalysis
-  MLIRLinalgBufferizableOpInterfaceImpl
   MLIRLinalgUtils
-  MLIRSCF
-  MLIRSCFBufferizableOpInterfaceImpl
+  MLIRSCFDialect
   MLIRSCFTransforms
+  MLIRSCFUtils
   MLIRPass
-  MLIRStandard
-  MLIRStandardOpsTransforms
-  MLIRStandardToLLVM
-  MLIRTensor
-  MLIRTensorBufferizableOpInterfaceImpl
+  MLIRSparseTensorDialect
+  MLIRTensorDialect
+  MLIRTensorTilingInterfaceImpl
+  MLIRTensorTransforms
   MLIRTransforms
   MLIRTransformUtils
-  MLIRVector
-  MLIRVectorBufferizableOpInterfaceImpl
+  MLIRVectorDialect
+  MLIRVectorTransforms
+  MLIRVectorUtils
   MLIRX86VectorTransforms
   MLIRVectorToSCF
 )

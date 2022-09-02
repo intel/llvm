@@ -1,6 +1,6 @@
 ; RUN: opt < %s -passes='thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/function_metadata.prof -S | FileCheck %s
 ; RUN: opt < %s -passes='thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/function_metadata.compact.afdo -S | FileCheck %s
-; RUN: opt < %s -passes='pseudo-probe,thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/pseudo-probe-func-metadata.prof -S | FileCheck %s
+; RUN: opt < %s -passes='pseudo-probe,thinlto-pre-link<O2>' -pgo-kind=pgo-sample-use-pipeline -profile-file=%S/Inputs/pseudo-probe-func-metadata.prof -sample-profile-use-profi=0 -S | FileCheck %s
 
 ;; Validate that with replay in effect, we import call sites even if they are below the threshold
 ;; Baseline import decisions
@@ -25,10 +25,10 @@ define void @bar_available() #0 !dbg !14 {
 ; CHECK: define void @test({{.*}} !prof ![[ENTRY_TEST:[0-9]+]]
 ; THRESHOLD: define void @test({{.*}} !prof ![[ENTRY_THRESHOLD:[0-9]+]]
 ; THRESHOLD-REPLAY: define void @test({{.*}} !prof ![[ENTRY_REPLAY_TEST:[0-9]+]]
-define void @test(void ()*) #0 !dbg !7 {
-  %2 = alloca void ()*
-  store void ()* %0, void ()** %2
-  %3 = load void ()*, void ()** %2
+define void @test(ptr) #0 !dbg !7 {
+  %2 = alloca ptr
+  store ptr %0, ptr %2
+  %3 = load ptr, ptr %2
   ; CHECK: call {{.*}}, !prof ![[PROF:[0-9]+]]
   call void @foo(), !dbg !18
   call void %3(), !dbg !19

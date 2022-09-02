@@ -812,6 +812,7 @@ static void __kmp_stg_parse_wait_policy(char const *name, char const *value,
       }
     } else if (__kmp_str_match("PASSIVE", 1, value)) {
       __kmp_library = library_throughput;
+      __kmp_wpolicy_passive = true; /* allow sleep while active tasking */
       if (blocktime_str == NULL) {
         // KMP_BLOCKTIME not specified, so set default to 0.
         __kmp_dflt_blocktime = 0;
@@ -1245,13 +1246,25 @@ static void __kmp_stg_parse_num_hidden_helper_threads(char const *name,
   // task
   if (__kmp_hidden_helper_threads_num == 0) {
     __kmp_enable_hidden_helper = FALSE;
+  } else {
+    // Since the main thread of hidden helper team dooes not participate
+    // in tasks execution let's increment the number of threads by one
+    // so that requested number of threads do actual job.
+    __kmp_hidden_helper_threads_num++;
   }
 } // __kmp_stg_parse_num_hidden_helper_threads
 
 static void __kmp_stg_print_num_hidden_helper_threads(kmp_str_buf_t *buffer,
                                                       char const *name,
                                                       void *data) {
-  __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num);
+  if (__kmp_hidden_helper_threads_num == 0) {
+    __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num);
+  } else {
+    KMP_DEBUG_ASSERT(__kmp_hidden_helper_threads_num > 1);
+    // Let's exclude the main thread of hidden helper team and print
+    // number of worker threads those do actual job.
+    __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num - 1);
+  }
 } // __kmp_stg_print_num_hidden_helper_threads
 
 static void __kmp_stg_parse_use_hidden_helper(char const *name,
@@ -2156,6 +2169,7 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
   int respect = 0;
   int gran = 0;
   int dups = 0;
+  int reset = 0;
   bool set = false;
 
   KMP_ASSERT(value != NULL);
@@ -2211,6 +2225,7 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
 #define set_respect(val) _set_param(respect, *out_respect, val)
 #define set_dups(val) _set_param(dups, *out_dups, val)
 #define set_proclist(val) _set_param(proclist, *out_proclist, val)
+#define set_reset(val) _set_param(reset, __kmp_affin_reset, val)
 
 #define set_gran(val, levels)                                                  \
   {                                                                            \
@@ -2279,6 +2294,12 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
       buf = next;
     } else if (__kmp_match_str("norespect", buf, CCAST(const char **, &next))) {
       set_respect(FALSE);
+      buf = next;
+    } else if (__kmp_match_str("reset", buf, CCAST(const char **, &next))) {
+      set_reset(TRUE);
+      buf = next;
+    } else if (__kmp_match_str("noreset", buf, CCAST(const char **, &next))) {
+      set_reset(FALSE);
       buf = next;
     } else if (__kmp_match_str("duplicates", buf,
                                CCAST(const char **, &next)) ||
@@ -2420,6 +2441,7 @@ static void __kmp_parse_affinity_env(char const *name, char const *value,
 #undef set_warnings
 #undef set_respect
 #undef set_granularity
+#undef set_reset
 
   __kmp_str_free(&buffer);
 
@@ -2550,6 +2572,11 @@ static void __kmp_stg_print_affinity(kmp_str_buf_t *buffer, char const *name,
       __kmp_str_buf_print(buffer, "%s,", "respect");
     } else {
       __kmp_str_buf_print(buffer, "%s,", "norespect");
+    }
+    if (__kmp_affin_reset) {
+      __kmp_str_buf_print(buffer, "%s,", "reset");
+    } else {
+      __kmp_str_buf_print(buffer, "%s,", "noreset");
     }
     __kmp_str_buf_print(buffer, "granularity=%s,",
                         __kmp_hw_get_keyword(__kmp_affinity_gran, false));
@@ -4978,10 +5005,20 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
       char *attr_ptr;
       int offset = 0;
       kmp_hw_attr_t attr;
-      int num =
-          atoi(core_components[j]); // each component should start with a number
-      if (num <= 0) {
-        goto err; // only positive integers are valid for count
+      int num;
+      // components may begin with an optional count of the number of resources
+      if (isdigit(*core_components[j])) {
+        num = atoi(core_components[j]);
+        if (num <= 0) {
+          goto err; // only positive integers are valid for count
+        }
+        pos = core_components[j] + strspn(core_components[j], digits);
+      } else if (*core_components[j] == '*') {
+        num = kmp_hw_subset_t::USE_ALL;
+        pos = core_components[j] + 1;
+      } else {
+        num = kmp_hw_subset_t::USE_ALL;
+        pos = core_components[j];
       }
 
       offset_ptr = strchr(core_components[j], '@');
@@ -4999,7 +5036,7 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
           attr.set_core_type(KMP_HW_CORE_TYPE_CORE);
         } else if (__kmp_str_match("intel_atom", -1, attr_ptr + 1)) {
           attr.set_core_type(KMP_HW_CORE_TYPE_ATOM);
-        }
+        } else
 #endif
         if (__kmp_str_match("eff", 3, attr_ptr + 1)) {
           const char *number = attr_ptr + 1;
@@ -5015,10 +5052,6 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
           goto err;
         }
         *attr_ptr = '\0'; // cut the attribute from the component
-      }
-      pos = core_components[j] + strspn(core_components[j], digits);
-      if (pos == core_components[j]) {
-        goto err;
       }
       // detect the component type
       kmp_hw_t type = __kmp_stg_parse_hw_subset_name(pos);
@@ -5164,6 +5197,27 @@ static void __kmp_stg_print_mwait_hints(kmp_str_buf_t *buffer, char const *name,
 } // __kmp_stg_print_mwait_hints
 
 #endif // KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT
+
+#if KMP_HAVE_UMWAIT
+// -----------------------------------------------------------------------------
+// KMP_TPAUSE
+// 0 = don't use TPAUSE, 1 = use C0.1 state, 2 = use C0.2 state
+
+static void __kmp_stg_parse_tpause(char const *name, char const *value,
+                                   void *data) {
+  __kmp_stg_parse_int(name, value, 0, INT_MAX, &__kmp_tpause_state);
+  if (__kmp_tpause_state != 0) {
+    // The actual hint passed to tpause is: 0 for C0.2 and 1 for C0.1
+    if (__kmp_tpause_state == 2) // use C0.2
+      __kmp_tpause_hint = 0; // default was set to 1 for C0.1
+  }
+} // __kmp_stg_parse_tpause
+
+static void __kmp_stg_print_tpause(kmp_str_buf_t *buffer, char const *name,
+                                   void *data) {
+  __kmp_stg_print_int(buffer, name, __kmp_tpause_state);
+} // __kmp_stg_print_tpause
+#endif // KMP_HAVE_UMWAIT
 
 // -----------------------------------------------------------------------------
 // OMP_DISPLAY_ENV
@@ -5529,6 +5583,10 @@ static kmp_setting_t __kmp_stg_table[] = {
      __kmp_stg_print_user_level_mwait, NULL, 0, 0},
     {"KMP_MWAIT_HINTS", __kmp_stg_parse_mwait_hints,
      __kmp_stg_print_mwait_hints, NULL, 0, 0},
+#endif
+
+#if KMP_HAVE_UMWAIT
+    {"KMP_TPAUSE", __kmp_stg_parse_tpause, __kmp_stg_print_tpause, NULL, 0, 0},
 #endif
     {"", NULL, NULL, NULL, 0, 0}}; // settings
 

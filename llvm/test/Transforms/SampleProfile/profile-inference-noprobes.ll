@@ -1,5 +1,5 @@
 ; RUN: opt < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof -S | FileCheck %s
-; RUN: opt < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof | opt -analyze -block-freq  -enable-new-pm=0 | FileCheck %s --check-prefix=CHECK2
+; RUN: opt < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof | opt -passes='print<block-freq>' -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK2
 
 
 ; The test verifies that profile inference can be applied for non-probe-based
@@ -21,7 +21,7 @@ define void @test_4() #0 !dbg !4 {
 ;entry:
 ;  ret void, !dbg !9
 b1:
-  %0 = load i32, i32* @yydebug, align 4
+  %0 = load i32, ptr @yydebug, align 4
   %cmp = icmp ne i32 %0, 0, !dbg !9
   br i1 %cmp, label %b2, label %b3, !dbg !9
 ; CHECK2: - b1: float = {{.*}}, int = {{.*}}, count = 100

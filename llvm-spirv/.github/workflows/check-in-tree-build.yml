@@ -9,7 +9,7 @@ name: In-tree build & tests
 on:
   push:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
@@ -18,7 +18,7 @@ on:
       - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
@@ -32,7 +32,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 14
+  LLVM_VERSION: 16
 
 jobs:
   build_and_test_linux:

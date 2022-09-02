@@ -211,8 +211,7 @@ struct HexagonOperand : public MCParsedAsmOperand {
     struct ImmTy Imm;
   };
 
-  HexagonOperand(KindTy K, MCContext &Context)
-      : MCParsedAsmOperand(), Kind(K), Context(Context) {}
+  HexagonOperand(KindTy K, MCContext &Context) : Kind(K), Context(Context) {}
 
 public:
   HexagonOperand(const HexagonOperand &o)
@@ -682,7 +681,7 @@ bool HexagonAsmParser::ParseDirectiveSubsection(SMLoc L) {
     Subsection = HexagonMCExpr::create(
         MCConstantExpr::create(8192 + Res, getContext()), getContext());
 
-  getStreamer().SubSection(Subsection);
+  getStreamer().subSection(Subsection);
   return false;
 }
 
@@ -1451,7 +1450,7 @@ int HexagonAsmParser::processInstruction(MCInst &Inst,
       MCOperand &MO_0 = Inst.getOperand(0);
 
       // push section onto section stack
-      MES->PushSection();
+      MES->pushSection();
 
       std::string myCharStr;
       MCSectionELF *mySection;
@@ -1486,7 +1485,7 @@ int HexagonAsmParser::processInstruction(MCInst &Inst,
       } else
         llvm_unreachable("unexpected type of machine operand!");
 
-      MES->SwitchSection(mySection);
+      MES->switchSection(mySection);
       unsigned byteSize = is32bit ? 4 : 8;
       getStreamer().emitCodeAlignment(byteSize, &getSTI(), byteSize);
 
@@ -1527,7 +1526,7 @@ int HexagonAsmParser::processInstruction(MCInst &Inst,
       } else
         llvm_unreachable("unexpected type of machine operand!");
 
-      MES->PopSection();
+      MES->popSection();
 
       if (Sym) {
         MCInst TmpInst;

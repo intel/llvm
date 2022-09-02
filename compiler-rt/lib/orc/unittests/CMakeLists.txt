@@ -37,7 +37,8 @@ set(ORC_TEST_ARCH ${ORC_SUPPORTED_ARCH})
 set(ORC_UNITTEST_LINK_FLAGS
   ${COMPILER_RT_UNITTEST_LINK_FLAGS}
   ${CMAKE_THREAD_LIBS_INIT}
-  )
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${COMPILER_RT_CXX_LINK_LIBS})
 
 if(APPLE)
   darwin_filter_host_archs(ORC_SUPPORTED_ARCH ORC_TEST_ARCH)
@@ -51,11 +52,7 @@ else()
   append_list_if(COMPILER_RT_HAS_LIBEXECINFO -lexecinfo ORC_UNITTEST_LINK_FLAGS)
 endif()
 
-foreach(lib ${SANITIZER_TEST_CXX_LIBRARIES})
-  list(APPEND ORC_UNITTEST_LINK_FLAGS -l${lib})
-endforeach()
-
-set(ORC_DEPS gtest orc)
+set(ORC_DEPS llvm_gtest orc)
 # ORC uses C++ standard library headers.
 if (TARGET cxx-headers OR HAVE_LIBCXX)
   set(ORC_DEPS cxx-headers)
@@ -71,7 +68,7 @@ macro(add_orc_unittest testname)
         OrcRTUnitTests "${testname}-${arch}-Test" "${arch}"
         SOURCES ${TEST_SOURCES} ${COMPILER_RT_GTEST_SOURCE}
         RUNTIME "${ORC_RUNTIME_LIBS}"
-        COMPILE_DEPS ${TEST_HEADERS}
+        COMPILE_DEPS ${TEST_HEADERS} ${ORC_HEADERS}
         DEPS ${ORC_DEPS}
         CFLAGS ${ORC_UNITTEST_CFLAGS}
         LINK_FLAGS ${ORC_UNITTEST_LINK_FLAGS})

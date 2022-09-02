@@ -12,7 +12,6 @@
 
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -43,8 +42,7 @@ void MachineRegisterInfo::Delegate::anchor() {}
 
 MachineRegisterInfo::MachineRegisterInfo(MachineFunction *MF)
     : MF(MF), TracksSubRegLiveness(MF->getSubtarget().enableSubRegLiveness() &&
-                                   EnableSubRegLiveness),
-      IsUpdatedCSRsInitialized(false) {
+                                   EnableSubRegLiveness) {
   unsigned NumRegs = getTargetRegisterInfo()->getNumRegs();
   VRegInfo.reserve(256);
   RegAllocHints.reserve(256);
@@ -422,6 +420,12 @@ bool MachineRegisterInfo::hasOneNonDBGUser(Register RegNo) const {
   return hasSingleElement(use_nodbg_instructions(RegNo));
 }
 
+bool MachineRegisterInfo::hasAtMostUserInstrs(Register Reg,
+                                              unsigned MaxUsers) const {
+  return hasNItemsOrLess(use_instr_nodbg_begin(Reg), use_instr_nodbg_end(),
+                         MaxUsers);
+}
+
 /// clearKillFlags - Iterate over all the uses of the given register and
 /// clear the kill flag from the MachineOperand. This function is used by
 /// optimization passes which extend register lifetimes and need only
@@ -651,4 +655,19 @@ bool MachineRegisterInfo::isReservedRegUnit(unsigned Unit) const {
       return true;
   }
   return false;
+}
+
+bool MachineRegisterInfo::isArgumentRegister(const MachineFunction &MF,
+                                             MCRegister Reg) const {
+  return getTargetRegisterInfo()->isArgumentRegister(MF, Reg);
+}
+
+bool MachineRegisterInfo::isFixedRegister(const MachineFunction &MF,
+                                          MCRegister Reg) const {
+  return getTargetRegisterInfo()->isFixedRegister(MF, Reg);
+}
+
+bool MachineRegisterInfo::isGeneralPurposeRegister(const MachineFunction &MF,
+                                                   MCRegister Reg) const {
+  return getTargetRegisterInfo()->isGeneralPurposeRegister(MF, Reg);
 }

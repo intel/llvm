@@ -14,14 +14,17 @@
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -40,15 +43,15 @@ using namespace mlir;
 namespace {
 
 /// Convert gpu dialect shfl mode enum to the equivalent nvvm one.
-static NVVM::ShflKind convertShflKind(gpu::ShuffleModeAttr mode) {
+static NVVM::ShflKind convertShflKind(gpu::ShuffleMode mode) {
   switch (mode) {
-  case gpu::ShuffleModeAttr::XOR:
+  case gpu::ShuffleMode::XOR:
     return NVVM::ShflKind::bfly;
-  case gpu::ShuffleModeAttr::UP:
+  case gpu::ShuffleMode::UP:
     return NVVM::ShflKind::up;
-  case gpu::ShuffleModeAttr::DOWN:
+  case gpu::ShuffleMode::DOWN:
     return NVVM::ShflKind::down;
-  case gpu::ShuffleModeAttr::IDX:
+  case gpu::ShuffleMode::IDX:
     return NVVM::ShflKind::idx;
   }
   llvm_unreachable("unknown shuffle mode");
@@ -64,8 +67,10 @@ struct GPUShuffleOpLowering : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
   /// the highest lane which participates in the shuffle).
   ///
   ///     %one = llvm.constant(1 : i32) : i32
-  ///     %shl = llvm.shl %one, %width : i32
-  ///     %active_mask = llvm.sub %shl, %one : i32
+  ///     %minus_one = llvm.constant(-1 : i32) : i32
+  ///     %thirty_two = llvm.constant(32 : i32) : i32
+  ///     %num_lanes = llvm.sub %thirty_two, %width : i32
+  ///     %active_mask = llvm.lshr %minus_one, %num_lanes : i32
   ///     %mask_and_clamp = llvm.sub %width, %one : i32
   ///     %shfl = nvvm.shfl.sync.bfly %active_mask, %value, %offset,
   ///         %mask_and_clamp : !llvm<"{ float, i1 }">
@@ -86,14 +91,24 @@ struct GPUShuffleOpLowering : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
 
     Value one = rewriter.create<LLVM::ConstantOp>(
         loc, int32Type, rewriter.getI32IntegerAttr(1));
-    // Bit mask of active lanes: `(1 << activeWidth) - 1`.
-    Value activeMask = rewriter.create<LLVM::SubOp>(
-        loc, int32Type,
-        rewriter.create<LLVM::ShlOp>(loc, int32Type, one, adaptor.width()),
-        one);
-    // Clamp lane: `activeWidth - 1`
-    Value maskAndClamp =
-        rewriter.create<LLVM::SubOp>(loc, int32Type, adaptor.width(), one);
+    Value minusOne = rewriter.create<LLVM::ConstantOp>(
+        loc, int32Type, rewriter.getI32IntegerAttr(-1));
+    Value thirtyTwo = rewriter.create<LLVM::ConstantOp>(
+        loc, int32Type, rewriter.getI32IntegerAttr(32));
+    Value numLeadInactiveLane = rewriter.create<LLVM::SubOp>(
+        loc, int32Type, thirtyTwo, adaptor.width());
+    // Bit mask of active lanes: `(-1) >> (32 - activeWidth)`.
+    Value activeMask = rewriter.create<LLVM::LShrOp>(loc, int32Type, minusOne,
+                                                     numLeadInactiveLane);
+    Value maskAndClamp;
+    if (op.mode() == gpu::ShuffleMode::UP) {
+      // Clamp lane: `32 - activeWidth`
+      maskAndClamp = numLeadInactiveLane;
+    } else {
+      // Clamp lane: `activeWidth - 1`
+      maskAndClamp =
+          rewriter.create<LLVM::SubOp>(loc, int32Type, adaptor.width(), one);
+    }
 
     auto returnValueAndIsValidAttr = rewriter.getUnitAttr();
     Value shfl = rewriter.create<NVVM::ShflOp>(
@@ -105,6 +120,30 @@ struct GPUShuffleOpLowering : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
         loc, predTy, shfl, rewriter.getIndexArrayAttr(1));
 
     rewriter.replaceOp(op, {shflValue, isActiveSrcLane});
+    return success();
+  }
+};
+
+struct GPULaneIdOpToNVVM : ConvertOpToLLVMPattern<gpu::LaneIdOp> {
+  using ConvertOpToLLVMPattern<gpu::LaneIdOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::LaneIdOp op, gpu::LaneIdOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    MLIRContext *context = rewriter.getContext();
+    Value newOp = rewriter.create<NVVM::LaneIdOp>(loc, rewriter.getI32Type());
+    // Truncate or extend the result depending on the index bitwidth specified
+    // by the LLVMTypeConverter options.
+    const unsigned indexBitwidth = getTypeConverter()->getIndexTypeBitwidth();
+    if (indexBitwidth > 32) {
+      newOp = rewriter.create<LLVM::SExtOp>(
+          loc, IntegerType::get(context, indexBitwidth), newOp);
+    } else if (indexBitwidth < 32) {
+      newOp = rewriter.create<LLVM::TruncOp>(
+          loc, IntegerType::get(context, indexBitwidth), newOp);
+    }
+    rewriter.replaceOp(op, {newOp});
     return success();
   }
 };
@@ -127,18 +166,23 @@ struct LowerGpuOpsToNVVMOpsPass
   void runOnOperation() override {
     gpu::GPUModuleOp m = getOperation();
 
-    /// Customize the bitwidth used for the device side index computations.
+    // Request C wrapper emission.
+    for (auto func : m.getOps<func::FuncOp>()) {
+      func->setAttr(LLVM::LLVMDialect::getEmitCWrapperAttrName(),
+                    UnitAttr::get(&getContext()));
+    }
+
+    // Customize the bitwidth used for the device side index computations.
     LowerToLLVMOptions options(
         m.getContext(),
         DataLayout(cast<DataLayoutOpInterface>(m.getOperation())));
-    options.emitCWrappers = true;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
 
-    /// MemRef conversion for GPU to NVVM lowering. The GPU dialect uses memory
-    /// space 5 for private memory attributions, but NVVM represents private
-    /// memory allocations as local `alloca`s in the default address space. This
-    /// converter drops the private memory space to support the use case above.
+    // MemRef conversion for GPU to NVVM lowering. The GPU dialect uses memory
+    // space 5 for private memory attributions, but NVVM represents private
+    // memory allocations as local `alloca`s in the default address space. This
+    // converter drops the private memory space to support the use case above.
     LLVMTypeConverter converter(m.getContext(), options);
     converter.addConversion([&](MemRefType type) -> Optional<Type> {
       if (type.getMemorySpaceAsInt() !=
@@ -146,7 +190,6 @@ struct LowerGpuOpsToNVVMOpsPass
         return llvm::None;
       return converter.convertType(MemRefType::Builder(type).setMemorySpace(0));
     });
-
     // Lowering for MMAMatrixType.
     converter.addConversion([&](gpu::MMAMatrixType type) -> Type {
       return convertMMAToLLVMType(type);
@@ -160,9 +203,9 @@ struct LowerGpuOpsToNVVMOpsPass
     populateGpuRewritePatterns(patterns);
     (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
 
-    mlir::arith::populateArithmeticToLLVMConversionPatterns(converter,
-                                                            llvmPatterns);
-    populateStdToLLVMConversionPatterns(converter, llvmPatterns);
+    arith::populateArithmeticToLLVMConversionPatterns(converter, llvmPatterns);
+    cf::populateControlFlowToLLVMConversionPatterns(converter, llvmPatterns);
+    populateFuncToLLVMConversionPatterns(converter, llvmPatterns);
     populateMemRefToLLVMConversionPatterns(converter, llvmPatterns);
     populateGpuToNVVMConversionPatterns(converter, llvmPatterns);
     populateGpuWMMAToNVVMConversionPatterns(converter, llvmPatterns);
@@ -176,7 +219,7 @@ struct LowerGpuOpsToNVVMOpsPass
 } // namespace
 
 void mlir::configureGpuToNVVMConversionLegality(ConversionTarget &target) {
-  target.addIllegalOp<FuncOp>();
+  target.addIllegalOp<func::FuncOp>();
   target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
   target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
   target.addIllegalDialect<gpu::GPUDialect>();
@@ -200,7 +243,8 @@ void mlir::populateGpuToNVVMConversionPatterns(LLVMTypeConverter &converter,
                                        NVVM::BlockIdYOp, NVVM::BlockIdZOp>,
            GPUIndexIntrinsicOpLowering<gpu::GridDimOp, NVVM::GridDimXOp,
                                        NVVM::GridDimYOp, NVVM::GridDimZOp>,
-           GPUShuffleOpLowering, GPUReturnOpLowering>(converter);
+           GPULaneIdOpToNVVM, GPUShuffleOpLowering, GPUReturnOpLowering>(
+          converter);
 
   // Explicitly drop memory space when lowering private memory
   // attributions since NVVM models it as `alloca`s in the default

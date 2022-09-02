@@ -102,8 +102,6 @@ class MyResponder(MockGDBServerResponder):
 
 class TestTargetXMLArch(GDBRemoteTestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIfXmlSupportMissing
     @expectedFailureAll(archs=["i386"])
     @skipIfRemote
@@ -130,6 +128,7 @@ class TestTargetXMLArch(GDBRemoteTestBase):
 
     @skipIfXmlSupportMissing
     @skipIfRemote
+    @skipIfLLVMTargetMissing("X86")
     def test_register_augmentation(self):
         """
         Test that we correctly associate the register info with the eh_frame

@@ -22,7 +22,7 @@ public:
     struct alignas(64) /* naturally-align the heap state */ __state_t
     {
         struct {
-            __atomic_base<__barrier_phase_t> __phase = ATOMIC_VAR_INIT(0);
+          __atomic_base<__barrier_phase_t> __phase{0};
         } __tickets[64];
     };
 
@@ -90,7 +90,7 @@ void __destroy_barrier_algorithm_base(__barrier_algorithm_base* __barrier)
     delete __barrier;
 }
 
-#endif //!defined(_LIBCPP_HAS_NO_TREE_BARRIER)
+#endif // !defined(_LIBCPP_HAS_NO_TREE_BARRIER)
 
 _LIBCPP_END_NAMESPACE_STD
 

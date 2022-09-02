@@ -23,7 +23,6 @@ class MCCodeEmitter;
 class MCStreamer;
 class X86Subtarget;
 class TargetMachine;
-struct ASanAccessInfo;
 
 class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
   const X86Subtarget *Subtarget = nullptr;
@@ -132,10 +131,7 @@ public:
 
   void emitInstruction(const MachineInstr *MI) override;
 
-  void emitBasicBlockEnd(const MachineBasicBlock &MBB) override {
-    AsmPrinter::emitBasicBlockEnd(MBB);
-    SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
-  }
+  void emitBasicBlockEnd(const MachineBasicBlock &MBB) override;
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        const char *ExtraCode, raw_ostream &O) override;

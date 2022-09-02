@@ -1,6 +1,11 @@
-// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -debug-info-kind=limited -gsimple-template-names=mangled %s -o - -w -std=c++17 | FileCheck %s
-// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -debug-info-kind=limited -gsimple-template-names=simple %s -o - -w -std=c++17 | FileCheck --check-prefix=SIMPLE --implicit-check-not=_STN %s
-// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -debug-info-kind=limited %s -o - -w -std=c++17 | FileCheck --check-prefix=FULL --implicit-check-not=_STN %s
+// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -std=c++17 %s -o - -w -debug-info-kind=limited -gsimple-template-names=mangled \
+// RUN:   | FileCheck %s
+// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -std=c++17 %s -o - -w -debug-info-kind=limited -gsimple-template-names=simple \
+// RUN:   | FileCheck %s --implicit-check-not=_STN --check-prefix=SIMPLE
+// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -std=c++17 %s -o - -w -debug-info-kind=limited \
+// RUN:   | FileCheck %s --implicit-check-not=_STN --check-prefix=FULL
+// RUN: %clang_cc1 -emit-llvm -triple x86_64-unknown_unknown -std=c++17 %s -o - -w -debug-info-kind=line-tables-only -gsimple-template-names=mangled -fdebug-info-for-profiling \
+// RUN:   | FileCheck %s --implicit-check-not=_STN --check-prefix=FULL
 
 template <typename... T>
 void f1() {}
@@ -16,23 +21,38 @@ struct t2 {
 };
 template <template <typename...> class T>
 void f3() {}
+namespace {
+enum LocalEnum { LocalEnum1 };
+}
+template<typename T, T ... ts>
+struct t3 { };
+struct t4 {
+  t3<LocalEnum, LocalEnum1> m1;
+};
+  
+t4 v1;
+enum { UnnamedEnum1 };
+template<decltype(UnnamedEnum1)>
+void f4() {
+}
+// CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "t3<(anonymous namespace)::LocalEnum, ((anonymous namespace)::LocalEnum)0>"
 void f() {
   // Basic examples of simplifiable/rebuildable names
   f1<>();
-  // CHECK: !DISubprogram(name: "_STNf1|<>",
+  // CHECK: !DISubprogram(name: "_STN|f1|<>",
   // SIMPLE: !DISubprogram(name: "f1",
   // FULL: !DISubprogram(name: "f1<>",
   f1<int>();
-  // CHECK: !DISubprogram(name: "_STNf1|<int>",
+  // CHECK: !DISubprogram(name: "_STN|f1|<int>",
   f1<void()>();
-  // CHECK: !DISubprogram(name: "_STNf1|<void ()>",
+  // CHECK: !DISubprogram(name: "_STN|f1|<void ()>",
   f2<int, 42>();
-  // CHECK: !DISubprogram(name: "_STNf2|<int, 42>",
+  // CHECK: !DISubprogram(name: "_STN|f2|<int, 42>",
 
   // Check that even though the nested name can't be rebuilt, it'll carry its
   // full name and the outer name can be rebuilt from that.
   f1<t1<void() noexcept>>();
-  // CHECK: !DISubprogram(name: "_STNf1|<t1<void () noexcept> >",
+  // CHECK: !DISubprogram(name: "_STN|f1|<t1<void () noexcept> >",
 
   // Vector array types are encoded in DWARF but the decoding in llvm-dwarfdump
   // isn't implemented yet.
@@ -48,9 +68,11 @@ void f() {
   // since we don't emit the column number. Also lambdas and unnamed classes are
   // ambiguous with each other - there's no DWARF that designates a lambda as
   // anything other than another unnamed class/struct.
-  auto A = [] {};
-  f1<decltype(A)>();
-  // CHECK: !DISubprogram(name: "f1<(lambda at {{.*}}debug-info-simple-template-names.cpp:[[# @LINE - 2]]:12)>",
+  auto Lambda = [] {};
+  f1<decltype(Lambda)>();
+  // CHECK: !DISubprogram(name: "f1<(lambda at {{.*}}debug-info-simple-template-names.cpp:[[# @LINE - 2]]:17)>",
+  f1<t1<t1<decltype(Lambda)>>>();
+  // CHECK: !DISubprogram(name: "f1<t1<t1<(lambda at {{.*}}> > >",
   struct {
   } unnamed_struct;
   f1<decltype(unnamed_struct)>();
@@ -91,5 +113,20 @@ void f() {
   // worry about seeing conversion operators as parameters to other templates.
 
   f3<t1>();
-  // CHECK: !DISubprogram(name: "_STNf3|<t1>",
+  // CHECK: !DISubprogram(name: "_STN|f3|<t1>",
+  
+  f1<_BitInt(3)>();
+  // CHECK: !DISubprogram(name: "f1<_BitInt(3)>",
+
+  f1<const unsigned _BitInt(5)>();
+  // CHECK: !DISubprogram(name: "f1<const unsigned _BitInt(5)>",
+
+  // Add a parameter just so this differs from other attributed function types
+  // that don't mangle differently.
+  int fnrt() __attribute__((noreturn));
+  f1<decltype(fnrt)>();
+  // CHECK: !DISubprogram(name: "f1<int () __attribute__((noreturn))>",
+  
+  f4<UnnamedEnum1>();
+  // CHECK: !DISubprogram(name: "f4<((unnamed enum at {{.*}}))0>"
 }

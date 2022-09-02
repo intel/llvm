@@ -6,14 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
-#define LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
+#ifndef LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H
+#define LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H
 
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Frontend/PCHContainerOperations.h"
-#include "clang/Lex/PreprocessorExcludedConditionalDirectiveSkipMapping.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "llvm/Support/Error.h"
@@ -53,7 +52,8 @@ public:
 /// using the regular processing run.
 class DependencyScanningWorker {
 public:
-  DependencyScanningWorker(DependencyScanningService &Service);
+  DependencyScanningWorker(DependencyScanningService &Service,
+                           llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS);
 
   /// Run the dependency scanning tool for a given clang driver command-line,
   /// and report the discovered dependencies to the provided consumer. If \p
@@ -69,7 +69,6 @@ public:
 
 private:
   std::shared_ptr<PCHContainerOperations> PCHContainerOps;
-  std::unique_ptr<ExcludedPreprocessorDirectiveSkipMapping> PPSkipMappings;
 
   /// The physical filesystem overlaid by `InMemoryFS`.
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> RealFS;
@@ -91,4 +90,4 @@ private:
 } // end namespace tooling
 } // end namespace clang
 
-#endif // LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
+#endif // LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H

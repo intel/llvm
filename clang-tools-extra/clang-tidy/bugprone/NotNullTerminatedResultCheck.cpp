@@ -144,7 +144,7 @@ static StringRef exprToStr(const Expr *E,
 
   return Lexer::getSourceText(
       CharSourceRange::getTokenRange(E->getSourceRange()),
-      *Result.SourceManager, Result.Context->getLangOpts(), 0);
+      *Result.SourceManager, Result.Context->getLangOpts(), nullptr);
 }
 
 // Returns the proper token based end location of \p E.
@@ -477,7 +477,7 @@ static void insertNullTerminatorExpr(StringRef Name,
       FunctionExpr->getBeginLoc());
   StringRef SpaceBeforeStmtStr = Lexer::getSourceText(
       CharSourceRange::getCharRange(SpaceRange), *Result.SourceManager,
-      Result.Context->getLangOpts(), 0);
+      Result.Context->getLangOpts(), nullptr);
 
   SmallString<128> NewAddNullTermExprStr;
   NewAddNullTermExprStr =
@@ -799,7 +799,7 @@ void NotNullTerminatedResultCheck::check(
     Optional<bool> AreSafeFunctionsWanted;
 
     Preprocessor::macro_iterator It = PP->macro_begin();
-    while (It != PP->macro_end() && !AreSafeFunctionsWanted.hasValue()) {
+    while (It != PP->macro_end() && !AreSafeFunctionsWanted) {
       if (It->first->getName() == "__STDC_WANT_LIB_EXT1__") {
         const auto *MI = PP->getMacroInfo(It->first);
         // PP->getMacroInfo() returns nullptr if macro has no definition.
@@ -817,8 +817,8 @@ void NotNullTerminatedResultCheck::check(
       ++It;
     }
 
-    if (AreSafeFunctionsWanted.hasValue())
-      UseSafeFunctions = AreSafeFunctionsWanted.getValue();
+    if (AreSafeFunctionsWanted)
+      UseSafeFunctions = AreSafeFunctionsWanted.value();
   }
 
   StringRef Name = FunctionExpr->getDirectCallee()->getName();

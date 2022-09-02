@@ -12,7 +12,7 @@ source code and comments.
 
 The tool is in a very early development stage, so you might encounter bugs and
 crashes. Submitting reports with information about how to reproduce the issue
-to `the LLVM bugtracker <https://bugs.llvm.org/>`_ will definitely help the
+to `the LLVM bug tracker <https://github.com/llvm/llvm-project/issues/>`_ will definitely help the
 project. If you have any ideas or suggestions, please to put a feature request
 there.
 
@@ -90,7 +90,7 @@ Options
       =html                     -   Documentation in HTML format.
     --ignore-map-errors         - Continue if files are not mapped correctly.
     --output=<string>           - Directory for outputting generated files.
-    -p=<string>                 - Build path
+    -p <string>                 - Build path
     --project-name=<string>     - Name of project.
     --public                    - Document only public declarations.
     --repository=<string>       -

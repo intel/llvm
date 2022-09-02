@@ -15,9 +15,10 @@ from copy import copy
 from pathlib import PurePath
 from collections import defaultdict, OrderedDict
 
-from dex.utils.Exceptions import CommandParseError
+from dex.utils.Exceptions import CommandParseError, NonFloatValueInCommand
 
 from dex.command.CommandBase import CommandBase
+from dex.command.commands.DexCommandLine import DexCommandLine
 from dex.command.commands.DexDeclareFile import DexDeclareFile
 from dex.command.commands.DexDeclareAddress import DexDeclareAddress
 from dex.command.commands.DexExpectProgramState import DexExpectProgramState
@@ -41,6 +42,7 @@ def _get_valid_commands():
         { name (str): command (class) }
     """
     return {
+      DexCommandLine.get_name() : DexCommandLine,
       DexDeclareAddress.get_name() : DexDeclareAddress,
       DexDeclareFile.get_name() : DexDeclareFile,
       DexExpectProgramState.get_name() : DexExpectProgramState,
@@ -308,6 +310,10 @@ def _find_all_commands_in_file(path, file_lines, valid_commands, source_root_dir
                 err_point = copy(cmd_point)
                 err_point.char += len(command_name)
                 raise format_parse_err(str(e), path, file_lines, err_point)
+            except NonFloatValueInCommand as e:
+                err_point = copy(cmd_point)
+                err_point.char += len(command_name)
+                raise format_parse_err(str(e), path, file_lines, err_point)
             else:
                 if type(command) is DexLabel:
                     add_line_label(labels, command, path, cmd_point.get_lineno())
@@ -322,6 +328,10 @@ def _find_all_commands_in_file(path, file_lines, valid_commands, source_root_dir
                     # TODO: keep stored paths as PurePaths for 'longer'.
                     cmd_path = str(PurePath(cmd_path))
                     declared_files.add(cmd_path)
+                elif type(command) is DexCommandLine and 'DexCommandLine' in commands:
+                    msg = "More than one DexCommandLine in file"
+                    raise format_parse_err(msg, path, file_lines, err_point)
+
                 assert (path, cmd_point) not in commands[command_name], (
                     command_name, commands[command_name])
                 commands[command_name][path, cmd_point] = command

@@ -9,6 +9,7 @@
 #include "flang/Evaluate/fold.h"
 #include "fold-implementation.h"
 #include "flang/Evaluate/characteristics.h"
+#include "flang/Evaluate/initial-image.h"
 
 namespace Fortran::evaluate {
 
@@ -21,7 +22,7 @@ characteristics::TypeAndShape Fold(
 std::optional<Constant<SubscriptInteger>> GetConstantSubscript(
     FoldingContext &context, Subscript &ss, const NamedEntity &base, int dim) {
   ss = FoldOperation(context, std::move(ss));
-  return std::visit(
+  return common::visit(
       common::visitors{
           [](IndirectSubscriptIntegerExpr &expr)
               -> std::optional<Constant<SubscriptInteger>> {
@@ -36,12 +37,13 @@ std::optional<Constant<SubscriptInteger>> GetConstantSubscript(
             auto lower{triplet.lower()}, upper{triplet.upper()};
             std::optional<ConstantSubscript> stride{ToInt64(triplet.stride())};
             if (!lower) {
-              lower = GetLowerBound(context, base, dim);
+              lower = GetLBOUND(context, base, dim);
             }
             if (!upper) {
-              upper =
-                  ComputeUpperBound(context, GetLowerBound(context, base, dim),
-                      GetExtent(context, base, dim));
+              if (auto lb{GetLBOUND(context, base, dim)}) {
+                upper = ComputeUpperBound(
+                    context, std::move(*lb), GetExtent(context, base, dim));
+              }
             }
             auto lbi{ToInt64(lower)}, ubi{ToInt64(upper)};
             if (lbi && ubi && stride && *stride != 0) {
@@ -66,6 +68,7 @@ Expr<SomeDerived> FoldOperation(
     FoldingContext &context, StructureConstructor &&structure) {
   StructureConstructor ctor{structure.derivedTypeSpec()};
   bool isConstant{true};
+  auto restorer{context.WithPDTInstance(structure.derivedTypeSpec())};
   for (auto &&[symbol, value] : std::move(structure)) {
     auto expr{Fold(context, std::move(value.value()))};
     if (IsPointer(symbol)) {
@@ -118,16 +121,16 @@ Triplet FoldOperation(FoldingContext &context, Triplet &&triplet) {
 }
 
 Subscript FoldOperation(FoldingContext &context, Subscript &&subscript) {
-  return std::visit(common::visitors{
-                        [&](IndirectSubscriptIntegerExpr &&expr) {
-                          expr.value() = Fold(context, std::move(expr.value()));
-                          return Subscript(std::move(expr));
-                        },
-                        [&](Triplet &&triplet) {
-                          return Subscript(
-                              FoldOperation(context, std::move(triplet)));
-                        },
-                    },
+  return common::visit(
+      common::visitors{
+          [&](IndirectSubscriptIntegerExpr &&expr) {
+            expr.value() = Fold(context, std::move(expr.value()));
+            return Subscript(std::move(expr));
+          },
+          [&](Triplet &&triplet) {
+            return Subscript(FoldOperation(context, std::move(triplet)));
+          },
+      },
       std::move(subscript.u));
 }
 
@@ -161,12 +164,13 @@ CoarrayRef FoldOperation(FoldingContext &context, CoarrayRef &&coarrayRef) {
 }
 
 DataRef FoldOperation(FoldingContext &context, DataRef &&dataRef) {
-  return std::visit(common::visitors{
-                        [&](SymbolRef symbol) { return DataRef{*symbol}; },
-                        [&](auto &&x) {
-                          return DataRef{FoldOperation(context, std::move(x))};
-                        },
-                    },
+  return common::visit(common::visitors{
+                           [&](SymbolRef symbol) { return DataRef{*symbol}; },
+                           [&](auto &&x) {
+                             return DataRef{
+                                 FoldOperation(context, std::move(x))};
+                           },
+                       },
       std::move(dataRef.u));
 }
 
@@ -214,6 +218,58 @@ Expr<ImpliedDoIndex::Result> FoldOperation(
     return Expr<ImpliedDoIndex::Result>{*value};
   } else {
     return Expr<ImpliedDoIndex::Result>{std::move(iDo)};
+  }
+}
+
+// TRANSFER (F'2018 16.9.193)
+std::optional<Expr<SomeType>> FoldTransfer(
+    FoldingContext &context, const ActualArguments &arguments) {
+  CHECK(arguments.size() == 2 || arguments.size() == 3);
+  const auto *source{UnwrapExpr<Expr<SomeType>>(arguments[0])};
+  std::optional<std::size_t> sourceBytes;
+  if (source) {
+    if (auto sourceTypeAndShape{
+            characteristics::TypeAndShape::Characterize(*source, context)}) {
+      if (auto sourceBytesExpr{
+              sourceTypeAndShape->MeasureSizeInBytes(context)}) {
+        sourceBytes = ToInt64(*sourceBytesExpr);
+      }
+    }
+  }
+  std::optional<DynamicType> moldType;
+  if (arguments[1]) {
+    moldType = arguments[1]->GetType();
+  }
+  std::optional<ConstantSubscripts> extents;
+  if (arguments.size() == 2) { // no SIZE=
+    if (moldType && sourceBytes) {
+      if (arguments[1]->Rank() == 0) { // scalar MOLD=
+        extents = ConstantSubscripts{}; // empty extents (scalar result)
+      } else if (auto moldBytesExpr{
+                     moldType->MeasureSizeInBytes(context, true)}) {
+        if (auto moldBytes{ToInt64(Fold(context, std::move(*moldBytesExpr)))};
+            *moldBytes > 0) {
+          extents = ConstantSubscripts{
+              static_cast<ConstantSubscript>((*sourceBytes) + *moldBytes - 1) /
+              *moldBytes};
+        }
+      }
+    }
+  } else if (arguments[2]) { // SIZE= is present
+    if (const auto *sizeExpr{arguments[2]->UnwrapExpr()}) {
+      if (auto sizeValue{ToInt64(*sizeExpr)}) {
+        extents = ConstantSubscripts{*sizeValue};
+      }
+    }
+  }
+  if (sourceBytes && IsActuallyConstant(*source) && moldType && extents) {
+    InitialImage image{*sourceBytes};
+    InitialImage::Result imageResult{
+        image.Add(0, *sourceBytes, *source, context)};
+    CHECK(imageResult == InitialImage::Ok);
+    return image.AsConstant(context, *moldType, *extents, true /*pad with 0*/);
+  } else {
+    return std::nullopt;
   }
 }
 

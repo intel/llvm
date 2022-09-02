@@ -9,7 +9,7 @@
 #ifndef FORTRAN_OPTIMIZER_BUILDER_RUNTIME_NUMERIC_H
 #define FORTRAN_OPTIMIZER_BUILDER_RUNTIME_NUMERIC_H
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 
 namespace fir {
 class ExtendedValue;
@@ -37,6 +37,15 @@ mlir::Value genRRSpacing(fir::FirOpBuilder &builder, mlir::Location loc,
 /// Generate call to Scale intrinsic runtime routine.
 mlir::Value genScale(fir::FirOpBuilder &builder, mlir::Location loc,
                      mlir::Value x, mlir::Value i);
+
+/// Generate call to Selected_int_kind intrinsic runtime routine.
+mlir::Value genSelectedIntKind(fir::FirOpBuilder &builder, mlir::Location loc,
+                               mlir::Value x);
+
+/// Generate call to Selected_real_kind intrinsic runtime routine.
+mlir::Value genSelectedRealKind(fir::FirOpBuilder &builder, mlir::Location loc,
+                                mlir::Value precision, mlir::Value range,
+                                mlir::Value radix);
 
 /// Generate call to Set_exponent intrinsic runtime routine.
 mlir::Value genSetExponent(fir::FirOpBuilder &builder, mlir::Location loc,

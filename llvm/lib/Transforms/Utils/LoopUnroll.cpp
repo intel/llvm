@@ -99,6 +99,17 @@ UnrollVerifyDomtree("unroll-verify-domtree", cl::Hidden,
 #endif
                     );
 
+static cl::opt<bool>
+UnrollVerifyLoopInfo("unroll-verify-loopinfo", cl::Hidden,
+                    cl::desc("Verify loopinfo after unrolling"),
+#ifdef EXPENSIVE_CHECKS
+    cl::init(true)
+#else
+    cl::init(false)
+#endif
+                    );
+
+
 /// Check if unrolling created a situation where we need to insert phi nodes to
 /// preserve LCSSA form.
 /// \param Blocks is a vector of basic blocks representing unrolled loop.
@@ -225,7 +236,7 @@ void llvm::simplifyLoopAfterUnroll(Loop *L, bool SimplifyIVs, LoopInfo *LI,
   SmallVector<WeakTrackingVH, 16> DeadInsts;
   for (BasicBlock *BB : L->getBlocks()) {
     for (Instruction &Inst : llvm::make_early_inc_range(*BB)) {
-      if (Value *V = SimplifyInstruction(&Inst, {DL, nullptr, DT, AC}))
+      if (Value *V = simplifyInstruction(&Inst, {DL, nullptr, DT, AC}))
         if (LI->replacementPreservesLCSSAForm(&Inst, V))
           Inst.replaceAllUsesWith(V);
       if (isInstructionTriviallyDead(&Inst))
@@ -502,7 +513,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
           if (const DILocation *DIL = I.getDebugLoc()) {
             auto NewDIL = DIL->cloneByMultiplyingDuplicationFactor(ULO.Count);
             if (NewDIL)
-              I.setDebugLoc(NewDIL.getValue());
+              I.setDebugLoc(*NewDIL);
             else
               LLVM_DEBUG(dbgs()
                          << "Failed to create new discriminator: "
@@ -764,6 +775,9 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   // Apply updates to the DomTree.
   DT = &DTU.getDomTree();
 
+  assert(!UnrollVerifyDomtree ||
+         DT->verify(DominatorTree::VerificationLevel::Fast));
+
   // At this point, the code is well formed.  We now simplify the unrolled loop,
   // doing constant propagation and dead code elimination as we go.
   simplifyLoopAfterUnroll(L, !CompletelyUnroll && ULO.Count > 1, LI, SE, DT, AC,
@@ -776,6 +790,10 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   // Update LoopInfo if the loop is completely removed.
   if (CompletelyUnroll)
     LI->erase(L);
+
+  // LoopInfo should not be valid, confirm that.
+  if (UnrollVerifyLoopInfo)
+    LI->verify(*DT);
 
   // After complete unrolling most of the blocks should be contained in OuterL.
   // However, some of them might happen to be out of OuterL (e.g. if they

@@ -1,5 +1,5 @@
 // RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX=1 -march=sapphirerapids -fsycl -O2 %s -o %t.out
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #include <iostream>
 

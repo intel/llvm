@@ -6,8 +6,6 @@ from lldbsuite.test_event.build_exception import BuildError
 
 class TestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     def build_and_run(self, test_file):
@@ -20,7 +18,7 @@ class TestCase(TestBase):
         try:
             self.build(dictionary={
                 "C_SOURCES" : test_file,
-                "CFLAGS_EXTRAS" : "-Werror"
+                "CFLAGS_EXTRAS" : "-Werror=ignored-attributes"
             })
         except BuildError as e:
              # Test source failed to build. Check if it failed because the
@@ -49,7 +47,6 @@ class TestCase(TestBase):
         self.expect_expr("func(1, 2, 3, 4)", result_type="int", result_value="10")
 
     @skipIf(compiler="clang", compiler_version=['<', '9.0'])
-    @expectedFailureDarwin(archs=["arm64", "arm64e"]) # rdar://84528755
     def test_ms_abi(self):
         if not self.build_and_run("ms_abi.c"):
             return
@@ -61,6 +58,8 @@ class TestCase(TestBase):
             return
         self.expect_expr("func(1, 2, 3, 4)", result_type="int", result_value="10")
 
+    @expectedFailureAll(oslist=["freebsd"],
+                        bugnumber="github.com/llvm/llvm-project/issues/56084")
     def test_vectorcall(self):
         if not self.build_and_run("vectorcall.c"):
             return

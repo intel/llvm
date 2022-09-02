@@ -20,7 +20,7 @@
 
 using namespace _OMP;
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 TaskDescriptorTy *__kmpc_omp_task_alloc(IdentTy *, uint32_t, int32_t,
                                         uint64_t TaskSizeInclPrivateValues,
@@ -49,7 +49,7 @@ int32_t __kmpc_omp_task_with_deps(IdentTy *Loc, uint32_t TId,
                                   TaskDescriptorTy *TaskDescriptor, int32_t,
                                   void *, int32_t, void *) {
   FunctionTracingRAII();
-  state::DateEnvironmentRAII DERAII;
+  state::DateEnvironmentRAII DERAII(Loc);
 
   TaskDescriptor->TaskFn(0, TaskDescriptor);
 
@@ -60,7 +60,7 @@ int32_t __kmpc_omp_task_with_deps(IdentTy *Loc, uint32_t TId,
 void __kmpc_omp_task_begin_if0(IdentTy *Loc, uint32_t TId,
                                TaskDescriptorTy *TaskDescriptor) {
   FunctionTracingRAII();
-  state::enterDataEnvironment();
+  state::enterDataEnvironment(Loc);
 }
 
 void __kmpc_omp_task_complete_if0(IdentTy *Loc, uint32_t TId,

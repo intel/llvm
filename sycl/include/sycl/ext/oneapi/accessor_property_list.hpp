@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_list_base.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/property_list_base.hpp>
+#include <sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-template <typename, int, access::mode, access::target, access::placeholder,
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
 namespace detail {
@@ -181,7 +182,7 @@ public:
   PropT get_property() const {
     if (!has_property<PropT>())
       throw sycl::invalid_object_error("The property is not found",
-                                       PI_INVALID_VALUE);
+                                       PI_ERROR_INVALID_VALUE);
 
     return get_property_helper<PropT>();
   }
@@ -212,6 +213,10 @@ public:
   }
 #endif
 
+  operator sycl::property_list() const {
+    return property_list(MDataLessProps, MPropsWithData);
+  }
+
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
@@ -232,5 +237,5 @@ private:
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -22,7 +22,9 @@ def Test_Dialect : Dialect {
   let hasRegionResultAttrVerify = 1;
   let hasOperationInterfaceFallback = 1;
   let hasNonDefaultDestructor = 1;
+  let useDefaultTypePrinterParser = 0;
   let useDefaultAttributePrinterParser = 1;
+  let isExtensible = 1;
   let dependentDialects = ["::mlir::DLTIDialect"];
 
   let extraClassDeclaration = [{
@@ -36,10 +38,18 @@ def Test_Dialect : Dialect {
                                  ::mlir::OpAsmPrinter &printer)>
      getOperationPrinter(::mlir::Operation *op) const override;
 
+     ::mlir::Type parseType(::mlir::DialectAsmParser &parser) const override;
+     void printType(::mlir::Type type,
+                    ::mlir::DialectAsmPrinter &printer) const override;
+
   private:
     // Storage for a custom fallback interface.
     void *fallbackEffectOpInterfaces;
 
+    ::mlir::Type parseTestType(::mlir::AsmParser &parser,
+                               ::llvm::SetVector<::mlir::Type> &stack) const;
+    void printTestType(::mlir::Type type, ::mlir::AsmPrinter &printer,
+                       ::llvm::SetVector<::mlir::Type> &stack) const;
   }];
 }
 

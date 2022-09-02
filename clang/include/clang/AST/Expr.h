@@ -572,6 +572,12 @@ public:
   bool isConstantInitializer(ASTContext &Ctx, bool ForRef,
                              const Expr **Culprit = nullptr) const;
 
+  /// If this expression is an unambiguous reference to a single declaration,
+  /// in the style of __builtin_function_start, return that declaration.  Note
+  /// that this may return a non-static member function or field in C++ if this
+  /// expression is a member pointer constant.
+  const ValueDecl *getAsBuiltinConstantDeclRef(const ASTContext &Context) const;
+
   /// EvalStatus is a struct with detailed info about an evaluation in progress.
   struct EvalStatus {
     /// Whether the evaluated expression has side effects.
@@ -1780,7 +1786,7 @@ class StringLiteral final
   /// * An array of getByteLength() char used to store the string data.
 
 public:
-  enum StringKind { Ascii, Wide, UTF8, UTF16, UTF32 };
+  enum StringKind { Ordinary, Wide, UTF8, UTF16, UTF32 };
 
 private:
   unsigned numTrailingObjects(OverloadToken<unsigned>) const { return 1; }
@@ -1877,7 +1883,7 @@ public:
     return static_cast<StringKind>(StringLiteralBits.Kind);
   }
 
-  bool isAscii() const { return getKind() == Ascii; }
+  bool isOrdinary() const { return getKind() == Ordinary; }
   bool isWide() const { return getKind() == Wide; }
   bool isUTF8() const { return getKind() == UTF8; }
   bool isUTF16() const { return getKind() == UTF16; }
@@ -2434,7 +2440,7 @@ public:
 
   /// Create an offsetof node that refers into a C++ base class.
   explicit OffsetOfNode(const CXXBaseSpecifier *Base)
-      : Range(), Data(reinterpret_cast<uintptr_t>(Base) | OffsetOfNode::Base) {}
+      : Data(reinterpret_cast<uintptr_t>(Base) | OffsetOfNode::Base) {}
 
   /// Determine what kind of offsetof node this is.
   Kind getKind() const { return static_cast<Kind>(Data & Mask); }
@@ -3174,11 +3180,7 @@ public:
     setDependence(getDependence() | ExprDependence::TypeValueInstantiation);
   }
 
-  bool isCallToStdMove() const {
-    const FunctionDecl *FD = getDirectCallee();
-    return getNumArgs() == 1 && FD && FD->isInStdNamespace() &&
-           FD->getIdentifier() && FD->getIdentifier()->isStr("move");
-  }
+  bool isCallToStdMove() const;
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstCallExprConstant &&
@@ -3543,7 +3545,6 @@ protected:
     CastExprBits.BasePathSize = BasePathSize;
     assert((CastExprBits.BasePathSize == BasePathSize) &&
            "BasePathSize overflow!");
-    setDependence(computeDependence(this));
     assert(CastConsistency());
     CastExprBits.HasFPFeatures = HasFPFeatures;
   }
@@ -3677,6 +3678,7 @@ class ImplicitCastExpr final
                    ExprValueKind VK)
       : CastExpr(ImplicitCastExprClass, ty, VK, kind, op, BasePathLength,
                  FPO.requiresTrailingStorage()) {
+    setDependence(computeDependence(this));
     if (hasStoredFPFeatures())
       *getTrailingFPFeatures() = FPO;
   }
@@ -3754,7 +3756,9 @@ protected:
                    CastKind kind, Expr *op, unsigned PathSize,
                    bool HasFPFeatures, TypeSourceInfo *writtenTy)
       : CastExpr(SC, exprTy, VK, kind, op, PathSize, HasFPFeatures),
-        TInfo(writtenTy) {}
+        TInfo(writtenTy) {
+    setDependence(computeDependence(this));
+  }
 
   /// Construct an empty explicit cast.
   ExplicitCastExpr(StmtClass SC, EmptyShell Shell, unsigned PathSize,
@@ -4057,7 +4061,7 @@ public:
   }
 
   // This is used in ASTImporter
-  FPOptionsOverride getFPFeatures(const LangOptions &LO) const {
+  FPOptionsOverride getFPFeatures() const {
     if (BinaryOperatorBits.HasFPFeatures)
       return getStoredFPFeatures();
     return FPOptionsOverride();
@@ -4726,16 +4730,17 @@ public:
 };
 
 /// Represents a function call to one of __builtin_LINE(), __builtin_COLUMN(),
-/// __builtin_FUNCTION(), or __builtin_FILE().
+/// __builtin_FUNCTION(), __builtin_FILE(), or __builtin_source_location().
 class SourceLocExpr final : public Expr {
   SourceLocation BuiltinLoc, RParenLoc;
   DeclContext *ParentContext;
 
 public:
-  enum IdentKind { Function, File, Line, Column };
+  enum IdentKind { Function, File, Line, Column, SourceLocStruct };
 
-  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, SourceLocation BLoc,
-                SourceLocation RParenLoc, DeclContext *Context);
+  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, QualType ResultTy,
+                SourceLocation BLoc, SourceLocation RParenLoc,
+                DeclContext *Context);
 
   /// Build an empty call expression.
   explicit SourceLocExpr(EmptyShell Empty) : Expr(SourceLocExprClass, Empty) {}
@@ -4752,18 +4757,18 @@ public:
     return static_cast<IdentKind>(SourceLocExprBits.Kind);
   }
 
-  bool isStringType() const {
+  bool isIntType() const {
     switch (getIdentKind()) {
     case File:
     case Function:
-      return true;
+    case SourceLocStruct:
+      return false;
     case Line:
     case Column:
-      return false;
+      return true;
     }
     llvm_unreachable("unknown source location expression kind");
   }
-  bool isIntType() const LLVM_READONLY { return !isStringType(); }
 
   /// If the SourceLocExpr has been resolved return the subexpression
   /// representing the resolved value. Otherwise return null.

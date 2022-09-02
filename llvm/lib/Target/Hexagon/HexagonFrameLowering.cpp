@@ -152,33 +152,38 @@ using namespace llvm;
 static cl::opt<bool> DisableDeallocRet("disable-hexagon-dealloc-ret",
     cl::Hidden, cl::desc("Disable Dealloc Return for Hexagon target"));
 
-static cl::opt<unsigned> NumberScavengerSlots("number-scavenger-slots",
-    cl::Hidden, cl::desc("Set the number of scavenger slots"), cl::init(2),
-    cl::ZeroOrMore);
+static cl::opt<unsigned>
+    NumberScavengerSlots("number-scavenger-slots", cl::Hidden,
+                         cl::desc("Set the number of scavenger slots"),
+                         cl::init(2));
 
-static cl::opt<int> SpillFuncThreshold("spill-func-threshold",
-    cl::Hidden, cl::desc("Specify O2(not Os) spill func threshold"),
-    cl::init(6), cl::ZeroOrMore);
+static cl::opt<int>
+    SpillFuncThreshold("spill-func-threshold", cl::Hidden,
+                       cl::desc("Specify O2(not Os) spill func threshold"),
+                       cl::init(6));
 
-static cl::opt<int> SpillFuncThresholdOs("spill-func-threshold-Os",
-    cl::Hidden, cl::desc("Specify Os spill func threshold"),
-    cl::init(1), cl::ZeroOrMore);
+static cl::opt<int>
+    SpillFuncThresholdOs("spill-func-threshold-Os", cl::Hidden,
+                         cl::desc("Specify Os spill func threshold"),
+                         cl::init(1));
 
-static cl::opt<bool> EnableStackOVFSanitizer("enable-stackovf-sanitizer",
-    cl::Hidden, cl::desc("Enable runtime checks for stack overflow."),
-    cl::init(false), cl::ZeroOrMore);
+static cl::opt<bool> EnableStackOVFSanitizer(
+    "enable-stackovf-sanitizer", cl::Hidden,
+    cl::desc("Enable runtime checks for stack overflow."), cl::init(false));
 
-static cl::opt<bool> EnableShrinkWrapping("hexagon-shrink-frame",
-    cl::init(true), cl::Hidden, cl::ZeroOrMore,
-    cl::desc("Enable stack frame shrink wrapping"));
+static cl::opt<bool>
+    EnableShrinkWrapping("hexagon-shrink-frame", cl::init(true), cl::Hidden,
+                         cl::desc("Enable stack frame shrink wrapping"));
 
-static cl::opt<unsigned> ShrinkLimit("shrink-frame-limit",
-    cl::init(std::numeric_limits<unsigned>::max()), cl::Hidden, cl::ZeroOrMore,
-    cl::desc("Max count of stack frame shrink-wraps"));
+static cl::opt<unsigned>
+    ShrinkLimit("shrink-frame-limit",
+                cl::init(std::numeric_limits<unsigned>::max()), cl::Hidden,
+                cl::desc("Max count of stack frame shrink-wraps"));
 
-static cl::opt<bool> EnableSaveRestoreLong("enable-save-restore-long",
-    cl::Hidden, cl::desc("Enable long calls for save-restore stubs."),
-    cl::init(false), cl::ZeroOrMore);
+static cl::opt<bool>
+    EnableSaveRestoreLong("enable-save-restore-long", cl::Hidden,
+                          cl::desc("Enable long calls for save-restore stubs."),
+                          cl::init(false));
 
 static cl::opt<bool> EliminateFramePointer("hexagon-fp-elim", cl::init(true),
     cl::Hidden, cl::desc("Refrain from using FP whenever possible"));
@@ -416,8 +421,8 @@ void HexagonFrameLowering::findShrunkPrologEpilog(MachineFunction &MF,
   UnsignedMap RPO;
   RPOTType RPOT(&MF);
   unsigned RPON = 0;
-  for (RPOTType::rpo_iterator I = RPOT.begin(), E = RPOT.end(); I != E; ++I)
-    RPO[(*I)->getNumber()] = RPON++;
+  for (auto &I : RPOT)
+    RPO[I->getNumber()] = RPON++;
 
   // Don't process functions that have loops, at least for now. Placement
   // of prolog and epilog must take loop structure into account. For simpli-
@@ -1018,8 +1023,8 @@ findCFILocation(MachineBasicBlock &B) {
 void HexagonFrameLowering::insertCFIInstructions(MachineFunction &MF) const {
   for (auto &B : MF) {
     auto At = findCFILocation(B);
-    if (At.hasValue())
-      insertCFIInstructionsAt(B, At.getValue());
+    if (At)
+      insertCFIInstructionsAt(B, At.value());
   }
 }
 
@@ -1410,7 +1415,7 @@ bool HexagonFrameLowering::insertCSRSpillsInBlock(MachineBasicBlock &MBB,
   }
 
   for (const CalleeSavedInfo &I : CSI) {
-    unsigned Reg = I.getReg();
+    Register Reg = I.getReg();
     // Add live in registers. We treat eh_return callee saved register r0 - r3
     // specially. They are not really callee saved registers as they are not
     // supposed to be killed.
@@ -1479,7 +1484,7 @@ bool HexagonFrameLowering::insertCSRRestoresInBlock(MachineBasicBlock &MBB,
   }
 
   for (const CalleeSavedInfo &I : CSI) {
-    unsigned Reg = I.getReg();
+    Register Reg = I.getReg();
     const TargetRegisterClass *RC = HRI.getMinimalPhysRegClass(Reg);
     int FI = I.getFrameIdx();
     HII.loadRegFromStackSlot(MBB, MI, Reg, FI, RC, &HRI);
@@ -1620,7 +1625,7 @@ bool HexagonFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
   // sub-registers to SRegs.
   LLVM_DEBUG(dbgs() << "Initial CS registers: {");
   for (const CalleeSavedInfo &I : CSI) {
-    unsigned R = I.getReg();
+    Register R = I.getReg();
     LLVM_DEBUG(dbgs() << ' ' << printReg(R, TRI));
     for (MCSubRegIterator SR(R, TRI, true); SR.isValid(); ++SR)
       SRegs[*SR] = true;
@@ -2635,7 +2640,7 @@ bool HexagonFrameLowering::shouldInlineCSR(const MachineFunction &MF,
   // a contiguous block starting from D8.
   BitVector Regs(Hexagon::NUM_TARGET_REGS);
   for (const CalleeSavedInfo &I : CSI) {
-    unsigned R = I.getReg();
+    Register R = I.getReg();
     if (!Hexagon::DoubleRegsRegClass.contains(R))
       return true;
     Regs[R] = true;

@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 
 #include "mlir/Dialect/CommonFolders.h"
@@ -26,20 +28,15 @@ using namespace mlir;
 
 /// Returns the boolean value under the hood if the given `boolAttr` is a scalar
 /// or splat vector bool constant.
-static Optional<bool> getScalarOrSplatBoolAttr(Attribute boolAttr) {
-  if (!boolAttr)
+static Optional<bool> getScalarOrSplatBoolAttr(Attribute attr) {
+  if (!attr)
     return llvm::None;
 
-  auto type = boolAttr.getType();
-  if (type.isInteger(1)) {
-    auto attr = boolAttr.cast<BoolAttr>();
-    return attr.getValue();
-  }
-  if (auto vecType = type.cast<VectorType>()) {
-    if (vecType.getElementType().isInteger(1))
-      if (auto attr = boolAttr.dyn_cast<SplatElementsAttr>())
-        return attr.getSplatValue<bool>();
-  }
+  if (auto boolAttr = attr.dyn_cast<BoolAttr>())
+    return boolAttr.getValue();
+  if (auto splatAttr = attr.dyn_cast<SplatElementsAttr>())
+    if (splatAttr.getElementType().isInteger(1))
+      return splatAttr.getSplatValue<bool>();
   return llvm::None;
 }
 
@@ -74,7 +71,7 @@ static Attribute extractCompositeElement(Attribute composite,
 
 namespace {
 #include "SPIRVCanonicalization.inc"
-}
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // spv.AccessChainOp
@@ -161,8 +158,8 @@ OpFoldResult spirv::IAddOp::fold(ArrayRef<Attribute> operands) {
   // The resulting value will equal the low-order N bits of the correct result
   // R, where N is the component width and R is computed with enough precision
   // to avoid overflow and underflow.
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a + b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](APInt a, const APInt &b) { return std::move(a) + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -183,8 +180,8 @@ OpFoldResult spirv::IMulOp::fold(ArrayRef<Attribute> operands) {
   // The resulting value will equal the low-order N bits of the correct result
   // R, where N is the component width and R is computed with enough precision
   // to avoid overflow and underflow.
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a * b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](const APInt &a, const APInt &b) { return a * b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -201,8 +198,8 @@ OpFoldResult spirv::ISubOp::fold(ArrayRef<Attribute> operands) {
   // The resulting value will equal the low-order N bits of the correct result
   // R, where N is the component width and R is computed with enough precision
   // to avoid overflow and underflow.
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a - b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](APInt a, const APInt &b) { return std::move(a) - b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -214,11 +211,11 @@ OpFoldResult spirv::LogicalAndOp::fold(ArrayRef<Attribute> operands) {
 
   if (Optional<bool> rhs = getScalarOrSplatBoolAttr(operands.back())) {
     // x && true = x
-    if (rhs.getValue())
+    if (rhs.value())
       return operand1();
 
     // x && false = false
-    if (!rhs.getValue())
+    if (!rhs.value())
       return operands.back();
   }
 
@@ -245,12 +242,12 @@ OpFoldResult spirv::LogicalOrOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "spv.LogicalOr should take two operands");
 
   if (auto rhs = getScalarOrSplatBoolAttr(operands.back())) {
-    if (rhs.getValue())
+    if (rhs.value())
       // x || true = true
       return operands.back();
 
     // x || false = x
-    if (!rhs.getValue())
+    if (!rhs.value())
       return operand1();
   }
 

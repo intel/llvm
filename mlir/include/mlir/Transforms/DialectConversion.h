@@ -22,7 +22,6 @@ namespace mlir {
 // Forward declarations.
 class Block;
 class ConversionPatternRewriter;
-class FuncOp;
 class MLIRContext;
 class Operation;
 class Type;
@@ -252,9 +251,9 @@ private:
         [callback = std::forward<FnT>(callback)](
             T type, SmallVectorImpl<Type> &results, ArrayRef<Type>) {
           if (Optional<Type> resultOpt = callback(type)) {
-            bool wasSuccess = static_cast<bool>(resultOpt.getValue());
+            bool wasSuccess = static_cast<bool>(resultOpt.value());
             if (wasSuccess)
-              results.push_back(resultOpt.getValue());
+              results.push_back(resultOpt.value());
             return Optional<LogicalResult>(success(wasSuccess));
           }
           return Optional<LogicalResult>();
@@ -494,23 +493,18 @@ private:
 };
 
 /// Add a pattern to the given pattern list to convert the signature of a
-/// FunctionLike op with the given type converter. This only supports
-/// FunctionLike ops which use FunctionType to represent their type.
-void populateFunctionLikeTypeConversionPattern(StringRef functionLikeOpName,
-                                               RewritePatternSet &patterns,
-                                               TypeConverter &converter);
+/// FunctionOpInterface op with the given type converter. This only supports
+/// ops which use FunctionType to represent their type.
+void populateFunctionOpInterfaceTypeConversionPattern(
+    StringRef functionLikeOpName, RewritePatternSet &patterns,
+    TypeConverter &converter);
 
 template <typename FuncOpT>
-void populateFunctionLikeTypeConversionPattern(RewritePatternSet &patterns,
-                                               TypeConverter &converter) {
-  populateFunctionLikeTypeConversionPattern(FuncOpT::getOperationName(),
-                                            patterns, converter);
+void populateFunctionOpInterfaceTypeConversionPattern(
+    RewritePatternSet &patterns, TypeConverter &converter) {
+  populateFunctionOpInterfaceTypeConversionPattern(FuncOpT::getOperationName(),
+                                                   patterns, converter);
 }
-
-/// Add a pattern to the given pattern list to convert the signature of a FuncOp
-/// with the given type converter.
-void populateFuncOpTypeConversionPattern(RewritePatternSet &patterns,
-                                         TypeConverter &converter);
 
 //===----------------------------------------------------------------------===//
 // Conversion PatternRewriter
@@ -635,7 +629,7 @@ public:
 
   /// PatternRewriter hook for notifying match failure reasons.
   LogicalResult
-  notifyMatchFailure(Operation *op,
+  notifyMatchFailure(Location loc,
                      function_ref<void(Diagnostic &)> reasonCallback) override;
   using PatternRewriter::notifyMatchFailure;
 
@@ -695,9 +689,12 @@ public:
   }
 
   /// Register the given operations as legal.
+  void addLegalOp(OperationName op) {
+    setOpAction(op, LegalizationAction::Legal);
+  }
   template <typename OpT>
   void addLegalOp() {
-    setOpAction<OpT>(LegalizationAction::Legal);
+    addLegalOp(OperationName(OpT::getOperationName(), &ctx));
   }
   template <typename OpT, typename OpT2, typename... OpTs>
   void addLegalOp() {
@@ -707,11 +704,15 @@ public:
 
   /// Register the given operation as dynamically legal and set the dynamic
   /// legalization callback to the one provided.
+  void addDynamicallyLegalOp(OperationName op,
+                             const DynamicLegalityCallbackFn &callback) {
+    setOpAction(op, LegalizationAction::Dynamic);
+    setLegalityCallback(op, callback);
+  }
   template <typename OpT>
   void addDynamicallyLegalOp(const DynamicLegalityCallbackFn &callback) {
-    OperationName opName(OpT::getOperationName(), &ctx);
-    setOpAction(opName, LegalizationAction::Dynamic);
-    setLegalityCallback(opName, callback);
+    addDynamicallyLegalOp(OperationName(OpT::getOperationName(), &ctx),
+                          callback);
   }
   template <typename OpT, typename OpT2, typename... OpTs>
   void addDynamicallyLegalOp(const DynamicLegalityCallbackFn &callback) {
@@ -728,9 +729,12 @@ public:
 
   /// Register the given operation as illegal, i.e. this operation is known to
   /// not be supported by this target.
+  void addIllegalOp(OperationName op) {
+    setOpAction(op, LegalizationAction::Illegal);
+  }
   template <typename OpT>
   void addIllegalOp() {
-    setOpAction<OpT>(LegalizationAction::Illegal);
+    addIllegalOp(OperationName(OpT::getOperationName(), &ctx));
   }
   template <typename OpT, typename OpT2, typename... OpTs>
   void addIllegalOp() {
@@ -743,6 +747,8 @@ public:
   /// addition to the operation itself, all of the operations nested within are
   /// also considered legal. An optional dynamic legality callback may be
   /// provided to mark subsets of legal instances as recursively legal.
+  void markOpRecursivelyLegal(OperationName name,
+                              const DynamicLegalityCallbackFn &callback);
   template <typename OpT>
   void markOpRecursivelyLegal(const DynamicLegalityCallbackFn &callback = {}) {
     OperationName opName(OpT::getOperationName(), &ctx);
@@ -780,11 +786,11 @@ public:
   /// Register the operations of the given dialects as dynamically legal, i.e.
   /// requiring custom handling by the callback.
   template <typename... Names>
-  void addDynamicallyLegalDialect(DynamicLegalityCallbackFn callback,
+  void addDynamicallyLegalDialect(const DynamicLegalityCallbackFn &callback,
                                   StringRef name, Names... names) {
     SmallVector<StringRef, 2> dialectNames({name, names...});
     setDialectAction(dialectNames, LegalizationAction::Dynamic);
-    setLegalityCallback(dialectNames, std::move(callback));
+    setLegalityCallback(dialectNames, callback);
   }
   template <typename... Args>
   void addDynamicallyLegalDialect(DynamicLegalityCallbackFn callback) {
@@ -845,11 +851,6 @@ private:
 
   /// Set the dynamic legality callback for the unknown ops.
   void setLegalityCallback(const DynamicLegalityCallbackFn &callback);
-
-  /// Set the recursive legality callback for the given operation and mark the
-  /// operation as recursively legal.
-  void markOpRecursivelyLegal(OperationName name,
-                              const DynamicLegalityCallbackFn &callback);
 
   /// The set of information that configures the legalization of an operation.
   struct LegalizationInfo {

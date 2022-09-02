@@ -779,17 +779,13 @@ private:
         LParenLoc(LParenLocation), DeclType(T), DeclTypeSourceInfo(TSI),
         PropertyAttributes(ObjCPropertyAttribute::kind_noattr),
         PropertyAttributesAsWritten(ObjCPropertyAttribute::kind_noattr),
-        PropertyImplementation(propControl), GetterName(Selector()),
-        SetterName(Selector()) {}
+        PropertyImplementation(propControl) {}
 
 public:
-  static ObjCPropertyDecl *Create(ASTContext &C, DeclContext *DC,
-                                  SourceLocation L,
-                                  IdentifierInfo *Id, SourceLocation AtLocation,
-                                  SourceLocation LParenLocation,
-                                  QualType T,
-                                  TypeSourceInfo *TSI,
-                                  PropertyControl propControl = None);
+  static ObjCPropertyDecl *
+  Create(ASTContext &C, DeclContext *DC, SourceLocation L, IdentifierInfo *Id,
+         SourceLocation AtLocation, SourceLocation LParenLocation, QualType T,
+         TypeSourceInfo *TSI, PropertyControl propControl = None);
 
   static ObjCPropertyDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -1074,6 +1070,9 @@ public:
 
   bool HasUserDeclaredSetterMethod(const ObjCPropertyDecl *P) const;
   ObjCIvarDecl *getIvarDecl(IdentifierInfo *Id) const;
+
+  ObjCPropertyDecl *getProperty(const IdentifierInfo *Id,
+                                bool IsInstance) const;
 
   ObjCPropertyDecl *
   FindPropertyDeclaration(const IdentifierInfo *PropertyId,
@@ -1952,7 +1951,10 @@ public:
   /// in; this is either the interface where the ivar was declared, or the
   /// interface the ivar is conceptually a part of in the case of synthesized
   /// ivars.
-  const ObjCInterfaceDecl *getContainingInterface() const;
+  ObjCInterfaceDecl *getContainingInterface();
+  const ObjCInterfaceDecl *getContainingInterface() const {
+    return const_cast<ObjCIvarDecl *>(this)->getContainingInterface();
+  }
 
   ObjCIvarDecl *getNextIvar() { return NextIvar; }
   const ObjCIvarDecl *getNextIvar() const { return NextIvar; }
@@ -2886,15 +2888,16 @@ ObjCInterfaceDecl::filtered_category_iterator<Filter>::operator++() {
 }
 
 inline bool ObjCInterfaceDecl::isVisibleCategory(ObjCCategoryDecl *Cat) {
-  return Cat->isUnconditionallyVisible();
+  return !Cat->isInvalidDecl() && Cat->isUnconditionallyVisible();
 }
 
 inline bool ObjCInterfaceDecl::isVisibleExtension(ObjCCategoryDecl *Cat) {
-  return Cat->IsClassExtension() && Cat->isUnconditionallyVisible();
+  return !Cat->isInvalidDecl() && Cat->IsClassExtension() &&
+         Cat->isUnconditionallyVisible();
 }
 
 inline bool ObjCInterfaceDecl::isKnownExtension(ObjCCategoryDecl *Cat) {
-  return Cat->IsClassExtension();
+  return !Cat->isInvalidDecl() && Cat->IsClassExtension();
 }
 
 } // namespace clang

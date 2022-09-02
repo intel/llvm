@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple i386-unknown-linux-gnu -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple i386-unknown-linux-gnu -O2 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple i386-unknown-linux-gnu -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple i386-unknown-linux-gnu -O2 -emit-llvm -o - %s | FileCheck %s
 
 int foo(int) __attribute__ ((ifunc("foo_ifunc")));
 
@@ -15,11 +15,11 @@ typedef int (*foo_t)(int);
 
 int global;
 
-static foo_t foo_ifunc() {
+static foo_t foo_ifunc(void) {
   return global ? f1 : f2;
 }
 
-int bar() {
+int bar(void) {
   return foo(1);
 }
 

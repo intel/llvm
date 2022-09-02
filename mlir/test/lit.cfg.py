@@ -21,7 +21,7 @@ config.name = 'MLIR'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.td', '.mlir', '.toy', '.ll', '.tc', '.py', '.yaml', '.test', '.pdll']
+config.suffixes = ['.td', '.mlir', '.toy', '.ll', '.tc', '.py', '.yaml', '.test', '.pdll', '.c']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -32,6 +32,8 @@ config.test_exec_root = os.path.join(config.mlir_obj_root, 'test')
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 config.substitutions.append(("%mlir_src_root", config.mlir_src_root))
+config.substitutions.append(("%host_cxx", config.host_cxx))
+config.substitutions.append(("%host_cc", config.host_cc))
 
 llvm_config.with_system_environment(
     ['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
@@ -65,6 +67,8 @@ tools = [
     'mlir-capi-llvm-test',
     'mlir-capi-pass-test',
     'mlir-capi-sparse-tensor-test',
+    'mlir-capi-quant-test',
+    'mlir-capi-pdl-test',
     'mlir-cpu-runner',
     'mlir-linalg-ods-yaml-gen',
     'mlir-reduce',
@@ -90,6 +94,10 @@ python_executable = config.python_executable
 # TODO: detect Darwin/Windows situation (or mark these tests as unsupported on these platforms).
 if "asan" in config.available_features and "Linux" in config.host_os:
   python_executable = f"LD_PRELOAD=$({config.host_cxx} -print-file-name=libclang_rt.asan-{config.host_arch}.so) {config.python_executable}"
+# On Windows the path to python could contains spaces in which case it needs to be provided in quotes.
+# This is the equivalent of how %python is setup in llvm/utils/lit/lit/llvm/config.py.
+elif "Windows" in config.host_os:
+  python_executable = '"%s"' % (python_executable)
 tools.extend([
   ToolSubst('%PYTHON', python_executable, unresolved='ignore'),
 ])
@@ -101,14 +109,6 @@ llvm_config.add_tool_substitutions(tools, tool_dirs)
 # This option avoids to accidentally reuse variable across -LABEL match,
 # it can be explicitly opted-in by prefixing the variable name with $
 config.environment['FILECHECK_OPTS'] = "-enable-var-scope --allow-unused-prefixes=false"
-
-
-# LLVM can be configured with an empty default triple
-# by passing ` -DLLVM_DEFAULT_TARGET_TRIPLE="" `.
-# This is how LLVM filters tests that require the host target
-# to be available for JIT tests.
-if config.target_triple:
-    config.available_features.add('default_triple')
 
 # Add the python path for both the source and binary tree.
 # Note that presently, the python sources come from the source tree and the

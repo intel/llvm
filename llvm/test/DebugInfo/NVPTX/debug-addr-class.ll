@@ -1,4 +1,5 @@
 ; RUN: llc -mtriple=nvptx64-nvidia-cuda < %s | FileCheck %s
+; RUN: %if ptxas %{ llc -mtriple=nvptx64-nvidia-cuda < %s | %ptxas-verify %}
 
 @GLOBAL = addrspace(1) externally_initialized global i32 0, align 4, !dbg !0
 @SHARED = addrspace(3) externally_initialized global i32 undef, align 4, !dbg !6
@@ -105,6 +106,36 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 0                                   // EOM(1)
 ; CHECK-NEXT:.b8 0                                   // EOM(2)
 ; CHECK-NEXT:.b8 2                                   // Abbreviation Code
+; CHECK-NEXT:.b8 52                                  // DW_TAG_variable
+; CHECK-NEXT:.b8 0                                   // DW_CHILDREN_no
+; CHECK-NEXT:.b8 3                                   // DW_AT_name
+; CHECK-NEXT:.b8 8                                   // DW_FORM_string
+; CHECK-NEXT:.b8 73                                  // DW_AT_type
+; CHECK-NEXT:.b8 19                                  // DW_FORM_ref4
+; CHECK-NEXT:.b8 63                                  // DW_AT_external
+; CHECK-NEXT:.b8 12                                  // DW_FORM_flag
+; CHECK-NEXT:.b8 58                                  // DW_AT_decl_file
+; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
+; CHECK-NEXT:.b8 59                                  // DW_AT_decl_line
+; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
+; CHECK-NEXT:.b8 51                                  // DW_AT_address_class
+; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
+; CHECK-NEXT:.b8 2                                   // DW_AT_location
+; CHECK-NEXT:.b8 10                                  // DW_FORM_block1
+; CHECK-NEXT:.b8 0                                   // EOM(1)
+; CHECK-NEXT:.b8 0                                   // EOM(2)
+; CHECK-NEXT:.b8 3                                   // Abbreviation Code
+; CHECK-NEXT:.b8 36                                  // DW_TAG_base_type
+; CHECK-NEXT:.b8 0                                   // DW_CHILDREN_no
+; CHECK-NEXT:.b8 3                                   // DW_AT_name
+; CHECK-NEXT:.b8 8                                   // DW_FORM_string
+; CHECK-NEXT:.b8 62                                  // DW_AT_encoding
+; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
+; CHECK-NEXT:.b8 11                                  // DW_AT_byte_size
+; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
+; CHECK-NEXT:.b8 0                                   // EOM(1)
+; CHECK-NEXT:.b8 0                                   // EOM(2)
+; CHECK-NEXT:.b8 4                                   // Abbreviation Code
 ; CHECK-NEXT:.b8 46                                  // DW_TAG_subprogram
 ; CHECK-NEXT:.b8 1                                   // DW_CHILDREN_yes
 ; CHECK-NEXT:.b8 17                                  // DW_AT_low_pc
@@ -126,7 +157,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 12                                  // DW_FORM_flag
 ; CHECK-NEXT:.b8 0                                   // EOM(1)
 ; CHECK-NEXT:.b8 0                                   // EOM(2)
-; CHECK-NEXT:.b8 3                                   // Abbreviation Code
+; CHECK-NEXT:.b8 5                                   // Abbreviation Code
 ; CHECK-NEXT:.b8 5                                   // DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 0                                   // DW_CHILDREN_no
 ; CHECK-NEXT:.b8 3                                   // DW_AT_name
@@ -137,36 +168,6 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
 ; CHECK-NEXT:.b8 73                                  // DW_AT_type
 ; CHECK-NEXT:.b8 19                                  // DW_FORM_ref4
-; CHECK-NEXT:.b8 0                                   // EOM(1)
-; CHECK-NEXT:.b8 0                                   // EOM(2)
-; CHECK-NEXT:.b8 4                                   // Abbreviation Code
-; CHECK-NEXT:.b8 52                                  // DW_TAG_variable
-; CHECK-NEXT:.b8 0                                   // DW_CHILDREN_no
-; CHECK-NEXT:.b8 3                                   // DW_AT_name
-; CHECK-NEXT:.b8 8                                   // DW_FORM_string
-; CHECK-NEXT:.b8 73                                  // DW_AT_type
-; CHECK-NEXT:.b8 19                                  // DW_FORM_ref4
-; CHECK-NEXT:.b8 63                                  // DW_AT_external
-; CHECK-NEXT:.b8 12                                  // DW_FORM_flag
-; CHECK-NEXT:.b8 58                                  // DW_AT_decl_file
-; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
-; CHECK-NEXT:.b8 59                                  // DW_AT_decl_line
-; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
-; CHECK-NEXT:.b8 51                                  // DW_AT_address_class
-; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
-; CHECK-NEXT:.b8 2                                   // DW_AT_location
-; CHECK-NEXT:.b8 10                                  // DW_FORM_block1
-; CHECK-NEXT:.b8 0                                   // EOM(1)
-; CHECK-NEXT:.b8 0                                   // EOM(2)
-; CHECK-NEXT:.b8 5                                   // Abbreviation Code
-; CHECK-NEXT:.b8 36                                  // DW_TAG_base_type
-; CHECK-NEXT:.b8 0                                   // DW_CHILDREN_no
-; CHECK-NEXT:.b8 3                                   // DW_AT_name
-; CHECK-NEXT:.b8 8                                   // DW_FORM_string
-; CHECK-NEXT:.b8 62                                  // DW_AT_encoding
-; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
-; CHECK-NEXT:.b8 11                                  // DW_AT_byte_size
-; CHECK-NEXT:.b8 11                                  // DW_FORM_data1
 ; CHECK-NEXT:.b8 0                                   // EOM(1)
 ; CHECK-NEXT:.b8 0                                   // EOM(2)
 ; CHECK-NEXT:.b8 6                                   // Abbreviation Code
@@ -256,11 +257,50 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 109
 ; CHECK-NEXT:.b8 112
 ; CHECK-NEXT:.b8 0
-; CHECK-NEXT:.b64 Lfunc_begin0                       // DW_AT_low_pc
-; CHECK-NEXT:.b64 Lfunc_end0                         // DW_AT_high_pc
-; CHECK-NEXT:.b8 2                                   // Abbrev [2] 0x65:0x45 DW_TAG_subprogram
-; CHECK-NEXT:.b64 Lfunc_begin0                       // DW_AT_low_pc
-; CHECK-NEXT:.b64 Lfunc_end0                         // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__func_begin0                    // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__func_end0                      // DW_AT_high_pc
+; CHECK-NEXT:.b8 2                                   // Abbrev [2] 0x65:0x1a DW_TAG_variable
+; CHECK-NEXT:.b8 71                                  // DW_AT_name
+; CHECK-NEXT:.b8 76
+; CHECK-NEXT:.b8 79
+; CHECK-NEXT:.b8 66
+; CHECK-NEXT:.b8 65
+; CHECK-NEXT:.b8 76
+; CHECK-NEXT:.b8 0
+; CHECK-NEXT:.b32 127                                // DW_AT_type
+; CHECK-NEXT:.b8 1                                   // DW_AT_external
+; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
+; CHECK-NEXT:.b8 3                                   // DW_AT_decl_line
+; CHECK-NEXT:.b8 5                                   // DW_AT_address_class
+; CHECK-NEXT:.b8 9                                   // DW_AT_location
+; CHECK-NEXT:.b8 3
+; CHECK-NEXT:.b64 GLOBAL
+; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0x7f:0x7 DW_TAG_base_type
+; CHECK-NEXT:.b8 105                                 // DW_AT_name
+; CHECK-NEXT:.b8 110
+; CHECK-NEXT:.b8 116
+; CHECK-NEXT:.b8 0
+; CHECK-NEXT:.b8 5                                   // DW_AT_encoding
+; CHECK-NEXT:.b8 4                                   // DW_AT_byte_size
+; CHECK-NEXT:.b8 2                                   // Abbrev [2] 0x86:0x1a DW_TAG_variable
+; CHECK-NEXT:.b8 83                                  // DW_AT_name
+; CHECK-NEXT:.b8 72
+; CHECK-NEXT:.b8 65
+; CHECK-NEXT:.b8 82
+; CHECK-NEXT:.b8 69
+; CHECK-NEXT:.b8 68
+; CHECK-NEXT:.b8 0
+; CHECK-NEXT:.b32 127                                // DW_AT_type
+; CHECK-NEXT:.b8 1                                   // DW_AT_external
+; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
+; CHECK-NEXT:.b8 4                                   // DW_AT_decl_line
+; CHECK-NEXT:.b8 8                                   // DW_AT_address_class
+; CHECK-NEXT:.b8 9                                   // DW_AT_location
+; CHECK-NEXT:.b8 3
+; CHECK-NEXT:.b64 SHARED
+; CHECK-NEXT:.b8 4                                   // Abbrev [4] 0xa0:0x45 DW_TAG_subprogram
+; CHECK-NEXT:.b64 $L__func_begin0                    // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__func_end0                      // DW_AT_high_pc
 ; CHECK-NEXT:.b8 1                                   // DW_AT_frame_base
 ; CHECK-NEXT:.b8 156
 ; CHECK-NEXT:.b8 116                                 // DW_AT_MIPS_linkage_name
@@ -276,71 +316,32 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
 ; CHECK-NEXT:.b8 1                                   // DW_AT_external
-; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0x85:0x9 DW_TAG_formal_parameter
+; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xc0:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 97                                  // DW_AT_name
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
 ; CHECK-NEXT:.b32 229                                // DW_AT_type
-; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0x8e:0x9 DW_TAG_formal_parameter
+; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xc9:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 120                                 // DW_AT_name
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
 ; CHECK-NEXT:.b32 238                                // DW_AT_type
-; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0x97:0x9 DW_TAG_formal_parameter
+; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xd2:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 121                                 // DW_AT_name
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
 ; CHECK-NEXT:.b32 238                                // DW_AT_type
-; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0xa0:0x9 DW_TAG_formal_parameter
+; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xdb:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 105                                 // DW_AT_name
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
-; CHECK-NEXT:.b32 196                                // DW_AT_type
+; CHECK-NEXT:.b32 127                                // DW_AT_type
 ; CHECK-NEXT:.b8 0                                   // End Of Children Mark
-; CHECK-NEXT:.b8 4                                   // Abbrev [4] 0xaa:0x1a DW_TAG_variable
-; CHECK-NEXT:.b8 71                                  // DW_AT_name
-; CHECK-NEXT:.b8 76
-; CHECK-NEXT:.b8 79
-; CHECK-NEXT:.b8 66
-; CHECK-NEXT:.b8 65
-; CHECK-NEXT:.b8 76
-; CHECK-NEXT:.b8 0
-; CHECK-NEXT:.b32 196                                // DW_AT_type
-; CHECK-NEXT:.b8 1                                   // DW_AT_external
-; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
-; CHECK-NEXT:.b8 3                                   // DW_AT_decl_line
-; CHECK-NEXT:.b8 5                                   // DW_AT_address_class
-; CHECK-NEXT:.b8 9                                   // DW_AT_location
-; CHECK-NEXT:.b8 3
-; CHECK-NEXT:.b64 GLOBAL
-; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xc4:0x7 DW_TAG_base_type
-; CHECK-NEXT:.b8 105                                 // DW_AT_name
-; CHECK-NEXT:.b8 110
-; CHECK-NEXT:.b8 116
-; CHECK-NEXT:.b8 0
-; CHECK-NEXT:.b8 5                                   // DW_AT_encoding
-; CHECK-NEXT:.b8 4                                   // DW_AT_byte_size
-; CHECK-NEXT:.b8 4                                   // Abbrev [4] 0xcb:0x1a DW_TAG_variable
-; CHECK-NEXT:.b8 83                                  // DW_AT_name
-; CHECK-NEXT:.b8 72
-; CHECK-NEXT:.b8 65
-; CHECK-NEXT:.b8 82
-; CHECK-NEXT:.b8 69
-; CHECK-NEXT:.b8 68
-; CHECK-NEXT:.b8 0
-; CHECK-NEXT:.b32 196                                // DW_AT_type
-; CHECK-NEXT:.b8 1                                   // DW_AT_external
-; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
-; CHECK-NEXT:.b8 4                                   // DW_AT_decl_line
-; CHECK-NEXT:.b8 8                                   // DW_AT_address_class
-; CHECK-NEXT:.b8 9                                   // DW_AT_location
-; CHECK-NEXT:.b8 3
-; CHECK-NEXT:.b64 SHARED
-; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xe5:0x9 DW_TAG_base_type
+; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0xe5:0x9 DW_TAG_base_type
 ; CHECK-NEXT:.b8 102                                 // DW_AT_name
 ; CHECK-NEXT:.b8 108
 ; CHECK-NEXT:.b8 111

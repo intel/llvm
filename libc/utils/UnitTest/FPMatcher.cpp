@@ -10,30 +10,18 @@
 
 #include "src/__support/FPUtil/FPBits.h"
 
+#include "utils/UnitTest/StringUtils.h"
+
+#include <sstream>
 #include <string>
 
 namespace __llvm_libc {
 namespace fputil {
 namespace testing {
 
-// Return the first N hex digits of an integer as a string in upper case.
-template <typename T>
-cpp::EnableIfType<cpp::IsIntegral<T>::Value, std::string>
-uintToHex(T X, size_t Length = sizeof(T) * 2) {
-  std::string s(Length, '0');
-
-  for (auto it = s.rbegin(), end = s.rend(); it != end; ++it, X >>= 4) {
-    unsigned char Mod = static_cast<unsigned char>(X) & 15;
-    *it = (Mod < 10 ? '0' + Mod : 'a' + Mod - 10);
-  }
-
-  return s;
-}
-
-template <typename ValType>
-cpp::EnableIfType<cpp::IsFloatingPointType<ValType>::Value, void>
-describeValue(const char *label, ValType value,
-              testutils::StreamWrapper &stream) {
+template <typename ValType, typename StreamType>
+cpp::enable_if_t<cpp::is_floating_point_v<ValType>, void>
+describeValue(const char *label, ValType value, StreamType &stream) {
   stream << label;
 
   FPBits<ValType> bits(value);
@@ -49,15 +37,19 @@ describeValue(const char *label, ValType value,
         (fputil::ExponentWidth<ValType>::VALUE - 1) / 4 + 1;
     constexpr int mantissaWidthInHex =
         (fputil::MantissaWidth<ValType>::VALUE - 1) / 4 + 1;
+    constexpr int bitsWidthInHex =
+        sizeof(typename fputil::FPBits<ValType>::UIntType) * 2;
 
-    stream << "Sign: " << (bits.get_sign() ? '1' : '0') << ", "
-           << "Exponent: 0x"
-           << uintToHex<uint16_t>(bits.get_unbiased_exponent(),
-                                  exponentWidthInHex)
-           << ", "
-           << "Mantissa: 0x"
-           << uintToHex<typename fputil::FPBits<ValType>::UIntType>(
-                  bits.get_mantissa(), mantissaWidthInHex);
+    stream << "0x"
+           << int_to_hex<typename fputil::FPBits<ValType>::UIntType>(
+                  bits.uintval(), bitsWidthInHex)
+           << ", (S | E | M) = (" << (bits.get_sign() ? '1' : '0') << " | 0x"
+           << int_to_hex<uint16_t>(bits.get_unbiased_exponent(),
+                                   exponentWidthInHex)
+           << " | 0x"
+           << int_to_hex<typename fputil::FPBits<ValType>::UIntType>(
+                  bits.get_mantissa(), mantissaWidthInHex)
+           << ")";
   }
 
   stream << '\n';
@@ -69,6 +61,11 @@ template void describeValue<double>(const char *, double,
                                     testutils::StreamWrapper &);
 template void describeValue<long double>(const char *, long double,
                                          testutils::StreamWrapper &);
+
+template void describeValue<float>(const char *, float, std::stringstream &);
+template void describeValue<double>(const char *, double, std::stringstream &);
+template void describeValue<long double>(const char *, long double,
+                                         std::stringstream &);
 
 } // namespace testing
 } // namespace fputil

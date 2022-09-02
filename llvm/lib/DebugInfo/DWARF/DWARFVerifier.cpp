@@ -6,17 +6,28 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
+#include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
+#include "llvm/DebugInfo/DWARF/DWARFAttribute.h"
 #include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugAbbrev.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugLoc.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
+#include "llvm/DebugInfo/DWARF/DWARFLocationExpression.h"
+#include "llvm/DebugInfo/DWARF/DWARFObject.h"
 #include "llvm/DebugInfo/DWARF/DWARFSection.h"
-#include "llvm/DebugInfo/DWARF/DWARFUnitIndex.h"
+#include "llvm/DebugInfo/DWARF/DWARFUnit.h"
+#include "llvm/Object/Error.h"
 #include "llvm/Support/DJB.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -27,6 +38,10 @@
 using namespace llvm;
 using namespace dwarf;
 using namespace object;
+
+namespace llvm {
+class DWARFDebugInfoEntry;
+}
 
 Optional<DWARFAddressRange>
 DWARFVerifier::DieRangeInfo::insert(const DWARFAddressRange &R) {
@@ -173,7 +188,7 @@ bool DWARFVerifier::verifyName(const DWARFDie &Die) {
   Die.getFullName(OS, &OriginalFullName);
   OS.flush();
   if (OriginalFullName.empty() || OriginalFullName == ReconstructedName)
-    return 0;
+    return false;
 
   error() << "Simplified template DW_AT_name could not be reconstituted:\n"
           << formatv("         original: {0}\n"
@@ -181,7 +196,7 @@ bool DWARFVerifier::verifyName(const DWARFDie &Die) {
                      OriginalFullName, ReconstructedName);
   dump(Die) << '\n';
   dump(Die.getDwarfUnit()->getUnitDIE()) << '\n';
-  return 1;
+  return true;
 }
 
 unsigned DWARFVerifier::verifyUnitContents(DWARFUnit &Unit,
@@ -322,12 +337,19 @@ unsigned DWARFVerifier::verifyUnits(const DWARFUnitVector &Units) {
   unsigned NumDebugInfoErrors = 0;
   ReferenceMap CrossUnitReferences;
 
+  unsigned Index = 1;
   for (const auto &Unit : Units) {
-      ReferenceMap UnitLocalReferences;
-      NumDebugInfoErrors +=
-          verifyUnitContents(*Unit, UnitLocalReferences, CrossUnitReferences);
-      NumDebugInfoErrors += verifyDebugInfoReferences(
-          UnitLocalReferences, [&](uint64_t Offset) { return Unit.get(); });
+    OS << "Verifying unit: " << Index << " / " << Units.getNumUnits();
+    if (const char* Name = Unit->getUnitDIE(true).getShortName())
+      OS << ", \"" << Name << '\"';
+    OS << '\n';
+    OS.flush();
+    ReferenceMap UnitLocalReferences;
+    NumDebugInfoErrors +=
+        verifyUnitContents(*Unit, UnitLocalReferences, CrossUnitReferences);
+    NumDebugInfoErrors += verifyDebugInfoReferences(
+        UnitLocalReferences, [&](uint64_t Offset) { return Unit.get(); });
+    ++Index;
   }
 
   NumDebugInfoErrors += verifyDebugInfoReferences(
@@ -372,6 +394,59 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S) {
   if (!isHeaderChainValid)
     ++NumDebugInfoErrors;
   return NumDebugInfoErrors;
+}
+
+unsigned DWARFVerifier::verifyIndex(StringRef Name,
+                                    DWARFSectionKind InfoColumnKind,
+                                    StringRef IndexStr) {
+  if (IndexStr.empty())
+    return 0;
+  OS << "Verifying " << Name << "...\n";
+  DWARFUnitIndex Index(InfoColumnKind);
+  DataExtractor D(IndexStr, DCtx.isLittleEndian(), 0);
+  if (!Index.parse(D))
+    return 1;
+  using MapType = IntervalMap<uint32_t, uint64_t>;
+  MapType::Allocator Alloc;
+  std::vector<std::unique_ptr<MapType>> Sections(Index.getColumnKinds().size());
+  for (const DWARFUnitIndex::Entry &E : Index.getRows()) {
+    uint64_t Sig = E.getSignature();
+    if (!E.getContributions())
+      continue;
+    for (auto E : enumerate(InfoColumnKind == DW_SECT_INFO
+                                ? makeArrayRef(E.getContributions(),
+                                               Index.getColumnKinds().size())
+                                : makeArrayRef(E.getContribution(), 1))) {
+      const DWARFUnitIndex::Entry::SectionContribution &SC = E.value();
+      int Col = E.index();
+      if (SC.Length == 0)
+        continue;
+      if (!Sections[Col])
+        Sections[Col] = std::make_unique<MapType>(Alloc);
+      auto &M = *Sections[Col];
+      auto I = M.find(SC.Offset);
+      if (I != M.end() && I.start() < (SC.Offset + SC.Length)) {
+        error() << llvm::formatv(
+            "overlapping index entries for entries {0:x16} "
+            "and {1:x16} for column {2}\n",
+            *I, Sig, toString(Index.getColumnKinds()[Col]));
+        return 1;
+      }
+      M.insert(SC.Offset, SC.Offset + SC.Length - 1, Sig);
+    }
+  }
+
+  return 0;
+}
+
+bool DWARFVerifier::handleDebugCUIndex() {
+  return verifyIndex(".debug_cu_index", DWARFSectionKind::DW_SECT_INFO,
+                     DCtx.getDWARFObj().getCUIndexSection()) == 0;
+}
+
+bool DWARFVerifier::handleDebugTUIndex() {
+  return verifyIndex(".debug_tu_index", DWARFSectionKind::DW_SECT_EXT_TYPES,
+                     DCtx.getDWARFObj().getTUIndexSection()) == 0;
 }
 
 bool DWARFVerifier::handleDebugInfo() {
@@ -624,6 +699,14 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
                     " and the compile unit has no line table");
       }
     } else {
+      ReportError("DIE has " + AttributeString(Attr) +
+                  " with invalid encoding");
+    }
+    break;
+  }
+  case DW_AT_call_line:
+  case DW_AT_decl_line: {
+    if (!AttrValue.Value.getAsUnsignedConstant()) {
       ReportError("DIE has " + AttributeString(Attr) +
                   " with invalid encoding");
     }

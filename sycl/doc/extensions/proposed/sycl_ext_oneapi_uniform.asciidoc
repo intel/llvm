@@ -1,0 +1,214 @@
+= sycl_ext_oneapi_uniform
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This extension introduces a mechanism to assert that the value of a variable is
+the same for all work-items in a sub-group.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contacts
+
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com) +
+Roland Schulz, Intel (roland 'dot' schulz 'at' intel 'dot' com) +
+Jason Sewall, Intel (jason 'dot' sewall 'at' intel 'dot' com) +
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 2.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_UNIFORM` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+== Overview
+
+Some implementations of SYCL map work-items in the same sub-group to SIMD
+hardware. The performance of such implementations can be improved by knowledge
+of how the values held by each work-item relate to one another. In the general
+case, an implementation must assume that the values on each work-item may
+differ (i.e. that the values are _varying_); if an implementation can prove
+that the values on each work-item are the same (i.e. that they are _uniform_),
+it may be able to optimize more aggressively or avoid redundant computation.
+
+These concepts are already exposed in other SPMD programming models:
+
+- OpenMP's `declare simd` directive has a `uniform` clause
+- ISPC's `uniform` qualifier makes uniformity part of the type system
+
+== Defining Uniform Values
+
+The `sycl::ext::oneapi::experimental::uniform` wrapper type can be used to assert that
+the value of a variable is the same for all work-items in a sub-group.
+Asserting uniformity when it does not hold can lead to undefined behavior.
+
+An implementation is not required to perform any analysis to prove or disprove
+the uniformity of a variable passed to the `sycl::ext::oneapi::experimental::uniform`
+constructor, but it is highly recommended that an implementation issue a
+diagnostic if it is known that an expression can never be uniform.
+
+Several classes in SYCL encapsulate information that is known to vary across
+work-items; instances of such classes can never be uniform. An implementation
+must issue a diagnostic if the `sycl::ext::oneapi::experimental::uniform` class template is
+instantiated with any of the following types: `sycl::item`, `sycl::nd_item`,
+`sycl::h_item`, `sycl::group`, `sycl::sub_group` and `sycl::nd_range`.
+
+[source, c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+template <class T>
+class uniform {
+public:
+  explicit uniform(T x) noexcept;
+  operator const T() const;
+
+  uniform& operator=(const uniform&) = delete;
+
+  /* Other explicitly deleted operators improve error messages
+     if a user incorrectly attempts to modify a uniform */
+  uniform& operator+=(const T&) = delete;
+  uniform& operator-=(const T&) = delete;
+  uniform& operator*=(const T&) = delete;
+  uniform& operator/=(const T&) = delete;
+  uniform& operator%=(const T&) = delete;
+  uniform& operator&=(const T&) = delete;
+  uniform& operator|=(const T&) = delete;
+  uniform& operator^=(const T&) = delete;
+  uniform& operator<<=(const T&) = delete;
+  uniform& operator>>=(const T&) = delete;
+  uniform& operator++() = delete;
+  uniform& operator++(int) = delete;
+  uniform& operator--() = delete;
+  uniform& operator--(int) = delete;
+};
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+The `sycl::ext::oneapi::experimental::uniform` wrapper class does not support arithmetic
+operators or provide access to the underlying data, and is intended to be
+used to represent that the value of a variable is uniform at a specific point
+(i.e. when the wrapper class is constructed). The variable can be implicitly
+converted back to an instance of `T`, but doing so is not guaranteed to
+retain any uniformity information. The implicit conversion is free to return
+a value taken from any work-item in the sub-group; if the input to the
+constructor was not uniform, or the constructor was not encountered in
+converged control flow, then the resulting value is undefined.
+
+== Example Usage
+
+This non-normative section shows some example usages of the extension.
+
+Overloading a function for uniform and non-uniform arguments:
+```c++
+// If ptr is assumed non-uniform, use atomics to update it
+template <typename T>
+void update(sub_group sg, T* ptr, T x) {
+  sycl::atomic_ref<T, sycl::memory_order::relaxed, sycl::memory_scope::device>(ptr) += x;
+}
+
+// If ptr is asserted to be uniform, use a sub-group reduce first
+template <typename T>
+void update(sub_group sg, sycl::ext::oneapi::experimental::uniform<T*> ptr, T x) {
+  T sum = sycl::reduce_over_group(sg, x, std::plus<>());
+  if (sg.leader()) {
+    sycl::atomic_ref<T, sycl::memory_order::relaxed, sycl::memory_scope::device>(ptr) += sum;
+  }
+}
+```
+
+Asserting that all work-items in the sub-group take the same branch:
+```c++
+bool condition = ...;
+if (sycl::ext::oneapi::experimental::uniform(condition)) {
+  ...
+}
+```
+
+Asserting that all work-items in the sub-group access the same memory location:
+```c++
+float x = array[sycl::ext::oneapi::experimental::uniform(index)];
+```
+
+== Issues
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-04-23|John Pennycook|*Initial public working draft*
+|2|2021-08-03|John Pennycook|*Add const and deleted operators*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

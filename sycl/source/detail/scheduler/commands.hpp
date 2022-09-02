@@ -12,17 +12,19 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <set>
 #include <unordered_set>
 #include <vector>
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/cg.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/cg.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class queue_impl;
@@ -53,14 +55,14 @@ struct EnqueueResultT {
     SyclEnqueueFailed
   };
   EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
-                 cl_int ErrCode = CL_SUCCESS)
+                 pi_int32 ErrCode = PI_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   /// Indicates the result of enqueueing.
   ResultT MResult;
   /// Pointer to the command which failed to enqueue.
   Command *MCmd;
   /// Error code which is set when enqueueing fails.
-  cl_int MErrCode;
+  pi_int32 MErrCode;
 };
 
 /// Dependency between two commands.
@@ -107,11 +109,17 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue);
 
+  /// \param NewDep dependency to be added
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
-  [[nodiscard]] Command *addDep(DepDesc NewDep);
+  [[nodiscard]] Command *addDep(DepDesc NewDep,
+                                std::vector<Command *> &ToCleanUp);
 
+  /// \param NewDep dependency to be added
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
-  [[nodiscard]] Command *addDep(EventImplPtr Event);
+  [[nodiscard]] Command *addDep(EventImplPtr Event,
+                                std::vector<Command *> &ToCleanUp);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
@@ -123,8 +131,10 @@ public:
   /// \param EnqueueResult is set to the specific status if enqueue failed.
   /// \param Blocking if this argument is true, function will wait for the
   ///        command to be unblocked before calling enqueueImp.
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return true if the command is enqueued.
-  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
+  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+                       std::vector<Command *> &ToCleanUp);
 
   bool isFinished();
 
@@ -152,9 +162,9 @@ public:
   /// instrumentation to report these dependencies as edges.
   void resolveReleaseDependencies(std::set<Command *> &list);
   /// Creates an edge event when the dependency is a command.
-  void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                         const std::string &Prefix,
-                                         bool IsCommand);
+  void emitEdgeEventForCommandDependence(
+      Command *Cmd, void *ObjAddr, bool IsCommand,
+      std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
@@ -179,7 +189,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() = default;
+  virtual ~Command() { MEvent->cleanDepEventsThroughOneLevel(); }
 
   const char *getBlockReason() const;
 
@@ -189,15 +199,27 @@ public:
 
   /// Get the queue this command will be submitted to. Could differ from MQueue
   /// for memory copy commands.
-  virtual const QueueImplPtr &getWorkerQueue() const;
+  const QueueImplPtr &getWorkerQueue() const;
 
   /// Returns true iff the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
+
+  /// Returns true iff this command can be freed by post enqueue cleanup.
+  virtual bool supportsPostEnqueueCleanup() const;
+
+  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// in order queue
+  std::vector<RT::PiEvent>
+  getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
+
+  bool isHostTask() const;
 
 protected:
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
   EventImplPtr MEvent;
+
+  QueueImplPtr &MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
@@ -212,6 +234,7 @@ protected:
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
   /// \param Dep optional DepDesc to perform connection of events properly
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return returns an optional connection command to enqueue
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
@@ -220,10 +243,11 @@ protected:
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
-                                         const DepDesc &Dep);
+                                         const DepDesc &Dep,
+                                         std::vector<Command *> &ToCleanUp);
 
   /// Private interface. Derived classes should implement this method.
-  virtual cl_int enqueueImp() = 0;
+  virtual pi_int32 enqueueImp() = 0;
 
   /// The type of the command.
   CommandType MType;
@@ -235,6 +259,10 @@ protected:
 public:
   const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
     return MPreparedHostDepsEvents;
+  }
+
+  const std::vector<EventImplPtr> &getPreparedDepsEvents() const {
+    return MPreparedDepsEvents;
   }
 
   /// Contains list of dependencies(edges)
@@ -297,6 +325,10 @@ public:
   // By default the flag is set to true due to most of host operations are
   // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
+
+  /// Indicates that the node will be freed by cleanup after enqueue. Such nodes
+  /// should be ignored by other cleanup mechanisms.
+  bool MPostEnqueueCleanup = false;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -315,7 +347,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   // Employing deque here as it allows to push_back/emplace_back without
   // invalidation of pointer or reference to stored data item regardless of
@@ -332,9 +364,10 @@ public:
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
   bool producesPiEvent() const final;
+  bool supportsPostEnqueueCleanup() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   /// Command which allocates memory release command should dealocate.
   AllocaCommandBase *MAllocaCmd = nullptr;
@@ -344,7 +377,7 @@ private:
 class AllocaCommandBase : public Command {
 public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
-                    AllocaCommandBase *LinkedAllocaCmd);
+                    AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
@@ -357,6 +390,8 @@ public:
   void emitInstrumentationData() override;
 
   bool producesPiEvent() const final;
+
+  bool supportsPostEnqueueCleanup() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -372,6 +407,8 @@ public:
   /// Indicates that the command owns memory allocation in case of connected
   /// alloca command.
   bool MIsLeaderAlloca = true;
+  // Indicates that the data in this allocation must not be modified
+  bool MIsConst = false;
 
 protected:
   Requirement MRequirement;
@@ -384,14 +421,15 @@ class AllocaCommand : public AllocaCommandBase {
 public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
                 bool InitFromUserData = true,
-                AllocaCommandBase *LinkedAllocaCmd = nullptr);
+                AllocaCommandBase *LinkedAllocaCmd = nullptr,
+                bool IsConst = false);
 
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   /// The flag indicates that alloca should try to reuse pointer provided by
   /// the user during memory object construction.
@@ -403,7 +441,8 @@ class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca,
-                      std::vector<Command *> &ToEnqueue);
+                      std::vector<Command *> &ToEnqueue,
+                      std::vector<Command *> &ToCleanUp);
 
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
@@ -411,7 +450,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MParentAlloca = nullptr;
 };
@@ -427,7 +466,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
@@ -447,7 +486,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MDstAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -466,11 +505,10 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
-  const QueueImplPtr &getWorkerQueue() const final;
   bool producesPiEvent() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -491,10 +529,9 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
-  const QueueImplPtr &getWorkerQueue() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -503,7 +540,7 @@ private:
   void **MDstPtr = nullptr;
 };
 
-cl_int enqueueImpKernel(
+pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -518,8 +555,10 @@ public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
   std::vector<StreamImplPtr> getStreams() const;
+  std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
   void clearStreams();
+  void clearAuxiliaryResources();
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
@@ -532,17 +571,12 @@ public:
   // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
 
-  // This function is only usable for native kernel to prevent access to free'd
-  // memory in DispatchNativeKernel.
-  // TODO remove when native kernel support is terminated.
-  void releaseCG() {
-    MCommandGroup.release();
-  }
-
   bool producesPiEvent() const final;
 
+  bool supportsPostEnqueueCleanup() const final;
+
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -561,7 +595,7 @@ public:
   void emitInstrumentationData() final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -569,5 +603,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

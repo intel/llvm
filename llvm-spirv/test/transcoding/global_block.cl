@@ -3,7 +3,7 @@
 // block-specific instructions, which are redundant in SPIR-V and should be
 // removed
 
-// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -cl-std=CL2.0 -x cl %s -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -cl-std=CL2.0 -x cl %s -emit-llvm-bc -o %t.bc -no-opaque-pointers
 
 // RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spirv1.1.spv

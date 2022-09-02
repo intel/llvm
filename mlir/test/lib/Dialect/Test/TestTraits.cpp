@@ -31,11 +31,14 @@ OpFoldResult TestInvolutionTraitSuccesfulOperationFolderOp::fold(
 }
 
 namespace {
-struct TestTraitFolder : public PassWrapper<TestTraitFolder, FunctionPass> {
+struct TestTraitFolder
+    : public PassWrapper<TestTraitFolder, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestTraitFolder)
+
   StringRef getArgument() const final { return "test-trait-folder"; }
   StringRef getDescription() const final { return "Run trait folding"; }
-  void runOnFunction() override {
-    (void)applyPatternsAndFoldGreedily(getFunction(),
+  void runOnOperation() override {
+    (void)applyPatternsAndFoldGreedily(getOperation(),
                                        RewritePatternSet(&getContext()));
   }
 };

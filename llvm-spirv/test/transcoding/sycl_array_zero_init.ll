@@ -23,8 +23,9 @@ define weak_odr dso_local spir_kernel void @main() #0 comdat !kernel_arg_addr_sp
   %5 = bitcast [3 x i64] addrspace(4)* %4 to i8 addrspace(4)*
 ; CHECK: %[[V_ARR:[0-9]+]] = bitcast [3 x i64] addrspace(4)* %{{[0-9]+}} to i8 addrspace(4)*
   %6 = bitcast [3 x i64] addrspace(4)* @constinit to i8 addrspace(4)*
+; CHECK: %[[#CONST_INIT:]] = bitcast [3 x i64] addrspace(4)* @constinit to i8 addrspace(4)*
   call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %5, i8 addrspace(4)* align 8 %6, i64 24, i1 false), !tbaa.struct !7
-; CHECK: call void @llvm.memset.p4i8.i64(i8 addrspace(4)* align 8 %[[V_ARR]], i8 0, i64 24, i1 false)
+; CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %[[V_ARR]], i8 addrspace(4)* align 8 %[[#CONST_INIT]], i64 24, i1 false)
   %7 = bitcast %array* %1  to i8*
   call void @llvm.lifetime.end.p0i8(i64 24, i8* %7) #2
   ret void

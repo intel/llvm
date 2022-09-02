@@ -148,8 +148,8 @@ public:
   Value getValue(const CFGBlock *block, const CFGBlock *dstBlock,
                  const VarDecl *vd) {
     const Optional<unsigned> &idx = declToIndex.getValueIndex(vd);
-    assert(idx.hasValue());
-    return getValueVector(block)[idx.getValue()];
+    assert(idx);
+    return getValueVector(block)[idx.value()];
   }
 };
 
@@ -209,8 +209,8 @@ void CFGBlockValues::resetScratch() {
 
 ValueVector::reference CFGBlockValues::operator[](const VarDecl *vd) {
   const Optional<unsigned> &idx = declToIndex.getValueIndex(vd);
-  assert(idx.hasValue());
-  return scratch[idx.getValue()];
+  assert(idx);
+  return scratch[idx.value()];
 }
 
 //------------------------------------------------------------------------====//
@@ -819,12 +819,11 @@ void TransferFunctions::VisitGCCAsmStmt(GCCAsmStmt *as) {
     while (const auto *UO = dyn_cast<UnaryOperator>(Ex))
       Ex = stripCasts(C, UO->getSubExpr());
 
+    // Mark the variable as potentially uninitialized for those cases where
+    // it's used on an indirect path, where it's not guaranteed to be
+    // defined.
     if (const VarDecl *VD = findVar(Ex).getDecl())
-      if (vals[VD] != Initialized)
-        // If the variable isn't initialized by the time we get here, then we
-        // mark it as potentially uninitialized for those cases where it's used
-        // on an indirect path, where it's not guaranteed to be defined.
-        vals[VD] = MayUninitialized;
+      vals[VD] = MayUninitialized;
   }
 }
 

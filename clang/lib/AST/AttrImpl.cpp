@@ -139,6 +139,13 @@ void OMPDeclareTargetDeclAttr::printPrettyPragma(
     OS << " device_type(" << ConvertDevTypeTyToStr(getDevType()) << ")";
   if (getMapType() != MT_To)
     OS << ' ' << ConvertMapTypeTyToStr(getMapType());
+  if (Expr *E = getIndirectExpr()) {
+    OS << " indirect(";
+    E->printPretty(OS, nullptr, Policy);
+    OS << ")";
+  } else if (getIndirect()) {
+    OS << " indirect";
+  }
 }
 
 llvm::Optional<OMPDeclareTargetDeclAttr *>
@@ -161,24 +168,24 @@ OMPDeclareTargetDeclAttr::getActiveAttr(const ValueDecl *VD) {
 llvm::Optional<OMPDeclareTargetDeclAttr::MapTypeTy>
 OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(const ValueDecl *VD) {
   llvm::Optional<OMPDeclareTargetDeclAttr *> ActiveAttr = getActiveAttr(VD);
-  if (ActiveAttr.hasValue())
-    return ActiveAttr.getValue()->getMapType();
+  if (ActiveAttr)
+    return ActiveAttr.value()->getMapType();
   return llvm::None;
 }
 
 llvm::Optional<OMPDeclareTargetDeclAttr::DevTypeTy>
 OMPDeclareTargetDeclAttr::getDeviceType(const ValueDecl *VD) {
   llvm::Optional<OMPDeclareTargetDeclAttr *> ActiveAttr = getActiveAttr(VD);
-  if (ActiveAttr.hasValue())
-    return ActiveAttr.getValue()->getDevType();
+  if (ActiveAttr)
+    return ActiveAttr.value()->getDevType();
   return llvm::None;
 }
 
 llvm::Optional<SourceLocation>
 OMPDeclareTargetDeclAttr::getLocation(const ValueDecl *VD) {
   llvm::Optional<OMPDeclareTargetDeclAttr *> ActiveAttr = getActiveAttr(VD);
-  if (ActiveAttr.hasValue())
-    return ActiveAttr.getValue()->getRange().getBegin();
+  if (ActiveAttr)
+    return ActiveAttr.value()->getRange().getBegin();
   return llvm::None;
 }
 

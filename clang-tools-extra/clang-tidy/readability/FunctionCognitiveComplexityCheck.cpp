@@ -43,7 +43,7 @@ struct CognitiveComplexity final {
   // For details you can look at the Specification at
   // https://www.sonarsource.com/docs/CognitiveComplexity.pdf
   // or user-facing docs at
-  // http://clang.llvm.org/extra/clang-tidy/checks/readability-function-cognitive-complexity.html
+  // http://clang.llvm.org/extra/clang-tidy/checks/readability/function-cognitive-complexity.html
   // Here are all the possible reasons:
   enum Criteria : uint8_t {
     None = 0U,
@@ -444,8 +444,7 @@ public:
       // A little beautification.
       // For conditional operator "cond ? true : false" point at the "?"
       // symbol.
-      ConditionalOperator *COp = dyn_cast<ConditionalOperator>(Node);
-      Location = COp->getQuestionLoc();
+      Location = cast<ConditionalOperator>(Node)->getQuestionLoc();
     }
 
     // If we have found any reasons, let's account it.

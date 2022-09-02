@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // This test requires the dylib support introduced in D92214.
@@ -28,9 +27,11 @@
 
 template <class Context, class To, class From>
 void test(From value) {
-  auto format_args = std::make_format_args<Context>(value);
-  assert(format_args.__args.size() == 1);
-  assert(format_args.__args[0]);
+  auto store = std::make_format_args<Context>(value);
+  std::basic_format_args<Context> format_args{store};
+
+  assert(format_args.__size() == 1);
+  assert(format_args.get(0));
 
   auto result = std::visit_format_arg(
       [v = To(value)](auto a) -> To {
@@ -42,7 +43,7 @@ void test(From value) {
           return {};
         }
       },
-      format_args.__args[0]);
+      format_args.get(0));
 
   using ct = std::common_type_t<From, To>;
   assert(static_cast<ct>(result) == static_cast<ct>(value));
@@ -54,9 +55,11 @@ void test(From value) {
 // template argument.
 template <class Context, class From>
 void test_string_view(From value) {
-  auto format_args = std::make_format_args<Context>(value);
-  assert(format_args.__args.size() == 1);
-  assert(format_args.__args[0]);
+  auto store = std::make_format_args<Context>(value);
+  std::basic_format_args<Context> format_args{store};
+
+  assert(format_args.__size() == 1);
+  assert(format_args.get(0));
 
   using CharT = typename Context::char_type;
   using To = std::basic_string_view<CharT>;
@@ -71,7 +74,7 @@ void test_string_view(From value) {
           return {};
         }
       },
-      format_args.__args[0]);
+      format_args.get(0));
 
   assert(std::equal(value.begin(), value.end(), result.begin(), result.end()));
 }
@@ -179,7 +182,7 @@ void test() {
   test<Context, long long, long long>(std::numeric_limits<long>::max());
   test<Context, long long, long long>(std::numeric_limits<long long>::max());
 
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
   test<Context, __int128_t, __int128_t>(std::numeric_limits<__int128_t>::min());
   test<Context, __int128_t, __int128_t>(std::numeric_limits<long long>::min());
   test<Context, __int128_t, __int128_t>(std::numeric_limits<long>::min());
@@ -240,7 +243,7 @@ void test() {
   test<Context, unsigned long long, unsigned long long>(
       std::numeric_limits<unsigned long long>::max());
 
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
   test<Context, __uint128_t, __uint128_t>(0);
   test<Context, __uint128_t, __uint128_t>(
       std::numeric_limits<unsigned char>::max());
@@ -346,17 +349,17 @@ void test() {
   // Test pointer types.
 
   test<Context, const void*>(nullptr);
+  int i = 0;
+  test<Context, const void*>(static_cast<void*>(&i));
+  const int ci = 0;
+  test<Context, const void*>(static_cast<const void*>(&ci));
 }
 
-void test() {
+int main(int, char**) {
   test<char>();
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<wchar_t>();
 #endif
-}
-
-int main(int, char**) {
-  test();
 
   return 0;
 }

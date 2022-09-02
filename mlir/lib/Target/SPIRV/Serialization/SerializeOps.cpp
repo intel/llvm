@@ -143,7 +143,7 @@ Serializer::processSpecConstantOperationOp(spirv::SpecConstantOperationOp op) {
     return failure();
   }
 
-  operands.push_back(static_cast<uint32_t>(enclosedOpcode.getValue()));
+  operands.push_back(static_cast<uint32_t>(*enclosedOpcode));
 
   // Append operands to the enclosed op to the list of operands.
   for (Value operand : enclosedOp.getOperands()) {
@@ -180,13 +180,13 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
 
   uint32_t fnTypeID = 0;
   // Generate type of the function.
-  if (failed(processType(op.getLoc(), op.getType(), fnTypeID)))
+  if (failed(processType(op.getLoc(), op.getFunctionType(), fnTypeID)))
     return failure();
 
   // Add the function definition.
   SmallVector<uint32_t, 4> operands;
   uint32_t resTypeID = 0;
-  auto resultTypes = op.getType().getResults();
+  auto resultTypes = op.getFunctionType().getResults();
   if (resultTypes.size() > 1) {
     return op.emitError("cannot serialize function with multiple return types");
   }
@@ -332,7 +332,7 @@ Serializer::processGlobalVariableOp(spirv::GlobalVariableOp varOp) {
 
   // Encode initialization.
   if (auto initializer = varOp.initializer()) {
-    auto initializerID = getVariableID(initializer.getValue());
+    auto initializerID = getVariableID(*initializer);
     if (!initializerID) {
       return emitError(varOp.getLoc(),
                        "invalid usage of undefined variable as initializer");
@@ -420,7 +420,7 @@ LogicalResult Serializer::processLoopOp(spirv::LoopOp loopOp) {
   // properly. We don't need to assign for the entry block, which is just for
   // satisfying MLIR region's structural requirement.
   auto &body = loopOp.body();
-  for (Block &block : llvm::make_range(std::next(body.begin(), 1), body.end()))
+  for (Block &block : llvm::drop_begin(body))
     getOrCreateBlockID(&block);
 
   auto *headerBlock = loopOp.getHeaderBlock();

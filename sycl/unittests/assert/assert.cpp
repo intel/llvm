@@ -18,10 +18,11 @@
  * pipe.
  */
 
+#define SYCL_FALLBACK_ASSERT 1
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -36,8 +37,8 @@
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -49,6 +50,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 static constexpr const kernel_param_desc_t Signatures[] = {
@@ -67,10 +69,15 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   static constexpr bool isESIMD() { return 0; }
   static constexpr bool callsThisItem() { return 0; }
   static constexpr bool callsAnyThisFreeFunction() { return 0; }
+  static constexpr int64_t getKernelSize() {
+    // The AssertInfoCopier service kernel lambda captures an accessor.
+    return sizeof(sycl::accessor<sycl::detail::AssertHappened, 1,
+                                 sycl::access::mode::write>);
+  }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
@@ -305,7 +312,7 @@ static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
     return PI_SUCCESS;
   }
 
-  if (sycl::info::kernel::function_name == (sycl::info::kernel)ParamName) {
+  if (PI_KERNEL_INFO_FUNCTION_NAME == ParamName) {
     static const char FName[] = "TestFnName";
     if (ParamValue) {
       size_t L = strlen(FName) + 1;
@@ -370,12 +377,13 @@ static pi_result redefinedProgramGetInfo(pi_program P,
   return PI_ERROR_UNKNOWN;
 }
 
-static pi_result redefinedProgramGetBuildInfo(
-    pi_program P, pi_device D,
-    cl_program_build_info ParamName, // TODO: untie from OpenCL
-    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
-  if (CL_PROGRAM_BINARY_TYPE == ParamName) {
-    static const cl_program_binary_type T = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
+static pi_result redefinedProgramGetBuildInfo(pi_program P, pi_device D,
+                                              pi_program_build_info ParamName,
+                                              size_t ParamValueSize,
+                                              void *ParamValue,
+                                              size_t *ParamValueSizeRet) {
+  if (PI_PROGRAM_BUILD_INFO_BINARY_TYPE == ParamName) {
+    static const pi_program_binary_type T = PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
     if (ParamValue)
       memcpy(ParamValue, &T, sizeof(T));
     if (ParamValueSizeRet)
@@ -383,7 +391,7 @@ static pi_result redefinedProgramGetBuildInfo(
     return PI_SUCCESS;
   }
 
-  if (CL_PROGRAM_BUILD_OPTIONS == ParamName) {
+  if (PI_PROGRAM_BUILD_INFO_OPTIONS == ParamName) {
     if (ParamValueSizeRet)
       *ParamValueSizeRet = 0;
     return PI_SUCCESS;
@@ -622,9 +630,8 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::unittest::PiMock Mock{Plt};
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   setupMockForInterop(Mock, Ctx, Dev);
 

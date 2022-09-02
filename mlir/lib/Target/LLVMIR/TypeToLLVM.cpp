@@ -106,6 +106,8 @@ private:
 
   /// Translates the given pointer type.
   llvm::Type *translate(LLVM::LLVMPointerType type) {
+    if (type.isOpaque())
+      return llvm::PointerType::get(context, type.getAddressSpace());
     return llvm::PointerType::get(translateType(type.getElementType()),
                                   type.getAddressSpace());
   }
@@ -180,7 +182,7 @@ private:
 LLVM::TypeToLLVMIRTranslator::TypeToLLVMIRTranslator(llvm::LLVMContext &context)
     : impl(new detail::TypeToLLVMIRTranslatorImpl(context)) {}
 
-LLVM::TypeToLLVMIRTranslator::~TypeToLLVMIRTranslator() {}
+LLVM::TypeToLLVMIRTranslator::~TypeToLLVMIRTranslator() = default;
 
 llvm::Type *LLVM::TypeToLLVMIRTranslator::translateType(Type type) {
   return impl->translateType(type);

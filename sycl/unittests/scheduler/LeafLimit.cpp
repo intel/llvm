@@ -9,17 +9,29 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/config.hpp>
+#include <helpers/ScopedEnvVar.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
+
+inline constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
 // correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 TEST_F(SchedulerTest, LeafLimit) {
+  // All of the mock commands are owned on the test side, prevent post enqueue
+  // cleanup from deleting some of them.
+  unittest::ScopedEnvVar DisabledCleanup{
+      DisablePostEnqueueCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+  sycl::queue HQueue(host_selector{});
   MockScheduler MS;
   std::vector<std::unique_ptr<MockCommand>> LeavesToAdd;
   std::unique_ptr<MockCommand> MockDepCmd;
@@ -40,12 +52,14 @@ TEST_F(SchedulerTest, LeafLimit) {
         std::make_unique<MockCommand>(detail::getSyclObjImpl(MQueue), MockReq));
   }
   // Create edges: all soon-to-be leaves are direct users of MockDep
+  std::vector<detail::Command *> ToCleanUp;
   for (auto &Leaf : LeavesToAdd) {
     MockDepCmd->addUser(Leaf.get());
     (void)Leaf->addDep(
-        detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr});
+        detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr},
+        ToCleanUp);
   }
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
     MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);

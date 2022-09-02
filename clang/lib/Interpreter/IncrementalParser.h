@@ -30,9 +30,6 @@ class LLVMContext;
 namespace clang {
 class ASTConsumer;
 class CompilerInstance;
-class CodeGenerator;
-class DeclGroupRef;
-class FrontendAction;
 class IncrementalAction;
 class Parser;
 
@@ -74,6 +71,10 @@ public:
   /// Uses the CodeGenModule mangled name cache and avoids recomputing.
   ///\returns the mangled name of a \c GD.
   llvm::StringRef GetMangledName(GlobalDecl GD) const;
+
+  void CleanUpPTU(PartialTranslationUnit &PTU);
+
+  std::list<PartialTranslationUnit> &getPTUs() { return PTUs; }
 
 private:
   llvm::Expected<PartialTranslationUnit &> ParseOrWrapTopLevelDecl();

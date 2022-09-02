@@ -42,7 +42,7 @@ p Twine
 
 # CHECK: llvm::StringMap with 2 elements = {["foo"] = 123, ["bar"] = 456}
 py import sys
-py gdb.execute("p StringMap" if sys.version_info.major > 2 else "printf \"llvm::StringMap with 2 elements = {[\\\"foo\\\"] = 123, [\\\"bar\\\"] = 456}\"\n")
+py gdb.execute("p StringMap" if sys.version_info.major > 2 else "printf \"llvm::StringMap with 2 elements = {[\\\"foo\\\"] = 123, [\\\"bar\\\"] = 456}\"\n\n")
 
 # CHECK: {pointer = 0xabc, value = 1}
 p PointerIntPair

@@ -8,40 +8,21 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
 #include <stdlib.h>
 
-class TestKernel;
+#include <helpers/TestKernel.hpp>
 
 bool KernelGetGroupInfoCalled = false;
 std::array<size_t, 3> IncomingLocalSize = {0, 0, 0};
 std::array<size_t, 3> RequiredLocalSize = {0, 0, 0};
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-template <> struct KernelInfo<TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
-
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
                                         pi_program *) {
@@ -205,29 +186,6 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
 }
 
-static sycl::unittest::PiImage generateDefaultImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray<1> ImgArray{&Img};
-
 static void performChecks() {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
@@ -249,6 +207,10 @@ static void performChecks() {
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  if (!Dev.has(sycl::aspect::online_compiler)) {
+    std::cerr << "aspect::online_compiler is required for this test.";
+    return;
+  }
 
   sycl::queue Queue{Dev};
 
@@ -259,7 +221,7 @@ static void performChecks() {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(KernelGetGroupInfoCalled, true);

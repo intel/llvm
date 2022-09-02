@@ -70,6 +70,13 @@ public:
                 TL.getAs<TypedefTypeLoc>().getTypePtr()->getDecl()->getName()))
           return false;
         break;
+      case TypeLoc::Using:
+        if (visitUnqualName(TL.getAs<UsingTypeLoc>()
+                                .getTypePtr()
+                                ->getFoundDecl()
+                                ->getName()))
+          return false;
+        break;
       default:
         break;
       }
@@ -90,7 +97,9 @@ public:
     if (TL.getQualifierLoc() &&
         !TraverseNestedNameSpecifierLoc(TL.getQualifierLoc()))
       return false;
-    return TraverseTypeLoc(TL.getNamedTypeLoc(), true);
+    const auto *T = TL.getTypePtr();
+    return TraverseTypeLoc(TL.getNamedTypeLoc(),
+                           T->getKeyword() != ETK_None || T->getQualifier());
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *S) {
@@ -278,34 +287,6 @@ SourceRange UseTrailingReturnTypeCheck::findReturnTypeAndCVSourceRange(
     return {};
   }
 
-  // If the return type is a constrained 'auto' or 'decltype(auto)', we need to
-  // include the tokens after the concept. Unfortunately, the source range of an
-  // AutoTypeLoc, if it is constrained, does not include the 'auto' or
-  // 'decltype(auto)'. If the return type is a plain 'decltype(...)', the
-  // source range only contains the first 'decltype' token.
-  auto ATL = ReturnLoc.getAs<AutoTypeLoc>();
-  if ((ATL && (ATL.isConstrained() ||
-               ATL.getAutoKeyword() == AutoTypeKeyword::DecltypeAuto)) ||
-      ReturnLoc.getAs<DecltypeTypeLoc>()) {
-    SourceLocation End =
-        expandIfMacroId(ReturnLoc.getSourceRange().getEnd(), SM);
-    SourceLocation BeginNameF = expandIfMacroId(F.getLocation(), SM);
-
-    // Extend the ReturnTypeRange until the last token before the function
-    // name.
-    std::pair<FileID, unsigned> Loc = SM.getDecomposedLoc(End);
-    StringRef File = SM.getBufferData(Loc.first);
-    const char *TokenBegin = File.data() + Loc.second;
-    Lexer Lexer(SM.getLocForStartOfFile(Loc.first), LangOpts, File.begin(),
-                TokenBegin, File.end());
-    Token T;
-    SourceLocation LastTLoc = End;
-    while (!Lexer.LexFromRawLexer(T) &&
-           SM.isBeforeInTranslationUnit(T.getLocation(), BeginNameF)) {
-      LastTLoc = T.getLocation();
-    }
-    ReturnTypeRange.setEnd(LastTLoc);
-  }
 
   // If the return type has no local qualifiers, it's source range is accurate.
   if (!hasAnyNestedLocalQualifiers(F.getReturnType()))
@@ -425,14 +406,17 @@ void UseTrailingReturnTypeCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Fr = Result.Nodes.getNodeAs<FriendDecl>("Friend");
   assert(F && "Matcher is expected to find only FunctionDecls");
 
-  if (F->getLocation().isInvalid())
+  // Three-way comparison operator<=> is syntactic sugar and generates implicit
+  // nodes for all other operators.
+  if (F->getLocation().isInvalid() || F->isImplicit())
     return;
 
-  // Skip functions which return just 'auto'.
+  // Skip functions which return 'auto' and defaulted operators.
   const auto *AT = F->getDeclaredReturnType()->getAs<AutoType>();
-  if (AT != nullptr && !AT->isConstrained() &&
-      AT->getKeyword() == AutoTypeKeyword::Auto &&
-      !hasAnyNestedLocalQualifiers(F->getDeclaredReturnType()))
+  if (AT != nullptr &&
+      ((!AT->isConstrained() && AT->getKeyword() == AutoTypeKeyword::Auto &&
+        !hasAnyNestedLocalQualifiers(F->getDeclaredReturnType())) ||
+       F->isDefaulted()))
     return;
 
   // TODO: implement those

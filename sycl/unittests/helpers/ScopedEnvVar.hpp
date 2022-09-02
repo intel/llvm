@@ -8,11 +8,16 @@
 
 #pragma once
 
+#include <sycl/detail/common.hpp>
+
+#include <cstdlib>
 #include <functional>
 #include <stdlib.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::unittest {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+namespace unittest {
 inline void set_env(const char *Name, const char *Value) {
 #ifdef _WIN32
   (void)_putenv_s(Name, Value);
@@ -55,5 +60,6 @@ private:
   const char *MName;
   std::function<void()> MConfigReset;
 };
-} // namespace sycl::unittest
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace unittest
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

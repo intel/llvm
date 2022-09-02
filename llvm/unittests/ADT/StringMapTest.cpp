@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/DataTypes.h"
 #include "gtest/gtest.h"
@@ -15,6 +16,10 @@
 using namespace llvm;
 
 namespace {
+
+static_assert(sizeof(StringMap<uint32_t>) <
+                  sizeof(StringMap<uint32_t, MallocAllocator &>),
+              "Ensure empty base optimization happens with default allocator");
 
 // Test fixture
 class StringMapTest : public testing::Test {

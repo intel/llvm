@@ -979,15 +979,15 @@ declare dso_local spir_func <16 x double> @_Z19sub_group_broadcastDv16_dj(<16 x 
 ; CHECK-SPIRV: FunctionEnd
 
 ; CHECK-LLVM-LABEL: @testReduceScanChar
-; CHECK-LLVM call spir_func i8 @_Z20sub_group_reduce_addc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z20sub_group_reduce_minc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z20sub_group_reduce_maxc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z28sub_group_scan_inclusive_addc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z28sub_group_scan_inclusive_minc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z28sub_group_scan_inclusive_maxc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z28sub_group_scan_exclusive_addc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z28sub_group_scan_exclusive_minc(i8 0)
-; CHECK-LLVM call spir_func i8 @_Z28sub_group_scan_exclusive_maxc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z20sub_group_reduce_addc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z20sub_group_reduce_minc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z20sub_group_reduce_maxc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_inclusive_addc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_inclusive_minc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_inclusive_maxc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_exclusive_addc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_exclusive_minc(i8 0)
+; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_exclusive_maxc(i8 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testReduceScanChar(i8 addrspace(1)* nocapture) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {

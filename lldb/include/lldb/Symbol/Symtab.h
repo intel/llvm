@@ -89,14 +89,16 @@ public:
                                               Debug symbol_debug_type,
                                               Visibility symbol_visibility,
                                               std::vector<uint32_t> &matches);
-  uint32_t
-  AppendSymbolIndexesMatchingRegExAndType(const RegularExpression &regex,
-                                          lldb::SymbolType symbol_type,
-                                          std::vector<uint32_t> &indexes);
+  uint32_t AppendSymbolIndexesMatchingRegExAndType(
+      const RegularExpression &regex, lldb::SymbolType symbol_type,
+      std::vector<uint32_t> &indexes,
+      Mangled::NamePreference name_preference = Mangled::ePreferDemangled);
   uint32_t AppendSymbolIndexesMatchingRegExAndType(
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
-      std::vector<uint32_t> &indexes);
+      std::vector<uint32_t> &indexes,
+      Mangled::NamePreference name_preference =
+          Mangled::NamePreference::ePreferDemangled);
   void FindAllSymbolsWithNameAndType(ConstString name,
                                      lldb::SymbolType symbol_type,
                                      std::vector<uint32_t> &symbol_indexes);
@@ -108,7 +110,8 @@ public:
   void FindAllSymbolsMatchingRexExAndType(
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
-      std::vector<uint32_t> &symbol_indexes);
+      std::vector<uint32_t> &symbol_indexes,
+      Mangled::NamePreference name_preference = Mangled::ePreferDemangled);
   Symbol *FindFirstSymbolWithNameAndType(ConstString name,
                                          lldb::SymbolType symbol_type,
                                          Debug symbol_debug_type,
@@ -212,6 +215,30 @@ public:
   ///   false if the symbol table wasn't cached or was out of date.
   bool LoadFromCache();
 
+
+  /// Accessors for the bool that indicates if the debug info index was loaded
+  /// from, or saved to the module index cache.
+  ///
+  /// In statistics it is handy to know if a module's debug info was loaded from
+  /// or saved to the cache. When the debug info index is loaded from the cache
+  /// startup times can be faster. When the cache is enabled and the debug info
+  /// index is saved to the cache, debug sessions can be slower. These accessors
+  /// can be accessed by the statistics and emitted to help track these costs.
+  /// \{
+  bool GetWasLoadedFromCache() const {
+    return m_loaded_from_cache;
+  }
+  void SetWasLoadedFromCache() {
+    m_loaded_from_cache = true;
+  }
+  bool GetWasSavedToCache() const {
+    return m_saved_to_cache;
+  }
+  void SetWasSavedToCache() {
+    m_saved_to_cache = true;
+  }
+  /// \}
+
 protected:
   typedef std::vector<Symbol> collection;
   typedef collection::iterator iterator;
@@ -252,7 +279,8 @@ protected:
       m_name_to_symbol_indices;
   mutable std::recursive_mutex
       m_mutex; // Provide thread safety for this symbol table
-  bool m_file_addr_to_index_computed : 1, m_name_indexes_computed : 1;
+  bool m_file_addr_to_index_computed : 1, m_name_indexes_computed : 1,
+    m_loaded_from_cache : 1, m_saved_to_cache : 1;
 
 private:
   UniqueCStringMap<uint32_t> &

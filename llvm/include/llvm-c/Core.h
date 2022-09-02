@@ -18,6 +18,7 @@
 #include "llvm-c/Deprecated.h"
 #include "llvm-c/ErrorHandling.h"
 #include "llvm-c/ExternC.h"
+
 #include "llvm-c/Types.h"
 
 LLVM_C_EXTERN_C_BEGIN
@@ -380,8 +381,14 @@ typedef enum {
                               the old one */
     LLVMAtomicRMWBinOpFAdd, /**< Add a floating point value and return the
                               old one */
-    LLVMAtomicRMWBinOpFSub /**< Subtract a floating point value and return the
-                             old one */
+    LLVMAtomicRMWBinOpFSub, /**< Subtract a floating point value and return the
+                            old one */
+    LLVMAtomicRMWBinOpFMax, /**< Sets the value if it's greater than the
+                             original using an floating point comparison and
+                             return the old one */
+    LLVMAtomicRMWBinOpFMin, /**< Sets the value if it's smaller than the
+                             original using an floating point comparison and
+                             return the old one */
 } LLVMAtomicRMWBinOp;
 
 typedef enum {
@@ -546,6 +553,13 @@ LLVMBool LLVMContextShouldDiscardValueNames(LLVMContextRef C);
  * @see LLVMContext::setDiscardValueNames()
  */
 void LLVMContextSetDiscardValueNames(LLVMContextRef C, LLVMBool Discard);
+
+/**
+ * Set whether the given context is in opaque pointer mode.
+ *
+ * @see LLVMContext::setOpaquePointers()
+ */
+void LLVMContextSetOpaquePointers(LLVMContextRef C, LLVMBool OpaquePointers);
 
 /**
  * Destroy a context instance.
@@ -1390,9 +1404,9 @@ LLVMBool LLVMIsLiteralStruct(LLVMTypeRef StructTy);
  */
 
 /**
- * Obtain the type of elements within a sequential type.
+ * Obtain the element type of an array or vector type.
  *
- * This works on array, vector, and pointer types.
+ * This currently also works for pointer types, but this usage is deprecated.
  *
  * @see llvm::SequentialType::getElementType()
  */
@@ -1440,6 +1454,22 @@ unsigned LLVMGetArrayLength(LLVMTypeRef ArrayTy);
  * @see llvm::PointerType::get()
  */
 LLVMTypeRef LLVMPointerType(LLVMTypeRef ElementType, unsigned AddressSpace);
+
+/**
+ * Determine whether a pointer is opaque.
+ *
+ * True if this is an instance of an opaque PointerType.
+ *
+ * @see llvm::Type::isOpaquePointerTy()
+ */
+LLVMBool LLVMPointerTypeIsOpaque(LLVMTypeRef Ty);
+
+/**
+ * Create an opaque pointer type in a context.
+ *
+ * @see llvm::PointerType::get()
+ */
+LLVMTypeRef LLVMPointerTypeInContext(LLVMContextRef C, unsigned AddressSpace);
 
 /**
  * Obtain the address space of a pointer type.
@@ -2088,11 +2118,23 @@ LLVMValueRef LLVMConstNamedStruct(LLVMTypeRef StructTy,
                                   unsigned Count);
 
 /**
+ * Get element of a constant aggregate (struct, array or vector) at the
+ * specified index. Returns null if the index is out of range, or it's not
+ * possible to determine the element (e.g., because the constant is a
+ * constant expression.)
+ *
+ * @see llvm::Constant::getAggregateElement()
+ */
+LLVMValueRef LLVMGetAggregateElement(LLVMValueRef C, unsigned Idx);
+
+/**
  * Get an element at specified index as a constant.
  *
  * @see ConstantDataSequential::getElementAsConstant()
  */
-LLVMValueRef LLVMGetElementAsConstant(LLVMValueRef C, unsigned idx);
+LLVM_ATTRIBUTE_C_DEPRECATED(
+    LLVMValueRef LLVMGetElementAsConstant(LLVMValueRef C, unsigned idx),
+    "Use LLVMGetAggregateElement instead");
 
 /**
  * Create a ConstantVector from values.
@@ -2125,23 +2167,12 @@ LLVMValueRef LLVMConstNot(LLVMValueRef ConstantVal);
 LLVMValueRef LLVMConstAdd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstNSWAdd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstNUWAdd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstFAdd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstSub(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstNSWSub(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstNUWSub(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstFSub(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstMul(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstNSWMul(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstNUWMul(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstFMul(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstUDiv(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstExactUDiv(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstSDiv(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstExactSDiv(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstFDiv(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstURem(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstSRem(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
-LLVMValueRef LLVMConstFRem(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstAnd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstOr(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstXor(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
@@ -2202,11 +2233,6 @@ LLVMValueRef LLVMConstInsertElement(LLVMValueRef VectorConstant,
 LLVMValueRef LLVMConstShuffleVector(LLVMValueRef VectorAConstant,
                                     LLVMValueRef VectorBConstant,
                                     LLVMValueRef MaskConstant);
-LLVMValueRef LLVMConstExtractValue(LLVMValueRef AggConstant, unsigned *IdxList,
-                                   unsigned NumIdx);
-LLVMValueRef LLVMConstInsertValue(LLVMValueRef AggConstant,
-                                  LLVMValueRef ElementValueConstant,
-                                  unsigned *IdxList, unsigned NumIdx);
 LLVMValueRef LLVMBlockAddress(LLVMValueRef F, LLVMBasicBlockRef BB);
 
 /** Deprecated: Use LLVMGetInlineAsm instead. */
@@ -3197,7 +3223,7 @@ LLVMValueRef LLVMGetNextInstruction(LLVMValueRef Inst);
 LLVMValueRef LLVMGetPreviousInstruction(LLVMValueRef Inst);
 
 /**
- * Remove and delete an instruction.
+ * Remove an instruction.
  *
  * The instruction specified is removed from its containing building
  * block but is kept alive.
@@ -3215,6 +3241,16 @@ void LLVMInstructionRemoveFromParent(LLVMValueRef Inst);
  * @see llvm::Instruction::eraseFromParent()
  */
 void LLVMInstructionEraseFromParent(LLVMValueRef Inst);
+
+/**
+ * Delete an instruction.
+ *
+ * The instruction specified is deleted. It must have previously been
+ * removed from its containing building block.
+ *
+ * @see llvm::Value::deleteValue()
+ */
+void LLVMDeleteInstruction(LLVMValueRef Inst);
 
 /**
  * Obtain the code opcode for an individual instruction.
@@ -3977,6 +4013,9 @@ LLVMValueRef LLVMBuildFPCast(LLVMBuilderRef, LLVMValueRef Val,
 LLVMValueRef LLVMBuildIntCast(LLVMBuilderRef, LLVMValueRef Val, /*Signed cast!*/
                               LLVMTypeRef DestTy, const char *Name);
 
+LLVMOpcode LLVMGetCastOpcode(LLVMValueRef Src, LLVMBool SrcIsSigned,
+                             LLVMTypeRef DestTy, LLVMBool DestIsSigned);
+
 /* Comparisons */
 LLVMValueRef LLVMBuildICmp(LLVMBuilderRef, LLVMIntPredicate Op,
                            LLVMValueRef LHS, LLVMValueRef RHS,
@@ -4020,8 +4059,13 @@ LLVMValueRef LLVMBuildIsNull(LLVMBuilderRef, LLVMValueRef Val,
                              const char *Name);
 LLVMValueRef LLVMBuildIsNotNull(LLVMBuilderRef, LLVMValueRef Val,
                                 const char *Name);
-LLVMValueRef LLVMBuildPtrDiff(LLVMBuilderRef, LLVMValueRef LHS,
-                              LLVMValueRef RHS, const char *Name);
+LLVM_ATTRIBUTE_C_DEPRECATED(
+    LLVMValueRef LLVMBuildPtrDiff(LLVMBuilderRef, LLVMValueRef LHS,
+                                  LLVMValueRef RHS, const char *Name),
+    "Use LLVMBuildPtrDiff2 instead to support opaque pointers");
+LLVMValueRef LLVMBuildPtrDiff2(LLVMBuilderRef, LLVMTypeRef ElemTy,
+                               LLVMValueRef LHS, LLVMValueRef RHS,
+                               const char *Name);
 LLVMValueRef LLVMBuildFence(LLVMBuilderRef B, LLVMAtomicOrdering ordering,
                             LLVMBool singleThread, const char *Name);
 LLVMValueRef LLVMBuildAtomicRMW(LLVMBuilderRef B, LLVMAtomicRMWBinOp op,

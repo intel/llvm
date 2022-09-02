@@ -50,7 +50,6 @@ cl::opt<UncheckedLdStMode> ClUncheckedLdSt(
 
 static cl::opt<bool>
     ClFirstSlot("stack-tagging-first-slot-opt", cl::Hidden, cl::init(true),
-                cl::ZeroOrMore,
                 cl::desc("Apply first slot optimization for stack tagging "
                          "(eliminate ADDG Rt, Rn, 0, 0)."));
 
@@ -195,7 +194,7 @@ void AArch64StackTaggingPreRA::uncheckUsesOf(unsigned TaggedReg, int FI) {
 
 void AArch64StackTaggingPreRA::uncheckLoadsAndStores() {
   for (auto *I : ReTags) {
-    unsigned TaggedReg = I->getOperand(0).getReg();
+    Register TaggedReg = I->getOperand(0).getReg();
     int FI = I->getOperand(1).getIndex();
     uncheckUsesOf(TaggedReg, FI);
   }

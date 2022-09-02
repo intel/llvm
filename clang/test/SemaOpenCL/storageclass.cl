@@ -1,12 +1,12 @@
 // RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL1.2
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-__opencl_c_program_scope_global_variables,-__opencl_c_generic_address_space,-__opencl_c_pipes
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=+__opencl_c_program_scope_global_variables,-__opencl_c_generic_address_space,-__opencl_c_pipes
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-__opencl_c_program_scope_global_variables,+__opencl_c_generic_address_space
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=+__opencl_c_program_scope_global_variables,+__opencl_c_generic_address_space
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-__opencl_c_program_scope_global_variables,-__opencl_c_generic_address_space,-__opencl_c_pipes
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=+__opencl_c_program_scope_global_variables,-__opencl_c_generic_address_space,-__opencl_c_pipes
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-__opencl_c_program_scope_global_variables,+__opencl_c_generic_address_space
-// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=+__opencl_c_program_scope_global_variables,+__opencl_c_generic_address_space
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-all
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-all,+__opencl_c_program_scope_global_variables
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-all,+__opencl_c_generic_address_space
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=CL3.0 -cl-ext=-all,+__opencl_c_program_scope_global_variables,+__opencl_c_generic_address_space
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-all
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-all,+__opencl_c_program_scope_global_variables
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-all,+__opencl_c_generic_address_space
+// RUN: %clang_cc1 %s -verify -pedantic -fsyntax-only -cl-std=clc++2021 -cl-ext=-all,+__opencl_c_program_scope_global_variables,+__opencl_c_generic_address_space
 static constant int G1 = 0;
 constant int G2 = 0;
 
@@ -151,10 +151,10 @@ void kernel foo(int x) {
   local int *constant L10 = &L2;              // expected-error {{initializer element is not a compile-time constant}}
 }
 
-static void kernel bar() { // expected-error{{kernel functions cannot be declared static}}
+static void kernel bar(void) { // expected-error{{kernel functions cannot be declared static}}
 }
 
-void f() {
+void f(void) {
   constant int L1 = 0;                        // expected-error{{non-kernel function variable cannot be declared in constant address space}}
   local int L2;                               // expected-error{{non-kernel function variable cannot be declared in local address space}}
   global int L3;                              // expected-error{{function scope variable cannot be declared in global address space}}

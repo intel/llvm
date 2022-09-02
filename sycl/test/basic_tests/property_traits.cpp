@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
 #define CHECK_IS_PROPERTY(PROP)                                                \
   static_assert(is_property<PROP>::value,                                      \
@@ -43,7 +43,7 @@
 class NotAProperty {};
 class NotASYCLObject {};
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   //----------------------------------------------------------------------------

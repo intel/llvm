@@ -80,8 +80,12 @@ static bool getFullyQualifiedTemplateName(const ASTContext &Ctx,
         Ctx, ArgTDecl, true, WithGlobalNsPrefix);
   }
   if (NNS) {
-    TName = Ctx.getQualifiedTemplateName(NNS,
-                                         /*TemplateKeyword=*/false, ArgTDecl);
+    TemplateName UnderlyingTN(ArgTDecl);
+    if (UsingShadowDecl *USD = TName.getAsUsingShadowDecl())
+      UnderlyingTN = TemplateName(USD);
+    TName =
+        Ctx.getQualifiedTemplateName(NNS,
+                                     /*TemplateKeyword=*/false, UnderlyingTN);
     Changed = true;
   }
   return Changed;
@@ -449,6 +453,14 @@ QualType getFullyQualifiedType(QualType QT, const ASTContext &Ctx,
     assert(!QT.hasLocalQualifiers());
     Keyword = ETypeInput->getKeyword();
   }
+
+  // We don't consider the alias introduced by `using a::X` as a new type.
+  // The qualified name is still a::X.
+  if (const auto *UT = QT->getAs<UsingType>()) {
+    QT = Ctx.getQualifiedType(UT->getUnderlyingType(), PrefixQualifiers);
+    return getFullyQualifiedType(QT, Ctx, WithGlobalNsPrefix);
+  }
+
   // Create a nested name specifier if needed.
   Prefix = createNestedNameSpecifierForScopeOf(Ctx, QT.getTypePtr(),
                                                true /*FullyQualified*/,

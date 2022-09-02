@@ -1,11 +1,11 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
 // UNSUPPORTED: cuda || hip_amd
 
-#include <sycl/ext/intel/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 
-using sycl::ext::intel::experimental::bfloat16;
+using sycl::ext::oneapi::experimental::bfloat16;
 
 SYCL_EXTERNAL uint16_t some_bf16_intrinsic(uint16_t x, uint16_t y);
 SYCL_EXTERNAL void foo(long x, sycl::half y);
@@ -53,11 +53,11 @@ __attribute__((noinline)) float op(float a, float b) {
 
 int main(int argc, char *argv[]) {
   float data[3] = {7.0, 8.1, 0.0};
-  cl::sycl::queue deviceQueue;
-  cl::sycl::buffer<float, 1> buf{data, cl::sycl::range<1>{3}};
+  sycl::queue deviceQueue;
+  sycl::buffer<float, 1> buf{data, sycl::range<1>{3}};
 
-  deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    auto numbers = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+  deviceQueue.submit([&](sycl::handler &cgh) {
+    auto numbers = buf.get_access<sycl::access::mode::read_write>(cgh);
     cgh.single_task<class simple_kernel>(
         [=]() { numbers[2] = op(numbers[0], numbers[1]); });
   });

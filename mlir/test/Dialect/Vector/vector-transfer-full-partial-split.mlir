@@ -1,5 +1,5 @@
 // RUN: mlir-opt %s -test-vector-transfer-full-partial-split -split-input-file | FileCheck %s
-// RUN: mlir-opt %s -test-vector-transfer-full-partial-split=use-linalg-copy -split-input-file | FileCheck %s --check-prefix=LINALG
+// RUN: mlir-opt %s -test-vector-transfer-full-partial-split=use-memref-copy -split-input-file | FileCheck %s --check-prefix=LINALG
 
 // CHECK-DAG: #[[$map_p4:.*]] = affine_map<()[s0] -> (s0 + 4)>
 // CHECK-DAG: #[[$map_p8:.*]] = affine_map<()[s0] -> (s0 + 8)>
@@ -21,7 +21,7 @@
 //  LINALG-SAME: %[[A:[a-zA-Z0-9]*]]: memref
 //  LINALG-SAME: %[[i:[a-zA-Z0-9]*]]: index
 //  LINALG-SAME: %[[j:[a-zA-Z0-9]*]]: index
-func @split_vector_transfer_read_2d(%A: memref<?x8xf32>, %i: index, %j: index) -> vector<4x8xf32> {
+func.func @split_vector_transfer_read_2d(%A: memref<?x8xf32>, %i: index, %j: index) -> vector<4x8xf32> {
   %c0 = arith.constant 0 : index
   %f0 = arith.constant 0.0 : f32
 
@@ -54,7 +54,7 @@ func @split_vector_transfer_read_2d(%A: memref<?x8xf32>, %i: index, %j: index) -
   // CHECK-SAME:     memref<?x8xf32>, index, index
   //      CHECK: }
   //      CHECK: %[[res:.*]] = vector.transfer_read %[[ifres]]#0[%[[ifres]]#1, %[[ifres]]#2], %cst
-  // CHECK_SAME:   {in_bounds = [true, true]} : memref<?x8xf32>, vector<4x8xf32>
+  // CHECK-SAME:   {in_bounds = [true, true]} : memref<?x8xf32>, vector<4x8xf32>
 
   //  LINALG-DAG: %[[c0:.*]] = arith.constant 0 : index
   //  LINALG-DAG: %[[c4:.*]] = arith.constant 4 : index
@@ -75,21 +75,21 @@ func @split_vector_transfer_read_2d(%A: memref<?x8xf32>, %i: index, %j: index) -
   //      LINALG:   scf.yield %[[A]], %[[i]], %[[j]] : memref<?x8xf32>, index, index
   //      LINALG: } else {
   //               slow path, fill tmp alloc and yield a memref_casted version of it
-  //      LINALG:   linalg.fill(%cst, %[[alloc]]) : f32, memref<4x8xf32>
+  //      LINALG:   linalg.fill ins(%cst : f32) outs(%[[alloc]] : memref<4x8xf32>)
   //      LINALG:   %[[d0:.*]] = memref.dim %[[A]], %[[c0]] : memref<?x8xf32>
   //      LINALG:   %[[sv0:.*]] = affine.min #[[$bounds_map_4]](%[[d0]], %[[i]], %[[c4]])
   //      LINALG:   %[[sv1:.*]] = affine.min #[[$bounds_map_8]](%[[c8]], %[[j]], %[[c8]])
   //      LINALG:   %[[sv:.*]] = memref.subview %[[A]][%[[i]], %[[j]]] [%[[sv0]], %[[sv1]]] [1, 1]
   // LINALG-SAME:     memref<?x8xf32> to memref<?x?xf32, #[[$map_2d_stride_8x1]]>
   //      LINALG:   %[[alloc_view:.*]] = memref.subview %[[alloc]][0, 0] [%[[sv0]], %[[sv1]]] [1, 1]
-  //      LINALG:   linalg.copy(%[[sv]], %[[alloc_view]]) : memref<?x?xf32, #[[$map_2d_stride_8x1]]>, memref<?x?xf32, #{{.*}}>
+  //      LINALG:   memref.copy %[[sv]], %[[alloc_view]] : memref<?x?xf32, #[[$map_2d_stride_8x1]]> to memref<?x?xf32, #{{.*}}>
   //      LINALG:   %[[yielded:.*]] = memref.cast %[[alloc]] :
   // LINALG-SAME:     memref<4x8xf32> to memref<?x8xf32>
   //      LINALG:   scf.yield %[[yielded]], %[[c0]], %[[c0]] :
   // LINALG-SAME:     memref<?x8xf32>, index, index
   //      LINALG: }
   //      LINALG: %[[res:.*]] = vector.transfer_read %[[ifres]]#0[%[[ifres]]#1, %[[ifres]]#2], %cst
-  // LINALG_SAME:   {in_bounds = [true, true]} : memref<?x8xf32>, vector<4x8xf32>
+  // LINALG-SAME:   {in_bounds = [true, true]} : memref<?x8xf32>, vector<4x8xf32>
   %1 = vector.transfer_read %A[%i, %j], %f0 : memref<?x8xf32>, vector<4x8xf32>
 
   // LINALG: return %[[res]] : vector<4x8xf32>
@@ -105,7 +105,7 @@ func @split_vector_transfer_read_2d(%A: memref<?x8xf32>, %i: index, %j: index) -
 //  LINALG-SAME: %[[A:[a-zA-Z0-9]*]]: memref
 //  LINALG-SAME: %[[i:[a-zA-Z0-9]*]]: index
 //  LINALG-SAME: %[[j:[a-zA-Z0-9]*]]: index
-func @split_vector_transfer_read_strided_2d(
+func.func @split_vector_transfer_read_strided_2d(
     %A: memref<7x8xf32, offset:?, strides:[?, 1]>,
     %i: index, %j: index) -> vector<4x8xf32> {
   %c0 = arith.constant 0 : index
@@ -168,13 +168,13 @@ func @split_vector_transfer_read_strided_2d(
   // LINALG-SAME:     memref<?x8xf32, #[[$map_2d_stride_1]]>, index, index
   //      LINALG: } else {
   //               slow path, fill tmp alloc and yield a memref_casted version of it
-  //      LINALG:   linalg.fill(%cst, %[[alloc]]) : f32, memref<4x8xf32>
+  //      LINALG:   linalg.fill ins(%cst : f32) outs(%[[alloc]] : memref<4x8xf32>)
   //      LINALG:   %[[sv0:.*]] = affine.min #[[$bounds_map_4]](%[[c7]], %[[i]], %[[c4]])
   //      LINALG:   %[[sv1:.*]] = affine.min #[[$bounds_map_8]](%[[c8]], %[[j]], %[[c8]])
   //      LINALG:   %[[sv:.*]] = memref.subview %[[A]][%[[i]], %[[j]]] [%[[sv0]], %[[sv1]]] [1, 1]
   // LINALG-SAME:     memref<7x8xf32, #[[$map_2d_stride_1]]> to memref<?x?xf32, #[[$map_2d_stride_1]]>
   //      LINALG:   %[[alloc_view:.*]] = memref.subview %[[alloc]][0, 0] [%[[sv0]], %[[sv1]]] [1, 1]
-  //      LINALG:   linalg.copy(%[[sv]], %[[alloc_view]]) : memref<?x?xf32, #[[$map_2d_stride_1]]>, memref<?x?xf32, #{{.*}}>
+  //      LINALG:   memref.copy %[[sv]], %[[alloc_view]] : memref<?x?xf32, #[[$map_2d_stride_1]]> to memref<?x?xf32, #{{.*}}>
   //      LINALG:   %[[yielded:.*]] = memref.cast %[[alloc]] :
   // LINALG-SAME:     memref<4x8xf32> to memref<?x8xf32, #[[$map_2d_stride_1]]>
   //      LINALG:   scf.yield %[[yielded]], %[[c0]], %[[c0]] :
@@ -191,7 +191,7 @@ func @split_vector_transfer_read_strided_2d(
 
 // -----
 
-func @split_vector_transfer_write_2d(%V: vector<4x8xf32>, %A: memref<?x8xf32>, %i: index, %j: index) {
+func.func @split_vector_transfer_write_2d(%V: vector<4x8xf32>, %A: memref<?x8xf32>, %i: index, %j: index) {
   vector.transfer_write %V, %A[%i, %j] :
     vector<4x8xf32>, memref<?x8xf32>
   return
@@ -279,15 +279,15 @@ func @split_vector_transfer_write_2d(%V: vector<4x8xf32>, %A: memref<?x8xf32>, %
 // LINALG-SAME:            [%[[I]], %[[J]]] [%[[VAL_20]], %[[VAL_21]]]
 // LINALG-SAME:            [1, 1] : memref<4x8xf32> to memref<?x?xf32, #[[MAP4]]>
 // LINALG:             %[[DEST_VIEW:.*]] = memref.subview %[[DEST]][0, 0] [%[[VAL_20]], %[[VAL_21]]] [1, 1]
-// LINALG:             linalg.copy(%[[VAL_22]], %[[DEST_VIEW]])
-// LINALG-SAME:            : memref<?x?xf32, #[[MAP4]]>, memref<?x?xf32, #{{.*}}>
+// LINALG:             memref.copy %[[VAL_22]], %[[DEST_VIEW]]
+// LINALG-SAME:            : memref<?x?xf32, #[[MAP4]]> to memref<?x?xf32, #{{.*}}>
 // LINALG:           }
 // LINALG:           return
 // LINALG:         }
 
 // -----
 
-func @split_vector_transfer_write_strided_2d(
+func.func @split_vector_transfer_write_strided_2d(
     %V: vector<4x8xf32>, %A: memref<7x8xf32, offset:?, strides:[?, 1]>,
     %i: index, %j: index) {
   vector.transfer_write %V, %A[%i, %j] :
@@ -388,8 +388,47 @@ func @split_vector_transfer_write_strided_2d(
 // LINALG-SAME:            [%[[I]], %[[J]]] [%[[VAL_20]], %[[VAL_21]]]
 // LINALG-SAME:            [1, 1] : memref<4x8xf32> to memref<?x?xf32, #[[MAP5]]>
 // LINALG:             %[[DEST_VIEW:.*]] = memref.subview %[[DEST]][0, 0] [%[[VAL_20]], %[[VAL_21]]] [1, 1]
-// LINALG:             linalg.copy(%[[VAL_22]], %[[DEST_VIEW]])
-// LINALG-SAME:            : memref<?x?xf32, #[[MAP5]]>, memref<?x?xf32, #[[MAP0]]>
+// LINALG:             memref.copy %[[VAL_22]], %[[DEST_VIEW]]
+// LINALG-SAME:            : memref<?x?xf32, #[[MAP5]]> to memref<?x?xf32, #[[MAP0]]>
 // LINALG:           }
 // LINALG:           return
 // LINALG:         }
+
+// -----
+
+func.func private @fake_side_effecting_fun(%0: vector<2x2xf32>) -> ()
+
+// CHECK-LABEL: transfer_read_within_async_execute
+func.func @transfer_read_within_async_execute(%A : memref<?x?xf32>) -> !async.token {
+  %c0 = arith.constant 0 : index
+  %f0 = arith.constant 0.0 : f32
+  // CHECK-NOT: alloca
+  //     CHECK: async.execute
+  //     CHECK:   alloca
+  %token = async.execute {
+    %0 = vector.transfer_read %A[%c0, %c0], %f0 : memref<?x?xf32>, vector<2x2xf32>
+    func.call @fake_side_effecting_fun(%0) : (vector<2x2xf32>) -> ()
+    async.yield
+  }
+  return %token : !async.token
+}
+
+// -----
+
+func.func private @fake_side_effecting_fun(%0: vector<2x2xf32>) -> ()
+
+// Ensure that `alloca`s are inserted outside of loops even though loops are
+// consdered allocation scopes.
+// CHECK-LABEL: transfer_read_within_scf_for
+func.func @transfer_read_within_scf_for(%A : memref<?x?xf32>, %lb : index, %ub : index, %step : index) {
+  %c0 = arith.constant 0 : index
+  %f0 = arith.constant 0.0 : f32
+  // CHECK: alloca
+  // CHECK: scf.for
+  // CHECK-NOT: alloca
+  scf.for %i = %lb to %ub step %step {
+    %0 = vector.transfer_read %A[%c0, %c0], %f0 : memref<?x?xf32>, vector<2x2xf32>
+    func.call @fake_side_effecting_fun(%0) : (vector<2x2xf32>) -> ()
+  }
+  return
+}

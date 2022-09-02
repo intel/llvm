@@ -70,7 +70,7 @@ entry:
   ret i32 %add
 }
 
-attributes #0 = { "sign-return-address"="non-leaf" }
+attributes #0 = { "sign-return-address"="non-leaf" minsize }
 
 ; CHECK-NOT:        OUTLINED_FUNCTION_{{.*}}
 ; CHECK-NOT:         .cfi_b_key_frame

@@ -51,11 +51,32 @@ void usage() {
 
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+  // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
   static int z;
   // expected-note-re@+3{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
   // expected-note-re@+2{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
   // expected-error@+1{{SYCL kernel cannot use a const static or global variable that is neither zero-initialized nor constant-initialized}}
   kernelFunc(U<Base>::s2);
+}
+
+struct C {
+  static int c;
+};
+
+template <typename T>
+struct D {
+  static T d;
+};
+
+template <typename T>
+T D<T>::d = T();
+
+template <typename T>
+void test() {
+  // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
+  C::c = 10;
+  // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
+  D<int>::d = 11;
 }
 
 int main() {
@@ -66,6 +87,7 @@ int main() {
     s4.foo();
     // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
     static int s3;
+    test<int>();
   });
 
   return 0;

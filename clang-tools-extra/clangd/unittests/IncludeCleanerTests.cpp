@@ -8,7 +8,10 @@
 
 #include "Annotations.h"
 #include "IncludeCleaner.h"
+#include "SourceCode.h"
+#include "TestFS.h"
 #include "TestTU.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -18,7 +21,9 @@ namespace clangd {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::IsEmpty;
+using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
 
 std::string guard(llvm::StringRef Code) {
@@ -74,16 +79,54 @@ TEST(IncludeCleaner, ReferencedLocations) {
           "using namespace ns;",
       },
       {
+          // Refs from UsingTypeLoc and implicit constructor!
           "struct ^A {}; using B = A; using ^C = B;",
           "C a;",
       },
+      {"namespace ns { template<typename T> class A {}; } using ns::^A;",
+       "A<int>* a;"},
+      {"namespace ns { template<typename T> class A {}; } using ns::^A;",
+       R"cpp(
+          template <template <typename> class T> class X {};
+          X<A> x;
+        )cpp"},
+      {R"cpp(
+          namespace ns { template<typename T> class A {}; }
+          namespace absl {using ns::^A;}
+       )cpp",
+       R"cpp(
+          template <template <typename> class T> class X {};
+          X<absl::A> x;
+       )cpp"},
+      {R"cpp(
+          namespace ns { template<typename T> struct ^A { ^A(T); }; }
+          using ns::^A;
+       )cpp",
+       "A CATD(123);"},
       {
           "typedef bool ^Y; template <typename T> struct ^X {};",
           "X<Y> x;",
       },
       {
+          // https://github.com/clangd/clangd/issues/1036
+          R"cpp(
+            struct ^Base { void ^base(); };
+            template <int> struct ^Derived : Base {};
+          )cpp",
+          R"cpp(
+            class Holder {
+              void foo() { Member.base(); }
+              Derived<0> Member;
+            };
+          )cpp",
+      },
+      {
           "struct Foo; struct ^Foo{}; typedef Foo ^Bar;",
           "Bar b;",
+      },
+      {
+          "namespace ns { class X; }; using ns::^X;",
+          "X *y;",
       },
       // MemberExpr
       {
@@ -199,23 +242,17 @@ TEST(IncludeCleaner, ReferencedLocations) {
           "enum class ^Color : char {};",
           "Color *c;",
       },
-      {
-          // When a type is resolved via a using declaration, the
-          // UsingShadowDecl is not referenced in the AST.
-          // Compare to TypedefType, or DeclRefExpr::getFoundDecl().
-          //                                 ^
-          "namespace ns { class ^X; }; using ns::X;",
-          "X *y;",
-      }};
+  };
   for (const TestCase &T : Cases) {
     TestTU TU;
     TU.Code = T.MainCode;
     Annotations Header(T.HeaderCode);
     TU.HeaderCode = Header.code().str();
+    TU.ExtraArgs.push_back("-std=c++17");
     auto AST = TU.build();
 
     std::vector<Position> Points;
-    for (const auto &Loc : findReferencedLocations(AST)) {
+    for (const auto &Loc : findReferencedLocations(AST).User) {
       if (AST.getSourceManager().getBufferName(Loc).endswith(
               TU.HeaderFilename)) {
         Points.push_back(offsetToPosition(
@@ -227,6 +264,83 @@ TEST(IncludeCleaner, ReferencedLocations) {
     EXPECT_EQ(Points, Header.points()) << T.HeaderCode << "\n---\n"
                                        << T.MainCode;
   }
+}
+
+TEST(IncludeCleaner, Stdlib) {
+  // Smoke tests only for finding used symbols/headers.
+  // Details of Decl -> stdlib::Symbol -> stdlib::Headers mapping tested there.
+  auto TU = TestTU::withHeaderCode(R"cpp(
+    namespace std { class error_code {}; }
+    class error_code {};
+    namespace nonstd { class error_code {}; }
+  )cpp");
+  struct {
+    llvm::StringRef Code;
+    std::vector<llvm::StringRef> Symbols;
+    std::vector<llvm::StringRef> Headers;
+  } Tests[] = {
+      {"std::error_code x;", {"std::error_code"}, {"<system_error>"}},
+      {"error_code x;", {}, {}},
+      {"nonstd::error_code x;", {}, {}},
+  };
+
+  for (const auto &Test : Tests) {
+    TU.Code = Test.Code.str();
+    ParsedAST AST = TU.build();
+    std::vector<tooling::stdlib::Symbol> WantSyms;
+    for (const auto &SymName : Test.Symbols) {
+      auto QName = splitQualifiedName(SymName);
+      auto Sym = tooling::stdlib::Symbol::named(QName.first, QName.second);
+      EXPECT_TRUE(Sym) << SymName;
+      WantSyms.push_back(*Sym);
+    }
+    std::vector<tooling::stdlib::Header> WantHeaders;
+    for (const auto &HeaderName : Test.Headers) {
+      auto Header = tooling::stdlib::Header::named(HeaderName);
+      EXPECT_TRUE(Header) << HeaderName;
+      WantHeaders.push_back(*Header);
+    }
+
+    ReferencedLocations Locs = findReferencedLocations(AST);
+    EXPECT_THAT(Locs.Stdlib, ElementsAreArray(WantSyms));
+    ReferencedFiles Files =
+        findReferencedFiles(Locs, AST.getIncludeStructure(),
+                            AST.getCanonicalIncludes(), AST.getSourceManager());
+    EXPECT_THAT(Files.Stdlib, ElementsAreArray(WantHeaders));
+  }
+}
+
+MATCHER_P(writtenInclusion, Written, "") {
+  if (arg.Written != Written)
+    *result_listener << arg.Written;
+  return arg.Written == Written;
+}
+
+TEST(IncludeCleaner, StdlibUnused) {
+  setIncludeCleanerAnalyzesStdlib(true);
+  auto Cleanup =
+      llvm::make_scope_exit([] { setIncludeCleanerAnalyzesStdlib(false); });
+
+  auto TU = TestTU::withCode(R"cpp(
+    #include <list>
+    #include <queue>
+    std::list<int> x;
+  )cpp");
+  // Layout of std library impl is not relevant.
+  TU.AdditionalFiles["bits"] = R"cpp(
+    #pragma once
+    namespace std {
+      template <typename> class list {};
+      template <typename> class queue {};
+    }
+  )cpp";
+  TU.AdditionalFiles["list"] = "#include <bits>";
+  TU.AdditionalFiles["queue"] = "#include <bits>";
+  TU.ExtraArgs = {"-isystem", testRoot()};
+  auto AST = TU.build();
+
+  auto Unused = computeUnusedIncludes(AST);
+  EXPECT_THAT(Unused, ElementsAre(Pointee(writtenInclusion("<queue>"))));
 }
 
 TEST(IncludeCleaner, GetUnusedHeaders) {
@@ -272,9 +386,9 @@ TEST(IncludeCleaner, VirtualBuffers) {
 
     using flags::FLAGS_FOO;
 
-    // CLI will come from a define, __llvm__ is a built-in. In both cases, they
+    // CLI will come from a define, __cplusplus is a built-in. In both cases, they
     // come from non-existent files.
-    int y = CLI + __llvm__;
+    int y = CLI + __cplusplus;
 
     int concat(a, b) = 42;
     )cpp";
@@ -302,10 +416,10 @@ TEST(IncludeCleaner, VirtualBuffers) {
   auto &SM = AST.getSourceManager();
   auto &Includes = AST.getIncludeStructure();
 
-  auto ReferencedFiles =
-      findReferencedFiles(findReferencedLocations(AST), Includes, SM);
+  auto ReferencedFiles = findReferencedFiles(
+      findReferencedLocations(AST), Includes, AST.getCanonicalIncludes(), SM);
   llvm::StringSet<> ReferencedFileNames;
-  for (FileID FID : ReferencedFiles)
+  for (FileID FID : ReferencedFiles.User)
     ReferencedFileNames.insert(
         SM.getPresumedLoc(SM.getLocForStartOfFile(FID)).getFilename());
   // Note we deduped the names as _number_ of <built-in>s is uninteresting.
@@ -322,7 +436,9 @@ TEST(IncludeCleaner, VirtualBuffers) {
   EXPECT_THAT(ReferencedHeaderNames, ElementsAre(testPath("macros.h")));
 
   // Sanity check.
-  EXPECT_THAT(getUnused(AST, ReferencedHeaders), IsEmpty());
+  EXPECT_THAT(
+      getUnused(AST, ReferencedHeaders, ReferencedFiles.SpelledUmbrellas),
+      IsEmpty());
 }
 
 TEST(IncludeCleaner, DistinctUnguardedInclusions) {
@@ -351,12 +467,12 @@ TEST(IncludeCleaner, DistinctUnguardedInclusions) {
 
   ParsedAST AST = TU.build();
 
-  auto ReferencedFiles =
-      findReferencedFiles(findReferencedLocations(AST),
-                          AST.getIncludeStructure(), AST.getSourceManager());
+  auto ReferencedFiles = findReferencedFiles(
+      findReferencedLocations(AST), AST.getIncludeStructure(),
+      AST.getCanonicalIncludes(), AST.getSourceManager());
   llvm::StringSet<> ReferencedFileNames;
   auto &SM = AST.getSourceManager();
-  for (FileID FID : ReferencedFiles)
+  for (FileID FID : ReferencedFiles.User)
     ReferencedFileNames.insert(
         SM.getPresumedLoc(SM.getLocForStartOfFile(FID)).getFilename());
   // Note that we have uplifted the referenced files from non self-contained
@@ -385,12 +501,12 @@ TEST(IncludeCleaner, NonSelfContainedHeaders) {
 
   ParsedAST AST = TU.build();
 
-  auto ReferencedFiles =
-      findReferencedFiles(findReferencedLocations(AST),
-                          AST.getIncludeStructure(), AST.getSourceManager());
+  auto ReferencedFiles = findReferencedFiles(
+      findReferencedLocations(AST), AST.getIncludeStructure(),
+      AST.getCanonicalIncludes(), AST.getSourceManager());
   llvm::StringSet<> ReferencedFileNames;
   auto &SM = AST.getSourceManager();
-  for (FileID FID : ReferencedFiles)
+  for (FileID FID : ReferencedFiles.User)
     ReferencedFileNames.insert(
         SM.getPresumedLoc(SM.getLocForStartOfFile(FID)).getFilename());
   // Note that we have uplifted the referenced files from non self-contained
@@ -403,15 +519,90 @@ TEST(IncludeCleaner, IWYUPragmas) {
   TestTU TU;
   TU.Code = R"cpp(
     #include "behind_keep.h" // IWYU pragma: keep
+    #include "exported.h" // IWYU pragma: export
+    #include "public.h"
+
+    void bar() { foo(); }
     )cpp";
   TU.AdditionalFiles["behind_keep.h"] = guard("");
+  TU.AdditionalFiles["exported.h"] = guard("");
+  TU.AdditionalFiles["public.h"] = guard("#include \"private.h\"");
+  TU.AdditionalFiles["private.h"] = guard(R"cpp(
+    // IWYU pragma: private, include "public.h"
+    void foo() {}
+  )cpp");
   ParsedAST AST = TU.build();
 
-  auto ReferencedFiles =
-      findReferencedFiles(findReferencedLocations(AST),
-                          AST.getIncludeStructure(), AST.getSourceManager());
-  EXPECT_TRUE(ReferencedFiles.empty());
+  auto ReferencedFiles = findReferencedFiles(
+      findReferencedLocations(AST), AST.getIncludeStructure(),
+      AST.getCanonicalIncludes(), AST.getSourceManager());
+  EXPECT_EQ(ReferencedFiles.SpelledUmbrellas.size(), 1u);
+  EXPECT_EQ(ReferencedFiles.SpelledUmbrellas.begin()->getKey(), "\"public.h\"");
+  EXPECT_EQ(ReferencedFiles.User.size(), 2u);
+  EXPECT_TRUE(
+      ReferencedFiles.User.contains(AST.getSourceManager().getMainFileID()));
+  EXPECT_TRUE(
+      ReferencedFiles.User.contains(AST.getSourceManager().getMainFileID()));
   EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
+  EXPECT_THAT(computeUnusedIncludes(AST), IsEmpty());
+}
+
+TEST(IncludeCleaner, RecursiveInclusion) {
+  TestTU TU;
+  TU.Code = R"cpp(
+    #include "foo.h"
+
+    void baz() {
+      foo();
+    }
+    )cpp";
+  TU.AdditionalFiles["foo.h"] = R"cpp(
+    #ifndef FOO_H
+    #define FOO_H
+
+    void foo() {}
+
+    #include "bar.h"
+
+    #endif
+  )cpp";
+  TU.AdditionalFiles["bar.h"] = guard(R"cpp(
+    #include "foo.h"
+  )cpp");
+  ParsedAST AST = TU.build();
+
+  auto ReferencedFiles = findReferencedFiles(
+      findReferencedLocations(AST), AST.getIncludeStructure(),
+      AST.getCanonicalIncludes(), AST.getSourceManager());
+  EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
+  EXPECT_THAT(computeUnusedIncludes(AST), IsEmpty());
+}
+
+TEST(IncludeCleaner, IWYUPragmaExport) {
+  TestTU TU;
+  TU.Code = R"cpp(
+    #include "foo.h"
+    )cpp";
+  TU.AdditionalFiles["foo.h"] = R"cpp(
+    #ifndef FOO_H
+    #define FOO_H
+
+    #include "bar.h" // IWYU pragma: export
+
+    #endif
+  )cpp";
+  TU.AdditionalFiles["bar.h"] = guard(R"cpp(
+    void bar() {}
+  )cpp");
+  ParsedAST AST = TU.build();
+
+  auto ReferencedFiles = findReferencedFiles(
+      findReferencedLocations(AST), AST.getIncludeStructure(),
+      AST.getCanonicalIncludes(), AST.getSourceManager());
+  EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
+  // FIXME: This is not correct: foo.h is unused but is not diagnosed as such
+  // because we ignore headers with IWYU export pragmas for now.
+  EXPECT_THAT(computeUnusedIncludes(AST), IsEmpty());
 }
 
 } // namespace

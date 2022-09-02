@@ -101,6 +101,7 @@ public:
   ObjectLinkingLayer &getObjectLinkingLayer() const { return ObjLinkingLayer; }
 
   Error setupJITDylib(JITDylib &JD) override;
+  Error teardownJITDylib(JITDylib &JD) override;
   Error notifyAdding(ResourceTracker &RT,
                      const MaterializationUnit &MU) override;
   Error notifyRemoving(ResourceTracker &RT) override;
@@ -108,7 +109,8 @@ public:
   /// Returns an AliasMap containing the default aliases for the ELFNixPlatform.
   /// This can be modified by clients when constructing the platform to add
   /// or remove aliases.
-  static SymbolAliasMap standardPlatformAliases(ExecutionSession &ES);
+  static Expected<SymbolAliasMap> standardPlatformAliases(ExecutionSession &ES,
+                                                          JITDylib &PlatformJD);
 
   /// Returns the array of required CXX aliases.
   static ArrayRef<std::pair<const char *, const char *>> requiredCXXAliases();
@@ -236,7 +238,7 @@ private:
   DenseMap<JITDylib *, ELFNixJITDylibInitializers> InitSeqs;
   std::vector<ELFPerObjectSectionsToRegister> BootstrapPOSRs;
 
-  DenseMap<JITTargetAddress, JITDylib *> HandleAddrToJITDylib;
+  DenseMap<ExecutorAddr, JITDylib *> HandleAddrToJITDylib;
   DenseMap<JITDylib *, uint64_t> JITDylibToPThreadKey;
 };
 

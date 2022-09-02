@@ -11,8 +11,6 @@ import time
 
 class ModuleCacheTestcaseSimple(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -26,12 +24,13 @@ class ModuleCacheTestcaseSimple(TestBase):
 
 
     def get_module_cache_files(self, basename):
-        module_file_glob = os.path.join(self.cache_dir, "llvmcache-*%s*" % (basename))
+        module_file_glob = os.path.join(self.cache_dir,
+                "llvmcache-*%s*-symtab-*" % (basename))
         return glob.glob(module_file_glob)
 
     # Doesn't depend on any specific debug information.
     @no_debug_info_test
-    @skipIfWindows # Windows runs into trouble deleting the executable
+    @skipIfWindows
     def test(self):
         """
             Test module cache functionality for a simple object file.

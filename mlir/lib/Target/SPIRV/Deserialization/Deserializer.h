@@ -467,7 +467,8 @@ private:
   /// Method to deserialize an operation in the SPIR-V dialect that is a mirror
   /// of an instruction in the SPIR-V spec. This is auto generated if hasOpcode
   /// == 1 and autogenSerialization == 1 in ODS.
-  template <typename OpTy> LogicalResult processOp(ArrayRef<uint32_t> words) {
+  template <typename OpTy>
+  LogicalResult processOp(ArrayRef<uint32_t> words) {
     return emitError(unknownLoc, "unsupported deserialization for ")
            << OpTy::getOperationName() << " op";
   }
@@ -500,7 +501,7 @@ private:
 
   OpBuilder opBuilder;
 
-  spirv::Version version;
+  spirv::Version version = spirv::Version::V_1_0;
 
   /// The list of capabilities used by the module.
   llvm::SmallSetVector<spirv::Capability, 4> capabilities;

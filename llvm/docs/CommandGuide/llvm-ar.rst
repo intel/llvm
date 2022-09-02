@@ -18,9 +18,9 @@ the archive can contain any kind of file. By default, :program:`llvm-ar`
 generates a symbol table that makes linking faster because only the symbol
 table needs to be consulted, not each individual file member of the archive.
 
-The :program:`llvm-ar` command can be used to *read* archive files in SVR4,
-GNU, BSD and Darwin format, and *write* in the GNU, BSD, and Darwin style
-archive files. If an SVR4 format archive is used with the :option:`r`
+The :program:`llvm-ar` command can be used to *read* archive files in SVR4, GNU,
+BSD , Big Archive, and Darwin format, and *write* in the GNU, BSD, Big Archive, and
+Darwin style archive files. If an SVR4 format archive is used with the :option:`r`
 (replace), :option:`d` (delete), :option:`m` (move) or :option:`q`
 (quick update) operations, the archive will be reconstructed in the format
 defined by :option:`--format`.
@@ -201,10 +201,8 @@ section to determine which modifiers are applicable to which operations.
 
 .. option:: T
 
- When creating or modifying an archive, this option specifies that the
- ``archive`` will be thin. By default, archives are not created as thin
- archives and when modifying a thin archive, it will be converted to a regular
- archive.
+ Alias for ``--thin``. In many ar implementations ``T`` has a different
+ meaning, as specified by X/Open System interface.
 
 .. option:: v
 
@@ -276,14 +274,44 @@ Other
  This option allows for MRI scripts to be read through the standard input
  stream. No other options are compatible with this option.
 
+.. option:: --output=<dir>
+
+ Specify a directory where archive members should be extracted to. By default the
+ current working directory is used.
+
 .. option:: --rsp-quoting=<type>
  This option selects the quoting style ``<type>`` for response files, either
  ``posix`` or ``windows``. The default when on Windows is ``windows``, otherwise the
  default is ``posix``.
 
+.. option:: --thin
+
+ When creating or modifying an archive, this option specifies that the
+ ``archive`` will be thin. By default, archives are not created as thin archives
+ and when modifying a thin archive, it will be converted to a regular archive.
+
 .. option:: --version
 
  Display the version of the :program:`llvm-ar` executable.
+
+.. option:: -X mode
+
+ Specifies the type of object file :program:`llvm-ar` will recognise. The mode must be
+ one of the following:
+
+   32
+         Process only 32-bit object files.
+   64
+         Process only 64-bit object files.
+   32_64
+         Process both 32-bit and 64-bit object files.
+   any
+         Process all object files.
+
+ The default is to process 32-bit object files (ignore 64-bit objects). The mode can also
+ be set with the OBJECT_MODE environment variable. For example, OBJECT_MODE=64 causes ar to
+ process any 64-bit objects and ignore 32-bit objects. The -X flag overrides the OBJECT_MODE
+ variable.
 
 .. option:: @<FILE>
 

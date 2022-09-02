@@ -10,8 +10,7 @@
 ; RUN: llvm-readobj --syms %t.o | FileCheck --check-prefixes=SYMS,SYMS-NODATASECT %s
 ; RUN: llvm-objdump -D --symbol-description %t.o | FileCheck --check-prefixes=OBJDUMP-NODATASECT %s
 
-; RUN: not --crash llc -mtriple powerpc64-ibm-aix-xcoff -filetype=obj < %s 2>&1 | FileCheck --check-prefix=XCOFF64 %s
-; XCOFF64: LLVM ERROR: 64-bit XCOFF object files are not supported yet.
+;; FIXME: currently only fileHeader and sectionHeaders are supported in XCOFF64.
 
 ; SECTION:      File: {{.*}}aix-tls-xcoff-variables.ll.tmp.o
 ; SECTION-NEXT: Format: aixcoff-rs6000
@@ -67,7 +66,7 @@
 ; SYMS-NEXT: Symbols [
 ; SYMS-NEXT:   Symbol {
 ; SYMS-NEXT:     Index: 0
-; SYMS-NEXT:     Name: .file
+; SYMS-NEXT:     Name: <stdin>
 ; SYMS-NEXT:     Value (SymbolTableIndex): 0x0
 ; SYMS-NEXT:     Section: N_DEBUG
 ; SYMS-NEXT:     Source Language ID: TB_C (0x0)
@@ -129,7 +128,7 @@
 ; SYMS-NEXT:       SectionLen: 0
 ; SYMS-NEXT:       ParameterHashIndex: 0x0
 ; SYMS-NEXT:       TypeChkSectNum: 0x0
-; SYMS-NEXT:       SymbolAlignmentLog2: 2
+; SYMS-NEXT:       SymbolAlignmentLog2: 5
 ; SYMS-NEXT:       SymbolType: XTY_SD (0x1)
 ; SYMS-NEXT:       StorageMappingClass: XMC_PR (0x0)
 ; SYMS-NEXT:       StabInfoIndex: 0x0

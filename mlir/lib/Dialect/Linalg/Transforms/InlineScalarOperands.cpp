@@ -97,8 +97,8 @@ namespace {
 /// Pass that removes unit-extent dims within generic ops.
 struct LinalgInlineScalarOperandsPass
     : public LinalgInlineScalarOperandsBase<LinalgInlineScalarOperandsPass> {
-  void runOnFunction() override {
-    FuncOp funcOp = getFunction();
+  void runOnOperation() override {
+    func::FuncOp funcOp = getOperation();
     MLIRContext *context = funcOp.getContext();
     RewritePatternSet patterns(context);
 
@@ -108,7 +108,7 @@ struct LinalgInlineScalarOperandsPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createLinalgInlineScalarOperandsPass() {
   return std::make_unique<LinalgInlineScalarOperandsPass>();
 }

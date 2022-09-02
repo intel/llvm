@@ -15,6 +15,7 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/MainLoop.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/Iterable.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/TraceGDBRemotePackets.h"
 #include "lldb/Utility/UnimplementedError.h"
@@ -47,6 +48,16 @@ struct SVR4LibraryInfo {
 class NativeProcessProtocol {
 public:
   virtual ~NativeProcessProtocol() = default;
+
+  typedef std::vector<std::unique_ptr<NativeThreadProtocol>> thread_collection;
+  template <typename I>
+  static NativeThreadProtocol &thread_list_adapter(I &iter) {
+    assert(*iter);
+    return **iter;
+  }
+  typedef LockingAdaptedIterable<thread_collection, NativeThreadProtocol &,
+                                 thread_list_adapter, std::recursive_mutex>
+      ThreadIterable;
 
   virtual Status Resume(const ResumeActionList &resume_actions) = 0;
 
@@ -204,10 +215,14 @@ public:
 
   void SetCurrentThreadID(lldb::tid_t tid) { m_current_thread_id = tid; }
 
-  lldb::tid_t GetCurrentThreadID() { return m_current_thread_id; }
+  lldb::tid_t GetCurrentThreadID() const { return m_current_thread_id; }
 
   NativeThreadProtocol *GetCurrentThread() {
     return GetThreadByID(m_current_thread_id);
+  }
+
+  ThreadIterable Threads() const {
+    return ThreadIterable(m_threads, m_threads_mutex);
   }
 
   // Access to inferior stdio
@@ -251,8 +266,9 @@ public:
     libraries_svr4 = (1u << 5),
     memory_tagging = (1u << 6),
     savecore = (1u << 7),
+    siginfo_read = (1u << 8),
 
-    LLVM_MARK_AS_BITMASK_ENUM(savecore)
+    LLVM_MARK_AS_BITMASK_ENUM(siginfo_read)
   };
 
   class Factory {
@@ -308,6 +324,12 @@ public:
     ///     A NativeProcessProtocol::Extension bitmask.
     virtual Extension GetSupportedExtensions() const { return {}; }
   };
+
+  /// Notify tracers that the target process will resume
+  virtual void NotifyTracersProcessWillResume() {}
+
+  /// Notify tracers that the target process just stopped
+  virtual void NotifyTracersProcessDidStop() {}
 
   /// Start tracing a process or its threads.
   ///
@@ -456,7 +478,7 @@ protected:
   ///
   /// Provide a mechanism for a delegate to clear out any exec-
   /// sensitive data.
-  void NotifyDidExec();
+  virtual void NotifyDidExec();
 
   NativeThreadProtocol *GetThreadByIDUnlocked(lldb::tid_t tid);
 

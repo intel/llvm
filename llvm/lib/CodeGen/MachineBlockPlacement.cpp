@@ -34,13 +34,13 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/BlockFrequencyInfoImpl.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/CodeGen/MBFIWrapper.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
-#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachinePostDominators.h"
 #include "llvm/CodeGen/MachineSizeOpts.h"
 #include "llvm/CodeGen/TailDuplicator.h"
@@ -50,6 +50,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/PrintPasses.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
@@ -94,6 +95,12 @@ static cl::opt<unsigned> AlignAllNonFallThruBlocks(
     cl::desc("Force the alignment of all blocks that have no fall-through "
              "predecessors (i.e. don't add nops that are executed). In log2 "
              "format (e.g 4 means align on 16B boundaries)."),
+    cl::init(0), cl::Hidden);
+
+static cl::opt<unsigned> MaxBytesForAlignmentOverride(
+    "max-bytes-for-alignment",
+    cl::desc("Forces the maximum bytes allowed to be emitted when padding for "
+             "alignment"),
     cl::init(0), cl::Hidden);
 
 // FIXME: Find a good default for this flag and remove the flag.
@@ -194,10 +201,8 @@ static cl::opt<unsigned> TriangleChainCount(
     cl::init(2),
     cl::Hidden);
 
-static cl::opt<bool> EnableExtTspBlockPlacement(
-    "enable-ext-tsp-block-placement", cl::Hidden, cl::init(false),
-    cl::desc("Enable machine block placement based on the ext-tsp model, "
-             "optimizing I-cache utilization."));
+extern cl::opt<bool> EnableExtTspBlockPlacement;
+extern cl::opt<bool> ApplyExtTspWithoutProfile;
 
 namespace llvm {
 extern cl::opt<unsigned> StaticLikelyProb;
@@ -960,7 +965,7 @@ bool MachineBlockPlacement::isTrellis(
 
   for (MachineBasicBlock *Succ : ViableSuccs) {
     int PredCount = 0;
-    for (auto SuccPred : Succ->predecessors()) {
+    for (auto *SuccPred : Succ->predecessors()) {
       // Allow triangle successors, but don't count them.
       if (Successors.count(SuccPred)) {
         // Make sure that it is actually a triangle.
@@ -1058,7 +1063,7 @@ MachineBlockPlacement::getBestTrellisSuccessor(
   // Collect the edge frequencies of all edges that form the trellis.
   SmallVector<WeightedEdge, 8> Edges[2];
   int SuccIndex = 0;
-  for (auto Succ : ViableSuccs) {
+  for (auto *Succ : ViableSuccs) {
     for (MachineBasicBlock *SuccPred : Succ->predecessors()) {
       // Skip any placed predecessors that are not BB
       if (SuccPred != BB)
@@ -2446,7 +2451,7 @@ void MachineBlockPlacement::rotateLoopWithProfile(
   // as the sum of frequencies of exit edges we collect here, excluding the exit
   // edge from the tail of the loop chain.
   SmallVector<std::pair<MachineBasicBlock *, BlockFrequency>, 4> ExitsWithFreq;
-  for (auto BB : LoopChain) {
+  for (auto *BB : LoopChain) {
     auto LargestExitEdgeProb = BranchProbability::getZero();
     for (auto *Succ : BB->successors()) {
       BlockChain *SuccChain = BlockToChain[Succ];
@@ -2556,7 +2561,7 @@ MachineBlockPlacement::collectLoopBlockSet(const MachineLoop &L) {
   // profile data is available.
   if (F->getFunction().hasProfileData() || ForceLoopColdBlock) {
     BlockFrequency LoopFreq(0);
-    for (auto LoopPred : L.getHeader()->predecessors())
+    for (auto *LoopPred : L.getHeader()->predecessors())
       if (!L.contains(LoopPred))
         LoopFreq += MBFI->getBlockFreq(LoopPred) *
                     MBPI->getEdgeProbability(LoopPred, L.getHeader());
@@ -2929,10 +2934,21 @@ void MachineBlockPlacement::alignBlocks() {
     MachineBasicBlock *LayoutPred =
         &*std::prev(MachineFunction::iterator(ChainBB));
 
+    auto DetermineMaxAlignmentPadding = [&]() {
+      // Set the maximum bytes allowed to be emitted for alignment.
+      unsigned MaxBytes;
+      if (MaxBytesForAlignmentOverride.getNumOccurrences() > 0)
+        MaxBytes = MaxBytesForAlignmentOverride;
+      else
+        MaxBytes = TLI->getMaxPermittedBytesForAlignment(ChainBB);
+      ChainBB->setMaxBytesForAlignment(MaxBytes);
+    };
+
     // Force alignment if all the predecessors are jumps. We already checked
     // that the block isn't cold above.
     if (!LayoutPred->isSuccessor(ChainBB)) {
       ChainBB->setAlignment(Align);
+      DetermineMaxAlignmentPadding();
       continue;
     }
 
@@ -2943,8 +2959,10 @@ void MachineBlockPlacement::alignBlocks() {
     BranchProbability LayoutProb =
         MBPI->getEdgeProbability(LayoutPred, ChainBB);
     BlockFrequency LayoutEdgeFreq = MBFI->getBlockFreq(LayoutPred) * LayoutProb;
-    if (LayoutEdgeFreq <= (Freq * ColdProb))
+    if (LayoutEdgeFreq <= (Freq * ColdProb)) {
       ChainBB->setAlignment(Align);
+      DetermineMaxAlignmentPadding();
+    }
   }
 }
 
@@ -3403,7 +3421,8 @@ bool MachineBlockPlacement::runOnMachineFunction(MachineFunction &MF) {
   }
 
   // Apply a post-processing optimizing block placement.
-  if (MF.size() >= 3 && EnableExtTspBlockPlacement) {
+  if (MF.size() >= 3 && EnableExtTspBlockPlacement &&
+      (ApplyExtTspWithoutProfile || MF.getFunction().hasProfileData())) {
     // Find a new placement and modify the layout of the blocks in the function.
     applyExtTsp();
 
@@ -3418,17 +3437,30 @@ bool MachineBlockPlacement::runOnMachineFunction(MachineFunction &MF) {
   ComputedEdges.clear();
   ChainAllocator.DestroyAll();
 
+  bool HasMaxBytesOverride =
+      MaxBytesForAlignmentOverride.getNumOccurrences() > 0;
+
   if (AlignAllBlock)
     // Align all of the blocks in the function to a specific alignment.
-    for (MachineBasicBlock &MBB : MF)
-      MBB.setAlignment(Align(1ULL << AlignAllBlock));
+    for (MachineBasicBlock &MBB : MF) {
+      if (HasMaxBytesOverride)
+        MBB.setAlignment(Align(1ULL << AlignAllBlock),
+                         MaxBytesForAlignmentOverride);
+      else
+        MBB.setAlignment(Align(1ULL << AlignAllBlock));
+    }
   else if (AlignAllNonFallThruBlocks) {
     // Align all of the blocks that have no fall-through predecessors to a
     // specific alignment.
     for (auto MBI = std::next(MF.begin()), MBE = MF.end(); MBI != MBE; ++MBI) {
       auto LayoutPred = std::prev(MBI);
-      if (!LayoutPred->isSuccessor(&*MBI))
-        MBI->setAlignment(Align(1ULL << AlignAllNonFallThruBlocks));
+      if (!LayoutPred->isSuccessor(&*MBI)) {
+        if (HasMaxBytesOverride)
+          MBI->setAlignment(Align(1ULL << AlignAllNonFallThruBlocks),
+                            MaxBytesForAlignmentOverride);
+        else
+          MBI->setAlignment(Align(1ULL << AlignAllNonFallThruBlocks));
+      }
     }
   }
   if (ViewBlockLayoutWithBFI != GVDT_None &&
@@ -3626,6 +3658,9 @@ INITIALIZE_PASS_END(MachineBlockPlacementStats, "block-placement-stats",
 bool MachineBlockPlacementStats::runOnMachineFunction(MachineFunction &F) {
   // Check for single-block functions and skip them.
   if (std::next(F.begin()) == F.end())
+    return false;
+
+  if (!isFunctionInPrintList(F.getName()))
     return false;
 
   MBPI = &getAnalysis<MachineBranchProbabilityInfo>();

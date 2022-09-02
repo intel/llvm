@@ -129,6 +129,14 @@ int64_t mlirIntegerAttrGetValueInt(MlirAttribute attr) {
   return unwrap(attr).cast<IntegerAttr>().getInt();
 }
 
+int64_t mlirIntegerAttrGetValueSInt(MlirAttribute attr) {
+  return unwrap(attr).cast<IntegerAttr>().getSInt();
+}
+
+uint64_t mlirIntegerAttrGetValueUInt(MlirAttribute attr) {
+  return unwrap(attr).cast<IntegerAttr>().getUInt();
+}
+
 //===----------------------------------------------------------------------===//
 // Bool attribute.
 //===----------------------------------------------------------------------===//
@@ -340,11 +348,9 @@ MlirAttribute mlirDenseElementsAttrRawBufferGet(MlirType shapedType,
                               rawBufferSize);
   bool isSplat = false;
   if (!DenseElementsAttr::isValidRawBuffer(shapedTypeCpp, rawBufferCpp,
-                                           isSplat)) {
+                                           isSplat))
     return mlirAttributeGetNull();
-  }
-  return wrap(DenseElementsAttr::getFromRawBuffer(shapedTypeCpp, rawBufferCpp,
-                                                  isSplat));
+  return wrap(DenseElementsAttr::getFromRawBuffer(shapedTypeCpp, rawBufferCpp));
 }
 
 MlirAttribute mlirDenseElementsAttrSplatGet(MlirType shapedType,
@@ -426,6 +432,16 @@ MlirAttribute mlirDenseElementsAttrInt8Get(MlirType shapedType,
                                            const int8_t *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
+MlirAttribute mlirDenseElementsAttrUInt16Get(MlirType shapedType,
+                                             intptr_t numElements,
+                                             const uint16_t *elements) {
+  return getDenseAttribute(shapedType, numElements, elements);
+}
+MlirAttribute mlirDenseElementsAttrInt16Get(MlirType shapedType,
+                                            intptr_t numElements,
+                                            const int16_t *elements) {
+  return getDenseAttribute(shapedType, numElements, elements);
+}
 MlirAttribute mlirDenseElementsAttrUInt32Get(MlirType shapedType,
                                              intptr_t numElements,
                                              const uint32_t *elements) {
@@ -455,6 +471,20 @@ MlirAttribute mlirDenseElementsAttrDoubleGet(MlirType shapedType,
                                              intptr_t numElements,
                                              const double *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
+}
+MlirAttribute mlirDenseElementsAttrBFloat16Get(MlirType shapedType,
+                                               intptr_t numElements,
+                                               const uint16_t *elements) {
+  size_t bufferSize = numElements * 2;
+  const void *buffer = static_cast<const void *>(elements);
+  return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);
+}
+MlirAttribute mlirDenseElementsAttrFloat16Get(MlirType shapedType,
+                                              intptr_t numElements,
+                                              const uint16_t *elements) {
+  size_t bufferSize = numElements * 2;
+  const void *buffer = static_cast<const void *>(elements);
+  return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);
 }
 
 MlirAttribute mlirDenseElementsAttrStringGet(MlirType shapedType,
@@ -530,6 +560,12 @@ int8_t mlirDenseElementsAttrGetInt8Value(MlirAttribute attr, intptr_t pos) {
 uint8_t mlirDenseElementsAttrGetUInt8Value(MlirAttribute attr, intptr_t pos) {
   return unwrap(attr).cast<DenseElementsAttr>().getValues<uint8_t>()[pos];
 }
+int16_t mlirDenseElementsAttrGetInt16Value(MlirAttribute attr, intptr_t pos) {
+  return unwrap(attr).cast<DenseElementsAttr>().getValues<int16_t>()[pos];
+}
+uint16_t mlirDenseElementsAttrGetUInt16Value(MlirAttribute attr, intptr_t pos) {
+  return unwrap(attr).cast<DenseElementsAttr>().getValues<uint16_t>()[pos];
+}
 int32_t mlirDenseElementsAttrGetInt32Value(MlirAttribute attr, intptr_t pos) {
   return unwrap(attr).cast<DenseElementsAttr>().getValues<int32_t>()[pos];
 }
@@ -560,14 +596,6 @@ MlirStringRef mlirDenseElementsAttrGetStringValue(MlirAttribute attr,
 const void *mlirDenseElementsAttrGetRawData(MlirAttribute attr) {
   return static_cast<const void *>(
       unwrap(attr).cast<DenseElementsAttr>().getRawData().data());
-}
-
-//===----------------------------------------------------------------------===//
-// Opaque elements attribute.
-//===----------------------------------------------------------------------===//
-
-bool mlirAttributeIsAOpaqueElements(MlirAttribute attr) {
-  return unwrap(attr).isa<OpaqueElementsAttr>();
 }
 
 //===----------------------------------------------------------------------===//

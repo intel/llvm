@@ -14,8 +14,6 @@ from lldbsuite.test import lldbutil
 
 class MiniDumpNewTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     _linux_x86_64_pid = 29917
@@ -65,7 +63,7 @@ class MiniDumpNewTestCase(TestBase):
         error = lldb.SBError()
         self.process = self.target.LoadCore(minidump_path, error)
         self.assertTrue(self.process, PROCESS_IS_VALID)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
     def test_loadcore_error_status_failure(self):
         """Test the SBTarget.LoadCore(core, error) overload."""
@@ -119,7 +117,7 @@ class MiniDumpNewTestCase(TestBase):
         # one and only thread.
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         stop_description = thread.GetStopDescription(256)
         self.assertIn("SIGSEGV", stop_description)
 
@@ -155,7 +153,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
 
@@ -166,7 +164,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
 
@@ -193,7 +191,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
         registers = thread.GetFrameAtIndex(0).GetRegisters()
@@ -260,7 +258,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
         registers = thread.GetFrameAtIndex(0).GetRegisters()

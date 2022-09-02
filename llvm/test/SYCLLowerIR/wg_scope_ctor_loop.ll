@@ -24,7 +24,7 @@ define internal spir_func void @spam(%struct.eggs addrspace(4)* %arg, %struct.sn
 ; CHECK-NEXT:    call spir_func void @bar(%struct.snork addrspace(4)* [[ARRAYCTOR_CUR]])
 ; CHECK-NEXT:    [[ARRAYCTOR_NEXT:%.*]] = getelementptr inbounds [[STRUCT_SNORK]], [[STRUCT_SNORK]] addrspace(4)* [[ARRAYCTOR_CUR]], i64 1
 ; CHECK-NEXT:    store [[STRUCT_SNORK]] addrspace(4)* [[ARRAYCTOR_NEXT]], [[STRUCT_SNORK]] addrspace(4)* addrspace(3)* @[[WG_NEXT]], align 8
-; CHECK-NEXT:    [[ARRAYCTOR_DONE:%.*]] = icmp eq [[STRUCT_SNORK]] addrspace(4)* [[ARRAYCTOR_NEXT]], getelementptr inbounds (%struct.snork, [[STRUCT_SNORK]] addrspace(4)* getelementptr inbounds ([12 x %struct.snork], [12 x %struct.snork] addrspace(4)* addrspacecast ([12 x %struct.snork] addrspace(3)* @global to [12 x %struct.snork] addrspace(4)*), i32 0, i32 0), i64 12)
+; CHECK-NEXT:    [[ARRAYCTOR_DONE:%.*]] = icmp eq [[STRUCT_SNORK]] addrspace(4)* [[ARRAYCTOR_NEXT]], getelementptr inbounds ([12 x %struct.snork], [12 x [[STRUCT_SNORK]]] addrspace(4)* addrspacecast ([12 x %struct.snork] addrspace(3)* @global to [12 x %struct.snork] addrspace(4)*), i64 1, i64 0)
 ; CHECK-NEXT:    store i1 [[ARRAYCTOR_DONE]], i1 addrspace(3)* @[[WG_DONE]], align 1
 ; CHECK-NEXT:    br label [[WG_CF2]]
 ; CHECK:       wg_cf2:

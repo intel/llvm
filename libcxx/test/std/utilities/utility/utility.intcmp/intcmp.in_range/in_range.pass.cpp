@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // <utility>
 
@@ -19,6 +18,7 @@
 #include <numeric>
 #include <tuple>
 #include <cassert>
+#include <cstdint>
 
 #include "test_macros.h"
 
@@ -64,7 +64,7 @@ constexpr void test1(const std::tuple<Ts...>&) {
 
 constexpr bool test() {
   std::tuple<
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
       __int128_t, __uint128_t,
 #endif
       unsigned long long, long long, unsigned long, long, unsigned int, int,

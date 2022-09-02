@@ -21,8 +21,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_IR_INTEGER_SET_H
-#define MLIR_IR_INTEGER_SET_H
+#ifndef MLIR_IR_INTEGERSET_H
+#define MLIR_IR_INTEGERSET_H
 
 #include "mlir/IR/AffineExpr.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -45,7 +45,7 @@ class IntegerSet {
 public:
   using ImplType = detail::IntegerSetStorage;
 
-  constexpr IntegerSet() : set(nullptr) {}
+  constexpr IntegerSet() {}
   explicit IntegerSet(ImplType *set) : set(set) {}
 
   static IntegerSet get(unsigned dimCount, unsigned symbolCount,
@@ -75,6 +75,7 @@ public:
 
   explicit operator bool() { return set; }
   bool operator==(IntegerSet other) const { return set == other.set; }
+  bool operator!=(IntegerSet other) const { return set != other.set; }
 
   unsigned getNumDims() const;
   unsigned getNumSymbols() const;
@@ -116,7 +117,7 @@ public:
   }
 
 private:
-  ImplType *set;
+  ImplType *set{nullptr};
 };
 
 // Make AffineExpr hashable.
@@ -128,7 +129,8 @@ inline ::llvm::hash_code hash_value(IntegerSet arg) {
 namespace llvm {
 
 // IntegerSet hash just like pointers.
-template <> struct DenseMapInfo<mlir::IntegerSet> {
+template <>
+struct DenseMapInfo<mlir::IntegerSet> {
   static mlir::IntegerSet getEmptyKey() {
     auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::IntegerSet(static_cast<mlir::IntegerSet::ImplType *>(pointer));
@@ -146,4 +148,4 @@ template <> struct DenseMapInfo<mlir::IntegerSet> {
 };
 
 } // namespace llvm
-#endif // MLIR_IR_INTEGER_SET_H
+#endif // MLIR_IR_INTEGERSET_H

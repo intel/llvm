@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_platform.h"
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 
 #include "sanitizer_allocator_internal.h"
 #include "sanitizer_mac.h"
@@ -91,6 +91,7 @@ class AtosSymbolizerProcess final : public SymbolizerProcess {
       argv[i++] = "-d";
     }
     argv[i++] = nullptr;
+    CHECK_LE(i, kArgVMax);
   }
 
   char pid_str_[16];
@@ -201,4 +202,4 @@ bool AtosSymbolizer::SymbolizeData(uptr addr, DataInfo *info) {
 
 }  // namespace __sanitizer
 
-#endif  // SANITIZER_MAC
+#endif  // SANITIZER_APPLE

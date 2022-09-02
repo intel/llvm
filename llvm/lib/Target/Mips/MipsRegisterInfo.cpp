@@ -159,8 +159,8 @@ getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   const MipsSubtarget &Subtarget = MF.getSubtarget<MipsSubtarget>();
 
-  for (unsigned I = 0; I < array_lengthof(ReservedGPR32); ++I)
-    Reserved.set(ReservedGPR32[I]);
+  for (MCPhysReg R : ReservedGPR32)
+    Reserved.set(R);
 
   // Reserve registers for the NaCl sandbox.
   if (Subtarget.isTargetNaCl()) {
@@ -169,8 +169,8 @@ getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(Mips::T8);   // Reserved for thread pointer.
   }
 
-  for (unsigned I = 0; I < array_lengthof(ReservedGPR64); ++I)
-    Reserved.set(ReservedGPR64[I]);
+  for (MCPhysReg R : ReservedGPR64)
+    Reserved.set(R);
 
   // For mno-abicalls, GP is a program invariant!
   if (!Subtarget.isABICalls()) {
@@ -317,4 +317,8 @@ bool MipsRegisterInfo::canRealignStack(const MachineFunction &MF) const {
   // We have to reserve the base pointer register in the presence of variable
   // sized objects.
   return MF.getRegInfo().canReserveReg(BP);
+}
+
+bool MipsRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
+  return PhysReg == Mips::ZERO_64 || PhysReg == Mips::ZERO;
 }

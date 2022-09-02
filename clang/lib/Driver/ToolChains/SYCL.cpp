@@ -47,41 +47,6 @@ void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {
   }
 }
 
-const char *SYCL::Linker::constructLLVMSpirvCommand(
-    Compilation &C, const JobAction &JA, const InputInfo &Output,
-    StringRef OutputFilePrefix, bool ToBc, const char *InputFileName) const {
-  // Construct llvm-spirv command.
-  // The output is a bc file or vice versa depending on the -r option usage
-  // llvm-spirv -r -o a_kernel.bc a_kernel.spv
-  // llvm-spirv -o a_kernel.spv a_kernel.bc
-  ArgStringList CmdArgs;
-  const char *OutputFileName = nullptr;
-  if (ToBc) {
-    std::string TmpName =
-        C.getDriver().GetTemporaryPath(OutputFilePrefix.str() + "-spirv", "bc");
-    OutputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
-    CmdArgs.push_back("-r");
-    CmdArgs.push_back("-o");
-    CmdArgs.push_back(OutputFileName);
-  } else {
-    CmdArgs.push_back("-spirv-max-version=1.4");
-    CmdArgs.push_back("-spirv-ext=+all");
-    CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
-    CmdArgs.push_back("-spirv-allow-extra-diexpressions");
-    CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
-    CmdArgs.push_back("-o");
-    CmdArgs.push_back(Output.getFilename());
-  }
-  CmdArgs.push_back(InputFileName);
-
-  SmallString<128> LLVMSpirvPath(C.getDriver().Dir);
-  llvm::sys::path::append(LLVMSpirvPath, "llvm-spirv");
-  const char *LLVMSpirv = C.getArgs().MakeArgString(LLVMSpirvPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), LLVMSpirv, CmdArgs, None));
-  return OutputFileName;
-}
-
 static void addFPGATimingDiagnostic(std::unique_ptr<Command> &Cmd,
                                     Compilation &C) {
   const char *Msg = C.getArgs().MakeArgString(
@@ -103,10 +68,10 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   // The llvm-foreach command looks like this:
   // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
   ArgStringList ForeachArgs;
-  std::string OutputFileName(Output.getFilename());
+  std::string OutputFileName(T->getToolChain().getInputFilename(Output));
   ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
   for (auto &I : InputFiles) {
-    std::string Filename(I.getFilename());
+    std::string Filename(T->getToolChain().getInputFilename(I));
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--in-file-list=" + Filename));
     ForeachArgs.push_back(
@@ -165,29 +130,24 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
-    "crt",
-    "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
-    "itt-compiler-wrappers",
-    "itt-stubs",
-    "itt-user-wrappers",
-    "fallback-cassert",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64"};
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
+  "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+#if defined(_WIN32)
+      "msvc-math",
+#endif
+      "imf", "imf-fp64", "itt-compiler-wrappers", "itt-stubs",
+      "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
+      "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
+      "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64"
+};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const ArgList &Args, StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
   // Split inputs into libraries which have 'archive' type and other inputs
-  // which can be either objects or list files. Objects/list files are linked
-  // together in a usual way, but the libraries need to be linked differently.
+  // which can be either objects or list files. Object files are linked together
+  // in a usual way, but the libraries/list files need to be linked differently.
   // We need to fetch only required symbols from the libraries. With the current
   // llvm-link command line interface that can be achieved with two step
   // linking: at the first step we will link objects into an intermediate
@@ -202,14 +162,21 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    auto isSYCLDeviceLib = [&C](const InputInfo &II) {
+    auto isSYCLDeviceLib = [&C, this](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       StringRef LibPostfix = ".o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
           C.getDriver().IsCLMode())
         LibPostfix = ".obj";
-      StringRef InputFilename =
-          llvm::sys::path::filename(StringRef(II.getFilename()));
+      std::string FileName = this->getToolChain().getInputFilename(II);
+      StringRef InputFilename = llvm::sys::path::filename(FileName);
+      if (this->getToolChain().getTriple().isNVPTX()) {
+        // Linking SYCL Device libs requires libclc as well as libdevice
+        if ((InputFilename.find("nvidiacl") != InputFilename.npos ||
+             InputFilename.find("libdevice") != InputFilename.npos))
+          return true;
+        LibPostfix = ".cubin";
+      }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
@@ -233,18 +200,19 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     if (LinkSYCLDeviceLibs)
       Opts.push_back("-only-needed");
     for (const auto &II : InputFiles) {
+      std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
-        std::string FileName(II.getFilename());
-        Objs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        Libs.push_back(C.getArgs().MakeArgString("@" + FileName));
       } else if (II.getType() == types::TY_Archive && !LinkSYCLDeviceLibs) {
-        Libs.push_back(II.getFilename());
+        Libs.push_back(C.getArgs().MakeArgString(FileName));
       } else
-        Objs.push_back(II.getFilename());
+        Objs.push_back(C.getArgs().MakeArgString(FileName));
     }
   } else
     for (const auto &II : InputFiles)
-      Objs.push_back(II.getFilename());
+      Objs.push_back(
+          C.getArgs().MakeArgString(getToolChain().getInputFilename(II)));
 
   // Get llvm-link path.
   SmallString<128> ExecPath(C.getDriver().Dir);
@@ -267,7 +235,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   };
 
   // Add an intermediate output file.
-  const char *OutputFileName = Output.getFilename();
+  const char *OutputFileName =
+      C.getArgs().MakeArgString(getToolChain().getInputFilename(Output));
 
   if (Libs.empty())
     AddLinkCommand(OutputFileName, Objs, Opts);
@@ -343,23 +312,11 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     return;
   }
 
-  // We want to use llvm-spirv linker to link spirv binaries before putting
-  // them into the fat object.
-  // Each command outputs different files.
   InputInfoList SpirvInputs;
   for (const auto &II : Inputs) {
     if (!II.isFilename())
       continue;
-    if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
-                     options::OPT_fno_sycl_use_bitcode, true) ||
-        Args.hasArg(options::OPT_foffload_static_lib_EQ))
-      SpirvInputs.push_back(II);
-    else {
-      const char *LLVMSpirvOutputFile = constructLLVMSpirvCommand(
-          C, JA, Output, Prefix, true, II.getFilename());
-      SpirvInputs.push_back(InputInfo(types::TY_LLVM_BC, LLVMSpirvOutputFile,
-                                      LLVMSpirvOutputFile));
-    }
+    SpirvInputs.push_back(II);
   }
 
   constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix,
@@ -382,7 +339,6 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   // will be compiled to an aocx file.
   InputInfoList ForeachInputs;
   InputInfoList FPGADepFiles;
-  StringRef CreatedReportName;
   ArgStringList CmdArgs{"-device=fpga_fast_emu"};
 
   for (const auto &II : Inputs) {
@@ -671,10 +627,16 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC), SYCLInstallation(D) {
+    : ToolChain(D, Triple, Args), HostTC(HostTC) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
+
+  // Diagnose unsupported options only once.
+  // All sanitizer options are not currently supported.
+  for (auto A : Args.filtered(options::OPT_fsanitize_EQ))
+    D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
+        << A->getAsString(Args) << getTriple().str();
 }
 
 void SYCLToolChain::addClangTargetOptions(
@@ -696,10 +658,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       // Filter out any options we do not want to pass along to the device
       // compilation.
       switch ((options::ID)A->getOption().getID()) {
+      case options::OPT_fsanitize_EQ:
+        break;
       default:
         DAL->append(A);
-        break;
-      case options::OPT_fcoverage_mapping:
         break;
       }
     }

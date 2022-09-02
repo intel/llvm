@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks that sub_group::store supports const reference.
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 
 void test(ext::oneapi::sub_group sg, global_ptr<int> ptr) { sg.store(ptr, 1); }

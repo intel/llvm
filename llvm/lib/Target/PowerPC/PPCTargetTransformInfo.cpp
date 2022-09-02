@@ -15,6 +15,7 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/IR/IntrinsicsPowerPC.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/KnownBits.h"
@@ -27,11 +28,6 @@ using namespace llvm;
 
 static cl::opt<bool> DisablePPCConstHoist("disable-ppc-constant-hoisting",
 cl::desc("disable constant hoisting on PPC"), cl::init(false), cl::Hidden);
-
-// This is currently only used for the data prefetch pass
-static cl::opt<unsigned>
-CacheLineSize("ppc-loop-prefetch-cache-line", cl::Hidden, cl::init(64),
-              cl::desc("The loop prefetch cache line size"));
 
 static cl::opt<bool>
 EnablePPCColdCC("ppc-enable-coldcc", cl::Hidden, cl::init(false),
@@ -328,10 +324,6 @@ static bool isMMAType(Type *Ty) {
 InstructionCost PPCTTIImpl::getUserCost(const User *U,
                                         ArrayRef<const Value *> Operands,
                                         TTI::TargetCostKind CostKind) {
-  // Set the max cost if an MMA type is present (v256i1, v512i1).
-  if (isMMAType(U->getType()))
-    return InstructionCost::getMax();
-
   // We already implement getCastInstrCost and getMemoryOpCost where we perform
   // the vector adjustment there.
   if (isa<CastInst>(U) || isa<LoadInst>(U) || isa<StoreInst>(U))
@@ -378,11 +370,10 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
   // clobbers ctr.
   auto asmClobbersCTR = [](InlineAsm *IA) {
     InlineAsm::ConstraintInfoVector CIV = IA->ParseConstraints();
-    for (unsigned i = 0, ie = CIV.size(); i < ie; ++i) {
-      InlineAsm::ConstraintInfo &C = CIV[i];
+    for (const InlineAsm::ConstraintInfo &C : CIV) {
       if (C.Type != InlineAsm::isInput)
-        for (unsigned j = 0, je = C.Codes.size(); j < je; ++j)
-          if (StringRef(C.Codes[j]).equals_insensitive("{ctr}"))
+        for (const auto &Code : C.Codes)
+          if (StringRef(Code).equals_insensitive("{ctr}"))
             return true;
     }
     return false;
@@ -496,15 +487,13 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
           case Intrinsic::experimental_constrained_sin:
           case Intrinsic::experimental_constrained_cos:
             return true;
-          // There is no corresponding FMA instruction for PPC double double.
-          // Thus, we need to disable CTR loop generation for this type.
-          case Intrinsic::fmuladd:
           case Intrinsic::copysign:
             if (CI->getArgOperand(0)->getType()->getScalarType()->
                 isPPC_FP128Ty())
               return true;
             else
               continue; // ISD::FCOPYSIGN is never a library call.
+          case Intrinsic::fmuladd:
           case Intrinsic::fma:                Opcode = ISD::FMA;        break;
           case Intrinsic::sqrt:               Opcode = ISD::FSQRT;      break;
           case Intrinsic::floor:              Opcode = ISD::FFLOOR;     break;
@@ -657,10 +646,16 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
       }
 
       return true;
-    } else if (isa<BinaryOperator>(J) &&
-               (J->getType()->getScalarType()->isFP128Ty() ||
+    } else if ((J->getType()->getScalarType()->isFP128Ty() ||
                 J->getType()->getScalarType()->isPPC_FP128Ty())) {
       // Most operations on f128 or ppc_f128 values become calls.
+      return true;
+    } else if (isa<FCmpInst>(J) &&
+               J->getOperand(0)->getType()->getScalarType()->isFP128Ty()) {
+      return true;
+    } else if ((isa<FPTruncInst>(J) || isa<FPExtInst>(J)) &&
+               (cast<CastInst>(J)->getSrcTy()->getScalarType()->isFP128Ty() ||
+                cast<CastInst>(J)->getDestTy()->getScalarType()->isFP128Ty())) {
       return true;
     } else if (isa<UIToFPInst>(J) || isa<SIToFPInst>(J) ||
                isa<FPToUIInst>(J) || isa<FPToSIInst>(J)) {
@@ -763,7 +758,7 @@ bool PPCTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
     if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
       uint64_t TrueWeight = 0, FalseWeight = 0;
       if (!BI->isConditional() ||
-          !BI->extractProfMetadata(TrueWeight, FalseWeight))
+          !extractBranchWeights(*BI, TrueWeight, FalseWeight))
         continue;
 
       // If the exit path is more frequent than the loop path,
@@ -902,10 +897,6 @@ PPCTTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
 }
 
 unsigned PPCTTIImpl::getCacheLineSize() const {
-  // Check first if the user specified a custom line size.
-  if (CacheLineSize.getNumOccurrences() > 0)
-    return CacheLineSize;
-
   // Starting with P7 we have a cache line size of 128.
   unsigned Directive = ST->getCPUDirective();
   // Assume that Future CPU has the same cache line size as the others.
@@ -1014,7 +1005,8 @@ InstructionCost PPCTTIImpl::getArithmeticInstrCost(
 
 InstructionCost PPCTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp,
                                            ArrayRef<int> Mask, int Index,
-                                           Type *SubTp) {
+                                           Type *SubTp,
+                                           ArrayRef<const Value *> Args) {
 
   InstructionCost CostFactor =
       vectorCostAdjustmentFactor(Instruction::ShuffleVector, Tp, nullptr);
@@ -1276,23 +1268,21 @@ PPCTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   return BaseT::getIntrinsicInstrCost(ICA, CostKind);
 }
 
-bool PPCTTIImpl::areFunctionArgsABICompatible(
-    const Function *Caller, const Function *Callee,
-    SmallPtrSetImpl<Argument *> &Args) const {
+bool PPCTTIImpl::areTypesABICompatible(const Function *Caller,
+                                       const Function *Callee,
+                                       const ArrayRef<Type *> &Types) const {
 
   // We need to ensure that argument promotion does not
   // attempt to promote pointers to MMA types (__vector_pair
   // and __vector_quad) since these types explicitly cannot be
   // passed as arguments. Both of these types are larger than
   // the 128-bit Altivec vectors and have a scalar size of 1 bit.
-  if (!BaseT::areFunctionArgsABICompatible(Caller, Callee, Args))
+  if (!BaseT::areTypesABICompatible(Caller, Callee, Types))
     return false;
 
-  return llvm::none_of(Args, [](Argument *A) {
-    auto *EltTy = cast<PointerType>(A->getType())->getElementType();
-    if (EltTy->isSized())
-      return (EltTy->isIntOrIntVectorTy(1) &&
-              EltTy->getPrimitiveSizeInBits() > 128);
+  return llvm::none_of(Types, [](Type *Ty) {
+    if (Ty->isSized())
+      return Ty->isIntOrIntVectorTy(1) && Ty->getPrimitiveSizeInBits() > 128;
     return false;
   });
 }
@@ -1301,8 +1291,8 @@ bool PPCTTIImpl::canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE,
                             LoopInfo *LI, DominatorTree *DT,
                             AssumptionCache *AC, TargetLibraryInfo *LibInfo) {
   // Process nested loops first.
-  for (Loop::iterator I = L->begin(), E = L->end(); I != E; ++I)
-    if (canSaveCmp(*I, BI, SE, LI, DT, AC, LibInfo))
+  for (Loop *I : *L)
+    if (canSaveCmp(I, BI, SE, LI, DT, AC, LibInfo))
       return false; // Stop search.
 
   HardwareLoopInfo HWLoopInfo(L);
@@ -1320,8 +1310,8 @@ bool PPCTTIImpl::canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE,
   return true;
 }
 
-bool PPCTTIImpl::isLSRCostLess(TargetTransformInfo::LSRCost &C1,
-                               TargetTransformInfo::LSRCost &C2) {
+bool PPCTTIImpl::isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
+                               const TargetTransformInfo::LSRCost &C2) {
   // PowerPC default behaviour here is "instruction number 1st priority".
   // If LsrNoInsnsCost is set, call default implementation.
   if (!LsrNoInsnsCost)

@@ -67,8 +67,9 @@ private:
   bool Check(const evaluate::ProcedureDesignator &);
   bool Check(const evaluate::ProcedureRef &);
   // Target is a procedure
-  bool Check(
-      parser::CharBlock rhsName, bool isCall, const Procedure * = nullptr);
+  bool Check(parser::CharBlock rhsName, bool isCall,
+      const Procedure * = nullptr,
+      const evaluate::SpecificIntrinsic *specific = nullptr);
   bool LhsOkForUnlimitedPoly() const;
   template <typename... A> parser::Message *Say(A &&...);
 
@@ -117,7 +118,7 @@ template <typename T> bool PointerAssignmentChecker::Check(const T &) {
 
 template <typename T>
 bool PointerAssignmentChecker::Check(const evaluate::Expr<T> &x) {
-  return std::visit([&](const auto &x) { return Check(x); }, x.u);
+  return common::visit([&](const auto &x) { return Check(x); }, x.u);
 }
 
 bool PointerAssignmentChecker::Check(const SomeExpr &rhs) {
@@ -128,7 +129,7 @@ bool PointerAssignmentChecker::Check(const SomeExpr &rhs) {
     Say("A coindexed object may not be a pointer target"_err_en_US);
     return false;
   } else {
-    return std::visit([&](const auto &x) { return Check(x); }, rhs.u);
+    return common::visit([&](const auto &x) { return Check(x); }, rhs.u);
   }
 }
 
@@ -172,7 +173,8 @@ bool PointerAssignmentChecker::Check(const evaluate::FunctionRef<T> &f) {
     const auto *frTypeAndShape{funcResult->GetTypeAndShape()};
     CHECK(frTypeAndShape);
     if (!lhsType_->IsCompatibleWith(context_.messages(), *frTypeAndShape,
-            "pointer", "function result", false /*elemental*/,
+            "pointer", "function result",
+            isBoundsRemapping_ /*omit shape check*/,
             evaluate::CheckConformanceFlags::BothDeferredShape)) {
       return false; // IsCompatibleWith() emitted message
     }
@@ -254,11 +256,13 @@ bool PointerAssignmentChecker::Check(const evaluate::Designator<T> &d) {
 }
 
 // Common handling for procedure pointer right-hand sides
-bool PointerAssignmentChecker::Check(
-    parser::CharBlock rhsName, bool isCall, const Procedure *rhsProcedure) {
-  if (std::optional<MessageFixedText> msg{
-          evaluate::CheckProcCompatibility(isCall, procedure_, rhsProcedure)}) {
-    Say(std::move(*msg), description_, rhsName);
+bool PointerAssignmentChecker::Check(parser::CharBlock rhsName, bool isCall,
+    const Procedure *rhsProcedure,
+    const evaluate::SpecificIntrinsic *specific) {
+  std::string whyNot;
+  if (std::optional<MessageFixedText> msg{evaluate::CheckProcCompatibility(
+          isCall, procedure_, rhsProcedure, specific, whyNot)}) {
+    Say(std::move(*msg), description_, rhsName, whyNot);
     return false;
   }
   return true;
@@ -266,24 +270,23 @@ bool PointerAssignmentChecker::Check(
 
 bool PointerAssignmentChecker::Check(const evaluate::ProcedureDesignator &d) {
   if (auto chars{Procedure::Characterize(d, context_)}) {
-    return Check(d.GetName(), false, &*chars);
+    return Check(d.GetName(), false, &*chars, d.GetSpecificIntrinsic());
   } else {
     return Check(d.GetName(), false);
   }
 }
 
 bool PointerAssignmentChecker::Check(const evaluate::ProcedureRef &ref) {
-  const Procedure *procedure{nullptr};
-  auto chars{Procedure::Characterize(ref, context_)};
-  if (chars) {
-    procedure = &*chars;
+  if (auto chars{Procedure::Characterize(ref, context_)}) {
     if (chars->functionResult) {
       if (const auto *proc{chars->functionResult->IsProcedurePointer()}) {
-        procedure = proc;
+        return Check(ref.proc().GetName(), true, proc);
       }
     }
+    return Check(ref.proc().GetName(), true, &*chars);
+  } else {
+    return Check(ref.proc().GetName(), true, nullptr);
   }
-  return Check(ref.proc().GetName(), true, procedure);
 }
 
 // The target can be unlimited polymorphic if the pointer is, or if it is
@@ -321,7 +324,7 @@ static bool CheckPointerBounds(
   const SomeExpr &lhs{assignment.lhs};
   const SomeExpr &rhs{assignment.rhs};
   bool isBoundsRemapping{false};
-  std::size_t numBounds{std::visit(
+  std::size_t numBounds{common::visit(
       common::visitors{
           [&](const evaluate::Assignment::BoundsSpec &bounds) {
             return bounds.size();

@@ -118,35 +118,6 @@ static isl::schedule rebuildBand(isl::schedule_node_band OldBand,
   return NewBand.get_schedule();
 }
 
-/// Recursively visit all nodes of a schedule tree while allowing changes.
-///
-/// The visit methods return an isl::schedule_node that is used to continue
-/// visiting the tree. Structural changes such as returning a different node
-/// will confuse the visitor.
-template <typename Derived, typename... Args>
-struct ScheduleNodeRewriter
-    : public RecursiveScheduleTreeVisitor<Derived, isl::schedule_node,
-                                          Args...> {
-  Derived &getDerived() { return *static_cast<Derived *>(this); }
-  const Derived &getDerived() const {
-    return *static_cast<const Derived *>(this);
-  }
-
-  isl::schedule_node visitNode(const isl::schedule_node &Node, Args... args) {
-    if (!Node.has_children())
-      return Node;
-
-    isl::schedule_node It = Node.first_child();
-    while (true) {
-      It = getDerived().visit(It, std::forward<Args>(args)...);
-      if (!It.has_next_sibling())
-        break;
-      It = It.next_sibling();
-    }
-    return It.parent();
-  }
-};
-
 /// Rewrite a schedule tree by reconstructing it bottom-up.
 ///
 /// By default, the original schedule tree is reconstructed. To build a
@@ -157,7 +128,7 @@ struct ScheduleNodeRewriter
 /// AST build options must be set after the tree has been constructed.
 template <typename Derived, typename... Args>
 struct ScheduleTreeRewriter
-    : public RecursiveScheduleTreeVisitor<Derived, isl::schedule, Args...> {
+    : RecursiveScheduleTreeVisitor<Derived, isl::schedule, Args...> {
   Derived &getDerived() { return *static_cast<Derived *>(this); }
   const Derived &getDerived() const {
     return *static_cast<const Derived *>(this);
@@ -241,7 +212,7 @@ struct ScheduleTreeRewriter
 
 /// Rewrite the schedule tree without any changes. Useful to copy a subtree into
 /// a new schedule, discarding everything but.
-struct IdentityRewriter : public ScheduleTreeRewriter<IdentityRewriter> {};
+struct IdentityRewriter : ScheduleTreeRewriter<IdentityRewriter> {};
 
 /// Rewrite a schedule tree to an equivalent one without extension nodes.
 ///
@@ -254,9 +225,9 @@ struct IdentityRewriter : public ScheduleTreeRewriter<IdentityRewriter> {};
 ///    band nodes to schedule the additional domains at the same position as the
 ///    extension node would.
 ///
-struct ExtensionNodeRewriter
-    : public ScheduleTreeRewriter<ExtensionNodeRewriter, const isl::union_set &,
-                                  isl::union_map &> {
+struct ExtensionNodeRewriter final
+    : ScheduleTreeRewriter<ExtensionNodeRewriter, const isl::union_set &,
+                           isl::union_map &> {
   using BaseTy = ScheduleTreeRewriter<ExtensionNodeRewriter,
                                       const isl::union_set &, isl::union_map &>;
   BaseTy &getBase() { return *this; }
@@ -385,8 +356,8 @@ struct ExtensionNodeRewriter
 ///
 /// ScheduleTreeRewriter cannot apply the schedule tree options. This class
 /// collects these options to apply them later.
-struct CollectASTBuildOptions
-    : public RecursiveScheduleTreeVisitor<CollectASTBuildOptions> {
+struct CollectASTBuildOptions final
+    : RecursiveScheduleTreeVisitor<CollectASTBuildOptions> {
   using BaseTy = RecursiveScheduleTreeVisitor<CollectASTBuildOptions>;
   BaseTy &getBase() { return *this; }
   const BaseTy &getBase() const { return *this; }
@@ -405,8 +376,7 @@ struct CollectASTBuildOptions
 /// This rewrites a schedule tree with the AST build options applied. We assume
 /// that the band nodes are visited in the same order as they were when the
 /// build options were collected, typically by CollectASTBuildOptions.
-struct ApplyASTBuildOptions
-    : public ScheduleNodeRewriter<ApplyASTBuildOptions> {
+struct ApplyASTBuildOptions final : ScheduleNodeRewriter<ApplyASTBuildOptions> {
   using BaseTy = ScheduleNodeRewriter<ApplyASTBuildOptions>;
   BaseTy &getBase() { return *this; }
   const BaseTy &getBase() const { return *this; }
@@ -458,7 +428,7 @@ static bool containsExtensionNode(isl::schedule Schedule) {
 /// Find a named MDNode property in a LoopID.
 static MDNode *findOptionalNodeOperand(MDNode *LoopMD, StringRef Name) {
   return dyn_cast_or_null<MDNode>(
-      findMetadataOperand(LoopMD, Name).getValueOr(nullptr));
+      findMetadataOperand(LoopMD, Name).value_or(nullptr));
 }
 
 /// Is this node of type mark?
@@ -589,7 +559,8 @@ static isl::set addExtentConstraints(isl::set Set, int VectorWidth) {
 }
 
 /// Collapse perfectly nested bands into a single band.
-class BandCollapseRewriter : public ScheduleTreeRewriter<BandCollapseRewriter> {
+class BandCollapseRewriter final
+    : public ScheduleTreeRewriter<BandCollapseRewriter> {
 private:
   using BaseTy = ScheduleTreeRewriter<BandCollapseRewriter>;
   BaseTy &getBase() { return *this; }
@@ -862,7 +833,7 @@ static isl::schedule tryGreedyFuse(isl::schedule_node LHS,
 ///
 /// The isl::union_map parameters is the set of validity dependencies that have
 /// not been resolved/carried by a parent schedule node.
-class GreedyFusionRewriter
+class GreedyFusionRewriter final
     : public ScheduleTreeRewriter<GreedyFusionRewriter, isl::union_map> {
 private:
   using BaseTy = ScheduleTreeRewriter<GreedyFusionRewriter, isl::union_map>;
@@ -1214,7 +1185,7 @@ isl::schedule_node polly::applyRegisterTiling(isl::schedule_node Node,
 
 /// Find statements and sub-loops in (possibly nested) sequences.
 static void
-collectFussionableStmts(isl::schedule_node Node,
+collectFissionableStmts(isl::schedule_node Node,
                         SmallVectorImpl<isl::schedule_node> &ScheduleStmts) {
   if (isBand(Node) || isLeaf(Node)) {
     ScheduleStmts.push_back(Node);
@@ -1224,7 +1195,7 @@ collectFussionableStmts(isl::schedule_node Node,
   if (Node.has_children()) {
     isl::schedule_node C = Node.first_child();
     while (true) {
-      collectFussionableStmts(C, ScheduleStmts);
+      collectFissionableStmts(C, ScheduleStmts);
       if (!C.has_next_sibling())
         break;
       C = C.next_sibling();
@@ -1238,7 +1209,7 @@ isl::schedule polly::applyMaxFission(isl::schedule_node BandToFission) {
   isl::schedule_node BandBody = BandToFission.child(0);
 
   SmallVector<isl::schedule_node> FissionableStmts;
-  collectFussionableStmts(BandBody, FissionableStmts);
+  collectFissionableStmts(BandBody, FissionableStmts);
   size_t N = FissionableStmts.size();
 
   // Collect the domain for each of the statements that will get their own loop.

@@ -14,6 +14,7 @@
 #ifndef MLIR_DIALECT_LLVMIR_LLVMTYPES_H_
 #define MLIR_DIALECT_LLVMIR_LLVMTYPES_H_
 
+#include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/DataLayoutInterfaces.h"
 
@@ -73,7 +74,8 @@ DEFINE_TRIVIAL_LLVM_TYPE(LLVMMetadataType);
 /// type.
 class LLVMArrayType
     : public Type::TypeBase<LLVMArrayType, Type, detail::LLVMTypeAndSizeStorage,
-                            DataLayoutTypeInterface::Trait> {
+                            DataLayoutTypeInterface::Trait,
+                            SubElementTypeInterface::Trait> {
 public:
   /// Inherit base constructors.
   using Base::Base;
@@ -111,6 +113,11 @@ public:
 
   unsigned getPreferredAlignment(const DataLayout &dataLayout,
                                  DataLayoutEntryListRef params) const;
+
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -120,9 +127,9 @@ public:
 /// LLVM dialect function type. It consists of a single return type (unlike MLIR
 /// which can have multiple), a list of parameter types and can optionally be
 /// variadic.
-class LLVMFunctionType
-    : public Type::TypeBase<LLVMFunctionType, Type,
-                            detail::LLVMFunctionTypeStorage> {
+class LLVMFunctionType : public Type::TypeBase<LLVMFunctionType, Type,
+                                               detail::LLVMFunctionTypeStorage,
+                                               SubElementTypeInterface::Trait> {
 public:
   /// Inherit base constructors.
   using Base::Base;
@@ -135,7 +142,7 @@ public:
   static bool isValidResultType(Type type);
 
   /// Returns whether the function is variadic.
-  bool isVarArg();
+  bool isVarArg() const;
 
   /// Gets or creates an instance of LLVM dialect function in the same context
   /// as the `result` type.
@@ -145,8 +152,16 @@ public:
   getChecked(function_ref<InFlightDiagnostic()> emitError, Type result,
              ArrayRef<Type> arguments, bool isVarArg = false);
 
+  /// Returns a clone of this function type with the given argument
+  /// and result types.
+  LLVMFunctionType clone(TypeRange inputs, TypeRange results) const;
+
   /// Returns the result type of the function.
-  Type getReturnType();
+  Type getReturnType() const;
+
+  /// Returns the result type of the function as an ArrayRef, enabling better
+  /// integration with generic MLIR utilities.
+  ArrayRef<Type> getReturnTypes() const;
 
   /// Returns the number of arguments to the function.
   unsigned getNumParams();
@@ -155,12 +170,17 @@ public:
   Type getParamType(unsigned i);
 
   /// Returns a list of argument types of the function.
-  ArrayRef<Type> getParams();
+  ArrayRef<Type> getParams() const;
   ArrayRef<Type> params() { return getParams(); }
 
   /// Verifies that the type about to be constructed is well-formed.
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               Type result, ArrayRef<Type> arguments, bool);
+
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -168,29 +188,39 @@ public:
 //===----------------------------------------------------------------------===//
 
 /// LLVM dialect pointer type. This type typically represents a reference to an
-/// object in memory. It is parameterized by the element type and the address
-/// space.
-class LLVMPointerType : public Type::TypeBase<LLVMPointerType, Type,
-                                              detail::LLVMPointerTypeStorage,
-                                              DataLayoutTypeInterface::Trait> {
+/// object in memory. Pointers may be opaque or parameterized by the element
+/// type. Both opaque and non-opaque pointers are additionally parameterized by
+/// the address space.
+class LLVMPointerType
+    : public Type::TypeBase<
+          LLVMPointerType, Type, detail::LLVMPointerTypeStorage,
+          DataLayoutTypeInterface::Trait, SubElementTypeInterface::Trait> {
 public:
   /// Inherit base constructors.
   using Base::Base;
-  using Base::getChecked;
 
   /// Checks if the given type can have a pointer type pointing to it.
   static bool isValidElementType(Type type);
 
   /// Gets or creates an instance of LLVM dialect pointer type pointing to an
   /// object of `pointee` type in the given address space. The pointer type is
-  /// created in the same context as `pointee`.
+  /// created in the same context as `pointee`. If the pointee is not provided,
+  /// creates an opaque pointer in the given context and address space.
+  static LLVMPointerType get(MLIRContext *context, unsigned addressSpace = 0);
   static LLVMPointerType get(Type pointee, unsigned addressSpace = 0);
   static LLVMPointerType
   getChecked(function_ref<InFlightDiagnostic()> emitError, Type pointee,
              unsigned addressSpace = 0);
+  static LLVMPointerType
+  getChecked(function_ref<InFlightDiagnostic()> emitError, MLIRContext *context,
+             unsigned addressSpace = 0);
 
-  /// Returns the pointed-to type.
+  /// Returns the pointed-to type. It may be null if the pointer is opaque.
   Type getElementType() const;
+
+  /// Returns `true` if this type is the opaque pointer type, i.e., it has no
+  /// pointed-to type.
+  bool isOpaque() const;
 
   /// Returns the address space of the pointer.
   unsigned getAddressSpace() const;
@@ -198,6 +228,10 @@ public:
   /// Verifies that the type about to be constructed is well-formed.
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               Type pointee, unsigned);
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              MLIRContext *context, unsigned) {
+    return success();
+  }
 
   /// Hooks for DataLayoutTypeInterface. Should not be called directly. Obtain a
   /// DataLayout instance and query it instead.
@@ -211,6 +245,11 @@ public:
                      DataLayoutEntryListRef newLayout) const;
   LogicalResult verifyEntries(DataLayoutEntryListRef entries,
                               Location loc) const;
+
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -243,7 +282,9 @@ public:
 /// structs, but does not in uniquing of identified structs.
 class LLVMStructType
     : public Type::TypeBase<LLVMStructType, Type, detail::LLVMStructTypeStorage,
-                            DataLayoutTypeInterface::Trait> {
+                            DataLayoutTypeInterface::Trait,
+                            SubElementTypeInterface::Trait,
+                            TypeTrait::IsMutable> {
 public:
   /// Inherit base constructors.
   using Base::Base;
@@ -337,35 +378,11 @@ public:
 
   LogicalResult verifyEntries(DataLayoutEntryListRef entries,
                               Location loc) const;
-};
 
-//===----------------------------------------------------------------------===//
-// LLVMVectorType.
-//===----------------------------------------------------------------------===//
-
-/// LLVM dialect vector type, represents a sequence of elements that can be
-/// processed as one, typically in SIMD context. This is a base class for fixed
-/// and scalable vectors.
-class LLVMVectorType : public Type {
-public:
-  /// Inherit base constructor.
-  using Type::Type;
-
-  /// Support type casting functionality.
-  static bool classof(Type type);
-
-  /// Checks if the given type can be used in a vector type.
-  static bool isValidElementType(Type type);
-
-  /// Returns the element type of the vector.
-  Type getElementType();
-
-  /// Returns the number of elements in the vector.
-  llvm::ElementCount getElementCount();
-
-  /// Verifies that the type about to be constructed is well-formed.
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              Type elementType, unsigned numElements);
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -376,7 +393,8 @@ public:
 /// length that can be processed as one.
 class LLVMFixedVectorType
     : public Type::TypeBase<LLVMFixedVectorType, Type,
-                            detail::LLVMTypeAndSizeStorage> {
+                            detail::LLVMTypeAndSizeStorage,
+                            SubElementTypeInterface::Trait> {
 public:
   /// Inherit base constructor.
   using Base::Base;
@@ -395,14 +413,19 @@ public:
   static bool isValidElementType(Type type);
 
   /// Returns the element type of the vector.
-  Type getElementType();
+  Type getElementType() const;
 
   /// Returns the number of elements in the fixed vector.
-  unsigned getNumElements();
+  unsigned getNumElements() const;
 
   /// Verifies that the type about to be constructed is well-formed.
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               Type elementType, unsigned numElements);
+
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -414,7 +437,8 @@ public:
 /// elements can be processed as one in SIMD context.
 class LLVMScalableVectorType
     : public Type::TypeBase<LLVMScalableVectorType, Type,
-                            detail::LLVMTypeAndSizeStorage> {
+                            detail::LLVMTypeAndSizeStorage,
+                            SubElementTypeInterface::Trait> {
 public:
   /// Inherit base constructor.
   using Base::Base;
@@ -431,16 +455,21 @@ public:
   static bool isValidElementType(Type type);
 
   /// Returns the element type of the vector.
-  Type getElementType();
+  Type getElementType() const;
 
   /// Returns the scaling factor of the number of elements in the vector. The
   /// vector contains at least the resulting number of elements, or any non-zero
   /// multiple of this number.
-  unsigned getMinNumElements();
+  unsigned getMinNumElements() const;
 
   /// Verifies that the type about to be constructed is well-formed.
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               Type elementType, unsigned minNumElements);
+
+  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
+                                function_ref<void(Type)> walkTypesFn) const;
+  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -459,7 +488,8 @@ void printType(Type type, AsmPrinter &printer);
 // Utility functions.
 //===----------------------------------------------------------------------===//
 
-/// Returns `true` if the given type is compatible with the LLVM dialect.
+/// Returns `true` if the given type is compatible with the LLVM dialect. This
+/// is an alias to `LLVMDialect::isCompatibleType`.
 bool isCompatibleType(Type type);
 
 /// Returns `true` if the given outer type is compatible with the LLVM dialect

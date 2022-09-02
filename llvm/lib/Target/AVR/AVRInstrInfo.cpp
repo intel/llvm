@@ -46,8 +46,9 @@ void AVRInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   const AVRRegisterInfo &TRI = *STI.getRegisterInfo();
   unsigned Opc;
 
-  // Not all AVR devices support the 16-bit `MOVW` instruction.
   if (AVR::DREGSRegClass.contains(DestReg, SrcReg)) {
+    // If our AVR has `movw`, let's emit that; otherwise let's emit two separate
+    // `mov`s.
     if (STI.hasMOVW() && AVR::DREGSMOVWRegClass.contains(DestReg, SrcReg)) {
       BuildMI(MBB, MI, DL, get(AVR::MOVWRdRr), DestReg)
           .addReg(SrcReg, getKillRegState(KillSrc));
@@ -57,11 +58,17 @@ void AVRInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       TRI.splitReg(DestReg, DestLo, DestHi);
       TRI.splitReg(SrcReg, SrcLo, SrcHi);
 
-      // Copy each individual register with the `MOV` instruction.
-      BuildMI(MBB, MI, DL, get(AVR::MOVRdRr), DestLo)
-          .addReg(SrcLo, getKillRegState(KillSrc));
-      BuildMI(MBB, MI, DL, get(AVR::MOVRdRr), DestHi)
-          .addReg(SrcHi, getKillRegState(KillSrc));
+      if (DestLo == SrcHi) {
+        BuildMI(MBB, MI, DL, get(AVR::MOVRdRr), DestHi)
+            .addReg(SrcHi, getKillRegState(KillSrc));
+        BuildMI(MBB, MI, DL, get(AVR::MOVRdRr), DestLo)
+            .addReg(SrcLo, getKillRegState(KillSrc));
+      } else {
+        BuildMI(MBB, MI, DL, get(AVR::MOVRdRr), DestLo)
+            .addReg(SrcLo, getKillRegState(KillSrc));
+        BuildMI(MBB, MI, DL, get(AVR::MOVRdRr), DestHi)
+            .addReg(SrcHi, getKillRegState(KillSrc));
+      }
     }
   } else {
     if (AVR::GPR8RegClass.contains(DestReg, SrcReg)) {
@@ -299,16 +306,14 @@ bool AVRInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
       }
 
       // If the block has any instructions after a JMP, delete them.
-      while (std::next(I) != MBB.end()) {
-        std::next(I)->eraseFromParent();
-      }
+      MBB.erase(std::next(I), MBB.end());
 
       Cond.clear();
-      FBB = 0;
+      FBB = nullptr;
 
       // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
-        TBB = 0;
+        TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
         UnCondBrIter = MBB.end();
@@ -571,8 +576,6 @@ void AVRInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   // See lib/CodeGen/RegisterRelaxation.cpp for details.
   // We end up here when a jump is too long for a RJMP instruction.
   BuildMI(&MBB, DL, get(AVR::JMPk)).addMBB(&NewDestBB);
-
-  return;
 }
 
 } // end of namespace llvm

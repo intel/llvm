@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_IR_AFFINE_EXPR_VISITOR_H
-#define MLIR_IR_AFFINE_EXPR_VISITOR_H
+#ifndef MLIR_IR_AFFINEEXPRVISITOR_H
+#define MLIR_IR_AFFINEEXPRVISITOR_H
 
 #include "mlir/IR/AffineExpr.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -65,7 +65,8 @@ namespace mlir {
 /// just as efficient as having your own switch instruction over the instruction
 /// opcode.
 
-template <typename SubClass, typename RetTy = void> class AffineExprVisitor {
+template <typename SubClass, typename RetTy = void>
+class AffineExprVisitor {
   //===--------------------------------------------------------------------===//
   // Interface code - This is the public interface of the AffineExprVisitor
   // that you use to visit affine expressions...
@@ -342,4 +343,4 @@ private:
 
 } // namespace mlir
 
-#endif // MLIR_IR_AFFINE_EXPR_VISITOR_H
+#endif // MLIR_IR_AFFINEEXPRVISITOR_H

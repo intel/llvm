@@ -1,20 +1,17 @@
-if (NOT IS_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../libcxx")
-  message(FATAL_ERROR "libunwind requires being built in a monorepo layout with libcxx available")
-endif()
-
 #===============================================================================
 # Setup Project
 #===============================================================================
 
 cmake_minimum_required(VERSION 3.13.4)
 
+set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+
 # Add path for custom modules
-set(CMAKE_MODULE_PATH
+list(INSERT CMAKE_MODULE_PATH 0
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/Modules"
-  ${CMAKE_MODULE_PATH}
+  "${LLVM_COMMON_CMAKE_UTILS}"
+  "${LLVM_COMMON_CMAKE_UTILS}/Modules"
   )
 
 set(LIBUNWIND_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
@@ -22,33 +19,7 @@ set(LIBUNWIND_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
 set(LIBUNWIND_LIBCXX_PATH "${CMAKE_CURRENT_LIST_DIR}/../libcxx" CACHE PATH
         "Specify path to libc++ source.")
 
-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBUNWIND_STANDALONE_BUILD)
-  # We may have an incomplete toolchain - do language support tests without
-  # linking.
-  include(EnableLanguageNolink)
-  project(libunwind LANGUAGES NONE)
-  llvm_enable_language_nolink(C CXX ASM)
-
-  set(PACKAGE_NAME libunwind)
-  set(PACKAGE_VERSION 14.0.0git)
-  set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
-  set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
-
-  # Add the CMake module path of libcxx so we can reuse HandleOutOfTreeLLVM.cmake
-  set(LIBUNWIND_LIBCXX_CMAKE_PATH "${LIBUNWIND_LIBCXX_PATH}/cmake/Modules")
-  list(APPEND CMAKE_MODULE_PATH "${LIBUNWIND_LIBCXX_CMAKE_PATH}")
-
-  # In a standalone build, we don't have llvm to automatically generate the
-  # llvm-lit script for us.  So we need to provide an explicit directory that
-  # the configurator should write the script into.
-  set(LIBUNWIND_STANDALONE_BUILD 1)
-  set(LLVM_LIT_OUTPUT_DIR "${LIBUNWIND_BINARY_DIR}/bin")
-
-  # Find the LLVM sources and simulate LLVM CMake options.
-  include(HandleOutOfTreeLLVM)
-else()
-  set(LLVM_LIT "${CMAKE_SOURCE_DIR}/utils/lit/lit.py")
-endif()
+include(GNUInstallDirs)
 
 #===============================================================================
 # Setup CMake Options
@@ -89,18 +60,15 @@ cmake_dependent_option(LIBUNWIND_INSTALL_STATIC_LIBRARY
 cmake_dependent_option(LIBUNWIND_INSTALL_SHARED_LIBRARY
   "Install the shared libunwind library." ON
   "LIBUNWIND_ENABLE_SHARED;LIBUNWIND_INSTALL_LIBRARY" OFF)
-if(CMAKE_CXX_COMPILER_TARGET)
-  set(LIBUNWIND_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
-else()
-  set(LIBUNWIND_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
-endif()
-set(LIBUNWIND_TARGET_TRIPLE "${LIBUNWIND_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Target triple for cross compiling.")
-set(LIBUNWIND_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}" CACHE PATH "GCC toolchain for cross compiling.")
-set(LIBUNWIND_SYSROOT "${CMAKE_SYSROOT}" CACHE PATH "Sysroot for cross compiling.")
 set(LIBUNWIND_TEST_LINKER_FLAGS "" CACHE STRING
     "Additional linker flags for test programs.")
 set(LIBUNWIND_TEST_COMPILER_FLAGS "" CACHE STRING
     "Additional compiler flags for test programs.")
+
+# TODO: Remove this after branching for LLVM 15
+if(LIBUNWIND_SYSROOT OR LIBUNWIND_TARGET_TRIPLE OR LIBUNWIND_GCC_TOOLCHAIN)
+  message(WARNING "LIBUNWIND_SYSROOT, LIBUNWIND_TARGET_TRIPLE and LIBUNWIND_GCC_TOOLCHAIN are not supported anymore, please use the native CMake equivalents instead")
+endif()
 
 if (LIBUNWIND_ENABLE_SHARED)
   set(LIBUNWIND_DEFAULT_TEST_CONFIG "llvm-libunwind-shared.cfg.in")
@@ -113,6 +81,7 @@ set(LIBUNWIND_TEST_CONFIG "${LIBUNWIND_DEFAULT_TEST_CONFIG}" CACHE STRING
 if (NOT IS_ABSOLUTE "${LIBUNWIND_TEST_CONFIG}")
   set(LIBUNWIND_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/configs/${LIBUNWIND_TEST_CONFIG}")
 endif()
+message(STATUS "Using libunwind testing configuration: ${LIBUNWIND_TEST_CONFIG}")
 set(LIBUNWIND_TEST_PARAMS "" CACHE STRING
     "A list of parameters to run the Lit test suite with.")
 
@@ -124,8 +93,13 @@ if (LIBUNWIND_ENABLE_CET AND MSVC)
   message(FATAL_ERROR "libunwind CET support is not available for MSVC!")
 endif()
 
+if (WIN32)
+  set(LIBUNWIND_DEFAULT_HIDE_SYMBOLS TRUE)
+else()
+  set(LIBUNWIND_DEFAULT_HIDE_SYMBOLS FALSE)
+endif()
 option(LIBUNWIND_HIDE_SYMBOLS
-  "Do not export any symbols from the static library." OFF)
+  "Do not export any symbols from the static library." ${LIBUNWIND_DEFAULT_HIDE_SYMBOLS})
 
 #===============================================================================
 # Configure System
@@ -136,28 +110,27 @@ set(CMAKE_MODULE_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
     ${CMAKE_MODULE_PATH})
 
+set(LIBUNWIND_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}" CACHE PATH
+    "Path where built libunwind headers should be installed.")
+set(LIBUNWIND_INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+    "Path where built libunwind runtime libraries should be installed.")
+
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBUNWIND_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE})
   set(LIBUNWIND_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE} CACHE PATH
       "Path where built libunwind libraries should be installed.")
-  set(LIBUNWIND_INSTALL_RUNTIME_DIR bin CACHE PATH
-      "Path where built libunwind runtime libraries should be installed.")
   if(LIBCXX_LIBDIR_SUBDIR)
     string(APPEND LIBUNWIND_LIBRARY_DIR /${LIBUNWIND_LIBDIR_SUBDIR})
     string(APPEND LIBUNWIND_INSTALL_LIBRARY_DIR /${LIBUNWIND_LIBDIR_SUBDIR})
   endif()
-elseif(LLVM_LIBRARY_OUTPUT_INTDIR)
-  set(LIBUNWIND_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
-  set(LIBUNWIND_INSTALL_LIBRARY_DIR lib${LIBUNWIND_LIBDIR_SUFFIX} CACHE PATH
-      "Path where built libunwind libraries should be installed.")
-  set(LIBUNWIND_INSTALL_RUNTIME_DIR bin CACHE PATH
-      "Path where built libunwind runtime libraries should be installed.")
 else()
-  set(LIBUNWIND_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBUNWIND_LIBDIR_SUFFIX})
+  if(LLVM_LIBRARY_OUTPUT_INTDIR)
+    set(LIBUNWIND_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
+  else()
+    set(LIBUNWIND_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBUNWIND_LIBDIR_SUFFIX})
+  endif()
   set(LIBUNWIND_INSTALL_LIBRARY_DIR lib${LIBUNWIND_LIBDIR_SUFFIX} CACHE PATH
       "Path where built libunwind libraries should be installed.")
-  set(LIBUNWIND_INSTALL_RUNTIME_DIR bin CACHE PATH
-      "Path where built libunwind runtime libraries should be installed.")
 endif()
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIBUNWIND_LIBRARY_DIR})
@@ -175,25 +148,6 @@ include(HandleLibunwindFlags)
 #===============================================================================
 # Setup Compiler Flags
 #===============================================================================
-
-# Compiler tests may be failing if the compiler implicitly links in libunwind,
-# which doesn't exist yet. This gets waived by --unwindlib=none
-# later in config-ix below, but the tests for --target etc before that may
-# be failing due to it. Only test compilation, not linking, for these
-# tests here now.
-set(CMAKE_TRY_COMPILE_TARGET_TYPE_ORIG ${CMAKE_TRY_COMPILE_TARGET_TYPE})
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-
-if(LIBUNWIND_TARGET_TRIPLE)
-  add_target_flags_if_supported("--target=${LIBUNWIND_TARGET_TRIPLE}")
-endif()
-if(LIBUNWIND_GCC_TOOLCHAIN)
-  add_target_flags_if_supported("--gcc-toolchain=${LIBUNWIND_GCC_TOOLCHAIN}")
-endif()
-if(LIBUNWIND_SYSROOT)
-  add_target_flags_if_supported("--sysroot=${LIBUNWIND_SYSROOT}")
-endif()
-set(CMAKE_TRY_COMPILE_TARGET_TYPE ${CMAKE_TRY_COMPILE_TARGET_TYPE_ORIG})
 
 # Configure compiler.
 include(config-ix)
@@ -282,7 +236,7 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 add_compile_flags_if_supported(-funwind-tables)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE ${_previous_CMAKE_TRY_COMPILE_TARGET_TYPE})
 
-if (LIBUNWIND_USES_ARM_EHABI AND NOT LIBUNWIND_SUPPORTS_FUNWIND_TABLES_FLAG)
+if (LIBUNWIND_USES_ARM_EHABI AND NOT CXX_SUPPORTS_FUNWIND_TABLES_FLAG)
   message(SEND_ERROR "The -funwind-tables flag must be supported "
                      "because this target uses ARM Exception Handling ABI")
 endif()
@@ -291,7 +245,7 @@ add_cxx_compile_flags_if_supported(-fno-exceptions)
 add_cxx_compile_flags_if_supported(-fno-rtti)
 
 # Ensure that we don't depend on C++ standard library.
-if (LIBUNWIND_HAS_NOSTDINCXX_FLAG)
+if (CXX_SUPPORTS_NOSTDINCXX_FLAG)
   list(APPEND LIBUNWIND_COMPILE_FLAGS -nostdinc++)
   # Remove -stdlib flags to prevent them from causing an unused flag warning.
   string(REPLACE "--stdlib=libc++" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -310,11 +264,11 @@ if (LIBUNWIND_ENABLE_ASSERTIONS)
 
   # On Release builds cmake automatically defines NDEBUG, so we
   # explicitly undefine it:
-  if (uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+  if (NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
     add_compile_flags(-UNDEBUG)
   endif()
 else()
-  if (NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+  if (uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
     add_compile_flags(-DNDEBUG)
   endif()
 endif()
@@ -355,12 +309,7 @@ if (MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-# Disable DLL annotations on Windows for static builds.
-if (WIN32 AND LIBUNWIND_ENABLE_STATIC AND NOT LIBUNWIND_ENABLE_SHARED)
-  add_definitions(-D_LIBUNWIND_HIDE_SYMBOLS)
-endif()
-
-if (LIBUNWIND_HAS_COMMENT_LIB_PRAGMA)
+if (C_SUPPORTS_COMMENT_LIB_PRAGMA)
   if (LIBUNWIND_HAS_DL_LIB)
     add_definitions(-D_LIBUNWIND_LINK_DL_LIB)
   endif()

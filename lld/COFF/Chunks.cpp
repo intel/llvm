@@ -12,8 +12,8 @@
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "Writer.h"
-#include "lld/Common/ErrorHandler.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Support/Debug.h"
@@ -430,7 +430,7 @@ void SectionChunk::sortRelocations() {
     return;
   warn("some relocations in " + file->getName() + " are not sorted");
   MutableArrayRef<coff_relocation> newRelocs(
-      bAlloc.Allocate<coff_relocation>(relocsSize), relocsSize);
+      bAlloc().Allocate<coff_relocation>(relocsSize), relocsSize);
   memcpy(newRelocs.data(), relocsData, relocsSize * sizeof(coff_relocation));
   llvm::sort(newRelocs, cmpByVa);
   setRelocs(newRelocs);
@@ -635,7 +635,7 @@ void SectionChunk::printDiscardedMessage() const {
   // Removed by dead-stripping. If it's removed by ICF, ICF already
   // printed out the name, so don't repeat that here.
   if (sym && this == repl)
-    message("Discarded " + sym->getName());
+    log("Discarded " + sym->getName());
 }
 
 StringRef SectionChunk::getDebugName() const {
@@ -816,7 +816,7 @@ void RVATableChunk::writeTo(uint8_t *buf) const {
   size_t cnt = 0;
   for (const ChunkAndOffset &co : syms)
     begin[cnt++] = co.inputChunk->getRVA() + co.offset;
-  std::sort(begin, begin + cnt);
+  llvm::sort(begin, begin + cnt);
   assert(std::unique(begin, begin + cnt) == begin + cnt &&
          "RVA tables should be de-duplicated");
 }

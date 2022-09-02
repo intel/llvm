@@ -1,7 +1,7 @@
 Support, Getting Involved, and FAQ
 ==================================
 
-Please do not hesitate to reach out to us via openmp-dev@lists.llvm.org or join
+Please do not hesitate to reach out to us on the `Discourse forums (Runtimes - OpenMP) <https://discourse.llvm.org/c/runtimes/openmp/35>`_ or join
 one of our :ref:`regular calls <calls>`. Some common questions are answered in
 the :ref:`faq`.
 
@@ -37,7 +37,7 @@ FAQ
 .. note::
    The FAQ is a work in progress and most of the expected content is not
    yet available. While you can expect changes, we always welcome feedback and
-   additions. Please contact, e.g., through ``openmp-dev@lists.llvm.org``.
+   additions. Please post on the `Discourse forums (Runtimes - OpenMP) <https://discourse.llvm.org/c/runtimes/openmp/35>`__.
 
 
 Q: How to contribute a patch to the webpage or any other part?
@@ -151,14 +151,17 @@ bugs.
 Q: What are the LLVM components used in offloading and how are they found?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The libraries used by an executable compiled for target offloading are:
+
 - ``libomp.so`` (or similar), the host openmp runtime
 - ``libomptarget.so``, the target-agnostic target offloading openmp runtime
 - plugins loaded by libomptarget.so:
+
   - ``libomptarget.rtl.amdgpu.so``
   - ``libomptarget.rtl.cuda.so``
   - ``libomptarget.rtl.x86_64.so``
   - ``libomptarget.rtl.ve.so``
   - and others
+
 - dependencies of those plugins, e.g. cuda/rocr for nvptx/amdgpu
 
 The compiled executable is dynamically linked against a host runtime, e.g.
@@ -313,3 +316,16 @@ Using this module requires at least CMake version 3.13.4. Supported languages
 are C and C++ with Fortran support planned in the future. Compiler support is
 best for Clang but this module should work for other compiler vendors such as
 IBM, GNU.
+
+Q: What does 'Stack size for entry function cannot be statically determined' mean?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This is a warning that the Nvidia tools will sometimes emit if the offloading
+region is too complex. Normally, the CUDA tools attempt to statically determine
+how much stack memory each thread. This way when the kernel is launched each
+thread will have as much memory as it needs. If the control flow of the kernel
+is too complex, containing recursive calls or nested parallelism, this analysis
+can fail. If this warning is triggered it means that the kernel may run out of
+stack memory during execution and crash. The environment variable
+``LIBOMPTARGET_STACK_SIZE`` can be used to increase the stack size if this
+occurs.

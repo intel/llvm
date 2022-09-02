@@ -37,13 +37,34 @@ def _memoizeExpensiveOperation(extractCacheKey):
   We pickle the cache key to make sure we store an immutable representation
   of it. If we stored an object and the object was referenced elsewhere, it
   could be changed from under our feet, which would break the cache.
+
+  We also store the cache for a given function persistently across invocations
+  of Lit. This dramatically speeds up the configuration of the test suite when
+  invoking Lit repeatedly, which is important for developer workflow. However,
+  with the current implementation that does not synchronize updates to the
+  persistent cache, this also means that one should not call a memoized
+  operation from multiple threads. This should normally not be a problem
+  since Lit configuration is single-threaded.
   """
   def decorator(function):
-    cache = {}
-    def f(*args, **kwargs):
-      cacheKey = pickle.dumps(extractCacheKey(*args, **kwargs))
+    def f(config, *args, **kwargs):
+      cacheRoot = os.path.join(config.test_exec_root, '__config_cache__')
+      persistentCache = os.path.join(cacheRoot, function.__name__)
+      if not os.path.exists(cacheRoot):
+        os.makedirs(cacheRoot)
+
+      cache = {}
+      # Load a cache from a previous Lit invocation if there is one.
+      if os.path.exists(persistentCache):
+        with open(persistentCache, 'rb') as cacheFile:
+          cache = pickle.load(cacheFile)
+
+      cacheKey = pickle.dumps(extractCacheKey(config, *args, **kwargs))
       if cacheKey not in cache:
-        cache[cacheKey] = function(*args, **kwargs)
+        cache[cacheKey] = function(config, *args, **kwargs)
+        # Update the persistent cache so it knows about the new key
+        with open(persistentCache, 'wb') as cacheFile:
+          pickle.dump(cache, cacheFile)
       return cache[cacheKey]
     return f
   return decorator
@@ -66,6 +87,7 @@ def _executeScriptInternal(test, commands):
     noExecute=False,
     debug=False,
     isWindows=platform.system() == 'Windows',
+    order='smart',
     params={})
   _, tmpBase = libcxx.test.format._getTempPaths(test)
   execDir = os.path.dirname(test.getExecPath())
@@ -154,6 +176,22 @@ def programOutput(config, program, args=None):
     actualOut = actualOut.group(1) if actualOut else ""
     return actualOut
 
+@_memoizeExpensiveOperation(lambda c, p, args=None: (c.substitutions, c.environment, p, args))
+def programSucceeds(config, program, args=None):
+  """
+  Compiles a program for the test target, run it on the test target and return
+  whether it completed successfully.
+
+  Note that execution of the program is done through the %{exec} substitution,
+  which means that the program may be run on a remote host depending on what
+  %{exec} does.
+  """
+  try:
+    programOutput(config, program, args)
+  except ConfigurationRuntimeError:
+    return False
+  return True
+
 @_memoizeExpensiveOperation(lambda c, f: (c.substitutions, c.environment, f))
 def hasCompileFlag(config, flag):
   """
@@ -179,6 +217,21 @@ def runScriptExitCode(config, script):
   with _makeConfigTest(config) as test:
     _, _, exitCode, _ = _executeScriptInternal(test, script)
     return exitCode
+
+@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
+def commandOutput(config, command):
+  """
+  Runs the given script as a Lit test, and returns the output.
+  If the exit code isn't 0 an exception is raised.
+
+  The script must be a list of commands, each of which being something that
+  could appear on the right-hand-side of a `RUN:` keyword.
+  """
+  with _makeConfigTest(config) as test:
+    out, _, exitCode, _ = _executeScriptInternal(test, command)
+    if exitCode != 0:
+     raise ConfigurationRuntimeError()
+    return out
 
 @_memoizeExpensiveOperation(lambda c, l: (c.substitutions, c.environment, l))
 def hasAnyLocale(config, locales):
@@ -208,11 +261,7 @@ def hasAnyLocale(config, locales):
       }
     #endif
   """
-  try:
-    programOutput(config, program, args=[pipes.quote(l) for l in locales])
-  except ConfigurationRuntimeError:
-    return False
-  return True
+  return programSucceeds(config, program, args=[pipes.quote(l) for l in locales])
 
 @_memoizeExpensiveOperation(lambda c, flags='': (c.substitutions, c.environment, flags))
 def compilerMacros(config, flags=''):
@@ -227,9 +276,11 @@ def compilerMacros(config, flags=''):
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
-      # Make sure files like <__config> are included, since they can define
-      # additional macros.
-      sourceFile.write("#include <stddef.h>")
+      sourceFile.write("""
+      #if __has_include(<__config_site>)
+      #  include <__config_site>
+      #endif
+      """)
     unparsedOutput, err, exitCode, _ = _executeScriptInternal(test, [
       "%{{cxx}} %s -dM -E %{{flags}} %{{compile_flags}} {}".format(flags)
     ])
@@ -553,7 +604,7 @@ class Parameter(object):
   Parameters are used to customize the behavior of test suites in a user
   controllable way. There are two ways of setting the value of a Parameter.
   The first one is to pass `--param <KEY>=<VALUE>` when running Lit (or
-  equivalenlty to set `litConfig.params[KEY] = VALUE` somewhere in the
+  equivalently to set `litConfig.params[KEY] = VALUE` somewhere in the
   Lit configuration files. This method will set the parameter globally for
   all test suites being run.
 

@@ -9,6 +9,7 @@
 #ifndef SPARSETENSOR_ATTRDEFS
 #define SPARSETENSOR_ATTRDEFS
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/Dialect/SparseTensor/IR/SparseTensorBase.td"
 include "mlir/IR/TensorEncoding.td"
 
@@ -79,16 +80,32 @@ def SparseTensorEncodingAttr : SparseTensor_Attr<"SparseTensorEncoding",
   );
 
   let genVerifyDecl = 1;
+  let hasCustomAssemblyFormat = 1;
 
   let extraClassDeclaration = [{
     // Dimension level types that define sparse tensors:
-    //   Dense      - dimension is dense, every entry is stored
-    //   Compressed - dimension is sparse, only nonzeros are stored
-    //   Singleton  - dimension contains single coordinate, no siblings
+    //   Dense               - dimension is dense, every entry is stored
+    //   Compressed (unique) - dimension is sparse, only nonzeros are stored (no duplicates)
     enum class DimLevelType {
-      Dense, Compressed, Singleton
+      Dense, Compressed
     };
   }];
 }
+
+def IsSparseTensorPred
+  : CPred<"!!::mlir::sparse_tensor::getSparseTensorEncoding($_self)">;
+
+// The following four follow the same idiom as `TensorOf`, `AnyTensor`,
+// `RankedTensorOf`, `AnyRankedTensor`.
+
+class SparseTensorOf<list<Type> allowedTypes>
+  : TensorOf<allowedTypes, [IsSparseTensorPred], "sparse tensor">;
+
+def AnySparseTensor : SparseTensorOf<[AnyType]>;
+
+class RankedSparseTensorOf<list<Type> allowedTypes>
+  : RankedTensorOf<allowedTypes, [IsSparseTensorPred], "ranked sparse tensor">;
+
+def AnyRankedSparseTensor : RankedSparseTensorOf<[AnyType]>;
 
 #endif // SPARSETENSOR_ATTRDEFS

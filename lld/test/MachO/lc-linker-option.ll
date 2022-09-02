@@ -77,6 +77,54 @@
 ; SYMS-NEXT:  g     F __TEXT,__text __mh_execute_header
 ; SYMS-EMPTY:
 
+;; Make sure -all_load has effect when libraries are loaded via LC_LINKER_OPTION flags and explicitly passed as well
+; RUN: %lld -all_load %t/load-framework-foo.o %t/load-library-foo.o %t/main.o -o %t/main -F%t -L%t -lfoo
+; RUN: llvm-objdump --macho --syms %t/main | FileCheck %s --check-prefix=SYMS_ALL_LOAD
+
+;; Note that _OBJC_CLASS_$_TestClass is *included* here.
+; SYMS_ALL_LOAD:       SYMBOL TABLE:
+; SYMS_ALL_LOAD-NEXT:  g     F __TEXT,__text _main
+; SYMS_ALL_LOAD-NEXT:  g     O __DATA,__objc_data _OBJC_CLASS_$_TestClass
+; SYMS_ALL_LOAD-NEXT:  g     F __TEXT,__text __mh_execute_header
+; SYMS_ALL_LOAD-EMPTY:
+
+;; Make sure -force_load has effect when libraries are loaded via LC_LINKER_OPTION flags and explicitly passed as well
+; RUN: %lld %t/load-library-foo.o %t/main.o -o %t/main -F%t -L%t -force_load %t/libfoo.a
+; RUN: llvm-objdump --macho --syms %t/main | FileCheck %s --check-prefix=SYMS_FORCE_LOAD
+
+;; Note that _OBJC_CLASS_$_TestClass is *included* here.
+; SYMS_FORCE_LOAD:       SYMBOL TABLE:
+; SYMS_FORCE_LOAD-NEXT:  g     F __TEXT,__text _main
+; SYMS_FORCE_LOAD-NEXT:  g     O __DATA,__objc_data _OBJC_CLASS_$_TestClass
+; SYMS_FORCE_LOAD-NEXT:  g     F __TEXT,__text __mh_execute_header
+; SYMS_FORCE_LOAD-EMPTY:
+
+;; Make sure -ObjC has effect when frameworks are loaded via LC_LINKER_OPTION flags and explicitly passed as well
+; RUN: %lld -ObjC %t/load-framework-foo.o %t/load-library-foo.o %t/main.o -o %t/main -F%t -L%t -framework Foo
+; RUN: llvm-objdump --macho --syms %t/main | FileCheck %s --check-prefix=SYMS_OBJC_LOAD
+
+;; Note that _OBJC_CLASS_$_TestClass is *included* here.
+; SYMS_OBJC_LOAD:       SYMBOL TABLE:
+; SYMS_OBJC_LOAD-NEXT:  g     F __TEXT,__text _main
+; SYMS_OBJC_LOAD-NEXT:  g     O __DATA,__objc_data _OBJC_CLASS_$_TestClass
+; SYMS_OBJC_LOAD-NEXT:  g     F __TEXT,__text __mh_execute_header
+; SYMS_OBJC_LOAD-EMPTY:
+
+;; Make sure that frameworks containing object files or bitcode instead of
+;; dylibs or archives do not cause duplicate symbol errors
+; RUN: mkdir -p %t/Foo.framework
+; RUN: llc --filetype=obj %t/foo.ll -o %t/Foo.framework/Foo
+; RUN: llc --filetype=obj %t/load-framework-twice.ll -o %t/main
+;; Order of the object with the LC_LINKER_OPTION vs -framework arg is important.
+; RUN: %lld %t/main -F %t -framework Foo -framework Foo -o /dev/null
+; RUN: %lld -F %t -framework Foo -framework Foo %t/main -o /dev/null
+
+; RUN: llvm-as %t/foo.ll -o %t/Foo.framework/Foo
+; RUN: llvm-as %t/load-framework-twice.ll -o %t/main
+;; Order of the object with the LC_LINKER_OPTION vs -framework arg is important.
+; RUN: %lld %t/main -F %t -framework Foo -framework Foo -o /dev/null
+; RUN: %lld -F %t -framework Foo -framework Foo %t/main -o /dev/null
+
 ;--- framework.ll
 target triple = "x86_64-apple-macosx10.15.0"
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -126,6 +174,17 @@ target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16
 
 !0 = !{!"-framework", !"Foo"}
 !llvm.linker.options = !{!0}
+
+;--- load-framework-twice.ll
+target triple = "x86_64-apple-macosx10.15.0"
+target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+
+!0 = !{!"-framework", !"Foo"}
+!llvm.linker.options = !{!0, !0}
+
+define void @main() {
+  ret void
+}
 
 ;--- load-library-foo.ll
 target triple = "x86_64-apple-macosx10.15.0"

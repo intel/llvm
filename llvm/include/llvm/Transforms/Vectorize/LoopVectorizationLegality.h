@@ -28,11 +28,26 @@
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
-#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Support/TypeSize.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 
 namespace llvm {
+class AAResults;
+class AssumptionCache;
+class BasicBlock;
+class BlockFrequencyInfo;
+class DemandedBits;
+class DominatorTree;
+class Function;
+class Loop;
+class LoopInfo;
+class Metadata;
+class OptimizationRemarkEmitter;
+class PredicatedScalarEvolution;
+class ProfileSummaryInfo;
+class TargetLibraryInfo;
+class TargetTransformInfo;
+class Type;
 
 /// Utility class for getting and setting loop vectorizer hints in the form
 /// of loop metadata.
@@ -104,14 +119,12 @@ public:
     /// Vectorize loops using scalable vectors or fixed-width vectors, but favor
     /// scalable vectors when the cost-model is inconclusive. This is the
     /// default when the scalable.enable hint is enabled through a pragma.
-    SK_PreferScalable = 1,
-    /// Vectorize loops using scalable vectors or fixed-width  vectors, but
-    /// favor fixed-width vectors when the cost is inconclusive.
-    SK_PreferFixedWidth = 2,
+    SK_PreferScalable = 1
   };
 
   LoopVectorizeHints(const Loop *L, bool InterleaveOnlyWhenForced,
-                     OptimizationRemarkEmitter &ORE);
+                     OptimizationRemarkEmitter &ORE,
+                     const TargetTransformInfo *TTI = nullptr);
 
   /// Mark the loop L as already vectorized by setting the width to 1.
   void setAlreadyVectorized();
@@ -123,9 +136,10 @@ public:
   void emitRemarkWithHints() const;
 
   ElementCount getWidth() const {
-    return ElementCount::get(Width.Value,
-                             isScalableVectorizationExplicitlyEnabled());
+    return ElementCount::get(Width.Value, (ScalableForceKind)Scalable.Value ==
+                                              SK_PreferScalable);
   }
+
   unsigned getInterleave() const {
     if (Interleave.Value)
       return Interleave.Value;
@@ -144,22 +158,9 @@ public:
     return (ForceKind)Force.Value;
   }
 
-  /// \return true if the cost-model for scalable vectorization should
-  /// favor vectorization with scalable vectors over fixed-width vectors when
-  /// the cost-model is inconclusive.
-  bool isScalableVectorizationPreferred() const {
-    return Scalable.Value == SK_PreferScalable;
-  }
-
-  /// \return true if scalable vectorization has been explicitly enabled.
-  bool isScalableVectorizationExplicitlyEnabled() const {
-    return Scalable.Value == SK_PreferFixedWidth ||
-           Scalable.Value == SK_PreferScalable;
-  }
-
   /// \return true if scalable vectorization has been explicitly disabled.
   bool isScalableVectorizationDisabled() const {
-    return Scalable.Value == SK_FixedWidthOnly;
+    return (ScalableForceKind)Scalable.Value == SK_FixedWidthOnly;
   }
 
   /// If hints are provided that force vectorization, use the AlwaysPrint
@@ -218,17 +219,9 @@ public:
       ExactFPMathInst = I;
   }
 
-  void addRuntimePointerChecks(unsigned Num) { NumRuntimePointerChecks = Num; }
-
-
   Instruction *getExactFPInst() { return ExactFPMathInst; }
 
-  unsigned getNumRuntimePointerChecks() const {
-    return NumRuntimePointerChecks;
-  }
-
 private:
-  unsigned NumRuntimePointerChecks = 0;
   Instruction *ExactFPMathInst = nullptr;
 };
 
@@ -307,12 +300,24 @@ public:
   /// Returns the widest induction type.
   Type *getWidestInductionType() { return WidestIndTy; }
 
+  /// Returns True if given store is a final invariant store of one of the
+  /// reductions found in the loop.
+  bool isInvariantStoreOfReduction(StoreInst *SI);
+
+  /// Returns True if given address is invariant and is used to store recurrent
+  /// expression
+  bool isInvariantAddressOfReduction(Value *V);
+
   /// Returns True if V is a Phi node of an induction variable in this loop.
   bool isInductionPhi(const Value *V) const;
 
   /// Returns a pointer to the induction descriptor, if \p Phi is an integer or
   /// floating point induction.
   const InductionDescriptor *getIntOrFpInductionDescriptor(PHINode *Phi) const;
+
+  /// Returns a pointer to the induction descriptor, if \p Phi is pointer
+  /// induction.
+  const InductionDescriptor *getPointerInductionDescriptor(PHINode *Phi) const;
 
   /// Returns True if V is a cast that is part of an induction def-use chain,
   /// and had been proven to be redundant under a runtime guard (in other

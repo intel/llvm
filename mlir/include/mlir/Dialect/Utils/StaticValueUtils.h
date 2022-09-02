@@ -48,10 +48,16 @@ OpFoldResult getAsOpFoldResult(Value val);
 
 /// Given an array of values, try to extract a constant Attribute from each
 /// value. If this fails, return the original value.
-SmallVector<OpFoldResult> getAsOpFoldResult(ArrayRef<Value> values);
+SmallVector<OpFoldResult> getAsOpFoldResult(ValueRange values);
+
+/// Convert `arrayAttr` to a vector of OpFoldResult.
+SmallVector<OpFoldResult> getAsOpFoldResult(ArrayAttr arrayAttr);
 
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
 Optional<int64_t> getConstantIntValue(OpFoldResult ofr);
+
+/// Return true if `ofr` is constant integer equal to `value`.
+bool isConstantIntValue(OpFoldResult ofr, int64_t value);
 
 /// Return true if ofr1 and ofr2 are the same integer constant attribute values
 /// or the same SSA value.

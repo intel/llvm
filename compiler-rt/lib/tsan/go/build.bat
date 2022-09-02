@@ -1,7 +1,6 @@
 type ^
   tsan_go.cpp ^
   ..\rtl\tsan_interface_atomic.cpp ^
-  ..\rtl\tsan_clock.cpp ^
   ..\rtl\tsan_flags.cpp ^
   ..\rtl\tsan_md5.cpp ^
   ..\rtl\tsan_report.cpp ^
@@ -58,7 +57,11 @@ gcc ^
   -Wno-format ^
   -Wno-maybe-uninitialized ^
   -DSANITIZER_DEBUG=0 ^
+  -DSANITIZER_WINDOWS=1 ^
   -O3 ^
   -fomit-frame-pointer ^
-  -msse4.2 ^
+  -msse3 ^
   -std=c++14
+
+rem "-msse3" used above to ensure continued support of older
+rem cpus (for now), see https://github.com/golang/go/issues/53743.

@@ -150,12 +150,16 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
   SPIRVExtInst *DV = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DV->getBasicBlock();
   Value *Val = DbgValue->getVariableLocationOp(0);
-
+  DIExpression *Expr = DbgValue->getExpression();
+  if (DbgValue->getNumVariableLocationOps() > 1) {
+    Val = UndefValue::get(Val->getType());
+    Expr = DIExpression::get(M->getContext(), {});
+  }
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount);
   Ops[DebugLocalVarIdx] = transDbgEntry(DbgValue->getVariable())->getId();
   Ops[ValueIdx] = SPIRVWriter->transValue(Val, BB)->getId();
-  Ops[ExpressionIdx] = transDbgEntry(DbgValue->getExpression())->getId();
+  Ops[ExpressionIdx] = transDbgEntry(Expr)->getId();
   DV->setArguments(Ops);
 }
 
@@ -557,6 +561,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
   // For N-dimensianal arrays AR.getNumElements() == N
   const unsigned N = AR.size();
   Ops.resize(ComponentCountIdx + N);
+  SPIRVWordVec LowerBounds(N);
   for (unsigned I = 0; I < N; ++I) {
     DISubrange *SR = cast<DISubrange>(AR[I]);
     ConstantInt *Count = SR->getCount().get<ConstantInt *>();
@@ -569,9 +574,23 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
       Ops[ComponentCountIdx + I] =
           SPIRVWriter->transValue(Count, nullptr)->getId();
     } else {
-      Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
+      if (auto *UpperBound = dyn_cast<MDNode>(SR->getRawUpperBound()))
+        Ops[ComponentCountIdx + I] = transDbgEntry(UpperBound)->getId();
+      else
+        Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
+    }
+    if (auto *RawLB = SR->getRawLowerBound()) {
+      if (auto *DIExprLB = dyn_cast<MDNode>(RawLB))
+        LowerBounds[I] = transDbgEntry(DIExprLB)->getId();
+      else {
+        ConstantInt *ConstIntLB = SR->getLowerBound().get<ConstantInt *>();
+        LowerBounds[I] = SPIRVWriter->transValue(ConstIntLB, nullptr)->getId();
+      }
+    } else {
+      LowerBounds[I] = getDebugInfoNoneId();
     }
   }
+  Ops.insert(Ops.end(), LowerBounds.begin(), LowerBounds.end());
   return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
 }
 

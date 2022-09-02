@@ -25,14 +25,14 @@ int main() {
   fake::cl::sycl::accessor FakeAccessor = {1};
   accessor AccessorClass = {1};
 
-  typedef sycl::accessor<int, 1, sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>
+  typedef sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer>
       MyAccessorTD;
   MyAccessorTD AccessorTypeDef;
 
-  using MyAccessorA = sycl::accessor<int, 1, sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>;
+  using MyAccessorA = sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer>;
   MyAccessorA AccessorAlias;
 
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> AccessorRegular;
+  sycl::accessor<int, 1, sycl::access::mode::read_write> AccessorRegular;
 
   deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class fake_accessors>(

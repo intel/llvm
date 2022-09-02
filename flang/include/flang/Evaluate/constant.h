@@ -64,6 +64,7 @@ public:
   ~ConstantBounds();
   const ConstantSubscripts &shape() const { return shape_; }
   const ConstantSubscripts &lbounds() const { return lbounds_; }
+  ConstantSubscripts ComputeUbounds(std::optional<int> dim) const;
   void set_lbounds(ConstantSubscripts &&);
   void SetLowerBoundsToOne();
   int Rank() const { return GetRank(shape_); }
@@ -183,11 +184,12 @@ public:
   // Apply subscripts, if any.
   Scalar<Result> At(const ConstantSubscripts &) const;
 
+  // Extract substring(s); returns nullopt for errors.
+  std::optional<Constant> Substring(ConstantSubscript, ConstantSubscript) const;
+
   Constant Reshape(ConstantSubscripts &&) const;
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
-  static constexpr DynamicType GetType() {
-    return {TypeCategory::Character, KIND};
-  }
+  DynamicType GetType() const { return {KIND, length_}; }
   std::size_t CopyFrom(const Constant &source, std::size_t count,
       ConstantSubscripts &resultSubscripts, const std::vector<int> *dimOrder);
 

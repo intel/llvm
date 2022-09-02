@@ -35,6 +35,9 @@ struct GlobalStatus {
   /// can be deleted.
   bool IsLoaded = false;
 
+  /// Number of stores to the global.
+  unsigned NumStores = 0;
+
   /// Keep track of what stores to the global look like.
   enum StoredType {
     /// There is no store to this global.  It can thus be marked constant.
@@ -72,10 +75,6 @@ struct GlobalStatus {
   /// HasMultipleAccessingFunctions is set to true.
   const Function *AccessingFunction = nullptr;
   bool HasMultipleAccessingFunctions = false;
-
-  /// Set to true if this global has a user that is not an instruction (e.g. a
-  /// constant expr or GV initializer).
-  bool HasNonInstructionUser = false;
 
   /// Set to the strongest atomic ordering requirement.
   AtomicOrdering Ordering = AtomicOrdering::NotAtomic;

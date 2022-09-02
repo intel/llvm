@@ -21,8 +21,10 @@
 #include "GISel/AArch64RegisterBankInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/TargetParser.h"
 
 using namespace llvm;
@@ -49,6 +51,16 @@ static cl::opt<bool>
 
 static cl::opt<bool> UseAA("aarch64-use-aa", cl::init(true),
                            cl::desc("Enable the use of AA during codegen."));
+
+static cl::opt<unsigned> OverrideVectorInsertExtractBaseCost(
+    "aarch64-insert-extract-base-cost",
+    cl::desc("Base cost of vector insert/extract element"), cl::Hidden);
+
+unsigned AArch64Subtarget::getVectorInsertExtractBaseCost() const {
+  if (OverrideVectorInsertExtractBaseCost.getNumOccurrences() > 0)
+    return OverrideVectorInsertExtractBaseCost;
+  return VectorInsertExtractBaseCost;
+}
 
 AArch64Subtarget &AArch64Subtarget::initializeSubtargetDependencies(
     StringRef FS, StringRef CPUString, StringRef TuneCPUString) {
@@ -77,14 +89,17 @@ void AArch64Subtarget::initializeProperties() {
     CacheLineSize = 64;
     break;
   case CortexA35:
-    break;
   case CortexA53:
   case CortexA55:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
     break;
   case CortexA57:
     MaxInterleaveFactor = 4;
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
     break;
   case CortexA65:
     PrefFunctionLogAlignment = 3;
@@ -92,19 +107,33 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA72:
   case CortexA73:
   case CortexA75:
+    PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
+    break;
   case CortexA76:
   case CortexA77:
   case CortexA78:
   case CortexA78C:
   case CortexR82:
   case CortexX1:
+  case CortexX1C:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     break;
   case CortexA510:
+    PrefFunctionLogAlignment = 4;
+    VScaleForTuning = 1;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
+    break;
   case CortexA710:
   case CortexX2:
     PrefFunctionLogAlignment = 4;
     VScaleForTuning = 1;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     break;
   case A64FX:
     CacheLineSize = 256;
@@ -157,13 +186,19 @@ void AArch64Subtarget::initializeProperties() {
     break;
   case NeoverseN1:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     break;
   case NeoverseN2:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     VScaleForTuning = 1;
     break;
   case NeoverseV1:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     VScaleForTuning = 2;
     break;
   case Neoverse512TVB:
@@ -213,6 +248,12 @@ void AArch64Subtarget::initializeProperties() {
     // FIXME: remove this to enable 64-bit SLP if performance looks good.
     MinVectorRegisterBitWidth = 128;
     break;
+  case Ampere1:
+    CacheLineSize = 64;
+    PrefFunctionLogAlignment = 6;
+    PrefLoopLogAlignment = 6;
+    MaxInterleaveFactor = 4;
+    break;
   }
 }
 
@@ -228,8 +269,7 @@ AArch64Subtarget::AArch64Subtarget(const Triple &TT, const std::string &CPU,
       IsLittle(LittleEndian),
       MinSVEVectorSizeInBits(MinSVEVectorSizeInBitsOverride),
       MaxSVEVectorSizeInBits(MaxSVEVectorSizeInBitsOverride), TargetTriple(TT),
-      FrameLowering(),
-      InstrInfo(initializeSubtargetDependencies(FS, CPU, TuneCPU)), TSInfo(),
+      InstrInfo(initializeSubtargetDependencies(FS, CPU, TuneCPU)),
       TLInfo(TM, *this) {
   if (AArch64::isX18ReservedByDefault(TT))
     ReserveXRegister.set(18);
@@ -345,6 +385,8 @@ bool AArch64Subtarget::supportsAddressTopByteIgnored() const {
   if (!UseAddressTopByteIgnored)
     return false;
 
+  if (TargetTriple.isDriverKit())
+    return true;
   if (TargetTriple.isiOS()) {
     return TargetTriple.getiOSVersion() >= VersionTuple(8);
   }
@@ -365,11 +407,6 @@ void AArch64Subtarget::mirFileLoaded(MachineFunction &MF) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
   if (!MFI.isMaxCallFrameSizeComputed())
     MFI.computeMaxCallFrameSize(MF);
-}
-
-bool AArch64Subtarget::useSVEForFixedLengthVectors() const {
-  // Prefer NEON unless larger SVE registers are available.
-  return hasSVE() && getMinSVEVectorSizeInBits() >= 256;
 }
 
 bool AArch64Subtarget::useAA() const { return UseAA; }

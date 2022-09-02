@@ -16,6 +16,7 @@
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_file.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_placement_new.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
@@ -44,7 +45,7 @@ void (*on_initialize)(void);
 int (*on_finalize)(int);
 #endif
 
-#if !SANITIZER_GO && !SANITIZER_MAC
+#if !SANITIZER_GO && !SANITIZER_APPLE
 __attribute__((tls_model("initial-exec")))
 THREADLOCAL char cur_thread_placeholder[sizeof(ThreadState)] ALIGNED(
     SANITIZER_CACHE_LINE_SIZE);
@@ -113,7 +114,7 @@ static TracePart* TracePartAlloc(ThreadState* thr) {
   return part;
 }
 
-static void TracePartFree(TracePart* part) REQUIRES(ctx->slot_mtx) {
+static void TracePartFree(TracePart* part) SANITIZER_REQUIRES(ctx->slot_mtx) {
   DCHECK(part->trace);
   part->trace = nullptr;
   ctx->trace_part_recycle.PushFront(part);
@@ -196,31 +197,45 @@ static void DoResetImpl(uptr epoch) {
   }
 
   DPrintf("Resetting shadow...\n");
-  if (!MmapFixedSuperNoReserve(ShadowBeg(), ShadowEnd() - ShadowBeg(),
-                               "shadow")) {
+  auto shadow_begin = ShadowBeg();
+  auto shadow_end = ShadowEnd();
+#if SANITIZER_GO
+  CHECK_NE(0, ctx->mapped_shadow_begin);
+  shadow_begin = ctx->mapped_shadow_begin;
+  shadow_end = ctx->mapped_shadow_end;
+  VPrintf(2, "shadow_begin-shadow_end: (0x%zx-0x%zx)\n",
+          shadow_begin, shadow_end);
+#endif
+
+#if SANITIZER_WINDOWS
+  auto resetFailed =
+      !ZeroMmapFixedRegion(shadow_begin, shadow_end - shadow_begin);
+#else
+  auto resetFailed =
+      !MmapFixedSuperNoReserve(shadow_begin, shadow_end-shadow_begin, "shadow");
+#endif
+  if (resetFailed) {
     Printf("failed to reset shadow memory\n");
     Die();
   }
   DPrintf("Resetting meta shadow...\n");
   ctx->metamap.ResetClocks();
+  StoreShadow(&ctx->last_spurious_race, Shadow::kEmpty);
   ctx->resetting = false;
 }
 
 // Clang does not understand locking all slots in the loop:
 // error: expecting mutex 'slot.mtx' to be held at start of each loop
-void DoReset(ThreadState* thr, uptr epoch) NO_THREAD_SAFETY_ANALYSIS {
-  {
-    Lock l(&ctx->multi_slot_mtx);
-    for (auto& slot : ctx->slots) {
-      slot.mtx.Lock();
-      if (UNLIKELY(epoch == 0))
-        epoch = ctx->global_epoch;
-      if (UNLIKELY(epoch != ctx->global_epoch)) {
-        // Epoch can't change once we've locked the first slot.
-        CHECK_EQ(slot.sid, 0);
-        slot.mtx.Unlock();
-        return;
-      }
+void DoReset(ThreadState* thr, uptr epoch) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
+  for (auto& slot : ctx->slots) {
+    slot.mtx.Lock();
+    if (UNLIKELY(epoch == 0))
+      epoch = ctx->global_epoch;
+    if (UNLIKELY(epoch != ctx->global_epoch)) {
+      // Epoch can't change once we've locked the first slot.
+      CHECK_EQ(slot.sid, 0);
+      slot.mtx.Unlock();
+      return;
     }
   }
   DPrintf("#%d: DoReset epoch=%lu\n", thr ? thr->tid : -1, epoch);
@@ -231,7 +246,7 @@ void DoReset(ThreadState* thr, uptr epoch) NO_THREAD_SAFETY_ANALYSIS {
 void FlushShadowMemory() { DoReset(nullptr, 0); }
 
 static TidSlot* FindSlotAndLock(ThreadState* thr)
-    ACQUIRE(thr->slot->mtx) NO_THREAD_SAFETY_ANALYSIS {
+    SANITIZER_ACQUIRE(thr->slot->mtx) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   CHECK(!thr->slot);
   TidSlot* slot = nullptr;
   for (;;) {
@@ -335,8 +350,15 @@ void SlotDetach(ThreadState* thr) {
   SlotDetachImpl(thr, true);
 }
 
-void SlotLock(ThreadState* thr) NO_THREAD_SAFETY_ANALYSIS {
+void SlotLock(ThreadState* thr) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   DCHECK(!thr->slot_locked);
+#if SANITIZER_DEBUG
+  // Check these mutexes are not locked.
+  // We can call DoReset from SlotAttachAndLock, which will lock
+  // these mutexes, but it happens only every once in a while.
+  { ThreadRegistryLock lock(&ctx->thread_registry); }
+  { Lock lock(&ctx->slot_mtx); }
+#endif
   TidSlot* slot = thr->slot;
   slot->mtx.Lock();
   thr->slot_locked = true;
@@ -363,11 +385,8 @@ Context::Context()
       }),
       racy_mtx(MutexTypeRacy),
       racy_stacks(),
-      racy_addresses(),
       fired_suppressions_mtx(MutexTypeFired),
-      clock_alloc(LINKER_INITIALIZED, "clock allocator"),
       slot_mtx(MutexTypeSlots),
-      multi_slot_mtx(MutexTypeMultiSlot),
       resetting() {
   fired_suppressions.reserve(8);
   for (uptr i = 0; i < ARRAY_SIZE(slots); i++) {
@@ -413,11 +432,11 @@ void MemoryProfiler(u64 uptime) {
   WriteToFile(ctx->memprof_fd, buf.data(), internal_strlen(buf.data()));
 }
 
-void InitializeMemoryProfiler() {
+static bool InitializeMemoryProfiler() {
   ctx->memprof_fd = kInvalidFd;
   const char *fname = flags()->profile_memory;
   if (!fname || !fname[0])
-    return;
+    return false;
   if (internal_strcmp(fname, "stdout") == 0) {
     ctx->memprof_fd = 1;
   } else if (internal_strcmp(fname, "stderr") == 0) {
@@ -429,11 +448,11 @@ void InitializeMemoryProfiler() {
     if (ctx->memprof_fd == kInvalidFd) {
       Printf("ThreadSanitizer: failed to open memory profile file '%s'\n",
              filename.data());
-      return;
+      return false;
     }
   }
   MemoryProfiler(0);
-  MaybeSpawnBackgroundThread();
+  return true;
 }
 
 static void *BackgroundThread(void *arg) {
@@ -445,33 +464,34 @@ static void *BackgroundThread(void *arg) {
   const u64 kMs2Ns = 1000 * 1000;
   const u64 start = NanoTime();
 
-  u64 last_flush = NanoTime();
+  u64 last_flush = start;
   uptr last_rss = 0;
-  for (int i = 0;
-      atomic_load(&ctx->stop_background_thread, memory_order_relaxed) == 0;
-      i++) {
+  while (!atomic_load_relaxed(&ctx->stop_background_thread)) {
     SleepForMillis(100);
     u64 now = NanoTime();
 
     // Flush memory if requested.
     if (flags()->flush_memory_ms > 0) {
       if (last_flush + flags()->flush_memory_ms * kMs2Ns < now) {
-        VPrintf(1, "ThreadSanitizer: periodic memory flush\n");
+        VReport(1, "ThreadSanitizer: periodic memory flush\n");
         FlushShadowMemory();
-        last_flush = NanoTime();
+        now = last_flush = NanoTime();
       }
     }
     if (flags()->memory_limit_mb > 0) {
       uptr rss = GetRSS();
       uptr limit = uptr(flags()->memory_limit_mb) << 20;
-      VPrintf(1, "ThreadSanitizer: memory flush check"
-                 " RSS=%llu LAST=%llu LIMIT=%llu\n",
+      VReport(1,
+              "ThreadSanitizer: memory flush check"
+              " RSS=%llu LAST=%llu LIMIT=%llu\n",
               (u64)rss >> 20, (u64)last_rss >> 20, (u64)limit >> 20);
       if (2 * rss > limit + last_rss) {
-        VPrintf(1, "ThreadSanitizer: flushing memory due to RSS\n");
+        VReport(1, "ThreadSanitizer: flushing memory due to RSS\n");
         FlushShadowMemory();
         rss = GetRSS();
-        VPrintf(1, "ThreadSanitizer: memory flushed RSS=%llu\n", (u64)rss>>20);
+        now = NanoTime();
+        VReport(1, "ThreadSanitizer: memory flushed RSS=%llu\n",
+                (u64)rss >> 20);
       }
       last_rss = rss;
     }
@@ -553,18 +573,50 @@ void UnmapShadow(ThreadState *thr, uptr addr, uptr size) {
 #endif
 
 void MapShadow(uptr addr, uptr size) {
+  // Ensure thead registry lock held, so as to synchronize
+  // with DoReset, which also access the mapped_shadow_* ctxt fields.
+  ThreadRegistryLock lock0(&ctx->thread_registry);
+  static bool data_mapped = false;
+
+#if !SANITIZER_GO
   // Global data is not 64K aligned, but there are no adjacent mappings,
   // so we can get away with unaligned mapping.
   // CHECK_EQ(addr, addr & ~((64 << 10) - 1));  // windows wants 64K alignment
   const uptr kPageSize = GetPageSizeCached();
   uptr shadow_begin = RoundDownTo((uptr)MemToShadow(addr), kPageSize);
   uptr shadow_end = RoundUpTo((uptr)MemToShadow(addr + size), kPageSize);
-  if (!MmapFixedSuperNoReserve(shadow_begin, shadow_end - shadow_begin,
-                               "shadow"))
+  if (!MmapFixedNoReserve(shadow_begin, shadow_end - shadow_begin, "shadow"))
     Die();
+#else
+  uptr shadow_begin = RoundDownTo((uptr)MemToShadow(addr), (64 << 10));
+  uptr shadow_end = RoundUpTo((uptr)MemToShadow(addr + size), (64 << 10));
+  VPrintf(2, "MapShadow for (0x%zx-0x%zx), begin/end: (0x%zx-0x%zx)\n",
+          addr, addr + size, shadow_begin, shadow_end);
+
+  if (!data_mapped) {
+    // First call maps data+bss.
+    if (!MmapFixedSuperNoReserve(shadow_begin, shadow_end - shadow_begin, "shadow"))
+      Die();
+  } else {
+    VPrintf(2, "ctx->mapped_shadow_{begin,end} = (0x%zx-0x%zx)\n",
+            ctx->mapped_shadow_begin, ctx->mapped_shadow_end);
+    // Second and subsequent calls map heap.
+    if (shadow_end <= ctx->mapped_shadow_end)
+      return;
+    if (ctx->mapped_shadow_begin < shadow_begin)
+      ctx->mapped_shadow_begin = shadow_begin;
+    if (shadow_begin < ctx->mapped_shadow_end)
+      shadow_begin = ctx->mapped_shadow_end;
+    VPrintf(2, "MapShadow begin/end = (0x%zx-0x%zx)\n",
+            shadow_begin, shadow_end);
+    if (!MmapFixedSuperNoReserve(shadow_begin, shadow_end - shadow_begin,
+                                 "shadow"))
+      Die();
+    ctx->mapped_shadow_end = shadow_end;
+  }
+#endif
 
   // Meta shadow is 2:1, so tread carefully.
-  static bool data_mapped = false;
   static uptr mapped_meta_end = 0;
   uptr meta_begin = (uptr)MemToMeta(addr);
   uptr meta_end = (uptr)MemToMeta(addr + size);
@@ -581,8 +633,7 @@ void MapShadow(uptr addr, uptr size) {
     // Windows wants 64K alignment.
     meta_begin = RoundDownTo(meta_begin, 64 << 10);
     meta_end = RoundUpTo(meta_end, 64 << 10);
-    if (meta_end <= mapped_meta_end)
-      return;
+    CHECK_GT(meta_end, mapped_meta_end);
     if (meta_begin < mapped_meta_end)
       meta_begin = mapped_meta_end;
     if (!MmapFixedSuperNoReserve(meta_begin, meta_end - meta_begin,
@@ -645,9 +696,6 @@ void Initialize(ThreadState *thr) {
   __tsan::InitializePlatformEarly();
 
 #if !SANITIZER_GO
-  // Re-exec ourselves if we need to set additional env or command line args.
-  MaybeReexec();
-
   InitializeAllocator();
   ReplaceSystemMalloc();
 #endif
@@ -684,7 +732,8 @@ void Initialize(ThreadState *thr) {
 
 #if !SANITIZER_GO
   Symbolizer::LateInitialize();
-  InitializeMemoryProfiler();
+  if (InitializeMemoryProfiler() || flags()->force_background_thread)
+    MaybeSpawnBackgroundThread();
 #endif
   ctx->initialized = true;
 
@@ -697,18 +746,6 @@ void Initialize(ThreadState *thr) {
 
   OnInitialize();
 }
-
-#if !SANITIZER_GO
-#  pragma clang diagnostic push
-// We intentionally use a global constructor to delay the pthread call.
-#  pragma clang diagnostic ignored "-Wglobal-constructors"
-static bool UNUSED __local_tsan_dyninit = [] {
-  if (flags()->force_background_thread)
-    MaybeSpawnBackgroundThread();
-  return false;
-}();
-#  pragma clang diagnostic pop
-#endif
 
 void MaybeSpawnBackgroundThread() {
   // On MIPS, TSan initialization is run before
@@ -727,8 +764,10 @@ void MaybeSpawnBackgroundThread() {
 int Finalize(ThreadState *thr) {
   bool failed = false;
 
+#if !SANITIZER_GO
   if (common_flags()->print_module_map == 1)
     DumpProcessMap();
+#endif
 
   if (flags()->atexit_sleep_ms > 0 && ThreadCount(thr) > 1)
     internal_usleep(u64(flags()->atexit_sleep_ms) * 1000);
@@ -762,12 +801,11 @@ int Finalize(ThreadState *thr) {
 }
 
 #if !SANITIZER_GO
-void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
+void ForkBefore(ThreadState* thr, uptr pc) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   GlobalProcessorLock();
   // Detaching from the slot makes OnUserFree skip writing to the shadow.
   // The slot will be locked so any attempts to use it will deadlock anyway.
   SlotDetach(thr);
-  ctx->multi_slot_mtx.Lock();
   for (auto& slot : ctx->slots) slot.mtx.Lock();
   ctx->thread_registry.Lock();
   ctx->slot_mtx.Lock();
@@ -790,7 +828,7 @@ void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   __tsan_test_only_on_fork();
 }
 
-static void ForkAfter(ThreadState* thr) NO_THREAD_SAFETY_ANALYSIS {
+static void ForkAfter(ThreadState* thr) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports--;  // Enabled in ForkBefore.
   thr->ignore_interceptors--;
   thr->ignore_reads_and_writes--;
@@ -799,7 +837,6 @@ static void ForkAfter(ThreadState* thr) NO_THREAD_SAFETY_ANALYSIS {
   ctx->slot_mtx.Unlock();
   ctx->thread_registry.Unlock();
   for (auto& slot : ctx->slots) slot.mtx.Unlock();
-  ctx->multi_slot_mtx.Unlock();
   SlotAttachAndLock(thr);
   SlotUnlock(thr);
   GlobalProcessorUnlock();
@@ -809,7 +846,7 @@ void ForkParentAfter(ThreadState* thr, uptr pc) { ForkAfter(thr); }
 
 void ForkChildAfter(ThreadState* thr, uptr pc, bool start_thread) {
   ForkAfter(thr);
-  u32 nthread = ThreadCount(thr);
+  u32 nthread = ctx->thread_registry.OnFork(thr->tid);
   VPrintf(1,
           "ThreadSanitizer: forked new process with pid %d,"
           " parent had %d threads\n",
@@ -943,7 +980,7 @@ void TraceSwitchPartImpl(ThreadState* thr) {
     // Pathologically large stacks may not fit into the part.
     // In these cases we log only fixed number of top frames.
     const uptr kMaxFrames = 1000;
-    // Sanity check that kMaxFrames won't consume the whole part.
+    // Check that kMaxFrames won't consume the whole part.
     static_assert(kMaxFrames < TracePart::kSize / 2, "kMaxFrames is too big");
     uptr* pos = Max(&thr->shadow_stack[0], thr->shadow_stack_pos - kMaxFrames);
     for (; pos < thr->shadow_stack_pos; pos++) {
@@ -959,10 +996,29 @@ void TraceSwitchPartImpl(ThreadState* thr) {
       TraceMutexLock(thr, d.write ? EventType::kLock : EventType::kRLock, 0,
                      d.addr, d.stack_id);
   }
+  // Callers of TraceSwitchPart expect that TraceAcquire will always succeed
+  // after the call. It's possible that TryTraceFunc/TraceMutexLock above
+  // filled the trace part exactly up to the TracePart::kAlignment gap
+  // and the next TraceAcquire won't succeed. Skip the gap to avoid that.
+  EventFunc *ev;
+  if (!TraceAcquire(thr, &ev)) {
+    CHECK(TraceSkipGap(thr));
+    CHECK(TraceAcquire(thr, &ev));
+  }
   {
     Lock lock(&ctx->slot_mtx);
-    ctx->slot_queue.Remove(thr->slot);
-    ctx->slot_queue.PushBack(thr->slot);
+    // There is a small chance that the slot may be not queued at this point.
+    // This can happen if the slot has kEpochLast epoch and another thread
+    // in FindSlotAndLock discovered that it's exhausted and removed it from
+    // the slot queue. kEpochLast can happen in 2 cases: (1) if TraceSwitchPart
+    // was called with the slot locked and epoch already at kEpochLast,
+    // or (2) if we've acquired a new slot in SlotLock in the beginning
+    // of the function and the slot was at kEpochLast - 1, so after increment
+    // in SlotAttachAndLock it become kEpochLast.
+    if (ctx->slot_queue.Queued(thr->slot)) {
+      ctx->slot_queue.Remove(thr->slot);
+      ctx->slot_queue.PushBack(thr->slot);
+    }
     if (recycle)
       ctx->trace_part_recycle.PushBack(recycle);
   }
@@ -970,12 +1026,6 @@ void TraceSwitchPartImpl(ThreadState* thr) {
           trace->parts.Front(), trace->parts.Back(),
           atomic_load_relaxed(&thr->trace_pos));
 }
-
-#if !SANITIZER_GO
-extern "C" void __tsan_trace_switch() {}
-
-extern "C" void __tsan_report_race() {}
-#endif
 
 void ThreadIgnoreBegin(ThreadState* thr, uptr pc) {
   DPrintf("#%d: ThreadIgnoreBegin\n", thr->tid);
@@ -1053,9 +1103,7 @@ MutexMeta mutex_meta[] = {
     {MutexTypeAtExit, "AtExit", {}},
     {MutexTypeFired, "Fired", {MutexLeaf}},
     {MutexTypeRacy, "Racy", {MutexLeaf}},
-    {MutexTypeGlobalProc,
-     "GlobalProc",
-     {MutexTypeSlot, MutexTypeSlots, MutexTypeMultiSlot}},
+    {MutexTypeGlobalProc, "GlobalProc", {MutexTypeSlot, MutexTypeSlots}},
     {MutexTypeInternalAlloc, "InternalAlloc", {MutexLeaf}},
     {MutexTypeTrace, "Trace", {}},
     {MutexTypeSlot,
@@ -1063,7 +1111,6 @@ MutexMeta mutex_meta[] = {
      {MutexMulti, MutexTypeTrace, MutexTypeSyncVar, MutexThreadRegistry,
       MutexTypeSlots}},
     {MutexTypeSlots, "Slots", {MutexTypeTrace, MutexTypeReport}},
-    {MutexTypeMultiSlot, "MultiSlot", {MutexTypeSlot, MutexTypeSlots}},
     {},
 };
 

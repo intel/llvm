@@ -9,17 +9,26 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(CompilerRTBuiltins C ASM)
   set(COMPILER_RT_STANDALONE_BUILD TRUE)
   set(COMPILER_RT_BUILTINS_STANDALONE_BUILD TRUE)
+
+  set(COMPILER_RT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+
+  set(LLVM_COMMON_CMAKE_UTILS "${COMPILER_RT_SOURCE_DIR}/../cmake")
+
+  # Add path for custom modules
   list(INSERT CMAKE_MODULE_PATH 0
-    "${CMAKE_SOURCE_DIR}/../../cmake"
-    "${CMAKE_SOURCE_DIR}/../../cmake/Modules"
-    "${CMAKE_SOURCE_DIR}/../../../cmake"
-    "${CMAKE_SOURCE_DIR}/../../../cmake/Modules")
+    "${COMPILER_RT_SOURCE_DIR}/cmake"
+    "${COMPILER_RT_SOURCE_DIR}/cmake/Modules"
+    "${LLVM_COMMON_CMAKE_UTILS}"
+    "${LLVM_COMMON_CMAKE_UTILS}/Modules"
+    )
+
   include(base-config-ix)
   include(CompilerRTUtils)
 
   load_llvm_config()
   construct_compiler_rt_default_triple()
 
+  include(SetPlatformToolchainTools)
   if(APPLE)
     include(CompilerRTDarwinUtils)
   endif()
@@ -27,15 +36,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     include(UseLibtool)
   endif()
   include(AddCompilerRT)
-
-  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-    set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -X32_64 <TARGET>")
-    set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -X32_64 <TARGET>")
-  endif()
 endif()
 
 if (COMPILER_RT_STANDALONE_BUILD)
@@ -165,8 +165,10 @@ set(GENERIC_SOURCES
   subvsi3.c
   subvti3.c
   trampoline_setup.c
+  truncdfbf2.c
   truncdfhf2.c
   truncdfsf2.c
+  truncsfbf2.c
   truncsfhf2.c
   ucmpdi2.c
   ucmpti2.c
@@ -567,6 +569,18 @@ set(armv7em_SOURCES ${arm_SOURCES})
 set(armv8m.main_SOURCES ${arm_SOURCES})
 set(armv8.1m.main_SOURCES ${arm_SOURCES})
 
+# 8-bit AVR MCU
+set(avr_SOURCES
+  avr/mulqi3.S
+  avr/mulhi3.S
+  avr/exit.S
+  avr/divmodhi4.S
+  avr/udivmodhi4.S
+  avr/divmodqi4.S
+  avr/udivmodqi4.S
+  ${GENERIC_SOURCES}
+)
+
 # hexagon arch
 set(hexagon_SOURCES
   hexagon/common_entry_exit_abi1.S
@@ -607,11 +621,9 @@ set(mips64_SOURCES ${GENERIC_TF_SOURCES}
 set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
                      ${mips_SOURCES})
 
-set(powerpc_SOURCES ${GENERIC_SOURCES})
-
 set(powerpcspe_SOURCES ${GENERIC_SOURCES})
 
-set(powerpc64_SOURCES
+set(powerpc_SOURCES
   ppc/divtc3.c
   ppc/fixtfdi.c
   ppc/fixunstfdi.c
@@ -626,14 +638,15 @@ set(powerpc64_SOURCES
 )
 # These routines require __int128, which isn't supported on AIX.
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-  set(powerpc64_SOURCES
+  set(powerpc_SOURCES
     ppc/floattitf.c
     ppc/fixtfti.c
     ppc/fixunstfti.c
-    ${powerpc64_SOURCES}
+    ${powerpc_SOURCES}
   )
 endif()
-set(powerpc64le_SOURCES ${powerpc64_SOURCES})
+set(powerpc64le_SOURCES ${powerpc_SOURCES})
+set(powerpc64_SOURCES ${powerpc_SOURCES})
 
 set(riscv_SOURCES
   riscv/save.S
@@ -677,6 +690,10 @@ if (APPLE)
   darwin_add_builtin_libraries(${BUILTIN_SUPPORTED_OS})
 else ()
   set(BUILTIN_CFLAGS "")
+
+  if (COMPILER_RT_HAS_FCF_PROTECTION_FLAG)
+    append_list_if(COMPILER_RT_ENABLE_CET -fcf-protection=full BUILTIN_CFLAGS)
+  endif()
 
   append_list_if(COMPILER_RT_HAS_FLOAT16 -DCOMPILER_RT_HAS_FLOAT16 BUILTIN_CFLAGS)
 
@@ -736,9 +753,8 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fomit-frame-pointer -DCOMPILER_RT_ARMHF_TARGET)
       endif()
 
-      # For RISCV32, we must force enable int128 for compiling long
-      # double routines.
-      if("${arch}" STREQUAL "riscv32")
+      # For some arches, force enable int128 for compiling long double routines.
+      if("${arch}" STREQUAL "powerpc" OR "${arch}" STREQUAL "riscv32")
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
@@ -799,7 +815,7 @@ if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
   # archive, i.e., libatomic.a. Once cmake adds support of such usage for AIX,
   # this ad-hoc part can be removed.
   if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-    archive_aix_libatomic(clang_rt.atomic
+    archive_aix_libatomic(clang_rt.atomic libatomic
                           ARCHS ${BUILTIN_SUPPORTED_ARCH}
                           PARENT_TARGET builtins-standalone-atomic)
   endif()

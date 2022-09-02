@@ -362,6 +362,19 @@ let Class = UnresolvedUsingType in {
   }]>;
 }
 
+let Class = UsingType in {
+  def : Property<"foundDeclaration", UsingShadowDeclRef> {
+    let Read = [{ node->getFoundDecl() }];
+  }
+  def : Property<"underlyingType", QualType> {
+    let Read = [{ node->getUnderlyingType() }];
+  }
+
+  def : Creator<[{
+    return ctx.getUsingType(foundDeclaration, underlyingType);
+  }]>;
+}
+
 let Class = TypedefType in {
   def : Property<"declaration", DeclRef> {
     let Read = [{ node->getDecl() }];
@@ -606,6 +619,19 @@ let Class = AttributedType in {
   }]>;
 }
 
+let Class = BTFTagAttributedType in {
+  def : Property<"attr", BTFTypeTagAttr> {
+    let Read = [{ node->getAttr() }];
+  }
+  def : Property<"wrappedType", QualType> {
+    let Read = [{ node->getWrappedType() }];
+  }
+
+  def : Creator<[{
+    return ctx.getBTFTagAttributedType(attr, wrappedType);
+  }]>;
+}
+
 let Class = DependentAddressSpaceType in {
   def : Property<"pointeeType", QualType> {
     let Read = [{ node->getPointeeType() }];
@@ -645,7 +671,7 @@ let Class = TemplateSpecializationType in {
 
   def : Creator<[{
     QualType result;
-    if (!underlyingType.hasValue()) {
+    if (!underlyingType) {
       result = ctx.getCanonicalTemplateSpecializationType(templateName,
                                                           templateArguments);
     } else {

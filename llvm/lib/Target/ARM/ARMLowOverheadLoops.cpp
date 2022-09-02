@@ -59,8 +59,10 @@
 #include "MVETailPredUtils.h"
 #include "Thumb2InstrInfo.h"
 #include "llvm/ADT/SetOperations.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineLoopUtils.h"
@@ -1297,7 +1299,7 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr *MI) {
 }
 
 bool ARMLowOverheadLoops::runOnMachineFunction(MachineFunction &mf) {
-  const ARMSubtarget &ST = static_cast<const ARMSubtarget&>(mf.getSubtarget());
+  const ARMSubtarget &ST = mf.getSubtarget<ARMSubtarget>();
   if (!ST.hasLOB())
     return false;
 
@@ -1328,8 +1330,8 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
   bool Changed = false;
 
   // Process inner loops first.
-  for (auto I = ML->begin(), E = ML->end(); I != E; ++I)
-    Changed |= ProcessLoop(*I);
+  for (MachineLoop *L : *ML)
+    Changed |= ProcessLoop(L);
 
   LLVM_DEBUG({
     dbgs() << "ARM Loops: Processing loop containing:\n";

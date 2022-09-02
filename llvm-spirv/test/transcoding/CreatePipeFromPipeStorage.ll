@@ -2,15 +2,15 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 
-; CHECK-LLVM: %"[[CL_PIPE_STORAGE_NAME:[^"]+]]" = type { %spirv.PipeStorage addrspace(1)* }
-; CHECK-LLVM: %"[[CL_READ_PIPE_NAME:[^"]+read>]]" = type { %spirv.Pipe._0 addrspace(1)* }
-; CHECK-LLVM: %spirv.Pipe._0 = type opaque
-; CHECK-LLVM: %"[[CL_WRITE_PIPE_NAME:[^"]+write>]]" = type { %spirv.Pipe._1 addrspace(1)* }
-; CHECK-LLVM: %spirv.Pipe._1 = type opaque
+; CHECK-SPV-IR: %"[[CL_PIPE_STORAGE_NAME:[^"]+]]" = type { %spirv.PipeStorage addrspace(1)* }
+; CHECK-SPV-IR: %"[[CL_READ_PIPE_NAME:[^"]+read>]]" = type { %spirv.Pipe._0 addrspace(1)* }
+; CHECK-SPV-IR: %spirv.Pipe._0 = type opaque
+; CHECK-SPV-IR: %"[[CL_WRITE_PIPE_NAME:[^"]+write>]]" = type { %spirv.Pipe._1 addrspace(1)* }
+; CHECK-SPV-IR: %spirv.Pipe._1 = type opaque
 
 
 ; CHECK-SPIRV: Capability Pipes
@@ -52,8 +52,8 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @worker() {
 entry:
-  ; CHECK-LLVM: %myrpipe = alloca %"[[CL_READ_PIPE_NAME]]", align 4
-  ; CHECK-LLVM: %mywpipe = alloca %"[[CL_WRITE_PIPE_NAME]]", align 4
+  ; CHECK-SPV-IR: %myrpipe = alloca %"[[CL_READ_PIPE_NAME]]", align 4
+  ; CHECK-SPV-IR: %mywpipe = alloca %"[[CL_WRITE_PIPE_NAME]]", align 4
 
   ; CHECK-SPIRV: Variable [[READ_PIPE_WRAPPER_PTR]] [[READ_PIPE_WRAPPER_ID]] 7
   ; CHECK-SPIRV: Variable [[WRITE_PIPE_WRAPPER_PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7
@@ -62,8 +62,8 @@ entry:
   %mywpipe = alloca %"class.cl::pipe<int __attribute__((ext_vector_type(4))), cl::pipe_access::write>", align 4
 
 
-  ; CHECK-LLVM: %[[ID0:[0-9]+]] = addrspacecast %"[[CL_PIPE_STORAGE_NAME]]" addrspace(1)* @mygpipe to %"[[CL_PIPE_STORAGE_NAME]]" addrspace(4)*
-  ; CHECK-LLVM: %[[ID1:[0-9]+]] = getelementptr %"[[CL_PIPE_STORAGE_NAME]]", %"[[CL_PIPE_STORAGE_NAME]]" addrspace(4)* %[[ID0]], i32 0, i32 0
+  ; CHECK-SPV-IR: %[[ID0:[0-9]+]] = addrspacecast %"[[CL_PIPE_STORAGE_NAME]]" addrspace(1)* @mygpipe to %"[[CL_PIPE_STORAGE_NAME]]" addrspace(4)*
+  ; CHECK-SPV-IR: %[[ID1:[0-9]+]] = getelementptr %"[[CL_PIPE_STORAGE_NAME]]", %"[[CL_PIPE_STORAGE_NAME]]" addrspace(4)* %[[ID0]], i32 0, i32 0
 
   ; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[SPIRV0:[0-9]+]] [[PIPE_STORAGE_ID]]
   ; CHECK-SPIRV: PtrAccessChain {{[0-9]+}} [[SPIRV1:[0-9]+]] [[SPIRV0]] [[CONSTANT_ZERO_ID]] [[CONSTANT_ZERO_ID]]
@@ -72,10 +72,10 @@ entry:
   %1 = getelementptr %"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>", %"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>" addrspace(4)* %0, i32 0, i32 0
 
 
-  ; CHECK-LLVM: %[[PIPE_STORAGE_1:[0-9]+]] = load %spirv.PipeStorage addrspace(1)*, %spirv.PipeStorage addrspace(1)* addrspace(4)* %[[ID1]], align 4
-  ; CHECK-LLVM: %[[WRITE_PIPE:[0-9]+]] = call spir_func %spirv.Pipe._1 addrspace(1)* @_Z39__spirv_CreatePipeFromPipeStorage_writePU3AS119__spirv_PipeStorage(%spirv.PipeStorage addrspace(1)* %[[PIPE_STORAGE_1]])
-  ; CHECK-LLVM: %[[WRITE_PIPE_WRAPPER:[0-9]+]] = addrspacecast %"[[CL_WRITE_PIPE_NAME]]"* %mywpipe to %"[[CL_WRITE_PIPE_NAME]]" addrspace(4)*
-  ; CHECK-LLVM: call spir_func void @_ZNU3AS42cl4pipeIDv4_iLNS_11pipe_accessE1EEC1EPU3AS1NS_7__spirv10OpTypePipeILNS3_15AccessQualifierE1EEE(%"[[CL_WRITE_PIPE_NAME]]" addrspace(4)* nocapture %[[WRITE_PIPE_WRAPPER]], %spirv.Pipe._1 addrspace(1)* %[[WRITE_PIPE]])
+  ; CHECK-SPV-IR: %[[PIPE_STORAGE_1:[0-9]+]] = load %spirv.PipeStorage addrspace(1)*, %spirv.PipeStorage addrspace(1)* addrspace(4)* %[[ID1]], align 4
+  ; CHECK-SPV-IR: %[[WRITE_PIPE:[0-9]+]] = call spir_func %spirv.Pipe._1 addrspace(1)* @_Z39__spirv_CreatePipeFromPipeStorage_writePU3AS119__spirv_PipeStorage(%spirv.PipeStorage addrspace(1)* %[[PIPE_STORAGE_1]])
+  ; CHECK-SPV-IR: %[[WRITE_PIPE_WRAPPER:[0-9]+]] = addrspacecast %"[[CL_WRITE_PIPE_NAME]]"* %mywpipe to %"[[CL_WRITE_PIPE_NAME]]" addrspace(4)*
+  ; CHECK-SPV-IR: call spir_func void @_ZNU3AS42cl4pipeIDv4_iLNS_11pipe_accessE1EEC1EPU3AS1NS_7__spirv10OpTypePipeILNS3_15AccessQualifierE1EEE(%"[[CL_WRITE_PIPE_NAME]]" addrspace(4)* nocapture %[[WRITE_PIPE_WRAPPER]], %spirv.Pipe._1 addrspace(1)* %[[WRITE_PIPE]])
 
   ; CHECK-SPIRV: Load {{[0-9]+}} [[PIPE_STORAGE_ID0:[0-9]+]] [[SPIRV1]] 2 4
   ; CHECK-SPIRV: CreatePipeFromPipeStorage [[WRITE_PIPE]] [[WRITE_PIPE_ID:[0-9]+]] [[PIPE_STORAGE_ID0]]
@@ -88,10 +88,10 @@ entry:
   call spir_func void @_ZNU3AS42cl4pipeIDv4_iLNS_11pipe_accessE1EEC1EPU3AS1NS_7__spirv10OpTypePipeILNS3_15AccessQualifierE1EEE(%"class.cl::pipe<int __attribute__((ext_vector_type(4))), cl::pipe_access::write>" addrspace(4)* %4, %spirv.Pipe._1 addrspace(1)* %3)
 
 
-  ; CHECK-LLVM: %[[PIPE_STORAGE_2:[0-9]+]] = load %spirv.PipeStorage addrspace(1)*, %spirv.PipeStorage addrspace(1)* addrspace(4)* %[[ID1]], align 4
-  ; CHECK-LLVM: %[[READ_PIPE:[0-9]+]] = call spir_func %spirv.Pipe._0 addrspace(1)* @_Z38__spirv_CreatePipeFromPipeStorage_readPU3AS119__spirv_PipeStorage(%spirv.PipeStorage addrspace(1)* %[[PIPE_STORAGE_2]])
-  ; CHECK-LLVM: %[[READ_PIPE_WRAPPER:[0-9]+]] = addrspacecast %"[[CL_READ_PIPE_NAME]]"* %myrpipe to %"[[CL_READ_PIPE_NAME]]" addrspace(4)*
-  ; CHECK-LLVM: call spir_func void @_ZNU3AS42cl4pipeIDv4_iLNS_11pipe_accessE0EEC1EPU3AS1NS_7__spirv10OpTypePipeILNS3_15AccessQualifierE0EEE(%"[[CL_READ_PIPE_NAME]]" addrspace(4)* nocapture %[[READ_PIPE_WRAPPER]], %spirv.Pipe._0 addrspace(1)* %[[READ_PIPE]])
+  ; CHECK-SPV-IR: %[[PIPE_STORAGE_2:[0-9]+]] = load %spirv.PipeStorage addrspace(1)*, %spirv.PipeStorage addrspace(1)* addrspace(4)* %[[ID1]], align 4
+  ; CHECK-SPV-IR: %[[READ_PIPE:[0-9]+]] = call spir_func %spirv.Pipe._0 addrspace(1)* @_Z38__spirv_CreatePipeFromPipeStorage_readPU3AS119__spirv_PipeStorage(%spirv.PipeStorage addrspace(1)* %[[PIPE_STORAGE_2]])
+  ; CHECK-SPV-IR: %[[READ_PIPE_WRAPPER:[0-9]+]] = addrspacecast %"[[CL_READ_PIPE_NAME]]"* %myrpipe to %"[[CL_READ_PIPE_NAME]]" addrspace(4)*
+  ; CHECK-SPV-IR: call spir_func void @_ZNU3AS42cl4pipeIDv4_iLNS_11pipe_accessE0EEC1EPU3AS1NS_7__spirv10OpTypePipeILNS3_15AccessQualifierE0EEE(%"[[CL_READ_PIPE_NAME]]" addrspace(4)* nocapture %[[READ_PIPE_WRAPPER]], %spirv.Pipe._0 addrspace(1)* %[[READ_PIPE]])
 
   ; CHECK-SPIRV: Load {{[0-9]+}} [[PIPE_STORAGE_ID1:[0-9]+]] [[SPIRV1]] 2 4
   ; CHECK-SPIRV: CreatePipeFromPipeStorage [[READ_PIPE]] [[READ_PIPE_ID:[0-9]+]] [[PIPE_STORAGE_ID1]]

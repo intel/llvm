@@ -28,6 +28,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   amdgcn-mesa3d/lib/SOURCES;
   amdgpu/lib/SOURCES;
   clspv/lib/SOURCES;
+  clspv64/lib/SOURCES;
   generic/lib/SOURCES;
   ptx/lib/SOURCES;
   ptx-nvidiacl/lib/SOURCES;
@@ -43,6 +44,7 @@ set( LIBCLC_TARGETS_ALL
   amdgcn--
   amdgcn--amdhsa
   clspv--
+  clspv64--
   r600--
   nvptx--
   nvptx64--
@@ -171,6 +173,7 @@ set( amdgcn--_devices tahiti )
 set( amdgcn-mesa-mesa3d_devices ${amdgcn--_devices} )
 set( amdgcn--amdhsa_devices none )
 set( clspv--_devices none )
+set( clspv64--_devices none )
 set( nvptx--_devices none )
 set( nvptx64--_devices none )
 set( nvptx--nvidiacl_devices none )
@@ -251,7 +254,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	set( dirs )
 
-	if ( NOT ${ARCH} STREQUAL spirv AND NOT ${ARCH} STREQUAL spirv64 AND NOT ${ARCH} STREQUAL clspv )
+	if ( NOT ${ARCH} STREQUAL spirv AND NOT ${ARCH} STREQUAL spirv64 AND
+			 NOT ${ARCH} STREQUAL clspv AND NOT ${ARCH} STREQUAL clspv64)
 		LIST( APPEND dirs generic )
 	endif()
 
@@ -292,7 +296,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	# Add the generated convert.cl here to prevent adding
 	# the one listed in SOURCES
-	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" AND NOT ${ARCH} STREQUAL "clspv" )
+	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" AND
+			NOT ${ARCH} STREQUAL "clspv" AND NOT ${ARCH} STREQUAL "clspv64" )
 		set( rel_files convert.cl )
 		set( objects convert.cl )
 		if( NOT ENABLE_RUNTIME_SUBNORMAL )
@@ -358,6 +363,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		elseif( ${ARCH} STREQUAL "nvptx" OR ${ARCH} STREQUAL "nvptx64" )
 			set( build_flags )
 			set( opt_flags -O3 "--nvvm-reflect-enable=false" )
+		elseif( ${ARCH} STREQUAL "clspv64" )
+			set( t "spir64--" )
+			set( build_flags )
+			set( opt_flags -O3 )
 		else()
 			set( build_flags )
 			set( opt_flags -O3 )

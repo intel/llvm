@@ -147,7 +147,7 @@ public:
   int Rank() const { return GetRank(shape_); }
   bool IsCompatibleWith(parser::ContextualMessages &, const TypeAndShape &that,
       const char *thisIs = "pointer", const char *thatIs = "target",
-      bool isElemental = false,
+      bool omitShapeConformanceCheck = false,
       enum CheckConformanceFlags::Flags = CheckConformanceFlags::None) const;
   std::optional<Expr<SubscriptInteger>> MeasureElementSizeInBytes(
       FoldingContext &, bool align) const;
@@ -190,6 +190,8 @@ struct DummyDataObject {
   bool operator!=(const DummyDataObject &that) const {
     return !(*this == that);
   }
+  bool IsCompatibleWith(
+      const DummyDataObject &, std::string *whyNot = nullptr) const;
   static std::optional<DummyDataObject> Characterize(
       const semantics::Symbol &, FoldingContext &);
   bool CanBePassedViaImplicitInterface() const;
@@ -208,7 +210,10 @@ struct DummyProcedure {
   explicit DummyProcedure(Procedure &&);
   bool operator==(const DummyProcedure &) const;
   bool operator!=(const DummyProcedure &that) const { return !(*this == that); }
+  bool IsCompatibleWith(
+      const DummyProcedure &, std::string *whyNot = nullptr) const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
+
   CopyableIndirection<Procedure> procedure;
   common::Intent intent{common::Intent::Default};
   Attrs attrs;
@@ -240,9 +245,13 @@ struct DummyArgument {
   void SetIntent(common::Intent);
   bool CanBePassedViaImplicitInterface() const;
   bool IsTypelessIntrinsicDummy() const;
+  bool IsCompatibleWith(
+      const DummyArgument &, std::string *whyNot = nullptr) const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
-  // name and pass are not characteristics and so does not participate in
-  // operator== but are needed to determine if procedures are distinguishable
+
+  // name and pass are not characteristics and so do not participate in
+  // compatibility checks, but they are needed to determine whether
+  // procedures are distinguishable
   std::string name;
   bool pass{false}; // is this the PASS argument of its procedure
   std::variant<DummyDataObject, DummyProcedure, AlternateReturn> u;
@@ -278,6 +287,8 @@ struct FunctionResult {
   }
   void SetType(DynamicType t) { std::get<TypeAndShape>(u).set_type(t); }
   bool CanBeReturnedViaImplicitInterface() const;
+  bool IsCompatibleWith(
+      const FunctionResult &, std::string *whyNot = nullptr) const;
 
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
@@ -322,6 +333,9 @@ struct Procedure {
   int FindPassIndex(std::optional<parser::CharBlock>) const;
   bool CanBeCalledViaImplicitInterface() const;
   bool CanOverride(const Procedure &, std::optional<int> passIndex) const;
+  bool IsCompatibleWith(const Procedure &, std::string *whyNot = nullptr,
+      const SpecificIntrinsic * = nullptr) const;
+
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
   std::optional<FunctionResult> functionResult;

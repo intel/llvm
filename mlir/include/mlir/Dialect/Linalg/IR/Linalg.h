@@ -6,14 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_LINALG_LINALG_H_
-#define MLIR_DIALECT_LINALG_LINALG_H_
+#ifndef MLIR_DIALECT_LINALG_IR_LINALG_H
+#define MLIR_DIALECT_LINALG_IR_LINALG_H
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -23,6 +18,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/CopyOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -33,20 +29,6 @@ namespace mlir {
 namespace linalg {
 
 class LinalgOp;
-
-// TOFO: allow an extra ValueRange to specify an indexing and allow
-// non-hyperrectangular shapes.
-using LoopRangeBuilder =
-    std::function<SmallVector<Range, 4>(ImplicitLocOpBuilder)>;
-
-/// Provide a very simple inference procedure to build the loop ranges from the
-/// op and its operands. This only works with permutation affine maps and
-/// patterns of the form `(m, n)[s] -> (m + n - s floordiv 2)`.
-/// A more advanced Tensor-Comprehension like inference is possible but has
-/// proven to be ambiguous in unfavorable case.
-/// As a consequence, we relax the default behavior very conservatively and
-/// provide an op-specified hook so that Linalg ops may override the behavior.
-LoopRangeBuilder defaultLoopRangesBuilder(LinalgOp op);
 
 /// Returns the name mangled library call name to disambiguate between different
 /// overloads at the C level. The name mangling scheme is basic and uses MLIR
@@ -90,7 +72,7 @@ SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
 /// Return the dims that are `iteratorTypeName` loops in the LinalgOp `op`.
 /// Assumes `op` is a LinalgOp.
 void getDimsOfType(Operation *op, StringRef iteratorTypeName,
-                   SmallVectorImpl<AffineExpr> &res);
+                   SmallVectorImpl<unsigned> &res);
 
 namespace detail {
 LogicalResult verifyStructuredOpInterface(Operation *op);
@@ -103,6 +85,19 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Linalg Enums
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsEnums.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Linalg Attributes
+//===----------------------------------------------------------------------===//
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Linalg Interfaces
@@ -120,4 +115,4 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.h.inc"
 
-#endif // MLIR_DIALECT_LINALG_LINALG_H_
+#endif // MLIR_DIALECT_LINALG_IR_LINALG_H

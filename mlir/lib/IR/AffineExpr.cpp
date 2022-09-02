@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/AffineExpr.h"
+#include <utility>
+
 #include "AffineExprDetail.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/IntegerSet.h"
@@ -28,7 +30,7 @@ void AffineExpr::walk(std::function<void(AffineExpr)> callback) const {
     std::function<void(AffineExpr)> callback;
 
     AffineExprWalker(std::function<void(AffineExpr)> callback)
-        : callback(callback) {}
+        : callback(std::move(callback)) {}
 
     void visitAffineBinaryOpExpr(AffineBinaryOpExpr expr) { callback(expr); }
     void visitConstantExpr(AffineConstantExpr expr) { callback(expr); }
@@ -36,7 +38,7 @@ void AffineExpr::walk(std::function<void(AffineExpr)> callback) const {
     void visitSymbolExpr(AffineSymbolExpr expr) { callback(expr); }
   };
 
-  AffineExprWalker(callback).walkPostOrder(*this);
+  AffineExprWalker(std::move(callback)).walkPostOrder(*this);
 }
 
 // Dispatch affine expression construction based on kind.
@@ -326,9 +328,7 @@ static bool isDivisibleBySymbol(AffineExpr expr, unsigned symbolPos,
          "unexpected opKind");
   switch (expr.getKind()) {
   case AffineExprKind::Constant:
-    if (expr.cast<AffineConstantExpr>().getValue())
-      return false;
-    return true;
+    return expr.cast<AffineConstantExpr>().getValue() == 0;
   case AffineExprKind::DimId:
     return false;
   case AffineExprKind::SymbolId:
@@ -580,8 +580,7 @@ static AffineExpr simplifyAdd(AffineExpr lhs, AffineExpr rhs) {
   if (rLhsConst && rRhsConst && firstExpr == secondExpr)
     return getAffineBinaryOpExpr(
         AffineExprKind::Mul, firstExpr,
-        getAffineConstantExpr(rLhsConst.getValue() + rRhsConst.getValue(),
-                              lhs.getContext()));
+        getAffineConstantExpr(*rLhsConst + *rRhsConst, lhs.getContext()));
 
   // When doing successive additions, bring constant to the right: turn (d0 + 2)
   // + d1 into (d0 + d1) + 2.
@@ -975,7 +974,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // Adds entries to `indexToExprMap`, `coefficients` and `indices`.
   auto addEntry = [&](std::pair<unsigned, signed> index, int64_t coefficient,
                       AffineExpr expr) {
-    assert(std::find(indices.begin(), indices.end(), index) == indices.end() &&
+    assert(!llvm::is_contained(indices, index) &&
            "Key is already present in indices vector and overwriting will "
            "happen in `indexToExprMap` and `coefficients`!");
 
@@ -1020,7 +1019,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // as lhs/rhs, and store the indices, constant coefficient corresponding to
   // the indices in `coefficients` map, and affine expression corresponding to
   // in indices in `indexToExprMap` map.
-  for (auto it : llvm::enumerate(localExprs)) {
+  for (const auto &it : llvm::enumerate(localExprs)) {
     AffineExpr expr = it.value();
     if (flatExprs[numDims + numSymbols + it.index()] == 0)
       continue;
@@ -1074,7 +1073,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // Constructing the simplified semi-affine sum of product/division/mod
   // expression from the flattened form in the desired sorted order of indices
   // of the various individual product/division/mod expressions.
-  std::sort(indices.begin(), indices.end());
+  llvm::sort(indices);
   for (const std::pair<unsigned, unsigned> index : indices) {
     assert(indexToExprMap.lookup(index) &&
            "cannot find key in `indexToExprMap` map");

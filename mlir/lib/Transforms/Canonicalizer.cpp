@@ -21,14 +21,15 @@ using namespace mlir;
 namespace {
 /// Canonicalize operations in nested regions.
 struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
-  Canonicalizer(const GreedyRewriteConfig &config) : config(config) {}
-
-  Canonicalizer() {
-    // Default constructed Canonicalizer takes its settings from command line
-    // options.
-    config.useTopDownTraversal = topDownProcessingEnabled;
-    config.enableRegionSimplification = enableRegionSimplification;
-    config.maxIterations = maxIterations;
+  Canonicalizer() = default;
+  Canonicalizer(const GreedyRewriteConfig &config,
+                ArrayRef<std::string> disabledPatterns,
+                ArrayRef<std::string> enabledPatterns) {
+    this->topDownProcessingEnabled = config.useTopDownTraversal;
+    this->enableRegionSimplification = config.enableRegionSimplification;
+    this->maxIterations = config.maxIterations;
+    this->disabledPatterns = disabledPatterns;
+    this->enabledPatterns = enabledPatterns;
   }
 
   /// Initialize the canonicalizer by building the set of patterns used during
@@ -45,11 +46,13 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
     return success();
   }
   void runOnOperation() override {
-    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns,
-                                       config);
+    GreedyRewriteConfig config;
+    config.useTopDownTraversal = topDownProcessingEnabled;
+    config.enableRegionSimplification = enableRegionSimplification;
+    config.maxIterations = maxIterations;
+    (void)applyPatternsAndFoldGreedily(getOperation(), patterns, config);
   }
 
-  GreedyRewriteConfig config;
   FrozenRewritePatternSet patterns;
 };
 } // namespace
@@ -61,6 +64,9 @@ std::unique_ptr<Pass> mlir::createCanonicalizerPass() {
 
 /// Creates an instance of the Canonicalizer pass with the specified config.
 std::unique_ptr<Pass>
-mlir::createCanonicalizerPass(const GreedyRewriteConfig &config) {
-  return std::make_unique<Canonicalizer>(config);
+mlir::createCanonicalizerPass(const GreedyRewriteConfig &config,
+                              ArrayRef<std::string> disabledPatterns,
+                              ArrayRef<std::string> enabledPatterns) {
+  return std::make_unique<Canonicalizer>(config, disabledPatterns,
+                                         enabledPatterns);
 }

@@ -27,7 +27,8 @@ InitVariablesCheck::InitVariablesCheck(StringRef Name,
                                        ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
-                                               utils::IncludeSorter::IS_LLVM)),
+                                               utils::IncludeSorter::IS_LLVM),
+                      areDiagsSelfContained()),
       MathHeader(Options.get("MathHeader", "<math.h>")) {}
 
 void InitVariablesCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
@@ -83,6 +84,8 @@ void InitVariablesCheck::check(const MatchFinder::MatchResult &Result) {
 
   if (TypePtr->isEnumeralType())
     InitializationString = nullptr;
+  else if (TypePtr->isBooleanType())
+    InitializationString = " = false";
   else if (TypePtr->isIntegerType())
     InitializationString = " = 0";
   else if (TypePtr->isFloatingType()) {

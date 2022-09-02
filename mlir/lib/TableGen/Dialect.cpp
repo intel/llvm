@@ -38,7 +38,7 @@ std::string Dialect::getCppClassName() const {
 
 static StringRef getAsStringOrEmpty(const llvm::Record &record,
                                     StringRef fieldName) {
-  if (auto valueInit = record.getValueInit(fieldName)) {
+  if (auto *valueInit = record.getValueInit(fieldName)) {
     if (llvm::isa<llvm::StringInit>(valueInit))
       return record.getValueAsString(fieldName);
   }
@@ -102,7 +102,12 @@ Dialect::EmitPrefix Dialect::getEmitAccessorPrefix() const {
   int prefix = def->getValueAsInt("emitAccessorPrefix");
   if (prefix < 0 || prefix > static_cast<int>(EmitPrefix::Both))
     PrintFatalError(def->getLoc(), "Invalid accessor prefix value");
+
   return static_cast<EmitPrefix>(prefix);
+}
+
+bool Dialect::isExtensible() const {
+  return def->getValueAsBit("isExtensible");
 }
 
 bool Dialect::operator==(const Dialect &other) const {

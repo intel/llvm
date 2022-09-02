@@ -135,8 +135,7 @@ An overview of all the command-line options:
     --config=<string>              -
                                      Specifies a configuration in YAML/JSON format:
                                        -config="{Checks: '*',
-                                                 CheckOptions: [{key: x,
-                                                                 value: y}]}"
+                                                 CheckOptions: {x, y}}"
                                      When the value is empty, clang-tidy will
                                      attempt to find a file named .clang-tidy for
                                      each source file in its parent directories.
@@ -218,7 +217,16 @@ An overview of all the command-line options:
     --list-checks                  -
                                      List all enabled checks and exit. Use with
                                      -checks=* to list all available checks.
-    -p=<string>                    - Build path
+    -load=<plugin>                 -
+                                     Load the dynamic object ``plugin``. This
+                                     object should register new static analyzer
+                                     or clang-tidy passes. Once loaded, the
+                                     object will add new command line options
+                                     to run various analyses. To see the new
+                                     complete list of passes, use the
+                                     :option:`--list-checks` and
+                                     :option:`-load` options together.
+    -p <string>                    - Build path
     --quiet                        -
                                      Run clang-tidy in quiet mode. This suppresses
                                      printing statistics about ignored warnings and
@@ -235,6 +243,9 @@ An overview of all the command-line options:
                                     standard output supports colors.
                                     This option overrides the 'UseColor' option in
                                     .clang-tidy file, if any.
+    --verify-config                -
+                                     Check the config files to ensure each check and
+                                     option is recognized.
     --vfsoverlay=<filename>        -
                                      Overlay the virtual filesystem described by file
                                      over the real file system.
@@ -283,8 +294,7 @@ An overview of all the command-line options:
       InheritParentConfig: true
       User:                user
       CheckOptions:
-        - key:             some-check.SomeOption
-          value:           'some value'
+        some-check.SomeOption: 'some value'
       ...
 
 .. _clang-tidy-nolint:

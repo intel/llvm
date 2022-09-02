@@ -49,7 +49,8 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-unnamed-lambda`**
 
     Enables/Disables unnamed SYCL lambda kernels support.
-    Disabled by default.
+    The default value depends on the SYCL language standard: it is enabled
+    by default for SYCL 2020, and disabled for SYCL 1.2.1.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -70,7 +71,7 @@ and not recommended to use in production environment.
     Enables (or disables) LLVM IR dead argument elimination pass to remove
     unused arguments for the kernel functions before translation to SPIR-V.
     Currently has effect only on spir64\* targets.
-    Disabled by default.
+    Enabled by default.
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
@@ -176,6 +177,16 @@ and not recommended to use in production environment.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
+**`-f[no-]sycl-device-code-split-esimd`** [EXPERIMENTAL]
+
+     Controls SYCL/ESIMD device code splitting. When enabled (this is the
+     default), SYCL and ESIMD entry points along with their call graphs are
+     put into separate device binary images. Otherwise, SYCL and ESIMD parts
+     of the device code are kept in the same device binary image and get
+     compiled by the Intel GPU compiler back end as a single module. This
+     option has effect only for SPIR-based targets and apps containing ESIMD
+     kernels.
+
 **`-fsycl-max-parallel-link-jobs=<N>`**
 
     Experimental feature. When specified, it informs the compiler
@@ -190,6 +201,37 @@ and not recommended to use in production environment.
     Enables/disables linking of the device libraries. Supported libraries:
     libm-fp32, libm-fp64, libc, all. Use of 'all' will enable/disable all of
     the device libraries.
+
+**`-f[no-]sycl-device-lib-jit-link`** [EXPERIMENTAL]
+
+    Enables/disables jit link mechanism for SYCL device library in JIT
+    compilation. If jit link is enabled, all required device libraries will
+    be linked with user's device image by SYCL runtime during execution time,
+    otherwise the link will happen in build time, jit link is disabled by
+    default currently. This option is ignored in AOT compilation.
+
+**`-f[no-]sycl-instrument-device-code`** [EXPERIMENTAL]
+
+    Enables/disables linking of the Instrumentation and Tracing Technology (ITT)
+    device libraries for VTune(R). This provides annotations to intercept
+    various events inside JIT generated kernels. These device libraries are
+    linked in by default.
+
+**`-f[no-]sycl-link-huge-device-code`**
+
+    Place device code later in the linked binary in order to avoid precluding
+    32-bit PC relative relocations between surrounding ELF sections when device
+    code is larger than 2GiB. This is disabled by default.
+
+    NOTE: This option is currently only supported on Linux.
+
+**`-fsycl-force-target=<T>`**
+
+    When used along with '-fsycl-targets', force the device object being
+    unbundled to match the target <T> given.  This allows the user to override
+    the expected unbundling type even though the target given does not match.
+    The forced target applies to all objects, archives and default device
+    libraries.
 
 ## Intel FPGA specific options
 
@@ -256,6 +298,39 @@ and not recommended to use in production environment.
     NOTE: Using -fsycl-host-compiler-options to pass any kind of phase limiting
     options (e.g. -c, -E, -S) may interfere with the expected output set during
     the host compilation.  Doing so is considered undefined behavior.
+
+**`-fsycl-fp32-prec-sqrt`**
+
+    Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
+    Without this flag, the default precision requirement for `sycl::sqrt` is 3
+    ULP.
+
+    NOTE: This flag is currently only supported with the CUDA and HIP targets.
+
+
+**`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
+
+    Enforces stateless memory access and enables the automatic conversion of
+    "stateful" memory access via SYCL accessors to "stateless" within ESIMD
+    (Explicit SIMD) kernels.
+
+    -fsycl-esimd-force-stateless-mem disables the intrinsics and methods
+    accepting SYCL accessors or "surface-index" which cannot be automatically
+    converted to their "stateless" equivalents.
+
+    -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
+    enforce usage of stateless memory accesses. This is the default behavior.
+
+    NOTE: "Stateful" access is the one that uses SYCL accessor or a pair
+    of "surface-index" + 32-bit byte-offset and uses specific memory access
+    data port messages to read/write/fetch.
+    "Stateless" memory access uses memory location represented with virtual
+    memory address pointer such as USM pointer.
+
+    The "stateless" memory may be beneficial as it does not have the limit
+    of 4Gb per surface.
+    Also, some of Intel GPUs or GPU run-time/drivers may support only
+    "stateless" memory accesses.
 
 # Example: SYCL device code compilation
 

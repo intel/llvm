@@ -1,16 +1,15 @@
-; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-cxx-exceptions -S | FileCheck %s --check-prefixes=CHECK,NO-TLS -DPTR=i32
-; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-cxx-exceptions -S --mattr=+atomics,+bulk-memory | FileCheck %s --check-prefixes=CHECK,TLS -DPTR=i32
-; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-cxx-exceptions --mtriple=wasm64-unknown-unknown -data-layout="e-m:e-p:64:64-i64:64-n32:64-S128" -S | FileCheck %s --check-prefixes=CHECK -DPTR=i64
+; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-cxx-exceptions -S | FileCheck %s -DPTR=i32
+; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-cxx-exceptions -S --mattr=+atomics,+bulk-memory | FileCheck %s -DPTR=i32
+; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-cxx-exceptions --mtriple=wasm64-unknown-unknown -data-layout="e-m:e-p:64:64-i64:64-n32:64-S128" -S | FileCheck %s -DPTR=i64
 
 target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 @_ZTIi = external constant i8*
 @_ZTIc = external constant i8*
-; NO-TLS-DAG: __THREW__ = external global [[PTR]]
-; NO-TLS-DAG: __threwValue = external global i32
-; TLS-DAG: __THREW__ = external thread_local(localexec) global [[PTR]]
-; TLS-DAG: __threwValue = external thread_local(localexec) global i32
+; CHECK: @__THREW__ = external thread_local global [[PTR]]
+; __threwValue is only used in Emscripten SjLj, so it shouldn't be generated.
+; CHECK-NOT: @__threwValue =
 
 ; Test invoke instruction with clauses (try-catch block)
 define void @clause() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
@@ -38,7 +37,7 @@ lpad:                                             ; preds = %entry
   br label %catch.dispatch
 ; CHECK: lpad:
 ; CHECK-NEXT: %[[FMC:.*]] = call i8* @__cxa_find_matching_catch_4(i8* bitcast (i8** @_ZTIi to i8*), i8* null)
-; CHECK-NEXT: %[[IVI1:.*]] = insertvalue { i8*, i32 } undef, i8* %[[FMC]], 0
+; CHECK-NEXT: %[[IVI1:.*]] = insertvalue { i8*, i32 } poison, i8* %[[FMC]], 0
 ; CHECK-NEXT: %[[TEMPRET0_VAL:.*]] = call i32 @getTempRet0()
 ; CHECK-NEXT: %[[IVI2:.*]] = insertvalue { i8*, i32 } %[[IVI1]], i32 %[[TEMPRET0_VAL]], 1
 ; CHECK-NEXT: extractvalue { i8*, i32 } %[[IVI2]], 0
@@ -108,7 +107,7 @@ ehspec.unexpected:                                ; preds = %filter.dispatch
   unreachable
 
 eh.resume:                                        ; preds = %filter.dispatch
-  %lpad.val = insertvalue { i8*, i32 } undef, i8* %1, 0
+  %lpad.val = insertvalue { i8*, i32 } poison, i8* %1, 0
   %lpad.val3 = insertvalue { i8*, i32 } %lpad.val, i32 %2, 1
   resume { i8*, i32 } %lpad.val3
 ; CHECK: eh.resume:
@@ -172,7 +171,6 @@ declare void @__cxa_call_unexpected(i8*)
 
 ; JS glue functions and invoke wrappers declaration
 ; CHECK-DAG: declare i32 @getTempRet0()
-; CHECK-DAG: declare void @setTempRet0(i32)
 ; CHECK-DAG: declare void @__resumeException(i8*)
 ; CHECK-DAG: declare void @__invoke_void_i32(void (i32)*, i32)
 ; CHECK-DAG: declare i8* @__cxa_find_matching_catch_4(i8*, i8*)

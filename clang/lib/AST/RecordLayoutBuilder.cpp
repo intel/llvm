@@ -1223,7 +1223,7 @@ ItaniumRecordLayoutBuilder::LayoutBase(const BaseSubobjectInfo *Base) {
     // Per GCC's documentation, it only applies to non-static data members.
     return (Packed && ((Context.getLangOpts().getClangABICompat() <=
                         LangOptions::ClangABI::Ver6) ||
-                       Context.getTargetInfo().getTriple().isPS4() ||
+                       Context.getTargetInfo().getTriple().isPS() ||
                        Context.getTargetInfo().getTriple().isOSAIX()))
                ? CharUnits::One()
                : UnpackedAlign;
@@ -1261,7 +1261,9 @@ ItaniumRecordLayoutBuilder::LayoutBase(const BaseSubobjectInfo *Base) {
       (!HasExternalLayout || Offset == CharUnits::Zero()) &&
       EmptySubobjects->CanPlaceBaseAtOffset(Base, CharUnits::Zero())) {
     setSize(std::max(getSize(), Layout.getSize()));
-    UpdateAlignment(BaseAlign, UnpackedAlignTo, PreferredBaseAlign);
+    // On PS4/PS5, don't update the alignment, to preserve compatibility.
+    if (!Context.getTargetInfo().getTriple().isPS())
+      UpdateAlignment(BaseAlign, UnpackedAlignTo, PreferredBaseAlign);
 
     return CharUnits::Zero();
   }
@@ -1887,7 +1889,12 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
   UnfilledBitsInLastUnit = 0;
   LastBitfieldStorageUnitSize = 0;
 
-  bool FieldPacked = Packed || D->hasAttr<PackedAttr>();
+  llvm::Triple Target = Context.getTargetInfo().getTriple();
+  bool FieldPacked = (Packed && (!FieldClass || FieldClass->isPOD() ||
+                                 Context.getLangOpts().getClangABICompat() <=
+                                     LangOptions::ClangABI::Ver14 ||
+                                 Target.isPS() || Target.isOSDarwin())) ||
+                     D->hasAttr<PackedAttr>();
 
   AlignRequirementKind AlignRequirement = AlignRequirementKind::None;
   CharUnits FieldSize;
@@ -2021,6 +2028,7 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
   CharUnits UnpackedFieldAlign =
       !DefaultsToAIXPowerAlignment ? FieldAlign : PreferredAlign;
   CharUnits UnpackedFieldOffset = FieldOffset;
+  CharUnits OriginalFieldAlign = UnpackedFieldAlign;
 
   if (FieldPacked) {
     FieldAlign = CharUnits::One();
@@ -2105,6 +2113,22 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
   // Remember max struct/class ABI-specified alignment.
   UnadjustedAlignment = std::max(UnadjustedAlignment, FieldAlign);
   UpdateAlignment(FieldAlign, UnpackedFieldAlign, PreferredAlign);
+
+  // For checking the alignment of inner fields against
+  // the alignment of its parent record.
+  if (const RecordDecl *RD = D->getParent()) {
+    // Check if packed attribute or pragma pack is present.
+    if (RD->hasAttr<PackedAttr>() || !MaxFieldAlignment.isZero())
+      if (FieldAlign < OriginalFieldAlign)
+        if (D->getType()->isRecordType()) {
+          // If the offset is a multiple of the alignment of
+          // the type, raise the warning.
+          // TODO: Takes no account the alignment of the outer struct
+          if (FieldOffset % OriginalFieldAlign != 0)
+            Diag(D->getLocation(), diag::warn_unaligned_access)
+                << Context.getTypeDeclType(RD) << D->getName() << D->getType();
+        }
+  }
 }
 
 void ItaniumRecordLayoutBuilder::FinishLayout(const NamedDecl *D) {
@@ -3527,7 +3551,7 @@ static void DumpRecordLayout(raw_ostream &OS, const RecordDecl *RD,
   auto CXXRD = dyn_cast<CXXRecordDecl>(RD);
 
   PrintOffset(OS, Offset, IndentLevel);
-  OS << C.getTypeDeclType(const_cast<RecordDecl*>(RD)).getAsString();
+  OS << C.getTypeDeclType(const_cast<RecordDecl *>(RD));
   if (Description)
     OS << ' ' << Description;
   if (CXXRD && CXXRD->isEmpty())
@@ -3612,7 +3636,7 @@ static void DumpRecordLayout(raw_ostream &OS, const RecordDecl *RD,
     const QualType &FieldType = C.getLangOpts().DumpRecordLayoutsCanonical
                                     ? Field.getType().getCanonicalType()
                                     : Field.getType();
-    OS << FieldType.getAsString() << ' ' << Field << '\n';
+    OS << FieldType << ' ' << Field << '\n';
   }
 
   // Dump virtual bases.
@@ -3678,7 +3702,7 @@ void ASTContext::DumpRecordLayout(const RecordDecl *RD, raw_ostream &OS,
   // in libFrontend.
 
   const ASTRecordLayout &Info = getASTRecordLayout(RD);
-  OS << "Type: " << getTypeDeclType(RD).getAsString() << "\n";
+  OS << "Type: " << getTypeDeclType(RD) << "\n";
   OS << "\nLayout: ";
   OS << "<ASTRecordLayout\n";
   OS << "  Size:" << toBits(Info.getSize()) << "\n";

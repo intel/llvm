@@ -13,9 +13,11 @@
 #include "ObjDumper.h"
 #include "StackMapPrinter.h"
 #include "llvm-readobj.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Object/MachO.h"
+#include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ScopedPrinter.h"
 
@@ -34,9 +36,15 @@ public:
   void printRelocations() override;
   void printUnwindInfo() override;
   void printStackMap() const override;
+  void printCGProfile() override;
 
   void printNeededLibraries() override;
 
+  bool canCompareSymbols() const override { return true; }
+  bool compareSymbolsByName(object::SymbolRef LHS,
+                            object::SymbolRef RHS) const override;
+  bool compareSymbolsByType(object::SymbolRef LHS,
+                            object::SymbolRef RHS) const override;
   // MachO-specific.
   void printMachODataInCode() override;
   void printMachOVersionMin() override;
@@ -49,8 +57,14 @@ private:
   template<class MachHeader>
   void printFileHeaders(const MachHeader &Header);
 
+  StringRef getSymbolName(const SymbolRef &Symbol) const;
+  uint8_t getSymbolType(const SymbolRef &Symbol) const;
+
   void printSymbols() override;
+  void printSymbols(Optional<SymbolComparator> SymComp) override;
   void printDynamicSymbols() override;
+  void printDynamicSymbols(Optional<SymbolComparator> SymComp) override;
+  void printSymbol(const SymbolRef &Symbol, ScopedPrinter &W);
   void printSymbol(const SymbolRef &Symbol);
 
   void printRelocation(const RelocationRef &Reloc);
@@ -551,10 +565,7 @@ void MachODumper::printRelocation(const MachOObjectFile *Obj,
   if (IsExtern) {
     symbol_iterator Symbol = Reloc.getSymbol();
     if (Symbol != Obj->symbol_end()) {
-      Expected<StringRef> TargetNameOrErr = Symbol->getName();
-      if (!TargetNameOrErr)
-        reportError(TargetNameOrErr.takeError(), Obj->getFileName());
-      TargetName = *TargetNameOrErr;
+      TargetName = getSymbolName(*Symbol);
     }
   } else if (!IsScattered) {
     section_iterator SecI = Obj->getRelocationSection(DR);
@@ -601,26 +612,59 @@ void MachODumper::printRelocation(const MachOObjectFile *Obj,
   }
 }
 
-void MachODumper::printSymbols() {
-  ListScope Group(W, "Symbols");
+StringRef MachODumper::getSymbolName(const SymbolRef &Symbol) const {
+  Expected<StringRef> SymbolNameOrErr = Symbol.getName();
+  if (!SymbolNameOrErr) {
+    reportError(SymbolNameOrErr.takeError(), Obj->getFileName());
+  }
+  return *SymbolNameOrErr;
+}
 
-  for (const SymbolRef &Symbol : Obj->symbols()) {
-    printSymbol(Symbol);
+uint8_t MachODumper::getSymbolType(const SymbolRef &Symbol) const {
+  return Obj->is64Bit()
+      ? Obj->getSymbol64TableEntry(Symbol.getRawDataRefImpl()).n_type
+      : Obj->getSymbolTableEntry(Symbol.getRawDataRefImpl()).n_type;
+}
+
+bool MachODumper::compareSymbolsByName(SymbolRef LHS, SymbolRef RHS) const {
+  return getSymbolName(LHS).str().compare(getSymbolName(RHS).str()) < 0;
+}
+
+bool MachODumper::compareSymbolsByType(SymbolRef LHS, SymbolRef RHS) const {
+  return getSymbolType(LHS) < getSymbolType(RHS);
+}
+
+void MachODumper::printSymbols() { printSymbols(None); }
+
+void MachODumper::printSymbols(Optional<SymbolComparator> SymComp) {
+  ListScope Group(W, "Symbols");
+  if (SymComp) {
+    auto SymbolRange = Obj->symbols();
+    std::vector<SymbolRef> SortedSymbols(SymbolRange.begin(),
+                                         SymbolRange.end());
+    llvm::stable_sort(SortedSymbols, *SymComp);
+    for (SymbolRef Symbol : SortedSymbols)
+      printSymbol(Symbol);
+  } else {
+    for (const SymbolRef &Symbol : Obj->symbols()) {
+      printSymbol(Symbol);
+    }
   }
 }
 
 void MachODumper::printDynamicSymbols() {
   ListScope Group(W, "DynamicSymbols");
 }
+void MachODumper::printDynamicSymbols(Optional<SymbolComparator> SymComp) {
+  ListScope Group(W, "DynamicSymbols");
+}
 
 void MachODumper::printSymbol(const SymbolRef &Symbol) {
-  StringRef SymbolName;
-  Expected<StringRef> SymbolNameOrErr = Symbol.getName();
-  if (!SymbolNameOrErr) {
-    // TODO: Actually report errors helpfully.
-    consumeError(SymbolNameOrErr.takeError());
-  } else
-    SymbolName = *SymbolNameOrErr;
+  printSymbol(Symbol, W);
+}
+
+void MachODumper::printSymbol(const SymbolRef &Symbol, ScopedPrinter &W) {
+  StringRef SymbolName = getSymbolName(Symbol);
 
   MachOSymbol MOSymbol;
   getSymbol(Obj, Symbol.getRawDataRefImpl(), MOSymbol);
@@ -694,6 +738,48 @@ void MachODumper::printStackMap() const {
   else
     prettyPrintStackMap(
         W, StackMapParser<support::big>(StackMapContentsArray));
+}
+
+void MachODumper::printCGProfile() {
+  object::SectionRef CGProfileSection;
+  for (auto Sec : Obj->sections()) {
+    StringRef Name;
+    if (Expected<StringRef> NameOrErr = Sec.getName())
+      Name = *NameOrErr;
+    else
+      consumeError(NameOrErr.takeError());
+
+    if (Name == "__cg_profile") {
+      CGProfileSection = Sec;
+      break;
+    }
+  }
+  if (CGProfileSection == object::SectionRef())
+    return;
+
+  StringRef CGProfileContents =
+      unwrapOrError(Obj->getFileName(), CGProfileSection.getContents());
+  BinaryStreamReader Reader(CGProfileContents, Obj->isLittleEndian()
+                                                   ? llvm::support::little
+                                                   : llvm::support::big);
+
+  ListScope L(W, "CGProfile");
+  while (!Reader.empty()) {
+    uint32_t FromIndex, ToIndex;
+    uint64_t Count;
+    if (Error Err = Reader.readInteger(FromIndex))
+      reportError(std::move(Err), Obj->getFileName());
+    if (Error Err = Reader.readInteger(ToIndex))
+      reportError(std::move(Err), Obj->getFileName());
+    if (Error Err = Reader.readInteger(Count))
+      reportError(std::move(Err), Obj->getFileName());
+    DictScope D(W, "CGProfileEntry");
+    W.printNumber("From", getSymbolName(*Obj->getSymbolByIndex(FromIndex)),
+                  FromIndex);
+    W.printNumber("To", getSymbolName(*Obj->getSymbolByIndex(ToIndex)),
+                  ToIndex);
+    W.printNumber("Weight", Count);
+  }
 }
 
 void MachODumper::printNeededLibraries() {

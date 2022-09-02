@@ -74,7 +74,7 @@ int f0(I0 *ob) {
   [ ob nonVararg: 0, 1, 2]; // expected-error {{too many arguments to method call}}
 }
 
-int f2() {
+int f2(void) {
     const id foo;
     [foo bar];  // expected-warning {{method '-bar' not found (return type defaults to 'id')}}
     return 0;
@@ -87,12 +87,12 @@ struct S { int X; } S;
 int test5(int X) {
   int a = [X somemsg];  // expected-warning {{receiver type 'int' is not 'id'}} \
                            expected-warning {{method '-somemsg' not found}} \
-                           expected-warning {{incompatible pointer to integer conversion initializing 'int' with an expression of type 'id'}}
+                           expected-error {{incompatible pointer to integer conversion initializing 'int' with an expression of type 'id'}}
   int b = [S somemsg];  // expected-error {{bad receiver type 'struct S'}}
 }
 
 // PR4021
-void foo4() {
+void foo4(void) {
   struct objc_object X[10];
   
   [X rect]; // expected-warning {{receiver type 'struct objc_object *' is not 'id' or interface pointer, consider casting it to 'id'}}

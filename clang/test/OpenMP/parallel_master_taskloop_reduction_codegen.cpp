@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fopenmp -x c++ %s -verify -debug-info-kind=limited -emit-llvm -o - -triple powerpc64le-unknown-linux-gnu -std=c++98 -fnoopenmp-use-tls | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c++ %s -verify -debug-info-kind=limited -emit-llvm -o - -triple powerpc64le-unknown-linux-gnu -std=c++98 -fnoopenmp-use-tls | FileCheck %s
 
-// RUN: %clang_cc1 -fopenmp-simd -x c++ %s -verify -debug-info-kind=limited -emit-llvm -o - -triple powerpc64le-unknown-linux-gnu -std=c++98 -fnoopenmp-use-tls | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -x c++ %s -verify -debug-info-kind=limited -emit-llvm -o - -triple powerpc64le-unknown-linux-gnu -std=c++98 -fnoopenmp-use-tls | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 // expected-no-diagnostics
 
@@ -168,51 +168,51 @@ sum = 0.0;
 // CHECK-NEXT:  br label {{%?}}[[EXIT]]
 // CHECK:       [[EXIT]]
 
-// CHECK: define internal void @[[RED_INIT1]](i8* noalias %{{.+}}, i8* noalias %{{.+}})
+// CHECK: define internal void @[[RED_INIT1]](i8* noalias noundef %{{.+}}, i8* noalias noundef %{{.+}})
 // CHECK: store float 0.000000e+00, float* %
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_COMB1]](i8* %0, i8* %1)
+// CHECK: define internal void @[[RED_COMB1]](i8* noundef %0, i8* noundef %1)
 // CHECK: fadd float %
 // CHECK: store float %{{.+}}, float* %
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_INIT2]](i8* noalias %{{.+}}, i8* noalias %{{.+}})
+// CHECK: define internal void @[[RED_INIT2]](i8* noalias noundef %{{.+}}, i8* noalias noundef %{{.+}})
 // CHECK: call i8* @__kmpc_threadprivate_cached(
 // CHECK: call void [[OMP_INIT1:@.+]](
 // CHECK: ret void
 
-// CHECK: define internal void [[OMP_COMB1:@.+]](%struct.S* noalias %0, %struct.S* noalias %1)
+// CHECK: define internal void [[OMP_COMB1:@.+]](%struct.S* noalias noundef %0, %struct.S* noalias noundef %1)
 // CHECK: fadd float %
 
-// CHECK: define internal void [[OMP_INIT1]](%struct.S* noalias %0, %struct.S* noalias %1)
+// CHECK: define internal void [[OMP_INIT1]](%struct.S* noalias noundef %0, %struct.S* noalias noundef %1)
 // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(
 
-// CHECK: define internal void @[[RED_FINI2]](i8* %0)
+// CHECK: define internal void @[[RED_FINI2]](i8* noundef %0)
 // CHECK: call i8* @__kmpc_threadprivate_cached(
 // CHECK: call void @
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_COMB2]](i8* %0, i8* %1)
+// CHECK: define internal void @[[RED_COMB2]](i8* noundef %0, i8* noundef %1)
 // CHECK: call i8* @__kmpc_threadprivate_cached(
 // CHECK: call void [[OMP_COMB1]](
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_INIT3]](i8* noalias %{{.+}}, i8* noalias %{{.+}})
+// CHECK: define internal void @[[RED_INIT3]](i8* noalias noundef %{{.+}}, i8* noalias noundef %{{.+}})
 // CHECK: store float 0.000000e+00, float* %
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_COMB3]](i8* %0, i8* %1)
+// CHECK: define internal void @[[RED_COMB3]](i8* noundef %0, i8* noundef %1)
 // CHECK: fadd float %
 // CHECK: store float %{{.+}}, float* %
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_INIT4]](i8* noalias %{{.+}}, i8* noalias %{{.+}})
+// CHECK: define internal void @[[RED_INIT4]](i8* noalias noundef %{{.+}}, i8* noalias noundef %{{.+}})
 // CHECK: call i8* @__kmpc_threadprivate_cached(
 // CHECK: store float 0.000000e+00, float* %
 // CHECK: ret void
 
-// CHECK: define internal void @[[RED_COMB4]](i8* %0, i8* %1)
+// CHECK: define internal void @[[RED_COMB4]](i8* noundef %0, i8* noundef %1)
 // CHECK: call i8* @__kmpc_threadprivate_cached(
 // CHECK: fadd float %
 // CHECK: store float %{{.+}}, float* %

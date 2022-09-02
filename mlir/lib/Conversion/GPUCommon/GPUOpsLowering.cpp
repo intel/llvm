@@ -8,8 +8,8 @@
 
 #include "GPUOpsLowering.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
@@ -21,7 +21,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
 
   SmallVector<LLVM::GlobalOp, 3> workgroupBuffers;
   workgroupBuffers.reserve(gpuFuncOp.getNumWorkgroupAttributions());
-  for (auto en : llvm::enumerate(gpuFuncOp.getWorkgroupAttributions())) {
+  for (const auto &en : llvm::enumerate(gpuFuncOp.getWorkgroupAttributions())) {
     Value attribution = en.value();
 
     auto type = attribution.getType().dyn_cast<MemRefType>();
@@ -42,7 +42,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
   }
 
   // Rewrite the original GPU function to an LLVM function.
-  auto funcType = typeConverter->convertType(gpuFuncOp.getType())
+  auto funcType = typeConverter->convertType(gpuFuncOp.getFunctionType())
                       .template cast<LLVM::LLVMPointerType>()
                       .getElementType();
 
@@ -50,14 +50,14 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
   TypeConverter::SignatureConversion signatureConversion(
       gpuFuncOp.front().getNumArguments());
   getTypeConverter()->convertFunctionSignature(
-      gpuFuncOp.getType(), /*isVariadic=*/false, signatureConversion);
+      gpuFuncOp.getFunctionType(), /*isVariadic=*/false, signatureConversion);
 
   // Create the new function operation. Only copy those attributes that are
   // not specific to function modeling.
   SmallVector<NamedAttribute, 4> attributes;
   for (const auto &attr : gpuFuncOp->getAttrs()) {
     if (attr.getName() == SymbolTable::getSymbolAttrName() ||
-        attr.getName() == function_like_impl::getTypeAttrName() ||
+        attr.getName() == FunctionOpInterface::getTypeAttrName() ||
         attr.getName() == gpu::GPUFuncOp::getNumWorkgroupAttributionsAttrName())
       continue;
     attributes.push_back(attr);
@@ -69,7 +69,8 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     attributes.emplace_back(kernelAttributeName, rewriter.getUnitAttr());
   auto llvmFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
       gpuFuncOp.getLoc(), gpuFuncOp.getName(), funcType,
-      LLVM::Linkage::External, /*dsoLocal*/ false, attributes);
+      LLVM::Linkage::External, /*dsoLocal*/ false, /*cconv*/ LLVM::CConv::C,
+      attributes);
 
   {
     // Insert operations that correspond to converted workgroup and private
@@ -82,20 +83,15 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     // Rewrite workgroup memory attributions to addresses of global buffers.
     rewriter.setInsertionPointToStart(&gpuFuncOp.front());
     unsigned numProperArguments = gpuFuncOp.getNumArguments();
-    auto i32Type = IntegerType::get(rewriter.getContext(), 32);
 
-    Value zero = nullptr;
-    if (!workgroupBuffers.empty())
-      zero = rewriter.create<LLVM::ConstantOp>(loc, i32Type,
-                                               rewriter.getI32IntegerAttr(0));
-    for (auto en : llvm::enumerate(workgroupBuffers)) {
+    for (const auto &en : llvm::enumerate(workgroupBuffers)) {
       LLVM::GlobalOp global = en.value();
       Value address = rewriter.create<LLVM::AddressOfOp>(loc, global);
       auto elementType =
           global.getType().cast<LLVM::LLVMArrayType>().getElementType();
       Value memory = rewriter.create<LLVM::GEPOp>(
           loc, LLVM::LLVMPointerType::get(elementType, global.getAddrSpace()),
-          address, ArrayRef<Value>{zero, zero});
+          address, ArrayRef<LLVM::GEPArg>{0, 0});
 
       // Build a memref descriptor pointing to the buffer to plug with the
       // existing memref infrastructure. This may use more registers than
@@ -111,7 +107,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     // Rewrite private memory attributions to alloca'ed buffers.
     unsigned numWorkgroupAttributions = gpuFuncOp.getNumWorkgroupAttributions();
     auto int64Ty = IntegerType::get(rewriter.getContext(), 64);
-    for (auto en : llvm::enumerate(gpuFuncOp.getPrivateAttributions())) {
+    for (const auto &en : llvm::enumerate(gpuFuncOp.getPrivateAttributions())) {
       Value attribution = en.value();
       auto type = attribution.getType().cast<MemRefType>();
       assert(type && type.hasStaticShape() && "unexpected type in attribution");
@@ -142,6 +138,34 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
                                          &signatureConversion)))
     return failure();
 
+  // If bare memref pointers are being used, remap them back to memref
+  // descriptors This must be done after signature conversion to get rid of the
+  // unrealized casts.
+  if (getTypeConverter()->getOptions().useBarePtrCallConv) {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&llvmFuncOp.getBody().front());
+    for (const auto &en : llvm::enumerate(gpuFuncOp.getArgumentTypes())) {
+      auto memrefTy = en.value().dyn_cast<MemRefType>();
+      if (!memrefTy)
+        continue;
+      assert(memrefTy.hasStaticShape() &&
+             "Bare pointer convertion used with dynamically-shaped memrefs");
+      // Use a placeholder when replacing uses of the memref argument to prevent
+      // circular replacements.
+      auto remapping = signatureConversion.getInputMapping(en.index());
+      assert(remapping && remapping->size == 1 &&
+             "Type converter should produce 1-to-1 mapping for bare memrefs");
+      BlockArgument newArg =
+          llvmFuncOp.getBody().getArgument(remapping->inputNo);
+      auto placeholder = rewriter.create<LLVM::UndefOp>(
+          loc, getTypeConverter()->convertType(memrefTy));
+      rewriter.replaceUsesOfBlockArgument(newArg, placeholder);
+      Value desc = MemRefDescriptor::fromStaticShape(
+          rewriter, loc, *getTypeConverter(), memrefTy, newArg);
+      rewriter.replaceOp(placeholder, {desc});
+    }
+  }
+
   rewriter.eraseOp(gpuFuncOp);
   return success();
 }
@@ -170,7 +194,6 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getI8Type());
   mlir::Type i8Ptr = LLVM::LLVMPointerType::get(llvmI8);
-  mlir::Type llvmIndex = typeConverter->convertType(rewriter.getIndexType());
   mlir::Type llvmI32 = typeConverter->convertType(rewriter.getI32Type());
   mlir::Type llvmI64 = typeConverter->convertType(rewriter.getI64Type());
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
@@ -209,7 +232,7 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
     (formatStringPrefix + Twine(stringNumber++)).toStringRef(stringConstName);
   } while (moduleOp.lookupSymbol(stringConstName));
 
-  llvm::SmallString<20> formatString(adaptor.format().getValue());
+  llvm::SmallString<20> formatString(adaptor.format());
   formatString.push_back('\0'); // Null terminate for C
   size_t formatStringSize = formatString.size_in_bytes();
 
@@ -226,10 +249,8 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
 
   // Get a pointer to the format string's first element and pass it to printf()
   Value globalPtr = rewriter.create<LLVM::AddressOfOp>(loc, global);
-  Value zero = rewriter.create<LLVM::ConstantOp>(
-      loc, llvmIndex, rewriter.getIntegerAttr(llvmIndex, 0));
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalPtr, mlir::ValueRange({zero, zero}));
+      loc, i8Ptr, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
   Value stringLen = rewriter.create<LLVM::ConstantOp>(
       loc, llvmI64, rewriter.getI64IntegerAttr(formatStringSize));
 
@@ -289,7 +310,6 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getIntegerType(8));
   mlir::Type i8Ptr = LLVM::LLVMPointerType::get(llvmI8, addressSpace);
-  mlir::Type llvmIndex = typeConverter->convertType(rewriter.getIndexType());
 
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
   // This ensures that global constants and declarations are placed within
@@ -309,7 +329,7 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
     (formatStringPrefix + Twine(stringNumber++)).toStringRef(stringConstName);
   } while (moduleOp.lookupSymbol(stringConstName));
 
-  llvm::SmallString<20> formatString(adaptor.format().getValue());
+  llvm::SmallString<20> formatString(adaptor.format());
   formatString.push_back('\0'); // Null terminate for C
   auto globalType =
       LLVM::LLVMArrayType::get(llvmI8, formatString.size_in_bytes());
@@ -325,10 +345,8 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
 
   // Get a pointer to the format string's first element
   Value globalPtr = rewriter.create<LLVM::AddressOfOp>(loc, global);
-  Value zero = rewriter.create<LLVM::ConstantOp>(
-      loc, llvmIndex, rewriter.getIntegerAttr(llvmIndex, 0));
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalPtr, mlir::ValueRange({zero, zero}));
+      loc, i8Ptr, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
 
   // Construct arguments and function call
   auto argsRange = adaptor.args();

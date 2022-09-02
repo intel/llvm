@@ -11,8 +11,6 @@ import time
 
 class ModuleCacheTestcaseUniversal(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -30,8 +28,6 @@ class ModuleCacheTestcaseUniversal(TestBase):
 
     # Doesn't depend on any specific debug information.
     @no_debug_info_test
-    @skipUnlessDarwin
-    @skipIfDarwinEmbedded # this test file assumes we're targetting an x86 system
     def test(self):
         """
             Test module cache functionality for a universal mach-o files.

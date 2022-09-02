@@ -33,26 +33,24 @@ using namespace polly;
 
 static cl::opt<bool> Aligned("enable-polly-aligned",
                              cl::desc("Assumed aligned memory accesses."),
-                             cl::Hidden, cl::init(false), cl::ZeroOrMore,
-                             cl::cat(PollyCategory));
+                             cl::Hidden, cl::cat(PollyCategory));
 
 bool PollyDebugPrinting;
 static cl::opt<bool, true> DebugPrintingX(
     "polly-codegen-add-debug-printing",
     cl::desc("Add printf calls that show the values loaded/stored."),
-    cl::location(PollyDebugPrinting), cl::Hidden, cl::init(false),
-    cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::location(PollyDebugPrinting), cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> TraceStmts(
     "polly-codegen-trace-stmts",
     cl::desc("Add printf calls that print the statement being executed"),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> TraceScalars(
     "polly-codegen-trace-scalars",
     cl::desc("Add printf calls that print the values of all scalar values "
              "used in a statement. Requires -polly-codegen-trace-stmts."),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 BlockGenerator::BlockGenerator(
     PollyIRBuilder &B, LoopInfo &LI, ScalarEvolution &SE, DominatorTree &DT,
@@ -416,7 +414,7 @@ void BlockGenerator::removeDeadInstructions(BasicBlock *BB, ValueMapT &BBMap) {
 }
 
 void BlockGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
-                              isl_id_to_ast_expr *NewAccesses) {
+                              __isl_keep isl_id_to_ast_expr *NewAccesses) {
   assert(Stmt.isBlockStmt() &&
          "Only block statements can be copied by the block generator");
 
@@ -1453,7 +1451,7 @@ static BasicBlock *findExitDominator(DominatorTree &DT, Region *R) {
 }
 
 void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
-                               isl_id_to_ast_expr *IdToAstExp) {
+                               __isl_keep isl_id_to_ast_expr *IdToAstExp) {
   assert(Stmt.isRegionStmt() &&
          "Only region statements can be copied by the region generator");
 
@@ -1590,7 +1588,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
     LoopPHI->insertBefore(&BBCopy->front());
     LoopPHIInc->insertBefore(BBCopy->getTerminator());
 
-    for (auto *PredBB : make_range(pred_begin(BB), pred_end(BB))) {
+    for (auto *PredBB : predecessors(BB)) {
       if (!R->contains(PredBB))
         continue;
       if (L->contains(PredBB))
@@ -1599,7 +1597,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
         LoopPHI->addIncoming(NullVal, EndBlockMap[PredBB]);
     }
 
-    for (auto *PredBBCopy : make_range(pred_begin(BBCopy), pred_end(BBCopy)))
+    for (auto *PredBBCopy : predecessors(BBCopy))
       if (LoopPHI->getBasicBlockIndex(PredBBCopy) < 0)
         LoopPHI->addIncoming(NullVal, PredBBCopy);
 

@@ -34,11 +34,11 @@
 // is missing. This caused a link error.
 #if SANITIZER_ANDROID && (__ANDROID_API__ < 28 || defined(__arm__))
 #  define CAN_SANITIZE_LEAKS 0
-#elif (SANITIZER_LINUX || SANITIZER_MAC) && (SANITIZER_WORDSIZE == 64) && \
+#elif (SANITIZER_LINUX || SANITIZER_APPLE) && (SANITIZER_WORDSIZE == 64) && \
     (defined(__x86_64__) || defined(__mips64) || defined(__aarch64__) ||  \
      defined(__powerpc64__) || defined(__s390x__))
 #  define CAN_SANITIZE_LEAKS 1
-#elif defined(__i386__) && (SANITIZER_LINUX || SANITIZER_MAC)
+#elif defined(__i386__) && (SANITIZER_LINUX || SANITIZER_APPLE)
 #  define CAN_SANITIZE_LEAKS 1
 #elif defined(__arm__) && SANITIZER_LINUX
 #  define CAN_SANITIZE_LEAKS 1
@@ -230,8 +230,8 @@ void UnlockAllocator();
 // Returns true if [addr, addr + sizeof(void *)) is poisoned.
 bool WordIsPoisoned(uptr addr);
 // Wrappers for ThreadRegistry access.
-void LockThreadRegistry() NO_THREAD_SAFETY_ANALYSIS;
-void UnlockThreadRegistry() NO_THREAD_SAFETY_ANALYSIS;
+void LockThreadRegistry() SANITIZER_NO_THREAD_SAFETY_ANALYSIS;
+void UnlockThreadRegistry() SANITIZER_NO_THREAD_SAFETY_ANALYSIS;
 
 struct ScopedStopTheWorldLock {
   ScopedStopTheWorldLock() {

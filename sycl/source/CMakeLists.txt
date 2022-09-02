@@ -10,7 +10,7 @@ configure_file(
   @ONLY)
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  if (NOT EXISTS ${LLVM_EXTERNAL_XPTI_SOURCE_DIR})
+  if (NOT DEFINED LLVM_EXTERNAL_XPTI_SOURCE_DIR)
     message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
   endif()
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
@@ -24,10 +24,22 @@ function(add_sycl_rt_library LIB_NAME)
   set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
-  add_library(${LIB_NAME} SHARED 
+  add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-    
+
+  if (SYCL_ENABLE_COVERAGE)
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_compile_options(${LIB_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_link_options(${LIB_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+  endif()
+
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
@@ -54,10 +66,6 @@ function(add_sycl_rt_library LIB_NAME)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
-    target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
     target_link_libraries(
         ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
     set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
@@ -74,7 +82,7 @@ function(add_sycl_rt_library LIB_NAME)
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
   )
-  #TODO: Remove dependency on icd loader and opencl headers.
+  #TODO: Remove dependency on opencl headers.
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
@@ -83,11 +91,8 @@ function(add_sycl_rt_library LIB_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
@@ -122,6 +127,7 @@ set(SYCL_SOURCES
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
+    "detail/device_global_map.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
@@ -156,7 +162,9 @@ set(SYCL_SOURCES
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
+    "detail/xpti_registry.cpp"
     "accessor.cpp"
+    "buffer.cpp"
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
@@ -164,8 +172,8 @@ set(SYCL_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
+    "image.cpp"
     "interop_handle.cpp"
     "interop_handler.cpp"
     "kernel.cpp"
@@ -179,7 +187,6 @@ set(SYCL_SOURCES
     "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
-    "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
 if (MSVC)
@@ -208,13 +215,6 @@ if (SYCL_ENABLE_XPTI_TRACING)
   add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
 else()
   add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
-endif()
-
-# Enable new IN_LIST operator.
-cmake_policy(SET CMP0057 NEW)
-
-if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl libsycldevice)
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

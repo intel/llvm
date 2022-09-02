@@ -16,9 +16,10 @@
 #include "Symbols.h"
 #include "TypeMerger.h"
 #include "Writer.h"
-#include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Timer.h"
 #include "llvm/DebugInfo/CodeView/DebugFrameDataSubsection.h"
+#include "llvm/DebugInfo/CodeView/DebugInlineeLinesSubsection.h"
+#include "llvm/DebugInfo/CodeView/DebugLinesSubsection.h"
 #include "llvm/DebugInfo/CodeView/DebugSubsectionRecord.h"
 #include "llvm/DebugInfo/CodeView/GlobalTypeTableBuilder.h"
 #include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
@@ -75,7 +76,7 @@ class PDBLinker {
 
 public:
   PDBLinker(COFFLinkerContext &ctx)
-      : builder(bAlloc), tMerger(ctx, bAlloc), ctx(ctx) {
+      : builder(bAlloc()), tMerger(ctx, bAlloc()), ctx(ctx) {
     // This isn't strictly necessary, but link.exe usually puts an empty string
     // as the first "valid" string in the string table, so we do the same in
     // order to maintain as much byte-for-byte compatibility as possible.
@@ -295,14 +296,14 @@ static void addGHashTypeInfo(COFFLinkerContext &ctx,
   // Start the TPI or IPI stream header.
   builder.getTpiBuilder().setVersionHeader(pdb::PdbTpiV80);
   builder.getIpiBuilder().setVersionHeader(pdb::PdbTpiV80);
-  for_each(ctx.tpiSourceList, [&](TpiSource *source) {
+  for (TpiSource *source : ctx.tpiSourceList) {
     builder.getTpiBuilder().addTypeRecords(source->mergedTpi.recs,
                                            source->mergedTpi.recSizes,
                                            source->mergedTpi.recHashes);
     builder.getIpiBuilder().addTypeRecords(source->mergedIpi.recs,
                                            source->mergedIpi.recSizes,
                                            source->mergedIpi.recHashes);
-  });
+  }
 }
 
 static void
@@ -501,7 +502,7 @@ static void addGlobalSymbol(pdb::GSIStreamBuilder &builder, uint16_t modIndex,
   case SymbolKind::S_LPROCREF: {
     // sym is a temporary object, so we have to copy and reallocate the record
     // to stabilize it.
-    uint8_t *mem = bAlloc.Allocate<uint8_t>(sym.length());
+    uint8_t *mem = bAlloc().Allocate<uint8_t>(sym.length());
     memcpy(mem, sym.data().data(), sym.length());
     builder.addGlobalSymbol(CVSymbol(makeArrayRef(mem, sym.length())));
     break;
@@ -1003,7 +1004,7 @@ static void warnUnusable(InputFile *f, Error e) {
 
 // Allocate memory for a .debug$S / .debug$F section and relocate it.
 static ArrayRef<uint8_t> relocateDebugChunk(SectionChunk &debugChunk) {
-  uint8_t *buffer = bAlloc.Allocate<uint8_t>(debugChunk.getSize());
+  uint8_t *buffer = bAlloc().Allocate<uint8_t>(debugChunk.getSize());
   assert(debugChunk.getOutputSectionIdx() == 0 &&
          "debug sections should not be in output sections");
   debugChunk.writeTo(buffer);
@@ -1133,7 +1134,8 @@ void PDBLinker::addObjectsToPDB() {
   ScopedTimer t1(ctx.addObjectsTimer);
 
   // Create module descriptors
-  for_each(ctx.objFileInstances, [&](ObjFile *obj) { createModuleDBI(obj); });
+  for (ObjFile *obj : ctx.objFileInstances)
+    createModuleDBI(obj);
 
   // Reorder dependency type sources to come first.
   tMerger.sortDependencies();
@@ -1143,9 +1145,10 @@ void PDBLinker::addObjectsToPDB() {
     tMerger.mergeTypesWithGHash();
 
   // Merge dependencies and then regular objects.
-  for_each(tMerger.dependencySources,
-           [&](TpiSource *source) { addDebug(source); });
-  for_each(tMerger.objectSources, [&](TpiSource *source) { addDebug(source); });
+  for (TpiSource *source : tMerger.dependencySources)
+    addDebug(source);
+  for (TpiSource *source : tMerger.objectSources)
+    addDebug(source);
 
   builder.getStringTableBuilder().setStrings(pdbStrTab);
   t1.stop();
@@ -1162,10 +1165,10 @@ void PDBLinker::addObjectsToPDB() {
   t2.stop();
 
   if (config->showSummary) {
-    for_each(ctx.tpiSourceList, [&](TpiSource *source) {
+    for (TpiSource *source : ctx.tpiSourceList) {
       nbTypeRecords += source->nbTypeRecords;
       nbTypeRecordsBytes += source->nbTypeRecordsBytes;
-    });
+    }
   }
 }
 
@@ -1417,6 +1420,7 @@ static void addCommonLinkerModuleSymbols(StringRef path,
   ebs.Fields.push_back(path);
   ebs.Fields.push_back("cmd");
   ebs.Fields.push_back(argStr);
+  llvm::BumpPtrAllocator &bAlloc = lld::bAlloc();
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
       ons, bAlloc, CodeViewContainer::Pdb));
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
@@ -1448,7 +1452,7 @@ static void addLinkerModuleCoffGroup(PartialSection *sec,
     cgs.Characteristics |= llvm::COFF::IMAGE_SCN_MEM_WRITE;
 
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      cgs, bAlloc, CodeViewContainer::Pdb));
+      cgs, bAlloc(), CodeViewContainer::Pdb));
 }
 
 static void addLinkerModuleSectionSymbol(pdb::DbiModuleDescriptorBuilder &mod,
@@ -1461,7 +1465,7 @@ static void addLinkerModuleSectionSymbol(pdb::DbiModuleDescriptorBuilder &mod,
   sym.Rva = os.getRVA();
   sym.SectionNumber = os.sectionIndex;
   mod.addSymbol(codeview::SymbolSerializer::writeOneSymbol(
-      sym, bAlloc, CodeViewContainer::Pdb));
+      sym, bAlloc(), CodeViewContainer::Pdb));
 
   // Skip COFF groups in MinGW because it adds a significant footprint to the
   // PDB, due to each function being in its own section
@@ -1536,6 +1540,7 @@ void PDBLinker::addImportFilesToPDB() {
     ts.Segment = thunkOS->sectionIndex;
     ts.Offset = thunkChunk->getRVA() - thunkOS->getRVA();
 
+    llvm::BumpPtrAllocator &bAlloc = lld::bAlloc();
     mod->addSymbol(codeview::SymbolSerializer::writeOneSymbol(
         ons, bAlloc, CodeViewContainer::Pdb));
     mod->addSymbol(codeview::SymbolSerializer::writeOneSymbol(

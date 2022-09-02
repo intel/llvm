@@ -9,12 +9,14 @@
 #ifndef _LIBCPP___ALGORITHM_PARTITION_POINT_H
 #define _LIBCPP___ALGORITHM_PARTITION_POINT_H
 
-#include <__config>
 #include <__algorithm/half_positive.h>
-#include <iterator>
+#include <__config>
+#include <__iterator/advance.h>
+#include <__iterator/distance.h>
+#include <__iterator/iterator_traits.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD

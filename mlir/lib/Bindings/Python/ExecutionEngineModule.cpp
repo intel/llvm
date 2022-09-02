@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/ExecutionEngine.h"
 #include "mlir/Bindings/Python/PybindAdaptors.h"
 
@@ -42,7 +41,7 @@ public:
 
   // Add an object to the list of referenced objects whose lifetime must exceed
   // those of the ExecutionEngine.
-  void addReferencedObject(pybind11::object obj) {
+  void addReferencedObject(const pybind11::object &obj) {
     referencedObjects.push_back(obj);
   }
 

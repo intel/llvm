@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_INTERFACES_SIDEEFFECTS_H
-#define MLIR_INTERFACES_SIDEEFFECTS_H
+#ifndef MLIR_INTERFACES_SIDEEFFECTINTERFACES_H
+#define MLIR_INTERFACES_SIDEEFFECTINTERFACES_H
 
 #include "mlir/IR/OpDefinition.h"
 
@@ -53,7 +53,8 @@ public:
   TypeID getEffectID() const { return id; }
 
   /// Returns a unique instance for the given effect class.
-  template <typename DerivedEffect> static DerivedEffect *get() {
+  template <typename DerivedEffect>
+  static DerivedEffect *get() {
     static_assert(std::is_base_of<Effect, DerivedEffect>::value,
                   "expected DerivedEffect to inherit from Effect");
 
@@ -77,7 +78,7 @@ private:
 /// class represents an abstract interface for a given resource.
 class Resource {
 public:
-  virtual ~Resource() {}
+  virtual ~Resource() = default;
 
   /// This base class is used for derived effects that are non-parametric.
   template <typename DerivedResource, typename BaseResource = Resource>
@@ -134,7 +135,8 @@ struct AutomaticAllocationScopeResource
 /// applied, and an optional symbol reference or value(either operand, result,
 /// or region entry argument) that the effect is applied to, and an optional
 /// parameters attribute further specifying the details of the effect.
-template <typename EffectT> class EffectInstance {
+template <typename EffectT>
+class EffectInstance {
 public:
   EffectInstance(EffectT *effect, Resource *resource = DefaultResource::get())
       : effect(effect), resource(resource) {}
@@ -248,6 +250,12 @@ struct Write : public Effect::Base<Write> {};
 // SideEffect Utilities
 //===----------------------------------------------------------------------===//
 
+/// Returns true if `op` has only an effect of type `EffectTy` (and of no other
+/// type) on `value`. If no value is provided, simply check if effects of that
+/// type and only of that type are present.
+template <typename EffectTy>
+bool hasSingleEffect(Operation *op, Value value = nullptr);
+
 /// Return true if the given operation is unused, and has no side effects on
 /// memory that prevent erasing.
 bool isOpTriviallyDead(Operation *op);
@@ -266,4 +274,4 @@ bool wouldOpBeTriviallyDead(Operation *op);
 /// Include the definitions of the side effect interfaces.
 #include "mlir/Interfaces/SideEffectInterfaces.h.inc"
 
-#endif // MLIR_INTERFACES_SIDEEFFECTS_H
+#endif // MLIR_INTERFACES_SIDEEFFECTINTERFACES_H

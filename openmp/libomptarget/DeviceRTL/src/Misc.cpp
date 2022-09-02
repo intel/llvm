@@ -13,10 +13,14 @@
 
 #include "Debug.h"
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 namespace _OMP {
 namespace impl {
+
+double getWTick();
+
+double getWTime();
 
 /// AMDGCN Implementation
 ///
@@ -48,7 +52,7 @@ double getWTick() {
 
 double getWTime() {
   unsigned long long nsecs;
-  asm("mov.u64  %0, %%globaltimer;" : "=l"(nsecs));
+  asm volatile("mov.u64  %0, %%globaltimer;" : "=l"(nsecs));
   return (double)nsecs * getWTick();
 }
 

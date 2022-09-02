@@ -208,7 +208,9 @@ identifiers::
    multiclass string        then          true
 
 .. warning::
-  The ``field`` reserved word is deprecated.
+  The ``field`` reserved word is deprecated, except when used with the
+  CodeEmitterGen backend where it's used to distinguish normal record
+  fields from encoding fields.
 
 Bang operators
 --------------
@@ -330,7 +332,7 @@ to an entity of type ``bits<4>``.
 
 .. productionlist::
    Value: `SimpleValue` `ValueSuffix`*
-        :| `Value` "#" `Value`
+        :| `Value` "#" [`Value`]
    ValueSuffix: "{" `RangeList` "}"
               :| "[" `RangeList` "]"
               :| "." `TokIdentifier`
@@ -536,6 +538,9 @@ previous case, if the *right-hand-side* operand is an undefined name or a
 global name, it is treated as a verbatim string of characters. The
 left-hand-side operand is treated normally.
 
+Values can have a trailing paste operator, in which case the left-hand-side 
+operand is concatenated to an empty string.
+
 `Appendix B: Paste Operator Examples`_ presents examples of the behavior of
 the paste operator.
 
@@ -546,7 +551,8 @@ The following statements may appear at the top level of TableGen source
 files.
 
 .. productionlist::
-   TableGenFile: `Statement`*
+   TableGenFile: (`Statement` | `IncludeDirective`
+            :| `PreprocessorDirective`)*
    Statement: `Assert` | `Class` | `Def` | `Defm` | `Defset` | `Defvar`
             :| `Foreach` | `If` | `Let` | `MultiClass`
 
@@ -694,7 +700,7 @@ to that record's parent classes. For example:
     dag the_dag = d;
   }
 
-  def rec1 : A<(ops rec1)>
+  def rec1 : A<(ops rec1)>;
 
 The DAG ``(ops rec1)`` is passed as a template argument to class ``A``. Notice
 that the DAG includes ``rec1``, the record being defined.
@@ -886,9 +892,8 @@ template that expands into multiple records.
 
 .. productionlist::
    MultiClass: "multiclass" `TokIdentifier` [`TemplateArgList`]
-             : [":" `ParentMultiClassList`]
+             : `ParentClassList`
              : "{" `MultiClassStatement`+ "}"
-   ParentMultiClassList: `MultiClassID` ("," `MultiClassID`)*
    MultiClassID: `TokIdentifier`
    MultiClassStatement: `Assert` | `Def` | `Defm` | `Defvar` | `Foreach` | `If` | `Let`
 
@@ -1194,7 +1199,7 @@ Variables defined in a top-level ``foreach`` go out of scope at the end of
 each loop iteration, so their value in one iteration is not available in
 the next iteration.  The following ``defvar`` will not work::
 
-  defvar i = !add(i, 1)
+  defvar i = !add(i, 1);
 
 Variables can also be defined with ``defvar`` in a record body. See
 `Defvar in a Record Body`_ for more details.
@@ -1220,8 +1225,6 @@ The statement list establishes an inner scope. Variables local to a
 ``foreach`` go out of scope at the end of each loop iteration, so their
 values do not carry over from one iteration to the next. Foreach loops may
 be nested.
-
-The ``foreach`` statement can also be used in a record :token:`Body`.
 
 .. Note that the productions involving RangeList and RangePiece have precedence
    over the more generic value parsing based on the first token.
@@ -1720,6 +1723,10 @@ and non-0 as true.
 ``!isa<``\ *type*\ ``>(``\ *a*\ ``)``
     This operator produces 1 if the type of *a* is a subtype of the given *type*; 0
     otherwise.
+
+``!exists<``\ *type*\ ``>(``\ *name*\ ``)``
+    This operator produces 1 if a record of the given *type* whose name is *name*
+    exists; 0 otherwise. *name* should be of type *string*.
 
 ``!le(``\ *a*\ ``,`` *b*\ ``)``
     This operator produces 1 if *a* is less than or equal to *b*; 0 otherwise.

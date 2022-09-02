@@ -126,7 +126,7 @@ struct ScheduleTreeVisitor {
 /// Recursively visit all nodes of a schedule tree.
 template <typename Derived, typename RetTy = void, typename... Args>
 struct RecursiveScheduleTreeVisitor
-    : public ScheduleTreeVisitor<Derived, RetTy, Args...> {
+    : ScheduleTreeVisitor<Derived, RetTy, Args...> {
   using BaseTy = ScheduleTreeVisitor<Derived, RetTy, Args...>;
   BaseTy &getBase() { return *this; }
   const BaseTy &getBase() const { return *this; }
@@ -151,6 +151,39 @@ struct RecursiveScheduleTreeVisitor
     for (unsigned i : rangeIslSize(0, Node.n_children()))
       getDerived().visit(Node.child(i), std::forward<Args>(args)...);
     return RetTy();
+  }
+};
+
+/// Recursively visit all nodes of a schedule tree while allowing changes.
+///
+/// The visit methods return an isl::schedule_node that is used to continue
+/// visiting the tree. Structural changes such as returning a different node
+/// will confuse the visitor.
+template <typename Derived, typename... Args>
+struct ScheduleNodeRewriter
+    : public RecursiveScheduleTreeVisitor<Derived, isl::schedule_node,
+                                          Args...> {
+  Derived &getDerived() { return *static_cast<Derived *>(this); }
+  const Derived &getDerived() const {
+    return *static_cast<const Derived *>(this);
+  }
+
+  isl::schedule_node visitNode(isl::schedule_node Node, Args... args) {
+    return getDerived().visitChildren(Node);
+  }
+
+  isl::schedule_node visitChildren(isl::schedule_node Node, Args... args) {
+    if (!Node.has_children())
+      return Node;
+
+    isl::schedule_node It = Node.first_child();
+    while (true) {
+      It = getDerived().visit(It, std::forward<Args>(args)...);
+      if (!It.has_next_sibling())
+        break;
+      It = It.next_sibling();
+    }
+    return It.parent();
   }
 };
 

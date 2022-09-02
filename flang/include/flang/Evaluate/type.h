@@ -43,6 +43,7 @@ bool IsDescriptor(const Symbol &);
 namespace Fortran::evaluate {
 
 using common::TypeCategory;
+class TargetCharacteristics;
 
 // Specific intrinsic types are represented by specializations of
 // this class template Type<CATEGORY, KIND>.
@@ -58,7 +59,6 @@ using Ascii = Type<TypeCategory::Character, 1>;
 // A predicate that is true when a kind value is a kind that could possibly
 // be supported for an intrinsic type category on some target instruction
 // set architecture.
-// TODO: specialize for the actual target architecture
 static constexpr bool IsValidKindOfIntrinsicType(
     TypeCategory category, std::int64_t kind) {
   switch (category) {
@@ -153,7 +153,7 @@ public:
   }
   std::optional<Expr<SubscriptInteger>> GetCharLength() const;
 
-  std::size_t GetAlignment(const FoldingContext &) const;
+  std::size_t GetAlignment(const TargetCharacteristics &) const;
   std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(
       FoldingContext &, bool aligned) const;
 
@@ -185,6 +185,11 @@ public:
   // dummy argument x would be valid.  Be advised, this is not a reflexive
   // relation.  Kind type parameters must match.
   bool IsTkCompatibleWith(const DynamicType &) const;
+
+  // EXTENDS_TYPE_OF (16.9.76); ignores type parameter values
+  std::optional<bool> ExtendsTypeOf(const DynamicType &) const;
+  // SAME_TYPE_AS (16.9.165); ignores type parameter values
+  std::optional<bool> SameTypeAs(const DynamicType &) const;
 
   // Result will be missing when a symbol is absent or
   // has an erroneous type, e.g., REAL(KIND=666).
@@ -443,9 +448,14 @@ template <typename CONST> struct TypeOfHelper {
 template <typename CONST> using TypeOf = typename TypeOfHelper<CONST>::type;
 
 int SelectedCharKind(const std::string &, int defaultKind);
-int SelectedIntKind(std::int64_t precision = 0);
-int SelectedRealKind(
-    std::int64_t precision = 0, std::int64_t range = 0, std::int64_t radix = 2);
+// SelectedIntKind and SelectedRealKind are now member functions of
+// TargetCharactertics.
+
+// Given the dynamic types and kinds of two operands, determine the common
+// type to which they must be converted in order to be compared with
+// intrinsic OPERATOR(==) or .EQV.
+std::optional<DynamicType> ComparisonType(
+    const DynamicType &, const DynamicType &);
 
 // For generating "[extern] template class", &c. boilerplate
 #define EXPAND_FOR_EACH_INTEGER_KIND(M, P, S) \
@@ -456,7 +466,6 @@ int SelectedRealKind(
 #define EXPAND_FOR_EACH_CHARACTER_KIND(M, P, S) M(P, S, 1) M(P, S, 2) M(P, S, 4)
 #define EXPAND_FOR_EACH_LOGICAL_KIND(M, P, S) \
   M(P, S, 1) M(P, S, 2) M(P, S, 4) M(P, S, 8)
-#define TEMPLATE_INSTANTIATION(P, S, ARG) P<ARG> S;
 
 #define FOR_EACH_INTEGER_KIND_HELP(PREFIX, SUFFIX, K) \
   PREFIX<Type<TypeCategory::Integer, K>> SUFFIX;

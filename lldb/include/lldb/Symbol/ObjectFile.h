@@ -116,10 +116,10 @@ public:
   /// more than one architecture or object.
   ObjectFile(const lldb::ModuleSP &module_sp, const FileSpec *file_spec_ptr,
              lldb::offset_t file_offset, lldb::offset_t length,
-             const lldb::DataBufferSP &data_sp, lldb::offset_t data_offset);
+             lldb::DataBufferSP data_sp, lldb::offset_t data_offset);
 
   ObjectFile(const lldb::ModuleSP &module_sp, const lldb::ProcessSP &process_sp,
-             lldb::addr_t header_addr, lldb::DataBufferSP &data_sp);
+             lldb::addr_t header_addr, lldb::DataBufferSP data_sp);
 
   /// Destructor.
   ///
@@ -183,7 +183,7 @@ public:
   static lldb::ObjectFileSP FindPlugin(const lldb::ModuleSP &module_sp,
                                        const lldb::ProcessSP &process_sp,
                                        lldb::addr_t header_addr,
-                                       lldb::DataBufferSP &file_data_sp);
+                                       lldb::WritableDataBufferSP file_data_sp);
 
   static size_t
   GetModuleSpecifications(const FileSpec &file, lldb::offset_t file_offset,
@@ -527,11 +527,15 @@ public:
   /// binary is exactly which removes ambiguity when there are multiple
   /// binaries present in the captured memory pages.
   ///
-  /// \param[out] address
-  ///   If the address of the binary is specified, this will be set.
-  ///   This is an address is the virtual address space of the core file
-  ///   memory segments; it is not an offset into the object file.
-  ///   If no address is available, will be set to LLDB_INVALID_ADDRESS.
+  /// \param[out] value
+  ///   The address or offset (slide) where the binary is loaded in memory.
+  ///   LLDB_INVALID_ADDRESS for unspecified.  If an offset is given,
+  ///   this offset should be added to the binary's file address to get
+  ///   the load address.
+  ///
+  /// \param[out] value_is_offset
+  ///   Specifies if \b value is a load address, or an offset to calculate
+  ///   the load address.
   ///
   /// \param[out] uuid
   ///   If the uuid of the binary is specified, this will be set.
@@ -543,9 +547,11 @@ public:
   ///
   /// \return
   ///   Returns true if either address or uuid has been set.
-  virtual bool GetCorefileMainBinaryInfo(lldb::addr_t &address, UUID &uuid,
+  virtual bool GetCorefileMainBinaryInfo(lldb::addr_t &value,
+                                         bool &value_is_offset, UUID &uuid,
                                          ObjectFile::BinaryType &type) {
-    address = LLDB_INVALID_ADDRESS;
+    value = LLDB_INVALID_ADDRESS;
+    value_is_offset = false;
     uuid.Clear();
     return false;
   }
@@ -667,6 +673,7 @@ public:
   virtual size_t ReadSectionData(Section *section,
                                  DataExtractor &section_data);
 
+  /// Returns true if the object file exists only in memory.
   bool IsInMemory() const { return m_memory_addr != LLDB_INVALID_ADDRESS; }
 
   // Strip linker annotations (such as @@VERSION) from symbol names.
@@ -730,6 +737,7 @@ protected:
   DataExtractor
       m_data; ///< The data for this object file so things can be parsed lazily.
   lldb::ProcessWP m_process_wp;
+  /// Set if the object file only exists in memory.
   const lldb::addr_t m_memory_addr;
   std::unique_ptr<lldb_private::SectionList> m_sections_up;
   std::unique_ptr<lldb_private::Symtab> m_symtab_up;
@@ -752,6 +760,9 @@ protected:
   ///     Returns \b true if the architecture was changed, \b
   ///     false otherwise.
   bool SetModulesArchitecture(const ArchSpec &new_arch);
+
+  /// The number of bytes to read when going through the plugins.
+  static size_t g_initial_bytes_to_read;
 
   static lldb::DataBufferSP MapFileData(const FileSpec &file, uint64_t Size,
                                         uint64_t Offset);

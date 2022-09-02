@@ -26,7 +26,6 @@ class MCAsmBackend;
 class MCCodeEmitter;
 class MCInstrInfo;
 class MCObjectTargetWriter;
-class MVT;
 class Triple;
 
 MCCodeEmitter *createWebAssemblyMCCodeEmitter(const MCInstrInfo &MCII);
@@ -125,6 +124,7 @@ enum TOF {
 // Defines symbolic names for the WebAssembly instructions.
 //
 #define GET_INSTRINFO_ENUM
+#define GET_INSTRINFO_MC_HELPER_DECLS
 #include "WebAssemblyGenInstrInfo.inc"
 
 namespace llvm {

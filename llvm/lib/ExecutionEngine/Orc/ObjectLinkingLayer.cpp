@@ -78,9 +78,12 @@ private:
   }
 
   static bool hasELFInitSection(LinkGraph &G) {
-    for (auto &Sec : G.sections())
-      if (Sec.getName() == ".init_array")
+    for (auto &Sec : G.sections()) {
+      auto SecName = Sec.getName();
+      if (SecName.consume_front(".init_array") &&
+          (SecName.empty() || SecName[0] == '.'))
         return true;
+    }
     return false;
   }
 
@@ -217,7 +220,7 @@ public:
           Flags |= JITSymbolFlags::Exported;
 
         InternedResult[InternedName] =
-            JITEvaluatedSymbol(Sym->getAddress(), Flags);
+            JITEvaluatedSymbol(Sym->getAddress().getValue(), Flags);
         if (AutoClaim && !MR->getSymbols().count(InternedName)) {
           assert(!ExtraSymbolsToClaim.count(InternedName) &&
                  "Duplicate symbol to claim?");
@@ -226,16 +229,17 @@ public:
       }
 
     for (auto *Sym : G.absolute_symbols())
-      if (Sym->hasName()) {
+      if (Sym->hasName() && Sym->getScope() != Scope::Local) {
         auto InternedName = ES.intern(Sym->getName());
         JITSymbolFlags Flags;
-        Flags |= JITSymbolFlags::Absolute;
         if (Sym->isCallable())
           Flags |= JITSymbolFlags::Callable;
+        if (Sym->getScope() == Scope::Default)
+          Flags |= JITSymbolFlags::Exported;
         if (Sym->getLinkage() == Linkage::Weak)
           Flags |= JITSymbolFlags::Weak;
         InternedResult[InternedName] =
-            JITEvaluatedSymbol(Sym->getAddress(), Flags);
+            JITEvaluatedSymbol(Sym->getAddress().getValue(), Flags);
         if (AutoClaim && !MR->getSymbols().count(InternedName)) {
           assert(!ExtraSymbolsToClaim.count(InternedName) &&
                  "Duplicate symbol to claim?");
@@ -607,7 +611,7 @@ private:
   DenseMap<SymbolStringPtr, SymbolNameSet> InternalNamedSymbolDeps;
 };
 
-ObjectLinkingLayer::Plugin::~Plugin() {}
+ObjectLinkingLayer::Plugin::~Plugin() = default;
 
 char ObjectLinkingLayer::ID;
 
@@ -743,7 +747,7 @@ void EHFrameRegistrationPlugin::modifyPassConfig(
     PassConfiguration &PassConfig) {
 
   PassConfig.PostFixupPasses.push_back(createEHFrameRecorderPass(
-      G.getTargetTriple(), [this, &MR](JITTargetAddress Addr, size_t Size) {
+      G.getTargetTriple(), [this, &MR](ExecutorAddr Addr, size_t Size) {
         if (Addr) {
           std::lock_guard<std::mutex> Lock(EHFramePluginMutex);
           assert(!InProcessLinks.count(&MR) &&
@@ -756,7 +760,7 @@ void EHFrameRegistrationPlugin::modifyPassConfig(
 Error EHFrameRegistrationPlugin::notifyEmitted(
     MaterializationResponsibility &MR) {
 
-  EHFrameRange EmittedRange;
+  ExecutorAddrRange EmittedRange;
   {
     std::lock_guard<std::mutex> Lock(EHFramePluginMutex);
 
@@ -765,7 +769,7 @@ Error EHFrameRegistrationPlugin::notifyEmitted(
       return Error::success();
 
     EmittedRange = EHFrameRangeItr->second;
-    assert(EmittedRange.Addr && "eh-frame addr to register can not be null");
+    assert(EmittedRange.Start && "eh-frame addr to register can not be null");
     InProcessLinks.erase(EHFrameRangeItr);
   }
 
@@ -773,7 +777,7 @@ Error EHFrameRegistrationPlugin::notifyEmitted(
           [&](ResourceKey K) { EHFrameRanges[K].push_back(EmittedRange); }))
     return Err;
 
-  return Registrar->registerEHFrames(EmittedRange.Addr, EmittedRange.Size);
+  return Registrar->registerEHFrames(EmittedRange);
 }
 
 Error EHFrameRegistrationPlugin::notifyFailed(
@@ -784,7 +788,7 @@ Error EHFrameRegistrationPlugin::notifyFailed(
 }
 
 Error EHFrameRegistrationPlugin::notifyRemovingResources(ResourceKey K) {
-  std::vector<EHFrameRange> RangesToRemove;
+  std::vector<ExecutorAddrRange> RangesToRemove;
 
   ES.runSessionLocked([&] {
     auto I = EHFrameRanges.find(K);
@@ -798,10 +802,9 @@ Error EHFrameRegistrationPlugin::notifyRemovingResources(ResourceKey K) {
   while (!RangesToRemove.empty()) {
     auto RangeToRemove = RangesToRemove.back();
     RangesToRemove.pop_back();
-    assert(RangeToRemove.Addr && "Untracked eh-frame range must not be null");
-    Err = joinErrors(
-        std::move(Err),
-        Registrar->deregisterEHFrames(RangeToRemove.Addr, RangeToRemove.Size));
+    assert(RangeToRemove.Start && "Untracked eh-frame range must not be null");
+    Err = joinErrors(std::move(Err),
+                     Registrar->deregisterEHFrames(RangeToRemove));
   }
 
   return Err;

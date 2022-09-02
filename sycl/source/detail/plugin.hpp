@@ -7,22 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/stl.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
@@ -39,7 +40,7 @@ template <PiApiKind Kind> struct PiApiArgTuple;
     using type = typename function_traits<decltype(api)>::args_type;           \
   };
 
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
 template <PiApiKind Kind, size_t Idx, typename T>
@@ -54,7 +55,7 @@ struct array_fill_helper<Kind, Idx, T> {
 
 template <PiApiKind Kind, size_t Idx, typename T, typename... Args>
 struct array_fill_helper<Kind, Idx, T, Args...> {
-  static void fill(unsigned char *Dst, const T &&Arg, Args &&... Rest) {
+  static void fill(unsigned char *Dst, const T &&Arg, Args &&...Rest) {
     using ArgsTuple = typename PiApiArgTuple<Kind>::type;
     // C-style cast is required here.
     auto RealArg = (std::tuple_element_t<Idx, ArgsTuple>)(Arg);
@@ -70,7 +71,7 @@ constexpr size_t totalSize(const std::tuple<Ts...> &) {
 }
 
 template <PiApiKind Kind, typename... ArgsT>
-auto packCallArguments(ArgsT &&... Args) {
+auto packCallArguments(ArgsT &&...Args) {
   using ArgsTuple = typename PiApiArgTuple<Kind>::type;
 
   constexpr size_t TotalSize = totalSize(ArgsTuple{});
@@ -111,22 +112,46 @@ public:
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = cl::sycl::runtime_error>
+  template <typename Exception = sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
-    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
+    char *message = nullptr;
+    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
+      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
+
+      // If the warning level is greater then 2 emit the message
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
+        std::clog << message << std::endl;
+
+      // If it is a warning do not throw code
+      if (pi_result == PI_SUCCESS)
+        return;
+    }
+    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception, message);
   }
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
+    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
+      char *message = nullptr;
+      pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
+
+      // If the warning level is greater then 2 emit the message
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
+        std::clog << message << std::endl;
+
+      // If it is a warning do not throw code
+      if (pi_result == PI_SUCCESS)
+        return;
+    }
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
   }
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {
     if (pi_result != PI_SUCCESS) {
-      throw cl::sycl::runtime_error(
-          std::string(context) + " API failed with error: " +
-              cl::sycl::detail::codeToString(pi_result),
-          pi_result);
+      throw sycl::runtime_error(std::string(context) +
+                                    " API failed with error: " +
+                                    sycl::detail::codeToString(pi_result),
+                                pi_result);
     }
   }
 
@@ -187,7 +212,7 @@ public:
 
   /// Calls the API, traces the call, checks the result
   ///
-  /// \throw cl::sycl::runtime_exception if the call was not successful.
+  /// \throw sycl::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
@@ -238,6 +263,16 @@ public:
     LastDeviceIds[PlatformId] = Id;
   }
 
+  // Adjust the id of the last device for the given platform.
+  // Involved when there is no device on that platform at all.
+  // The function is expected to be called in a thread safe manner.
+  void adjustLastDeviceId(RT::PiPlatform Platform) {
+    int PlatformId = getPlatformId(Platform);
+    if (PlatformId > 0 &&
+        LastDeviceIds[PlatformId] < LastDeviceIds[PlatformId - 1])
+      LastDeviceIds[PlatformId] = LastDeviceIds[PlatformId - 1];
+  }
+
   bool containsPiPlatform(RT::PiPlatform Platform) {
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     return It != PiPlatforms.end();
@@ -261,5 +296,5 @@ private:
   std::vector<int> LastDeviceIds;
 }; // class plugin
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

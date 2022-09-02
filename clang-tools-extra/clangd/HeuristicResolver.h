@@ -10,7 +10,6 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_HEURISTICRESOLVER_H
 
 #include "clang/AST/Decl.h"
-#include "llvm/ADT/STLExtras.h"
 #include <vector>
 
 namespace clang {
@@ -70,6 +69,11 @@ public:
   const Type *
   resolveNestedNameSpecifierToType(const NestedNameSpecifier *NNS) const;
 
+  // Given the type T of a dependent expression that appears of the LHS of a
+  // "->", heuristically find a corresponding pointee type in whose scope we
+  // could look up the name appearing on the RHS.
+  const Type *getPointeeType(const Type *T) const;
+
 private:
   ASTContext &Ctx;
 
@@ -90,11 +94,6 @@ private:
   // `E`.
   const Type *resolveExprToType(const Expr *E) const;
   std::vector<const NamedDecl *> resolveExprToDecls(const Expr *E) const;
-
-  // Given the type T of a dependent expression that appears of the LHS of a
-  // "->", heuristically find a corresponding pointee type in whose scope we
-  // could look up the name appearing on the RHS.
-  const Type *getPointeeType(const Type *T) const;
 };
 
 } // namespace clangd

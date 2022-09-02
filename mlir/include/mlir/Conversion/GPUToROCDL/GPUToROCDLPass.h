@@ -16,7 +16,6 @@ namespace mlir {
 class LLVMTypeConverter;
 class ConversionTarget;
 class RewritePatternSet;
-using OwningRewritePatternList = RewritePatternSet;
 
 template <typename OpT>
 class OperationPass;
@@ -40,7 +39,9 @@ void configureGpuToROCDLConversionLegality(ConversionTarget &target);
 /// is configurable.
 std::unique_ptr<OperationPass<gpu::GPUModuleOp>>
 createLowerGpuOpsToROCDLOpsPass(
+    const std::string &chipset = "gfx900",
     unsigned indexBitwidth = kDeriveIndexBitwidthFromDataLayout,
+    bool useBarePtrCallConv = false,
     gpu::amd::Runtime runtime = gpu::amd::Runtime::Unknown);
 
 } // namespace mlir

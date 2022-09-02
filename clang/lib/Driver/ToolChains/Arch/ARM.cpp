@@ -12,6 +12,7 @@
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/Host.h"
 
@@ -120,7 +121,8 @@ static void checkARMArchName(const Driver &D, const Arg *A, const ArgList &Args,
   if (ArchKind == llvm::ARM::ArchKind::INVALID ||
       (Split.second.size() && !DecodeARMFeatures(D, Split.second, CPUName,
                                                  ArchKind, Features, ArgFPUID)))
-    D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
+    D.Diag(clang::diag::err_drv_unsupported_option_argument)
+        << A->getOption().getName() << A->getValue();
 }
 
 // Check -mcpu=. Needs ArchName to handle -mcpu=generic.
@@ -136,7 +138,8 @@ static void checkARMCPUName(const Driver &D, const Arg *A, const ArgList &Args,
   if (ArchKind == llvm::ARM::ArchKind::INVALID ||
       (Split.second.size() &&
        !DecodeARMFeatures(D, Split.second, CPU, ArchKind, Features, ArgFPUID)))
-    D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
+    D.Diag(clang::diag::err_drv_unsupported_option_argument)
+        << A->getOption().getName() << A->getValue();
 }
 
 bool arm::useAAPCSForMachO(const llvm::Triple &T) {
@@ -319,6 +322,7 @@ arm::FloatABI arm::getDefaultFloatABI(const llvm::Triple &Triple) {
   case llvm::Triple::MacOSX:
   case llvm::Triple::IOS:
   case llvm::Triple::TvOS:
+  case llvm::Triple::DriverKit:
     // Darwin defaults to "softfp" for v6 and v7.
     if (Triple.isWatchABI())
       return FloatABI::Hard;
@@ -433,7 +437,7 @@ static bool hasIntegerMVE(const std::vector<StringRef> &F) {
 }
 
 void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
-                               const ArgList &Args, ArgStringList &CmdArgs,
+                               const ArgList &Args,
                                std::vector<StringRef> &Features, bool ForAS) {
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
@@ -544,6 +548,11 @@ void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   if (CPUArg)
     checkARMCPUName(D, CPUArg, Args, CPUName, ArchName, ExtensionFeatures,
                     Triple, CPUArgFPUID);
+
+  // TODO Handle -mtune=. Suppress -Wunused-command-line-argument as a
+  // longstanding behavior.
+  (void)Args.getLastArg(options::OPT_mtune_EQ);
+
   // Honor -mfpu=. ClangAs gives preference to -Wa,-mfpu=.
   unsigned FPUID = llvm::ARM::FK_INVALID;
   const Arg *FPUArg = Args.getLastArg(options::OPT_mfpu_EQ);
@@ -716,6 +725,15 @@ fp16_fml_fallthrough:
     }
   }
 
+  // Propagate frame-chain model selection
+  if (Arg *A = Args.getLastArg(options::OPT_mframe_chain)) {
+    StringRef FrameChainOption = A->getValue();
+    if (FrameChainOption.startswith("aapcs"))
+      Features.push_back("+aapcs-frame-chain");
+    if (FrameChainOption == "aapcs+leaf")
+      Features.push_back("+aapcs-frame-chain-leaf");
+  }
+
   // CMSE: Check for target 8M (for -mcmse to be applicable) is performed later.
   if (Args.getLastArg(options::OPT_mcmse))
     Features.push_back("+8msecext");
@@ -730,6 +748,16 @@ fp16_fml_fallthrough:
       Features.push_back("+fix-cmse-cve-2021-35465");
     else
       Features.push_back("-fix-cmse-cve-2021-35465");
+  }
+
+  // This also handles the -m(no-)fix-cortex-a72-1655431 arguments via aliases.
+  if (Arg *A = Args.getLastArg(options::OPT_mfix_cortex_a57_aes_1742098,
+                               options::OPT_mno_fix_cortex_a57_aes_1742098)) {
+    if (A->getOption().matches(options::OPT_mfix_cortex_a57_aes_1742098)) {
+      Features.push_back("+fix-cortex-a57-aes-1742098");
+    } else {
+      Features.push_back("-fix-cortex-a57-aes-1742098");
+    }
   }
 
   // Look for the last occurrence of -mlong-calls or -mno-long-calls. If
@@ -769,10 +797,10 @@ fp16_fml_fallthrough:
   }
 
   // Kernel code has more strict alignment requirements.
-  if (KernelOrKext)
+  if (KernelOrKext) {
     Features.push_back("+strict-align");
-  else if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
-                                    options::OPT_munaligned_access)) {
+  } else if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
+                                      options::OPT_munaligned_access)) {
     if (A->getOption().matches(options::OPT_munaligned_access)) {
       // No v6M core supports unaligned memory access (v6M ARM ARM A3.2).
       if (Triple.getSubArch() == llvm::Triple::SubArchType::ARMSubArch_v6m)
@@ -856,8 +884,8 @@ fp16_fml_fallthrough:
           DisableComdat = true;
           continue;
         }
-        D.Diag(diag::err_invalid_sls_hardening)
-            << Scope << A->getAsString(Args);
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getOption().getName() << Scope;
         break;
       }
     }

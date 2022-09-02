@@ -12,23 +12,21 @@
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "index/Symbol.h"
-#include "support/Logger.h"
 #include "support/Path.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/HeaderSearch.h"
-#include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem/UniqueID.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <string>
 
 namespace clang {
@@ -136,7 +134,7 @@ public:
   enum class HeaderID : unsigned {};
 
   llvm::Optional<HeaderID> getID(const FileEntry *Entry) const;
-  HeaderID getOrCreateID(const FileEntry *Entry);
+  HeaderID getOrCreateID(FileEntryRef Entry);
 
   StringRef getRealPath(HeaderID ID) const {
     assert(static_cast<unsigned>(ID) <= RealPathNames.size());
@@ -145,6 +143,10 @@ public:
 
   bool isSelfContained(HeaderID ID) const {
     return !NonSelfContained.contains(ID);
+  }
+
+  bool hasIWYUExport(HeaderID ID) const {
+    return HasIWYUExport.contains(ID);
   }
 
   // Return all transitively reachable files.
@@ -159,6 +161,9 @@ public:
 
   // Maps HeaderID to the ids of the files included from it.
   llvm::DenseMap<HeaderID, SmallVector<HeaderID>> IncludeChildren;
+
+  llvm::DenseMap<tooling::stdlib::Header, llvm::SmallVector<HeaderID>>
+      StdlibHeaders;
 
   std::vector<Inclusion> MainFileIncludes;
 
@@ -184,6 +189,9 @@ private:
   // Contains HeaderIDs of all non self-contained entries in the
   // IncludeStructure.
   llvm::DenseSet<HeaderID> NonSelfContained;
+  // Contains a set of headers that have either "IWYU pragma: export" or "IWYU
+  // pragma: begin_exports".
+  llvm::DenseSet<HeaderID> HasIWYUExport;
 };
 
 // Calculates insertion edit for including a new header in a file.
@@ -250,13 +258,11 @@ namespace llvm {
 // Support HeaderIDs as DenseMap keys.
 template <> struct DenseMapInfo<clang::clangd::IncludeStructure::HeaderID> {
   static inline clang::clangd::IncludeStructure::HeaderID getEmptyKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getEmptyKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-1);
   }
 
   static inline clang::clangd::IncludeStructure::HeaderID getTombstoneKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getTombstoneKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-2);
   }
 
   static unsigned

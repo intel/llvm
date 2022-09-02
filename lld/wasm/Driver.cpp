@@ -81,18 +81,15 @@ private:
 };
 } // anonymous namespace
 
-bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
-          raw_ostream &stderrOS) {
-  lld::stdoutOS = &stdoutOS;
-  lld::stderrOS = &stderrOS;
+bool link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
+          llvm::raw_ostream &stderrOS, bool exitEarly, bool disableOutput) {
+  // This driver-specific context will be freed later by lldMain().
+  auto *ctx = new CommonLinkerContext;
 
-  errorHandler().cleanupCallback = []() { freeArena(); };
-
-  errorHandler().logName = args::getFilenameWithoutExe(args[0]);
-  errorHandler().errorLimitExceededMsg =
-      "too many errors emitted, stopping now (use "
-      "-error-limit=0 to see all errors)";
-  stderrOS.enable_colors(stderrOS.has_colors());
+  ctx->e.initialize(stdoutOS, stderrOS, exitEarly, disableOutput);
+  ctx->e.logName = args::getFilenameWithoutExe(args[0]);
+  ctx->e.errorLimitExceededMsg = "too many errors emitted, stopping now (use "
+                                 "-error-limit=0 to see all errors)";
 
   config = make<Configuration>();
   symtab = make<SymbolTable>();
@@ -100,13 +97,7 @@ bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
   initLLVM();
   LinkerDriver().linkerMain(args);
 
-  // Exit immediately if we don't need to return to the caller.
-  // This saves time because the overhead of calling destructors
-  // for all globally-allocated objects is not negligible.
-  if (canExitEarly)
-    exitLld(errorCount() ? 1 : 0);
-
-  return !errorCount();
+  return errorCount() == 0;
 }
 
 // Create prefix string literals used in Options.td
@@ -189,10 +180,13 @@ opt::InputArgList WasmOptTable::parse(ArrayRef<const char *> argv) {
 
   // Expand response files (arguments in the form of @<filename>)
   // and then parse the argument again.
-  cl::ExpandResponseFiles(saver, getQuotingStyle(args), vec);
+  cl::ExpandResponseFiles(saver(), getQuotingStyle(args), vec);
   args = this->ParseArgs(vec, missingIndex, missingCount);
 
   handleColorDiagnostics(args);
+  if (missingCount)
+    error(Twine(args.getArgString(missingIndex)) + ": missing argument");
+
   for (auto *arg : args.filtered(OPT_UNKNOWN))
     error("unknown argument: " + arg->getAsString(args));
   return args;
@@ -240,7 +234,7 @@ std::vector<MemoryBufferRef> static getArchiveMembers(MemoryBufferRef mb) {
 
 void LinkerDriver::addFile(StringRef path) {
   Optional<MemoryBufferRef> buffer = readFile(path);
-  if (!buffer.hasValue())
+  if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
 
@@ -344,6 +338,8 @@ static UnresolvedPolicy getUnresolvedSymbolPolicy(opt::InputArgList &args) {
     StringRef s = arg->getValue();
     if (s == "ignore-all")
       return UnresolvedPolicy::Ignore;
+    if (s == "import-dynamic")
+      return UnresolvedPolicy::ImportDynamic;
     if (s == "report-all")
       return errorOrWarn;
     error("unknown --unresolved-symbols value: " + s);
@@ -366,17 +362,12 @@ static void readConfigs(opt::InputArgList &args) {
   config->exportAll = args.hasArg(OPT_export_all);
   config->exportTable = args.hasArg(OPT_export_table);
   config->growableTable = args.hasArg(OPT_growable_table);
-  errorHandler().fatalWarnings =
-      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   config->importMemory = args.hasArg(OPT_import_memory);
   config->sharedMemory = args.hasArg(OPT_shared_memory);
   config->importTable = args.hasArg(OPT_import_table);
   config->importUndefined = args.hasArg(OPT_import_undefined);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
-  config->ltoNewPassManager =
-      args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
-                   LLVM_ENABLE_NEW_PASS_MANAGER);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->mapFile = args.getLastArgValue(OPT_Map);
   config->optimize = args::getInteger(args, OPT_O, 1);
@@ -483,7 +474,6 @@ static void setConfigs() {
   if (config->shared) {
     config->importMemory = true;
     config->importUndefined = true;
-    config->unresolvedSymbols = UnresolvedPolicy::Ignore;
   }
 }
 
@@ -540,6 +530,11 @@ static void checkOptions(opt::InputArgList &args) {
     if (config->pie) {
       warn("creating PIEs, with -pie, is not yet stable");
     }
+
+    if (config->unresolvedSymbols == UnresolvedPolicy::ImportDynamic) {
+      warn("dynamic imports are not yet stable "
+           "(--unresolved-symbols=import-dynamic)");
+    }
   }
 
   if (config->bsymbolic && !config->shared) {
@@ -575,6 +570,21 @@ static void handleLibcall(StringRef name) {
   }
 }
 
+// Equivalent of demote demoteSharedAndLazySymbols() in the ELF linker
+static void demoteLazySymbols() {
+  for (Symbol *sym : symtab->getSymbols()) {
+    if (auto* s = dyn_cast<LazySymbol>(sym)) {
+      if (s->signature) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "demoting lazy func: " << s->getName() << "\n");
+        replaceSymbol<UndefinedFunction>(s, s->getName(), None, None,
+                                         WASM_SYMBOL_BINDING_WEAK, s->getFile(),
+                                         s->signature);
+      }
+    }
+  }
+}
+
 static UndefinedGlobal *
 createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
   auto *sym = cast<UndefinedGlobal>(symtab->addUndefinedGlobal(
@@ -586,7 +596,7 @@ createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
 
 static InputGlobal *createGlobal(StringRef name, bool isMutable) {
   llvm::wasm::WasmGlobal wasmGlobal;
-  bool is64 = config->is64.getValueOr(false);
+  bool is64 = config->is64.value_or(false);
   wasmGlobal.Type = {uint8_t(is64 ? WASM_TYPE_I64 : WASM_TYPE_I32), isMutable};
   wasmGlobal.InitExpr = intConst(0, is64);
   wasmGlobal.SymbolName = name;
@@ -621,11 +631,11 @@ static void createSyntheticSymbols() {
       "__wasm_call_ctors", WASM_SYMBOL_VISIBILITY_HIDDEN,
       make<SyntheticFunction>(nullSignature, "__wasm_call_ctors"));
 
-    bool is64 = config->is64.getValueOr(false);
+  bool is64 = config->is64.value_or(false);
 
   if (config->isPic) {
     WasmSym::stackPointer =
-        createUndefinedGlobal("__stack_pointer", config->is64.getValueOr(false)
+        createUndefinedGlobal("__stack_pointer", config->is64.value_or(false)
                                                      ? &mutableGlobalTypeI64
                                                      : &mutableGlobalTypeI32);
     // For PIC code, we import two global variables (__memory_base and
@@ -661,6 +671,17 @@ static void createSyntheticSymbols() {
             is64 ? i64ArgSignature : i32ArgSignature,
             "__wasm_init_tls"));
   }
+
+  if (config->isPic ||
+      config->unresolvedSymbols == UnresolvedPolicy::ImportDynamic) {
+    // For PIC code, or when dynamically importing addresses, we create
+    // synthetic functions that apply relocations.  These get called from
+    // __wasm_call_ctors before the user-level constructors.
+    WasmSym::applyDataRelocs = symtab->addSyntheticFunction(
+        "__wasm_apply_data_relocs",
+        WASM_SYMBOL_VISIBILITY_DEFAULT | WASM_SYMBOL_EXPORTED,
+        make<SyntheticFunction>(nullSignature, "__wasm_apply_data_relocs"));
+  }
 }
 
 static void createOptionalSymbols() {
@@ -677,7 +698,7 @@ static void createOptionalSymbols() {
     WasmSym::heapBase = symtab->addOptionalDataSymbol("__heap_base");
     WasmSym::definedMemoryBase = symtab->addOptionalDataSymbol("__memory_base");
     WasmSym::definedTableBase = symtab->addOptionalDataSymbol("__table_base");
-    if (config->is64.getValueOr(false))
+    if (config->is64.value_or(false))
       WasmSym::definedTableBase32 =
           symtab->addOptionalDataSymbol("__table_base32");
   }
@@ -760,8 +781,8 @@ static std::vector<WrappedSymbol> addWrappedSymbols(opt::InputArgList &args) {
     if (!sym)
       continue;
 
-    Symbol *real = addUndefined(saver.save("__real_" + name));
-    Symbol *wrap = addUndefined(saver.save("__wrap_" + name));
+    Symbol *real = addUndefined(saver().save("__real_" + name));
+    Symbol *wrap = addUndefined(saver().save("__wrap_" + name));
     v.push_back({sym, real, wrap});
 
     // We want to tell LTO not to inline symbols to be overwritten
@@ -818,9 +839,27 @@ static void splitSections() {
   });
 }
 
+static bool isKnownZFlag(StringRef s) {
+  // For now, we only support a very limited set of -z flags
+  return s.startswith("stack-size=");
+}
+
+// Report a warning for an unknown -z option.
+static void checkZOptions(opt::InputArgList &args) {
+  for (auto *arg : args.filtered(OPT_z))
+    if (!isKnownZFlag(arg->getValue()))
+      warn("unknown -z value: " + StringRef(arg->getValue()));
+}
+
 void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   WasmOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
+
+  // Interpret these flags early because error()/warn() depend on them.
+  errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
+  errorHandler().fatalWarnings =
+      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
+  checkZOptions(args);
 
   // Handle --help
   if (args.hasArg(OPT_help)) {
@@ -857,8 +896,6 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     v.push_back(arg->getValue());
   cl::ResetAllOptionOccurrences();
   cl::ParseCommandLineOptions(v.size(), v.data());
-
-  errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
 
   readConfigs(args);
 
@@ -1007,6 +1044,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   // Split WASM_SEG_FLAG_STRINGS sections into pieces in preparation for garbage
   // collection.
   splitSections();
+
+  // Any remaining lazy symbols should be demoted to Undefined
+  demoteLazySymbols();
 
   // Do size optimizations: garbage collection
   markLive();

@@ -35,7 +35,6 @@ class ArrayType;
 class Constant;
 class FunctionType;
 class GlobalVariable;
-class StructType;
 class Type;
 class Value;
 class OpenMPIRBuilder;
@@ -48,7 +47,6 @@ class OMPExecutableDirective;
 class OMPLoopDirective;
 class VarDecl;
 class OMPDeclareReductionDecl;
-class IdentifierInfo;
 
 namespace CodeGen {
 class Address;
@@ -162,10 +160,10 @@ private:
   /// Performs aggregate initialization.
   /// \param N Number of reduction item in the common list.
   /// \param PrivateAddr Address of the corresponding private item.
-  /// \param SharedLVal Address of the original shared variable.
+  /// \param SharedAddr Address of the original shared variable.
   /// \param DRD Declare reduction construct used for reduction item.
   void emitAggregateInitialization(CodeGenFunction &CGF, unsigned N,
-                                   Address PrivateAddr, LValue SharedLVal,
+                                   Address PrivateAddr, Address SharedAddr,
                                    const OMPDeclareReductionDecl *DRD);
 
 public:
@@ -187,10 +185,10 @@ public:
   /// \param PrivateAddr Address of the corresponding private item.
   /// \param DefaultInit Default initialization sequence that should be
   /// performed if no reduction specific initialization is found.
-  /// \param SharedLVal Address of the original shared variable.
+  /// \param SharedAddr Address of the original shared variable.
   void
   emitInitialization(CodeGenFunction &CGF, unsigned N, Address PrivateAddr,
-                     LValue SharedLVal,
+                     Address SharedAddr,
                      llvm::function_ref<bool(CodeGenFunction &)> DefaultInit);
   /// Returns true if the private copy requires cleanups.
   bool needCleanups(unsigned N);
@@ -220,6 +218,11 @@ public:
   /// Returns true if the initialization of the reduction item uses initializer
   /// from declare reduction construct.
   bool usesReductionInitializer(unsigned N) const;
+  /// Return the type of the private item.
+  QualType getPrivateType(unsigned N) const {
+    return cast<VarDecl>(cast<DeclRefExpr>(ClausesData[N].Private)->getDecl())
+        ->getType();
+  }
 };
 
 class CGOpenMPRuntime {
@@ -515,15 +518,6 @@ private:
   ///  kmp_int64 st; // stride
   /// };
   QualType KmpDimTy;
-  /// Type struct __tgt_offload_entry{
-  ///   void      *addr;       // Pointer to the offload entry info.
-  ///                          // (function or global)
-  ///   char      *name;       // Name of the function or global.
-  ///   size_t     size;       // Size of the entry info (0 if it a function).
-  ///   int32_t flags;
-  ///   int32_t reserved;
-  /// };
-  QualType TgtOffloadEntryQTy;
   /// Entity that registers the offloading constants that were emitted so
   /// far.
   class OffloadEntriesInfoManagerTy {
@@ -779,9 +773,6 @@ private:
   /// metadata.
   void loadOffloadInfoMetadata();
 
-  /// Returns __tgt_offload_entry type.
-  QualType getTgtOffloadEntryQTy();
-
   /// Start scanning from statement \a S and and emit all target regions
   /// found along the way.
   /// \param S Starting statement.
@@ -893,13 +884,11 @@ private:
                             llvm::Function *TaskFunction, QualType SharedsTy,
                             Address Shareds, const OMPTaskDataTy &Data);
 
-  /// Emit code that pushes the trip count of loops associated with constructs
-  /// 'target teams distribute' and 'teams distribute parallel for'.
-  /// \param SizeEmitter Emits the int64 value for the number of iterations of
-  /// the associated loop.
-  void emitTargetNumIterationsCall(
+  /// Return the trip count of loops associated with constructs / 'target teams
+  /// distribute' and 'teams distribute parallel for'. \param SizeEmitter Emits
+  /// the int64 value for the number of iterations of the associated loop.
+  llvm::Value *emitTargetNumIterationsCall(
       CodeGenFunction &CGF, const OMPExecutableDirective &D,
-      llvm::Value *DeviceID,
       llvm::function_ref<llvm::Value *(CodeGenFunction &CGF,
                                        const OMPLoopDirective &D)>
           SizeEmitter);
@@ -916,6 +905,14 @@ private:
   std::pair<llvm::Value *, LValue> getDepobjElements(CodeGenFunction &CGF,
                                                      LValue DepobjLVal,
                                                      SourceLocation Loc);
+
+  SmallVector<llvm::Value *, 4>
+  emitDepobjElementsSizes(CodeGenFunction &CGF, QualType &KmpDependInfoTy,
+                          const OMPTaskDataTy::DependData &Data);
+
+  void emitDepobjElements(CodeGenFunction &CGF, QualType &KmpDependInfoTy,
+                          LValue PosLVal, const OMPTaskDataTy::DependData &Data,
+                          Address DependenciesArray);
 
 public:
   explicit CGOpenMPRuntime(CodeGenModule &CGM)
@@ -1408,14 +1405,14 @@ public:
                                     bool HasCancel = false);
 
   /// Emits reduction function.
-  /// \param ArgsType Array type containing pointers to reduction variables.
+  /// \param ArgsElemType Array type containing pointers to reduction variables.
   /// \param Privates List of private copies for original reduction arguments.
   /// \param LHSExprs List of LHS in \a ReductionOps reduction operations.
   /// \param RHSExprs List of RHS in \a ReductionOps reduction operations.
   /// \param ReductionOps List of reduction operations in form 'LHS binop RHS'
   /// or 'operator binop(LHS, RHS)'.
   llvm::Function *emitReductionFunction(SourceLocation Loc,
-                                        llvm::Type *ArgsType,
+                                        llvm::Type *ArgsElemType,
                                         ArrayRef<const Expr *> Privates,
                                         ArrayRef<const Expr *> LHSExprs,
                                         ArrayRef<const Expr *> RHSExprs,

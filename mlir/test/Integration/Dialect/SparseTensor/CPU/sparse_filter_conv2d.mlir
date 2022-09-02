@@ -1,28 +1,12 @@
-// RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
+// RUN: mlir-opt %s --sparse-compiler | \
+// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 //
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
-// RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparsification="vectorization-strategy=2 vl=2" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
+// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=2" | \
+// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
@@ -31,7 +15,7 @@
 // An example of a 2D convolution with a sparse filter.
 module {
 
-  func @conv2d(%input:  tensor<8x8xi32>,
+  func.func @conv2d(%input:  tensor<8x8xi32>,
                %filter: tensor<3x3xi32, #DCSR>,
                %output: tensor<6x6xi32>) -> tensor<6x6xi32> {
     %0 = linalg.conv_2d
@@ -40,7 +24,7 @@ module {
     return %0 : tensor<6x6xi32>
   }
 
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %i0 = arith.constant 0 : i32
 
@@ -79,14 +63,12 @@ module {
     // CHECK-SAME: ( 0, 0, 3, 6, -3, -6 ),
     // CHECK-SAME: ( 2, -1, 3, 0, -3, 0 ) )
     //
-    %m = bufferization.to_memref %0 : memref<6x6xi32>
-    %v = vector.transfer_read %m[%c0, %c0], %i0
-      : memref<6x6xi32>, vector<6x6xi32>
+    %v = vector.transfer_read %0[%c0, %c0], %i0
+      : tensor<6x6xi32>, vector<6x6xi32>
     vector.print %v : vector<6x6xi32>
 
     // Release the resources.
-    sparse_tensor.release %sparse_filter : tensor<3x3xi32, #DCSR>
-    memref.dealloc %m : memref<6x6xi32>
+    bufferization.dealloc_tensor %sparse_filter : tensor<3x3xi32, #DCSR>
 
     return
   }

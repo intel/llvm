@@ -125,6 +125,9 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__riscv_xlen", Is64Bit ? "64" : "32");
   StringRef CodeModel = getTargetOpts().CodeModel;
   unsigned FLen = ISAInfo->getFLen();
+  unsigned MinVLen = ISAInfo->getMinVLen();
+  unsigned MaxELen = ISAInfo->getMaxELen();
+  unsigned MaxELenFp = ISAInfo->getMaxELenFp();
   if (CodeModel == "default")
     CodeModel = "small";
 
@@ -155,8 +158,10 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro(Twine("__riscv_", ExtName), Twine(Version));
   }
 
-  if (ISAInfo->hasExtension("m")) {
+  if (ISAInfo->hasExtension("m") || ISAInfo->hasExtension("zmmul"))
     Builder.defineMacro("__riscv_mul");
+
+  if (ISAInfo->hasExtension("m")) {
     Builder.defineMacro("__riscv_div");
     Builder.defineMacro("__riscv_muldiv");
   }
@@ -176,10 +181,16 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__riscv_fsqrt");
   }
 
+  if (MinVLen) {
+    Builder.defineMacro("__riscv_v_min_vlen", Twine(MinVLen));
+    Builder.defineMacro("__riscv_v_elen", Twine(MaxELen));
+    Builder.defineMacro("__riscv_v_elen_fp", Twine(MaxELenFp));
+  }
+
   if (ISAInfo->hasExtension("c"))
     Builder.defineMacro("__riscv_compressed");
 
-  if (ISAInfo->hasExtension("v"))
+  if (ISAInfo->hasExtension("zve32x"))
     Builder.defineMacro("__riscv_vector");
 }
 
@@ -205,10 +216,32 @@ bool RISCVTargetInfo::initFeatureMap(
     llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
     const std::vector<std::string> &FeaturesVec) const {
 
-  if (getTriple().getArch() == llvm::Triple::riscv64)
-    Features["64bit"] = true;
+  unsigned XLen = 32;
 
-  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+  if (getTriple().getArch() == llvm::Triple::riscv64) {
+    Features["64bit"] = true;
+    XLen = 64;
+  }
+
+  auto ParseResult = llvm::RISCVISAInfo::parseFeatures(XLen, FeaturesVec);
+  if (!ParseResult) {
+    std::string Buffer;
+    llvm::raw_string_ostream OutputErrMsg(Buffer);
+    handleAllErrors(ParseResult.takeError(), [&](llvm::StringError &ErrMsg) {
+      OutputErrMsg << ErrMsg.getMessage();
+    });
+    Diags.Report(diag::err_invalid_feature_combination) << OutputErrMsg.str();
+    return false;
+  }
+
+  // RISCVISAInfo makes implications for ISA features
+  std::vector<std::string> ImpliedFeatures = (*ParseResult)->toFeatureVector();
+  // Add non-ISA features like `relax` and `save-restore` back
+  for (const std::string &Feature : FeaturesVec)
+    if (!llvm::is_contained(ImpliedFeatures, Feature))
+      ImpliedFeatures.push_back(Feature);
+
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, ImpliedFeatures);
 }
 
 /// Return true if has this feature, need to sync with handleTargetFeatures.
@@ -220,8 +253,8 @@ bool RISCVTargetInfo::hasFeature(StringRef Feature) const {
                     .Case("riscv64", Is64Bit)
                     .Case("64bit", Is64Bit)
                     .Default(None);
-  if (Result.hasValue())
-    return Result.getValue();
+  if (Result)
+    return Result.value();
 
   if (ISAInfo->isSupportedExtensionFeature(Feature))
     return ISAInfo->hasExtension(Feature);
@@ -247,7 +280,7 @@ bool RISCVTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   }
 
   if (ABI.empty())
-    ABI = llvm::RISCV::computeDefaultABIFromArch(*ISAInfo).str();
+    ABI = ISAInfo->computeDefaultABI().str();
 
   return true;
 }

@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 
 class SBDataAPICase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -83,10 +81,10 @@ class SBDataAPICase(TestBase):
         self.assert_data(data.GetUnsignedInt32, offset, 1)
         offset += 4
         low = data.GetSignedInt16(error, offset)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         offset += 2
         high = data.GetSignedInt16(error, offset)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         offset += 2
         self.assertTrue(
             (low == 9 and high == 0) or (
@@ -99,7 +97,7 @@ class SBDataAPICase(TestBase):
                     offset) -
                 3.14) < 1,
             'foo[0].c == 3.14')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         offset += 4
         self.assert_data(data.GetUnsignedInt32, offset, 8)
         offset += 4
@@ -172,7 +170,7 @@ class SBDataAPICase(TestBase):
                     offset) -
                 3.14) < 1,
             'foo[1].c == 3.14')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         data = new_foobar.GetData()
 
@@ -188,7 +186,7 @@ class SBDataAPICase(TestBase):
                     offset) -
                 6.28) < 1,
             'foo[1].c == 6.28')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         self.runCmd("n")
 
@@ -207,7 +205,7 @@ class SBDataAPICase(TestBase):
                     offset) -
                 3) < 1,
             'barfoo[0].c == 3')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         offset += 4
         self.assert_data(data.GetUnsignedInt32, offset, 4)
         offset += 4
@@ -220,7 +218,7 @@ class SBDataAPICase(TestBase):
                     offset) -
                 6) < 1,
             'barfoo[1].c == 6')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         new_object = barfoo.CreateValueFromData(
             "new_object", data, barfoo.GetType().GetBasicType(
@@ -239,7 +237,7 @@ class SBDataAPICase(TestBase):
                 'A\0\0\0',
                 data.GetByteOrder(),
                 data.GetAddressByteSize())
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         data2 = lldb.SBData()
         data2.SetData(
@@ -247,7 +245,7 @@ class SBDataAPICase(TestBase):
             'BCD',
             data.GetByteOrder(),
             data.GetAddressByteSize())
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         data.Append(data2)
 
@@ -401,7 +399,7 @@ class SBDataAPICase(TestBase):
                     0) -
                 3.14) < 0.5,
             'double data2[0] = 3.14')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         self.assertTrue(
             fabs(
                 data2.GetDouble(
@@ -409,7 +407,7 @@ class SBDataAPICase(TestBase):
                     8) -
                 6.28) < 0.5,
             'double data2[1] = 6.28')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         self.assertTrue(
             fabs(
                 data2.GetDouble(
@@ -417,7 +415,7 @@ class SBDataAPICase(TestBase):
                     16) -
                 2.71) < 0.5,
             'double data2[2] = 2.71')
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         data2 = lldb.SBData()
 

@@ -198,9 +198,7 @@ define i16 @uabd16b_rdx(<16 x i8>* %a, <16 x i8>* %b) {
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    uabd.16b v0, v0, v1
-; CHECK-NEXT:    ushll.8h v1, v0, #0
-; CHECK-NEXT:    uaddw2.8h v0, v1, v0
-; CHECK-NEXT:    addv.8h h0, v0
+; CHECK-NEXT:    uaddlv.16b h0, v0
 ; CHECK-NEXT:    fmov w0, s0
 ; CHECK-NEXT:    ret
   %aload = load <16 x i8>, <16 x i8>* %a, align 1
@@ -261,9 +259,7 @@ define i32 @uabd8h_rdx(<8 x i16>* %a, <8 x i16>* %b) {
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    uabd.8h v0, v0, v1
-; CHECK-NEXT:    ushll.4s v1, v0, #0
-; CHECK-NEXT:    uaddw2.4s v0, v1, v0
-; CHECK-NEXT:    addv.4s s0, v0
+; CHECK-NEXT:    uaddlv.8h s0, v0
 ; CHECK-NEXT:    fmov w0, s0
 ; CHECK-NEXT:    ret
   %aload = load <8 x i16>, <8 x i16>* %a, align 1
@@ -282,9 +278,7 @@ define i32 @sabd8h_rdx(<8 x i16> %a, <8 x i16> %b) {
 ; CHECK-LABEL: sabd8h_rdx:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    sabd.8h v0, v0, v1
-; CHECK-NEXT:    ushll.4s v1, v0, #0
-; CHECK-NEXT:    uaddw2.4s v0, v1, v0
-; CHECK-NEXT:    addv.4s s0, v0
+; CHECK-NEXT:    uaddlv.8h s0, v0
 ; CHECK-NEXT:    fmov w0, s0
 ; CHECK-NEXT:    ret
   %aext = sext <8 x i16> %a to <8 x i32>
@@ -338,9 +332,7 @@ define i64 @uabd4s_rdx(<4 x i32>* %a, <4 x i32>* %b, i32 %h) {
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    uabd.4s v0, v0, v1
-; CHECK-NEXT:    ushll.2d v1, v0, #0
-; CHECK-NEXT:    uaddw2.2d v0, v1, v0
-; CHECK-NEXT:    addp.2d d0, v0
+; CHECK-NEXT:    uaddlv.4s d0, v0
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
   %aload = load <4 x i32>, <4 x i32>* %a, align 1
@@ -359,9 +351,7 @@ define i64 @sabd4s_rdx(<4 x i32> %a, <4 x i32> %b) {
 ; CHECK-LABEL: sabd4s_rdx:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    sabd.4s v0, v0, v1
-; CHECK-NEXT:    ushll.2d v1, v0, #0
-; CHECK-NEXT:    uaddw2.2d v0, v1, v0
-; CHECK-NEXT:    addp.2d d0, v0
+; CHECK-NEXT:    uaddlv.4s d0, v0
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
   %aext = sext <4 x i32> %a to <4 x i64>
@@ -1758,28 +1748,28 @@ define <2 x i64> @uabd_i32(<2 x i32> %a, <2 x i32> %b) {
 define <2 x i128> @uabd_i64(<2 x i64> %a, <2 x i64> %b) {
 ; CHECK-LABEL: uabd_i64:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    fmov x9, d0
-; CHECK-NEXT:    fmov x11, d1
 ; CHECK-NEXT:    mov.d x8, v0[1]
+; CHECK-NEXT:    fmov x9, d0
 ; CHECK-NEXT:    mov.d x10, v1[1]
+; CHECK-NEXT:    fmov x11, d1
 ; CHECK-NEXT:    asr x12, x9, #63
 ; CHECK-NEXT:    asr x13, x11, #63
 ; CHECK-NEXT:    subs x9, x9, x11
-; CHECK-NEXT:    sbcs x11, x12, x13
+; CHECK-NEXT:    sbc x11, x12, x13
 ; CHECK-NEXT:    asr x12, x8, #63
 ; CHECK-NEXT:    asr x13, x10, #63
 ; CHECK-NEXT:    subs x8, x8, x10
-; CHECK-NEXT:    sbcs x10, x12, x13
-; CHECK-NEXT:    negs x12, x8
-; CHECK-NEXT:    ngcs x13, x10
-; CHECK-NEXT:    cmp x10, #0
-; CHECK-NEXT:    csel x2, x12, x8, lt
-; CHECK-NEXT:    csel x3, x13, x10, lt
-; CHECK-NEXT:    negs x8, x9
-; CHECK-NEXT:    ngcs x10, x11
-; CHECK-NEXT:    cmp x11, #0
-; CHECK-NEXT:    csel x8, x8, x9, lt
-; CHECK-NEXT:    csel x1, x10, x11, lt
+; CHECK-NEXT:    sbc x10, x12, x13
+; CHECK-NEXT:    asr x12, x11, #63
+; CHECK-NEXT:    asr x13, x10, #63
+; CHECK-NEXT:    eor x9, x9, x12
+; CHECK-NEXT:    eor x8, x8, x13
+; CHECK-NEXT:    eor x10, x10, x13
+; CHECK-NEXT:    subs x2, x8, x13
+; CHECK-NEXT:    sbc x3, x10, x13
+; CHECK-NEXT:    subs x8, x9, x12
+; CHECK-NEXT:    eor x9, x11, x12
+; CHECK-NEXT:    sbc x1, x9, x12
 ; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    mov.d v0[1], x1
 ; CHECK-NEXT:    fmov x0, d0

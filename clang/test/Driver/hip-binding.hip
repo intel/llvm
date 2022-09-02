@@ -1,8 +1,10 @@
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 
 // RUN: %clang -ccc-print-bindings -target x86_64-linux-gnu \
+// RUN:   --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 %s \
+// RUN:   -c 2>&1 | FileCheck -check-prefix=NRDCS %s
+// RUN: %clang -ccc-print-bindings -target x86_64-linux-gnu --offload-new-driver \
 // RUN:   --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 %s \
 // RUN:   -c 2>&1 | FileCheck -check-prefix=NRDCS %s
 // NRDCS: # "amdgcn-amd-amdhsa" - "clang", inputs: ["[[IN:.*hip-binding.hip]]"], output: "[[OBJ1:.*o]]"
@@ -19,6 +21,14 @@
 // RDCS: # "amdgcn-amd-amdhsa" - "clang", inputs: ["[[IN:.*hip-binding.hip]]"], output: "[[BC2:.*bc]]"
 // RDCS: # "x86_64-unknown-linux-gnu" - "clang", inputs: ["[[IN]]"], output: "[[HOSTOBJ:.*o]]"
 // RDCS: # "x86_64-unknown-linux-gnu" - "offload bundler", inputs: ["[[BC1]]", "[[BC2]]", "[[HOSTOBJ]]"], output: "{{.*}}"
+
+// RUN: %clang -ccc-print-bindings -target x86_64-linux-gnu --offload-new-driver \
+// RUN:   --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 %s \
+// RUN:   -c -fgpu-rdc 2>&1 | FileCheck -check-prefix=RDCS-NEW %s
+// RDCS-NEW: # "amdgcn-amd-amdhsa" - "clang", inputs: ["[[INPUT:.+]]"], output: "[[HIP803:.+]]"
+// RDCS-NEW: # "amdgcn-amd-amdhsa" - "clang", inputs: ["[[INPUT]]"], output: "[[HIP900:.+]]"
+// RDCS-NEW: # "x86_64-unknown-linux-gnu" - "Offload::Packager", inputs: ["[[HIP803]]", "[[HIP900]]"], output: "[[HIPFB:.+]]"
+// RDCS-NEW: # "x86_64-unknown-linux-gnu" - "clang", inputs: ["[[INPUT]]", "[[HIPFB]]"], output: "{{.*}}"
 
 // RUN: touch %t.o
 // RUN: %clang --hip-link -ccc-print-bindings -target x86_64-linux-gnu \

@@ -8,19 +8,12 @@
 
 #include <detail/error_handling/error_handling.hpp>
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/cg_types.hpp>
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
@@ -28,8 +21,16 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/xpti_registry.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/program.hpp>
+#include <sycl/sampler.hpp>
 
 #include <cassert>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -47,8 +48,8 @@
 #include <detail/xpti_registry.hpp>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -83,6 +84,50 @@ static std::string deviceToString(device Device) {
   else
     return "UNKNOWN";
 }
+
+static void applyFuncOnFilteredArgs(
+    const ProgramManager::KernelArgMask &EliminatedArgMask,
+    std::vector<ArgDesc> &Args,
+    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
+  if (EliminatedArgMask.empty()) {
+    for (ArgDesc &Arg : Args) {
+      Func(Arg, Arg.MIndex);
+    }
+  } else {
+    // TODO this is not necessary as long as we can guarantee that the
+    // arguments are already sorted (e. g. handle the sorting in handler
+    // if necessary due to set_arg(...) usage).
+    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+      return A.MIndex < B.MIndex;
+    });
+    int LastIndex = -1;
+    size_t NextTrueIndex = 0;
+
+    for (ArgDesc &Arg : Args) {
+      // Handle potential gaps in set arguments (e. g. if some of them are
+      // set on the user side).
+      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+        if (!EliminatedArgMask[Idx])
+          ++NextTrueIndex;
+      LastIndex = Arg.MIndex;
+
+      if (EliminatedArgMask[Arg.MIndex])
+        continue;
+
+      Func(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+}
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+static size_t deviceToID(const device &Device) {
+  if (Device.is_host())
+    return 0;
+  else
+    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
+}
+#endif
 
 static std::string accessModeToString(access::mode Mode) {
   switch (Mode) {
@@ -158,15 +203,32 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-static std::vector<RT::PiEvent>
-getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
+std::vector<RT::PiEvent>
+Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   std::vector<RT::PiEvent> RetPiEvents;
   for (auto &EventImpl : EventImpls) {
-    if (EventImpl->getHandleRef() != nullptr)
-      RetPiEvents.push_back(EventImpl->getHandleRef());
+    if (EventImpl->getHandleRef() == nullptr)
+      continue;
+
+    // Do not add redundant event dependencies for in-order queues.
+    // At this stage dependency is definitely pi task and need to check if
+    // current one is a host task. In this case we should not skip pi event due
+    // to different sync mechanisms for different task types on in-order queue.
+    const QueueImplPtr &WorkerQueue = getWorkerQueue();
+    if (EventImpl->getWorkerQueue() == WorkerQueue &&
+        WorkerQueue->isInOrder() && !isHostTask())
+      continue;
+
+    RetPiEvents.push_back(EventImpl->getHandleRef());
   }
 
   return RetPiEvents;
+}
+
+bool Command::isHostTask() const {
+  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
+         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
+          CG::CGTYPE::CodeplayHostTask);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -195,7 +257,8 @@ class DispatchHostTask {
     // sophisticated waiting mechanism to allow to utilize this thread for any
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
+      std::vector<RT::PiEvent> RawEvents =
+          MThisCmd->getPiEvents(PluginWithEvents.second);
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
@@ -267,8 +330,9 @@ public:
     // of empty command.
     // Also, it's possible to have record deallocated prior to enqueue process.
     // Thus we employ read-lock of graph.
+    std::vector<Command *> ToCleanUp;
+    Scheduler &Sched = Scheduler::getInstance();
     {
-      Scheduler &Sched = Scheduler::getInstance();
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
@@ -279,8 +343,9 @@ public:
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
       for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
+    Sched.cleanupCommands(ToCleanUp);
   }
 };
 
@@ -346,12 +411,15 @@ void Command::waitForEvents(QueueImplPtr Queue,
 Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
+      MWorkerQueue(MEvent->getWorkerQueue()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
       MType(Type) {
   MSubmittedQueue = MQueue;
+  MWorkerQueue = MQueue;
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
+  MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -378,18 +446,20 @@ void Command::emitInstrumentationDataProxy() {
 /// access mode to the buffer if it is due to an accessor
 /// @param IsCommand True if the dependency has a command object as the source,
 /// false otherwise
-void Command::emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                                const std::string &Prefix,
-                                                bool IsCommand) {
+void Command::emitEdgeEventForCommandDependence(
+    Command *Cmd, void *ObjAddr, bool IsCommand,
+    std::optional<access::mode> AccMode) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given dependency
   // is undefined or NULL
   if (!(xptiTraceEnabled() && MTraceEvent && Cmd && Cmd->MTraceEvent))
     return;
+
   // If all the information we need for creating an edge event is available,
   // then go ahead with creating it; if not, bail early!
   xpti::utils::StringHelper SH;
   std::string AddressStr = SH.addressAsString<void *>(ObjAddr);
+  std::string Prefix = AccMode ? accessModeToString(AccMode.value()) : "Event";
   std::string TypeString = SH.nameWithAddressString(Prefix, AddressStr);
   // Create an edge with the dependent buffer address for which a command
   // object has been created as one of the properties of the edge
@@ -404,10 +474,12 @@ void Command::emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
     EdgeEvent->source_id = SrcEvent->unique_id;
     EdgeEvent->target_id = TgtEvent->unique_id;
     if (IsCommand) {
-      xptiAddMetadata(EdgeEvent, "access_mode", TypeString.c_str());
-      xptiAddMetadata(EdgeEvent, "memory_object", AddressStr.c_str());
+      xpti::addMetadata(EdgeEvent, "access_mode",
+                        static_cast<int>(AccMode.value()));
+      xpti::addMetadata(EdgeEvent, "memory_object",
+                        reinterpret_cast<size_t>(ObjAddr));
     } else {
-      xptiAddMetadata(EdgeEvent, "event", TypeString.c_str());
+      xpti::addMetadata(EdgeEvent, "event", reinterpret_cast<size_t>(ObjAddr));
     }
     xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                           detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
@@ -434,7 +506,7 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
   if (Cmd && Cmd->MTraceEvent) {
     // If the event is associated with a command, we use this command's trace
     // event as the source of edge, hence modeling the control flow
-    emitEdgeEventForCommandDependence(Cmd, (void *)PiEventAddr, "Event", false);
+    emitEdgeEventForCommandDependence(Cmd, (void *)PiEventAddr, false);
     return;
   }
   if (PiEventAddr) {
@@ -452,7 +524,7 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
         xptiMakeEvent(NodeName.c_str(), &VNPayload, xpti::trace_graph_event,
                       xpti_at::active, &VNodeInstanceNo);
     // Emit the virtual node first
-    xptiAddMetadata(NodeEvent, "kernel_name", NodeName.c_str());
+    xpti::addMetadata(NodeEvent, "kernel_name", NodeName);
     xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
                           detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
                           nullptr);
@@ -469,7 +541,8 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
-      xptiAddMetadata(EdgeEvent, "event", EdgeName.c_str());
+      xpti::addMetadata(EdgeEvent, "event",
+                        reinterpret_cast<size_t>(PiEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                             detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
                             nullptr);
@@ -523,16 +596,18 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
+                                  std::vector<Command *> &ToCleanUp) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
-  // 2. Some types of commands do not produce PI events after they are enqueued
-  // (e.g. alloca). Note that we can't check the pi event to make that
-  // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
-      !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
+  // 2. Non-host events can be ignored if they are not fully initialized.
+  // 3. Some types of commands do not produce PI events after they are enqueued
+  //    (e.g. alloca). Note that we can't check the pi event to make that
+  //    distinction since the command might still be unenqueued at this point.
+  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized()) ||
+                         getType() == CommandType::HOST_TASK;
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -545,17 +620,11 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   Command *ConnectionCmd = nullptr;
 
-  // Do not add redundant event dependencies for in-order queues.
-  if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-      WorkerQueue->has_property<property::queue::in_order>() &&
-      getType() != CommandType::HOST_TASK)
-    return nullptr;
-
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
+    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 
@@ -566,27 +635,42 @@ const ContextImplPtr &Command::getWorkerContext() const {
   return MQueue->getContextImplPtr();
 }
 
-const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
+const QueueImplPtr &Command::getWorkerQueue() const {
+  assert(MWorkerQueue && "MWorkerQueue must not be nullptr");
+  return MWorkerQueue;
+}
 
 bool Command::producesPiEvent() const { return true; }
 
-Command *Command::addDep(DepDesc NewDep) {
+bool Command::supportsPostEnqueueCleanup() const { return true; }
+
+Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
 
   if (NewDep.MDepCommand) {
-    ConnectionCmd = processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+    ConnectionCmd =
+        processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
   }
-  MDeps.push_back(NewDep);
+  // ConnectionCmd insertion builds the following dependency structure:
+  // this -> emptyCmd (for ConnectionCmd) -> ConnectionCmd -> NewDep
+  // that means that this and NewDep are already dependent
+  if (!ConnectionCmd) {
+    MDeps.push_back(NewDep);
+    if (NewDep.MDepCommand)
+      NewDep.MDepCommand->addUser(this);
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  emitEdgeEventForCommandDependence(
-      NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
-      accessModeToString(NewDep.MDepRequirement->MAccessMode), true);
+  emitEdgeEventForCommandDependence(NewDep.MDepCommand,
+                                    (void *)NewDep.MDepRequirement->MSYCLMemObj,
+                                    true, NewDep.MDepRequirement->MAccessMode);
 #endif
 
   return ConnectionCmd;
 }
 
-Command *Command::addDep(EventImplPtr Event) {
+Command *Command::addDep(EventImplPtr Event,
+                         std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -596,7 +680,8 @@ Command *Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
+  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
+                         ToCleanUp);
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -622,7 +707,8 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
+bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+                      std::vector<Command *> &ToCleanUp) {
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -639,7 +725,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
       throw sycl::runtime_error(
           std::string("Waiting for blocked command. Block reason: ") +
               std::string(getBlockReason()),
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Scoped trace event notifier that emits a barrier begin and barrier end
@@ -678,9 +764,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
-  cl_int Res = enqueueImp();
+  pi_int32 Res = enqueueImp();
 
-  if (CL_SUCCESS != Res)
+  if (PI_SUCCESS != Res)
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
@@ -689,8 +775,14 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
-    // CL_SUCCESS
+    // PI_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
+    if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
+        !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
+      assert(!MPostEnqueueCleanup);
+      MPostEnqueueCleanup = true;
+      ToCleanUp.push_back(this);
+    }
   }
 
   // Emit this correlation signal before the task end
@@ -732,7 +824,8 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
         xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
         EdgeEvent->target_id = TgtTraceEvent->unique_id;
         EdgeEvent->source_id = SrcTraceEvent->unique_id;
-        xptiAddMetadata(EdgeEvent, "memory_object", AddressStr.c_str());
+        xpti::addMetadata(EdgeEvent, "memory_object",
+                          reinterpret_cast<size_t>(MAddress));
         xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                               detail::GSYCLGraphEvent, EdgeEvent,
                               EdgeInstanceNo, nullptr);
@@ -755,10 +848,11 @@ const char *Command::getBlockReason() const {
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      Requirement Req,
-                                     AllocaCommandBase *LinkedAllocaCmd)
+                                     AllocaCommandBase *LinkedAllocaCmd,
+                                     bool IsConst)
     : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
-      MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MRequirement(std::move(Req)),
-      MReleaseCmd(Queue, this) {
+      MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
+      MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
   emitInstrumentationDataProxy();
 }
@@ -774,27 +868,35 @@ void AllocaCommandBase::emitInstrumentationData() {
   // Set the relevant meta data properties for this command
   if (MTraceEvent && MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(TE, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(TE, "memory_object", MAddressString.c_str());
+    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
   }
 #endif
 }
 
 bool AllocaCommandBase::producesPiEvent() const { return false; }
 
+bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
+
 AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
                              bool InitFromUserData,
-                             AllocaCommandBase *LinkedAllocaCmd)
+                             AllocaCommandBase *LinkedAllocaCmd, bool IsConst)
     : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
-                        LinkedAllocaCmd),
+                        LinkedAllocaCmd, IsConst),
       MInitFromUserData(InitFromUserData) {
   // Node event must be created before the dependent edge is added to this node,
   // so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
   // "Nothing to depend on"
-  Command *ConnectionCmd = addDep(DepDesc(nullptr, getRequirement(), this));
+  std::vector<Command *> ToCleanUp;
+  Command *ConnectionCmd =
+      addDep(DepDesc(nullptr, getRequirement(), this), ToCleanUp);
   assert(ConnectionCmd == nullptr);
+  assert(ToCleanUp.empty());
   (void)ConnectionCmd;
 }
 
@@ -810,7 +912,7 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
-cl_int AllocaCommand::enqueueImp() {
+pi_int32 AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -823,7 +925,7 @@ cl_int AllocaCommand::enqueueImp() {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, Event);
 
-      return CL_SUCCESS;
+      return PI_SUCCESS;
     }
     HostPtr = MLinkedAllocaCmd->getMemAllocation();
   }
@@ -833,7 +935,7 @@ cl_int AllocaCommand::enqueueImp() {
       MQueue->getContextImplPtr(), getSYCLMemObj(), MInitFromUserData, HostPtr,
       std::move(EventImpls), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void AllocaCommand::printDot(std::ostream &Stream) const {
@@ -844,7 +946,6 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << " MemObj : " << this->MRequirement.MSYCLMemObj << "\\n";
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
-
 
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
@@ -859,17 +960,18 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                                          AllocaCommandBase *ParentAlloca,
-                                         std::vector<Command *> &ToEnqueue)
+                                         std::vector<Command *> &ToEnqueue,
+                                         std::vector<Command *> &ToCleanUp)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
-                        /*LinkedAllocaCmd*/ nullptr),
+                        /*LinkedAllocaCmd*/ nullptr, /*IsConst*/ false),
       MParentAlloca(ParentAlloca) {
   // Node event must be created before the dependent edge
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  Command *ConnectionCmd =
-      addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  Command *ConnectionCmd = addDep(
+      DepDesc(MParentAlloca, getRequirement(), MParentAlloca), ToCleanUp);
   if (ConnectionCmd)
     ToEnqueue.push_back(ConnectionCmd);
 }
@@ -883,12 +985,11 @@ void AllocaSubBufCommand::emitInstrumentationData() {
   // data that is available for the command
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(TE, "offset",
-                    std::to_string(this->MRequirement.MOffsetInBytes).c_str());
-    std::string range = std::to_string(this->MRequirement.MAccessRange[0]) +
-                        "-" +
-                        std::to_string(this->MRequirement.MAccessRange[1]);
-    xptiAddMetadata(TE, "access_range", range.c_str());
+    xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
+    xpti::addMetadata(TE, "access_range_start",
+                      this->MRequirement.MAccessRange[0]);
+    xpti::addMetadata(TE, "access_range_end",
+                      this->MRequirement.MAccessRange[1]);
     makeTraceEventEpilog();
   }
 #endif
@@ -906,7 +1007,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
   return MMemAllocation;
 }
 
-cl_int AllocaSubBufCommand::enqueueImp() {
+pi_int32 AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -916,7 +1017,9 @@ cl_int AllocaSubBufCommand::enqueueImp() {
       MRequirement.MElemSize, MRequirement.MOffsetInBytes,
       MRequirement.MAccessRange, std::move(EventImpls), Event);
 
-  return CL_SUCCESS;
+  XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
+                                            MMemAllocation);
+  return PI_SUCCESS;
 }
 
 void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
@@ -957,16 +1060,19 @@ void ReleaseCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(TE, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(TE, "allocation_type",
-                    commandToName(MAllocaCmd->getType()).c_str());
+    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(TE, "allocation_type",
+                      commandToName(MAllocaCmd->getType()));
     makeTraceEventEpilog();
   }
 #endif
 }
 
-cl_int ReleaseCommand::enqueueImp() {
+pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -986,7 +1092,6 @@ cl_int ReleaseCommand::enqueueImp() {
     // 3. Device alloca in the pair should be in active state in order to be
     //    correctly released.
 
-
     // There is no actual memory allocation if a host alloca command is created
     // being linked to a device allocation.
     SkipRelease |= CurAllocaIsHost && !MAllocaCmd->MIsLeaderAlloca;
@@ -1001,6 +1106,7 @@ cl_int ReleaseCommand::enqueueImp() {
 
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
     UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
+    UnmapEventImpl->setStateIncomplete();
     RT::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
 
     void *Src = CurAllocaIsHost
@@ -1026,7 +1132,7 @@ cl_int ReleaseCommand::enqueueImp() {
         MQueue->getContextImplPtr(), MAllocaCmd->getSYCLMemObj(),
         MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
   }
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void ReleaseCommand::printDot(std::ostream &Stream) const {
@@ -1049,6 +1155,8 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
 
 bool ReleaseCommand::producesPiEvent() const { return false; }
 
+bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
+
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            void **DstPtr, QueueImplPtr Queue,
                            access::mode MapMode)
@@ -1069,15 +1177,18 @@ void MapMemObject::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(TE, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(TE, "memory_object", MAddressString.c_str());
+    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
 #endif
 }
 
-cl_int MapMemObject::enqueueImp() {
+pi_int32 MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1089,7 +1200,7 @@ cl_int MapMemObject::enqueueImp() {
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void MapMemObject::printDot(std::ostream &Stream) const {
@@ -1127,9 +1238,12 @@ void UnMapMemObject::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(TE, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(TE, "memory_object", MAddressString.c_str());
+    xpti::addMetadata(TE, "sycl_device", deviceToID(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(TE, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
 #endif
@@ -1155,7 +1269,7 @@ bool UnMapMemObject::producesPiEvent() const {
          MEvent->getHandleRef() != nullptr;
 }
 
-cl_int UnMapMemObject::enqueueImp() {
+pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1166,7 +1280,7 @@ cl_int UnMapMemObject::enqueueImp() {
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
                        std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void UnMapMemObject::printDot(std::ostream &Stream) const {
@@ -1195,8 +1309,11 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)),
       MDstAllocaCmd(DstAllocaCmd) {
-  if (!MSrcQueue->is_host())
+  if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
+  }
+
+  MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
 
   emitInstrumentationDataProxy();
 }
@@ -1212,13 +1329,20 @@ void MemCpyCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(CmdTraceEvent, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
-    std::string From = deviceToString(MSrcQueue->get_device());
-    std::string To = deviceToString(MQueue->get_device());
-    xptiAddMetadata(CmdTraceEvent, "copy_from", From.c_str());
-    xptiAddMetadata(CmdTraceEvent, "copy_to", To.c_str());
+    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                      deviceToID(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(CmdTraceEvent, "memory_object",
+                      reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(CmdTraceEvent, "copy_from",
+                      reinterpret_cast<size_t>(
+                          getSyclObjImpl(MSrcQueue->get_device()).get()));
+    xpti::addMetadata(
+        CmdTraceEvent, "copy_to",
+        reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     makeTraceEventEpilog();
   }
 #endif
@@ -1226,10 +1350,6 @@ void MemCpyCommand::emitInstrumentationData() {
 
 const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
-}
-
-const QueueImplPtr &MemCpyCommand::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
 bool MemCpyCommand::producesPiEvent() const {
@@ -1253,7 +1373,7 @@ bool MemCpyCommand::producesPiEvent() const {
          MEvent->getHandleRef() != nullptr;
 }
 
-cl_int MemCpyCommand::enqueueImp() {
+pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -1269,7 +1389,7 @@ cl_int MemCpyCommand::enqueueImp() {
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
       MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void MemCpyCommand::printDot(std::ostream &Stream) const {
@@ -1298,7 +1418,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
+  throw runtime_error("Alloca for command not found",
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
@@ -1307,12 +1428,24 @@ std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
   return {};
 }
 
+std::vector<std::shared_ptr<const void>>
+ExecCGCommand::getAuxiliaryResources() const {
+  if (MCommandGroup->getType() == CG::Kernel)
+    return ((CGExecKernel *)MCommandGroup.get())->getAuxiliaryResources();
+  return {};
+}
+
 void ExecCGCommand::clearStreams() {
   if (MCommandGroup->getType() == CG::Kernel)
     ((CGExecKernel *)MCommandGroup.get())->clearStreams();
 }
 
-cl_int UpdateHostRequirementCommand::enqueueImp() {
+void ExecCGCommand::clearAuxiliaryResources() {
+  if (MCommandGroup->getType() == CG::Kernel)
+    ((CGExecKernel *)MCommandGroup.get())->clearAuxiliaryResources();
+}
+
+pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1323,7 +1456,7 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
   assert(MDstPtr && "Expected valid target pointer");
   *MDstPtr = MSrcAllocaCmd->getMemAllocation();
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
@@ -1357,8 +1490,11 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
-  if (!MSrcQueue->is_host())
+  if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
+  }
+
+  MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
 
   emitInstrumentationDataProxy();
 }
@@ -1374,13 +1510,20 @@ void MemCpyCommandHost::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(CmdTraceEvent, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
-    std::string From = deviceToString(MSrcQueue->get_device());
-    std::string To = deviceToString(MQueue->get_device());
-    xptiAddMetadata(CmdTraceEvent, "copy_from", From.c_str());
-    xptiAddMetadata(CmdTraceEvent, "copy_to", To.c_str());
+    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                      deviceToID(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(CmdTraceEvent, "memory_object",
+                      reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(CmdTraceEvent, "copy_from",
+                      reinterpret_cast<size_t>(
+                          getSyclObjImpl(MSrcQueue->get_device()).get()));
+    xpti::addMetadata(
+        CmdTraceEvent, "copy_to",
+        reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     makeTraceEventEpilog();
   }
 #endif
@@ -1390,11 +1533,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
 }
 
-const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
-}
-
-cl_int MemCpyCommandHost::enqueueImp() {
+pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1408,7 +1547,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
 
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
@@ -1419,7 +1558,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
@@ -1427,11 +1566,11 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
   emitInstrumentationDataProxy();
 }
 
-cl_int EmptyCommand::enqueueImp() {
+pi_int32 EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
@@ -1441,8 +1580,11 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   const Requirement *const StoredReq = &MRequirements.back();
 
   // EmptyCommand is always host one, so we believe that result of addDep is nil
-  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  std::vector<Command *> ToCleanUp;
+  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd}, ToCleanUp);
   assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
+  assert(ToCleanUp.empty() && "addDep should add a command for cleanup only if "
+                              "there's a connection command");
   (void)Cmd;
 }
 
@@ -1462,9 +1604,14 @@ void EmptyCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(CmdTraceEvent, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
+    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                      deviceToID(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(CmdTraceEvent, "memory_object",
+                      reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
 #endif
@@ -1527,9 +1674,14 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 
   if (MFirstInstance) {
     xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xptiAddMetadata(CmdTraceEvent, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
-    xptiAddMetadata(CmdTraceEvent, "memory_object", MAddressString.c_str());
+    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                      deviceToID(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(CmdTraceEvent, "memory_object",
+                      reinterpret_cast<size_t>(MAddress));
     makeTraceEventEpilog();
   }
 #endif
@@ -1577,9 +1729,16 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr Queue)
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask)
+  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MSubmittedQueue =
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setNeedsCleanupAfterWait(true);
+  } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
+             (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
+              static_cast<CGExecKernel *>(MCommandGroup.get())
+                  ->hasAuxiliaryResources()))
+    MEvent->setNeedsCleanupAfterWait(true);
+
   emitInstrumentationDataProxy();
 }
 
@@ -1590,19 +1749,20 @@ void ExecCGCommand::emitInstrumentationData() {
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
   bool HasSourceInfo = false;
-  std::string KernelName, FromSource;
+  std::string KernelName;
+  std::optional<bool> FromSource;
   switch (MCommandGroup->getType()) {
   case detail::CG::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
 
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource()) {
-      FromSource = "true";
+      FromSource = true;
       pi_kernel KernelHandle = KernelCG->MSyclKernel->getHandleRef();
       MAddress = KernelHandle;
       KernelName = MCommandGroup->MFunctionName;
     } else {
-      FromSource = "false";
+      FromSource = false;
       KernelName = demangleKernelName(KernelCG->getKernelName());
     }
   } break;
@@ -1648,20 +1808,91 @@ void ExecCGCommand::emitInstrumentationData() {
     if (CGKernelInstanceNo > 1)
       return;
 
-    xptiAddMetadata(CmdTraceEvent, "sycl_device",
-                    deviceToString(MQueue->get_device()).c_str());
+    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                      deviceToID(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
     if (!KernelName.empty()) {
-      xptiAddMetadata(CmdTraceEvent, "kernel_name", KernelName.c_str());
+      xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
     }
-    if (!FromSource.empty()) {
-      xptiAddMetadata(CmdTraceEvent, "from_source", FromSource.c_str());
+    if (FromSource.has_value()) {
+      xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
     }
     if (HasSourceInfo) {
-      xptiAddMetadata(CmdTraceEvent, "sym_function_name", KernelName.c_str());
-      xptiAddMetadata(CmdTraceEvent, "sym_source_file_name",
-                      MCommandGroup->MFileName.c_str());
-      xptiAddMetadata(CmdTraceEvent, "sym_line_no",
-                      std::to_string(MCommandGroup->MLine).c_str());
+      xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
+      xpti::addMetadata(CmdTraceEvent, "sym_source_file_name",
+                        MCommandGroup->MFileName);
+      xpti::addMetadata(CmdTraceEvent, "sym_line_no", MCommandGroup->MLine);
+      xpti::addMetadata(CmdTraceEvent, "sym_column_no", MCommandGroup->MColumn);
+    }
+
+    if (MCommandGroup->getType() == detail::CG::Kernel) {
+      auto KernelCG =
+          reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+      auto &NDRDesc = KernelCG->MNDRDesc;
+      std::vector<ArgDesc> Args;
+
+      auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
+        Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
+      };
+      RT::PiProgram Program = nullptr;
+      RT::PiKernel Kernel = nullptr;
+      std::mutex *KernelMutex = nullptr;
+
+      std::shared_ptr<kernel_impl> SyclKernelImpl;
+      std::shared_ptr<device_image_impl> DeviceImageImpl;
+      auto KernelBundleImplPtr = KernelCG->getKernelBundle();
+
+      // Use kernel_bundle if available unless it is interop.
+      // Interop bundles can't be used in the first branch, because the kernels
+      // in interop kernel bundles (if any) do not have kernel_id
+      // and can therefore not be looked up, but since they are self-contained
+      // they can simply be launched directly.
+      if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+        kernel_id KernelID =
+            detail::ProgramManager::getInstance().getSYCLKernelID(
+                KernelCG->MKernelName);
+        kernel SyclKernel =
+            KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+        Program = detail::getSyclObjImpl(SyclKernel)
+                      ->getDeviceImage()
+                      ->get_program_ref();
+      } else if (nullptr != KernelCG->MSyclKernel) {
+        auto SyclProg = detail::getSyclObjImpl(
+            KernelCG->MSyclKernel->get_info<info::kernel::program>());
+        Program = SyclProg->getHandleRef();
+      } else {
+        std::tie(Kernel, KernelMutex, Program) =
+            detail::ProgramManager::getInstance().getOrCreateKernel(
+                KernelCG->MOSModuleHandle, MQueue->getContextImplPtr(),
+                MQueue->getDeviceImplPtr(), KernelCG->MKernelName, nullptr);
+      }
+
+      ProgramManager::KernelArgMask EliminatedArgMask;
+      if (nullptr == KernelCG->MSyclKernel ||
+          !KernelCG->MSyclKernel->isCreatedFromSource()) {
+        EliminatedArgMask =
+            detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
+                KernelCG->MOSModuleHandle, Program, KernelCG->MKernelName);
+      }
+
+      applyFuncOnFilteredArgs(EliminatedArgMask, KernelCG->MArgs, FilterArgs);
+
+      xpti::offload_kernel_enqueue_data_t KernelData{
+          {NDRDesc.GlobalSize[0], NDRDesc.GlobalSize[1], NDRDesc.GlobalSize[2]},
+          {NDRDesc.LocalSize[0], NDRDesc.LocalSize[1], NDRDesc.LocalSize[2]},
+          {NDRDesc.GlobalOffset[0], NDRDesc.GlobalOffset[1],
+           NDRDesc.GlobalOffset[2]},
+          Args.size()};
+      xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
+      for (size_t i = 0; i < Args.size(); i++) {
+        std::string Prefix("arg");
+        xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
+                                            Args[i].MSize, Args[i].MIndex};
+        xpti::addMetadata(CmdTraceEvent, Prefix + std::to_string(i), arg);
+      }
     }
 
     xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
@@ -1726,9 +1957,8 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
-      range<3>,
-      cl::sycl::info::kernel_device_specific::compile_work_group_size>::
-      get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
+      sycl::info::kernel_device_specific::compile_work_group_size>(
+      Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
@@ -1769,9 +1999,11 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
-      assert(getMemAllocationFunc != nullptr &&
-             "The function should not be nullptr as we followed the path for "
-             "which accessors are used");
+      if (getMemAllocationFunc == nullptr)
+        throw sycl::exception(make_error_code(errc::kernel_argument),
+                              "placeholder accessor must be bound by calling "
+                              "handler::require() before it can be used.");
+
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
@@ -1802,10 +2034,10 @@ static pi_result SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       if (Queue->is_host()) {
-        throw cl::sycl::feature_not_supported(
+        throw sycl::feature_not_supported(
             "SYCL2020 specialization constants are not yet supported on host "
             "device",
-            PI_INVALID_OPERATION);
+            PI_ERROR_INVALID_OPERATION);
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
@@ -1817,40 +2049,12 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_invalid:
-      throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+      throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
       break;
     }
   };
 
-  if (EliminatedArgMask.empty()) {
-    for (ArgDesc &Arg : Args) {
-      setFunc(Arg, Arg.MIndex);
-    }
-  } else {
-    // TODO this is not necessary as long as we can guarantee that the arguments
-    // are already sorted (e. g. handle the sorting in handler if necessary due
-    // to set_arg(...) usage).
-    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
-      return A.MIndex < B.MIndex;
-    });
-    int LastIndex = -1;
-    size_t NextTrueIndex = 0;
-
-    for (ArgDesc &Arg : Args) {
-      // Handle potential gaps in set arguments (e. g. if some of them are set
-      // on the user side).
-      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-        if (!EliminatedArgMask[Idx])
-          ++NextTrueIndex;
-      LastIndex = Arg.MIndex;
-
-      if (EliminatedArgMask[Arg.MIndex])
-        continue;
-
-      setFunc(Arg, NextTrueIndex);
-      ++NextTrueIndex;
-    }
-  }
+  applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -1888,23 +2092,30 @@ static pi_result SetKernelParamsAndLaunch(
 // The function is used as argument to piEnqueueNativeKernel which requires
 // that the passed function takes one void* argument.
 void DispatchNativeKernel(void *Blob) {
-  // First value is a pointer to Corresponding CGExecKernel object.
-  CGExecKernel *HostTask = *(CGExecKernel **)Blob;
-  bool ShouldDeleteCG = static_cast<void **>(Blob)[1] != nullptr;
+  void **CastedBlob = (void **)Blob;
+
+  std::vector<Requirement *> *Reqs =
+      static_cast<std::vector<Requirement *> *>(CastedBlob[0]);
+
+  std::unique_ptr<HostKernelBase> *HostKernel =
+      static_cast<std::unique_ptr<HostKernelBase> *>(CastedBlob[1]);
+
+  NDRDescT *NDRDesc = static_cast<NDRDescT *>(CastedBlob[2]);
 
   // Other value are pointer to the buffers.
-  void **NextArg = static_cast<void **>(Blob) + 2;
-  for (detail::Requirement *Req : HostTask->MRequirements)
+  void **NextArg = CastedBlob + 3;
+  for (detail::Requirement *Req : *Reqs)
     Req->MData = *(NextArg++);
-  HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 
-  // The command group will (if not already was) be released in scheduler.
-  // Hence we're free to deallocate it here.
-  if (ShouldDeleteCG)
-    delete HostTask;
+  (*HostKernel)->call(*NDRDesc, nullptr);
+
+  // The ownership of these objects have been passed to us, need to cleanup
+  delete Reqs;
+  delete HostKernel;
+  delete NDRDesc;
 }
 
-cl_int enqueueImpKernel(
+pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -1989,14 +2200,14 @@ cl_int enqueueImpKernel(
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
     const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
-    return detail::enqueue_kernel_launch::handleError(Error, DeviceImpl, Kernel,
-                                                      NDRDesc);
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+                                                        Kernel, NDRDesc);
   }
 
   return PI_SUCCESS;
 }
 
-cl_int ExecCGCommand::enqueueImp() {
+pi_int32 ExecCGCommand::enqueueImp() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -2011,7 +2222,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
   case CG::CGTYPE::UpdateHost: {
     throw runtime_error("Update host should be handled by the Scheduler.",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2026,7 +2237,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2043,7 +2254,7 @@ cl_int ExecCGCommand::enqueueImp() {
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyAccToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2061,7 +2272,7 @@ cl_int ExecCGCommand::enqueueImp() {
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
         MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
@@ -2074,22 +2285,33 @@ cl_int ExecCGCommand::enqueueImp() {
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
         std::move(RawEvents), MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::RunOnHostIntel: {
     CGExecKernel *HostTask = (CGExecKernel *)MCommandGroup.get();
 
     // piEnqueueNativeKernel takes arguments blob which is passes to user
     // function.
-    // Reserve extra space for the pointer to CGExecKernel to restore context.
-    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 2);
-    ArgsBlob[0] = (void *)HostTask;
-    {
-      std::intptr_t ShouldDeleteCG =
-          static_cast<std::intptr_t>(MDeps.size() == 0 && MUsers.size() == 0);
-      ArgsBlob[1] = reinterpret_cast<void *>(ShouldDeleteCG);
-    }
-    void **NextArg = ArgsBlob.data() + 2;
+    // Need the following items to restore context in the host task.
+    // Make a copy on heap to "dettach" from the command group as it can be
+    // released before the host task completes.
+    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 3);
+
+    std::vector<Requirement *> *CopyReqs =
+        new std::vector<Requirement *>(HostTask->MRequirements);
+
+    // Not actually a copy, but move. Should be OK as it's not expected that
+    // MHostKernel will be used elsewhere.
+    std::unique_ptr<HostKernelBase> *CopyHostKernel =
+        new std::unique_ptr<HostKernelBase>(std::move(HostTask->MHostKernel));
+
+    NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
+
+    ArgsBlob[0] = (void *)CopyReqs;
+    ArgsBlob[1] = (void *)CopyHostKernel;
+    ArgsBlob[2] = (void *)CopyNDRDesc;
+
+    void **NextArg = ArgsBlob.data() + 3;
 
     if (MQueue->is_host()) {
       for (ArgDesc &Arg : HostTask->MArgs) {
@@ -2109,7 +2331,7 @@ cl_int ExecCGCommand::enqueueImp() {
       }
       DispatchNativeKernel((void *)ArgsBlob.data());
 
-      return CL_SUCCESS;
+      return PI_SUCCESS;
     }
 
     std::vector<pi_mem> Buffers;
@@ -2137,14 +2359,14 @@ cl_int ExecCGCommand::enqueueImp() {
         RawEvents.empty() ? nullptr : RawEvents.data(), Event);
 
     switch (Error) {
-    case PI_INVALID_OPERATION:
-      throw cl::sycl::runtime_error(
+    case PI_ERROR_INVALID_OPERATION:
+      throw sycl::runtime_error(
           "Device doesn't support run_on_host_intel tasks.", Error);
     case PI_SUCCESS:
       return Error;
     default:
-      throw cl::sycl::runtime_error(
-          "Enqueueing run_on_host_intel task has failed.", Error);
+      throw sycl::runtime_error("Enqueueing run_on_host_intel task has failed.",
+                                Error);
     }
   }
   case CG::CGTYPE::Kernel: {
@@ -2173,6 +2395,7 @@ cl_int ExecCGCommand::enqueueImp() {
       } else {
         assert(MQueue->getPlugin().getBackend() ==
                backend::ext_intel_esimd_emulator);
+
         MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
             nullptr,
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
@@ -2180,7 +2403,7 @@ cl_int ExecCGCommand::enqueueImp() {
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
 
-      return CL_SUCCESS;
+      return PI_SUCCESS;
     }
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
@@ -2212,14 +2435,14 @@ cl_int ExecCGCommand::enqueueImp() {
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
                             Copy->getDst(), std::move(RawEvents), Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
                             Fill->getFill(), std::move(RawEvents), Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
@@ -2227,14 +2450,14 @@ cl_int ExecCGCommand::enqueueImp() {
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
                               Advise->getAdvice(), std::move(RawEvents), Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayInteropTask: {
     const detail::plugin &Plugin = MQueue->getPlugin();
@@ -2246,15 +2469,16 @@ cl_int ExecCGCommand::enqueueImp() {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     }
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
-    // Extract the Mem Objects for all Requirements, to ensure they are available if
-    // a user ask for them inside the interop task scope
-    const auto& HandlerReq = ExecInterop->MRequirements;
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement* Req) {
-      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-      interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
-      ReqMemObjs.emplace_back(ReqToMem);
-    });
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user ask for them inside the interop task scope
+    const auto &HandlerReq = ExecInterop->MRequirements;
+    std::for_each(
+        std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+          auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+          interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
+          ReqMemObjs.emplace_back(ReqToMem);
+        });
 
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
     interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);
@@ -2262,7 +2486,7 @@ cl_int ExecCGCommand::enqueueImp() {
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
                                                 nullptr, Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
@@ -2277,7 +2501,7 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
+        throw runtime_error("Unsupported arg type", PI_ERROR_INVALID_VALUE);
       }
     }
 
@@ -2306,7 +2530,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
         throw runtime_error(
             "Can't get memory object due to no allocation available",
-            PI_INVALID_MEM_OBJECT);
+            PI_ERROR_INVALID_MEM_OBJECT);
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -2317,7 +2541,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     MShouldCompleteEventIfPossible = false;
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
     if (MQueue->get_device().is_host()) {
@@ -2346,15 +2570,26 @@ cl_int ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::None:
-    throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
+    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }
-  return PI_INVALID_OPERATION;
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 bool ExecCGCommand::producesPiEvent() const {
   return MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
 }
 
+bool ExecCGCommand::supportsPostEnqueueCleanup() const {
+  // TODO enable cleaning up host task commands and kernels with streams after
+  // enqueue
+  return Command::supportsPostEnqueueCleanup() &&
+         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) &&
+         (MCommandGroup->getType() != CG::CGTYPE::Kernel ||
+          (!static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() &&
+           !static_cast<CGExecKernel *>(MCommandGroup.get())
+                ->hasAuxiliaryResources()));
+}
+
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

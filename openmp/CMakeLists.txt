@@ -1,13 +1,23 @@
 cmake_minimum_required(VERSION 3.13.4)
 
-# Add cmake directory to search for custom cmake functions.
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+
+# Add path for custom modules
+list(INSERT CMAKE_MODULE_PATH 0
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+  "${LLVM_COMMON_CMAKE_UTILS}/Modules"
+  )
 
 # llvm/runtimes/ will set OPENMP_STANDALONE_BUILD.
 if (OPENMP_STANDALONE_BUILD OR "${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   set(OPENMP_STANDALONE_BUILD TRUE)
   project(openmp C CXX)
+endif()
 
+# Must go below project(..)
+include(GNUInstallDirs)
+
+if (OPENMP_STANDALONE_BUILD)
   # CMAKE_BUILD_TYPE was not set, default to Release.
   if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)

@@ -141,7 +141,7 @@ struct AttributeCounter : public InstVisitor<AttributeCounter> {
 AttributeSet
 convertAttributeRefToAttributeSet(LLVMContext &C,
                                   ArrayRef<const Attribute *> Attributes) {
-  AttrBuilder B;
+  AttrBuilder B(C);
   for (const Attribute *A : Attributes)
     B.addAttribute(*A);
   return AttributeSet::get(C, B);
@@ -158,10 +158,7 @@ AttributeList convertAttributeRefVecToAttributeList(
                   V.first, convertAttributeRefToAttributeSet(C, V.second));
             });
 
-  sort(SetVec, [](const std::pair<unsigned, AttributeSet> &LHS,
-                  const std::pair<unsigned, AttributeSet> &RHS) {
-    return LHS.first < RHS.first; // All values are unique.
-  });
+  llvm::sort(SetVec, llvm::less_first()); // All values are unique.
 
   return AttributeList::get(C, SetVec);
 }

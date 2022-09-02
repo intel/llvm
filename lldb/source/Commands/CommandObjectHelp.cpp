@@ -8,6 +8,7 @@
 
 #include "CommandObjectHelp.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 
 using namespace lldb;
@@ -46,8 +47,7 @@ CommandObjectHelp::CommandObjectHelp(CommandInterpreter &interpreter)
                           "Show a list of all debugger "
                           "commands, or give details "
                           "about a specific command.",
-                          "help [<cmd-name>]"),
-      m_options() {
+                          "help [<cmd-name>]") {
   CommandArgumentEntry arg;
   CommandArgumentData command_arg;
 

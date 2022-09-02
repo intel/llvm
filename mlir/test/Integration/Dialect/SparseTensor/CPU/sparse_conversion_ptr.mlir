@@ -1,11 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --linalg-bufferize --convert-linalg-to-loops \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-math-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -42,28 +35,28 @@ module {
   // Helper method to print values and indices arrays. The transfer actually
   // reads more than required to verify size of buffer as well.
   //
-  func @dumpf64(%arg0: memref<?xf64>) {
+  func.func @dumpf64(%arg0: memref<?xf64>) {
     %c = arith.constant 0 : index
     %d = arith.constant -1.0 : f64
     %0 = vector.transfer_read %arg0[%c], %d: memref<?xf64>, vector<8xf64>
     vector.print %0 : vector<8xf64>
     return
   }
-  func @dumpi08(%arg0: memref<?xi8>) {
+  func.func @dumpi08(%arg0: memref<?xi8>) {
     %c = arith.constant 0 : index
     %d = arith.constant -1 : i8
     %0 = vector.transfer_read %arg0[%c], %d: memref<?xi8>, vector<8xi8>
     vector.print %0 : vector<8xi8>
     return
   }
-  func @dumpi32(%arg0: memref<?xi32>) {
+  func.func @dumpi32(%arg0: memref<?xi32>) {
     %c = arith.constant 0 : index
     %d = arith.constant -1 : i32
     %0 = vector.transfer_read %arg0[%c], %d: memref<?xi32>, vector<8xi32>
     vector.print %0 : vector<8xi32>
     return
   }
-  func @dumpi64(%arg0: memref<?xi64>) {
+  func.func @dumpi64(%arg0: memref<?xi64>) {
     %c = arith.constant 0 : index
     %d = arith.constant -1 : i64
     %0 = vector.transfer_read %arg0[%c], %d: memref<?xi64>, vector<8xi64>
@@ -71,7 +64,7 @@ module {
     return
   }
 
-  func @entry() {
+  func.func @entry() {
     %c1 = arith.constant 1 : index
     %t1 = arith.constant sparse<
       [ [0,0], [0,1], [0,63], [1,0], [1,1], [31,0], [31,63] ],
@@ -135,12 +128,12 @@ module {
     call @dumpi08(%i6) : (memref<?xi08>) -> ()
 
     // Release the resources.
-    sparse_tensor.release %1 : tensor<32x64xf64, #DCSR>
-    sparse_tensor.release %2 : tensor<32x64xf64, #DCSC>
-    sparse_tensor.release %3 : tensor<32x64xf64, #CSC>
-    sparse_tensor.release %4 : tensor<32x64xf64, #DCSC>
-    sparse_tensor.release %5 : tensor<32x64xf64, #DCSR>
-    sparse_tensor.release %6 : tensor<32x64xf64, #DCSR>
+    bufferization.dealloc_tensor %1 : tensor<32x64xf64, #DCSR>
+    bufferization.dealloc_tensor %2 : tensor<32x64xf64, #DCSC>
+    bufferization.dealloc_tensor %3 : tensor<32x64xf64, #CSC>
+    bufferization.dealloc_tensor %4 : tensor<32x64xf64, #DCSC>
+    bufferization.dealloc_tensor %5 : tensor<32x64xf64, #DCSR>
+    bufferization.dealloc_tensor %6 : tensor<32x64xf64, #DCSR>
 
     return
   }

@@ -59,17 +59,29 @@ module m01
   subroutine intentout(x)
     real, intent(out) :: x
   end subroutine
+  subroutine intentout_arr(x)
+    real, intent(out) :: x(:)
+  end subroutine
   subroutine intentinout(x)
     real, intent(in out) :: x
   end subroutine
+  subroutine intentinout_arr(x)
+    real, intent(in out) :: x(:)
+  end subroutine
   subroutine asynchronous(x)
     real, asynchronous :: x
+  end subroutine
+  subroutine asynchronous_arr(x)
+    real, asynchronous :: x(:)
   end subroutine
   subroutine asynchronousValue(x)
     real, asynchronous, value :: x
   end subroutine
   subroutine volatile(x)
     real, volatile :: x
+  end subroutine
+  subroutine volatile_arr(x)
+    real, volatile :: x(:)
   end subroutine
   subroutine pointer(x)
     real, pointer :: x(:)
@@ -91,7 +103,7 @@ module m01
   end subroutine
 
   subroutine mono(x)
-    type(t), intent(in) :: x
+    type(t), intent(in) :: x(*)
   end subroutine
   subroutine test02(x) ! 15.5.2.4(2)
     class(t), intent(in) :: x(*)
@@ -121,7 +133,7 @@ module m01
   end subroutine
 
   subroutine ch2(x)
-    character(2), intent(in out) :: x
+    character(2), intent(in) :: x
   end subroutine
   subroutine pdtdefault (derivedArg)
     !ERROR: Type parameter 'n' lacks a value and has no default
@@ -151,9 +163,10 @@ module m01
     type(pdtWithDefault(3)) :: defaultVar3
     type(pdtWithDefault(4)) :: defaultVar4
     character :: ch1
-    ! The actual argument is converted to a padded expression.
-    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
+    !ERROR: Actual argument variable length '1' is less than expected length '2'
     call ch2(ch1)
+    !WARN: Actual argument expression length '0' is less than expected length '2'
+    call ch2("")
     call pdtdefault(vardefault)
     call pdtdefault(var3)
     call pdtdefault(var4) ! error
@@ -196,21 +209,28 @@ module m01
   subroutine charray(x)
     character :: x(10)
   end subroutine
-  subroutine test09(ashape, polyarray, c) ! 15.5.2.4(14), 15.5.2.11
+  subroutine test09(ashape, polyarray, c, assumed_shape_char) ! 15.5.2.4(14), 15.5.2.11
     real :: x, arr(10)
     real, pointer :: p(:)
+    real, pointer :: p_scalar
+    character(10), pointer :: char_pointer(:)
+    character(*) :: assumed_shape_char(:)
     real :: ashape(:)
     class(t) :: polyarray(*)
     character(10) :: c(:)
     !ERROR: Whole scalar actual argument may not be associated with a dummy argument 'x=' array
     call assumedsize(x)
-    !ERROR: Scalar POINTER target may not be associated with a dummy argument 'x=' array
+    !ERROR: Whole scalar actual argument may not be associated with a dummy argument 'x=' array
+    call assumedsize(p_scalar)
+    !ERROR: Element of pointer array may not be associated with a dummy argument 'x=' array
     call assumedsize(p(1))
     !ERROR: Element of assumed-shape array may not be associated with a dummy argument 'x=' array
     call assumedsize(ashape(1))
     !ERROR: Polymorphic scalar may not be associated with a dummy argument 'x=' array
     call polyassumedsize(polyarray(1))
     call charray(c(1:1))  ! not an error if character
+    call charray(char_pointer(1))  ! not an error if character
+    call charray(assumed_shape_char(1))  ! not an error if character
     call assumedsize(arr(1))  ! not an error if element in sequence
     call assumedrank(x)  ! not an error
     call assumedtypeandsize(x)  ! not an error
@@ -221,6 +241,7 @@ module m01
     real :: a(*)
     !ERROR: Scalar actual argument may not be associated with assumed-shape dummy argument 'x='
     call assumedshape(scalar)
+    call assumedshape(reshape(matrix,shape=[size(matrix)])) ! ok
     !ERROR: Rank of dummy argument is 1, but actual argument has rank 2
     call assumedshape(matrix)
     !ERROR: Assumed-size array may not be associated with assumed-shape dummy argument 'x='
@@ -260,13 +281,13 @@ module m01
     integer :: j(1)
     j(1) = 1
     !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
-    call intentout(a(j))
+    call intentout_arr(a(j))
     !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
-    call intentinout(a(j))
+    call intentinout_arr(a(j))
     !ERROR: Actual argument associated with ASYNCHRONOUS dummy argument 'x=' must be definable
-    call asynchronous(a(j))
+    call asynchronous_arr(a(j))
     !ERROR: Actual argument associated with VOLATILE dummy argument 'x=' must be definable
-    call volatile(a(j))
+    call volatile_arr(a(j))
   end subroutine
 
   subroutine coarr(x)

@@ -4,32 +4,45 @@
 
 // clang-format off
 
-#include <CL/sycl/accessor.hpp>
+#include <sycl/accessor.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
-// CHECK:        0 | class sycl::detail::AccessorImplHost
-// CHECK-NEXT:   0 |   class sycl::id<3> MOffset
-// CHECK-NEXT:   0 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:   0 |       size_t[3] common_array
-// CHECK-NEXT:  24 |   class sycl::range<3> MAccessRange
-// CHECK-NEXT:  24 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:  24 |       size_t[3] common_array
-// CHECK-NEXT:  48 |   class sycl::range<3> MMemoryRange
-// CHECK-NEXT:  48 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:  48 |       size_t[3] common_array
-// CHECK-NEXT:  72 |   access::mode MAccessMode
-// CHECK-NEXT:  80 |   detail::SYCLMemObjI * MSYCLMemObj
-// CHECK-NEXT:  88 |   unsigned int MDims
-// CHECK-NEXT:  92 |   unsigned int MElemSize
-// CHECK-NEXT:  96 |   unsigned int MOffsetInBytes
-// CHECK-NEXT: 100 |   _Bool MIsSubBuffer
-// CHECK-NEXT: 104 |   void * MData
-// CHECK-NEXT: 112 |   class sycl::detail::Command * MBlockedCmd
-// CHECK-NEXT: 120 |   _Bool PerWI
-// CHECK-NEXT: 121 |   _Bool MIsESIMDAcc
-// CHECK-NEXT:     | [sizeof=128, dsize=122, align=8,
-// CHECK-NEXT:     |  nvsize=122, nvalign=8]
+// CHECK:       0 | class sycl::detail::AccessorImplHost
+// CHECK-NEXT:  0 |   class sycl::id<3> MOffset
+// CHECK-NEXT:  0 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT:  0 |       size_t[3] common_array
+// CHECK-NEXT: 24 |   class sycl::range<3> MAccessRange
+// CHECK-NEXT: 24 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT: 24 |       size_t[3] common_array
+// CHECK-NEXT: 48 |   class sycl::range<3> MMemoryRange
+// CHECK-NEXT: 48 |     class sycl::detail::array<3> (base)
+// CHECK-NEXT: 48 |       size_t[3] common_array
+// CHECK-NEXT: 72 |   access::mode MAccessMode
+// CHECK-NEXT: 80 |   detail::SYCLMemObjI * MSYCLMemObj
+// CHECK-NEXT: 88 |   unsigned int MDims
+// CHECK-NEXT: 92 |   unsigned int MElemSize
+// CHECK-NEXT: 96 |   unsigned int MOffsetInBytes
+// CHECK-NEXT: 00 |   _Bool MIsSubBuffer
+// CHECK-NEXT: 04 |   void * MData
+// CHECK-NEXT: 12 |   Command * MBlockedCmd
+// CHECK-NEXT: 20 |   _Bool PerWI
+// CHECK-NEXT: 28 |   class sycl::property_list MPropertyList
+// CHECK-NEXT: 28 |     class sycl::detail::PropertyListBase (base)
+// CHECK-NEXT: 28 |       class std::bitset<32> MDataLessProps
+// CHECK-NEXT: 28 |         struct std::_Base_bitset<1> (base)
+// CHECK-NEXT: 28 |           _WordT _M_w
+// CHECK-NEXT: 36 |       class std::vector<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > MPropsWithData
+// CHECK-NEXT: 36 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > > (base)
+// CHECK-NEXT: 36 |           struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::_Vector_impl _M_impl
+// CHECK-NEXT: 36 |             class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > (base) (empty)
+// CHECK-NEXT: 36 |               class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > (base) (empty)
+// CHECK-NEXT: 36 |             struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::_Vector_impl_data (base)
+// CHECK-NEXT: 36 |               pointer _M_start
+// CHECK-NEXT: 44 |               pointer _M_finish
+// CHECK-NEXT: 52 |               pointer _M_end_of_storage
+// CHECK-NEXT:    | [sizeof=160, dsize=160, align=8,
+// CHECK-NEXT:    |  nvsize=160, nvalign=8]
 
 // CHECK:       0 | class sycl::detail::LocalAccessorImplHost
 // CHECK-NEXT:  0 |   class sycl::range<3> MSize
@@ -42,9 +55,9 @@ using namespace cl::sycl;
 // CHECK-NEXT: 32 |       struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl _M_impl
 // CHECK-NEXT: 32 |         class std::allocator<char> (base) (empty)
 // CHECK-NEXT: 32 |           class __gnu_cxx::new_allocator<char> (base) (empty)
-// CHECK:      32 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_start
-// CHECK-NEXT: 40 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_finish
-// CHECK-NEXT: 48 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_end_of_storage
+// CHECK:      32 |           pointer _M_start
+// CHECK-NEXT: 40 |           pointer _M_finish
+// CHECK-NEXT: 48 |           pointer _M_end_of_storage
 // CHECK-NEXT:    | [sizeof=56, dsize=56, align=8,
 // CHECK-NEXT:    |  nvsize=56, nvalign=8]
 
@@ -61,9 +74,9 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
 // CHECK-NEXT:  0 |     class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT:  0 |       class std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
 // CHECK-NEXT:  0 |         class std::__shared_ptr_access<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT:  0 |         std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
+// CHECK-NEXT:  0 |         element_type * _M_ptr
 // CHECK-NEXT:  8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT:  8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:  8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t> (base) (empty)
 // CHECK-NEXT: 16 |   char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
@@ -82,9 +95,9 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
 // CHECK-NEXT: 0 |     class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT: 0 |       class std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
 // CHECK-NEXT: 0 |         class std::__shared_ptr_access<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 0 |         std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
+// CHECK-NEXT: 0 |         element_type * _M_ptr
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
 // CHECK-NEXT: 16 |   char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
@@ -98,16 +111,35 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
   (void)Acc.get_size();
 }
 
-// CHECK: 0      | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t>
-// CHECK-NEXT: 0 |   class sycl::detail::LocalAccessorBaseHost (base)
-// CHECK-NEXT: 0 |     class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> impl
-// CHECK-NEXT: 0 |       class std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
-// CHECK-NEXT: 0 |         class std::__shared_ptr_access<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 0 |         std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
-// CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char[16] padding
+// CHECK:      0 | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t>
+// CHECK-NEXT: 0 |   class sycl::local_accessor_base<int, 1, sycl::access::mode::read_write, sycl::access::placeholder::false_t> (base)
+// CHECK-NEXT: 0 |     class sycl::detail::LocalAccessorBaseHost (base)
+// CHECK-NEXT: 0 |       class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> impl
+// CHECK-NEXT: 0 |         class std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 0 |           class std::__shared_ptr_access<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
+// CHECK-NEXT: 0 |           element_type * _M_ptr
+// CHECK-NEXT: 8 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 0 |     class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 16 |     char[16] padding
+// CHECK-NEXT: [sizeof=32, dsize=32, align=8,
+// CHECK-NEXT: nvsize=32, nvalign=8]
+
+void hostAcc(local_accessor<int, 1> Acc) {
+  (void)Acc.get_size();
+}
+
+// CHECK:      0 | class sycl::local_accessor<int, 1>
+// CHECK-NEXT: 0 |   class sycl::local_accessor_base<int, 1, sycl::access::mode::read_write, sycl::access::placeholder::false_t> (base)
+// CHECK-NEXT: 0 |     class sycl::detail::LocalAccessorBaseHost (base)
+// CHECK-NEXT: 0 |       class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> impl
+// CHECK-NEXT: 0 |         class std::__shared_ptr<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 0 |           class std::__shared_ptr_access<class sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
+// CHECK-NEXT: 0 |           element_type * _M_ptr
+// CHECK-NEXT: 8 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 0 |     class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 16 |     char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -124,12 +156,12 @@ void hostAcc(accessor<int4, 1, access::mode::read_write, access::target::host_im
 // CHECK-NEXT: 0 |       class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT: 0 |         class std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
 // CHECK-NEXT: 0 |           class std::__shared_ptr_access<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 0 |           std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
+// CHECK-NEXT: 0 |           element_type * _M_ptr
 // CHECK-NEXT: 8 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 8 |             _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 16 |     size_t MImageCount
-// CHECK-NEXT: 24 |     enum sycl::image_channel_order MImgChannelOrder
-// CHECK-NEXT: 28 |     enum sycl::image_channel_type MImgChannelType
+// CHECK-NEXT: 24 |     image_channel_order MImgChannelOrder
+// CHECK-NEXT: 28 |     image_channel_type MImgChannelType
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -146,11 +178,11 @@ void hostAcc(accessor<int4, 1, access::mode::read, access::target::image> Acc) {
 // CHECK-NEXT: 0 |       class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT: 0 |         class std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
 // CHECK-NEXT: 0 |           class std::__shared_ptr_access<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 0 |           std::__shared_ptr<class sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
+// CHECK-NEXT: 0 |           element_type * _M_ptr
 // CHECK-NEXT: 8 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 8 |             _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 16 |     size_t MImageCount
-// CHECK-NEXT: 24 |     enum sycl::image_channel_order MImgChannelOrder
-// CHECK-NEXT: 28 |     enum sycl::image_channel_type MImgChannelType
+// CHECK-NEXT: 24 |     image_channel_order MImgChannelOrder
+// CHECK-NEXT: 28 |     image_channel_type MImgChannelType
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]

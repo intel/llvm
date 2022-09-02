@@ -15,8 +15,6 @@ from lldbsuite.test.gdbclientutils import *
 @skipIfRemote
 @skipIfWindows
 class TestQemuLaunch(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def set_emulator_setting(self, name, value):
@@ -68,7 +66,7 @@ class TestQemuLaunch(TestBase):
         process = target.Launch(info, error)
         self.assertSuccess(error)
         self.assertIsNotNone(process)
-        self.assertEqual(process.GetState(), lldb.eStateExited)
+        self.assertState(process.GetState(), lldb.eStateExited)
         self.assertEqual(process.GetExitStatus(), 0x47)
 
         # Verify the qemu invocation parameters.
@@ -144,7 +142,7 @@ class TestQemuLaunch(TestBase):
 
         process = target.Launch(info, error)
         self.assertSuccess(error)
-        self.assertEqual(process.GetState(), lldb.eStateExited)
+        self.assertState(process.GetState(), lldb.eStateExited)
 
         with open(self.getBuildArtifact("stdout.txt")) as f:
             self.assertEqual(f.read(), "STDOUT CONTENT")
@@ -153,6 +151,24 @@ class TestQemuLaunch(TestBase):
         with open(self.getBuildArtifact("state.log")) as s:
             state = json.load(s)
         self.assertEqual(state["stdin"], "STDIN CONTENT")
+
+    def test_find_in_PATH(self):
+        emulator = self.getBuildArtifact("qemu-" + self.getArchitecture())
+        os.rename(self.getBuildArtifact("qemu.py"), emulator)
+        self.set_emulator_setting("emulator-path", "''")
+
+        original_path = os.environ["PATH"]
+        os.environ["PATH"] = (self.getBuildDir() +
+            self.platformContext.shlib_path_separator + original_path)
+        def cleanup():
+            os.environ["PATH"] = original_path
+
+        self.addTearDownHook(cleanup)
+        state = self._run_and_get_state()
+
+        self.assertEqual(state["program"], self.getBuildArtifact())
+        self.assertEqual(state["args"],
+                ["dump:" + self.getBuildArtifact("state.log")])
 
     def test_bad_emulator_path(self):
         self.set_emulator_setting("emulator-path",
@@ -223,3 +239,19 @@ class TestQemuLaunch(TestBase):
                 "%s=from platform,%s=from target" % (var(1), var(2)))
         self.assertEqual(state["environ"]["QEMU_UNSET_ENV"],
                 "%s,%s,QEMU_SET_ENV,QEMU_UNSET_ENV" % (var(3), var(4)))
+
+    def test_arg0(self):
+        target = self._create_target()
+        self.runCmd("settings set target.arg0 ARG0")
+        state = self._run_and_get_state(target)
+
+        self.assertEqual(state["program"], self.getBuildArtifact())
+        self.assertEqual(state["0"], "ARG0")
+
+    def test_sysroot(self):
+        sysroot = self.getBuildArtifact("sysroot")
+        self.runCmd("platform select qemu-user --sysroot %s" % sysroot)
+        state = self._run_and_get_state()
+        self.assertEqual(state["environ"]["QEMU_LD_PREFIX"], sysroot)
+        self.assertIn("QEMU_LD_PREFIX",
+                state["environ"]["QEMU_UNSET_ENV"].split(","))

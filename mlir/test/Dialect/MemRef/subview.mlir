@@ -21,7 +21,7 @@
 // CHECK-DAG: #[[$SUBVIEW_MAP12:map[0-9]+]] = affine_map<()[s0] -> (s0)>
 
 // CHECK-LABEL: func @memref_subview(%arg0
-func @memref_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
+func.func @memref_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
 
@@ -109,12 +109,12 @@ func @memref_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 
   /// Subview with only leading operands.
   %24 = memref.alloc() : memref<5x3xf32>
-  // CHECK: memref.subview %{{.*}}[2] [3] [1] : memref<5x3xf32> to memref<3x3xf32, #[[$SUBVIEW_MAP9]]>
-  %25 = memref.subview %24[2][3][1]: memref<5x3xf32> to memref<3x3xf32, offset: 6, strides: [3, 1]>
+  // CHECK: memref.subview %{{.*}}[2, 0] [3, 3] [1, 1] : memref<5x3xf32> to memref<3x3xf32, #[[$SUBVIEW_MAP9]]>
+  %25 = memref.subview %24[2, 0][3, 3][1, 1]: memref<5x3xf32> to memref<3x3xf32, offset: 6, strides: [3, 1]>
 
   /// Rank-reducing subview with only leading operands.
-  // CHECK: memref.subview %{{.*}}[1] [1] [1] : memref<5x3xf32> to memref<3xf32, #[[$SUBVIEW_MAP10]]>
-  %26 = memref.subview %24[1][1][1]: memref<5x3xf32> to memref<3xf32, offset: 3, strides: [1]>
+  // CHECK: memref.subview %{{.*}}[1, 0] [1, 3] [1, 1] : memref<5x3xf32> to memref<3xf32, #[[$SUBVIEW_MAP10]]>
+  %26 = memref.subview %24[1, 0][1, 3][1, 1]: memref<5x3xf32> to memref<3xf32, offset: 3, strides: [1]>
 
   // Corner-case of 0-D rank-reducing subview with an offset.
   // CHECK: memref.subview %{{.*}}[1, 1] [1, 1] [1, 1] : memref<5x3xf32> to memref<f32, #[[$SUBVIEW_MAP11]]>

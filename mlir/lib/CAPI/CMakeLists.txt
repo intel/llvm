@@ -10,11 +10,14 @@ endfunction()
 add_subdirectory(Debug)
 add_subdirectory(Dialect)
 add_subdirectory(Conversion)
-add_subdirectory(ExecutionEngine)
 add_subdirectory(Interfaces)
 add_subdirectory(IR)
-add_subdirectory(Registration)
+add_subdirectory(RegisterEverything)
 add_subdirectory(Transforms)
+
+if(MLIR_ENABLE_EXECUTION_ENGINE)
+  add_subdirectory(ExecutionEngine)
+endif()
 
 # Build the optional CAPI dylib.
 if(MLIR_BUILD_MLIR_C_DYLIB)
@@ -33,3 +36,4 @@ if(MLIR_BUILD_MLIR_C_DYLIB)
     endif()
   endif()
 endif()
+

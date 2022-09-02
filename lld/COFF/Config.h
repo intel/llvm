@@ -15,6 +15,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Support/CachePruning.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <cstdint>
 #include <map>
 #include <set>
@@ -43,6 +44,7 @@ static const auto I386 = llvm::COFF::IMAGE_FILE_MACHINE_I386;
 struct Export {
   StringRef name;       // N in /export:N or /export:E=N
   StringRef extName;    // E in /export:E=N
+  StringRef aliasTarget; // GNU specific: N in "alias == N"
   Symbol *sym = nullptr;
   uint16_t ordinal = 0;
   bool noname = false;
@@ -63,6 +65,7 @@ struct Export {
 
   bool operator==(const Export &e) {
     return (name == e.name && extName == e.extName &&
+            aliasTarget == e.aliasTarget &&
             ordinal == e.ordinal && noname == e.noname &&
             data == e.data && isPrivate == e.isPrivate);
   }
@@ -138,6 +141,7 @@ struct Configuration {
   // True if we are creating a DLL.
   bool dll = false;
   StringRef implib;
+  bool noimplib = false;
   std::vector<Export> exports;
   bool hadExplicitExports;
   std::set<std::string> delayLoads;
@@ -168,8 +172,6 @@ struct Configuration {
   // Used for /opt:lldltocachepolicy=policy
   llvm::CachePruningPolicy ltoCachePolicy;
 
-  // Used for /opt:[no]ltonewpassmanager
-  bool ltoNewPassManager = false;
   // Used for /opt:[no]ltodebugpassmanager
   bool ltoDebugPassManager = false;
 
@@ -237,6 +239,9 @@ struct Configuration {
   // Used for /print-symbol-order:
   StringRef printSymbolOrder;
 
+  // Used for /vfsoverlay:
+  std::unique_ptr<llvm::vfs::FileSystem> vfs;
+
   uint64_t align = 4096;
   uint64_t imageBase = -1;
   uint64_t fileAlign = 512;
@@ -282,7 +287,7 @@ struct Configuration {
   bool stdcallFixup = false;
 };
 
-extern Configuration *config;
+extern std::unique_ptr<Configuration> config;
 
 } // namespace coff
 } // namespace lld

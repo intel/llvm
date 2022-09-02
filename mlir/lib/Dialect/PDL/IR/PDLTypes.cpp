@@ -35,11 +35,9 @@ void PDLDialect::registerTypes() {
 
 static Type parsePDLType(AsmParser &parser) {
   StringRef typeTag;
-  if (parser.parseKeyword(&typeTag))
-    return Type();
   {
     Type genType;
-    auto parseResult = generatedTypeParser(parser, typeTag, genType);
+    auto parseResult = generatedTypeParser(parser, &typeTag, genType);
     if (parseResult.hasValue())
       return genType;
   }
@@ -51,15 +49,6 @@ static Type parsePDLType(AsmParser &parser) {
   parser.emitError(parser.getNameLoc(), "invalid 'pdl' type: `")
       << typeTag << "'";
   return Type();
-}
-
-Type PDLDialect::parseType(DialectAsmParser &parser) const {
-  return parsePDLType(parser);
-}
-
-void PDLDialect::printType(Type type, DialectAsmPrinter &printer) const {
-  if (failed(generatedTypePrinter(type, printer)))
-    llvm_unreachable("unknown 'pdl' type");
 }
 
 //===----------------------------------------------------------------------===//
@@ -78,7 +67,7 @@ Type RangeType::parse(AsmParser &parser) {
   if (parser.parseLess())
     return Type();
 
-  llvm::SMLoc elementLoc = parser.getCurrentLocation();
+  SMLoc elementLoc = parser.getCurrentLocation();
   Type elementType = parsePDLType(parser);
   if (!elementType || parser.parseGreater())
     return Type();

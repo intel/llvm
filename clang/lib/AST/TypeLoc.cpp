@@ -194,8 +194,14 @@ SourceLocation TypeLoc::getBeginLoc() const {
   while (true) {
     switch (Cur.getTypeLocClass()) {
     case Elaborated:
-      LeftMost = Cur;
-      break;
+      if (Cur.getLocalSourceRange().getBegin().isValid()) {
+        LeftMost = Cur;
+        break;
+      }
+      Cur = Cur.getNextTypeLoc();
+      if (Cur.isNull())
+        break;
+      continue;
     case FunctionProto:
       if (Cur.castAs<FunctionProtoTypeLoc>().getTypePtr()
               ->hasTrailingReturn()) {
@@ -512,6 +518,10 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   return getAttr() ? getAttr()->getRange() : SourceRange();
 }
 
+SourceRange BTFTagAttributedTypeLoc::getLocalSourceRange() const {
+  return getAttr() ? getAttr()->getRange() : SourceRange();
+}
+
 void TypeOfTypeLoc::initializeLocal(ASTContext &Context,
                                        SourceLocation Loc) {
   TypeofLikeTypeLoc<TypeOfTypeLoc, TypeOfType, TypeOfTypeLocInfo>
@@ -531,6 +541,8 @@ void UnaryTransformTypeLoc::initializeLocal(ASTContext &Context,
 
 void ElaboratedTypeLoc::initializeLocal(ASTContext &Context,
                                         SourceLocation Loc) {
+  if (isEmpty())
+    return;
   setElaboratedKeywordLoc(Loc);
   NestedNameSpecifierLocBuilder Builder;
   Builder.MakeTrivial(Context, getTypePtr()->getQualifier(), Loc);
@@ -627,6 +639,7 @@ void AutoTypeLoc::initializeLocal(ASTContext &Context, SourceLocation Loc) {
   setFoundDecl(nullptr);
   setRAngleLoc(Loc);
   setLAngleLoc(Loc);
+  setRParenLoc(Loc);
   TemplateSpecializationTypeLoc::initializeArgLocs(Context, getNumArgs(),
                                                    getTypePtr()->getArgs(),
                                                    getArgInfos(), Loc);
@@ -685,6 +698,10 @@ namespace {
 
     TypeLoc VisitAttributedTypeLoc(AttributedTypeLoc T) {
       return Visit(T.getModifiedLoc());
+    }
+
+    TypeLoc VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc T) {
+      return Visit(T.getWrappedLoc());
     }
 
     TypeLoc VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc T) {

@@ -17,7 +17,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -193,9 +192,7 @@ public:
   Error commit() override { return Error::success(); }
 
   /// Return the properties of this stream.
-  virtual BinaryStreamFlags getFlags() const override {
-    return BSF_Write | BSF_Append;
-  }
+  BinaryStreamFlags getFlags() const override { return BSF_Write | BSF_Append; }
 
   MutableArrayRef<uint8_t> data() { return Data; }
 };
