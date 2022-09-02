@@ -1,0 +1,291 @@
+= sycl_ext_intel_device_aspects
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+Most device aspects provide a way for an application to test whether a device
+supports a specific feature.  However, sometimes an application needs to
+conditionally execute code based on the specific model of the device.  This
+extension adds new aspects, for supported Intel devices, which can be used for
+this purpose.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_DEVICE_ASPECTS` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New aspects
+
+This extension adds the following aspects to `sycl::aspect`:
+
+```
+namespace sycl {
+
+enum class aspect : /* unspecified */ {
+  ext_intel_x86_64,
+  ext_intel_gpu_bdw,
+  ext_intel_gpu_skl,
+  ext_intel_gpu_kbl,
+  ext_intel_gpu_cfl,
+  ext_intel_gpu_apl,
+  ext_intel_gpu_glk,
+  ext_intel_gpu_whl,
+  ext_intel_gpu_aml,
+  ext_intel_gpu_cml,
+  ext_intel_gpu_icllp,
+  ext_intel_gpu_ehl,
+  ext_intel_gpu_tgllp,
+  ext_intel_gpu_rkl,
+  ext_intel_gpu_adl_s,
+  ext_intel_gpu_rpl_s,
+  ext_intel_gpu_adl_p,
+  ext_intel_gpu_adl_n,
+  ext_intel_gpu_dg1,
+  ext_intel_gpu_acm_g10,
+  ext_intel_gpu_acm_g11,
+  ext_intel_gpu_acm_g12,
+  ext_intel_gpu_pvc,
+
+  ext_intel_gpu_8_0_0 = ext_intel_gpu_bdw,
+  ext_intel_gpu_9_0_9 = ext_intel_gpu_skl,
+  ext_intel_gpu_9_1_9 = ext_intel_gpu_kbl
+  ext_intel_gpu_9_2_9 = ext_intel_gpu_cfl,
+  ext_intel_gpu_9_3_0 = ext_intel_gpu_apl,
+  ext_intel_gpu_9_4_0 = ext_intel_gpu_glk,
+  ext_intel_gpu_9_5_0 = ext_intel_gpu_whl,
+  ext_intel_gpu_9_6_0 = ext_intel_gpu_aml,
+  ext_intel_gpu_9_7_0 = ext_intel_gpu_cml,
+  ext_intel_gpu_11_0_0 = ext_intel_gpu_icllp,
+  ext_intel_gpu_11_2_0 = ext_intel_gpu_ehl,
+  ext_intel_gpu_12_0_0 = ext_intel_gpu_tgllp,
+  ext_intel_gpu_12_10_0 = ext_intel_gpu_dg1
+};
+
+} // namespace sycl
+```
+
+The following table tells which version of this extension first included each
+of these aspects, and it provides a brief description of their meanings.
+
+[%header,cols="5,1,5"]
+|===
+|Aspect name
+|Added in version
+|Description
+
+|`ext_intel_x86_64`
+|1
+|Any CPU device with the x86_64 instruction set.
+
+|`ext_intel_gpu_bdw`
+|1
+|Broadwell Intel graphics architecture.
+
+|`ext_intel_gpu_skl`
+|1
+|Broadwell Intel graphics architecture.
+
+|`ext_intel_gpu_kbl`
+|1
+|Kaby Lake Intel graphics architecture.
+
+|`ext_intel_gpu_cfl`
+|1
+|Coffee Lake Intel graphics architecture.
+
+|`ext_intel_gpu_apl`
+|1
+|Apollo Lake Intel graphics architecture.
+
+|`ext_intel_gpu_glk`
+|1
+|Gemini Lake Intel graphics architecture.
+
+|`ext_intel_gpu_whl`
+|1
+|Whiskey Lake Intel graphics architecture.
+
+|`ext_intel_gpu_aml`
+|1
+|Amber Lake Intel graphics architecture.
+
+|`ext_intel_gpu_cml`
+|1
+|Comet Lake Intel graphics architecture.
+
+|`ext_intel_gpu_icllp`
+|1
+|Ice Lake Intel graphics architecture.
+
+|`ext_intel_gpu_ehl`
+|1
+|Elkhart Lake Intel graphics architecture.
+
+|`ext_intel_gpu_tgllp`
+|1
+|Tiger Lake Intel graphics architecture.
+
+|`ext_intel_gpu_rkl`
+|1
+|Rocket Lake Intel graphics architecture.
+
+|`ext_intel_gpu_adl_s`
+|1
+|Alder Lake S Intel graphics architecture.
+
+|`ext_intel_gpu_rpl_s`
+|1
+|Raptor Lake Intel graphics architecture.
+
+|`ext_intel_gpu_adl_p`
+|1
+|Alder Lake P Intel graphics architecture.
+
+|`ext_intel_gpu_adl_n`
+|1
+|Alder Lake N Intel graphics architecture.
+
+|`ext_intel_gpu_dg1`
+|1
+|DG1 Intel graphics architecture.
+
+|`ext_intel_gpu_acm_g10`
+|1
+|Alchemist G10 Intel graphics architecture.
+
+|`ext_intel_gpu_acm_g11`
+|1
+|Alchemist G11 Intel graphics architecture.
+
+|`ext_intel_gpu_acm_g12`
+|1
+|Alchemist G12 Intel graphics architecture.
+
+|`ext_intel_gpu_pvc`
+|1
+|Ponte Vecchio Intel graphics architecture.
+
+|`ext_intel_gpu_8_0_0`
+|1
+|Alias for `ext_intel_gpu_bdw`.
+
+|`ext_intel_gpu_9_0_9`
+|1
+|Alias for `ext_intel_gpu_skl`.
+
+|`ext_intel_gpu_9_1_9`
+|1
+|Alias for `ext_intel_gpu_kbl`.
+
+|`ext_intel_gpu_9_2_9`
+|1
+|Alias for `ext_intel_gpu_cfl`.
+
+|`ext_intel_gpu_9_3_0`
+|1
+|Alias for `ext_intel_gpu_apl`.
+
+|`ext_intel_gpu_9_4_0`
+|1
+|Alias for `ext_intel_gpu_glk`.
+
+|`ext_intel_gpu_9_5_0`
+|1
+|Alias for `ext_intel_gpu_whl`.
+
+|`ext_intel_gpu_9_6_0`
+|1
+|Alias for `ext_intel_gpu_aml`.
+
+|`ext_intel_gpu_9_7_0`
+|1
+|Alias for `ext_intel_gpu_cml`.
+
+|`ext_intel_gpu_11_0_0`
+|1
+|Alias for `ext_intel_gpu_icllp`.
+
+|`ext_intel_gpu_11_2_0`
+|1
+|Alias for `ext_intel_gpu_ehl`.
+
+|`ext_intel_gpu_12_0_0`
+|1
+|Alias for `ext_intel_gpu_tgllp`.
+
+|`ext_intel_gpu_12_10_0`
+|1
+|Alias for `ext_intel_gpu_dg1`.
+|===
+
+[NOTE]
+====
+An "alias" aspect is generally added for new hardware platforms only after
+hardware has finalized and the exact version is known.
+====
