@@ -33,13 +33,6 @@ jobs:
         cmake --build . --target doxygen-clang
         cmake --build . --target docs-sycl-html
         cmake --build . --target docs-clang-html
-    - name: Pack Docs
-      run: tar -cJf llvm_sycl_doxygen.tar.xz -C $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen .
-    - name: Upload Docs
-      uses: actions/upload-artifact@v2
-      with:
-        name: sycl_linux_${currentBuild.startTimeInMillis}
-        path: llvm_sycl_doxygen.tar.xz
     - name: Deploy
       if: ${{ github.event_name == 'schedule' }}
       env:
