@@ -56,8 +56,8 @@ int main() {
       .submit([&](sycl::handler &cgh) {
         // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:19
         auto A1 = Buf.get_access<mode::read_write>(cgh);
-        // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID2:.*]]|2016|1026|{{.*}}.cpp:[[# @LINE + 1]]:65
-        sycl::accessor<int, 1, mode::read_write, target::local> A2(Range, cgh);
+        // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID2:.*]]|2016|1026|{{.*}}.cpp:[[# @LINE + 1]]:38
+        sycl::local_accessor<int, 1> A2(Range, cgh);
         // CHECK-OPT:Node create|{{.*}}FillBuffer{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 6
         // CHECK-NOOPT:Node create|{{.*}}FillBuffer{{.*}}|{{.*}}.cpp:[[# @LINE - 7 ]]:3|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 12
         cgh.parallel_for<class FillBuffer>(
