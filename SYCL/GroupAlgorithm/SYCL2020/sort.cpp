@@ -112,9 +112,7 @@ int test_sort_over_group(sycl::queue &q, std::size_t local,
               << std::endl;
   q.submit([&](sycl::handler &h) {
      auto aI1 = sycl::accessor(bufI1, h);
-     sycl::accessor<std::byte, 1, sycl::access_mode::read_write,
-                    sycl::access::target::local>
-         scratch({local_memory_size}, h);
+     sycl::local_accessor<std::byte, 1> scratch({local_memory_size}, h);
 
      h.parallel_for<sort_over_group_kernel_name<int_wrapper<dim>, T, Compare>>(
          sycl::nd_range<dim>(local_range, local_range),
@@ -167,9 +165,7 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
               << std::endl;
   q.submit([&](sycl::handler &h) {
      auto aI1 = sycl::accessor(bufI1, h);
-     sycl::accessor<std::byte, 1, sycl::access_mode::read_write,
-                    sycl::access::target::local>
-         scratch({local_memory_size}, h);
+     sycl::local_accessor<std::byte, 1> scratch({local_memory_size}, h);
 
      h.parallel_for<joint_sort_kernel_name<T, Compare>>(
          sycl::nd_range<1>{{n_groups * local}, {local}},

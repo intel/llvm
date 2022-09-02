@@ -22,10 +22,8 @@ void basic() {
 
     q.submit([&](handler &cgh) {
       auto acc = buf.get_access<access::mode::read_write>(cgh);
-      accessor<int, 1, access::mode::read_write, access::target::local> loc(
-          N, cgh);
-      accessor<barrier, 1, access::mode::read_write, access::target::local>
-          loc_barrier(2, cgh);
+      local_accessor<int, 1> loc(N, cgh);
+      local_accessor<barrier, 1> loc_barrier(2, cgh);
       cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {
         size_t idx = item.get_local_linear_id();
         loc[idx] = acc[idx];
@@ -69,10 +67,8 @@ void interface() {
       auto data_acc = data_buf.get_access<access::mode::read_write>(cgh);
       auto test1_acc = test1_buf.get_access<access::mode::read_write>(cgh);
       auto test2_acc = test2_buf.get_access<access::mode::read_write>(cgh);
-      accessor<int, 1, access::mode::read_write, access::target::local> loc(
-          N, cgh);
-      accessor<barrier, 1, access::mode::read_write, access::target::local>
-          loc_barrier(2, cgh);
+      local_accessor<int, 1> loc(N, cgh);
+      local_accessor<barrier, 1> loc_barrier(2, cgh);
       cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {
         size_t idx = item.get_local_linear_id();
         if (idx == 0) {

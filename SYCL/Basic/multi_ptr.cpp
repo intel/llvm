@@ -71,8 +71,7 @@ template <typename T> void testMultPtr() {
       accessor<T, 1, access::mode::read_write, access::target::device,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
-      accessor<T, 1, access::mode::read_write, access::target::local>
-          localAccessor(numOfItems, cgh);
+      local_accessor<T, 1> localAccessor(numOfItems, cgh);
 
       cgh.parallel_for<class testMultPtrKernel<T>>(range<1>{10}, [=](id<1> wiID) {
         auto ptr_1 = make_ptr<T, access::address_space::global_space>(
@@ -136,9 +135,7 @@ template <typename T> void testMultPtrArrowOperator() {
       accessor<point<T>, 1, access::mode::read, access::target::constant_buffer,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
-      accessor<point<T>, 1, access::mode::read_write, access::target::local,
-               access::placeholder::false_t>
-          accessorData_3(1, cgh);
+      local_accessor<point<T>, 1> accessorData_3(1, cgh);
       accessor<point<T>, 1, access::mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_4(bufferData_4, cgh);

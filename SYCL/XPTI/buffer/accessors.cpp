@@ -27,8 +27,8 @@ int main() {
     auto A1 = Buf.get_access<mode::read, target::constant_buffer>(cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID2:.*]]|2014|1025|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
     auto A2 = Buf.get_access<mode::write>(cgh);
-    // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID3:.*]]|2016|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:61
-    sycl::accessor<int, 1, mode::read_write, target::local> A3(Range, cgh);
+    // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID3:.*]]|2016|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:34
+    sycl::local_accessor<int, 1> A3(Range, cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.*]]|2014|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
     auto A4 = Buf.get_access<mode::discard_write>(cgh);
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.*]]|2014|1028|{{.*}}accessors.cpp:[[# @LINE + 1]]:15

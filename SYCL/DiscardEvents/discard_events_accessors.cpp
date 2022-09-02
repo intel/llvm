@@ -60,10 +60,7 @@ int main(int Argc, const char *Argv[]) {
   RunKernelHelper(Q, [&](int *Harray) {
     Q.submit([&](sycl::handler &CGH) {
       const size_t LocalMemSize = BUFFER_SIZE;
-      using LocalAccessor =
-          sycl::accessor<int, 1, sycl::access::mode::read_write,
-                         sycl::access::target::local>;
-      LocalAccessor LocalAcc(LocalMemSize, CGH);
+      sycl::local_accessor<int, 1> LocalAcc(LocalMemSize, CGH);
 
       CGH.parallel_for<class kernel_using_local_memory>(
           Range, [=](sycl::item<1> itemID) {

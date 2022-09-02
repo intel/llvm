@@ -395,10 +395,7 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
                      sycl::access::placeholder::false_t>
           src_acc(buffer1, cgh);
 
-      sycl::accessor<char, 1, sycl::access::mode::read_write,
-                     sycl::access::target::local,
-                     sycl::access::placeholder::false_t>
-          local_acc(sycl::range<1>(16), cgh);
+      sycl::local_accessor<char, 1> local_acc(sycl::range<1>(16), cgh);
 
       sycl::accessor<char, 1, sycl::access::mode::write,
                      sycl::access::target::device,

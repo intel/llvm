@@ -76,8 +76,7 @@ template <memory_order order> void test_acquire_local() {
     q.submit([&](handler &cgh) {
        auto error =
            error_buf.template get_access<access::mode::read_write>(cgh);
-       accessor<int, 1, access::mode::read_write, access::target::local> val(
-           2, cgh);
+       local_accessor<int, 1> val(2, cgh);
        cgh.parallel_for(
            nd_range<1>(global_size, local_size), [=](nd_item<1> it) {
              size_t lid = it.get_local_id(0);
@@ -168,8 +167,7 @@ template <memory_order order> void test_release_local() {
     q.submit([&](handler &cgh) {
        auto error =
            error_buf.template get_access<access::mode::read_write>(cgh);
-       accessor<int, 1, access::mode::read_write, access::target::local> val(
-           2, cgh);
+       local_accessor<int, 1> val(2, cgh);
        cgh.parallel_for(
            nd_range<1>(global_size, local_size), [=](nd_item<1> it) {
              size_t lid = it.get_local_id(0);

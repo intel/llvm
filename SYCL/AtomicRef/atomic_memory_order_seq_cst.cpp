@@ -120,8 +120,7 @@ template <memory_order order> void test_local() {
 
   q.submit([&](handler &cgh) {
      auto res = res_buf.template get_access<access::mode::discard_write>(cgh);
-     accessor<int, 1, access::mode::read_write, access::target::local> val(2,
-                                                                           cgh);
+     local_accessor<int, 1> val(2, cgh);
      cgh.parallel_for(nd_range<1>(N_items, N_items), [=](nd_item<1> it) {
        val[0] = 0;
        it.barrier(access::fence_space::local_space);

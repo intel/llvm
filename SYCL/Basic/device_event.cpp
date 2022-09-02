@@ -5,6 +5,13 @@
 // TODO: nd_item::barrier() is not implemented on HOST
 // RUNx: %HOST_RUN_PLACEHOLDER %t.run
 //
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DUSE_DEPRECATED_LOCAL_ACC %s -o %t.run
+// RUN: %GPU_RUN_PLACEHOLDER %t.run
+// RUN: %CPU_RUN_PLACEHOLDER %t.run
+// RUN: %ACC_RUN_PLACEHOLDER %t.run
+// TODO: nd_item::barrier() is not implemented on HOST
+// RUNx: %HOST_RUN_PLACEHOLDER %t.run
+//
 // Returns error "Barrier is not supported on the host device
 // yet." with Nvidia.
 // XFAIL: hip_nvidia
@@ -76,8 +83,12 @@ int test_strideN(size_t stride) {
 
     myQueue.submit([&](handler &cgh) {
       auto out_ptr = out_buf.get_access<access::mode::write>(cgh);
+#ifdef USE_DEPRECATED_LOCAL_ACC
       accessor<sycl::cl_int, 1, access::mode::read_write, access::target::local>
           local_acc(range<1>(16), cgh);
+#else
+      local_accessor<sycl::cl_int, 1> local_acc(range<1>(16), cgh);
+#endif
 
       // Create work-groups with 16 work items in each group.
       auto myRange = nd_range<1>(range<1>(nElems), range<1>(workGroupSize));

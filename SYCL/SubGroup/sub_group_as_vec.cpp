@@ -4,6 +4,13 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DUSE_DEPRECATED_LOCAL_ACC  %s -o %t.out
+// Sub-groups are not suported on Host
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+//
 // Missing  __spirv_GenericCastToPtrExplicit_ToLocal,
 // __spirv_SubgroupLocalInvocationId, __spirv_GenericCastToPtrExplicit_ToGlobal,
 // __spirv_SubgroupBlockReadINTEL, __assert_fail,
@@ -38,9 +45,13 @@ int main(int argc, char *argv[]) {
     queue.submit([&](sycl::handler &cgh) {
       auto global = buf.get_access<sycl::access::mode::read_write,
                                    sycl::access::target::device>(cgh);
+#ifdef DUSE_DEPRECATED_LOCAL_ACC
       sycl::accessor<sycl::vec<int, 2>, 1, sycl::access::mode::read_write,
                      sycl::access::target::local>
           local(N, cgh);
+#else
+      sycl::local_accessor<sycl::vec<int, 2>, 1> local(N, cgh);
+#endif
       cgh.parallel_for<class test>(
           sycl::nd_range<1>(N, 32), [=](sycl::nd_item<1> it) {
             sycl::ext::oneapi::sub_group sg = it.get_sub_group();

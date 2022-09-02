@@ -44,8 +44,7 @@ template <typename T, int N> void check(queue &Queue) {
     Queue.submit([&](handler &cgh) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
-          {L + max_sg_size * N}, cgh);
+      local_accessor<T, 1> LocalMem({L + max_sg_size * N}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         ext::oneapi::sub_group SG = NdItem.get_sub_group();
         auto SGid = SG.get_group_id().get(0);
@@ -132,8 +131,7 @@ template <typename T> void check(queue &Queue) {
     Queue.submit([&](handler &cgh) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
-          {L}, cgh);
+      local_accessor<T, 1> LocalMem({L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
         ext::oneapi::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)

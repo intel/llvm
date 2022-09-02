@@ -112,8 +112,7 @@ template <typename T> int test(size_t Stride) {
   Q.submit([&](handler &CGH) {
      auto In = InBuf.template get_access<access::mode::read>(CGH);
      auto Out = OutBuf.template get_access<access::mode::write>(CGH);
-     accessor<T, 1, access::mode::read_write, access::target::local> Local(
-         range<1>{WorkGroupSize}, CGH);
+     local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
      nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};
      CGH.parallel_for<KernelName<T>>(NDR, [=](nd_item<1> NDId) {

@@ -187,9 +187,7 @@ bool group__async_work_group_copy() {
 
       Q.submit([&](handler &cgh) {
         auto AccGlobal = Buf.get_access<access::mode::read_write>(cgh);
-        accessor<DataType, DIMS, access::mode::read_write,
-                 access::target::local>
-            AccLocal(LocalRange, cgh);
+        local_accessor<DataType, DIMS> AccLocal(LocalRange, cgh);
 
         cgh.parallel_for<class group__async_work_group_copy>(
             nd_range<2>{GlobalRange, LocalRange}, [=](nd_item<DIMS> I) {

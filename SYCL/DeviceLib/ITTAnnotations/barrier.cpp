@@ -24,8 +24,7 @@ int main() {
     // ITT start/finish annotations and ITT wg_barrier/wi_resume annotations.
     q.submit([&](handler &cgh) {
       auto acc = buf.get_access<access::mode::read_write>(cgh);
-      accessor<int, 1, access::mode::read_write, access::target::local>
-          local_acc(local_range, cgh);
+      local_accessor<int, 1> local_acc(local_range, cgh);
       cgh.parallel_for<class simple_barrier_kernel>(
           nd_range<1>(num_items, local_range), [=](nd_item<1> item) {
             size_t idx = item.get_global_linear_id();
