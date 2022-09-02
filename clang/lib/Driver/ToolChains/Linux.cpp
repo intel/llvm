@@ -317,13 +317,9 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // libc++.so in D.Dir+"/../lib/". Detect this path.
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
   if (StringRef(D.Dir).startswith(SysRoot) &&
-<<<<<<< HEAD
-      D.getVFS().exists(D.Dir + "/../lib/libc++.so"))
-=======
       (D.getVFS().exists(D.Dir + "/../lib/libc++.so") ||
        Args.hasArg(options::OPT_fsycl) ||
        D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
->>>>>>> 4ce19d6945fae4945a75b28ba092a14c72a4a47c
     addPathIfExists(D, D.Dir + "/../lib", Paths);
 
   addPathIfExists(D, concat(SysRoot, "/lib"), Paths);
