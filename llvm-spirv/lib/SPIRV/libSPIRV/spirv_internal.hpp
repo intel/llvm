@@ -97,8 +97,7 @@ enum InternalJointMatrixLayout {
   RowMajor = 0,
   ColumnMajor = 1,
   PackedA = 2,
-  PackedB = 3,
-  Unused = 4
+  PackedB = 3
 };
 
 enum InternalJointMatrixUse { MatrixA = 0, MatrixB = 1, Accumulator = 2 };

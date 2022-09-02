@@ -72,9 +72,9 @@ template <typename T, size_t NumRows, size_t NumCols,
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
-      T, NumRows, NumCols,
-      spv_matrix_use_traits<matrix_use::unnecessary>::value,
-      spv_matrix_layout_traits<Layout>::value> *spvm;
+      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value,
+      spv_scope_traits<Group>::value,
+      spv_matrix_use_traits<matrix_use::unnecessary>::value> *spvm;
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;

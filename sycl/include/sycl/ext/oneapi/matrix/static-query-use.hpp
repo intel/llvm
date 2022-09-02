@@ -152,16 +152,16 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::matrix_a,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, use::a,
+                   layout::row_major, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::matrix_b,
-                   matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, use::b,
+                   layout::packed_b, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::accumulator,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, use::accumulator,
+                   layout::row_major, Group>;
 
   bool dynamic_p = false; // should be true in future implementations because
                           // AMX hardware supports dynamic sizes
@@ -209,16 +209,16 @@ struct tpu_params<
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::matrix_a,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, use::a,
+                   layout::row_major, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::matrix_b,
-                   matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, use::b,
+                   layout::packed_b, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::accumulator,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, use::accumulator,
+                   layout::row_major, Group>;
 
   bool dynamic_p = false; // should be true in future implementations
                           // because AMX hardware supports dynamic sizes
@@ -352,16 +352,16 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::matrix_a,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, use::a,
+                   layout::row_major, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::matrix_b,
-                   matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, use::b,
+                   layout::packed_b, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::accumulator,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, use::accumulator,
+                   layout::row_major, Group>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
@@ -412,16 +412,16 @@ struct tpu_params<
 
   template <typename Group>
   using joint_matrix_a =
-      joint_matrix<Ta, defaultM, defaultK, matrix_use::matrix_a,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Ta, defaultM, defaultK, use::a,
+                   layout::row_major, Group>;
   template <typename Group>
   using joint_matrix_b =
-      joint_matrix<Tb, defaultK, defaultN, matrix_use::matrix_b,
-                   matrix_layout::packed_b, Group>;
+      joint_matrix<Tb, defaultK, defaultN, use::b,
+                   layout::packed_b, Group>;
   template <typename Group>
   using joint_matrix_c =
-      joint_matrix<Tc, defaultM, defaultN, matrix_use::accumulator,
-                   matrix_layout::row_major, Group>;
+      joint_matrix<Tc, defaultM, defaultN, use::accumulator,
+                   layout::row_major, Group>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
