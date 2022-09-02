@@ -79,14 +79,14 @@ supports.
 
 === Flush
 
- This extension adds the following new member function to the SYCL `queue`
- class:
+This extension adds the following new member function to the SYCL `queue`
+class:
 
- ```
- class queue {
-   void ext_oneapi_flush();
- };
- ```
+```
+class queue {
+  void ext_oneapi_flush();
+};
+```
 
 After calls to `ext_oneapi_flush` return, any previously submitted commands
 on the queue are guaranteed to begin executing once their prequisites have
