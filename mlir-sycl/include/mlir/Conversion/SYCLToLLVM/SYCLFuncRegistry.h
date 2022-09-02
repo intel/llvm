@@ -75,45 +75,53 @@ public:
   // clang-format on
 
   /// Enumerates the kind of FuncId.
-  enum class FuncIdKind {
+  enum class FuncKind {
     Unknown,
     IdCtor,   // any sycl::id<n> constructors.
     RangeCtor // any sycl::range<n> constructors.
   };
 
-  /// Returns the funcIdKind given a \p funcId.
-  static FuncIdKind getFuncIdKind(FuncId funcId);
+  /// Each descriptor is uniquely identified by the pair {FuncId, FuncKind}.
+  class Id {
+  public:
+    friend class SYCLFuncRegistry;
+    friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Id &);
 
-  /// Retuns a descriptive name for the given \p funcIdKind.
-  static std::string funcIdKindToName(FuncIdKind funcIdKind);
+    Id(FuncId id, FuncKind kind) : funcId(id), funcKind(kind) {
+      assert(funcId != FuncId::Unknown && "Illegal function id");
+      assert(funcKind != FuncKind::Unknown && "Illegal function id kind");
+    }
 
-  /// Retuns the FuncIdKind given a descriptive \p name.
-  static FuncIdKind nameToFuncIdKind(Twine name);
+    /// Maps a FuncKind to a descriptive name.
+    static std::map<SYCLFuncDescriptor::FuncKind, std::string> funcKindToName;
 
-  // Call the SYCL constructor identified by \p id with the given \p args.
-  static Value call(FuncId id, ValueRange args,
+    /// Maps a descriptive name to a FuncKind.
+    static std::map<std::string, SYCLFuncDescriptor::FuncKind> nameToFuncKind;
+
+  private:
+    FuncId funcId = FuncId::Unknown;
+    FuncKind funcKind = FuncKind::Unknown;
+  };
+
+  /// Returns true if the given \p funcId is valid.
+  virtual bool isValid(FuncId funcId) const { return false; };
+
+  /// Call the SYCL constructor identified by \p funcId with the given \p args.
+  static Value call(FuncId funcId, ValueRange args,
                     const SYCLFuncRegistry &registry, OpBuilder &b,
                     Location loc);
 
-private:
-  /// Private constructor: only available to 'SYCLFuncRegistry'.
-  SYCLFuncDescriptor(FuncId id, StringRef name, Type outputTy,
-                     ArrayRef<Type> argTys)
-      : funcId(id), funcIdKind(getFuncIdKind(id)), name(name),
-        outputTy(outputTy), argTys(argTys.begin(), argTys.end()) {
-    assert(funcId != FuncId::Unknown && "Illegal function id");
-    assert(funcIdKind != FuncIdKind::Unknown && "Illegal function id kind");
-  }
+protected:
+  SYCLFuncDescriptor(FuncId funcId, FuncKind kind, StringRef name,
+                     Type outputTy, ArrayRef<Type> argTys)
+      : descId(funcId, kind), name(name), outputTy(outputTy),
+        argTys(argTys.begin(), argTys.end()) {}
 
+private:
   /// Inject the declaration for this function into the module.
   void declareFunction(ModuleOp &module, OpBuilder &b);
 
-  /// Returns true if the given \p funcId is for a sycl::id<n> constructor.
-  static bool isIdCtor(FuncId funcId);
-
-private:
-  FuncId funcId = FuncId::Unknown;             // SYCL function identifier
-  FuncIdKind funcIdKind = FuncIdKind::Unknown; // SYCL function kind
+  Id descId;                   // unique identifier
   StringRef name;              // SYCL function name
   Type outputTy;               // SYCL function output type
   SmallVector<Type, 4> argTys; // SYCL function arguments types
@@ -121,12 +129,36 @@ private:
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                     const SYCLFuncDescriptor &desc) {
-  os << "funcId=" << (int)desc.funcId
-     << ", funcIdKind=" << SYCLFuncDescriptor::funcIdKindToName(desc.funcIdKind)
-     << ", name='" << desc.name.str() << "')";
+                                     const SYCLFuncDescriptor::Id &id) {
+  os << "funcId=" << (int)id.funcId
+     << ", funcKind=" << SYCLFuncDescriptor::Id::funcKindToName[id.funcKind];
   return os;
 }
+
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                     const SYCLFuncDescriptor &desc) {
+  os << "(" << desc.descId << ", name='" << desc.name.str() << "')";
+  return os;
+}
+
+#define DEFINE_CTOR_CLASS(ClassName, ClassKind)                                \
+  class ClassName : public SYCLFuncDescriptor {                                \
+  public:                                                                      \
+    friend class SYCLFuncRegistry;                                             \
+    using FuncId = SYCLFuncDescriptor::FuncId;                                 \
+    using FuncKind = SYCLFuncDescriptor::FuncKind;                             \
+                                                                               \
+  private:                                                                     \
+    ClassName(FuncId funcId, StringRef name, Type outputTy,                    \
+              ArrayRef<Type> argTys)                                           \
+        : SYCLFuncDescriptor(funcId, ClassKind, name, outputTy, argTys) {      \
+      assert(isValid(funcId) && "Invalid function id");                        \
+    }                                                                          \
+    bool isValid(FuncId) const override;                                       \
+  };
+DEFINE_CTOR_CLASS(SYCLIdCtorDescriptor, FuncKind::IdCtor)
+DEFINE_CTOR_CLASS(SYCLRangeCtorDescriptor, FuncKind::RangeCtor)
+#undef DEFINE_CTOR_CLASS
 
 /// \class SYCLFuncRegistry
 /// Singleton class representing the set of SYCL functions callable from the
@@ -137,18 +169,18 @@ public:
 
   static const SYCLFuncRegistry create(ModuleOp &module, OpBuilder &builder);
 
-  const SYCLFuncDescriptor &getFuncDesc(SYCLFuncDescriptor::FuncId id) const {
-    assert((registry.find(id) != registry.end()) &&
-           "function identified by 'id' not found in the SYCL function "
+  const SYCLFuncDescriptor &
+  getFuncDesc(SYCLFuncDescriptor::FuncId funcId) const {
+    assert((registry.find(funcId) != registry.end()) &&
+           "function identified by 'funcId' not found in the SYCL function "
            "registry");
-    return registry.at(id);
+    return registry.at(funcId);
   }
 
-  // Returns the SYCLFuncDescriptor::FuncId corresponding to the function
-  // descriptor that matches the given signature and funcIdKind.
-  SYCLFuncDescriptor::FuncId
-  getFuncId(SYCLFuncDescriptor::FuncIdKind funcIdKind, Type retType,
-            TypeRange argTypes) const;
+  // Returns the SYCLFuncDescriptor::Id::FuncId corresponding to the function
+  // descriptor that matches the given \p funcKind and signature.
+  SYCLFuncDescriptor::FuncId getFuncId(SYCLFuncDescriptor::FuncKind funcKind,
+                                       Type retType, TypeRange argTypes) const;
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);

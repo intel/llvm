@@ -203,17 +203,18 @@ public:
   matchAndRewrite(sycl::SYCLConstructorOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Twine name = op.Type() + "Ctor";
-    return rewriteConstructor(SYCLFuncDescriptor::nameToFuncIdKind(name), op,
-                              opAdaptor, rewriter);
+    return rewriteConstructor(
+        SYCLFuncDescriptor::Id::nameToFuncKind.at(name.str()), op, opAdaptor,
+        rewriter);
   }
 
 private:
   /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
   /// constructor function.
-  LogicalResult rewriteConstructor(SYCLFuncDescriptor::FuncIdKind ctorKind,
+  LogicalResult rewriteConstructor(SYCLFuncDescriptor::FuncKind ctorKind,
                                    SYCLConstructorOp op, OpAdaptor opAdaptor,
                                    ConversionPatternRewriter &rewriter) const {
-    assert((ctorKind != SYCLFuncDescriptor::FuncIdKind::Unknown) &&
+    assert((ctorKind != SYCLFuncDescriptor::FuncKind::Unknown) &&
            "Unexpected ctorKind");
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
