@@ -20,6 +20,7 @@
 #include "mlir/IR/Types.h"
 
 namespace mlir {
+class LLVMTypeConverter;
 namespace sycl {
 class SYCLFuncRegistry;
 
@@ -30,13 +31,18 @@ class SYCLFuncRegistry;
 /// needs to be created in SYCLFuncRegistry constructor.
 class SYCLFuncDescriptor {
   friend class SYCLFuncRegistry;
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SYCLFuncDescriptor &);
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
+                                       const SYCLFuncDescriptor &);
 
 public:
   /// Enumerates SYCL functions.
   // clang-format off
   enum class FuncId {
     Unknown, 
+
+    // Member functions for the sycl:accessor class.
+    AccessorInt1ReadWriteGlobalBufferFalseInit,  // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
+                                                 //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
 
     // Member functions for the sycl:id<n> class.
     Id1CtorDefault, // sycl::id<1>::id()
@@ -77,8 +83,9 @@ public:
   /// Enumerates the kind of FuncId.
   enum class FuncKind {
     Unknown,
-    IdCtor,   // any sycl::id<n> constructors.
-    RangeCtor // any sycl::range<n> constructors.
+    Accessor, // sycl::accessor class
+    Id,       // sycl::id<n> class
+    Range,    // sycl::range<n> class
   };
 
   /// Each descriptor is uniquely identified by the pair {FuncId, FuncKind}.
@@ -125,7 +132,7 @@ private:
   StringRef name;              // SYCL function name
   Type outputTy;               // SYCL function output type
   SmallVector<Type, 4> argTys; // SYCL function arguments types
-  FlatSymbolRefAttr funcRef;   // Reference to the SYCL function 
+  FlatSymbolRefAttr funcRef;   // Reference to the SYCL function
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
@@ -141,7 +148,11 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   return os;
 }
 
-#define DEFINE_CTOR_CLASS(ClassName, ClassKind)                                \
+//===----------------------------------------------------------------------===//
+// Derived classes specializing the generic SYCLFuncDescriptor.
+//===----------------------------------------------------------------------===//
+
+#define DEFINE_CLASS(ClassName, ClassKind)                                     \
   class ClassName : public SYCLFuncDescriptor {                                \
   public:                                                                      \
     friend class SYCLFuncRegistry;                                             \
@@ -156,36 +167,57 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
     }                                                                          \
     bool isValid(FuncId) const override;                                       \
   };
-DEFINE_CTOR_CLASS(SYCLIdCtorDescriptor, FuncKind::IdCtor)
-DEFINE_CTOR_CLASS(SYCLRangeCtorDescriptor, FuncKind::RangeCtor)
-#undef DEFINE_CTOR_CLASS
+DEFINE_CLASS(SYCLAccessorFuncDescriptor, FuncKind::Accessor)
+DEFINE_CLASS(SYCLIdFuncDescriptor, FuncKind::Id)
+DEFINE_CLASS(SYCLRangeFuncDescriptor, FuncKind::Range)
+#undef DEFINE_CLASS
 
 /// \class SYCLFuncRegistry
 /// Singleton class representing the set of SYCL functions callable from the
 /// compiler.
 class SYCLFuncRegistry {
+  using FuncId = SYCLFuncDescriptor::FuncId;
+  using FuncKind = SYCLFuncDescriptor::FuncKind;
+  using Registry = std::map<FuncId, SYCLFuncDescriptor>;
+
 public:
   ~SYCLFuncRegistry() { instance = nullptr; }
 
+  /// Populate the registry.
   static const SYCLFuncRegistry create(ModuleOp &module, OpBuilder &builder);
 
-  const SYCLFuncDescriptor &
-  getFuncDesc(SYCLFuncDescriptor::FuncId funcId) const {
+  /// Return the function descriptor corresponding to the given \p funcId.
+  const SYCLFuncDescriptor &getFuncDesc(FuncId funcId) const {
     assert((registry.find(funcId) != registry.end()) &&
            "function identified by 'funcId' not found in the SYCL function "
            "registry");
     return registry.at(funcId);
   }
 
-  // Returns the SYCLFuncDescriptor::Id::FuncId corresponding to the function
-  // descriptor that matches the given \p funcKind and signature.
-  SYCLFuncDescriptor::FuncId getFuncId(SYCLFuncDescriptor::FuncKind funcKind,
-                                       Type retType, TypeRange argTypes) const;
+  /// Returns the SYCLFuncDescriptor::Id::FuncId corresponding to the function
+  /// descriptor that matches the given \p funcKind and signature.
+  FuncId getFuncId(FuncKind funcKind, Type retType, TypeRange argTypes) const;
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);
 
-  using Registry = std::map<SYCLFuncDescriptor::FuncId, SYCLFuncDescriptor>;
+  /// Declare sycl::accessor<n> function descriptors and add them to the
+  /// registry.
+  void declareAccessorFuncDescriptors(LLVMTypeConverter &converter,
+                                      ModuleOp &module, OpBuilder &builder);
+
+  /// Declare sycl::id<n> function descriptors and add them to the registry.
+  void declareIdFuncDescriptors(LLVMTypeConverter &converter, ModuleOp &module,
+                                OpBuilder &builder);
+
+  /// Declare sycl::range<n> function descriptors and add them to the registry.
+  void declareRangeFuncDescriptors(LLVMTypeConverter &converter,
+                                   ModuleOp &module, OpBuilder &builder);
+
+  /// Declare function descriptors and add them to the registry.
+  void declareFuncDescriptors(std::vector<SYCLFuncDescriptor> &descriptors,
+                              ModuleOp &module, OpBuilder &builder);
+
   static SYCLFuncRegistry *instance;
   Registry registry;
 };

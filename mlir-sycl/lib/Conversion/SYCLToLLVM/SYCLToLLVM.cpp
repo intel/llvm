@@ -218,10 +218,9 @@ public:
   LogicalResult
   matchAndRewrite(sycl::SYCLConstructorOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Twine name = op.Type() + "Ctor";
     return rewriteConstructor(
-        SYCLFuncDescriptor::Id::nameToFuncKind.at(name.str()), op, opAdaptor,
-        rewriter);
+        SYCLFuncDescriptor::Id::nameToFuncKind.at(op.Type().str()), op,
+        opAdaptor, rewriter);
   }
 
 private:

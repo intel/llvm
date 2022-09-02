@@ -1,4 +1,4 @@
-//===- SYCLFuncRegistry - SYCL functions registry --------------------------===//
+//===- SYCLFuncRegistry - SYCL functions registry -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,15 +29,17 @@ using namespace mlir::sycl;
 
 std::map<SYCLFuncDescriptor::FuncKind, std::string>
     SYCLFuncDescriptor::Id::funcKindToName = {
-        {FuncKind::IdCtor, "idCtor"},
-        {FuncKind::RangeCtor, "rangeCtor"},
+        {FuncKind::Accessor, "accessor"},
+        {FuncKind::Id, "id"},
+        {FuncKind::Range, "range"},
         {FuncKind::Unknown, "unknown"},
 };
 
 std::map<std::string, SYCLFuncDescriptor::FuncKind>
     SYCLFuncDescriptor::Id::nameToFuncKind = {
-        {"idCtor", FuncKind::IdCtor},
-        {"rangeCtor", FuncKind::RangeCtor},
+        {"accessor", FuncKind::Accessor},
+        {"id", FuncKind::Id},
+        {"range", FuncKind::Range},
         {"unknown", FuncKind::Unknown},
 };
 
@@ -59,7 +61,7 @@ Value SYCLFuncDescriptor::call(FuncId funcId, ValueRange args,
 
   LLVMBuilder builder(b, loc);
   LLVM::CallOp callOp = builder.genCall(funcDesc.funcRef, funcOutputTys, args);
-  
+
   // TODO: we could check here the arguments against the function signature and
   // assert if there is a mismatch.
   assert(callOp.getNumResults() <= 1 && "expecting a single result");
@@ -72,10 +74,23 @@ void SYCLFuncDescriptor::declareFunction(ModuleOp &module, OpBuilder &b) {
 }
 
 //===----------------------------------------------------------------------===//
-// SYCLIdCtorDescriptor
+// SYCLAccessorFuncDescriptor
 //===----------------------------------------------------------------------===//
 
-bool SYCLIdCtorDescriptor::isValid(SYCLFuncDescriptor::FuncId funcId) const {
+bool SYCLAccessorFuncDescriptor::isValid(FuncId funcId) const {
+  switch (funcId) {
+  case FuncId::AccessorInt1ReadWriteGlobalBufferFalseInit:
+    return true;
+  default:
+    return false;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// SYCLIdFuncDescriptor
+//===----------------------------------------------------------------------===//
+
+bool SYCLIdFuncDescriptor::isValid(SYCLFuncDescriptor::FuncId funcId) const {
   switch (funcId) {
   case FuncId::Id1CtorDefault:
   case FuncId::Id2CtorDefault:
@@ -92,17 +107,17 @@ bool SYCLIdCtorDescriptor::isValid(SYCLFuncDescriptor::FuncId funcId) const {
   case FuncId::Id1CopyCtor:
   case FuncId::Id2CopyCtor:
   case FuncId::Id3CopyCtor:
-    return true;  
+    return true;
   default:
     return false;
   }
 }
 
 //===----------------------------------------------------------------------===//
-// SYCLRangeCtorDescriptor
+// SYCLRangeFuncDescriptor
 //===----------------------------------------------------------------------===//
 
-bool SYCLRangeCtorDescriptor::isValid(FuncId funcId) const {
+bool SYCLRangeFuncDescriptor::isValid(FuncId funcId) const {
   switch (funcId) {
   case FuncId::Range1CtorDefault:
   case FuncId::Range2CtorDefault:
@@ -186,160 +201,213 @@ SYCLFuncRegistry::SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder)
   LLVMTypeConverter converter(context, options);
   populateSYCLToLLVMTypeConversion(converter);
 
+  declareAccessorFuncDescriptors(converter, module, builder);
+  declareIdFuncDescriptors(converter, module, builder);
+  declareRangeFuncDescriptors(converter, module, builder);
+}
+
+void SYCLFuncRegistry::declareAccessorFuncDescriptors(
+    LLVMTypeConverter &converter, ModuleOp &module, OpBuilder &builder) {
+  MLIRContext *context = module.getContext();
+  auto voidTy = LLVM::LLVMVoidType::get(context);
+  auto i32Ty = IntegerType::get(context, 32);
+  auto i32PtrTy = LLVM::LLVMPointerType::get(i32Ty);
+  Type accessorInt1ReadWriteGlobalBufferPtrTy =
+      converter.convertType(MemRefType::get(
+          -1, AccessorType::get(context, i32Ty, 1, MemoryAccessMode::ReadWrite,
+                                MemoryTargetMode::GlobalBuffer, {})));
+  Type id1Ty = converter.convertType(IDType::get(context, 1));
+  Type range1Ty = converter.convertType(RangeType::get(context, 1));
+
+  // Construct the SYCL functions descriptors for the sycl::accessor<n> type.
+  // Descriptor format: (enum, function name, signature).
+  // clang-format off
+  std::vector<SYCLFuncDescriptor> descriptors = {
+      // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
+      //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
+      SYCLAccessorFuncDescriptor(
+          FuncId::AccessorInt1ReadWriteGlobalBufferFalseInit,
+          "_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_"
+          "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_"
+          "property_listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_"
+          "2idILi1EEE",
+          voidTy, {accessorInt1ReadWriteGlobalBufferPtrTy, i32PtrTy, range1Ty, range1Ty, id1Ty}),
+  };
+  // clang-format on
+
+  // Declare sycl::id<n> function descriptors and add them to the registry.
+  declareFuncDescriptors(descriptors, module, builder);
+}
+
+void SYCLFuncRegistry::declareIdFuncDescriptors(LLVMTypeConverter &converter,
+                                                ModuleOp &module,
+                                                OpBuilder &builder) {
+  MLIRContext *context = module.getContext();
   Type id1PtrTy =
       converter.convertType(MemRefType::get(-1, IDType::get(context, 1)));
   Type id2PtrTy =
       converter.convertType(MemRefType::get(-1, IDType::get(context, 2)));
   Type id3PtrTy =
       converter.convertType(MemRefType::get(-1, IDType::get(context, 3)));
-  Type range1PtrTy =
-      converter.convertType(MemRefType::get(-1, RangeType::get(context, 1)));
-  Type range2PtrTy =
-      converter.convertType(MemRefType::get(-1, RangeType::get(context, 2)));
-  Type range3PtrTy =
-      converter.convertType(MemRefType::get(-1, RangeType::get(context, 3)));
-
   auto voidTy = LLVM::LLVMVoidType::get(context);
   auto i64Ty = IntegerType::get(context, 64);
 
   // Construct the SYCL functions descriptors for the sycl::id<n> type.
   // Descriptor format: (enum, function name, signature).
   // clang-format off
-  std::vector<SYCLIdCtorDescriptor> idDescriptors = {
+  std::vector<SYCLFuncDescriptor> descriptors = {
       // sycl::id<1>::id()
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id1CtorDefault,
+      SYCLIdFuncDescriptor(FuncId::Id1CtorDefault,
           "_ZN2cl4sycl2idILi1EEC2Ev", voidTy, {id1PtrTy}),
       // sycl::id<2>::id()
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id2CtorDefault,
+      SYCLIdFuncDescriptor(FuncId::Id2CtorDefault,
           "_ZN2cl4sycl2idILi2EEC2Ev", voidTy, {id2PtrTy}),
       // sycl::id<3>::id()
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id3CtorDefault,
+      SYCLIdFuncDescriptor(FuncId::Id3CtorDefault,
           "_ZN2cl4sycl2idILi3EEC2Ev", voidTy, {id3PtrTy}),
 
       // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id1CtorSizeT,
+      SYCLIdFuncDescriptor(FuncId::Id1CtorSizeT,
           "_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE",
           voidTy, {id1PtrTy, i64Ty}),
       // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id2CtorSizeT,
+      SYCLIdFuncDescriptor(FuncId::Id2CtorSizeT,
           "_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE",
           voidTy, {id2PtrTy, i64Ty}),
       // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id3CtorSizeT,
+      SYCLIdFuncDescriptor(FuncId::Id3CtorSizeT,
           "_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE",
           voidTy, {id3PtrTy, i64Ty}),
 
       // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id1Ctor2SizeT,
+      SYCLIdFuncDescriptor(FuncId::Id1Ctor2SizeT,
           "_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm",
           voidTy, {id1PtrTy, i64Ty, i64Ty}),
       // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id2Ctor2SizeT,
+      SYCLIdFuncDescriptor(FuncId::Id2Ctor2SizeT,
           "_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm",
           voidTy, {id2PtrTy, i64Ty, i64Ty}),
       // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id3Ctor2SizeT,
+      SYCLIdFuncDescriptor(FuncId::Id3Ctor2SizeT,
           "_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm",
           voidTy, {id3PtrTy, i64Ty, i64Ty}),      
 
       // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id1Ctor3SizeT,
+      SYCLIdFuncDescriptor(FuncId::Id1Ctor3SizeT,
           "_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm",
           voidTy, {id1PtrTy, i64Ty, i64Ty, i64Ty}),
       // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id2Ctor3SizeT,
+      SYCLIdFuncDescriptor(FuncId::Id2Ctor3SizeT,
           "_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm",
           voidTy, {id2PtrTy, i64Ty, i64Ty, i64Ty}),
       // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id3Ctor3SizeT,
+      SYCLIdFuncDescriptor(FuncId::Id3Ctor3SizeT,
           "_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm",
           voidTy, {id3PtrTy, i64Ty, i64Ty, i64Ty}),
 
       // sycl::id<1>::id(sycl::id<1> const&)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id1CopyCtor,
+      SYCLIdFuncDescriptor(FuncId::Id1CopyCtor,
           "_ZN2cl4sycl2idILi1EEC1ERKS2_", voidTy, {id1PtrTy, id1PtrTy}),
       // sycl::id<2>::id(sycl::id<2> const&)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id2CopyCtor,
+      SYCLIdFuncDescriptor(FuncId::Id2CopyCtor,
           "_ZN2cl4sycl2idILi2EEC1ERKS2_", voidTy, {id2PtrTy, id2PtrTy}),
       // sycl::id<3>::id(sycl::id<3> const&)
-      SYCLIdCtorDescriptor(SYCLFuncDescriptor::FuncId::Id3CopyCtor,
+      SYCLIdFuncDescriptor(FuncId::Id3CopyCtor,
           "_ZN2cl4sycl2idILi3EEC1ERKS2_", voidTy, {id3PtrTy, id3PtrTy}),
   };
   // clang-format on
 
-  // Declare sycl::id<n> ctors and add them to the registry.
-  for (SYCLIdCtorDescriptor &idCtor : idDescriptors) {
-    idCtor.declareFunction(module, builder);
-    registry.emplace(idCtor.descId.funcId, idCtor);
-  }
+  // Declare sycl::id<n> function descriptors and add them to the registry.
+  declareFuncDescriptors(descriptors, module, builder);
+}
+
+void SYCLFuncRegistry::declareRangeFuncDescriptors(LLVMTypeConverter &converter,
+                                                   ModuleOp &module,
+                                                   OpBuilder &builder) {
+  MLIRContext *context = module.getContext();
+  Type range1PtrTy =
+      converter.convertType(MemRefType::get(-1, RangeType::get(context, 1)));
+  Type range2PtrTy =
+      converter.convertType(MemRefType::get(-1, RangeType::get(context, 2)));
+  Type range3PtrTy =
+      converter.convertType(MemRefType::get(-1, RangeType::get(context, 3)));
+  auto voidTy = LLVM::LLVMVoidType::get(context);
+  auto i64Ty = IntegerType::get(context, 64);
 
   // Construct the SYCL functions descriptors for the sycl::range<n> type.
-  // clang-format off  
-  std::vector<SYCLRangeCtorDescriptor> rangeDescriptors = {
+  // clang-format off
+  std::vector<SYCLFuncDescriptor> descriptors = {
       // sycl::range<1>::range()
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range1CtorDefault,
+      SYCLRangeFuncDescriptor(FuncId::Range1CtorDefault,
           "_ZN2cl4sycl5rangeILi1EEC2Ev", voidTy, {range1PtrTy}),
       // sycl::range<2>::range()
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range2CtorDefault,
+      SYCLRangeFuncDescriptor(FuncId::Range2CtorDefault,
           "_ZN2cl4sycl5rangeILi2EEC2Ev", voidTy, {range2PtrTy}),
       // sycl::range<3>::range()
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range3CtorDefault,
+      SYCLRangeFuncDescriptor(FuncId::Range3CtorDefault,
           "_ZN2cl4sycl5rangeILi3EEC2Ev", voidTy, {range3PtrTy}),
 
       // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range1CtorSizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range1CtorSizeT,
           "_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE", 
           voidTy, {range1PtrTy, i64Ty}),
       // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range2CtorSizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range2CtorSizeT,
           "_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE", 
           voidTy, {range2PtrTy, i64Ty}),
       // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range3CtorSizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range3CtorSizeT,
           "_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE", 
           voidTy, {range3PtrTy, i64Ty}),
 
       // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range1Ctor2SizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range1Ctor2SizeT,
           "_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm", 
           voidTy, {range1PtrTy, i64Ty, i64Ty}),
       // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long)                         
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range2Ctor2SizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range2Ctor2SizeT,
           "_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm", 
           voidTy, {range2PtrTy, i64Ty, i64Ty}),
       // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range3Ctor2SizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range3Ctor2SizeT,
           "_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm", 
           voidTy, {range3PtrTy, i64Ty, i64Ty}),
 
       // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range1Ctor3SizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range1Ctor3SizeT,
           "_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm", 
           voidTy, {range1PtrTy, i64Ty, i64Ty, i64Ty}),
       // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range2Ctor3SizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range2Ctor3SizeT,
           "_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm", 
           voidTy, {range2PtrTy, i64Ty, i64Ty, i64Ty}),
       // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range3Ctor3SizeT,
+      SYCLRangeFuncDescriptor(FuncId::Range3Ctor3SizeT,
           "_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm", 
           voidTy, {range3PtrTy, i64Ty, i64Ty, i64Ty}),
 
       // sycl::range<1>::range(sycl::range<1> const&)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range1CopyCtor,
+      SYCLRangeFuncDescriptor(FuncId::Range1CopyCtor,
           "_ZN2cl4sycl5rangeILi1EEC1ERKS2_", voidTy, {range1PtrTy, range1PtrTy}),
       // sycl::range<2>::range(sycl::range<2> const&)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range2CopyCtor,
+      SYCLRangeFuncDescriptor(FuncId::Range2CopyCtor,
           "_ZN2cl4sycl5rangeILi2EEC1ERKS2_", voidTy, {range2PtrTy, range2PtrTy}),
       // sycl::range<3>::range(sycl::range<3> const&)
-      SYCLRangeCtorDescriptor(SYCLFuncDescriptor::FuncId::Range3CopyCtor,
+      SYCLRangeFuncDescriptor(FuncId::Range3CopyCtor,
           "_ZN2cl4sycl5rangeILi3EEC1ERKS2_", voidTy, {range3PtrTy, range3PtrTy}),
   };
   // clang-format on
 
-  // Declare sycl::range<n> ctors and add them to the registry.
-  for (SYCLRangeCtorDescriptor &rangeCtor : rangeDescriptors) {
-    rangeCtor.declareFunction(module, builder);
-    registry.emplace(rangeCtor.descId.funcId, rangeCtor);
-  }  
+  // Declare sycl::range<n> function descriptors and add them to the registry.
+  declareFuncDescriptors(descriptors, module, builder);
+}
+
+void SYCLFuncRegistry::declareFuncDescriptors(
+    std::vector<SYCLFuncDescriptor> &descriptors, ModuleOp &module,
+    OpBuilder &builder) {
+  // Declare function descriptors and add them to the registry.
+  for (SYCLFuncDescriptor &desc : descriptors) {
+    desc.declareFunction(module, builder);
+    registry.emplace(desc.descId.funcId, desc);
+  }
 }
