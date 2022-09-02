@@ -112,7 +112,7 @@ and `srcPitch` for `src`. The amount of data to copy is specified as `width`
 elements per row times `height` number of rows. `width` must not be larger
 than either `srcPitch` or `destPitch`, otherwise this function throws a
 synchronous `exception` with the `errc::invalid` error code. The `dest`
-and `src`parameters must each either be a host pointer or a pointer within
+and `src` parameters must each either be a host pointer or a pointer within
 a USM allocation that is accessible on the handler's device. If a pointer is
 to a USM allocation, that allocation must have been created from the same context
 as the handler's queue.
