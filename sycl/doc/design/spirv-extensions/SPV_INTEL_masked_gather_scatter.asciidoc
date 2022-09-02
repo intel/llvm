@@ -22,6 +22,7 @@ https://github.com/intel/llvm
 
 - Dmitry Sidorov, Intel +
 - Ben Ashbaugh, Intel +
+- Arvind Sudarsanam, Intel +
 
 == Notice
 
@@ -146,6 +147,11 @@ See also extension: *{extension_name}* +
 
 Modify <<OpTypeVector>>, expounding _Component Type_ as:
   Component Type is the type of each component in the resulting type. It must be a <<scalar type>> or <<Physical Pointer Type>>.
+
+
+=== 3.42.7. Constant-Creation Instructions
+
+Modify <<OpConstantNull>>, allowing _Result Type_ to be a vector <<Physical Pointer Type>>.
 
 
 === 3.42.8. Memory Instructions
