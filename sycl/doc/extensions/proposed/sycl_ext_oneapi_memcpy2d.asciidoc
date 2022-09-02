@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_memcpy2D
+= sycl_ext_oneapi_memcpy2d
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
