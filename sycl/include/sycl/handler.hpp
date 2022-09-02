@@ -1746,7 +1746,7 @@ public:
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm || Reduction::is_dw_acc) {
+    if (Reduction::is_usm) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });

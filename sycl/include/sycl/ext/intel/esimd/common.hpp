@@ -65,6 +65,16 @@ using SurfaceIndex = unsigned int;
 
 namespace detail {
 
+template <typename T>
+struct is_saturation_tag {
+  static constexpr bool value =
+      std::is_same_v<T, __ESIMD_NS::saturation_on_tag> ||
+      std::is_same_v<T, __ESIMD_NS::saturation_off_tag>;
+};
+
+template <class T>
+inline constexpr bool is_saturation_tag_v = is_saturation_tag<T>::value;
+
 /// Check if a given 32 bit positive integer is a power of 2 at compile time.
 ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n) {
   return (n & (n - 1)) == 0;
