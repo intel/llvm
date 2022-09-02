@@ -86,7 +86,9 @@ template <int N> struct vector_conversion_traits<bfloat16, N> {
 template <> struct scalar_conversion_traits<bfloat16> {
   using RawT = __raw_t<bfloat16>;
 
-  static ESIMD_INLINE RawT bitcast_to_raw(bfloat16 Val) { return sycl::bit_cast<RawT>(Val); }
+  static ESIMD_INLINE RawT bitcast_to_raw(bfloat16 Val) {
+    return sycl::bit_cast<RawT>(Val);
+  }
 
   static ESIMD_INLINE bfloat16 bitcast_to_wrapper(RawT Val) {
     return sycl::bit_cast<bfloat16>(Val);
