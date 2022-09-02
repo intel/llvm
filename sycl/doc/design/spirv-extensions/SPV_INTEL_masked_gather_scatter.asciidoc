@@ -104,6 +104,12 @@ OpMaskedScatterINTEL
 == Modifications to the SPIR-V Specification, Version 1.5
 
 
+=== 2.2.2. Types
+
+Define _Vector_ as:
+An ordered homogeneous collection of two or more <<scalars>> or pointers of <<Physical Pointer Type>>.
+Vector sizes are quite restrictive and dependent on the execution model.
+
 === 2.16.1. Universal Validation Rules
 
 Modify Data rules section, replacing following segment:
@@ -114,12 +120,6 @@ with:
 
 - Vector types must be parameterized only with numerical types or the <<OpTypeBool>> type. They can also
  be parameterized with <<Physical Pointer Type>> types under *{capability_name}* capability.
-
-=== 2.2.2. Types
-
-Define _Vector_ as:
-An ordered homogeneous collection of two or more <<scalars>> or pointers of <<Physical Pointer Type>>.
-Vector sizes are quite restrictive and dependent on the execution model.
 
 
 === Capabilities
@@ -159,7 +159,7 @@ Expound _Overview_ of <<OpVariable>> as:
 Allocate an object or a vector of objects in memory, resulting in a pointer or appropriately a vector of pointers to it,
 which can be used with OpLoad and OpStore.
 Expound _Result Type_ of <<OpVariable>> as:
-_Result Type_ must be an <<OpTypePointer>> a <<vector>> with <<physical pointer type>> _Component Type_.
+_Result Type_ must be an <<OpTypePointer>> or a <<vector>> with <<physical pointer type>> _Component Type_.
 Its _Type_ operand is the type of object or vector of objects in memory.
 
 Modify <<OpAccessChain>> (implicitly modifies <<OpInBoundsAccessChain>>, <<OpPtrAccessChain>> and <<OpInBoundsPtrAccessChain>> instructions)
@@ -178,7 +178,7 @@ vector with boolean _Component Type_ and _Result Type_ of <<OpPtrDiff>> is a vec
 Reads values from a vector of pointers gathering them into one vector. Returns the gathered vector. Memory access
 is specified by a mask instruction parameter. +
  +
-'ResultType' is a type of the gathered vector. Its _Component Type_ must be the same as the base type of
+'Result Type' is a type of the gathered vector. Its _Component Type_ must be the same as the base type of
 'PtrVector'.
  +
 'PtrVector' is a <<vector>> with <<physical pointer type>> _Component Type_, from where the instruction reads. +
