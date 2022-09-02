@@ -10,6 +10,7 @@
 
 #pragma once
 #include <sycl/half_type.hpp>
+#include <sycl/ext/intel/math/imf_half_trivial.hpp>
 #include <type_traits>
 
 // _iml_half_internal is internal representation for fp16 type used in intel
