@@ -82,14 +82,13 @@ public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false, bool IsESIMDAcc = false,
+                   bool IsSubBuffer = false,
                    const property_list &PropertyList = {})
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode),
         MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc),
-        MPropertyList(PropertyList) {}
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList) {}
 
   ~AccessorImplHost();
 
@@ -98,7 +97,7 @@ public:
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
-        MIsSubBuffer(Other.MIsSubBuffer), MIsESIMDAcc(Other.MIsESIMDAcc) {}
+        MIsSubBuffer(Other.MIsSubBuffer) {}
 
   // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
@@ -131,10 +130,6 @@ public:
 
   bool PerWI = false;
 
-  // Outdated, leaving to preserve ABI.
-  // TODO: Remove during next major release.
-  bool MIsESIMDAcc;
-
   // To preserve runtime properties
   property_list MPropertyList;
 };
@@ -149,12 +144,10 @@ public:
                    int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const PropertyListT &PropertyList = {}) {
-    impl = std::shared_ptr<AccessorImplHost>(
-        new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                             (detail::SYCLMemObjI *)SYCLMemObject, Dims,
-                             ElemSize, OffsetInBytes, IsSubBuffer,
-                             /* IsESIMDAcc = */ false,
-                             PropertyList));
+    impl = std::shared_ptr<AccessorImplHost>(new AccessorImplHost(
+        Offset, AccessRange, MemoryRange, AccessMode,
+        (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize, OffsetInBytes,
+        IsSubBuffer, PropertyList));
   }
 
 protected:

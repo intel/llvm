@@ -19,6 +19,7 @@ struct TestCtx {
 
   context &Ctx;
   bool UUIDInfoCalled = false;
+  bool FreeMemoryInfoCalled = false;
 
   std::string BuiltInKernels;
 };
@@ -40,6 +41,8 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
       char *dst = static_cast<char *>(param_value);
       dst[TestContext->BuiltInKernels.copy(dst, param_value_size)] = '\0';
     }
+  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY) {
+    TestContext->FreeMemoryInfoCalled = true;
   }
 
   return PI_SUCCESS;
@@ -93,6 +96,33 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
   EXPECT_EQ(sizeof(UUID), 16 * sizeof(unsigned char))
       << "Expect device UUID to be "
       << "of 16 bytes";
+}
+
+TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
+  if (Plt.is_host()) {
+    return;
+  }
+
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  if (!Dev.has(aspect::ext_intel_free_memory)) {
+    std::clog << "This test is only for the devices with "
+                 "ext_intel_free_memory extension support.\n";
+    return;
+  }
+
+  auto FreeMemory =
+      Dev.get_info<info::device::ext_intel_free_memory>();
+
+  EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
+      << "Expect piDeviceGetInfo to be "
+      << "called with PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY";
+
+  EXPECT_EQ(sizeof(FreeMemory), sizeof(uint64_t))
+      << "Expect free_memory to be of uint64_t size";
 }
 
 TEST_F(DeviceInfoTest, BuiltInKernelIDs) {

@@ -3599,10 +3599,24 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   if (getLangOpts().SYCLIsDevice) {
     if (auto Value = dyn_cast<ValueDecl>(Member)) {
       if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-              Value->getType()) &&
-          Value->getAccess() != AS_public) {
-        Diag(Loc, diag::err_sycl_device_global_not_publicly_accessible)
-            << Value;
+              Value->getType())) {
+        if (Value->getAccess() == AS_private ||
+            Value->getAccess() == AS_protected) {
+          Diag(Loc, diag::err_sycl_device_global_not_publicly_accessible)
+              << Value;
+        }
+        const DeclContext *DC = Member->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (auto Decl = dyn_cast<NamedDecl>(DC)) {
+            if (Decl->getAccess() == AS_private ||
+                Decl->getAccess() == AS_protected) {
+              Diag(Loc, diag::err_sycl_device_global_not_publicly_accessible)
+                  << Value;
+              break;
+            }
+          }
+          DC = DC->getParent();
+        }
       }
     }
   }
