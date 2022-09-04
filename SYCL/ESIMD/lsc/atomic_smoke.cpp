@@ -8,8 +8,9 @@
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -DUSE_LSC_ATOMICS %s -o %t.out
+// TODO: esimd_emulator fails due to unsupported __esimd_svm_atomic0/1/2
+// XFAIL: esimd_emulator
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include "../esimd_test_utils.hpp"
@@ -17,10 +18,6 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
-
-#ifdef UNDEF_USE_LSC_ATOMICS
-#undef USE_LSC_ATOMICS
-#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -39,7 +36,7 @@ struct Config {
 #define PREFER_FULL_BARRIER 0
 #endif // PREFER_FULL_BARRIER
 
-#if PREFER_FULL_BARRIER && defined(USE_LSC_ATOMICS)
+#if PREFER_FULL_BARRIER && !defined(USE_DWORD_ATOMICS)
 #define USE_FULL_BARRIER 1
 #else
 #define USE_FULL_BARRIER 0
@@ -59,20 +56,20 @@ using LSCAtomicOp = sycl::ext::intel::esimd::native::lsc::atomic_op;
 using DWORDAtomicOp = sycl::ext::intel::esimd::atomic_op;
 
 // This macro selects between DWORD ("legacy") and LSC-based atomics.
-#ifdef USE_LSC_ATOMICS
-using AtomicOp = LSCAtomicOp;
-constexpr char MODE[] = "LSC";
-#else
+#ifdef USE_DWORD_ATOMICS
 using AtomicOp = DWORDAtomicOp;
 constexpr char MODE[] = "DWORD";
-#endif // USE_LSC_ATOMICS
+#else
+using AtomicOp = LSCAtomicOp;
+constexpr char MODE[] = "LSC";
+#endif // USE_DWORD_ATOMICS
 
-#ifdef USE_LSC_ATOMICS
+#ifndef USE_DWORD_ATOMICS
 uint32_t atomic_load(uint32_t *addr) {
   auto v = atomic_update<LSCAtomicOp::load, uint32_t, 1>(addr, 0, 1);
   return v[0];
 }
-#endif // USE_LSC_ATOMICS
+#endif // USE_DWORD_ATOMICS
 
 template <class, int, template <class, int> class> class TestID;
 
@@ -415,7 +412,7 @@ struct ImplSMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::smax> {};
 template <class T, int N>
 struct ImplUMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::umax> {};
 
-#ifdef USE_LSC_ATOMICS
+#ifndef USE_DWORD_ATOMICS
 // These will be redirected by API implementation to LSC ones:
 template <class T, int N>
 struct ImplFadd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::fadd> {};
@@ -434,7 +431,7 @@ template <class T, int N>
 struct ImplLSCFmin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::fmin> {};
 template <class T, int N>
 struct ImplLSCFmax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::fmax> {};
-#endif // USE_LSC_ATOMICS
+#endif // USE_DWORD_ATOMICS
 
 template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   static constexpr C atomic_op = Op;
@@ -461,7 +458,7 @@ template <class T, int N>
 struct ImplCmpxchg
     : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::cmpxchg> {};
 
-#ifdef USE_LSC_ATOMICS
+#ifndef USE_DWORD_ATOMICS
 // This will be redirected by API implementation to LSC one:
 template <class T, int N>
 struct ImplFcmpwr
@@ -470,7 +467,7 @@ struct ImplFcmpwr
 template <class T, int N>
 struct ImplLSCFcmpwr
     : ImplCmpxchgBase<T, N, LSCAtomicOp, LSCAtomicOp::fcmpxchg> {};
-#endif // USE_LSC_ATOMICS
+#endif // USE_DWORD_ATOMICS
 
 // ----------------- Main function and test combinations.
 
@@ -500,6 +497,7 @@ int main(void) {
   };
 
   bool passed = true;
+#ifndef CMPXCHG_TEST
   // Template params:
   // - element type, simd size, threads per group, num groups, atomic op,
   //   verification function, argument generation functions...
@@ -525,7 +523,7 @@ int main(void) {
 
   // TODO: add other operations
 
-#ifdef USE_LSC_ATOMICS
+#ifndef USE_DWORD_ATOMICS
   passed &= test<float, 8, ImplFadd>(q, cfg);
   passed &= test<float, 8, ImplFsub>(q, cfg);
   passed &= test<float, 16, ImplFadd>(q, cfg);
@@ -545,15 +543,19 @@ int main(void) {
   passed &= test<float, 16, ImplLSCFmin>(q, cfg);
   passed &= test<float, 16, ImplLSCFmax>(q, cfg);
   passed &= test<float, 32, ImplLSCFmin>(q, cfg);
-#endif // USE_LSC_ATOMICS
-
+#endif // USE_DWORD_ATOMICS
+#else  // CMPXCHG_TEST
   // Can't easily reset input to initial state, so just 1 iteration for CAS.
   cfg.repeat = 1;
+  // Decrease number of threads to reduce risk of halting kernel by the driver.
+  cfg.n_groups = 7;
+  cfg.threads_per_group = 3;
   passed &= test_int_types<8, ImplCmpxchg>(q, cfg);
-#ifdef USE_LSC_ATOMICS
+#ifndef USE_DWORD_ATOMICS
   passed &= test<float, 8, ImplFcmpwr>(q, cfg);
   passed &= test<float, 8, ImplLSCFcmpwr>(q, cfg);
-#endif // USE_LSC_ATOMICS
+#endif // USE_DWORD_ATOMICS
+#endif // CMPXCHG_TEST
   // TODO: check double other vector lengths in LSC mode.
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
