@@ -20,6 +20,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
+using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
 
 template <class T> struct char_to_int {
   using type = typename std::conditional<
@@ -178,6 +179,7 @@ int main(int argc, char **argv) {
   bool passed = true;
 
   passed &= test<half>(q);
+  passed &= test<bfloat16>(q);
   passed &= test<unsigned char>(q);
   passed &= test<short>(q);
   passed &= test<unsigned short>(q);

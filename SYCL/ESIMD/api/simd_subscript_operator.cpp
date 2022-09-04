@@ -24,6 +24,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
+using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
 
 template <class T> bool test(queue &q) {
   std::cout << "Testing " << typeid(T).name() << "...\n";
@@ -102,6 +103,7 @@ int main(int argc, char **argv) {
   passed &= test<unsigned int>(q);
   passed &= test<float>(q);
   passed &= test<half>(q);
+  passed &= test<bfloat16>(q);
 
   return passed ? 0 : 1;
 }

@@ -438,6 +438,9 @@ static constexpr BinaryOpSeq<BinaryOp::add, BinaryOp::sub, BinaryOp::mul,
                              BinaryOp::div>
     ArithBinaryOps{};
 
+static constexpr BinaryOpSeq<BinaryOp::add, BinaryOp::sub, BinaryOp::mul>
+    ArithBinaryOpsNoDiv{};
+
 static constexpr BinaryOpSeq<BinaryOp::add, BinaryOp::sub, BinaryOp::mul,
                              BinaryOp::div, BinaryOp::rem, BinaryOp::shl,
                              BinaryOp::shr, BinaryOp::bit_or, BinaryOp::bit_and,
@@ -445,9 +448,11 @@ static constexpr BinaryOpSeq<BinaryOp::add, BinaryOp::sub, BinaryOp::mul,
     IntBinaryOps{};
 
 static constexpr BinaryOpSeq<BinaryOp::add, BinaryOp::sub, BinaryOp::mul,
-                             BinaryOp::div, BinaryOp::rem, BinaryOp::bit_or,
-                             BinaryOp::bit_and, BinaryOp::bit_xor>
-    IntBinaryOpsNoShift{};
+                             BinaryOp::bit_or, BinaryOp::bit_and,
+                             BinaryOp::bit_xor>
+    IntBinaryOpsNoShiftNoDivRem{};
+
+static constexpr BinaryOpSeq<BinaryOp::div, BinaryOp::rem> IntBinaryOpsDivRem{};
 
 static constexpr OpSeq<CmpOp, CmpOp::lt, CmpOp::lte, CmpOp::eq, CmpOp::ne,
                        CmpOp::gte, CmpOp::gt>
@@ -537,5 +542,23 @@ std::unique_ptr<T, USMDeleter> usm_malloc_shared(queue q, int n) {
                                      USMDeleter{q});
   return std::move(res);
 }
+
+template <class T> static const char *type_name();
+#define TID(T)                                                                 \
+  template <> const char *type_name<T>() { return #T; }
+TID(char) // for some reason, 'char' does not match 'int8_t' during
+          // 'type_name' specialization
+TID(int8_t)
+TID(uint8_t)
+TID(int16_t)
+TID(uint16_t)
+TID(int32_t)
+TID(uint32_t)
+TID(int64_t)
+TID(uint64_t)
+TID(half)
+TID(sycl::ext::oneapi::experimental::bfloat16)
+TID(float)
+TID(double)
 
 } // namespace esimd_test
