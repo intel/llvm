@@ -243,22 +243,23 @@ private:
                : memory_scope::device;
   }
 
-  template <access::address_space Space, class T, class AtomicFunctor>
+  template <access::address_space Space, access::decorated IsDecorated, class T,
+            class AtomicFunctor>
   void atomic_combine_impl(T *ReduVarPtr, AtomicFunctor Functor) const {
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
-      auto AtomicRef =
-          sycl::atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(),
-                           Space>(multi_ptr<T, Space>(ReduVarPtr)[E]);
+      auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
+                                        getMemoryScope<Space>(), Space>(
+          multi_ptr<T, Space, IsDecorated>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
 
   template <class _T, access::address_space Space, class BinaryOp>
-  static constexpr bool BasicCheck =
-      std::is_same<typename remove_AS<_T>::type, Ty>::value &&
-      (Space == access::address_space::global_space ||
-       Space == access::address_space::local_space);
+  static constexpr bool
+      BasicCheck = std::is_same<remove_decoration_t<_T>, Ty>::value &&
+                   (Space == access::address_space::global_space ||
+                    Space == access::address_space::local_space);
 
 public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
@@ -269,7 +270,7 @@ public:
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
               IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space>(
+    atomic_combine_impl<Space, access::decorated::legacy>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
   }
 
@@ -280,7 +281,7 @@ public:
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space>(
+    atomic_combine_impl<Space, access::decorated::legacy>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
   }
 
@@ -291,20 +292,20 @@ public:
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space>(
+    atomic_combine_impl<Space, access::decorated::legacy>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
   }
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, _T>::value &&
+  enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitAND<_T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space>(
+    atomic_combine_impl<Space, access::decorated::legacy>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
   }
 
@@ -316,7 +317,7 @@ public:
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
               IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space>(
+    atomic_combine_impl<Space, access::decorated::legacy>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
   }
 
@@ -328,7 +329,7 @@ public:
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
               IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space>(
+    atomic_combine_impl<Space, access::decorated::legacy>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };

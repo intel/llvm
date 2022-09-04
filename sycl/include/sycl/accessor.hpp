@@ -1998,8 +1998,8 @@ public:
 #endif
                                         >() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::legacy>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
@@ -2007,8 +2007,8 @@ public:
                                atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::legacy>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
@@ -2016,8 +2016,8 @@ public:
                                atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::legacy>(
+        getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   auto operator[](size_t Index) const {
@@ -2516,7 +2516,8 @@ public:
   operator typename detail::enable_if_t<
       Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
       const {
-    return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr()));
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS, access::decorated::legacy>(getQualifiedPtr()));
   }
 
   template <int Dims = Dimensions>
@@ -2524,15 +2525,16 @@ public:
                                atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::legacy>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                                atomic<DataT, AS>>
   operator[](size_t Index) const {
-    return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr() + Index));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::legacy>(
+        getQualifiedPtr() + Index));
   }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>

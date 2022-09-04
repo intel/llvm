@@ -262,11 +262,12 @@ static inline constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
   }
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
-                      memory_order Success, memory_order Failure, T Desired,
-                      T Expected) {
+AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
+                      memory_scope Scope, memory_order Success,
+                      memory_order Failure, T Desired, T Expected) {
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
@@ -275,18 +276,19 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
                                        SPIRVFailure, Desired, Expected);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
-                      memory_order Success, memory_order Failure, T Desired,
-                      T Expected) {
+AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
+                      memory_scope Scope, memory_order Success,
+                      memory_order Failure, T Desired, T Expected) {
   using I = detail::make_unsinged_integer_t<T>;
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
-  auto *PtrInt =
-      reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
-          MPtr.get());
+  auto *PtrInt = reinterpret_cast<
+      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
+      MPtr.get());
   I DesiredInt = bit_cast<I>(Desired);
   I ExpectedInt = bit_cast<I>(Expected);
   I ResultInt = __spirv_AtomicCompareExchange(
@@ -294,9 +296,10 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return bit_cast<T>(ResultInt);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -304,23 +307,25 @@ AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto *PtrInt =
-      reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
-          MPtr.get());
+  auto *PtrInt = reinterpret_cast<
+      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ResultInt = __spirv_AtomicLoad(PtrInt, SPIRVScope, SPIRVOrder);
   return bit_cast<T>(ResultInt);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value>
-AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -328,23 +333,25 @@ AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value>
-AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto *PtrInt =
-      reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
-          MPtr.get());
+  auto *PtrInt = reinterpret_cast<
+      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ValueInt = bit_cast<I>(Value);
   __spirv_AtomicStore(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -352,14 +359,15 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto *PtrInt =
-      reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
-          MPtr.get());
+  auto *PtrInt = reinterpret_cast<
+      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ValueInt = bit_cast<I>(Value);
@@ -368,9 +376,10 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return bit_cast<T>(ResultInt);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -378,9 +387,10 @@ AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicIAdd(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicISub(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicISub(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -388,9 +398,10 @@ AtomicISub(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicISub(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -398,9 +409,10 @@ AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicAnd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicAnd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -408,9 +420,10 @@ AtomicAnd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicAnd(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicOr(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicOr(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
          memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -418,9 +431,10 @@ AtomicOr(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicOr(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicXor(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicXor(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -428,9 +442,10 @@ AtomicXor(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicXor(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -438,9 +453,10 @@ AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -448,9 +464,10 @@ AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
-AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);
@@ -458,9 +475,10 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-template <typename T, access::address_space AddressSpace>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
-AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
+AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
   auto SPIRVOrder = getMemorySemanticsMask(Order);

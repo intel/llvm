@@ -115,13 +115,15 @@ public:
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
 
-  multi_ptr<T, access::address_space::global_space> get_multi_ptr() noexcept {
+  multi_ptr<T, access::address_space::global_space, access::decorated::legacy>
+  get_multi_ptr() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
     return {this->get_ptr()};
   }
 
-  multi_ptr<const T, access::address_space::global_space> get_multi_ptr()
-      const noexcept {
+  multi_ptr<const T, access::address_space::global_space,
+            access::decorated::legacy>
+  get_multi_ptr() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
     return {this->get_ptr()};
   }
