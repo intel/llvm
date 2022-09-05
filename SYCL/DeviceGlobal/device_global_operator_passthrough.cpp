@@ -32,10 +32,6 @@ device_global<int> DeviceGlobalVar;
 
 int main() {
   queue Q;
-  if (Q.is_host()) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   Q.single_task([]() {
      DeviceGlobalVar = 2;

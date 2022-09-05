@@ -46,10 +46,6 @@ device_global<StructWithDeref> DeviceGlobalVar2;
 
 int main() {
   queue Q;
-  if (Q.is_host()) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   StructWithMember *DGMem = malloc_device<StructWithMember>(1, Q);
 
