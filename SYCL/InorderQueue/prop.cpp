@@ -34,11 +34,11 @@ int CheckQueueOrder(const queue &q) {
   auto dev = q.get_device();
 
   cl_command_queue cq = get_native<backend::opencl>(q);
-  bool expected_result = dev.is_host() ? true : getQueueOrder(cq);
+  bool expected_result = getQueueOrder(cq);
   if (!expected_result)
     return -1;
 
-  expected_result = dev.is_host() ? true : q.is_in_order();
+  expected_result = q.is_in_order();
   if (!expected_result)
     return -2;
 
