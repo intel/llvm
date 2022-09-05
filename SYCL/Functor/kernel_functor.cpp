@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -o %t.out %s
 // RUN: cd %T
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
