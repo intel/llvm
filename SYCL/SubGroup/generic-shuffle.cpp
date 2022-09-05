@@ -214,10 +214,6 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
 
 int main() {
   queue Queue;
-  if (Queue.get_device().is_host()) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   // Test shuffle of pointer types
   check_pointer<class KernelName_mNiN, int>(Queue);

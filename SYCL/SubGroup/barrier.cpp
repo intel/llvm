@@ -76,10 +76,6 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
 }
 int main() {
   queue Queue;
-  if (Queue.get_device().is_host()) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
   check<int>(Queue);
   check<unsigned int>(Queue);
   check<long>(Queue);

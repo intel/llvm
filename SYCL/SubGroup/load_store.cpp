@@ -187,10 +187,6 @@ template <typename T> void check(queue &Queue) {
 
 int main() {
   queue Queue;
-  if (Queue.get_device().is_host()) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
   std::string PlatformName =
       Queue.get_device().get_platform().get_info<info::platform::name>();
   auto Vec = Queue.get_device().get_info<info::device::extensions>();
