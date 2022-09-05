@@ -11,6 +11,10 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/half_type.hpp>
 
+#if !defined(__SYCL_DEVICE_ONLY__)
+#include <cmath>
+#endif
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
@@ -35,9 +39,17 @@ public:
     return __spirv_ConvertFToBF16INTEL(a);
 #endif
 #else
-    (void)a;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 conversion is not supported on host device"};
+    // In case of float value is nan - propagate bfloat16's qnan
+    if (std::isnan(a))
+      return 0xffc1;
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    floatValue = a;
+    // Do RNE and truncate
+    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 #endif
   }
   static float to_float(const storage_t &a) {
@@ -51,9 +63,9 @@ public:
     return __spirv_ConvertBF16ToFINTEL(a);
 #endif
 #else
-    (void)a;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 conversion is not supported on host device"};
+    uint32_t bits = a;
+    bits <<= 16;
+    return sycl::bit_cast<float>(bits);
 #endif
   }
 

@@ -25,8 +25,8 @@
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)
 #define __SYCL_EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)
 #else
-#define __FUNC_PREFIX_OCL
-#define __FUNC_PREFIX_CORE
+#define __FUNC_PREFIX_OCL sycl_host_
+#define __FUNC_PREFIX_CORE sycl_host_
 #define __SYCL_EXTERN_IT1(Ret, prefix, call, Arg)                              \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg)
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)                         \

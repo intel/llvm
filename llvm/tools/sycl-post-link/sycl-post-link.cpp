@@ -562,7 +562,7 @@ module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
   }
   module_split::ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
   Res.assignMergedProperties(MD1, MD2);
-  Res.Name = "linked[" + MD1.Name + "," + MD1.Name + "]";
+  Res.Name = "linked[" + MD1.Name + "," + MD2.Name + "]";
   return Res;
 }
 
@@ -665,6 +665,10 @@ processInputModule(std::unique_ptr<Module> M) {
   // if none were made.
   bool Modified = false;
 
+  // Propagate ESIMD attribute to wrapper functions to prevent
+  // spurious splits and kernel link errors.
+  Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
+
   // After linking device bitcode "llvm.used" holds references to the kernels
   // that are defined in the device image. But after splitting device image into
   // separate kernels we may end up with having references to kernel declaration
@@ -696,9 +700,9 @@ processInputModule(std::unique_ptr<Module> M) {
   // Violation of this invariant is user error and must've been reported.
   // However, if split mode is "auto", then entry point filtering is still
   // performed.
-  assert(!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
-         (SplitMode == module_split::SPLIT_AUTO) &&
-             "invalid split mode for IR-only output");
+  assert((!IROutputOnly || (SplitMode == module_split::SPLIT_NONE) ||
+          (SplitMode == module_split::SPLIT_AUTO)) &&
+         "invalid split mode for IR-only output");
 
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from all other kinds of splitting.
@@ -734,6 +738,7 @@ processInputModule(std::unique_ptr<Module> M) {
     while (DoubleGRFSplitter->hasMoreSplits()) {
       module_split::ModuleDesc MDesc1 = DoubleGRFSplitter->nextSplit();
       DUMP_ENTRY_POINTS(MDesc1.entries(), MDesc1.Name.c_str(), 2);
+      MDesc1.fixupLinkageOfDirectInvokeSimdTargets();
 
       // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
       // undergo different set of LLVMIR passes. After this they are linked back
@@ -779,16 +784,22 @@ processInputModule(std::unique_ptr<Module> M) {
       if (!SplitEsimd && (MMs.size() > 1)) {
         // SYCL/ESIMD splitting is not requested, link back into single module.
         assert(MMs.size() == 2);
-        assert(MMs[0].isESIMD() && MMs[1].isSYCL() ||
-               MMs[1].isESIMD() && MMs[0].isSYCL());
+        assert((MMs[0].isESIMD() && MMs[1].isSYCL()) ||
+               (MMs[1].isESIMD() && MMs[0].isSYCL()));
         int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
         int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
         // ... but before that, make sure no link conflicts will occur.
         MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
         module_split::ModuleDesc M2 =
             link(std::move(MMs[0]), std::move(MMs[1]));
+        M2.restoreLinkageOfDirectInvokeSimdTargets();
+        string_vector Names;
+        M2.saveEntryPointNames(Names);
+        M2.cleanup(); // may remove some entry points, need to save/rebuild
+        M2.rebuildEntryPoints(Names);
         MMs.clear();
         MMs.emplace_back(std::move(M2));
+        DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
         Modified = true;
       }
       bool SplitOccurred = SplitByScope || SplitByDoubleGRF || SplitByESIMD;
