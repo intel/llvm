@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -emit-llvm < %s | FileCheck -check-prefix=NULL-INVALID %s
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -emit-llvm -fno-delete-null-pointer-checks < %s | FileCheck -check-prefix=NULL-VALID %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin -emit-llvm < %s | FileCheck -check-prefix=NULL-INVALID %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin -emit-llvm -fno-delete-null-pointer-checks < %s | FileCheck -check-prefix=NULL-VALID %s
 
 // NULL-INVALID: define{{.*}} void @foo(i32* noundef nonnull %x)
 // NULL-VALID: define{{.*}} void @foo(i32* noundef %x)
@@ -22,7 +22,7 @@ void bar2(int * x, int * y) __attribute__((nonnull(2)))  {
 static int a;
 // NULL-INVALID: define{{.*}} nonnull i32* @bar3()
 // NULL-VALID: define{{.*}} i32* @bar3()
-int * bar3() __attribute__((returns_nonnull))  {
+int * bar3(void) __attribute__((returns_nonnull))  {
   return &a;
 }
 

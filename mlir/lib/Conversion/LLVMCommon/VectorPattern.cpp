@@ -120,8 +120,7 @@ LogicalResult LLVM::detail::vectorOneToOneRewrite(
   assert(!operands.empty());
 
   // Cannot convert ops if their operands are not of LLVM type.
-  if (!llvm::all_of(operands.getTypes(),
-                    [](Type t) { return isCompatibleType(t); }))
+  if (!llvm::all_of(operands.getTypes(), isCompatibleType))
     return failure();
 
   auto llvmNDVectorTy = operands[0].getType();
@@ -130,11 +129,10 @@ LogicalResult LLVM::detail::vectorOneToOneRewrite(
 
   auto callback = [op, targetOp, &rewriter](Type llvm1DVectorTy,
                                             ValueRange operands) {
-    OperationState state(op->getLoc(), targetOp);
-    state.addTypes(llvm1DVectorTy);
-    state.addOperands(operands);
-    state.addAttributes(op->getAttrs());
-    return rewriter.createOperation(state)->getResult(0);
+    return rewriter
+        .create(op->getLoc(), rewriter.getStringAttr(targetOp), operands,
+                llvm1DVectorTy, op->getAttrs())
+        ->getResult(0);
   };
 
   return handleMultidimensionalVectors(op, operands, typeConverter, callback,

@@ -551,8 +551,8 @@ define i64 @add_mul_combine_infinite_loop(i64 %x) {
 ; RV32IMB-NEXT:    sh3add a1, a1, a2
 ; RV32IMB-NEXT:    sh1add a0, a0, a0
 ; RV32IMB-NEXT:    slli a2, a0, 3
-; RV32IMB-NEXT:    addi a0, a2, 1024
-; RV32IMB-NEXT:    addi a0, a0, 1024
+; RV32IMB-NEXT:    addi a0, a2, 2047
+; RV32IMB-NEXT:    addi a0, a0, 1
 ; RV32IMB-NEXT:    sltu a2, a0, a2
 ; RV32IMB-NEXT:    add a1, a1, a2
 ; RV32IMB-NEXT:    ret
@@ -871,4 +871,26 @@ define i64 @mulneg3000_sub8990_c(i64 %x) {
   %tmp0 = mul i64 %x, -3000
   %tmp1 = add i64 %tmp0, -8990
   ret i64 %tmp1
+}
+
+; This test case previously caused an infinite loop between transformations
+; performed in RISCVISelLowering;:transformAddImmMulImm and
+; DAGCombiner::visitMUL.
+define i1 @pr53831(i32 %x) {
+; RV32IMB-LABEL: pr53831:
+; RV32IMB:       # %bb.0:
+; RV32IMB-NEXT:    li a0, 0
+; RV32IMB-NEXT:    ret
+;
+; RV64IMB-LABEL: pr53831:
+; RV64IMB:       # %bb.0:
+; RV64IMB-NEXT:    li a0, 0
+; RV64IMB-NEXT:    ret
+  %tmp0 = add i32 %x, 1
+  %tmp1 = mul i32 %tmp0, 24
+  %tmp2 = add i32 %tmp1, 1
+  %tmp3 = mul i32 %x, 24
+  %tmp4 = add i32 %tmp3, 2048
+  %tmp5 = icmp eq i32 %tmp4, %tmp2
+  ret i1 %tmp5
 }

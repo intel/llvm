@@ -38,7 +38,7 @@ static std::string doModules(llvm::ArrayRef<llvm::StringRef> mods) {
 static std::string doModulesHost(llvm::ArrayRef<llvm::StringRef> mods,
                                  llvm::Optional<llvm::StringRef> host) {
   std::string result = doModules(mods);
-  if (host.hasValue())
+  if (host)
     result.append("F").append(host->lower());
   return result;
 }
@@ -51,8 +51,8 @@ convertToStringRef(llvm::ArrayRef<std::string> from) {
 inline llvm::Optional<llvm::StringRef>
 convertToStringRef(const llvm::Optional<std::string> &from) {
   llvm::Optional<llvm::StringRef> to;
-  if (from.hasValue())
-    to = from.getValue();
+  if (from)
+    to = *from;
   return to;
 }
 
@@ -316,4 +316,37 @@ bool fir::NameUniquer::needExternalNameMangling(llvm::StringRef uniquedName) {
   auto result = fir::NameUniquer::deconstruct(uniquedName);
   return result.first != fir::NameUniquer::NameKind::NOT_UNIQUED &&
          fir::NameUniquer::isExternalFacingUniquedName(result);
+}
+
+bool fir::NameUniquer::belongsToModule(llvm::StringRef uniquedName,
+                                       llvm::StringRef moduleName) {
+  auto result = fir::NameUniquer::deconstruct(uniquedName);
+  return !result.second.modules.empty() &&
+         result.second.modules[0] == moduleName;
+}
+
+static std::string
+mangleTypeDescriptorKinds(llvm::ArrayRef<std::int64_t> kinds) {
+  if (kinds.empty())
+    return "";
+  std::string result = "";
+  for (std::int64_t kind : kinds)
+    result += "." + std::to_string(kind);
+  return result;
+}
+
+std::string
+fir::NameUniquer::getTypeDescriptorName(llvm::StringRef mangledTypeName) {
+  auto result = deconstruct(mangledTypeName);
+  if (result.first != NameKind::DERIVED_TYPE)
+    return "";
+  std::string varName = ".dt." + result.second.name +
+                        mangleTypeDescriptorKinds(result.second.kinds);
+  llvm::SmallVector<llvm::StringRef> modules;
+  for (const std::string &mod : result.second.modules)
+    modules.push_back(mod);
+  llvm::Optional<llvm::StringRef> host;
+  if (result.second.host)
+    host = *result.second.host;
+  return doVariable(modules, host, varName);
 }

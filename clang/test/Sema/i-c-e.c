@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <limits.h>
 
-int a() {int p; *(1 ? &p : (void*)(0 && (a(),1))) = 10;} // expected-error {{incomplete type 'void' is not assignable}}
+int a(void) {int p; *(1 ? &p : (void*)(0 && (a(),1))) = 10;} // expected-error {{incomplete type 'void' is not assignable}}
 
 // rdar://6091492 - ?: with __builtin_constant_p as the operand is an i-c-e.
 int expr;
@@ -27,7 +27,7 @@ struct c {
 
 // Check that we can evaluate statement-expressions properly when
 // constant-folding inside an ICE.
-void PR49239() {
+void PR49239(void) {
   goto check_not_vla;
   char not_vla[__builtin_constant_p(1) ? ({ 42; }) : -1]; // expected-warning {{statement expression}}
 check_not_vla:;
@@ -92,7 +92,7 @@ int chooseexpr[__builtin_choose_expr(1, 1, expr)];
 int realop[(__real__ 4) == 4 ? 1 : -1];
 int imagop[(__imag__ 4) == 0 ? 1 : -1];
 
-int *PR14729 = 0 ?: 1/0; // expected-error {{not a compile-time constant}} expected-warning 3{{}}
+int *PR14729 = 0 ?: 1/0; // expected-error {{not a compile-time constant}} expected-warning 2{{}} expected-error {{incompatible integer to pointer conversion initializing 'int *' with an expression of type 'int'}}
 
 int bcp_call_v;
 int bcp_call_a[] = {__builtin_constant_p(bcp_call_v && 0) ? bcp_call_v && 0 : -1};

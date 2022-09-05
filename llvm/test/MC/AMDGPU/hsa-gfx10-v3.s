@@ -31,7 +31,7 @@
 // OBJDUMP-NEXT: 0040 01000000 01000000 08000000 00000000
 // OBJDUMP-NEXT: 0050 00000000 00000000 00000000 00000000
 // OBJDUMP-NEXT: 0060 00000000 00000000 00000000 00000000
-// OBJDUMP-NEXT: 0070 015001e4 1f0f007f 7f040000 00000000
+// OBJDUMP-NEXT: 0070 015001e4 1f0f007f 7f0c0000 00000000
 // special_sgpr
 // OBJDUMP-NEXT: 0080 00000000 00000000 00000000 00000000
 // OBJDUMP-NEXT: 0090 00000000 00000000 00000000 00000000
@@ -68,11 +68,13 @@ special_sgpr:
 .amdhsa_kernel minimal
   .amdhsa_next_free_vgpr 0
   .amdhsa_next_free_sgpr 0
+  .amdhsa_shared_vgpr_count 0
 .end_amdhsa_kernel
 
 // ASM: .amdhsa_kernel minimal
 // ASM: .amdhsa_next_free_vgpr 0
 // ASM-NEXT: .amdhsa_next_free_sgpr 0
+// ASM: .amdhsa_shared_vgpr_count 0
 // ASM: .end_amdhsa_kernel
 
 // Test that we can specify all available directives with non-default values.
@@ -89,6 +91,7 @@ special_sgpr:
   .amdhsa_user_sgpr_flat_scratch_init 1
   .amdhsa_user_sgpr_private_segment_size 1
   .amdhsa_wavefront_size32 1
+  .amdhsa_uses_dynamic_stack 1
   .amdhsa_system_sgpr_private_segment_wavefront_offset 1
   .amdhsa_system_sgpr_workgroup_id_x 0
   .amdhsa_system_sgpr_workgroup_id_y 1
@@ -132,6 +135,7 @@ special_sgpr:
 // ASM-NEXT: .amdhsa_user_sgpr_flat_scratch_init 1
 // ASM-NEXT: .amdhsa_user_sgpr_private_segment_size 1
 // ASM-NEXT: .amdhsa_wavefront_size32 1
+// ASM-NEXT: .amdhsa_uses_dynamic_stack 1
 // ASM-NEXT: .amdhsa_system_sgpr_private_segment_wavefront_offset 1
 // ASM-NEXT: .amdhsa_system_sgpr_workgroup_id_x 0
 // ASM-NEXT: .amdhsa_system_sgpr_workgroup_id_y 1
@@ -153,6 +157,7 @@ special_sgpr:
 // ASM-NEXT: .amdhsa_workgroup_processor_mode 1
 // ASM-NEXT: .amdhsa_memory_ordered 1
 // ASM-NEXT: .amdhsa_forward_progress 1
+// ASM-NEXT: .amdhsa_shared_vgpr_count 0
 // ASM-NEXT: .amdhsa_exception_fp_ieee_invalid_op 1
 // ASM-NEXT: .amdhsa_exception_fp_denorm_src 1
 // ASM-NEXT: .amdhsa_exception_fp_ieee_div_zero 1

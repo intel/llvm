@@ -190,11 +190,6 @@ void Symbol::setOutputSymbolIndex(uint32_t index) {
 void Symbol::setGOTIndex(uint32_t index) {
   LLVM_DEBUG(dbgs() << "setGOTIndex " << name << " -> " << index << "\n");
   assert(gotIndex == INVALID_INDEX);
-  if (config->isPic) {
-    // Any symbol that is assigned a GOT entry must be exported otherwise the
-    // dynamic linker won't be able create the entry that contains it.
-    forceExport = true;
-  }
   gotIndex = index;
 }
 
@@ -222,14 +217,14 @@ void Symbol::setHidden(bool isHidden) {
 }
 
 bool Symbol::isExported() const {
+  if (!isDefined() || isLocal())
+    return false;
+
   // Shared libraries must export all weakly defined symbols
   // in case they contain the version that will be chosen by
   // the dynamic linker.
-  if (config->shared && isLive() && isDefined() && isWeak())
+  if (config->shared && isLive() && isWeak() && !isHidden())
     return true;
-
-  if (!isDefined() || isLocal())
-    return false;
 
   if (config->exportAll || (config->exportDynamic && !isHidden()))
     return true;

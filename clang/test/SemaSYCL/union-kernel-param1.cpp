@@ -34,7 +34,7 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union union_acc_t)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'union union_acc_t':'union_acc_t'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_acc 'union union_acc_t':'union_acc_t'
 
 // Check kernel_A inits
 // CHECK-NEXT: CompoundStmt
@@ -43,11 +43,11 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'union union_acc_t':'union_acc_t' 'void (const union_acc_t &) noexcept'
 // CHECK: ImplicitCastExpr {{.*}} 'const union_acc_t'
-// CHECK: DeclRefExpr {{.*}} 'union union_acc_t':'union_acc_t' lvalue ParmVar {{.*}} '_arg_' 'union union_acc_t':'union_acc_t'
+// CHECK: DeclRefExpr {{.*}} 'union union_acc_t':'union_acc_t' lvalue ParmVar {{.*}} '_arg_union_acc' 'union union_acc_t':'union_acc_t'
 
 // Check kernel_B parameters
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (S<int>)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'S<int>':'S<int>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>':'S<int>'
 
 // Check kernel_B inits
 // CHECK-NEXT: CompoundStmt
@@ -56,4 +56,4 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}}  'const S<int>'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_' 'S<int>':'S<int>'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>':'S<int>'

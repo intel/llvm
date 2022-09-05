@@ -133,6 +133,8 @@ public:
 
   bool IsScopedEnumerationType();
 
+  bool IsAggregateType();
+
   lldb::SBType GetPointerType();
 
   lldb::SBType GetPointeeType();
@@ -225,7 +227,6 @@ protected:
   friend class SBFunction;
   friend class SBModule;
   friend class SBTarget;
-  friend class SBThread;
   friend class SBTypeEnumMember;
   friend class SBTypeEnumMemberList;
   friend class SBTypeNameSpecifier;

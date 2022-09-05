@@ -18,7 +18,6 @@
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -47,7 +46,7 @@ public:
   LogicalResult matchAndRewrite(memref::AtomicRMWOp op,
                                 PatternRewriter &rewriter) const final {
     arith::CmpFPredicate predicate;
-    switch (op.kind()) {
+    switch (op.getKind()) {
     case arith::AtomicRMWKind::maxf:
       predicate = arith::CmpFPredicate::OGT;
       break;
@@ -60,14 +59,14 @@ public:
 
     auto loc = op.getLoc();
     auto genericOp = rewriter.create<memref::GenericAtomicRMWOp>(
-        loc, op.memref(), op.indices());
+        loc, op.getMemref(), op.getIndices());
     OpBuilder bodyBuilder =
         OpBuilder::atBlockEnd(genericOp.getBody(), rewriter.getListener());
 
     Value lhs = genericOp.getCurrentValue();
-    Value rhs = op.value();
+    Value rhs = op.getValue();
     Value cmp = bodyBuilder.create<arith::CmpFOp>(loc, predicate, lhs, rhs);
-    Value select = bodyBuilder.create<SelectOp>(loc, cmp, lhs, rhs);
+    Value select = bodyBuilder.create<arith::SelectOp>(loc, cmp, lhs, rhs);
     bodyBuilder.create<memref::AtomicYieldOp>(loc, select);
 
     rewriter.replaceOp(op, genericOp.getResult());
@@ -83,7 +82,7 @@ public:
 
   LogicalResult matchAndRewrite(memref::ReshapeOp op,
                                 PatternRewriter &rewriter) const final {
-    auto shapeType = op.shape().getType().cast<MemRefType>();
+    auto shapeType = op.getShape().getType().cast<MemRefType>();
     if (!shapeType.hasStaticShape())
       return failure();
 
@@ -99,10 +98,10 @@ public:
       // Load dynamic sizes from the shape input, use constants for static dims.
       if (op.getType().isDynamicDim(i)) {
         Value index = rewriter.create<arith::ConstantIndexOp>(loc, i);
-        size = rewriter.create<memref::LoadOp>(loc, op.shape(), index);
+        size = rewriter.create<memref::LoadOp>(loc, op.getShape(), index);
         if (!size.getType().isa<IndexType>())
-          size = rewriter.create<arith::IndexCastOp>(loc, size,
-                                                     rewriter.getIndexType());
+          size = rewriter.create<arith::IndexCastOp>(
+              loc, rewriter.getIndexType(), size);
         sizes[i] = size;
       } else {
         sizes[i] = rewriter.getIndexAttr(op.getType().getDimSize(i));
@@ -114,7 +113,7 @@ public:
         stride = rewriter.create<arith::MulIOp>(loc, stride, size);
     }
     rewriter.replaceOpWithNewOp<memref::ReinterpretCastOp>(
-        op, op.getType(), op.source(), /*offset=*/rewriter.getIndexAttr(0),
+        op, op.getType(), op.getSource(), /*offset=*/rewriter.getIndexAttr(0),
         sizes, strides);
     return success();
   }
@@ -128,15 +127,14 @@ struct ExpandOpsPass : public ExpandOpsBase<ExpandOpsPass> {
     memref::populateExpandOpsPatterns(patterns);
     ConversionTarget target(ctx);
 
-    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect,
-                           StandardOpsDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect>();
     target.addDynamicallyLegalOp<memref::AtomicRMWOp>(
         [](memref::AtomicRMWOp op) {
-          return op.kind() != arith::AtomicRMWKind::maxf &&
-                 op.kind() != arith::AtomicRMWKind::minf;
+          return op.getKind() != arith::AtomicRMWKind::maxf &&
+                 op.getKind() != arith::AtomicRMWKind::minf;
         });
     target.addDynamicallyLegalOp<memref::ReshapeOp>([](memref::ReshapeOp op) {
-      return !op.shape().getType().cast<MemRefType>().hasStaticShape();
+      return !op.getShape().getType().cast<MemRefType>().hasStaticShape();
     });
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

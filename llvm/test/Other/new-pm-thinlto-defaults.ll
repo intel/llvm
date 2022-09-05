@@ -62,6 +62,7 @@
 ; CHECK-O-NEXT: Running pass: InferFunctionAttrsPass
 ; CHECK-PRELINK-O-NODIS-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
+; CHECK-O-NEXT: Running pass: CoroEarlyPass
 ; CHECK-O-NEXT: Running pass: LowerExpectIntrinsicPass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running analysis: TargetIRAnalysis
@@ -70,7 +71,6 @@
 ; CHECK-O-NEXT: Running analysis: DominatorTreeAnalysis
 ; CHECK-O-NEXT: Running pass: EarlyCSEPass
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
-; CHECK-O-NEXT: Running pass: CoroEarlyPass
 ; CHECK-O3-NEXT: Running pass: CallSiteSplittingPass
 ; CHECK-O-NEXT: Running pass: OpenMPOptPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: LowerTypeTestsPass
@@ -182,14 +182,18 @@
 ; CHECK-O23SZ-NEXT: Running pass: CoroElidePass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
+; CHECK-O-NEXT: Running analysis: ShouldNotRunFunctionPassesAnalysis
 ; CHECK-O-NEXT: Running pass: CoroSplitPass
+; CHECK-O-NEXT: Running pass: InvalidateAnalysisPass<{{.*}}ShouldNotRunFunctionPassesAnalysis
+; CHECK-O-NEXT: Invalidating analysis: ShouldNotRunFunctionPassesAnalysis
 ; CHECK-O-NEXT: Invalidating analysis: InlineAdvisorAnalysis
+; CHECK-O-NEXT: Running pass: CoroCleanupPass
 ; CHECK-PRELINK-O-NEXT: Running pass: GlobalOptPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: GlobalOptPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: GlobalDCEPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: EliminateAvailableExternallyPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: ReversePostOrderFunctionAttrsPass
-; CHECK-POSTLINK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
+; CHECK-POSTLINK-O-NEXT: Running pass: RecomputeGlobalsAAPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: Float2IntPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: LowerConstantIntrinsicsPass
 ; CHECK-EXT: Running pass: {{.*}}::Bye
@@ -222,13 +226,12 @@
 ; CHECK-POSTLINK-O-NEXT: Running pass: LoopSinkPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: InstSimplifyPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: DivRemPairsPass
+; CHECK-POSTLINK-O-NEXT: Running pass: TailCallElimPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: SimplifyCFGPass
-; CHECK-O-NEXT: Running pass: CoroCleanupPass
-; CHECK-POSTLINK-O-NEXT: Running pass: CGProfilePass
 ; CHECK-POSTLINK-O-NEXT: Running pass: GlobalDCEPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: ConstantMergePass
+; CHECK-POSTLINK-O-NEXT: Running pass: CGProfilePass
 ; CHECK-POSTLINK-O-NEXT: Running pass: RelLookupTableConverterPass
-; CHECK-POSTLINK-O-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-O-NEXT:          Running pass: AnnotationRemarksPass on foo
 ; CHECK-PRELINK-O-NEXT: Running pass: CanonicalizeAliasesPass
 ; CHECK-PRELINK-O-NEXT: Running pass: NameAnonGlobalPass

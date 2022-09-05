@@ -1,13 +1,13 @@
-// RUN: %clang_cc1 -verify -fopenmp -x c -emit-llvm %s -triple %itanium_abi_triple -o - -femit-all-decls -disable-llvm-passes | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c -triple %itanium_abi_triple -emit-pch -o %t %s -femit-all-decls -disable-llvm-passes
-// RUN: %clang_cc1 -fopenmp -x c -triple %itanium_abi_triple -include-pch %t -verify %s -emit-llvm -o - -femit-all-decls -disable-llvm-passes | FileCheck --check-prefix=CHECK-LOAD %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c -emit-llvm %s -triple %itanium_abi_triple -o - -femit-all-decls -disable-llvm-passes | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c -triple %itanium_abi_triple -emit-pch -o %t %s -femit-all-decls -disable-llvm-passes
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c -triple %itanium_abi_triple -include-pch %t -verify %s -emit-llvm -o - -femit-all-decls -disable-llvm-passes | FileCheck --check-prefix=CHECK-LOAD %s
 
-// RUN: %clang_cc1 -fopenmp -x c -triple %itanium_abi_triple -emit-pch -o %t %s -femit-all-decls -disable-llvm-passes -fopenmp-version=45
-// RUN: %clang_cc1 -fopenmp -x c -triple %itanium_abi_triple -include-pch %t -verify %s -emit-llvm -o - -femit-all-decls -disable-llvm-passes -fopenmp-version=45 | FileCheck --check-prefixes=CHECK-LOAD,OMP45-LOAD %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c -triple %itanium_abi_triple -emit-pch -o %t %s -femit-all-decls -disable-llvm-passes -fopenmp-version=45
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c -triple %itanium_abi_triple -include-pch %t -verify %s -emit-llvm -o - -femit-all-decls -disable-llvm-passes -fopenmp-version=45 | FileCheck --check-prefixes=CHECK-LOAD,OMP45-LOAD %s
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -x c -emit-llvm %s -triple %itanium_abi_triple -o - -femit-all-decls -disable-llvm-passes | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -fopenmp-simd -x c -triple %itanium_abi_triple -emit-pch -o %t %s -femit-all-decls -disable-llvm-passes
-// RUN: %clang_cc1 -fopenmp-simd -x c -triple %itanium_abi_triple -include-pch %t -verify %s -emit-llvm -o - -femit-all-decls -disable-llvm-passes | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp-simd -x c -emit-llvm %s -triple %itanium_abi_triple -o - -femit-all-decls -disable-llvm-passes | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -x c -triple %itanium_abi_triple -emit-pch -o %t %s -femit-all-decls -disable-llvm-passes
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -x c -triple %itanium_abi_triple -include-pch %t -verify %s -emit-llvm -o - -femit-all-decls -disable-llvm-passes | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 // expected-no-diagnostics
 
@@ -112,7 +112,7 @@ void init(struct SSS *priv, struct SSS orig);
 
 // CHECK-LABEL: @main
 // CHECK-LOAD-LABEL: @main
-int main() {
+int main(void) {
 #pragma omp declare reduction(fun : struct SSS : omp_out = omp_in) initializer(init(&omp_priv, omp_orig))
   // CHECK: define internal {{.*}}void @{{[^(]+}}([[SSS_INT]]* noalias noundef %0, [[SSS_INT]]* noalias noundef %1)
   // CHECK: call void @llvm.memcpy
@@ -170,7 +170,7 @@ int main() {
 // CHECK-LABEL: bar
 struct SSS ss;
 int in;
-void bar() {
+void bar(void) {
   // CHECK: [[SS_PRIV:%.+]] = alloca %struct.SSS,
   // CHECK: [[IN_PRIV:%.+]] = alloca i32,
   // CHECK: [[BC:%.+]] = bitcast %struct.SSS* [[SS_PRIV]] to i8*

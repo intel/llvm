@@ -10,11 +10,13 @@
 #define BOLT_REWRITE_DWARF_REWRITER_H
 
 #include "bolt/Core/DebugData.h"
+#include "llvm/MC/MCAsmLayout.h"
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace llvm {
@@ -24,15 +26,23 @@ namespace bolt {
 class BinaryContext;
 
 class DWARFRewriter {
+public:
   DWARFRewriter() = delete;
+  using DebugTypesSignaturesPerCUMap =
+      std::unordered_map<uint64_t, std::unordered_set<uint64_t>>;
 
+private:
   BinaryContext &BC;
 
   std::mutex DebugInfoPatcherMutex;
 
   /// Stores and serializes information that will be put into the
   /// .debug_ranges DWARF section.
-  std::unique_ptr<DebugRangesSectionWriter> RangesSectionWriter;
+  std::unique_ptr<DebugRangesSectionWriter> LegacyRangesSectionWriter;
+
+  /// Stores and serializes information that will be put into the
+  /// .debug_rnglists DWARF section.
+  std::unique_ptr<DebugRangeListsSectionWriter> RangeListsSectionWriter;
 
   /// Stores and serializes information that will be put into the
   /// .debug_aranges DWARF section.
@@ -47,13 +57,22 @@ class DWARFRewriter {
   /// Does not do de-duplication.
   std::unique_ptr<DebugStrWriter> StrWriter;
 
+  /// Stores and serializes information that will be put in to the
+  /// .debug_str_offsets DWARF section.
+  std::unique_ptr<DebugStrOffsetsWriter> StrOffstsWriter;
+
   /// .debug_abbrev section writer for the main binary.
   std::unique_ptr<DebugAbbrevWriter> AbbrevWriter;
 
-  using LocWriters =
-      std::unordered_map<uint64_t, std::unique_ptr<DebugLocWriter>>;
+  using LocWriters = std::map<uint64_t, std::unique_ptr<DebugLocWriter>>;
   /// Use a separate location list writer for each compilation unit
   LocWriters LocListWritersByCU;
+
+  using RangeListsDWOWriers =
+      std::unordered_map<uint64_t,
+                         std::unique_ptr<DebugRangeListsSectionWriter>>;
+  /// Store Rangelists writer for each DWO CU.
+  RangeListsDWOWriers RangeListsWritersByCU;
 
   using DebugAbbrevDWOWriters =
       std::unordered_map<uint64_t, std::unique_ptr<DebugAbbrevWriter>>;
@@ -65,13 +84,20 @@ class DWARFRewriter {
   /// Binary patchers for DWO debug_info sections.
   DebugInfoDWOPatchers BinaryDWODebugInfoPatchers;
 
+  /// Stores all the Type Signatures for DWO CU.
+  DebugTypesSignaturesPerCUMap TypeSignaturesPerCU;
+
   std::mutex LocListDebugInfoPatchesMutex;
+
+  /// DWARFLegacy is all DWARF versions before DWARF 5.
+  enum class DWARFVersion { DWARFLegacy, DWARF5 };
 
   /// Update debug info for all DIEs in \p Unit.
   void updateUnitDebugInfo(DWARFUnit &Unit,
                            DebugInfoBinaryPatcher &DebugInfoPatcher,
                            DebugAbbrevWriter &AbbrevWriter,
                            DebugLocWriter &DebugLocWriter,
+                           DebugRangesSectionWriter &RangesWriter,
                            Optional<uint64_t> RangesBase = None);
 
   /// Patches the binary for an object's address ranges to be updated.
@@ -90,26 +116,24 @@ class DWARFRewriter {
                                       Optional<uint64_t> RangesBase = None);
 
   std::unique_ptr<DebugBufferVector>
-  makeFinalLocListsSection(SimpleBinaryPatcher &DebugInfoPatcher);
+  makeFinalLocListsSection(DebugInfoBinaryPatcher &DebugInfoPatcher,
+                           DWARFVersion Version);
 
   /// Finalize debug sections in the main binary.
-  void finalizeDebugSections(DebugInfoBinaryPatcher &DebugInfoPatcher);
+  CUOffsetMap finalizeDebugSections(DebugInfoBinaryPatcher &DebugInfoPatcher);
 
   /// Patches the binary for DWARF address ranges (e.g. in functions and lexical
   /// blocks) to be updated.
   void updateDebugAddressRanges();
 
   /// Rewrite .gdb_index section if present.
-  void updateGdbIndexSection();
+  void updateGdbIndexSection(CUOffsetMap &CUMap);
 
   /// Output .dwo files.
   void writeDWOFiles(std::unordered_map<uint64_t, std::string> &DWOIdToName);
 
   /// Output .dwp files.
   void writeDWP(std::unordered_map<uint64_t, std::string> &DWOIdToName);
-
-  /// Abbreviations that were converted to use DW_AT_ranges.
-  std::set<const DWARFAbbreviationDeclaration *> ConvertedRangesAbbrevs;
 
   /// DWARFDie contains a pointer to a DIE and hence gets invalidated once the
   /// embedded DIE is destroyed. This wrapper class stores a DIE internally and
@@ -135,8 +159,6 @@ class DWARFRewriter {
       const DWARFAbbreviationDeclaration *,
       std::vector<std::pair<DWARFDieWrapper, DebugAddressRange>>>;
 
-  PendingRangesType PendingRanges;
-
   /// Convert \p Abbrev from using a simple DW_AT_(low|high)_pc range to
   /// DW_AT_ranges with optional \p RangesBase.
   void convertToRangesPatchAbbrev(const DWARFUnit &Unit,
@@ -150,31 +172,6 @@ class DWARFRewriter {
   void convertToRangesPatchDebugInfo(DWARFDie DIE, uint64_t RangesSectionOffset,
                                      SimpleBinaryPatcher &DebugInfoPatcher,
                                      Optional<uint64_t> RangesBase = None);
-
-  /// Same as above, but takes a vector of \p Ranges as a parameter.
-  void convertToRanges(DWARFDie DIE, const DebugAddressRangesVector &Ranges,
-                       SimpleBinaryPatcher &DebugInfoPatcher);
-
-  /// Patch DW_AT_(low|high)_pc values for the \p DIE based on \p Range.
-  void patchLowHigh(DWARFDie DIE, DebugAddressRange Range,
-                    SimpleBinaryPatcher &DebugInfoPatcher);
-
-  /// Convert pending ranges associated with the given \p Abbrev.
-  void convertPending(const DWARFUnit &Unit,
-                      const DWARFAbbreviationDeclaration *Abbrev,
-                      SimpleBinaryPatcher &DebugInfoPatcher,
-                      DebugAbbrevWriter &AbbrevWriter);
-
-  /// Adds to Pending Ranges.
-  /// For Debug Fission also adding to .debug_addr to take care of a case where
-  /// some entries are not converted to ranges and left as
-  /// DW_AT_low_pc/DW_AT_high_pc.
-  void addToPendingRanges(const DWARFAbbreviationDeclaration *Abbrev,
-                          DWARFDie DIE, DebugAddressRangesVector &Ranges,
-                          Optional<uint64_t> DWOId);
-
-  /// Once all DIEs were seen, update DW_AT_(low|high)_pc values.
-  void flushPendingRanges(SimpleBinaryPatcher &DebugInfoPatcher);
 
   /// Helper function for creating and returning per-DWO patchers/writers.
   template <class T, class Patcher>
@@ -191,6 +188,14 @@ class DWARFRewriter {
 
     return static_cast<Patcher *>(Iter->second.get());
   }
+
+  /// Adds a \p Str to .debug_str section.
+  /// Uses \p AttrInfoVal to either update entry in a DIE for legacy DWARF using
+  /// \p DebugInfoPatcher, or for DWARF5 update an index in .debug_str_offsets
+  /// for this contribution of \p Unit.
+  void addStringHelper(DebugInfoBinaryPatcher &DebugInfoPatcher,
+                       const DWARFUnit &Unit, const AttrInfo &AttrInfoVal,
+                       StringRef Str);
 
 public:
   DWARFRewriter(BinaryContext &BC) : BC(BC) {}

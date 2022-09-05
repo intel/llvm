@@ -341,10 +341,9 @@ static LogicalResult convertDataOp(acc::DataOp &op,
                              mapperAllocas)))
     return failure();
 
-  if (failed(processOperands(builder, moduleTranslation, op,
-                             op.createOperands(), totalNbOperand,
-                             kCreateFlag | kHoldFlag, flags, names, index,
-                             mapperAllocas)))
+  if (failed(processOperands(
+          builder, moduleTranslation, op, op.createOperands(), totalNbOperand,
+          kCreateFlag | kHoldFlag, flags, names, index, mapperAllocas)))
     return failure();
 
   // TODO create zero currenlty handled as create. Update when extension
@@ -355,10 +354,9 @@ static LogicalResult convertDataOp(acc::DataOp &op,
                              mapperAllocas)))
     return failure();
 
-  if (failed(processOperands(builder, moduleTranslation, op,
-                             op.presentOperands(), totalNbOperand,
-                             kPresentFlag | kHoldFlag, flags, names, index,
-                             mapperAllocas)))
+  if (failed(processOperands(
+          builder, moduleTranslation, op, op.presentOperands(), totalNbOperand,
+          kPresentFlag | kHoldFlag, flags, names, index, mapperAllocas)))
     return failure();
 
   llvm::GlobalVariable *maptypes =
@@ -533,8 +531,9 @@ LogicalResult OpenACCDialectLLVMIRTranslationInterface::convertOperation(
 
 void mlir::registerOpenACCDialectTranslation(DialectRegistry &registry) {
   registry.insert<acc::OpenACCDialect>();
-  registry.addDialectInterface<acc::OpenACCDialect,
-                               OpenACCDialectLLVMIRTranslationInterface>();
+  registry.addExtension(+[](MLIRContext *ctx, acc::OpenACCDialect *dialect) {
+    dialect->addInterfaces<OpenACCDialectLLVMIRTranslationInterface>();
+  });
 }
 
 void mlir::registerOpenACCDialectTranslation(MLIRContext &context) {

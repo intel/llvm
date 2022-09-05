@@ -1,12 +1,12 @@
-// RUN: %clang_cc1 -triple x86_64-windows-msvc -debug-info-kind=limited -gcodeview -fdeclspec -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-windows-msvc -debug-info-kind=limited -gcodeview -fdeclspec -S -emit-llvm %s -o - | FileCheck %s
 
 struct Foo;
 struct Bar;
 
-__declspec(allocator) void *alloc_void();
-__declspec(allocator) struct Foo *alloc_foo();
+__declspec(allocator) void *alloc_void(void);
+__declspec(allocator) struct Foo *alloc_foo(void);
 
-void call_alloc() {
+void call_alloc(void) {
   struct Foo *p = alloc_void();
   struct Foo *w = alloc_foo();
   struct Foo *q = (struct Foo*)alloc_void();

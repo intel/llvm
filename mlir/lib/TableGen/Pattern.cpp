@@ -33,7 +33,7 @@ using llvm::formatv;
 //===----------------------------------------------------------------------===//
 
 bool DagLeaf::isUnspecified() const {
-  return dyn_cast_or_null<llvm::UnsetInit>(def);
+  return isa_and_nonnull<llvm::UnsetInit>(def);
 }
 
 bool DagLeaf::isOperandMatcher() const {
@@ -236,7 +236,7 @@ int SymbolInfoMap::SymbolInfo::getStaticValueCount() const {
 }
 
 std::string SymbolInfoMap::SymbolInfo::getVarName(StringRef name) const {
-  return alternativeName.hasValue() ? alternativeName.getValue() : name.str();
+  return alternativeName ? *alternativeName : name.str();
 }
 
 std::string SymbolInfoMap::SymbolInfo::getVarTypeStr(StringRef name) const {
@@ -249,7 +249,7 @@ std::string SymbolInfoMap::SymbolInfo::getVarTypeStr(StringRef name) const {
           ->attr.getStorageType()
           .str();
     // TODO(suderman): Use a more exact type when available.
-    return "Attribute";
+    return "::mlir::Attribute";
   }
   case Kind::Operand: {
     // Use operand range for captured operands (to support potential variadic
@@ -324,7 +324,7 @@ std::string SymbolInfoMap::SymbolInfo::getValueAndRangeUse(
     // means we want to capture the op itself.
     if (op->getNumResults() == 0) {
       LLVM_DEBUG(llvm::dbgs() << name << " (Op)\n");
-      return std::string(name);
+      return formatv(fmt, name);
     }
 
     // We are referencing all results of the multi-result op. A specific result

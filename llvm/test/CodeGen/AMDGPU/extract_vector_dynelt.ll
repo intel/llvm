@@ -82,7 +82,7 @@ entry:
 ; GCN-DAG: s_mov_b32 s[[SL:[0-9]+]], 0x40003c00
 ; GCN-DAG: s_mov_b32 s[[SH:[0-9]+]], 0x44004200
 ; GCN-DAG: s_lshl_b32 [[SEL:s[0-p]+]], s{{[0-9]+}}, 4
-; GCN:     s_lshr_b64 s{{\[}}[[RL:[0-9]+]]:{{[0-9]+}}], s{{\[}}[[SL]]:[[SH]]], [[SEL]]
+; GCN:     s_lshr_b64 s[[[RL:[0-9]+]]:{{[0-9]+}}], s[[[SL]]:[[SH]]], [[SEL]]
 ; GCN-DAG: v_mov_b32_e32 v[[VRL:[0-9]+]], s[[RL]]
 ; GCN:     store_short v[{{[0-9:]+}}], v[[VRL]]
 define amdgpu_kernel void @half4_extelt(half addrspace(1)* %out, i32 %sel) {
@@ -182,29 +182,22 @@ entry:
 }
 
 ; GCN-LABEL: {{^}}float8_extelt:
-; GCN-NOT: buffer_
-; GCN-DAG: s_cmp_eq_u32 [[IDX:s[0-9]+]], 1
-; GCN-DAG: s_cselect_b64 [[C1:[^,]+]], -1, 0
-; GCN-DAG: s_cmp_lg_u32 [[IDX]], 2
-; GCN-DAG: s_cselect_b64 [[C2:[^,]+]], -1, 0
-; GCN-DAG: s_cmp_lg_u32 [[IDX]], 3
-; GCN-DAG: s_cselect_b64 [[C3:[^,]+]], -1, 0
-; GCN-DAG: s_cmp_lg_u32 [[IDX]], 4
-; GCN-DAG: s_cselect_b64 [[C4:[^,]+]], -1, 0
-; GCN-DAG: s_cmp_lg_u32 [[IDX]], 5
-; GCN-DAG: s_cselect_b64 [[C5:[^,]+]], -1, 0
-; GCN-DAG: s_cmp_lg_u32 [[IDX]], 6
-; GCN-DAG: s_cselect_b64 [[C6:[^,]+]], -1, 0
-; GCN-DAG: s_cmp_lg_u32 [[IDX]], 7
-; GCN-DAG: s_cselect_b64 [[C7:[^,]+]], -1, 0
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V1:v[0-9]+]], {{[^,]+}}, {{[^,]+}}, [[C1]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V2:v[0-9]+]], {{[^,]+}}, [[V1]], [[C2]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V3:v[0-9]+]], {{[^,]+}}, [[V2]], [[C3]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V4:v[0-9]+]], {{[^,]+}}, [[V3]], [[C4]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V5:v[0-9]+]], {{[^,]+}}, [[V4]], [[C5]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V6:v[0-9]+]], {{[^,]+}}, [[V5]], [[C6]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} [[V7:v[0-9]+]], {{[^,]+}}, [[V6]], [[C7]]
-; GCN:     store_dword v[{{[0-9:]+}}], [[V7]]
+; GCN-DAG: s_load_dwordx2 s[2:3], s[0:1], 0x24
+; GCN-DAG: s_load_dword [[S0:s[0-9]+]], s[0:1], 0x2c
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 1.0
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 2.0
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 0x40400000
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 4.0
+; GCN-DAG: s_waitcnt lgkmcnt(0)
+; GCN-DAG: s_mov_b32 m0, [[S0]]
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 0x40a00000
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 0x40c00000
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 0x40e00000
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, 0x41000000
+; GCN-DAG: v_movrels_b32_e32 [[RES:v[0-9]+]], v{{[0-9]+}}
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, s{{[0-9]+}}
+; GCN:     flat_store_dword v[{{[0-9:]+}}], [[RES]]
 define amdgpu_kernel void @float8_extelt(float addrspace(1)* %out, i32 %sel) {
 entry:
   %ext = extractelement <8 x float> <float 1.0, float 2.0, float 3.0, float 4.0, float 5.0, float 6.0, float 7.0, float 8.0>, i32 %sel
@@ -220,7 +213,7 @@ entry:
 ; GCN-DAG: s_mov_b32 m0, [[IND:s[0-9]+]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_LO:[0-9]+]], v[[#BASE]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_HI:[0-9]+]], v[[#BASE+1]]
-; GCN:     store_dwordx2 v[{{[0-9:]+}}], v{{\[}}[[RES_LO]]:[[RES_HI]]]
+; GCN:     store_dwordx2 v[{{[0-9:]+}}], v[[[RES_LO]]:[[RES_HI]]]
 define amdgpu_kernel void @double8_extelt(double addrspace(1)* %out, i32 %sel) {
 entry:
   %ext = extractelement <8 x double> <double 1.0, double 2.0, double 3.0, double 4.0, double 5.0, double 6.0, double 7.0, double 8.0>, i32 %sel
@@ -236,7 +229,7 @@ entry:
 ; GCN-DAG: s_mov_b32 m0, [[IND:s[0-9]+]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_LO:[0-9]+]], v[[#BASE]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_HI:[0-9]+]], v[[#BASE+1]]
-; GCN:     store_dwordx2 v[{{[0-9:]+}}], v{{\[}}[[RES_LO]]:[[RES_HI]]]
+; GCN:     store_dwordx2 v[{{[0-9:]+}}], v[[[RES_LO]]:[[RES_HI]]]
 define amdgpu_kernel void @double7_extelt(double addrspace(1)* %out, i32 %sel) {
 entry:
   %ext = extractelement <7 x double> <double 1.0, double 2.0, double 3.0, double 4.0, double 5.0, double 6.0, double 7.0>, i32 %sel
@@ -280,7 +273,7 @@ entry:
 ; GCN-DAG: s_mov_b32 m0, [[IND:s[0-9]+]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_LO:[0-9]+]], v[[#BASE]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_HI:[0-9]+]], v[[#BASE+1]]
-; GCN:     store_dwordx2 v[{{[0-9:]+}}], v{{\[}}[[RES_LO]]:[[RES_HI]]]
+; GCN:     store_dwordx2 v[{{[0-9:]+}}], v[[[RES_LO]]:[[RES_HI]]]
 define amdgpu_kernel void @double15_extelt(double addrspace(1)* %out, i32 %sel) {
 entry:
   %ext = extractelement <15 x double> <double 1.0, double 2.0, double 3.0, double 4.0, double 5.0, double 6.0, double 7.0, double 8.0, double 9.0, double 10.0, double 11.0, double 12.0, double 13.0, double 14.0, double 15.0>, i32 %sel
@@ -296,7 +289,7 @@ entry:
 ; GCN-DAG: s_mov_b32 m0, [[IND:s[0-9]+]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_LO:[0-9]+]], v[[#BASE]]
 ; GCN-DAG: v_movrels_b32_e32 v[[RES_HI:[0-9]+]], v[[#BASE+1]]
-; GCN:     store_dwordx2 v[{{[0-9:]+}}], v{{\[}}[[RES_LO]]:[[RES_HI]]]
+; GCN:     store_dwordx2 v[{{[0-9:]+}}], v[[[RES_LO]]:[[RES_HI]]]
 define amdgpu_kernel void @double16_extelt(double addrspace(1)* %out, i32 %sel) {
 entry:
   %ext = extractelement <16 x double> <double 1.0, double 2.0, double 3.0, double 4.0, double 5.0, double 6.0, double 7.0, double 8.0, double 9.0, double 10.0, double 11.0, double 12.0, double 13.0, double 14.0, double 15.0, double 16.0>, i32 %sel
@@ -353,7 +346,7 @@ entry:
 ; GCN-DAG: s_mov_b32 s[[SL:[0-9]+]], 0x4030201
 ; GCN-DAG: s_mov_b32 s[[SH:[0-9]+]], 0x8070605
 ; GCN-DAG: s_lshl_b32 [[SEL:s[0-p]+]], s{{[0-9]+}}, 3
-; GCN:     s_lshr_b64 s{{\[}}[[RL:[0-9]+]]:{{[0-9]+}}], s{{\[}}[[SL]]:[[SH]]], [[SEL]]
+; GCN:     s_lshr_b64 s[[[RL:[0-9]+]]:{{[0-9]+}}], s[[[SL]]:[[SH]]], [[SEL]]
 ; GCN-DAG: v_mov_b32_e32 v[[VRL:[0-9]+]], s[[RL]]
 ; GCN:     store_byte v[{{[0-9:]+}}], v[[VRL]]
 define amdgpu_kernel void @byte8_extelt(i8 addrspace(1)* %out, i32 %sel) {

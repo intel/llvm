@@ -4,6 +4,9 @@ import re
 import subprocess
 import sys
 
+# TODO: LooseVersion is undocumented; use something else.
+from distutils.version import LooseVersion
+
 import lit.formats
 import lit.util
 
@@ -77,10 +80,8 @@ if not hasattr(config, 'lld_src_dir'):
     config.lld_src_dir = ""
 llvm_config.use_lld(required=('lld' in config.llvm_enabled_projects))
 
-if config.llvm_use_sanitizer:
-    # Propagate path to symbolizer for ASan/MSan.
-    llvm_config.with_system_environment(
-        ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH'])
+if 'compiler-rt' in config.llvm_enabled_projects:
+  config.available_features.add('compiler-rt')
 
 # Check which debuggers are available:
 lldb_path = llvm_config.use_llvm_tool('lldb', search_env='LLDB')
@@ -200,6 +201,58 @@ if platform.system() == 'Darwin':
         if apple_lldb_vers < 1000:
             config.available_features.add('apple-lldb-pre-1000')
 
+def get_gdb_version_string():
+  """Return gdb's version string, or None if gdb cannot be found or the
+  --version output is formatted unexpectedly.
+  """
+  # See if we can get a gdb version, e.g.
+  #   $ gdb --version
+  #   GNU gdb (GDB) 10.2
+  #   ...More stuff...
+  try:
+    gdb_vers_lines = subprocess.check_output(['gdb', '--version']).decode().splitlines()
+  except:
+    return None # We coudln't find gdb or something went wrong running it.
+  if len(gdb_vers_lines) < 1:
+    print("Unkown GDB version format (too few lines)", file=sys.stderr)
+    return None
+  match = re.search('GNU gdb \(.*?\) ((\d|\.)+)', gdb_vers_lines[0].strip())
+  if match is None:
+    print(f"Unkown GDB version format: {gdb_vers_lines[0]}", file=sys.stderr)
+    return None
+  return match.group(1)
+
+def get_clang_default_dwarf_version_string(triple):
+  """Return the default dwarf version string for clang on this (host) platform
+  or None if we can't work it out.
+  """
+  # Get the flags passed by the driver and look for -dwarf-version.
+  cmd = f'{llvm_config.use_llvm_tool("clang")} -g -xc  -c - -v -### --target={triple}'
+  stderr = subprocess.run(cmd.split(), stderr=subprocess.PIPE).stderr.decode()
+  match = re.search('-dwarf-version=(\d+)', stderr)
+  if match is None:
+    print("Cannot determine default dwarf version", file=sys.stderr)
+    return None
+  return match.group(1)
+
+# Some cross-project-tests use gdb, but not all versions of gdb are compatible
+# with clang's dwarf. Add feature `gdb-clang-incompatibility` to signal that
+# there's an incompatibility between clang's default dwarf version for this
+# platform and the installed gdb version.
+dwarf_version_string = get_clang_default_dwarf_version_string(config.host_triple)
+gdb_version_string = get_gdb_version_string()
+if dwarf_version_string and gdb_version_string:
+  if int(dwarf_version_string) >= 5:
+    if LooseVersion(gdb_version_string) < LooseVersion('10.1'):
+      # Example for llgdb-tests, which use lldb on darwin but gdb elsewhere:
+      # XFAIL: !system-darwin && gdb-clang-incompatibility
+      config.available_features.add('gdb-clang-incompatibility')
+      print("XFAIL some tests: use gdb version >= 10.1 to restore test coverage", file=sys.stderr)
+
 llvm_config.feature_config(
     [('--build-mode', {'Debug|RelWithDebInfo': 'debug-info'})]
 )
+
+# Allow 'REQUIRES: XXX-registered-target' in tests.
+for arch in config.targets_to_build:
+    config.available_features.add(arch.lower() + '-registered-target')

@@ -44,10 +44,10 @@ namespace wasm {
 
 void InputFile::checkArch(Triple::ArchType arch) const {
   bool is64 = arch == Triple::wasm64;
-  if (is64 && !config->is64.hasValue()) {
+  if (is64 && !config->is64) {
     fatal(toString(this) +
           ": must specify -mwasm64 to process wasm64 object files");
-  } else if (config->is64.getValueOr(false) != is64) {
+  } else if (config->is64.value_or(false) != is64) {
     fatal(toString(this) +
           ": wasm32 object file can't be linked in wasm64 mode");
   }
@@ -87,7 +87,12 @@ InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName,
   if (magic == file_magic::bitcode)
     return make<BitcodeFile>(mb, archiveName, offsetInArchive);
 
-  fatal("unknown file type: " + mb.getBufferIdentifier());
+  std::string name = mb.getBufferIdentifier().str();
+  if (!archiveName.empty()) {
+    name = archiveName.str() + "(" + name + ")";
+  }
+
+  fatal("unknown file type: " + name);
 }
 
 // Relocations contain either symbol or type indices.  This function takes a
@@ -106,7 +111,7 @@ uint32_t ObjFile::calcNewIndex(const WasmRelocation &reloc) const {
 
 // Relocations can contain addend for combined sections. This function takes a
 // relocation and returns updated addend by offset in the output section.
-uint64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
+int64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
   switch (reloc.Type) {
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_MEMORY_ADDR_LEB64:
@@ -407,10 +412,12 @@ void ObjFile::parse(bool ignoreComdats) {
   tableEntries.resize(totalFunctions);
   for (const WasmElemSegment &seg : wasmObj->elements()) {
     int64_t offset;
-    if (seg.Offset.Opcode == WASM_OPCODE_I32_CONST)
-      offset = seg.Offset.Value.Int32;
-    else if (seg.Offset.Opcode == WASM_OPCODE_I64_CONST)
-      offset = seg.Offset.Value.Int64;
+    if (seg.Offset.Extended)
+      fatal(toString(this) + ": extended init exprs not supported");
+    else if (seg.Offset.Inst.Opcode == WASM_OPCODE_I32_CONST)
+      offset = seg.Offset.Inst.Value.Int32;
+    else if (seg.Offset.Inst.Opcode == WASM_OPCODE_I64_CONST)
+      offset = seg.Offset.Inst.Value.Int64;
     else
       fatal(toString(this) + ": invalid table elements");
     for (size_t index = 0; index < seg.Functions.size(); index++) {
@@ -469,19 +476,17 @@ void ObjFile::parse(bool ignoreComdats) {
   // Populate `Segments`.
   for (const WasmSegment &s : wasmObj->dataSegments()) {
     InputChunk *seg;
-    if (shouldMerge(s)) {
+    if (shouldMerge(s))
       seg = make<MergeInputChunk>(s, this);
-    } else
+    else
       seg = make<InputSegment>(s, this);
     seg->discarded = isExcludedByComdat(seg);
     // Older object files did not include WASM_SEG_FLAG_TLS and instead
     // relied on the naming convention.  To maintain compat with such objects
     // we still imply the TLS flag based on the name of the segment.
     if (!seg->isTLS() &&
-        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss"))) {
+        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss")))
       seg->flags |= WASM_SEG_FLAG_TLS;
-      seg->implicitTLS = true;
-    }
     segments.emplace_back(seg);
   }
   setRelocs(segments, dataSection);
@@ -581,9 +586,11 @@ Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
     InputChunk *seg = segments[sym.Info.DataRef.Segment];
     auto offset = sym.Info.DataRef.Offset;
     auto size = sym.Info.DataRef.Size;
-    if (seg->implicitTLS) {
+    // Support older (e.g. llvm 13) object files that pre-date the per-symbol
+    // TLS flag, and symbols were assumed to be TLS by being defined in a TLS
+    // segment.
+    if (!(flags & WASM_SYMBOL_TLS) && seg->isTLS())
       flags |= WASM_SYMBOL_TLS;
-    }
     if (sym.isBindingLocal())
       return make<DefinedData>(name, flags, this, seg, offset, size);
     if (seg->discarded)
@@ -682,6 +689,7 @@ void ArchiveFile::parse() {
     ++count;
   }
   LLVM_DEBUG(dbgs() << "Read " << count << " symbols\n");
+  (void) count;
 }
 
 void ArchiveFile::addMember(const Archive::Symbol *sym) {

@@ -5,18 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This template implementation resides in a separate file so that it
-// does not get injected into every .cpp file that includes the
-// generic header.
-//
-// DO NOT INCLUDE THIS FILE WHEN MERELY USING CYCLEINFO.
-//
-// This file should only be included by files that implement a
-// specialization of the relevant templates. Currently these are:
-// - CycleAnalysis.cpp
-// - MachineCycleAnalysis.cpp
-//
+///
+/// \file
+/// This template implementation resides in a separate file so that it
+/// does not get injected into every .cpp file that includes the
+/// generic header.
+///
+/// DO NOT INCLUDE THIS FILE WHEN MERELY USING CYCLEINFO.
+///
+/// This file should only be included by files that implement a
+/// specialization of the relevant templates. Currently these are:
+/// - CycleAnalysis.cpp
+/// - MachineCycleAnalysis.cpp
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_GENERICCYCLEIMPL_H
@@ -65,6 +66,44 @@ void GenericCycle<ContextT>::getExitBlocks(
   }
 }
 
+template <typename ContextT>
+auto GenericCycle<ContextT>::getCyclePreheader() const -> BlockT * {
+  BlockT *Predecessor = getCyclePredecessor();
+  if (!Predecessor)
+    return nullptr;
+
+  assert(isReducible() && "Cycle Predecessor must be in a reducible cycle!");
+
+  if (succ_size(Predecessor) != 1)
+    return nullptr;
+
+  // Make sure we are allowed to hoist instructions into the predecessor.
+  if (!Predecessor->isLegalToHoistInto())
+    return nullptr;
+
+  return Predecessor;
+}
+
+template <typename ContextT>
+auto GenericCycle<ContextT>::getCyclePredecessor() const -> BlockT * {
+  if (!isReducible())
+    return nullptr;
+
+  BlockT *Out = nullptr;
+
+  // Loop over the predecessors of the header node...
+  BlockT *Header = getHeader();
+  for (const auto Pred : predecessors(Header)) {
+    if (!contains(Pred)) {
+      if (Out && Out != Pred)
+        return nullptr;
+      Out = Pred;
+    }
+  }
+
+  return Out;
+}
+
 /// \brief Helper class for computing cycle information.
 template <typename ContextT> class GenericCycleInfoCompute {
   using BlockT = typename ContextT::BlockT;
@@ -77,7 +116,7 @@ template <typename ContextT> class GenericCycleInfoCompute {
     unsigned Start = 0; // DFS start; positive if block is found
     unsigned End = 0;   // DFS end
 
-    DFSInfo() {}
+    DFSInfo() = default;
     explicit DFSInfo(unsigned Start) : Start(Start) {}
 
     /// Whether this node is an ancestor (or equal to) the node \p Other
@@ -266,8 +305,8 @@ void GenericCycleInfoCompute<ContextT>::dfs(BlockT *EntryBlock) {
       DFSTreeStack.emplace_back(TraverseStack.size());
       llvm::append_range(TraverseStack, successors(Block));
 
-      LLVM_ATTRIBUTE_UNUSED
       bool Added = BlockDFSInfo.try_emplace(Block, ++Counter).second;
+      (void)Added;
       assert(Added);
       BlockPreorder.push_back(Block);
       LLVM_DEBUG(errs() << "  preorder number: " << Counter << "\n");
@@ -325,6 +364,19 @@ auto GenericCycleInfo<ContextT>::getCycle(const BlockT *Block) const
   return nullptr;
 }
 
+/// \brief get the depth for the cycle which containing a given block.
+///
+/// \returns the depth for the innermost cycle containing \p Block or 0 if it is
+///          not contained in any cycle.
+template <typename ContextT>
+unsigned GenericCycleInfo<ContextT>::getCycleDepth(const BlockT *Block) const {
+  CycleT *Cycle = getCycle(Block);
+  if (!Cycle)
+    return 0;
+  return Cycle->getDepth();
+}
+
+#ifndef NDEBUG
 /// \brief Validate the internal consistency of the cycle tree.
 ///
 /// Note that this does \em not check that cycles are really cycles in the CFG,
@@ -390,6 +442,7 @@ bool GenericCycleInfo<ContextT>::validateTree() const {
 
   return true;
 }
+#endif
 
 /// \brief Print the cycle info.
 template <typename ContextT>

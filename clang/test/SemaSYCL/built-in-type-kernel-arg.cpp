@@ -60,23 +60,23 @@ int main() {
 }
 // Check kernel parameters
 // CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void (const int)'
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'const int'
+// CHECK: ParmVarDecl {{.*}} used _arg_some_const 'const int'
 
 // Check that lambda field of const built-in type is initialized
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'const int' lvalue ParmVar {{.*}} '_arg_' 'const int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'const int' lvalue ParmVar {{.*}} '_arg_some_const' 'const int'
 
 // Check kernel parameters
 // CHECK: {{.*}}kernel_int{{.*}} 'void (int)'
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'int'
+// CHECK: ParmVarDecl {{.*}} used _arg_data 'int'
 
 // Check that lambda field of built-in type is initialized
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_data' 'int'
 
 // Check kernel parameters
 // CHECK: {{.*}}kernel_struct{{.*}} 'void (int, __wrapper_class, __wrapper_class, __wrapper_class
@@ -141,24 +141,24 @@ int main() {
 
 // Check kernel parameters
 // CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *, __global int *, __global int *)'
-// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_new_data_addr '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_data_addr '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array '__global int *'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 
 // Check that lambda fields of pointer types are initialized
 // CHECK: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_new_data_addr' '__global int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_data_addr' '__global int *'
 // CHECK: InitListExpr {{.*}} 'int *[2]'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr_array' '__global int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr_array' '__global int *'

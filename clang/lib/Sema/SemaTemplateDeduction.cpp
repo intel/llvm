@@ -533,9 +533,9 @@ DeduceTemplateArguments(Sema &S,
 ///
 /// \param TemplateParams the template parameters that we are deducing
 ///
-/// \param Param the parameter type
+/// \param P the parameter type
 ///
-/// \param Arg the argument type
+/// \param A the argument type
 ///
 /// \param Info information about the template argument deduction itself
 ///
@@ -828,7 +828,7 @@ public:
   /// Determine whether this pack expansion scope has a known, fixed arity.
   /// This happens if it involves a pack from an outer template that has
   /// (notionally) already been expanded.
-  bool hasFixedArity() { return FixedNumExpansions.hasValue(); }
+  bool hasFixedArity() { return FixedNumExpansions.has_value(); }
 
   /// Determine whether the next element of the argument is still part of this
   /// pack. This is the case unless the pack is already expanded to a fixed
@@ -1199,11 +1199,11 @@ static CXXRecordDecl *getCanonicalRD(QualType T) {
 ///
 /// \param S the semantic analysis object within which we are deducing.
 ///
-/// \param RecordT the top level record object we are deducing against.
+/// \param RD the top level record object we are deducing against.
 ///
 /// \param TemplateParams the template parameters that we are deducing.
 ///
-/// \param SpecParam the template specialization parameter type.
+/// \param P the template specialization parameter type.
 ///
 /// \param Info information about the template argument deduction itself.
 ///
@@ -1315,9 +1315,9 @@ DeduceTemplateBases(Sema &S, const CXXRecordDecl *RD,
 ///
 /// \param TemplateParams the template parameters that we are deducing
 ///
-/// \param ParamIn the parameter type
+/// \param P the parameter type
 ///
-/// \param ArgIn the argument type
+/// \param A the argument type
 ///
 /// \param Info information about the template argument deduction itself
 ///
@@ -2791,8 +2791,13 @@ CheckDeducedArgumentConstraints(Sema& S, TemplateDeclT *Template,
                                 TemplateDeductionInfo& Info) {
   llvm::SmallVector<const Expr *, 3> AssociatedConstraints;
   Template->getAssociatedConstraints(AssociatedConstraints);
+  // FIXME: This will change quite a bit once deferred concept instantiation is
+  // implemented.
+  MultiLevelTemplateArgumentList MLTAL;
+  MLTAL.addOuterTemplateArguments(DeducedArgs);
+
   if (S.CheckConstraintSatisfaction(Template, AssociatedConstraints,
-                                    DeducedArgs, Info.getLocation(),
+                                    MLTAL, Info.getLocation(),
                                     Info.AssociatedConstraintsSatisfaction) ||
       !Info.AssociatedConstraintsSatisfaction.IsSatisfied) {
     Info.reset(TemplateArgumentList::CreateCopy(S.Context, DeducedArgs));
@@ -3406,7 +3411,7 @@ static unsigned getPackIndexForParam(Sema &S,
   for (auto *PD : FunctionTemplate->getTemplatedDecl()->parameters()) {
     if (PD->isParameterPack()) {
       unsigned NumExpansions =
-          S.getNumArgumentsInExpansion(PD->getType(), Args).getValueOr(1);
+          S.getNumArgumentsInExpansion(PD->getType(), Args).value_or(1);
       if (Idx + NumExpansions > ParamIdx)
         return ParamIdx - Idx;
       Idx += NumExpansions;
@@ -4572,8 +4577,10 @@ CheckDeducedPlaceholderConstraints(Sema &S, const AutoType &Type,
   if (S.CheckTemplateArgumentList(Concept, SourceLocation(), TemplateArgs,
                                   /*PartialTemplateArgs=*/false, Converted))
     return Sema::DAR_FailedAlreadyDiagnosed;
+  MultiLevelTemplateArgumentList MLTAL;
+  MLTAL.addOuterTemplateArguments(Converted);
   if (S.CheckConstraintSatisfaction(Concept, {Concept->getConstraintExpr()},
-                                    Converted, TypeLoc.getLocalSourceRange(),
+                                    MLTAL, TypeLoc.getLocalSourceRange(),
                                     Satisfaction))
     return Sema::DAR_FailedAlreadyDiagnosed;
   if (!Satisfaction.IsSatisfied) {
@@ -4637,7 +4644,7 @@ Sema::DeduceAutoType(TypeLoc Type, Expr *&Init, QualType &Result,
   }
 
   // Find the depth of template parameter to synthesize.
-  unsigned Depth = DependentDeductionDepth.getValueOr(0);
+  unsigned Depth = DependentDeductionDepth.value_or(0);
 
   // If this is a 'decltype(auto)' specifier, do the decltype dance.
   // Since 'decltype(auto)' can only occur at the top of the type, we
@@ -4769,12 +4776,13 @@ Sema::DeduceAutoType(TypeLoc Type, Expr *&Init, QualType &Result,
       return DAR_FailedAlreadyDiagnosed;
   }
 
-  if (const auto *AT = Type.getType()->getAs<AutoType>()) {
+  QualType MaybeAuto = Type.getType().getNonReferenceType();
+  while (MaybeAuto->isPointerType())
+    MaybeAuto = MaybeAuto->getPointeeType();
+  if (const auto *AT = MaybeAuto->getAs<AutoType>()) {
     if (AT->isConstrained() && !IgnoreConstraints) {
-      auto ConstraintsResult =
-          CheckDeducedPlaceholderConstraints(*this, *AT,
-                                             Type.getContainedAutoTypeLoc(),
-                                             DeducedType);
+      auto ConstraintsResult = CheckDeducedPlaceholderConstraints(
+          *this, *AT, Type.getContainedAutoTypeLoc(), DeducedType);
       if (ConstraintsResult != DAR_Succeeded)
         return ConstraintsResult;
     }
@@ -5142,18 +5150,20 @@ static bool isVariadicFunctionTemplate(FunctionTemplateDecl *FunTmpl) {
 /// candidate with a reversed parameter order. In this case, the corresponding
 /// P/A pairs between FT1 and FT2 are reversed.
 ///
+/// \param AllowOrderingByConstraints If \c is false, don't check whether one
+/// of the templates is more constrained than the other. Default is true.
+///
 /// \returns the more specialized function template. If neither
 /// template is more specialized, returns NULL.
-FunctionTemplateDecl *
-Sema::getMoreSpecializedTemplate(FunctionTemplateDecl *FT1,
-                                 FunctionTemplateDecl *FT2,
-                                 SourceLocation Loc,
-                                 TemplatePartialOrderingContext TPOC,
-                                 unsigned NumCallArguments1,
-                                 unsigned NumCallArguments2,
-                                 bool Reversed) {
+FunctionTemplateDecl *Sema::getMoreSpecializedTemplate(
+    FunctionTemplateDecl *FT1, FunctionTemplateDecl *FT2, SourceLocation Loc,
+    TemplatePartialOrderingContext TPOC, unsigned NumCallArguments1,
+    unsigned NumCallArguments2, bool Reversed,
+    bool AllowOrderingByConstraints) {
 
-  auto JudgeByConstraints = [&] () -> FunctionTemplateDecl * {
+  auto JudgeByConstraints = [&]() -> FunctionTemplateDecl * {
+    if (!AllowOrderingByConstraints)
+      return nullptr;
     llvm::SmallVector<const Expr *, 3> AC1, AC2;
     FT1->getAssociatedConstraints(AC1);
     FT2->getAssociatedConstraints(AC2);

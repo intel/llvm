@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements the APSInt class, which is a simple class that
-// represents an arbitrary sized integer that knows its signedness.
-//
+///
+/// \file
+/// This file implements the APSInt class, which is a simple class that
+/// represents an arbitrary sized integer that knows its signedness.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_APSINT_H
@@ -20,11 +21,11 @@ namespace llvm {
 
 /// An arbitrary precision integer that knows its signedness.
 class LLVM_NODISCARD APSInt : public APInt {
-  bool IsUnsigned;
+  bool IsUnsigned = false;
 
 public:
   /// Default constructor that creates an uninitialized APInt.
-  explicit APSInt() : IsUnsigned(false) {}
+  explicit APSInt() = default;
 
   /// Create an APSInt with the specified width, default to unsigned.
   explicit APSInt(uint32_t BitWidth, bool isUnsigned = true)

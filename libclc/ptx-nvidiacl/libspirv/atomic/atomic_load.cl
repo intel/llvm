@@ -10,6 +10,7 @@
 #include <spirv/spirv_types.h>
 
 extern int __clc_nvvm_reflect_arch();
+_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 
 #define __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,      \
                                           ADDR_SPACE, ADDR_SPACE_NV, ORDER)    \
@@ -53,10 +54,15 @@ Memory order is stored in the lowest 5 bits */                                  
                                           ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                            \
       }                                                                                                                   \
     } else {                                                                                                              \
-      if (order == None) {                                                                                                \
-        TYPE_NV res = __nvvm_volatile_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                 \
-            (ADDR_SPACE TYPE_NV *)pointer);                                                                               \
+      TYPE_NV res = __nvvm_volatile_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                   \
+          (ADDR_SPACE TYPE_NV *)pointer);                                                                                 \
+      switch (order) {                                                                                                    \
+      case None:                                                                                                          \
         return *(TYPE *)&res;                                                                                             \
+      case Acquire: {                                                                                                     \
+        __spirv_MemoryBarrier(scope, Acquire);                                                                            \
+        return *(TYPE *)&res;                                                                                             \
+      }                                                                                                                   \
       }                                                                                                                   \
     }                                                                                                                     \
     __builtin_trap();                                                                                                     \
@@ -64,10 +70,11 @@ Memory order is stored in the lowest 5 bits */                                  
   }
 
 #define __CLC_NVVM_ATOMIC_LOAD(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV)   \
-  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV,    \
-                              __global, AS1, _global_)                         \
-  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV,    \
-                              __local, AS3, _shared_)
+  __attribute__((always_inline)) __CLC_NVVM_ATOMIC_LOAD_IMPL(                  \
+      TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, __global, AS1, _global_)   \
+      __attribute__((always_inline))                                           \
+      __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                 \
+                                  TYPE_MANGLED_NV, __local, AS3, _shared_)
 
 __CLC_NVVM_ATOMIC_LOAD(int, i, int, i)
 __CLC_NVVM_ATOMIC_LOAD(uint, j, int, i)

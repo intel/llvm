@@ -12,13 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
-#include "mlir/Analysis/Presburger/PresburgerSet.h"
+#include "mlir/Analysis/Presburger/PresburgerRelation.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
@@ -27,6 +26,7 @@
 #define DEBUG_TYPE "analysis-utils"
 
 using namespace mlir;
+using namespace presburger;
 
 using llvm::SmallDenseMap;
 
@@ -82,7 +82,7 @@ ComputationSliceState::getSourceAsConstraints(FlatAffineValueConstraints &cst) {
 LogicalResult
 ComputationSliceState::getAsConstraints(FlatAffineValueConstraints *cst) {
   assert(!lbOperands.empty());
-  // Adds src 'ivs' as dimension identifiers in 'cst'.
+  // Adds src 'ivs' as dimension variables in 'cst'.
   unsigned numDims = ivs.size();
   // Adds operands (dst ivs and symbols) as symbols in 'cst'.
   unsigned numSymbols = lbOperands[0].size();
@@ -96,11 +96,11 @@ ComputationSliceState::getAsConstraints(FlatAffineValueConstraints *cst) {
   // of fusion and equality constraints for symbols which are constants.
   for (unsigned i = numDims, end = values.size(); i < end; ++i) {
     Value value = values[i];
-    assert(cst->containsId(value) && "value expected to be present");
+    assert(cst->containsVar(value) && "value expected to be present");
     if (isValidSymbol(value)) {
       // Check if the symbol is a constant.
       if (auto cOp = value.getDefiningOp<arith::ConstantIndexOp>())
-        cst->addBound(FlatAffineConstraints::EQ, value, cOp.value());
+        cst->addBound(FlatAffineValueConstraints::EQ, value, cOp.value());
     } else if (auto loop = getForInductionVarOwner(value)) {
       if (failed(cst->addAffineForOpDomain(loop)))
         return failure();
@@ -230,7 +230,7 @@ Optional<bool> ComputationSliceState::isSliceValid() {
   // TODO: Store the result of the fast check, as it might be used again in
   // `canRemoveSrcNodeAfterFusion`.
   Optional<bool> isValidFastCheck = isSliceMaximalFastCheck();
-  if (isValidFastCheck.hasValue() && isValidFastCheck.getValue())
+  if (isValidFastCheck && *isValidFastCheck)
     return true;
 
   // Create constraints for the source loop nest using which slice is computed.
@@ -242,14 +242,14 @@ Optional<bool> ComputationSliceState::isSliceValid() {
   }
   // As the set difference utility currently cannot handle symbols in its
   // operands, validity of the slice cannot be determined.
-  if (srcConstraints.getNumSymbolIds() > 0) {
+  if (srcConstraints.getNumSymbolVars() > 0) {
     LLVM_DEBUG(llvm::dbgs() << "Cannot handle symbols in source domain\n");
     return llvm::None;
   }
-  // TODO: Handle local ids in the source domains while using the 'projectOut'
+  // TODO: Handle local vars in the source domains while using the 'projectOut'
   // utility below. Currently, aligning is not done assuming that there will be
-  // no local ids in the source domain.
-  if (srcConstraints.getNumLocalIds() != 0) {
+  // no local vars in the source domain.
+  if (srcConstraints.getNumLocalVars() != 0) {
     LLVM_DEBUG(llvm::dbgs() << "Cannot handle locals in source domain\n");
     return llvm::None;
   }
@@ -265,7 +265,7 @@ Optional<bool> ComputationSliceState::isSliceValid() {
   // Projecting out every dimension other than the 'ivs' to express slice's
   // domain completely in terms of source's IVs.
   sliceConstraints.projectOut(ivs.size(),
-                              sliceConstraints.getNumIds() - ivs.size());
+                              sliceConstraints.getNumVars() - ivs.size());
 
   LLVM_DEBUG(llvm::dbgs() << "Domain of the source of the slice:\n");
   LLVM_DEBUG(srcConstraints.dump());
@@ -292,7 +292,7 @@ Optional<bool> ComputationSliceState::isMaximal() const {
   // Fast check to determine if the computation slice is maximal. If the result
   // is inconclusive, we proceed with a more expensive analysis.
   Optional<bool> isMaximalFastCheck = isSliceMaximalFastCheck();
-  if (isMaximalFastCheck.hasValue())
+  if (isMaximalFastCheck)
     return isMaximalFastCheck;
 
   // Create constraints for the src loop nest being sliced.
@@ -325,7 +325,7 @@ Optional<bool> ComputationSliceState::isMaximal() const {
   if (failed(sliceConstraints.addDomainFromSliceMaps(lbs, ubs, lbOperands[0])))
     return llvm::None;
 
-  if (srcConstraints.getNumDimIds() != sliceConstraints.getNumDimIds())
+  if (srcConstraints.getNumDimVars() != sliceConstraints.getNumDimVars())
     // Constraint dims are different. The integer set difference can't be
     // computed so we don't know if the slice is maximal.
     return llvm::None;
@@ -350,20 +350,20 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
   if (shape)
     shape->reserve(rank);
 
-  assert(rank == cst.getNumDimIds() && "inconsistent memref region");
+  assert(rank == cst.getNumDimVars() && "inconsistent memref region");
 
   // Use a copy of the region constraints that has upper/lower bounds for each
   // memref dimension with static size added to guard against potential
   // over-approximation from projection or union bounding box. We may not add
   // this on the region itself since they might just be redundant constraints
   // that will need non-trivials means to eliminate.
-  FlatAffineConstraints cstWithShapeBounds(cst);
+  FlatAffineValueConstraints cstWithShapeBounds(cst);
   for (unsigned r = 0; r < rank; r++) {
-    cstWithShapeBounds.addBound(FlatAffineConstraints::LB, r, 0);
+    cstWithShapeBounds.addBound(FlatAffineValueConstraints::LB, r, 0);
     int64_t dimSize = memRefType.getDimSize(r);
     if (ShapedType::isDynamic(dimSize))
       continue;
-    cstWithShapeBounds.addBound(FlatAffineConstraints::UB, r, dimSize - 1);
+    cstWithShapeBounds.addBound(FlatAffineValueConstraints::UB, r, dimSize - 1);
   }
 
   // Find a constant upper bound on the extent of this memref region along each
@@ -375,8 +375,8 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
     SmallVector<int64_t, 4> lb;
     Optional<int64_t> diff =
         cstWithShapeBounds.getConstantBoundOnDimSize(d, &lb, &lbDivisor);
-    if (diff.hasValue()) {
-      diffConstant = diff.getValue();
+    if (diff.has_value()) {
+      diffConstant = diff.value();
       assert(diffConstant >= 0 && "Dim size bound can't be negative");
       assert(lbDivisor > 0);
     } else {
@@ -387,7 +387,7 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
         return None;
       diffConstant = dimSize;
       // Lower bound becomes 0.
-      lb.resize(cstWithShapeBounds.getNumSymbolIds() + 1, 0);
+      lb.resize(cstWithShapeBounds.getNumSymbolVars() + 1, 0);
       lbDivisor = 1;
     }
     numElements *= diffConstant;
@@ -405,21 +405,21 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
 
 void MemRefRegion::getLowerAndUpperBound(unsigned pos, AffineMap &lbMap,
                                          AffineMap &ubMap) const {
-  assert(pos < cst.getNumDimIds() && "invalid position");
+  assert(pos < cst.getNumDimVars() && "invalid position");
   auto memRefType = memref.getType().cast<MemRefType>();
   unsigned rank = memRefType.getRank();
 
-  assert(rank == cst.getNumDimIds() && "inconsistent memref region");
+  assert(rank == cst.getNumDimVars() && "inconsistent memref region");
 
   auto boundPairs = cst.getLowerAndUpperBound(
-      pos, /*offset=*/0, /*num=*/rank, cst.getNumDimAndSymbolIds(),
+      pos, /*offset=*/0, /*num=*/rank, cst.getNumDimAndSymbolVars(),
       /*localExprs=*/{}, memRefType.getContext());
   lbMap = boundPairs.first;
   ubMap = boundPairs.second;
   assert(lbMap && "lower bound for a region must exist");
   assert(ubMap && "upper bound for a region must exist");
-  assert(lbMap.getNumInputs() == cst.getNumDimAndSymbolIds() - rank);
-  assert(ubMap.getNumInputs() == cst.getNumDimAndSymbolIds() - rank);
+  assert(lbMap.getNumInputs() == cst.getNumDimAndSymbolVars() - rank);
+  assert(ubMap.getNumInputs() == cst.getNumDimAndSymbolVars() - rank);
 }
 
 LogicalResult MemRefRegion::unionBoundingBox(const MemRefRegion &other) {
@@ -440,7 +440,7 @@ LogicalResult MemRefRegion::unionBoundingBox(const MemRefRegion &other) {
 //    }
 //
 // region:  {memref = %A, write = false, {%i <= m0 <= %i + 7} }
-// The last field is a 2-d FlatAffineConstraints symbolic in %i.
+// The last field is a 2-d FlatAffineValueConstraints symbolic in %i.
 //
 // TODO: extend this to any other memref dereferencing ops
 // (dma_start, dma_wait).
@@ -520,7 +520,7 @@ LogicalResult MemRefRegion::compute(Operation *op, unsigned loopDepth,
       // Check if the symbol is a constant.
       if (auto *op = symbol.getDefiningOp()) {
         if (auto constOp = dyn_cast<arith::ConstantIndexOp>(op)) {
-          cst.addBound(FlatAffineConstraints::EQ, symbol, constOp.value());
+          cst.addBound(FlatAffineValueConstraints::EQ, symbol, constOp.value());
         }
       }
     }
@@ -548,10 +548,10 @@ LogicalResult MemRefRegion::compute(Operation *op, unsigned loopDepth,
     return failure();
   }
 
-  // Set all identifiers appearing after the first 'rank' identifiers as
-  // symbolic identifiers - so that the ones corresponding to the memref
-  // dimensions are the dimensional identifiers for the memref region.
-  cst.setDimSymbolSeparation(cst.getNumDimAndSymbolIds() - rank);
+  // Set all variables appearing after the first 'rank' variables as
+  // symbolic variables - so that the ones corresponding to the memref
+  // dimensions are the dimensional variables for the memref region.
+  cst.setDimSymbolSeparation(cst.getNumDimAndSymbolVars() - rank);
 
   // Eliminate any loop IVs other than the outermost 'loopDepth' IVs, on which
   // this memref region is symbolic.
@@ -559,25 +559,25 @@ LogicalResult MemRefRegion::compute(Operation *op, unsigned loopDepth,
   getLoopIVs(*op, &enclosingIVs);
   assert(loopDepth <= enclosingIVs.size() && "invalid loop depth");
   enclosingIVs.resize(loopDepth);
-  SmallVector<Value, 4> ids;
-  cst.getValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(), &ids);
-  for (auto id : ids) {
+  SmallVector<Value, 4> vars;
+  cst.getValues(cst.getNumDimVars(), cst.getNumDimAndSymbolVars(), &vars);
+  for (auto var : vars) {
     AffineForOp iv;
-    if ((iv = getForInductionVarOwner(id)) &&
+    if ((iv = getForInductionVarOwner(var)) &&
         !llvm::is_contained(enclosingIVs, iv)) {
-      cst.projectOut(id);
+      cst.projectOut(var);
     }
   }
 
   // Project out any local variables (these would have been added for any
   // mod/divs).
-  cst.projectOut(cst.getNumDimAndSymbolIds(), cst.getNumLocalIds());
+  cst.projectOut(cst.getNumDimAndSymbolVars(), cst.getNumLocalVars());
 
-  // Constant fold any symbolic identifiers.
-  cst.constantFoldIdRange(/*pos=*/cst.getNumDimIds(),
-                          /*num=*/cst.getNumSymbolIds());
+  // Constant fold any symbolic variables.
+  cst.constantFoldVarRange(/*pos=*/cst.getNumDimVars(),
+                           /*num=*/cst.getNumSymbolVars());
 
-  assert(cst.getNumDimIds() == rank && "unexpected MemRefRegion format");
+  assert(cst.getNumDimVars() == rank && "unexpected MemRefRegion format");
 
   // Add upper/lower bounds for each memref dimension with static size
   // to guard against potential over-approximation from projection.
@@ -585,10 +585,10 @@ LogicalResult MemRefRegion::compute(Operation *op, unsigned loopDepth,
   if (addMemRefDimBounds) {
     auto memRefType = memref.getType().cast<MemRefType>();
     for (unsigned r = 0; r < rank; r++) {
-      cst.addBound(FlatAffineConstraints::LB, /*pos=*/r, /*value=*/0);
+      cst.addBound(FlatAffineValueConstraints::LB, /*pos=*/r, /*value=*/0);
       if (memRefType.isDynamicDim(r))
         continue;
-      cst.addBound(FlatAffineConstraints::UB, /*pos=*/r,
+      cst.addBound(FlatAffineValueConstraints::UB, /*pos=*/r,
                    memRefType.getDimSize(r) - 1);
     }
   }
@@ -630,11 +630,11 @@ Optional<int64_t> MemRefRegion::getRegionSize() {
 
   // Compute the extents of the buffer.
   Optional<int64_t> numElements = getConstantBoundingSizeAndShape();
-  if (!numElements.hasValue()) {
+  if (!numElements) {
     LLVM_DEBUG(llvm::dbgs() << "Dynamic shapes not yet supported\n");
     return None;
   }
-  return getMemRefEltSizeInBytes(memRefType) * numElements.getValue();
+  return getMemRefEltSizeInBytes(memRefType) * *numElements;
 }
 
 /// Returns the size of memref data in bytes if it's statically shaped, None
@@ -677,7 +677,7 @@ LogicalResult mlir::boundCheckLoadOrStoreOp(LoadOrStoreOp loadOrStoreOp,
 
   // For each dimension, check for out of bounds.
   for (unsigned r = 0; r < rank; r++) {
-    FlatAffineConstraints ucst(*region.getConstraints());
+    FlatAffineValueConstraints ucst(*region.getConstraints());
 
     // Intersect memory region with constraint capturing out of bounds (both out
     // of upper and out of lower), and check if the constraint system is
@@ -689,7 +689,7 @@ LogicalResult mlir::boundCheckLoadOrStoreOp(LoadOrStoreOp loadOrStoreOp,
       continue;
 
     // Check for overflow: d_i >= memref dim size.
-    ucst.addBound(FlatAffineConstraints::LB, r, dimSize);
+    ucst.addBound(FlatAffineValueConstraints::LB, r, dimSize);
     outOfBounds = !ucst.isEmpty();
     if (outOfBounds && emitError) {
       loadOrStoreOp.emitOpError()
@@ -697,10 +697,10 @@ LogicalResult mlir::boundCheckLoadOrStoreOp(LoadOrStoreOp loadOrStoreOp,
     }
 
     // Check for a negative index.
-    FlatAffineConstraints lcst(*region.getConstraints());
+    FlatAffineValueConstraints lcst(*region.getConstraints());
     std::fill(ineq.begin(), ineq.end(), 0);
     // d_i <= -1;
-    lcst.addBound(FlatAffineConstraints::UB, r, -1);
+    lcst.addBound(FlatAffineValueConstraints::UB, r, -1);
     outOfBounds = !lcst.isEmpty();
     if (outOfBounds && emitError) {
       loadOrStoreOp.emitOpError()
@@ -762,7 +762,7 @@ static Operation *getInstAtPosition(ArrayRef<unsigned> positions,
 // Adds loop IV bounds to 'cst' for loop IVs not found in 'ivs'.
 static LogicalResult addMissingLoopIVBounds(SmallPtrSet<Value, 8> &ivs,
                                             FlatAffineValueConstraints *cst) {
-  for (unsigned i = 0, e = cst->getNumDimIds(); i < e; ++i) {
+  for (unsigned i = 0, e = cst->getNumDimVars(); i < e; ++i) {
     auto value = cst->getValue(i);
     if (ivs.count(value) == 0) {
       assert(isForInductionVar(value));
@@ -815,7 +815,7 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
   // Compute the union of slice bounds between all pairs in 'opsA' and
   // 'opsB' in 'sliceUnionCst'.
   FlatAffineValueConstraints sliceUnionCst;
-  assert(sliceUnionCst.getNumDimAndSymbolIds() == 0);
+  assert(sliceUnionCst.getNumDimAndSymbolVars() == 0);
   std::vector<std::pair<Operation *, Operation *>> dependentOpPairs;
   for (auto *i : opsA) {
     MemRefAccess srcAccess(i);
@@ -851,14 +851,14 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
       mlir::getComputationSliceState(i, j, &dependenceConstraints, loopDepth,
                                      isBackwardSlice, &tmpSliceState);
 
-      if (sliceUnionCst.getNumDimAndSymbolIds() == 0) {
+      if (sliceUnionCst.getNumDimAndSymbolVars() == 0) {
         // Initialize 'sliceUnionCst' with the bounds computed in previous step.
         if (failed(tmpSliceState.getAsConstraints(&sliceUnionCst))) {
           LLVM_DEBUG(llvm::dbgs()
                      << "Unable to compute slice bound constraints\n");
           return SliceComputationResult::GenericFailure;
         }
-        assert(sliceUnionCst.getNumDimAndSymbolIds() > 0);
+        assert(sliceUnionCst.getNumDimAndSymbolVars() > 0);
         continue;
       }
 
@@ -871,21 +871,21 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
       }
 
       // Align coordinate spaces of 'sliceUnionCst' and 'tmpSliceCst' if needed.
-      if (!sliceUnionCst.areIdsAlignedWithOther(tmpSliceCst)) {
+      if (!sliceUnionCst.areVarsAlignedWithOther(tmpSliceCst)) {
 
-        // Pre-constraint id alignment: record loop IVs used in each constraint
+        // Pre-constraint var alignment: record loop IVs used in each constraint
         // system.
         SmallPtrSet<Value, 8> sliceUnionIVs;
-        for (unsigned k = 0, l = sliceUnionCst.getNumDimIds(); k < l; ++k)
+        for (unsigned k = 0, l = sliceUnionCst.getNumDimVars(); k < l; ++k)
           sliceUnionIVs.insert(sliceUnionCst.getValue(k));
         SmallPtrSet<Value, 8> tmpSliceIVs;
-        for (unsigned k = 0, l = tmpSliceCst.getNumDimIds(); k < l; ++k)
+        for (unsigned k = 0, l = tmpSliceCst.getNumDimVars(); k < l; ++k)
           tmpSliceIVs.insert(tmpSliceCst.getValue(k));
 
-        sliceUnionCst.mergeAndAlignIdsWithOther(/*offset=*/0, &tmpSliceCst);
+        sliceUnionCst.mergeAndAlignVarsWithOther(/*offset=*/0, &tmpSliceCst);
 
-        // Post-constraint id alignment: add loop IV bounds missing after
-        // id alignment to constraint systems. This can occur if one constraint
+        // Post-constraint var alignment: add loop IV bounds missing after
+        // var alignment to constraint systems. This can occur if one constraint
         // system uses an loop IV that is not used by the other. The call
         // to unionBoundingBox below expects constraints for each Loop IV, even
         // if they are the unsliced full loop bounds added here.
@@ -895,8 +895,8 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
           return SliceComputationResult::GenericFailure;
       }
       // Compute union bounding box of 'sliceUnionCst' and 'tmpSliceCst'.
-      if (sliceUnionCst.getNumLocalIds() > 0 ||
-          tmpSliceCst.getNumLocalIds() > 0 ||
+      if (sliceUnionCst.getNumLocalVars() > 0 ||
+          tmpSliceCst.getNumLocalVars() > 0 ||
           failed(sliceUnionCst.unionBoundingBox(tmpSliceCst))) {
         LLVM_DEBUG(llvm::dbgs()
                    << "Unable to compute union bounding box of slice bounds\n");
@@ -906,7 +906,7 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
   }
 
   // Empty union.
-  if (sliceUnionCst.getNumDimAndSymbolIds() == 0)
+  if (sliceUnionCst.getNumDimAndSymbolVars() == 0)
     return SliceComputationResult::GenericFailure;
 
   // Gather loops surrounding ops from loop nest where slice will be inserted.
@@ -923,9 +923,9 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
   }
 
   // Store 'numSliceLoopIVs' before converting dst loop IVs to dims.
-  unsigned numSliceLoopIVs = sliceUnionCst.getNumDimIds();
+  unsigned numSliceLoopIVs = sliceUnionCst.getNumDimVars();
 
-  // Convert any dst loop IVs which are symbol identifiers to dim identifiers.
+  // Convert any dst loop IVs which are symbol variables to dim variables.
   sliceUnionCst.convertLoopIVSymbolsToDims();
   sliceUnion->clearBounds();
   sliceUnion->lbs.resize(numSliceLoopIVs, AffineMap());
@@ -939,7 +939,7 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
   // Add slice bound operands of union.
   SmallVector<Value, 4> sliceBoundOperands;
   sliceUnionCst.getValues(numSliceLoopIVs,
-                          sliceUnionCst.getNumDimAndSymbolIds(),
+                          sliceUnionCst.getNumDimAndSymbolVars(),
                           &sliceBoundOperands);
 
   // Copy src loop IVs from 'sliceUnionCst' to 'sliceUnion'.
@@ -960,11 +960,11 @@ mlir::computeSliceUnion(ArrayRef<Operation *> opsA, ArrayRef<Operation *> opsB,
   // Check if the slice computed is valid. Return success only if it is verified
   // that the slice is valid, otherwise return appropriate failure status.
   Optional<bool> isSliceValid = sliceUnion->isSliceValid();
-  if (!isSliceValid.hasValue()) {
+  if (!isSliceValid) {
     LLVM_DEBUG(llvm::dbgs() << "Cannot determine if the slice is valid\n");
     return SliceComputationResult::GenericFailure;
   }
-  if (!isSliceValid.getValue())
+  if (!*isSliceValid)
     return SliceComputationResult::IncorrectSliceFailure;
 
   return SliceComputationResult::Success;
@@ -1012,17 +1012,17 @@ bool mlir::buildSliceTripCountMap(
         continue;
       }
       Optional<uint64_t> maybeConstTripCount = getConstantTripCount(forOp);
-      if (maybeConstTripCount.hasValue()) {
-        (*tripCountMap)[op] = maybeConstTripCount.getValue();
+      if (maybeConstTripCount.has_value()) {
+        (*tripCountMap)[op] = maybeConstTripCount.value();
         continue;
       }
       return false;
     }
     Optional<uint64_t> tripCount = getConstDifference(lbMap, ubMap);
     // Slice bounds are created with a constant ub - lb difference.
-    if (!tripCount.hasValue())
+    if (!tripCount.has_value())
       return false;
-    (*tripCountMap)[op] = tripCount.getValue();
+    (*tripCountMap)[op] = tripCount.value();
   }
   return true;
 }
@@ -1082,7 +1082,7 @@ void mlir::getComputationSliceState(
 
   // Set up bound operands for the slice's lower and upper bounds.
   SmallVector<Value, 4> sliceBoundOperands;
-  unsigned numDimsAndSymbols = dependenceConstraints->getNumDimAndSymbolIds();
+  unsigned numDimsAndSymbols = dependenceConstraints->getNumDimAndSymbolVars();
   for (unsigned i = 0; i < numDimsAndSymbols; ++i) {
     if (i < offset || i >= offset + numSliceLoopIVs) {
       sliceBoundOperands.push_back(dependenceConstraints->getValue(i));
@@ -1134,8 +1134,7 @@ void mlir::getComputationSliceState(
     //    3. Is being inserted at the innermost insertion point.
     Optional<bool> isMaximal = sliceState->isMaximal();
     if (isLoopParallelAndContainsReduction(getSliceLoop(i)) &&
-        isInnermostInsertion() && srcIsUnitSlice() && isMaximal.hasValue() &&
-        isMaximal.getValue())
+        isInnermostInsertion() && srcIsUnitSlice() && isMaximal && *isMaximal)
       continue;
     for (unsigned j = i; j < numSliceLoopIVs; ++j) {
       sliceState->lbs[j] = AffineMap();
@@ -1218,22 +1217,14 @@ MemRefAccess::MemRefAccess(Operation *loadOrStoreOpInst) {
   if (auto loadOp = dyn_cast<AffineReadOpInterface>(loadOrStoreOpInst)) {
     memref = loadOp.getMemRef();
     opInst = loadOrStoreOpInst;
-    auto loadMemrefType = loadOp.getMemRefType();
-    indices.reserve(loadMemrefType.getRank());
-    for (auto index : loadOp.getMapOperands()) {
-      indices.push_back(index);
-    }
+    llvm::append_range(indices, loadOp.getMapOperands());
   } else {
     assert(isa<AffineWriteOpInterface>(loadOrStoreOpInst) &&
            "Affine read/write op expected");
     auto storeOp = cast<AffineWriteOpInterface>(loadOrStoreOpInst);
     opInst = loadOrStoreOpInst;
     memref = storeOp.getMemRef();
-    auto storeMemrefType = storeOp.getMemRefType();
-    indices.reserve(storeMemrefType.getRank());
-    for (auto index : storeOp.getMapOperands()) {
-      indices.push_back(index);
-    }
+    llvm::append_range(indices, storeOp.getMapOperands());
   }
 }
 
@@ -1329,9 +1320,9 @@ static Optional<int64_t> getMemoryFootprintBytes(Block &block,
   int64_t totalSizeInBytes = 0;
   for (const auto &region : regions) {
     Optional<int64_t> size = region.second->getRegionSize();
-    if (!size.hasValue())
+    if (!size.has_value())
       return None;
-    totalSizeInBytes += size.getValue();
+    totalSizeInBytes += size.value();
   }
   return totalSizeInBytes;
 }
@@ -1364,7 +1355,7 @@ void mlir::getSequentialLoops(AffineForOp forOp,
 }
 
 IntegerSet mlir::simplifyIntegerSet(IntegerSet set) {
-  FlatAffineConstraints fac(set);
+  FlatAffineValueConstraints fac(set);
   if (fac.isEmpty())
     return IntegerSet::getEmptySet(set.getNumDims(), set.getNumSymbols(),
                                    set.getContext());

@@ -26,7 +26,6 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/Support/CommandLine.h"
@@ -78,14 +77,17 @@ struct AffineDataCopyGeneration
 /// buffers in 'fastMemorySpace', and replaces memory operations to the former
 /// by the latter. Only load op's handled for now.
 /// TODO: extend this to store op's.
-std::unique_ptr<OperationPass<FuncOp>> mlir::createAffineDataCopyGenerationPass(
-    unsigned slowMemorySpace, unsigned fastMemorySpace, unsigned tagMemorySpace,
-    int minDmaTransferSize, uint64_t fastMemCapacityBytes) {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createAffineDataCopyGenerationPass(unsigned slowMemorySpace,
+                                         unsigned fastMemorySpace,
+                                         unsigned tagMemorySpace,
+                                         int minDmaTransferSize,
+                                         uint64_t fastMemCapacityBytes) {
   return std::make_unique<AffineDataCopyGeneration>(
       slowMemorySpace, fastMemorySpace, tagMemorySpace, minDmaTransferSize,
       fastMemCapacityBytes);
 }
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createAffineDataCopyGenerationPass() {
   return std::make_unique<AffineDataCopyGeneration>();
 }
@@ -140,8 +142,8 @@ void AffineDataCopyGeneration::runOnBlock(Block *block,
         Optional<int64_t> footprint =
             getMemoryFootprintBytes(forOp,
                                     /*memorySpace=*/0);
-        return (footprint.hasValue() &&
-                static_cast<uint64_t>(footprint.getValue()) >
+        return (footprint.has_value() &&
+                static_cast<uint64_t>(footprint.value()) >
                     fastMemCapacityBytes);
       };
 
@@ -197,7 +199,7 @@ void AffineDataCopyGeneration::runOnBlock(Block *block,
 }
 
 void AffineDataCopyGeneration::runOnOperation() {
-  FuncOp f = getOperation();
+  func::FuncOp f = getOperation();
   OpBuilder topBuilder(f.getBody());
   zeroIndex = topBuilder.create<arith::ConstantIndexOp>(f.getLoc(), 0);
 

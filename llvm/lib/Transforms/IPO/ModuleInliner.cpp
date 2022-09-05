@@ -14,43 +14,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/IPO/ModuleInliner.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/InlineOrder.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/Analysis/ReplayInlineAdvisor.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/User.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <cassert>
-#include <functional>
 
 using namespace llvm;
 
@@ -59,9 +49,15 @@ using namespace llvm;
 STATISTIC(NumInlined, "Number of functions inlined");
 STATISTIC(NumDeleted, "Number of functions deleted because all callers found");
 
-static cl::opt<bool> InlineEnablePriorityOrder(
-    "module-inline-enable-priority-order", cl::Hidden, cl::init(true),
-    cl::desc("Enable the priority inline order for the module inliner"));
+static cl::opt<InlinePriorityMode> UseInlinePriority(
+    "inline-priority-mode", cl::init(InlinePriorityMode::Size), cl::Hidden,
+    cl::desc("Choose the priority mode to use in module inline"),
+    cl::values(clEnumValN(InlinePriorityMode::NoPriority, "no priority",
+                          "Use no priority, visit callsites in bottom-up."),
+               clEnumValN(InlinePriorityMode::Size, "size",
+                          "Use callee size priority."),
+               clEnumValN(InlinePriorityMode::Cost, "cost",
+                          "Use inline cost priority.")));
 
 /// Return true if the specified inline history ID
 /// indicates an inline history that includes the specified function.
@@ -94,7 +90,9 @@ InlineAdvisor &ModuleInlinerPass::getAdvisor(const ModuleAnalysisManager &MAM,
     // inliner pass, and thus the lifetime of the owned advisor. The one we
     // would get from the MAM can be invalidated as a result of the inliner's
     // activity.
-    OwnedAdvisor = std::make_unique<DefaultInlineAdvisor>(M, FAM, Params);
+    OwnedAdvisor = std::make_unique<DefaultInlineAdvisor>(
+        M, FAM, Params,
+        InlineContext{LTOPhase, InlinePass::ModuleInliner});
 
     return *OwnedAdvisor;
   }
@@ -119,7 +117,9 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
   LLVM_DEBUG(dbgs() << "---- Module Inliner is Running ---- \n");
 
   auto &IAA = MAM.getResult<InlineAdvisorAnalysis>(M);
-  if (!IAA.tryCreate(Params, Mode, {})) {
+  if (!IAA.tryCreate(
+          Params, Mode, {},
+          InlineContext{LTOPhase, InlinePass::ModuleInliner})) {
     M.getContext().emitError(
         "Could not setup Inlining Advisor for the requested "
         "mode and/or options");
@@ -151,11 +151,7 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
   //
   // TODO: Here is a huge amount duplicate code between the module inliner and
   // the SCC inliner, which need some refactoring.
-  std::unique_ptr<InlineOrder<std::pair<CallBase *, int>>> Calls;
-  if (InlineEnablePriorityOrder)
-    Calls = std::make_unique<PriorityInlineOrder<InlineSizePriority>>();
-  else
-    Calls = std::make_unique<DefaultInlineOrder<std::pair<CallBase *, int>>>();
+  auto Calls = getInlineOrder(UseInlinePriority, FAM, Params);
   assert(Calls != nullptr && "Expected an initialized InlineOrder");
 
   // Populate the initial list of calls in this module.

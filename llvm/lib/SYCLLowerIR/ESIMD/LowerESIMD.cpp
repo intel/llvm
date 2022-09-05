@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -23,6 +24,7 @@
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
+#include "llvm/GenXIntrinsics/GenXMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -44,6 +46,11 @@ namespace id = itanium_demangle;
 #define SLM_BTI 254
 
 #define MAX_DIMS 3
+
+cl::opt<bool> ForceStatelessMem(
+    "lower-esimd-force-stateless-mem", llvm::cl::Optional, llvm::cl::Hidden,
+    llvm::cl::desc("Use stateless API for accessor based API."),
+    llvm::cl::init(false));
 
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
@@ -70,7 +77,8 @@ private:
 
 char SYCLLowerESIMDLegacyPass::ID = 0;
 INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
-                "Lower constructs specific to Close To Metal", false, false)
+                "Lower constructs specific to the 'explicit SIMD' extension",
+                false, false)
 
 // Public interface to the SYCLLowerESIMDPass.
 ModulePass *llvm::createSYCLLowerESIMDPass() {
@@ -78,6 +86,42 @@ ModulePass *llvm::createSYCLLowerESIMDPass() {
 }
 
 namespace {
+enum class lsc_subopcode : uint8_t {
+  load = 0x00,
+  load_strided = 0x01,
+  load_quad = 0x02,
+  load_block2d = 0x03,
+  store = 0x04,
+  store_strided = 0x05,
+  store_quad = 0x06,
+  store_block2d = 0x07,
+  //
+  atomic_iinc = 0x08,
+  atomic_idec = 0x09,
+  atomic_load = 0x0a,
+  atomic_store = 0x0b,
+  atomic_iadd = 0x0c,
+  atomic_isub = 0x0d,
+  atomic_smin = 0x0e,
+  atomic_smax = 0x0f,
+  atomic_umin = 0x10,
+  atomic_umax = 0x11,
+  atomic_icas = 0x12,
+  atomic_fadd = 0x13,
+  atomic_fsub = 0x14,
+  atomic_fmin = 0x15,
+  atomic_fmax = 0x16,
+  atomic_fcas = 0x17,
+  atomic_and = 0x18,
+  atomic_or = 0x19,
+  atomic_xor = 0x1a,
+  //
+  load_status = 0x1b,
+  store_uncompressed = 0x1c,
+  ccs_update = 0x1d,
+  read_state_info = 0x1e,
+  fence = 0x1f,
+};
 // The regexp for ESIMD intrinsics:
 // /^_Z(\d+)__esimd_\w+/
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
@@ -226,6 +270,10 @@ private:
     return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT8, {{N, {}}}};
   }
 
+  static constexpr ESIMDIntrinDesc::ArgRule c8(lsc_subopcode OpCode) {
+    return c8(static_cast<uint8_t>(OpCode));
+  }
+
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, {{N, {}}}};
   }
@@ -295,10 +343,10 @@ public:
         {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
         {"svm_block_ld", {"svm.block.ld", {l(0)}}},
         {"svm_block_st", {"svm.block.st", {l(1)}}},
-        {"svm_gather", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
+        {"svm_gather", {"svm.gather", {ai1(1), t(3), a(0), u(-1)}}},
         {"svm_gather4_scaled",
          {"svm.gather4.scaled", {ai1(1), t(2), c16(0), c64(0), a(0), u(-1)}}},
-        {"svm_scatter", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
+        {"svm_scatter", {"svm.scatter", {ai1(2), t(3), a(0), a(1)}}},
         {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
 
@@ -377,6 +425,15 @@ public:
         {"gather_masked_scaled2",
          {"gather.masked.scaled2", {t(3), t(4), aSI(0), a(1), a(2), ai1(3)}}},
 
+        // arg0: i32 channel mask, CONSTANT
+        // arg1: i16 scale, CONSTANT
+        // arg2: i32 surface index
+        // arg3: i32 global offset in bytes
+        // arg4: vXi32 element offset in bytes
+        // arg5: vXi1 predicate (overloaded)
+        {"gather4_masked_scaled2",
+         {"gather4.masked.scaled2", {t(2), t(4), aSI(0), a(1), a(2), ai1(3)}}},
+
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
         // arg2: i16 scale, CONSTANT
@@ -445,6 +502,95 @@ public:
         {"raw_send2_noresult",
          {"raw.send2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7)}}},
+        {"dpas2",
+         {"dpas2", {a(0), a(1), a(2), t(0), t(1), t(2), t(3), t(11), t(12)}}},
+        {"dpas_nosrc0", {"dpas.nosrc0", {a(0), a(1), t(0)}}},
+        {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
+        {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
+        {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
+        {"raw_send_nbarrier_signal",
+         {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
+        {"lsc_load_slm",
+         {"lsc.load.slm",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_load_bti",
+         {"lsc.load.bti",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), aSI(2)}}},
+        {"lsc_load_stateless",
+         {"lsc.load.stateless",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_prefetch_bti",
+         {"lsc.prefetch.bti",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), aSI(2)}}},
+        {"lsc_prefetch_stateless",
+         {"lsc.prefetch.stateless",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_store_slm",
+         {"lsc.store.slm",
+          {ai1(0), c8(lsc_subopcode::store), t8(1), t8(2), t16(3), t32(4),
+           t8(5), t8(6), t8(7), c8(0), a(1), a(2), c32(0)}}},
+        {"lsc_store_bti",
+         {"lsc.store.bti",
+          {ai1(0), c8(lsc_subopcode::store), t8(1), t8(2), t16(3), t32(4),
+           t8(5), t8(6), t8(7), c8(0), a(1), a(2), aSI(3)}}},
+        {"lsc_store_stateless",
+         {"lsc.store.stateless",
+          {ai1(0), c8(lsc_subopcode::store), t8(1), t8(2), t16(3), t32(4),
+           t8(5), t8(6), t8(7), c8(0), a(1), a(2), c32(0)}}},
+        {"lsc_load2d_stateless",
+         {"lsc.load2d.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t8(4), t8(5), t16(6), t16(7), t8(8),
+           a(1), a(2), a(3), a(4), a(5), a(6)}}},
+        {"lsc_prefetch2d_stateless",
+         {"lsc.prefetch2d.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t8(4), t8(5), t16(6), t16(7), t8(8),
+           a(1), a(2), a(3), a(4), a(5), a(6)}}},
+        {"lsc_store2d_stateless",
+         {"lsc.store2d.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t8(4), t8(5), t16(6), t16(7), t8(8),
+           a(1), a(2), a(3), a(4), a(5), a(6), a(7)}}},
+        {"lsc_xatomic_slm_0",
+         {"lsc.xatomic.slm",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), u(-1), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_slm_1",
+         {"lsc.xatomic.slm",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_slm_2",
+         {"lsc.xatomic.slm",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_xatomic_bti_0",
+         {"lsc.xatomic.bti",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), u(-1), u(-1), aSI(2), u(-1)}}},
+        {"lsc_xatomic_bti_1",
+         {"lsc.xatomic.bti",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), u(-1), aSI(3), u(-1)}}},
+        {"lsc_xatomic_bti_2",
+         {"lsc.xatomic.bti",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), a(3), aSI(4), u(-1)}}},
+        {"lsc_xatomic_stateless_0",
+         {"lsc.xatomic.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), u(-1), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_stateless_1",
+         {"lsc.xatomic.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_stateless_2",
+         {"lsc.xatomic.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_fence", {"lsc.fence", {ai1(0), t8(0), t8(1), t8(2)}}},
         {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
         {"fptosi_sat", {"fptosi.sat", {a(0)}}},
@@ -507,7 +653,8 @@ public:
         {"lane_id", {"lane.id", {}}},
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
-    };
+        {"slm_init", {"slm.init", {a(0)}}},
+        {"bf_cvt", {"bf.cvt", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -524,10 +671,8 @@ static const ESIMDIntrinDesc &getIntrinDesc(StringRef SrcSpelling) {
   const auto &Table = getIntrinTable();
   auto It = Table.find(SrcSpelling.str());
 
-  if (It == Table.end()) {
-    Twine Msg("unknown ESIMD intrinsic: " + SrcSpelling);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
+  llvm::esimd::assert_and_diag(It != Table.end(),
+                               "unknown ESIMD intrinsic: ", SrcSpelling);
   return It->second;
 }
 
@@ -714,6 +859,12 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
     case 0x12:
       Suff = ".fcmpwr";
       break;
+    case 0x13:
+      Suff = ".fadd";
+      break;
+    case 0x14:
+      Suff = ".fsub";
+      break;
     case 0xff:
       Suff = ".predec";
       break;
@@ -749,91 +900,134 @@ template <typename Ty = llvm::Value> Ty *getVal(llvm::Metadata *M) {
   return nullptr;
 }
 
-/// Return the MDNode that has the SLM size attribute.
-static llvm::MDNode *getSLMSizeMDNode(llvm::Function *F) {
-  llvm::NamedMDNode *Nodes =
-      F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
-  assert(Nodes && "invalid genx.kernels metadata");
-  for (auto Node : Nodes->operands()) {
-    if (Node->getNumOperands() >= 4 && getVal(Node->getOperand(0)) == F)
-      return Node;
-  }
-  // if F is not a kernel, keep looking into its callers
-  while (!F->use_empty()) {
-    auto CI = cast<CallInst>(F->use_begin()->getUser());
-    auto UF = CI->getParent()->getParent();
-    if (auto Node = getSLMSizeMDNode(UF))
-      return Node;
-  }
-  return nullptr;
-}
-
 static inline llvm::Metadata *getMD(llvm::Value *V) {
   return llvm::ValueAsMetadata::get(V);
 }
 
-static void translateSLMInit(CallInst &CI) {
-  auto F = CI.getParent()->getParent();
+// A functor which updates ESIMD kernel's uint64_t metadata in case it is less
+// than the given one. Used in callgraph traversal to update nbarriers or SLM
+// size metadata. Update is performed by the '()' operator and happens only
+// when given function matches one of the kernels - thus, only reachable kernels
+// are updated.
+struct UpdateUint64MetaDataToMaxValue {
+  Module &M;
+  // The uint64_t metadata key to update.
+  genx::KernelMDOp Key;
+  // The new metadata value. Must be greater than the old for update to happen.
+  uint64_t NewVal;
+  // Pre-selected nodes from GENX_KERNEL_METADATA which can only potentially be
+  // updated.
+  SmallVector<MDNode *, 4> CandidatesToUpdate;
 
-  auto *ArgV = CI.getArgOperand(0);
-  if (!isa<ConstantInt>(ArgV)) {
-    assert(false && "integral constant expected for slm size");
-    return;
-  }
-  auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
-  assert(NewVal != 0 && "zero slm bytes being requested");
+  UpdateUint64MetaDataToMaxValue(Module &M, genx::KernelMDOp Key,
+                                 uint64_t NewVal)
+      : M(M), Key(Key), NewVal(NewVal) {
+    // Pre-select nodes for update to do less work in the '()' operator.
+    llvm::NamedMDNode *GenXKernelMD = M.getNamedMetadata(GENX_KERNEL_METADATA);
+    llvm::esimd::assert_and_diag(GenXKernelMD, "invalid genx.kernels metadata");
+    for (auto Node : GenXKernelMD->operands()) {
+      if (Node->getNumOperands() <= (unsigned)Key) {
+        continue;
+      }
+      llvm::Value *Old = getVal(Node->getOperand(Key));
+      uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
 
-  // find the corresponding kernel metadata and set the SLM size.
-  if (llvm::MDNode *Node = getSLMSizeMDNode(F)) {
-    if (llvm::Value *OldSz = getVal(Node->getOperand(4))) {
-      assert(isa<llvm::ConstantInt>(OldSz) && "integer constant expected");
-      llvm::Value *NewSz = llvm::ConstantInt::get(OldSz->getType(), NewVal);
-      uint64_t OldVal = cast<llvm::ConstantInt>(OldSz)->getZExtValue();
-      if (OldVal < NewVal)
-        Node->replaceOperandWith(3, getMD(NewSz));
+      if (OldVal < NewVal) {
+        CandidatesToUpdate.push_back(Node);
+      }
     }
-  } else {
-    // We check whether this call is inside a kernel function.
-    assert(false && "slm_init shall be called by a kernel");
   }
+
+  void operator()(Function *F) {
+    // Update the meta data attribute for the current function.
+    for (auto Node : CandidatesToUpdate) {
+      assert(Node->getNumOperands() > (unsigned)Key);
+
+      if (getVal(Node->getOperand(genx::KernelMDOp::FunctionRef)) != F) {
+        continue;
+      }
+      llvm::Value *Old = getVal(Node->getOperand(Key));
+#ifndef NDEBUG
+      uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
+      assert(OldVal < NewVal);
+#endif // NDEBUG
+      llvm::Value *New = llvm::ConstantInt::get(Old->getType(), NewVal);
+      Node->replaceOperandWith(Key, getMD(New));
+    }
+  }
+};
+
+// TODO Specify document behavior for slm_init and nbarrier_init when:
+// 1) they are called not from kernels
+// 2) there are multiple such calls reachable from a kernel
+// 3) when a call in external function linked by the Back-End
+
+// This function sets/updates VCSLMSize attribute to the kernels
+// calling this intrinsic initializing SLM memory.
+static void translateSLMInit(CallInst &CI) {
+  auto F = CI.getFunction();
+  auto *ArgV = CI.getArgOperand(0);
+  llvm::esimd::assert_and_diag(isa<ConstantInt>(ArgV), __FILE__,
+                               " integral constant is expected for slm size");
+
+  uint64_t NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  assert(NewVal != 0 && "zero slm bytes being requested");
+  UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
+      *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
+  esimd::traverseCallgraphUp(F, SetMaxSLMSize);
+}
+
+// This function sets/updates VCNamedBarrierCount attribute to the kernels
+// calling this intrinsic initializing the number of named barriers.
+static void translateNbarrierInit(CallInst &CI) {
+  auto F = CI.getFunction();
+  auto *ArgV = CI.getArgOperand(0);
+  llvm::esimd::assert_and_diag(
+      isa<ConstantInt>(ArgV), __FILE__,
+      " integral constant is expected for named barrier count");
+
+  auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  assert(NewVal != 0 && "zero named barrier count being requested");
+  UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
+      *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
+  esimd::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 
 static void translatePackMask(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
-  assert(F && "function to translate is invalid");
+  llvm::esimd::assert_and_diag(F, "function to translate is invalid");
 
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
 
-  if (!AST || !Parser.ForwardTemplateRefs.empty()) {
-    Twine Msg("failed to demangle ESIMD intrinsic: " + MnglName);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
-  if (AST->getKind() != id::Node::KFunctionEncoding) {
-    Twine Msg("bad ESIMD intrinsic: " + MnglName);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
+  llvm::esimd::assert_and_diag(
+      AST && Parser.ForwardTemplateRefs.empty(),
+      "failed to demangle ESIMD intrinsic: ", MnglName);
+  llvm::esimd::assert_and_diag(AST->getKind() == id::Node::KFunctionEncoding,
+                               "bad ESIMD intrinsic: ", MnglName);
+
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
   llvm::LLVMContext &Context = CI.getContext();
   Type *TTy = nullptr;
   APInt Val = parseTemplateArg(FE, 0, TTy, Context);
   unsigned N = Val.getZExtValue();
-
+  Value *Result = CI.getArgOperand(0);
+  assert(Result->getType()->isIntOrIntVectorTy());
+  Value *Zero = ConstantInt::get(Result->getType(), 0);
   IRBuilder<> Builder(&CI);
-  llvm::Value *Trunc = Builder.CreateTrunc(
-      CI.getArgOperand(0),
-      llvm::FixedVectorType::get(llvm::Type::getInt1Ty(Context), N));
-  llvm::Type *Ty = llvm::Type::getIntNTy(Context, N);
+  // TODO CM_COMPAT
+  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
+  // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
+  // For CM this ICmpInst should be replaced with truncation to i1.
+  Result = Builder.CreateICmp(ICmpInst::ICMP_NE, Result, Zero);
+  Result = Builder.CreateBitCast(Result, llvm::Type::getIntNTy(Context, N));
 
-  llvm::Value *BitCast = Builder.CreateBitCast(Trunc, Ty);
-  llvm::Value *Result = BitCast;
   if (N != 32) {
-    Result = Builder.CreateCast(llvm::Instruction::ZExt, BitCast,
+    Result = Builder.CreateCast(llvm::Instruction::ZExt, Result,
                                 llvm::Type::getInt32Ty(Context));
   }
-
   Result->setName(CI.getName());
   cast<llvm::Instruction>(Result)->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(Result);
@@ -842,19 +1036,17 @@ static void translatePackMask(CallInst &CI) {
 static void translateUnPackMask(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
-  assert(F && "function to translate is invalid");
+  llvm::esimd::assert_and_diag(F, "function to translate is invalid");
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
 
-  if (!AST || !Parser.ForwardTemplateRefs.empty()) {
-    Twine Msg("failed to demangle ESIMD intrinsic: " + MnglName);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
-  if (AST->getKind() != id::Node::KFunctionEncoding) {
-    Twine Msg("bad ESIMD intrinsic: " + MnglName);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
+  llvm::esimd::assert_and_diag(
+      AST && Parser.ForwardTemplateRefs.empty(),
+      "failed to demangle ESIMD intrinsic: ", MnglName);
+  llvm::esimd::assert_and_diag(AST->getKind() == id::Node::KFunctionEncoding,
+                               "bad ESIMD intrinsic: ", MnglName);
+
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
   llvm::LLVMContext &Context = CI.getContext();
   Type *TTy = nullptr;
@@ -994,8 +1186,9 @@ void translateFmuladd(CallInst *CI) {
 
 // Translates an LLVM intrinsic to a form, digestable by the BE.
 bool translateLLVMIntrinsic(CallInst *CI) {
-  Function *F = CI->getCalledFunction() ? CI->getCalledFunction() : nullptr;
-  assert(F && F->isIntrinsic());
+  Function *F = CI->getCalledFunction();
+  llvm::esimd::assert_and_diag(F && F->isIntrinsic(),
+                               "malformed llvm intrinsic call");
 
   switch (F->getIntrinsicID()) {
   case Intrinsic::assume:
@@ -1022,6 +1215,7 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   // TODO: Implement support for the following intrinsics:
   // uint32_t __spirv_BuiltIn NumSubgroups;
   // uint32_t __spirv_BuiltIn SubgroupId;
+  // uint32_t __spirv_BuiltIn GlobalLinearId
 
   // Translate those loads from _scalar_ SPIRV globals that can be replaced with
   // a const value here.
@@ -1034,6 +1228,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
              SpirvGlobalName == "SubgroupMaxSize") {
     NewInst = llvm::Constant::getIntegerValue(LI->getType(),
                                               llvm::APInt(32, 1, true));
+  } else if (SpirvGlobalName == "GlobalLinearId") {
+    NewInst = llvm::Constant::getNullValue(LI->getType());
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
@@ -1077,7 +1273,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
       NewInst = generateGenXCall(EEI, "group.count", true);
     }
 
-    assert(NewInst && "Load from global SPIRV builtin was not translated");
+    llvm::esimd::assert_and_diag(
+        NewInst, "Load from global SPIRV builtin was not translated");
     EEI->replaceAllUsesWith(NewInst);
     InstsToErase.push_back(EEI);
   }
@@ -1180,11 +1377,11 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 //
 // ### Source-level intrinsic:
 //
-// sycl::ext::intel::experimental::esimd::__vector_type<int, 16>::type
+// sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type
 // __esimd_flat_read<int, 16>(
-//     sycl::ext::intel::experimental::esimd::__vector_type<unsigned long long,
-//     16>::type, sycl::ext::intel::experimental::esimd::__vector_type<int,
-//     16>::type)
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<unsigned long
+//     long, 16>::type,
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type)
 //
 // ### Itanium-mangled name:
 //
@@ -1237,19 +1434,17 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
-  assert(F && "function to translate is invalid");
+  llvm::esimd::assert_and_diag(F, "function to translate is invalid");
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
 
-  if (!AST || !Parser.ForwardTemplateRefs.empty()) {
-    Twine Msg("failed to demangle ESIMD intrinsic: " + MnglName);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
-  if (AST->getKind() != id::Node::KFunctionEncoding) {
-    Twine Msg("bad ESIMD intrinsic: " + MnglName);
-    llvm::report_fatal_error(Msg, false /*no crash diag*/);
-  }
+  llvm::esimd::assert_and_diag(
+      AST && Parser.ForwardTemplateRefs.empty(),
+      "failed to demangle ESIMD intrinsic: ", MnglName);
+  llvm::esimd::assert_and_diag(AST->getKind() == id::Node::KFunctionEncoding,
+                               "bad ESIMD intrinsic: ", MnglName);
+
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
   id::StringView BaseNameV = FE->getName()->getBaseName();
 
@@ -1329,8 +1524,7 @@ void generateKernelMetadata(Module &M) {
 
   for (auto &F : M.functions()) {
     // Skip non-SIMD kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL ||
-        F.getMetadata("sycl_explicit_simd") == nullptr)
+    if (!esimd::isESIMDKernel(F))
       continue;
 
     // Metadata node containing N i32s, where N is the number of kernel
@@ -1379,7 +1573,7 @@ void generateKernelMetadata(Module &M) {
                                               ->getValue()
                                               .getZExtValue())
                   : 0;
-          if (IsAcc) {
+          if (IsAcc && !ForceStatelessMem) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
           } else
@@ -1405,7 +1599,10 @@ void generateKernelMetadata(Module &M) {
         getMD(llvm::ConstantInt::getNullValue(I32Ty)), // SLM size in bytes
         getMD(llvm::ConstantInt::getNullValue(I32Ty)), // arg offsets
         IOKinds,
-        ArgDescs};
+        ArgDescs,
+        getMD(llvm::ConstantInt::getNullValue(I32Ty)), // named barrier count
+        getMD(llvm::ConstantInt::getNullValue(I32Ty))  // regular barrier count
+    };
 
     // Add this kernel to the root.
     Kernels->addOperand(MDNode::get(Ctx, MDArgs));
@@ -1421,22 +1618,19 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   for (auto &G : M.getGlobalList()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
-    auto PTy = dyn_cast<PointerType>(G.getType());
-    if (!PTy)
-      continue;
-    auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
+    auto GTy = dyn_cast<StructType>(G.getValueType());
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy || !GTy->getName()
                      .rtrim(".0123456789")
-                     .endswith("sycl::ext::intel::experimental::esimd::simd"))
+                     .endswith("sycl::_V1::ext::intel::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
     if ((GTy = dyn_cast<StructType>(VTy))) {
-      assert(GTy->getName()
-                 .rtrim(".0123456789")
-                 .endswith("sycl::ext::intel::experimental::esimd::detail::"
-                           "simd_obj_impl"));
+      assert(
+          GTy->getName()
+              .rtrim(".0123456789")
+              .endswith("sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());
@@ -1466,10 +1660,15 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
-  // 'alwaysinline' attribute.
+  // 'alwaysinline' attribute, except few cases:
+  //     - kernels are not called from device code, so can't be inlined
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      // - 'noninline' should not be overridden
       !F.hasFnAttribute(Attribute::NoInline) &&
-      !F.hasFnAttribute(Attribute::AlwaysInline))
+      // - 'alwaysinline' should not be duplicated
+      !F.hasFnAttribute(Attribute::AlwaysInline) &&
+      // - VC BE forbids 'alwaysinline' and "VCStackCall" on the same function
+      !F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
     F.addFnAttr(Attribute::AlwaysInline);
 
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
@@ -1489,7 +1688,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
             cast<FixedVectorType>(DstTy)->getNumElements());
-        Src = Builder.CreateFPToSI(Src, TmpTy);
+        if (CastOpcode == llvm::Instruction::FPToUI) {
+          Src = Builder.CreateFPToUI(Src, TmpTy);
+        } else {
+          Src = Builder.CreateFPToSI(Src, TmpTy);
+        }
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
         llvm::Value *NewDst = Builder.CreateCast(TruncOp, Src, DstTy);
@@ -1519,10 +1722,16 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
-      // TODO FIXME slm_init should be made top-level __esimd_slm_init
-      if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
+
+      if (Name.startswith("__esimd_slm_init") &&
+          isa<ConstantInt>(CI->getArgOperand(0))) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
+        ToErase.push_back(CI);
+        continue;
+      }
+      if (Name.startswith("__esimd_nbarrier_init")) {
+        translateNbarrierInit(*CI);
         ToErase.push_back(CI);
         continue;
       }
@@ -1552,12 +1761,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
           continue;
         }
       }
-
       if (Name.startswith("__esimd_get_surface_index")) {
         translateGetSurfaceIndex(*CI);
         ToErase.push_back(CI);
         continue;
       }
+      assert(!Name.startswith("__esimd_set_kernel_properties") &&
+             "__esimd_set_kernel_properties must have been lowered");
 
       if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
         continue;

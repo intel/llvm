@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "detail/config.hpp"
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/exception.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/exception.hpp>
 
 #include <cstdlib>
 #include <cstring>
@@ -24,8 +25,8 @@
 #include <set>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 /// Checks whether two requirements overlap or not.
@@ -326,7 +327,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
   std::set<Command *> Deps =
       findDepsForReq(Record, Req, Queue->getContextImplPtr());
@@ -357,7 +358,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     AllocaCmdSrc = (Record->MAllocaCommands.end() != It) ? *It : nullptr;
   }
   if (!AllocaCmdSrc)
-    throw runtime_error("Cannot find buffer allocation", PI_INVALID_VALUE);
+    throw runtime_error("Cannot find buffer allocation",
+                        PI_ERROR_INVALID_VALUE);
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
@@ -476,7 +478,7 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
       SrcAllocaCmd->getQueue(), std::move(HostQueue));
 
   if (!MemCpyCmdUniquePtr)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
   MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
 
@@ -626,17 +628,19 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 
 // The function searches for the alloca command matching context and
 // requirement.
-AllocaCommandBase *
-Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
-                                          const Requirement *Req,
-                                          const ContextImplPtr &Context) {
-  auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
+AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
+    MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
+    bool AllowConst) {
+  auto IsSuitableAlloca = [&Context, Req,
+                           AllowConst](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
-      Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
+      Res &= TmpReq->MSYCLMemObj->getSizeInBytes() ==
+             Req->MSYCLMemObj->getSizeInBytes();
+      Res &= AllowConst || !AllocaCmd->MIsConst;
     }
     return Res;
   };
@@ -667,15 +671,15 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
     std::vector<Command *> &ToEnqueue) {
 
-  AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, Queue->getContextImplPtr());
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(
+      Record, Req, Queue->getContextImplPtr(), /*AllowConst=*/false);
 
   if (!AllocaCmd) {
     std::vector<Command *> ToCleanUp;
     if (IsSuitableSubReq(Req)) {
       // Get parent requirement. It's hard to get right parents' range
       // so full parent requirement has range represented in bytes
-      range<3> ParentRange{Req->MSYCLMemObj->getSize(), 1, 1};
+      range<3> ParentRange{Req->MSYCLMemObj->getSizeInBytes(), 1, 1};
       Requirement ParentRequirement(/*Offset*/ {0, 0, 0}, ParentRange,
                                     ParentRange, access::mode::read_write,
                                     Req->MSYCLMemObj, /*Dims*/ 1,
@@ -721,7 +725,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 Scheduler::getInstance().getDefaultHostQueue();
             AllocaCommand *HostAllocaCmd = new AllocaCommand(
                 DefaultHostQueue, FullReq, true /* InitFromUserData */,
-                nullptr /* LinkedAllocaCmd */);
+                nullptr /* LinkedAllocaCmd */,
+                MemObj->isHostPointerReadOnly() /* IsConst */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
             Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
@@ -753,8 +758,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
                                  : HostUnifiedMemory;
             if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
-              AllocaCommandBase *LinkedAllocaCmdCand =
-                  findAllocaForReq(Record, Req, Record->MCurContext);
+              AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
+                  Record, Req, Record->MCurContext, /*AllowConst=*/false);
 
               // Cannot setup link if candidate is linked already
               if (LinkedAllocaCmdCand &&
@@ -848,7 +853,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
   if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
@@ -922,7 +927,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
@@ -1045,7 +1050,8 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
 
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     MemObjRecord *Record,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
+    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1097,10 +1103,19 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+
+      // Transfer ownership of stream implementations.
       std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
       ExecCmd->clearStreams();
       StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
                                  Streams.end());
+
+      // Transfer ownership of auxiliary resources.
+      std::vector<std::shared_ptr<const void>> AuxResources =
+          ExecCmd->getAuxiliaryResources();
+      ExecCmd->clearAuxiliaryResources();
+      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
+                                      AuxResources.begin(), AuxResources.end());
     }
 
     for (Command *UserCmd : Cmd->MUsers)
@@ -1160,6 +1175,7 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
     if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
       auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
       assert(!ExecKernelCG->hasStreams());
+      assert(!ExecKernelCG->hasAuxiliaryResources());
     }
   }
 #endif
@@ -1191,7 +1207,8 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(
     Command *FinishedCmd,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
+    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FinishedCmd);
   MVisitedCmds.clear();
@@ -1207,10 +1224,19 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+
+      // Transfer ownership of stream implementations.
       std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
       ExecCmd->clearStreams();
       StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
                                  Streams.end());
+
+      // Transfer ownership of auxiliary resources.
+      std::vector<std::shared_ptr<const void>> AuxResources =
+          ExecCmd->getAuxiliaryResources();
+      ExecCmd->clearAuxiliaryResources();
+      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
+                                      AuxResources.begin(), AuxResources.end());
     }
 
     for (const DepDesc &Dep : Cmd->MDeps) {
@@ -1294,7 +1320,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   } catch (const std::bad_alloc &) {
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
 
   EmptyCommand *EmptyCmd = nullptr;
@@ -1362,5 +1388,5 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

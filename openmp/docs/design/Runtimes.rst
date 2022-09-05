@@ -3,7 +3,15 @@
 LLVM/OpenMP Runtimes
 ====================
 
-There are four distinct types of LLVM/OpenMP runtimes
+There are four distinct types of LLVM/OpenMP runtimes: the host runtime
+:ref:`libomp`, the target offloading runtime :ref:`libomptarget`, the target
+offloading plugin :ref:`libomptarget_plugin`, and finally the target device
+runtime :ref:`libomptarget_device`.
+
+For general information on debugging OpenMP target offloading applications, see
+:ref:`libomptarget_info` and :ref:`libomptarget_device_debugging`
+
+.. _libomp:
 
 LLVM/OpenMP Host Runtime (``libomp``)
 -------------------------------------
@@ -291,6 +299,7 @@ and any affinity API calls.
 * ``respect`` (default) and ``norespect`` - determine whether to respect the original process affinity mask.
 * ``verbose`` and ``noverbose`` (default) - determine whether to display affinity information.
 * ``warnings`` (default) and ``nowarnings`` - determine whether to display warnings during affinity detection.
+* ``reset`` and ``noreset`` (default) - determine whether to reset primary thread's affinity after outermost parallel region(s)
 * ``granularity=<specifier>`` - takes the following specifiers ``thread``, ``core`` (default), ``tile``,
   ``socket``, ``die``, ``group`` (Windows only).
   The granularity describes the lowest topology levels that OpenMP threads are allowed to float within a topology map.
@@ -663,6 +672,8 @@ OpenMP run-time library during program execution.
 
 **Default:** ``true``
 
+.. _libomptarget:
+
 LLVM/OpenMP Target Host Runtime (``libomptarget``)
 --------------------------------------------------
 
@@ -723,6 +734,8 @@ the device kernel exits. The default threshold value is ``8KB``. If
 ``LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD`` is set to ``0`` the memory manager
 will be completely disabled.
 
+.. _libomptarget_info:
+
 LIBOMPTARGET_INFO
 """""""""""""""""
 
@@ -751,7 +764,7 @@ with ``CUDA`` information, run the following ``bash`` command.
 
 .. code-block:: console
 
-   $ env LIBOMPTARGET_INFO=$((1 << 0x1 | 1 << 0x10)) ./your-application
+   $ env LIBOMPTARGET_INFO=$((0x1 | 0x10)) ./your-application
 
 Or, to enable every flag run with every bit set.
 
@@ -935,7 +948,7 @@ going wrong.
     Libomptarget error: Copying data from device failed.
     Libomptarget error: Call to targetDataEnd failed, abort target.
     Libomptarget error: Failed to process data after launching the kernel.
-    Libomptarget error: Run with LIBOMPTARGET_INFO=4 to dump host-target pointer mappings.
+    Libomptarget error: Consult https://openmp.llvm.org/design/Runtimes.html for debugging options.
     sum.cpp:5:1: Libomptarget error 1: failure of target construct while offloading is mandatory
 
 This shows that there is an illegal memory access occuring inside the OpenMP
@@ -994,9 +1007,9 @@ LIBOMPTARGET_SHARED_MEMORY_SIZE
 """""""""""""""""""""""""""""""
 
 This environment variable sets the amount of dynamic shared memory in bytes used
-by the kernel once it is launched. A pointer to the dynamic memory buffer can
-currently only be accessed using the ``__kmpc_get_dynamic_shared`` device
-runtime call.
+by the kernel once it is launched. A pointer to the dynamic memory buffer can be
+accessed using the ``llvm_omp_target_dynamic_shared_alloc`` function. An example
+is shown in :ref:`libomptarget_dynamic_shared`.
 
 .. toctree::
    :hidden:
@@ -1020,6 +1033,7 @@ value of the ``LIBOMPTARGET_MAP_FORCE_ATOMIC`` environment variable.
 The default behavior of LLVM 14 is to force atomic maps clauses, prior versions
 of LLVM did not.
 
+.. _libomptarget_plugin:
 
 LLVM/OpenMP Target Host Runtime Plugins (``libomptarget.rtl.XXXX``)
 -------------------------------------------------------------------
@@ -1082,12 +1096,50 @@ LIBOMPTARGET_RPC_LATENCY
 """"""""""""""""""""""""
 This is the maximum amount of time the client will wait for a response from the server.
 
+.. _libomptarget_device:
+
 LLVM/OpenMP Target Device Runtime (``libomptarget-ARCH-SUBARCH.bc``)
 --------------------------------------------------------------------
 
 The target device runtime is an LLVM bitcode library that implements OpenMP
 runtime functions on the target device. It is linked with the device code's LLVM
 IR during compilation.
+
+.. _libomptarget_dynamic_shared:
+
+Dynamic Shared Memory
+^^^^^^^^^^^^^^^^^^^^^
+
+The target device runtime contains a pointer to the dynamic shared memory
+buffer. This pointer can be obtained using the
+``llvm_omp_target_dynamic_shared_alloc`` extension. If this function is called
+from the host it will simply return a null pointer. In order to use this buffer
+the kernel must be launched with an adequate amount of dynamic shared memory
+allocated. Currently this is done using the ``LIBOMPTARGET_SHARED_MEMORY_SIZE``
+environment variable. An example is given below.
+
+.. code-block:: c++
+
+    void foo() {
+      int x;
+    #pragma omp target parallel map(from : x)
+      {
+        int *buf = llvm_omp_target_dynamic_shared_alloc();
+    #pragma omp barrier
+        if (omp_get_thread_num() == 0)
+          *buf = 1;
+    #pragma omp barrier
+        if (omp_get_thread_num() == 1)
+          x = *buf;
+      }
+    }
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 shared.c
+    $ env LIBOMPTARGET_SHARED_MEMORY_SIZE=256 ./shared
+
+.. _libomptarget_device_debugging:
 
 Debugging
 ^^^^^^^^^
@@ -1103,6 +1155,7 @@ debugging features are supported.
 
     * Enable debugging assertions in the device. ``0x01``
     * Enable OpenMP runtime function traces in the device. ``0x2``
+    * Enable diagnosing common problems during offloading . ``0x4``
 
 .. code-block:: c++
 
@@ -1117,8 +1170,7 @@ provide the following output from the device runtime library.
 
 .. code-block:: console
 
-    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -fopenmp-target-new-runtime \
-      -fopenmp-target-debug=3
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -fopenmp-target-debug=3
     $ env LIBOMPTARGET_DEVICE_RTL_DEBUG=3 ./zaxpy
 
 .. code-block:: text

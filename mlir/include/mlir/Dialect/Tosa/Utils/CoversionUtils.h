@@ -14,7 +14,6 @@
 #define DIALECT_TOSA_UTILS_COVERSION_UTILS_H_
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/PatternMatch.h"
@@ -30,13 +29,14 @@ SmallVector<Value> condenseValues(const SmallVector<Value> &values);
 
 // Takes the parameters for a clamp and turns it into a series of ops.
 template <typename T, typename P>
-mlir::SelectOp clampHelper(Location loc, Value arg, arith::ConstantOp min,
-                           arith::ConstantOp max, P pred, OpBuilder &rewriter) {
+arith::SelectOp clampHelper(Location loc, Value arg, arith::ConstantOp min,
+                            arith::ConstantOp max, P pred,
+                            OpBuilder &rewriter) {
   auto smallerThanMin = rewriter.create<T>(loc, pred, arg, min);
   auto minOrArg =
-      rewriter.create<mlir::SelectOp>(loc, smallerThanMin, min, arg);
+      rewriter.create<arith::SelectOp>(loc, smallerThanMin, min, arg);
   auto largerThanMax = rewriter.create<T>(loc, pred, max, arg);
-  return rewriter.create<mlir::SelectOp>(loc, largerThanMax, max, minOrArg);
+  return rewriter.create<arith::SelectOp>(loc, largerThanMax, max, minOrArg);
 }
 
 // Returns the values in an attribute as an array of values.

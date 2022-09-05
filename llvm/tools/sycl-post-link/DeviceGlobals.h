@@ -35,7 +35,9 @@ struct DeviceGlobalProperty {
 
   // Either 1 (true) or 0 (false), telling whether the device global variable
   // was declared with the device_image_scope property.
-  uint8_t DeviceImageScope;
+  // We use uint32_t for a boolean value to eliminate padding after the field
+  // and suppress false positive reports from MemorySanitizer.
+  uint32_t DeviceImageScope;
 };
 
 using DeviceGlobalPropertyMapTy =
@@ -58,6 +60,14 @@ DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M);
 /// @return \c true if the variable is a device global variable, \c false
 /// otherwise.
 bool isDeviceGlobalVariable(const GlobalVariable &GV);
+
+/// Return \c true if the variable @GV has the "device_image_scope" property.
+///
+/// @param GV [in] A variable to test.
+///
+/// @return \c true if the variable has the "device_image_scope" property,
+/// \c false otherwise.
+bool hasDeviceImageScopeProperty(const GlobalVariable &GV);
 
 /// Returns the unique id for the device global variable.
 ///

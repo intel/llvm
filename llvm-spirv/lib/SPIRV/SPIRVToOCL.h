@@ -70,7 +70,7 @@ public:
   /// containing {[get_image_width | get_image_dim], get_image_array_size}
   /// for all images except image1d_t which is always converted into
   /// get_image_width returning scalar result.
-  void visitCallSPRIVImageQuerySize(CallInst *CI);
+  void visitCallSPIRVImageQuerySize(CallInst *CI);
 
   /// Transform __spirv_(NonUniform)Group* to {work_group|sub_group}_*.
   ///
@@ -161,6 +161,13 @@ public:
   ///  %1 = shl i31 %0, 8
   void visitCallSPIRVGenericPtrMemSemantics(CallInst *CI);
 
+  /// Transform __spirv_ConvertFToBF16INTELDv(N)_f to:
+  /// intel_convert_bfloat16(N)_as_ushort(N)Dv(N)_f;
+  /// and transform __spirv_ConvertBF16ToFINTELDv(N)_s to:
+  /// intel_convert_as_bfloat16(N)_float(N)Dv(N)_t;
+  /// where N is vector size
+  void visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
@@ -234,6 +241,9 @@ public:
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
 
+  void translateOpaqueTypes();
+
+private:
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -246,6 +256,9 @@ public:
   /// example: GroupNonUniformBallotBitCount(Reduce) =>
   /// group_ballot_bit_count_iadd => sub_group_ballot_bit_count
   std::string getBallotBuiltinName(CallInst *CI, Op OC);
+  /// Transform OpGroupNonUniformRotateKHR to corresponding OpenCL function
+  /// name.
+  std::string getRotateBuiltinName(CallInst *CI, Op OC);
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
   /// Transform SPV-IR image opaque type into OpenCL representation,
@@ -255,8 +268,17 @@ public:
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
   std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
-  void translateOpaqueTypes();
+  void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
 
+  std::string translateOpaqueType(StringRef STName);
+
+  /// Mutate the argument list based on (optional) image operands at position
+  /// ImOpArgIndex.  Set IsSigned according to any SignExtend/ZeroExtend Image
+  /// Operands present in Args, or default to signed if there are none.
+  void mutateArgsForImageOperands(std::vector<Value *> &Args,
+                                  unsigned ImOpArgIndex, bool &IsSigned);
+
+protected:
   Module *M;
   LLVMContext *Ctx;
 };
@@ -418,6 +440,11 @@ public:
   bool runOnModule(Module &M) override;
   static char ID;
 };
+
+/// Add passes for translating SPIR-V Instructions to the desired
+/// representation in LLVM IR (such as OpenCL builtins or SPIR-V Friendly IR).
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep);
 
 } // namespace SPIRV
 

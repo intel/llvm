@@ -16,11 +16,11 @@ declare half @llvm.copysign.f16(half %a, half %b)
 define fp128 @copysign0() {
 ; CHECK-LABEL: copysign0:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    adrp x8, .LCPI0_0
 ; CHECK-NEXT:    ldr q0, [x8, :lo12:.LCPI0_0]
 ; CHECK-NEXT:    adrp x8, val_double
 ; CHECK-NEXT:    str q0, [sp, #-16]!
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    ldr x8, [x8, :lo12:val_double]
 ; CHECK-NEXT:    ldrb w9, [sp, #15]
 ; CHECK-NEXT:    and x8, x8, #0x8000000000000000
@@ -32,11 +32,11 @@ define fp128 @copysign0() {
 ;
 ; CHECK-NONEON-LABEL: copysign0:
 ; CHECK-NONEON:       // %bb.0: // %entry
-; CHECK-NONEON-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NONEON-NEXT:    adrp x8, .LCPI0_0
 ; CHECK-NONEON-NEXT:    ldr q0, [x8, :lo12:.LCPI0_0]
 ; CHECK-NONEON-NEXT:    adrp x8, val_double
 ; CHECK-NONEON-NEXT:    str q0, [sp, #-16]!
+; CHECK-NONEON-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NONEON-NEXT:    ldr x8, [x8, :lo12:val_double]
 ; CHECK-NONEON-NEXT:    ldrb w9, [sp, #15]
 ; CHECK-NONEON-NEXT:    and x8, x8, #0x8000000000000000
@@ -55,11 +55,11 @@ entry:
 define fp128@copysign1() {
 ; CHECK-LABEL: copysign1:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    adrp x8, val_fp128
 ; CHECK-NEXT:    ldr q0, [x8, :lo12:val_fp128]
 ; CHECK-NEXT:    adrp x8, val_float
 ; CHECK-NEXT:    str q0, [sp, #-16]!
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    ldr w8, [x8, :lo12:val_float]
 ; CHECK-NEXT:    ldrb w9, [sp, #15]
 ; CHECK-NEXT:    and w8, w8, #0x80000000
@@ -71,11 +71,11 @@ define fp128@copysign1() {
 ;
 ; CHECK-NONEON-LABEL: copysign1:
 ; CHECK-NONEON:       // %bb.0: // %entry
-; CHECK-NONEON-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NONEON-NEXT:    adrp x8, val_fp128
 ; CHECK-NONEON-NEXT:    ldr q0, [x8, :lo12:val_fp128]
 ; CHECK-NONEON-NEXT:    adrp x8, val_float
 ; CHECK-NONEON-NEXT:    str q0, [sp, #-16]!
+; CHECK-NONEON-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NONEON-NEXT:    ldr w8, [x8, :lo12:val_float]
 ; CHECK-NONEON-NEXT:    ldrb w9, [sp, #15]
 ; CHECK-NONEON-NEXT:    and w8, w8, #0x80000000
@@ -95,10 +95,10 @@ entry:
 define float @copysign32(float %a, float %b) {
 ; CHECK-LABEL: copysign32:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    movi v2.4s, #128, lsl #24
 ; CHECK-NEXT:    // kill: def $s0 killed $s0 def $q0
+; CHECK-NEXT:    mvni v2.4s, #128, lsl #24
 ; CHECK-NEXT:    // kill: def $s1 killed $s1 def $q1
-; CHECK-NEXT:    bit v0.16b, v1.16b, v2.16b
+; CHECK-NEXT:    bif v0.16b, v1.16b, v2.16b
 ; CHECK-NEXT:    // kill: def $s0 killed $s0 killed $q0
 ; CHECK-NEXT:    ret
 ;
@@ -118,11 +118,11 @@ entry:
 define double @copysign64(double %a, double %b) {
 ; CHECK-LABEL: copysign64:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    movi v2.2d, #0000000000000000
+; CHECK-NEXT:    movi v2.2d, #0xffffffffffffffff
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $q0
 ; CHECK-NEXT:    // kill: def $d1 killed $d1 def $q1
 ; CHECK-NEXT:    fneg v2.2d, v2.2d
-; CHECK-NEXT:    bit v0.16b, v1.16b, v2.16b
+; CHECK-NEXT:    bif v0.16b, v1.16b, v2.16b
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $q0
 ; CHECK-NEXT:    ret
 ;
@@ -142,10 +142,10 @@ entry:
 define half @copysign16(half %a, half %b) {
 ; CHECK-LABEL: copysign16:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    movi v2.4s, #128, lsl #24
 ; CHECK-NEXT:    fcvt s1, h1
 ; CHECK-NEXT:    fcvt s0, h0
-; CHECK-NEXT:    bit v0.16b, v1.16b, v2.16b
+; CHECK-NEXT:    mvni v2.4s, #128, lsl #24
+; CHECK-NEXT:    bif v0.16b, v1.16b, v2.16b
 ; CHECK-NEXT:    fcvt h0, s0
 ; CHECK-NEXT:    ret
 ;

@@ -10,9 +10,9 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -107,8 +107,8 @@ Value getBroadcastedDim(ImplicitLocOpBuilder lb, ValueRange extentTensors,
                 Value dimIsOne =
                     b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                             lesserRankOperandExtent, one);
-                Value dim = b.create<SelectOp>(loc, dimIsOne, broadcastedDim,
-                                               lesserRankOperandExtent);
+                Value dim = b.create<arith::SelectOp>(
+                    loc, dimIsOne, broadcastedDim, lesserRankOperandExtent);
                 b.create<scf::YieldOp>(loc, dim);
               })
             .getResult(0);
@@ -144,7 +144,7 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
   for (Value v : llvm::drop_begin(ranks, 1)) {
     Value rankIsGreater =
         lb.create<arith::CmpIOp>(arith::CmpIPredicate::ugt, v, maxRank);
-    maxRank = lb.create<SelectOp>(rankIsGreater, v, maxRank);
+    maxRank = lb.create<arith::SelectOp>(rankIsGreater, v, maxRank);
   }
 
   // Calculate the difference of ranks and the maximum rank for later offsets.
@@ -259,7 +259,7 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
   for (Value v : llvm::drop_begin(ranks, 1)) {
     Value rankIsGreater =
         lb.create<arith::CmpIOp>(arith::CmpIPredicate::ugt, v, maxRank);
-    maxRank = lb.create<SelectOp>(rankIsGreater, v, maxRank);
+    maxRank = lb.create<arith::SelectOp>(rankIsGreater, v, maxRank);
   }
 
   // Calculate the difference of ranks and the maximum rank for later offsets.
@@ -619,7 +619,7 @@ LogicalResult SplitAtOpConversion::matchAndRewrite(
   Value add = b.create<arith::AddIOp>(originalIndex, rank);
   Value indexIsNegative =
       b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, originalIndex, zero);
-  Value index = b.create<SelectOp>(indexIsNegative, add, originalIndex);
+  Value index = b.create<arith::SelectOp>(indexIsNegative, add, originalIndex);
 
   Value one = b.create<arith::ConstantIndexOp>(1);
   Value head =
@@ -668,9 +668,9 @@ void ConvertShapeToStandardPass::runOnOperation() {
   // Setup target legality.
   MLIRContext &ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect,
-                         SCFDialect, tensor::TensorDialect>();
-  target.addLegalOp<CstrRequireOp, FuncOp, ModuleOp>();
+  target.addLegalDialect<arith::ArithmeticDialect, SCFDialect,
+                         tensor::TensorDialect>();
+  target.addLegalOp<CstrRequireOp, func::FuncOp, ModuleOp>();
 
   // Setup conversion patterns.
   RewritePatternSet patterns(&ctx);

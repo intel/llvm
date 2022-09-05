@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // template<class R>
@@ -75,3 +74,21 @@ struct WrongObjectness {
     void *data() const;
 };
 static_assert(std::ranges::contiguous_range<WrongObjectness>);
+
+// Test ADL-proofing.
+struct Incomplete;
+template<class T> struct Holder { T t; };
+
+static_assert(!std::ranges::contiguous_range<Holder<Incomplete>*>);
+static_assert(!std::ranges::contiguous_range<Holder<Incomplete>*&>);
+static_assert(!std::ranges::contiguous_range<Holder<Incomplete>*&&>);
+static_assert(!std::ranges::contiguous_range<Holder<Incomplete>* const>);
+static_assert(!std::ranges::contiguous_range<Holder<Incomplete>* const&>);
+static_assert(!std::ranges::contiguous_range<Holder<Incomplete>* const&&>);
+
+static_assert( std::ranges::contiguous_range<Holder<Incomplete>*[10]>);
+static_assert( std::ranges::contiguous_range<Holder<Incomplete>*(&)[10]>);
+static_assert( std::ranges::contiguous_range<Holder<Incomplete>*(&&)[10]>);
+static_assert( std::ranges::contiguous_range<Holder<Incomplete>* const[10]>);
+static_assert( std::ranges::contiguous_range<Holder<Incomplete>* const(&)[10]>);
+static_assert( std::ranges::contiguous_range<Holder<Incomplete>* const(&&)[10]>);

@@ -277,7 +277,7 @@ __smulwt(int32_t __a, int32_t __b) {
 /*
  * 9.4 Saturating intrinsics
  *
- * FIXME: Change guard to their corrosponding __ARM_FEATURE flag when Q flag
+ * FIXME: Change guard to their corresponding __ARM_FEATURE flag when Q flag
  * intrinsics are implemented and the flag is enabled.
  */
 /* 9.4.1 Width-specified saturation intrinsics */
@@ -728,6 +728,12 @@ __arm_st64bv0(void *__addr, data512_t __value) {
 #define __arm_mte_get_tag(__ptr) __builtin_arm_ldg(__ptr)
 #define __arm_mte_set_tag(__ptr) __builtin_arm_stg(__ptr)
 #define __arm_mte_ptrdiff(__ptra, __ptrb) __builtin_arm_subp(__ptra, __ptrb)
+#endif
+
+/* Memory Operations Intrinsics */
+#if __ARM_FEATURE_MOPS && __ARM_FEATURE_MEMORY_TAGGING
+#define __arm_mops_memset_tag(__tagged_address, __value, __size)    \
+  __builtin_arm_mops_memset_tag(__tagged_address, __value, __size)
 #endif
 
 /* Transactional Memory Extension (TME) Intrinsics */

@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/memory_manager.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
@@ -23,8 +23,8 @@
 #include <xpti/xpti_trace_framework.hpp>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -243,14 +243,6 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
-void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
-                                       void *ImageBuf) {
-  (void)TargetContext;
-  (void)ImageBuf;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated release operation", PI_INVALID_OPERATION);
-}
-
 void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
                                   SYCLMemObjI *MemObj, void *MemAllocation,
                                   void *UserPtr) {
@@ -281,28 +273,18 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                              OutEvent);
 }
 
-void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
-                                         void *MemBuf, SYCLMemObjI *MemObj) {
-  (void)TargetContext;
-  (void)MemBuf;
-  (void)MemObj;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated allocation operation", PI_INVALID_OPERATION);
-}
-
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
                                         const sycl::property_list &) {
-  // Can return user pointer directly if it points to writable memory.
-  if (UserPtr && HostPtrReadOnly == false)
+  std::ignore = HostPtrReadOnly;
+  std::ignore = Size;
+
+  // Can return user pointer directly if it is not a nullptr.
+  if (UserPtr)
     return UserPtr;
 
-  void *NewMem = MemObj->allocateHostMem();
-  // Need to initialize new memory if user provides pointer to read only
-  // memory.
-  if (UserPtr && HostPtrReadOnly == true)
-    std::memcpy((char *)NewMem, (char *)UserPtr, Size);
-  return NewMem;
+  return MemObj->allocateHostMem();
+  ;
 }
 
 void *MemoryManager::allocateInteropMemObject(
@@ -329,8 +311,7 @@ static RT::PiMemFlags getMemObjCreationFlags(void *UserPtr,
   RT::PiMemFlags Result =
       HostPtrReadOnly ? PI_MEM_ACCESS_READ_ONLY : PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
-    Result |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
-                              : PI_MEM_FLAGS_HOST_PTR_USE;
+    Result |= PI_MEM_FLAGS_HOST_PTR_USE;
   return Result;
 }
 
@@ -362,6 +343,18 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
 
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
+
+  if (PropsList.has_property<property::buffer::detail::buffer_location>())
+    if (TargetContext->isBufferLocationSupported()) {
+      auto location =
+          PropsList.get_property<property::buffer::detail::buffer_location>()
+              .get_buffer_location();
+      pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
+                                    location, 0};
+      memBufferCreateHelper(Plugin, TargetContext->getHandleRef(),
+                            CreationFlags, Size, UserPtr, &NewMem, props);
+      return NewMem;
+    }
   memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
                         Size, UserPtr, &NewMem, nullptr);
   return NewMem;
@@ -427,11 +420,11 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   Error = Plugin.call_nocheck<PiApiKind::piMemBufferPartition>(
       pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
       PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
-  if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
+  if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
         "multiple of the memory base address alignment",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (Error != PI_SUCCESS) {
     Plugin.reportPiError(Error, "allocateMemSubBuffer()");
@@ -499,7 +492,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
-          /*blocking_write=*/CL_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
+          /*blocking_write=*/PI_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
           SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
@@ -519,7 +512,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
       Plugin.call<PiApiKind::piEnqueueMemBufferWriteRect>(
           Queue, DstMem,
-          /*blocking_write=*/CL_FALSE, &BufferOffset, &HostOffset, &RectRegion,
+          /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
           SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
@@ -537,7 +530,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
-        /*blocking_write=*/CL_FALSE, &Origin, &Region, InputRowPitch,
+        /*blocking_write=*/PI_FALSE, &Origin, &Region, InputRowPitch,
         InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
@@ -577,7 +570,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
-          /*blocking_read=*/CL_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
+          /*blocking_read=*/PI_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
           DstMem + DstXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
@@ -597,7 +590,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
       Plugin.call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
-          /*blocking_read=*/CL_FALSE, &BufferOffset, &HostOffset, &RectRegion,
+          /*blocking_read=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
           DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
@@ -614,7 +607,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
                                   SrcAccessRange[SrcPos.ZTerm]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageRead>(
-        Queue, SrcMem, CL_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
+        Queue, SrcMem, PI_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
         DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
@@ -703,7 +696,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
     throw runtime_error("Not supported configuration of memcpy requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -777,7 +770,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
       return;
     }
     throw runtime_error("Not supported configuration of fill requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
@@ -793,7 +786,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          RT::PiEvent &OutEvent) {
   if (Queue->is_host()) {
     throw runtime_error("Not supported configuration of map requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
 
   pi_map_flags Flags = 0;
@@ -825,7 +818,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
   const detail::plugin &Plugin = Queue->getPlugin();
   memBufferMapHelper(Plugin, Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem),
-                     CL_FALSE, Flags, AccessOffset[0], BytesToMap,
+                     PI_FALSE, Flags, AccessOffset[0], BytesToMap,
                      DepEvents.size(), DepEvents.data(), &OutEvent, &MappedPtr);
   return MappedPtr;
 }
@@ -860,7 +853,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
   if (!SrcMem || !DstMem)
     throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
 
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
@@ -888,7 +881,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
   if (!Mem)
     throw runtime_error("NULL pointer argument in memory fill operation.",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
 
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);
@@ -927,36 +920,6 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                                      Length, Advice, OutEvent);
   }
 }
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
-                             void *DstMem, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  copy_usm(SrcMem, Queue, Len, DstMem, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                             int Pattern, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  fill_usm(DstMem, Queue, Len, Pattern, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
-                                 std::vector<RT::PiEvent> DepEvents,
-                                 RT::PiEvent &OutEvent) {
-  prefetch_usm(Ptr, Queue, Len, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
-                               pi_mem_advice Advice,
-                               std::vector<RT::PiEvent> DepEvents,
-                               RT::PiEvent &OutEvent) {
-  advise_usm(Ptr, Queue, Len, Advice, DepEvents, &OutEvent);
-}
-
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

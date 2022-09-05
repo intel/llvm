@@ -4,9 +4,14 @@
 
 extern "C" int printf(const char* fmt, ...);
 
+#ifdef __SYCL_DEVICE_ONLY__
+__attribute__((convergent)) extern SYCL_EXTERNAL void
+__spirv_ControlBarrier(int, int, int) noexcept;
+#endif
+
 // Dummy runtime classes to model SYCL API.
-inline namespace cl {
 namespace sycl {
+inline namespace _V1 {
 struct sampler_impl {
 #ifdef __SYCL_DEVICE_ONLY__
   __ocl_sampler_t m_Sampler;
@@ -129,6 +134,19 @@ struct no_alias {
   template <bool> class instance {};
 };
 } // namespace property
+
+// device_global type decorated with attributes
+template <typename T>
+class [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global {
+public:
+  const T &get() const noexcept { return *Data; }
+  device_global() {}
+  operator T &() noexcept { return *Data; }
+
+private:
+  T *Data;
+};
+
 } // namespace oneapi
 } // namespace ext
 
@@ -273,6 +291,26 @@ public:
   _ImageImplT<dimensions, accessmode, access::target::host_image> impl;
 };
 
+template <typename dataT, int dimensions>
+class __attribute__((sycl_special_class))
+local_accessor: public accessor<dataT,
+        dimensions, access::mode::read_write,
+        access::target::local> {
+public:
+  void use(void) const {}
+  template <typename... T>
+  void use(T... args) {}
+  template <typename... T>
+  void use(T... args) const {}
+  _ImplT<dimensions> impl;
+
+private:
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(__attribute__((opencl_local)) dataT *Ptr, range<dimensions> AccessRange,
+              range<dimensions> MemRange, id<dimensions> Offset) {}
+#endif
+};
+
 // TODO: Add support for image_array accessor.
 // template <typename dataT, int dimensions, access::mode accessmode>
 //class accessor<dataT, dimensions, accessmode, access::target::image_array, access::placeholder::false_t>
@@ -386,10 +424,19 @@ kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
+// Dummy parallel_for_work_item function to mimic calls from
+// parallel_for_work_group.
+void parallel_for_work_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  __spirv_ControlBarrier(0, 0, 0);
+#endif
+}
+
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
+  parallel_for_work_item();
 }
 
 class handler {
@@ -464,7 +511,7 @@ public:
   void __finalize() {}
 
 private:
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  sycl::accessor<char, 1, sycl::access::mode::read_write> Acc;
   int FlushBufferSize;
 };
 
@@ -594,5 +641,5 @@ public:
   }
 };
 
+} // inline namespace _V1
 } // namespace sycl
-} // namespace cl

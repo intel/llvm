@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/os_util.hpp>
 
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <limits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
@@ -182,5 +182,5 @@ const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -12,7 +12,7 @@
 
 #include "../PassDetail.h"
 #include "mlir/Conversion/TosaToSCF/TosaToSCF.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Transforms/PassDetail.h"
@@ -48,5 +48,5 @@ std::unique_ptr<Pass> mlir::tosa::createTosaToSCF() {
 }
 
 void mlir::tosa::addTosaToSCFPasses(OpPassManager &pm) {
-  pm.addNestedPass<FuncOp>(createTosaToSCF());
+  pm.addNestedPass<func::FuncOp>(createTosaToSCF());
 }

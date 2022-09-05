@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/__support/CPP/UInt128.h"
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/str_to_float.h"
 
@@ -232,6 +233,11 @@ TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion32SpecificFailures) {
   simple_decimal_conversion_test<float>(
       "1.4012984643248170709237295832899161312802619418765e-45", 0x1, 0,
       ERANGE);
+  simple_decimal_conversion_test<float>(
+      "7."
+      "006492321624085354618647916449580656401309709382578858785341419448955413"
+      "42930300743319094181060791015625e-46",
+      0x0, 0, ERANGE);
 }
 
 TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
@@ -254,18 +260,6 @@ TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
   EXPECT_EQ(double_output_mantissa, uint64_t(0x1AC53A7E04BCDA));
   EXPECT_EQ(output_exp2, uint32_t(1089));
   EXPECT_EQ(errno, 0);
-
-  // TODO(michaelrj): Get long double support working.
-
-  // __uint128_t longDoubleOutputMantissa = 0;
-  // outputExp2 = 0;
-
-  // errno = 0;
-  // __llvm_libc::internal::simple_decimal_conversion<long double>(
-  //     "123456789012345678900", &longDoubleOutputMantissa, &outputExp2);
-  // EXPECT_EQ(longDoubleOutputMantissa, __uint128_t(0x1AC53A7E04BCDA));
-  // EXPECT_EQ(outputExp2, uint32_t(1089));
-  // EXPECT_EQ(errno, 0);
 }
 
 #if defined(LONG_DOUBLE_IS_DOUBLE)
@@ -280,14 +274,14 @@ TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat80Simple) {
 }
 
 TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat80LongerMantissa) {
-  eisel_lemire_test<long double>((__uint128_t(0x1234567812345678) << 64) +
-                                     __uint128_t(0x1234567812345678),
+  eisel_lemire_test<long double>((UInt128(0x1234567812345678) << 64) +
+                                     UInt128(0x1234567812345678),
                                  0, 0x91a2b3c091a2b3c1, 16507);
-  eisel_lemire_test<long double>((__uint128_t(0x1234567812345678) << 64) +
-                                     __uint128_t(0x1234567812345678),
+  eisel_lemire_test<long double>((UInt128(0x1234567812345678) << 64) +
+                                     UInt128(0x1234567812345678),
                                  300, 0xd97757de56adb65c, 17503);
-  eisel_lemire_test<long double>((__uint128_t(0x1234567812345678) << 64) +
-                                     __uint128_t(0x1234567812345678),
+  eisel_lemire_test<long double>((UInt128(0x1234567812345678) << 64) +
+                                     UInt128(0x1234567812345678),
                                  -300, 0xc30feb9a7618457d, 15510);
 }
 
@@ -306,7 +300,7 @@ TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat80TableLimits) {
 
 TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat80Fallback) {
   uint32_t outputExp2 = 0;
-  __uint128_t quadOutputMantissa = 0;
+  UInt128 quadOutputMantissa = 0;
 
   // This number is halfway between two possible results, and the algorithm
   // can't determine which is correct.
@@ -320,39 +314,33 @@ TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat80Fallback) {
   ASSERT_FALSE(__llvm_libc::internal::eisel_lemire<long double>(
       1, -1000, &quadOutputMantissa, &outputExp2));
 }
-#else
+#else // Quad precision long double
 TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat128Simple) {
-  eisel_lemire_test<long double>(123, 0, (__uint128_t(0x1ec0000000000) << 64),
+  eisel_lemire_test<long double>(123, 0, (UInt128(0x1ec0000000000) << 64),
                                  16389);
-  eisel_lemire_test<long double>(12345678901234568192u, 0,
-                                 (__uint128_t(0x156a95319d63e) << 64) +
-                                     __uint128_t(0x1800000000000000),
-                                 16446);
+  eisel_lemire_test<long double>(
+      12345678901234568192u, 0,
+      (UInt128(0x156a95319d63e) << 64) + UInt128(0x1800000000000000), 16446);
 }
 
 TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat128LongerMantissa) {
   eisel_lemire_test<long double>(
-      (__uint128_t(0x1234567812345678) << 64) + __uint128_t(0x1234567812345678),
-      0, (__uint128_t(0x1234567812345) << 64) + __uint128_t(0x6781234567812345),
-      16507);
+      (UInt128(0x1234567812345678) << 64) + UInt128(0x1234567812345678), 0,
+      (UInt128(0x1234567812345) << 64) + UInt128(0x6781234567812345), 16507);
   eisel_lemire_test<long double>(
-      (__uint128_t(0x1234567812345678) << 64) + __uint128_t(0x1234567812345678),
-      300,
-      (__uint128_t(0x1b2eeafbcad5b) << 64) + __uint128_t(0x6cb8b4451dfcde19),
-      17503);
+      (UInt128(0x1234567812345678) << 64) + UInt128(0x1234567812345678), 300,
+      (UInt128(0x1b2eeafbcad5b) << 64) + UInt128(0x6cb8b4451dfcde19), 17503);
   eisel_lemire_test<long double>(
-      (__uint128_t(0x1234567812345678) << 64) + __uint128_t(0x1234567812345678),
-      -300,
-      (__uint128_t(0x1861fd734ec30) << 64) + __uint128_t(0x8afa7189f0f7595f),
-      15510);
+      (UInt128(0x1234567812345678) << 64) + UInt128(0x1234567812345678), -300,
+      (UInt128(0x1861fd734ec30) << 64) + UInt128(0x8afa7189f0f7595f), 15510);
 }
 
 TEST_F(LlvmLibcStrToFloatTest, EiselLemireFloat128Fallback) {
   uint32_t outputExp2 = 0;
-  __uint128_t quadOutputMantissa = 0;
+  UInt128 quadOutputMantissa = 0;
 
   ASSERT_FALSE(__llvm_libc::internal::eisel_lemire<long double>(
-      (__uint128_t(0x5ce0e9a56015fec5) << 64) + __uint128_t(0xaadfa328ae39b333),
-      1, &quadOutputMantissa, &outputExp2));
+      (UInt128(0x5ce0e9a56015fec5) << 64) + UInt128(0xaadfa328ae39b333), 1,
+      &quadOutputMantissa, &outputExp2));
 }
 #endif

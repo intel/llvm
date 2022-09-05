@@ -1,11 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --linalg-bufferize --convert-linalg-to-loops \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-math-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -31,7 +24,7 @@ module {
   // Helper method to print values array. The transfer actually
   // reads more than required to verify size of buffer as well.
   //
-  func @dump(%arg0: memref<?xf64>) {
+  func.func @dump(%arg0: memref<?xf64>) {
     %c = arith.constant 0 : index
     %d = arith.constant -1.0 : f64
     %0 = vector.transfer_read %arg0[%c], %d: memref<?xf64>, vector<8xf64>
@@ -39,7 +32,7 @@ module {
     return
   }
 
-  func @entry() {
+  func.func @entry() {
     %t1 = arith.constant sparse<
       [ [0,0], [0,1], [0,63], [1,0], [1,1], [31,0], [31,63] ],
         [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0 ]> : tensor<32x64xf64>
@@ -79,12 +72,12 @@ module {
     call @dump(%m6) : (memref<?xf64>) -> ()
 
     // Release the resources.
-    sparse_tensor.release %1 : tensor<?x?xf64, #DCSR>
-    sparse_tensor.release %2 : tensor<?x?xf64, #DCSC>
-    sparse_tensor.release %3 : tensor<?x?xf64, #DCSR>
-    sparse_tensor.release %4 : tensor<?x?xf64, #DCSC>
-    sparse_tensor.release %5 : tensor<?x?xf64, #DCSC>
-    sparse_tensor.release %6 : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %1 : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %2 : tensor<?x?xf64, #DCSC>
+    bufferization.dealloc_tensor %3 : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %4 : tensor<?x?xf64, #DCSC>
+    bufferization.dealloc_tensor %5 : tensor<?x?xf64, #DCSC>
+    bufferization.dealloc_tensor %6 : tensor<?x?xf64, #DCSR>
 
     return
   }

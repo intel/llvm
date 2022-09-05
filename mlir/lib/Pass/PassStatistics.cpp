@@ -21,7 +21,7 @@ namespace {
 /// Information pertaining to a specific statistic.
 struct Statistic {
   const char *name, *desc;
-  unsigned value;
+  uint64_t value;
 };
 } // namespace
 
@@ -33,11 +33,10 @@ static void printPassEntry(raw_ostream &os, unsigned indent, StringRef pass,
     return;
 
   // Make sure to sort the statistics by name.
-  llvm::array_pod_sort(stats.begin(), stats.end(),
-                       [](const auto *lhs, const auto *rhs) {
-                         return llvm::array_pod_sort_comparator<const char *>(
-                             &lhs->name, &rhs->name);
-                       });
+  llvm::array_pod_sort(
+      stats.begin(), stats.end(), [](const auto *lhs, const auto *rhs) {
+        return StringRef{lhs->name}.compare(StringRef{rhs->name});
+      });
 
   // Collect the largest name and value length from each of the statistics.
   size_t largestName = 0, largestValue = 0;
@@ -90,16 +89,17 @@ static void printResultsAsList(raw_ostream &os, OpPassManager &pm) {
     addStats(&pass);
 
   // Sort the statistics by pass name and then by record name.
-  std::vector<std::pair<StringRef, std::vector<Statistic>>> passAndStatistics;
-  for (auto &passIt : mergedStats)
-    passAndStatistics.emplace_back(passIt.first(), std::move(passIt.second));
-  llvm::sort(passAndStatistics, [](const auto &lhs, const auto &rhs) {
-    return lhs.first.compare(rhs.first) < 0;
-  });
+  auto passAndStatistics =
+      llvm::to_vector<16>(llvm::make_pointer_range(mergedStats));
+  llvm::array_pod_sort(passAndStatistics.begin(), passAndStatistics.end(),
+                       [](const decltype(passAndStatistics)::value_type *lhs,
+                          const decltype(passAndStatistics)::value_type *rhs) {
+                         return (*lhs)->getKey().compare((*rhs)->getKey());
+                       });
 
   // Print the timing information sequentially.
   for (auto &statData : passAndStatistics)
-    printPassEntry(os, /*indent=*/2, statData.first, statData.second);
+    printPassEntry(os, /*indent=*/2, statData->first(), statData->second);
 }
 
 /// Print the results in pipeline mode that mirrors the internal pass manager
@@ -119,7 +119,7 @@ static void printResultsAsPipeline(raw_ostream &os, OpPassManager &pm) {
 
       // Print each of the children passes.
       for (OpPassManager &mgr : mgrs) {
-        auto name = ("'" + mgr.getOpName() + "' Pipeline").str();
+        auto name = ("'" + mgr.getOpAnchorName() + "' Pipeline").str();
         printPassEntry(os, indent, name);
         for (Pass &pass : mgr.getPasses())
           printPass(indent + 2, &pass);

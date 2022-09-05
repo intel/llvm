@@ -24,7 +24,7 @@ One is using environment variable SYCL_DEVICE_FILTER described in [EnvironmentVa
 $ SYCL_DEVICE_FILTER=level_zero sycl-ls
 [level_zero:0] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
 ```
-Another way is to use similar SYCL API described in [SYCL\_EXT\_ONEAPI\_FILTER\_SELECTOR](extensions/supported/SYCL_EXT_ONEAPI_FILTER_SELECTOR.asciidoc)
+Another way is to use similar SYCL API described in [sycl\_ext\_oneapi\_filter\_selector](extensions/supported/sycl_ext_oneapi_filter_selector.asciidoc)
 E.g. `filter_selector("level_zero")` will only see Level-Zero operated devices.
 
 If there are multiple GPUs in a system then they will be seen as multiple different root-devices.
@@ -46,8 +46,8 @@ The root-device in such cases can be partitioned to sub-devices, each correspond
 ``` C++	
 try {
   vector<device> SubDevices = RootDevice.create_sub_devices<
-  cl::sycl::info::partition_property::partition_by_affinity_domain>(
-  cl::sycl::info::partition_affinity_domain::next_partitionable);
+  sycl::info::partition_property::partition_by_affinity_domain>(
+  sycl::info::partition_affinity_domain::next_partitionable);
 }
 ```
 

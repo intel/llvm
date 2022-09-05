@@ -9,6 +9,7 @@
 #ifndef LLD_WASM_CONFIG_H
 #define LLD_WASM_CONFIG_H
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/Wasm.h"
@@ -18,7 +19,7 @@ namespace lld {
 namespace wasm {
 
 // For --unresolved-symbols.
-enum class UnresolvedPolicy { ReportError, Warn, Ignore };
+enum class UnresolvedPolicy { ReportError, Warn, Ignore, ImportDynamic };
 
 // This struct contains the global configuration for the linker.
 // Most fields are direct mapping from the command line options
@@ -35,6 +36,7 @@ struct Configuration {
   bool exportAll;
   bool exportDynamic;
   bool exportTable;
+  bool extendedConst;
   bool growableTable;
   bool gcSections;
   bool importMemory;
@@ -60,7 +62,6 @@ struct Configuration {
   unsigned ltoo;
   unsigned optimize;
   llvm::StringRef thinLTOJobs;
-  bool ltoNewPassManager;
   bool ltoDebugPassManager;
   UnresolvedPolicy unresolvedSymbols;
 
@@ -72,7 +73,7 @@ struct Configuration {
   llvm::StringSet<> allowUndefinedSymbols;
   llvm::StringSet<> exportedSymbols;
   std::vector<llvm::StringRef> requiredExports;
-  std::vector<llvm::StringRef> searchPaths;
+  llvm::SmallVector<llvm::StringRef, 0> searchPaths;
   llvm::CachePruningPolicy thinLTOCachePolicy;
   llvm::Optional<std::vector<std::string>> features;
 

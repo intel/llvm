@@ -10,12 +10,14 @@
 //===----------------------------------------------------------------------===/
 
 #include "TreeTransform.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/LangOptions.h"
@@ -55,26 +57,23 @@ using namespace sema;
 /// instantiating the definition of the given declaration, \p D. This is
 /// used to determine the proper set of template instantiation arguments for
 /// friend function template specializations.
-MultiLevelTemplateArgumentList
-Sema::getTemplateInstantiationArgs(NamedDecl *D,
-                                   const TemplateArgumentList *Innermost,
-                                   bool RelativeToPrimary,
-                                   const FunctionDecl *Pattern) {
+MultiLevelTemplateArgumentList Sema::getTemplateInstantiationArgs(
+    const NamedDecl *D, const TemplateArgumentList *Innermost,
+    bool RelativeToPrimary, const FunctionDecl *Pattern) {
   // Accumulate the set of template argument lists in this structure.
   MultiLevelTemplateArgumentList Result;
 
   if (Innermost)
     Result.addOuterTemplateArguments(Innermost);
 
-  DeclContext *Ctx = dyn_cast<DeclContext>(D);
+  const auto *Ctx = dyn_cast<DeclContext>(D);
   if (!Ctx) {
     Ctx = D->getDeclContext();
 
     // Add template arguments from a variable template instantiation. For a
     // class-scope explicit specialization, there are no template arguments
     // at this level, but there may be enclosing template arguments.
-    VarTemplateSpecializationDecl *Spec =
-        dyn_cast<VarTemplateSpecializationDecl>(D);
+    const auto *Spec = dyn_cast<VarTemplateSpecializationDecl>(D);
     if (Spec && !Spec->isClassScopeExplicitSpecialization()) {
       // We're done when we hit an explicit specialization.
       if (Spec->getSpecializationKind() == TSK_ExplicitSpecialization &&
@@ -107,8 +106,7 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
     // use empty template parameter lists for all of the outer templates
     // to avoid performing any substitutions.
     if (Ctx->isTranslationUnit()) {
-      if (TemplateTemplateParmDecl *TTP
-                                      = dyn_cast<TemplateTemplateParmDecl>(D)) {
+      if (const auto *TTP = dyn_cast<TemplateTemplateParmDecl>(D)) {
         for (unsigned I = 0, N = TTP->getDepth() + 1; I != N; ++I)
           Result.addOuterTemplateArguments(None);
         return Result;
@@ -118,8 +116,7 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
 
   while (!Ctx->isFileContext()) {
     // Add template arguments from a class template instantiation.
-    ClassTemplateSpecializationDecl *Spec
-          = dyn_cast<ClassTemplateSpecializationDecl>(Ctx);
+    const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(Ctx);
     if (Spec && !Spec->isClassScopeExplicitSpecialization()) {
       // We're done when we hit an explicit specialization.
       if (Spec->getSpecializationKind() == TSK_ExplicitSpecialization &&
@@ -135,7 +132,7 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
         break;
     }
     // Add template arguments from a function template specialization.
-    else if (FunctionDecl *Function = dyn_cast<FunctionDecl>(Ctx)) {
+    else if (const auto *Function = dyn_cast<FunctionDecl>(Ctx)) {
       if (!RelativeToPrimary &&
           Function->getTemplateSpecializationKindForInstantiation() ==
               TSK_ExplicitSpecialization)
@@ -177,7 +174,7 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
         RelativeToPrimary = false;
         continue;
       }
-    } else if (CXXRecordDecl *Rec = dyn_cast<CXXRecordDecl>(Ctx)) {
+    } else if (const auto *Rec = dyn_cast<CXXRecordDecl>(Ctx)) {
       if (ClassTemplateDecl *ClassTemplate = Rec->getDescribedClassTemplate()) {
         assert(Result.getNumSubstitutedLevels() == 0 &&
                "Outer template not instantiated?");
@@ -218,6 +215,7 @@ bool Sema::CodeSynthesisContext::isInstantiationRecord() const {
   case RewritingOperatorAsSpaceship:
   case InitializingStructuredBinding:
   case MarkingClassDllexported:
+  case BuildingBuiltinDumpStructCall:
     return false;
 
   // This function should never be called when Kind's value is Memoization.
@@ -485,6 +483,19 @@ void Sema::InstantiatingTemplate::Clear() {
     SemaRef.popCodeSynthesisContext();
     Invalid = true;
   }
+}
+
+static std::string convertCallArgsToString(Sema &S,
+                                           llvm::ArrayRef<const Expr *> Args) {
+  std::string Result;
+  llvm::raw_string_ostream OS(Result);
+  llvm::ListSeparator Comma;
+  for (const Expr *Arg : Args) {
+    OS << Comma;
+    Arg->IgnoreParens()->printPretty(OS, nullptr,
+                                     S.Context.getPrintingPolicy());
+  }
+  return Result;
 }
 
 bool Sema::InstantiatingTemplate::CheckInstantiationDepth(
@@ -775,6 +786,14 @@ void Sema::PrintInstantiationStack() {
           << cast<CXXRecordDecl>(Active->Entity) << !getLangOpts().CPlusPlus11;
       break;
 
+    case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
+      Diags.Report(Active->PointOfInstantiation,
+                   diag::note_building_builtin_dump_struct_call)
+          << convertCallArgsToString(
+                 *this,
+                 llvm::makeArrayRef(Active->CallArgs, Active->NumCallArgs));
+      break;
+
     case CodeSynthesisContext::Memoization:
       break;
 
@@ -879,6 +898,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::DefiningSynthesizedFunction:
     case CodeSynthesisContext::InitializingStructuredBinding:
     case CodeSynthesisContext::MarkingClassDllexported:
+    case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
       // This happens in a context unrelated to template instantiation, so
       // there is no SFINAE.
       return None;
@@ -1092,6 +1112,9 @@ namespace {
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
     const SYCLIntelFPGALoopCountAttr *
     TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
+    const SYCLIntelFPGAMaxReinvocationDelayAttr *
+    TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
+        const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1146,12 +1169,12 @@ namespace {
 
     ExprResult TransformLambdaExpr(LambdaExpr *E) {
       LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
-      return TreeTransform<TemplateInstantiator>::TransformLambdaExpr(E);
+      return inherited::TransformLambdaExpr(E);
     }
 
     ExprResult TransformRequiresExpr(RequiresExpr *E) {
       LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
-      return TreeTransform<TemplateInstantiator>::TransformRequiresExpr(E);
+      return inherited::TransformRequiresExpr(E);
     }
 
     bool TransformRequiresExprRequirements(
@@ -1361,10 +1384,7 @@ TemplateInstantiator::RebuildElaboratedType(SourceLocation KeywordLoc,
     }
   }
 
-  return TreeTransform<TemplateInstantiator>::RebuildElaboratedType(KeywordLoc,
-                                                                    Keyword,
-                                                                  QualifierLoc,
-                                                                    T);
+  return inherited::RebuildElaboratedType(KeywordLoc, Keyword, QualifierLoc, T);
 }
 
 TemplateName TemplateInstantiator::TransformTemplateName(
@@ -1584,6 +1604,14 @@ const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
   Expr *TransformedExpr =
       getDerived().TransformExpr(LU->getUnrollHintExpr()).get();
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
+}
+
+const SYCLIntelFPGAMaxReinvocationDelayAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
+    const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD) {
+  Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGAMaxReinvocationDelayAttr(*MRD,
+                                                              TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
@@ -1807,7 +1835,7 @@ TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr *E) {
     if (PD->isParameterPack())
       return TransformFunctionParmPackRefExpr(E, PD);
 
-  return TreeTransform<TemplateInstantiator>::TransformDeclRefExpr(E);
+  return inherited::TransformDeclRefExpr(E);
 }
 
 ExprResult TemplateInstantiator::TransformCXXDefaultArgExpr(
@@ -2031,6 +2059,9 @@ TemplateInstantiator::TransformExprRequirement(concepts::ExprRequirement *Req) {
     if (ExprInst.isInvalid())
       return nullptr;
     ExprResult TransExprRes = TransformExpr(E);
+    if (!TransExprRes.isInvalid() && !Trap.hasErrorOccurred() &&
+        TransExprRes.get()->hasPlaceholderType())
+      TransExprRes = SemaRef.CheckPlaceholderExpr(TransExprRes.get());
     if (TransExprRes.isInvalid() || Trap.hasErrorOccurred())
       TransExpr = createSubstDiag(SemaRef, Info, [&](llvm::raw_ostream &OS) {
         E->printPretty(OS, nullptr, SemaRef.getPrintingPolicy());
@@ -2066,8 +2097,7 @@ TemplateInstantiator::TransformExprRequirement(concepts::ExprRequirement *Req) {
       TransRetReq.emplace(TPL);
     }
   }
-  assert(TransRetReq.hasValue() &&
-         "All code paths leading here must set TransRetReq");
+  assert(TransRetReq && "All code paths leading here must set TransRetReq");
   if (Expr *E = TransExpr.dyn_cast<Expr *>())
     return RebuildExprRequirement(E, Req->isSimple(), Req->getNoexceptLoc(),
                                   std::move(*TransRetReq));
@@ -2093,6 +2123,7 @@ TemplateInstantiator::TransformNestedRequirement(
       Req->getConstraintExpr()->getSourceRange());
 
   ExprResult TransConstraint;
+  ConstraintSatisfaction Satisfaction;
   TemplateDeductionInfo Info(Req->getConstraintExpr()->getBeginLoc());
   {
     EnterExpressionEvaluationContext ContextRAII(
@@ -2104,6 +2135,25 @@ TemplateInstantiator::TransformNestedRequirement(
     if (ConstrInst.isInvalid())
       return nullptr;
     TransConstraint = TransformExpr(Req->getConstraintExpr());
+    if (!TransConstraint.isInvalid()) {
+      bool CheckSucceeded =
+          SemaRef.CheckConstraintExpression(TransConstraint.get());
+      (void)CheckSucceeded;
+      assert((CheckSucceeded || Trap.hasErrorOccurred()) &&
+                                   "CheckConstraintExpression failed, but "
+                                   "did not produce a SFINAE error");
+    }
+    // Use version of CheckConstraintSatisfaction that does no substitutions.
+    if (!TransConstraint.isInvalid() &&
+        !TransConstraint.get()->isInstantiationDependent() &&
+        !Trap.hasErrorOccurred()) {
+      bool CheckFailed = SemaRef.CheckConstraintSatisfaction(
+          TransConstraint.get(), Satisfaction);
+      (void)CheckFailed;
+      assert((!CheckFailed || Trap.hasErrorOccurred()) &&
+                                 "CheckConstraintSatisfaction failed, "
+                                 "but did not produce a SFINAE error");
+    }
     if (TransConstraint.isInvalid() || Trap.hasErrorOccurred())
       return RebuildNestedRequirement(createSubstDiag(SemaRef, Info,
           [&] (llvm::raw_ostream& OS) {
@@ -2111,7 +2161,11 @@ TemplateInstantiator::TransformNestedRequirement(
                                                     SemaRef.getPrintingPolicy());
           }));
   }
-  return RebuildNestedRequirement(TransConstraint.get());
+  if (TransConstraint.get()->isInstantiationDependent())
+    return new (SemaRef.Context)
+        concepts::NestedRequirement(TransConstraint.get());
+  return new (SemaRef.Context) concepts::NestedRequirement(
+      SemaRef.Context, TransConstraint.get(), Satisfaction);
 }
 
 
@@ -3319,6 +3373,17 @@ Sema::InstantiateClassMembers(SourceLocation PointOfInstantiation,
     if (auto *Function = dyn_cast<FunctionDecl>(D)) {
       if (FunctionDecl *Pattern =
               Function->getInstantiatedFromMemberFunction()) {
+
+        if (Function->isIneligibleOrNotSelected())
+          continue;
+
+        if (Function->getTrailingRequiresClause()) {
+          ConstraintSatisfaction Satisfaction;
+          if (CheckFunctionConstraints(Function, Satisfaction) ||
+              !Satisfaction.IsSatisfied) {
+            continue;
+          }
+        }
 
         if (Function->hasAttr<ExcludeFromExplicitInstantiationAttr>())
           continue;

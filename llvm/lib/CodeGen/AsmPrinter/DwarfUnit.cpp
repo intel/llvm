@@ -17,12 +17,8 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/None.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalValue.h"
@@ -32,9 +28,7 @@
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MachineLocation.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include <cassert>
 #include <cstdint>
@@ -89,8 +83,7 @@ bool DIEDwarfExpression::isFrameRegister(const TargetRegisterInfo &TRI,
 
 DwarfUnit::DwarfUnit(dwarf::Tag UnitTag, const DICompileUnit *Node,
                      AsmPrinter *A, DwarfDebug *DW, DwarfFile *DWU)
-    : DIEUnit(UnitTag), CUNode(Node), Asm(A), DD(DW), DU(DWU),
-      IndexTyDie(nullptr) {}
+    : DIEUnit(UnitTag), CUNode(Node), Asm(A), DD(DW), DU(DWU) {}
 
 DwarfTypeUnit::DwarfTypeUnit(DwarfCompileUnit &CU, AsmPrinter *A,
                              DwarfDebug *DW, DwarfFile *DWU,
@@ -381,6 +374,8 @@ void DwarfUnit::addDIEEntry(DIE &Die, dwarf::Attribute Attribute,
     CU = getUnitDie().getUnit();
   if (!EntryCU)
     EntryCU = getUnitDie().getUnit();
+  assert(EntryCU == CU || !DD->useSplitDwarf() || DD->shareAcrossDWOCUs() ||
+         !static_cast<const DwarfUnit*>(CU)->isDwoUnit());
   addAttribute(Die, Attribute,
                EntryCU == CU ? dwarf::DW_FORM_ref4 : dwarf::DW_FORM_ref_addr,
                Entry);
@@ -804,7 +799,7 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
   // or reference types.
   if (DTy->getDWARFAddressSpace())
     addUInt(Buffer, dwarf::DW_AT_address_class, dwarf::DW_FORM_data4,
-            DTy->getDWARFAddressSpace().getValue());
+            *DTy->getDWARFAddressSpace());
 }
 
 void DwarfUnit::constructSubprogramArguments(DIE &Buffer, DITypeRefArray Args) {
@@ -1349,6 +1344,9 @@ void DwarfUnit::applySubprogramAttributes(const DISubprogram *SP, DIE &SPDie,
   if (SP->isRecursive())
     addFlag(SPDie, dwarf::DW_AT_recursive);
 
+  if (!SP->getTargetFuncName().empty())
+    addString(SPDie, dwarf::DW_AT_trampoline, SP->getTargetFuncName());
+
   if (DD->getDwarfVersion() >= 5 && SP->isDeleted())
     addFlag(SPDie, dwarf::DW_AT_deleted);
 }
@@ -1441,7 +1439,8 @@ DIE *DwarfUnit::getIndexTyDie() {
   addString(*IndexTyDie, dwarf::DW_AT_name, Name);
   addUInt(*IndexTyDie, dwarf::DW_AT_byte_size, None, sizeof(int64_t));
   addUInt(*IndexTyDie, dwarf::DW_AT_encoding, dwarf::DW_FORM_data1,
-          dwarf::DW_ATE_unsigned);
+          dwarf::getArrayIndexTypeEncoding(
+              (dwarf::SourceLanguage)getLanguage()));
   DD->addAccelType(*CUNode, Name, *IndexTyDie, /*Flags*/ 0);
   return IndexTyDie;
 }
@@ -1846,29 +1845,5 @@ void DwarfUnit::addRnglistsBase() {
 }
 
 void DwarfTypeUnit::finishNonUnitTypeDIE(DIE& D, const DICompositeType *CTy) {
-  addFlag(D, dwarf::DW_AT_declaration);
-  StringRef Name = CTy->getName();
-  if (!Name.empty())
-    addString(D, dwarf::DW_AT_name, Name);
-  if (Name.startswith("_STN") || !Name.contains('<'))
-    addTemplateParams(D, CTy->getTemplateParams());
-  // If the type is in an anonymous namespace, we can't reference it from a TU
-  // (since the type would be CU local and the TU doesn't specify which TU has
-  // the appropriate type definition) - so flag this emission as such and skip
-  // the rest of the emission now since we're going to throw out all this work
-  // and put the outer/referencing type in the CU instead.
-  // FIXME: Probably good to generalize this to a DICompositeType flag populated
-  // by the frontend, then we could use that to have types that can have
-  // decl+def merged by LTO but where the definition still doesn't go in a type
-  // unit because the type has only one definition.
-  for (DIScope *S = CTy->getScope(); S; S = S->getScope()) {
-    if (auto *NS = dyn_cast<DINamespace>(S)) {
-      if (NS->getName().empty()) {
-        DD->seenLocalType();
-        break;
-      }
-    }
-  }
-  auto X = DD->enterNonTypeUnitContext();
-  getCU().createTypeDIE(CTy);
+  DD->getAddressPool().resetUsedFlag(true);
 }

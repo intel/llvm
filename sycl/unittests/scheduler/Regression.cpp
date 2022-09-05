@@ -77,6 +77,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*HKernel*/
       std::make_unique<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
       /*SyclKernel*/ nullptr,
+      /*KernelBundle*/ nullptr,
       /*ArgsStorage*/ {},
       /*AccStorage*/ {},
       /*SharedPtrStorage*/ {},
@@ -86,6 +87,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*KernelName*/ "",
       /*OSModuleHandle*/ detail::OSUtil::ExeModuleHandle,
       /*Streams*/ {},
+      /*AuxiliaryResources*/ {},
       /*Type*/ detail::CG::RunOnHostIntel)};
 
   context Ctx{Plt};
@@ -95,6 +97,6 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImpl};
   detail::EnqueueResultT EnqueueResult = detail::EnqueueResultT(
       detail::EnqueueResultT::SyclEnqueueReady, &ExecCGCmd);
-  std::vector<cl::sycl::detail::Command *> ToCleanUp;
+  std::vector<sycl::detail::Command *> ToCleanUp;
   ExecCGCmd.enqueue(EnqueueResult, detail::BlockingT::NON_BLOCKING, ToCleanUp);
 }

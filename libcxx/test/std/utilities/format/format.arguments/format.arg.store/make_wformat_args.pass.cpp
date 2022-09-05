@@ -6,11 +6,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
-// XFAIL: libcpp-has-no-wide-characters
-// TODO FMT Evaluate gcc-11 status
-// UNSUPPORTED: gcc-11
+// XFAIL: no-wide-characters
 
 // <format>
 
@@ -25,18 +22,10 @@
 #include "test_macros.h"
 
 int main(int, char**) {
-  using Context [[maybe_unused]] = std::basic_format_context<
-      std::back_insert_iterator<std::basic_string<wchar_t>>, wchar_t>;
+  [[maybe_unused]] auto store = std::make_wformat_args(42, nullptr, false, 1.0);
 
-  [[maybe_unused]] auto value = std::make_wformat_args(42, nullptr, false, 1.0);
-
-  LIBCPP_ASSERT(value.__args.size() == 4);
-  LIBCPP_ASSERT(test_basic_format_arg(value.__args[0], 42));
-  // Note [format.arg]/11 specifies a nullptr is stored as a const void*.
-  LIBCPP_ASSERT(test_basic_format_arg(value.__args[1],
-                                      static_cast<const void*>(nullptr)));
-  LIBCPP_ASSERT(test_basic_format_arg(value.__args[2], false));
-  LIBCPP_ASSERT(test_basic_format_arg(value.__args[3], 1.0));
+  LIBCPP_STATIC_ASSERT(
+      std::same_as<decltype(store), std::__format_arg_store<std::wformat_context, int, nullptr_t, bool, double>>);
 
   return 0;
 }

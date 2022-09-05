@@ -1,9 +1,4 @@
-// RUN:   mlir-opt %s -test-math-polynomial-approximation                      \
-// RUN:               -convert-arith-to-llvm                                   \
-// RUN:               -convert-vector-to-llvm                                  \
-// RUN:               -convert-math-to-llvm                                    \
-// RUN:               -convert-std-to-llvm                                     \
-// RUN:               -reconcile-unrealized-casts                              \
+// RUN:   mlir-opt %s -pass-pipeline="func.func(test-math-polynomial-approximation,convert-arith-to-llvm),convert-vector-to-llvm,func.func(convert-math-to-llvm),convert-func-to-llvm,reconcile-unrealized-casts" \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:     -e main -entry-point-result=void -O0                               \
 // RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_c_runner_utils%shlibext  \
@@ -13,7 +8,7 @@
 // -------------------------------------------------------------------------- //
 // Tanh.
 // -------------------------------------------------------------------------- //
-func @tanh() {
+func.func @tanh() {
   // CHECK: 0.848284
   %0 = arith.constant 1.25 : f32
   %1 = math.tanh %0 : f32
@@ -29,13 +24,18 @@ func @tanh() {
   %5 = math.tanh %4 : vector<8xf32>
   vector.print %5 : vector<8xf32>
 
+  // CHECK-NEXT: nan
+  %nan = arith.constant 0x7fc00000 : f32
+  %6 = math.tanh %nan : f32
+  vector.print %6 : f32
+
   return
 }
 
 // -------------------------------------------------------------------------- //
 // Log.
 // -------------------------------------------------------------------------- //
-func @log() {
+func.func @log() {
   // CHECK: 2.64704
   %0 = arith.constant 14.112233 : f32
   %1 = math.log %0 : f32
@@ -74,13 +74,13 @@ func @log() {
   return
 }
 
-func @log2() {
+func.func @log2() {
   // CHECK: 3.81887
   %0 = arith.constant 14.112233 : f32
   %1 = math.log2 %0 : f32
   vector.print %1 : f32
 
-  // CHECK: -2, -0.415037, 0, 0.321928
+  // CHECK: -2, -0.415038, 0, 0.321928
   %2 = arith.constant dense<[0.25, 0.75, 1.0, 1.25]> : vector<4xf32>
   %3 = math.log2 %2 : vector<4xf32>
   vector.print %3 : vector<4xf32>
@@ -113,7 +113,7 @@ func @log2() {
   return
 }
 
-func @log1p() {
+func.func @log1p() {
   // CHECK: 0.00995033
   %0 = arith.constant 0.01 : f32
   %1 = math.log1p %0 : f32
@@ -155,7 +155,7 @@ func @log1p() {
 // -------------------------------------------------------------------------- //
 // Erf.
 // -------------------------------------------------------------------------- //
-func @erf() {
+func.func @erf() {
   // CHECK: -0.000274406
   %val1 = arith.constant -2.431864e-4 : f32
   %erfVal1 = math.erf %val1 : f32
@@ -227,13 +227,13 @@ func @erf() {
 // -------------------------------------------------------------------------- //
 // Exp.
 // -------------------------------------------------------------------------- //
-func @exp() {
+func.func @exp() {
   // CHECK: 2.71828
   %0 = arith.constant 1.0 : f32
   %1 = math.exp %0 : f32
   vector.print %1 : f32
 
-  // CHECK: 0.778802, 2.117, 2.71828, 3.85742
+  // CHECK: 0.778801, 2.117, 2.71828, 3.85743
   %2 = arith.constant dense<[-0.25, 0.75, 1.0, 1.35]> : vector<4xf32>
   %3 = math.exp %2 : vector<4xf32>
   vector.print %3 : vector<4xf32>
@@ -243,7 +243,7 @@ func @exp() {
   %exp_zero = math.exp %zero : f32
   vector.print %exp_zero : f32
 
-  // CHECK: 1.17549e-38, 1.38879e-11, 7.20049e+10, inf
+  // CHECK: 2.22736e-39, 1.38879e-11, 7.20049e+10, inf
   %special_vec = arith.constant dense<[-89.0, -25.0, 25.0, 89.0]> : vector<4xf32>
   %exp_special_vec = math.exp %special_vec : vector<4xf32>
   vector.print %exp_special_vec : vector<4xf32>
@@ -258,16 +258,21 @@ func @exp() {
   %exp_negative_inf = math.exp %negative_inf : f32
   vector.print %exp_negative_inf : f32
 
+  // CHECK: nan
+  %nan = arith.constant 0x7fc00000 : f32
+  %exp_nan = math.exp %nan : f32
+  vector.print %exp_nan : f32
+
   return
 }
 
-func @expm1() {
+func.func @expm1() {
   // CHECK: 1e-10
   %0 = arith.constant 1.0e-10 : f32
   %1 = math.expm1 %0 : f32
   vector.print %1 : f32
 
-  // CHECK: -0.00995016, 0.0100502, 0.648721, 6.38905
+  // CHECK: -0.00995017, 0.0100502, 0.648721, 6.38906
   %2 = arith.constant dense<[-0.01, 0.01, 0.5, 2.0]> : vector<4xf32>
   %3 = math.expm1 %2 : vector<4xf32>
   vector.print %3 : vector<4xf32>
@@ -292,12 +297,17 @@ func @expm1() {
   %log_special_vec = math.expm1 %special_vec : vector<3xf32>
   vector.print %log_special_vec : vector<3xf32>
 
+  // CHECK: nan
+  %nan = arith.constant 0x7fc00000 : f32
+  %exp_nan = math.expm1 %nan : f32
+  vector.print %exp_nan : f32
+
   return
 }
 // -------------------------------------------------------------------------- //
 // Sin.
 // -------------------------------------------------------------------------- //
-func @sin() {
+func.func @sin() {
   // CHECK: 0
   %0 = arith.constant 0.0 : f32
   %sin_0 = math.sin %0 : f32
@@ -336,7 +346,7 @@ func @sin() {
 // cos.
 // -------------------------------------------------------------------------- //
 
-func @cos() {
+func.func @cos() {
   // CHECK: 1
   %0 = arith.constant 0.0 : f32
   %cos_0 = math.cos %0 : f32
@@ -375,23 +385,23 @@ func @cos() {
 // Atan.
 // -------------------------------------------------------------------------- //
 
-func @atan() {
-  // CHECK: -0.785184
+func.func @atan() {
+  // CHECK: -0.785398
   %0 = arith.constant -1.0 : f32
   %atan_0 = math.atan %0 : f32
   vector.print %atan_0 : f32
 
-  // CHECK: 0.785184
+  // CHECK: 0.785398
   %1 = arith.constant 1.0 : f32
   %atan_1 = math.atan %1 : f32
   vector.print %atan_1 : f32
 
-  // CHECK: -0.463643
+  // CHECK: -0.463648
   %2 = arith.constant -0.5 : f32
   %atan_2 = math.atan %2 : f32
   vector.print %atan_2 : f32
 
-  // CHECK: 0.463643
+  // CHECK: 0.463648
   %3 = arith.constant 0.5 : f32
   %atan_3 = math.atan %3 : f32
   vector.print %atan_3 : f32
@@ -419,7 +429,7 @@ func @atan() {
 // Atan2.
 // -------------------------------------------------------------------------- //
 
-func @atan2() {
+func.func @atan2() {
   %zero = arith.constant 0.0 : f32
   %one = arith.constant 1.0 : f32
   %two = arith.constant 2.0 : f32
@@ -488,7 +498,7 @@ func @atan2() {
 }
 
 
-func @main() {
+func.func @main() {
   call @tanh(): () -> ()
   call @log(): () -> ()
   call @log2(): () -> ()

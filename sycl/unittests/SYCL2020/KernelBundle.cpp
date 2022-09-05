@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -18,8 +18,8 @@
 class TestKernel;
 class TestKernelExeOnly;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -31,6 +31,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernelExeOnly> {
@@ -43,11 +44,12 @@ template <> struct KernelInfo<TestKernelExeOnly> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
@@ -72,12 +74,16 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[2] = {
+static sycl::unittest::PiImage Imgs[3] = {
     generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    // A device image without entires
+    generateDefaultImage({},
+                         PI_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
-static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<3> ImgArray{Imgs};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};
@@ -100,10 +106,8 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});

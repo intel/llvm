@@ -148,12 +148,12 @@ if (FLANG_STANDALONE_BUILD)
   if (FLANG_INCLUDE_TESTS)
     set(UNITTEST_DIR ${LLVM_BUILD_MAIN_SRC_DIR}/utils/unittest)
     if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h)
-      if (NOT TARGET gtest)
-        add_library(gtest
+      if (NOT TARGET llvm_gtest)
+        add_library(llvm_gtest
           ${UNITTEST_DIR}/googletest/src/gtest-all.cc
           ${UNITTEST_DIR}/googlemock/src/gmock-all.cc
           )
-        target_include_directories(gtest
+        target_include_directories(llvm_gtest
           PUBLIC
           "${UNITTEST_DIR}/googletest/include"
           "${UNITTEST_DIR}/googlemock/include"
@@ -163,9 +163,9 @@ if (FLANG_STANDALONE_BUILD)
           "${UNITTEST_DIR}/googlemock"
           )
          find_package(Threads)
-         target_link_libraries(gtest PUBLIC Threads::Threads)
-        add_library(gtest_main ${UNITTEST_DIR}/UnitTestMain/TestMain.cpp)
-        target_link_libraries(gtest_main PUBLIC gtest)
+         target_link_libraries(llvm_gtest PUBLIC Threads::Threads)
+        add_library(llvm_gtest_main ${UNITTEST_DIR}/UnitTestMain/TestMain.cpp)
+        target_link_libraries(gtest_main PUBLIC llvm_gtest)
       endif()
       set(FLANG_GTEST_AVAIL 1)
     else()
@@ -199,10 +199,14 @@ else()
   set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --src-root
   set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --includedir
   set(MLIR_TABLEGEN_OUTPUT_DIR ${CMAKE_BINARY_DIR}/tools/mlir/include)
-  set(MLIR_TABLEGEN_EXE $<TARGET_FILE:mlir-tblgen>)
   include_directories(SYSTEM ${MLIR_INCLUDE_DIR})
   include_directories(SYSTEM ${MLIR_TABLEGEN_OUTPUT_DIR})
 endif()
+
+set(FLANG_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
+mark_as_advanced(FLANG_TOOLS_INSTALL_DIR)
+
 set(FLANG_INTRINSIC_MODULES_DIR ${CMAKE_BINARY_DIR}/include/flang)
 set(FLANG_INCLUDE_DIR ${FLANG_BINARY_DIR}/include)
 
@@ -467,7 +471,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     PATTERN "config.h" EXCLUDE
     PATTERN ".git"     EXCLUDE
     PATTERN "CMakeFiles" EXCLUDE)
-    
+
   install(DIRECTORY ${FLANG_INCLUDE_DIR}/flang
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT flang-headers

@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/detail/sycl_mem_obj_i.hpp"
-#include <CL/sycl/device_selector.hpp>
+#include "detail/sycl_mem_obj_i.hpp"
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <chrono>
 #include <cstdio>
@@ -22,8 +22,8 @@
 #include <thread>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
@@ -37,7 +37,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Capture the dependencies
     DepCommands.insert(Cmd);
@@ -48,7 +49,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
@@ -59,7 +61,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Report these dependencies to the Command so these dependencies can be
     // reported as edges
@@ -121,9 +124,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (Type == CG::RunOnHostIntel)
-          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
-
         NewEvent->setCommand(nullptr);
         delete NewCmd;
       }
@@ -134,7 +134,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       try {
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Auxiliary enqueue process failed.",
-                              PI_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
@@ -149,19 +149,14 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       try {
         bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+          throw runtime_error("Enqueue process failed.",
+                              PI_ERROR_INVALID_OPERATION);
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
         CleanUp();
         std::rethrow_exception(std::current_exception());
       }
-
-      // If there are no memory dependencies decouple and free the command.
-      // Though, dismiss ownership of native kernel command group as it's
-      // resources may be in use by backend and synchronization point here is
-      // at native kernel execution finish.
-      CleanUp();
     }
   }
   cleanupCommands(ToCleanUp);
@@ -195,12 +190,14 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
     }
 
     Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
   } catch (...) {
     NewCmd->getQueue()->reportAsyncException(std::current_exception());
   }
@@ -239,6 +236,11 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   // objects, this is needed to guarantee that streamed data is printed and
   // resources are released.
   std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  // Similar to streams, we also collect the auxiliary resources used by the
+  // commands. Cleanup will make sure the commands do not own the resources
+  // anymore, so we just need them to survive the graph lock then they can die
+  // as they go out of scope.
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
   {
     // Avoiding deadlock situation, where one thread is in the process of
     // enqueueing (with a locked mutex) a currently blocked task that waits for
@@ -249,7 +251,8 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
       // The command might have been cleaned up (and set to nullptr) by another
       // thread
       if (FinishedCmd)
-        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate);
+        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate,
+                                              AuxResourcesToDeallocate);
     }
   }
   deallocateStreams(StreamsToDeallocate);
@@ -261,6 +264,11 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // objects, this is needed to guarantee that streamed data is printed and
   // resources are released.
   std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  // Similar to streams, we also collect the auxiliary resources used by the
+  // commands. Cleanup will make sure the commands do not own the resources
+  // anymore, so we just need them to survive the graph lock then they can die
+  // as they go out of scope.
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
 
   {
     MemObjRecord *Record = nullptr;
@@ -282,7 +290,8 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
       MGraphBuilder.decrementLeafCountersForRecord(Record);
-      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
+      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
+                                             AuxResourcesToDeallocate);
       MGraphBuilder.removeRecordForMemObj(MemObj);
     }
   }
@@ -291,17 +300,17 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::vector<Command *> AuxiliaryCmds;
-  Command *NewCmd = nullptr;
+  EventImplPtr NewCmdEvent = nullptr;
 
   {
     WriteLockT Lock(MGraphLock, std::defer_lock);
     acquireWriteLock(Lock);
 
-    NewCmd = MGraphBuilder.addHostAccessor(Req, AuxiliaryCmds);
+    Command *NewCmd = MGraphBuilder.addHostAccessor(Req, AuxiliaryCmds);
+    if (!NewCmd)
+      return nullptr;
+    NewCmdEvent = NewCmd->getEvent();
   }
-
-  if (!NewCmd)
-    return nullptr;
 
   std::vector<Command *> ToCleanUp;
   {
@@ -312,17 +321,20 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
     }
 
-    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    }
   }
 
-  EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
-  return NewEvent;
+  return NewCmdEvent;
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
@@ -349,7 +361,8 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
     }
   };
 
@@ -372,7 +385,8 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
 }
 
 Scheduler::Scheduler() {
-  sycl::device HostDevice;
+  sycl::device HostDevice =
+      createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
   sycl::context HostContext{HostDevice};
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),
@@ -429,7 +443,12 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   if (Cmds.empty())
-    return;
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
+    if (MDeferredCleanupCommands.empty())
+      return;
+  }
+
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to blocked commands, defer cleanup if
   // the lock wasn't acquired.
@@ -454,5 +473,5 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

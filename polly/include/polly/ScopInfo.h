@@ -35,11 +35,6 @@
 #include <cstddef>
 #include <forward_list>
 
-namespace llvm {
-void initializeScopInfoRegionPassPass(PassRegistry &);
-void initializeScopInfoWrapperPassPass(PassRegistry &);
-} // end namespace llvm
-
 namespace polly {
 using llvm::AnalysisInfoMixin;
 using llvm::ArrayRef;
@@ -221,7 +216,7 @@ using AccFuncVector = std::vector<std::unique_ptr<MemoryAccess>>;
 /// Objects are accessible via the ScoP, MemoryAccess or the id associated with
 /// the MemoryAccess access function.
 ///
-class ScopArrayInfo {
+class ScopArrayInfo final {
 public:
   /// Construct a ScopArrayInfo object.
   ///
@@ -433,7 +428,7 @@ private:
 };
 
 /// Represent memory accesses in statements.
-class MemoryAccess {
+class MemoryAccess final {
   friend class Scop;
   friend class ScopStmt;
   friend class ScopBuilder;
@@ -1140,7 +1135,7 @@ using InvariantEquivClassesTy = SmallVector<InvariantEquivClassTy, 8>;
 /// It is further described by its iteration domain, its schedule and its data
 /// accesses.
 /// At the moment every statement represents a single basic block of LLVM-IR.
-class ScopStmt {
+class ScopStmt final {
   friend class ScopBuilder;
 
 public:
@@ -1364,8 +1359,7 @@ public:
     if (!Inst)
       return false;
     if (isBlockStmt())
-      return std::find(Instructions.begin(), Instructions.end(), Inst) !=
-             Instructions.end();
+      return llvm::is_contained(Instructions, Inst);
     return represents(Inst->getParent());
   }
 
@@ -1614,44 +1608,6 @@ public:
 /// Print ScopStmt S to raw_ostream OS.
 raw_ostream &operator<<(raw_ostream &OS, const ScopStmt &S);
 
-/// Build the conditions sets for the branch condition @p Condition in
-/// the @p Domain.
-///
-/// This will fill @p ConditionSets with the conditions under which control
-/// will be moved from @p TI to its successors. Hence, @p ConditionSets will
-/// have as many elements as @p TI has successors. If @p TI is nullptr the
-/// context under which @p Condition is true/false will be returned as the
-/// new elements of @p ConditionSets.
-bool buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
-                        Instruction *TI, Loop *L, __isl_keep isl_set *Domain,
-                        DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
-                        SmallVectorImpl<__isl_give isl_set *> &ConditionSets);
-
-/// Build condition sets for unsigned ICmpInst(s).
-/// Special handling is required for unsigned operands to ensure that if
-/// MSB (aka the Sign bit) is set for an operands in an unsigned ICmpInst
-/// it should wrap around.
-///
-/// @param IsStrictUpperBound holds information on the predicate relation
-/// between TestVal and UpperBound, i.e,
-/// TestVal < UpperBound  OR  TestVal <= UpperBound
-__isl_give isl_set *
-buildUnsignedConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
-                           __isl_keep isl_set *Domain, const SCEV *SCEV_TestVal,
-                           const SCEV *SCEV_UpperBound,
-                           DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
-                           bool IsStrictUpperBound);
-
-/// Build the conditions sets for the terminator @p TI in the @p Domain.
-///
-/// This will fill @p ConditionSets with the conditions under which control
-/// will be moved from @p TI to its successors. Hence, @p ConditionSets will
-/// have as many elements as @p TI has successors.
-bool buildConditionSets(Scop &S, BasicBlock *BB, Instruction *TI, Loop *L,
-                        __isl_keep isl_set *Domain,
-                        DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
-                        SmallVectorImpl<__isl_give isl_set *> &ConditionSets);
-
 /// Static Control Part
 ///
 /// A Scop is the polyhedral representation of a control flow region detected
@@ -1669,7 +1625,7 @@ bool buildConditionSets(Scop &S, BasicBlock *BB, Instruction *TI, Loop *L,
 ///   * A context
 ///   This context contains information about the values the parameters
 ///   can take and relations between different parameters.
-class Scop {
+class Scop final {
 public:
   /// Type to represent a pair of minimal/maximal access to an array.
   using MinMaxAccessTy = std::pair<isl::pw_multi_aff, isl::pw_multi_aff>;
@@ -1917,10 +1873,6 @@ private:
        int ID);
 
   //@}
-
-  /// Initialize this ScopBuilder.
-  void init(AAResults &AA, AssumptionCache &AC, DominatorTree &DT,
-            LoopInfo &LI);
 
   /// Return the access for the base ptr of @p MA if any.
   MemoryAccess *lookupBasePtrAccess(MemoryAccess *MA);
@@ -2731,7 +2683,7 @@ raw_ostream &operator<<(raw_ostream &OS, const Scop &scop);
 
 /// The legacy pass manager's analysis pass to compute scop information
 ///        for a region.
-class ScopInfoRegionPass : public RegionPass {
+class ScopInfoRegionPass final : public RegionPass {
   /// The Scop pointer which is used to construct a Scop.
   std::unique_ptr<Scop> S;
 
@@ -2759,6 +2711,8 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+
+llvm::Pass *createScopInfoPrinterLegacyRegionPass(raw_ostream &OS);
 
 class ScopInfo {
 public:
@@ -2819,7 +2773,7 @@ public:
   bool empty() const { return RegionToScopMap.empty(); }
 };
 
-struct ScopInfoAnalysis : public AnalysisInfoMixin<ScopInfoAnalysis> {
+struct ScopInfoAnalysis : AnalysisInfoMixin<ScopInfoAnalysis> {
   static AnalysisKey Key;
 
   using Result = ScopInfo;
@@ -2827,7 +2781,7 @@ struct ScopInfoAnalysis : public AnalysisInfoMixin<ScopInfoAnalysis> {
   Result run(Function &, FunctionAnalysisManager &);
 };
 
-struct ScopInfoPrinterPass : public PassInfoMixin<ScopInfoPrinterPass> {
+struct ScopInfoPrinterPass final : PassInfoMixin<ScopInfoPrinterPass> {
   ScopInfoPrinterPass(raw_ostream &OS) : Stream(OS) {}
 
   PreservedAnalyses run(Function &, FunctionAnalysisManager &);
@@ -2843,7 +2797,7 @@ struct ScopInfoPrinterPass : public PassInfoMixin<ScopInfoPrinterPass> {
 /// scop object for all the feasible scops present in a function.
 /// This pass is an alternative to the ScopInfoRegionPass in order to avoid a
 /// region pass manager.
-class ScopInfoWrapperPass : public FunctionPass {
+class ScopInfoWrapperPass final : public FunctionPass {
   std::unique_ptr<ScopInfo> Result;
 
 public:
@@ -2864,6 +2818,15 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+
+llvm::Pass *createScopInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS);
 } // end namespace polly
+
+namespace llvm {
+void initializeScopInfoRegionPassPass(PassRegistry &);
+void initializeScopInfoPrinterLegacyRegionPassPass(PassRegistry &);
+void initializeScopInfoWrapperPassPass(PassRegistry &);
+void initializeScopInfoPrinterLegacyFunctionPassPass(PassRegistry &);
+} // end namespace llvm
 
 #endif // POLLY_SCOPINFO_H

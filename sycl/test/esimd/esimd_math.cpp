@@ -2,11 +2,11 @@
 // expected-no-diagnostics
 
 #include <limits>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
 
 bool test_esimd_mask() __attribute__((sycl_device)) {
   simd_mask<16> a(0);
@@ -38,28 +38,52 @@ bool test_esimd_div() __attribute__((sycl_device)) {
 
 bool test_esimd_atan() __attribute__((sycl_device)) {
   simd<float, 16> v(0.f, 1.f);
-  auto c = esimd::atan(v);
+  auto c = experimental::esimd::atan(v);
   return (c[0] == 0.f);
 }
 
 bool test_esimd_sin_emu() __attribute__((sycl_device)) {
   simd<float, 16> v(0.f, 1.f);
-  auto c = esimd::sin_emu(v);
+  auto c = experimental::esimd::sin_emu(v);
   return (c[0] == 0.f);
 }
 
 bool test_esimd_tanh_cody_waite() __attribute__((sycl_device)) {
   simd<float, 16> v(0.f, 1.f);
-  auto c = esimd::tanh_cody_waite(v);
+  auto c = experimental::esimd::tanh_cody_waite(v);
   return (c[0] == 0.f);
 }
 
 bool test_esimd_dp4() __attribute__((sycl_device)) {
   simd<float, 8> a(0, 1);
   simd<float, 8> b(0, 1);
-  simd<float, 8> ret = esimd::dp4(a, b);
+  simd<float, 8> ret = experimental::esimd::dp4(a, b);
   return (ret[0] == ret[1] && ret[1] == ret[2] && ret[2] == ret[3]) &&
          (ret[0] == 14.0f && ret[4] == 126.0f);
+}
+
+bool test_esimd_floor() __attribute__((sycl_device)) {
+  simd<float, 16> vfa(1.4f);
+  simd<float, 16> vfr = esimd::floor<float, 16>(vfa);
+  simd<short, 16> vsr = esimd::floor<short, 16>(vfa);
+
+  float sfa = 2.8f;
+  float sfr = esimd::floor<float>(sfa);
+  short ssr = esimd::floor<short>(sfa);
+
+  return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
+}
+
+bool test_esimd_ceil() __attribute__((sycl_device)) {
+  simd<float, 16> vfa(1.4f);
+  simd<float, 16> vfr = esimd::ceil<float, 16>(vfa);
+  simd<short, 16> vsr = esimd::ceil<short, 16>(vfa);
+
+  float sfa = 2.8f;
+  float sfr = esimd::ceil<float>(sfa);
+  short ssr = esimd::ceil<short>(sfa);
+
+  return (vfr[0] == 2.f) && (vsr[0] == 2) && (sfr == 3.f) && (ssr == 3);
 }
 
 bool test_esimd_trunc() __attribute__((sycl_device)) {

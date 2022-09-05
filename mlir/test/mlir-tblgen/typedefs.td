@@ -1,6 +1,7 @@
 // RUN: mlir-tblgen -gen-typedef-decls -I %S/../../include %s | FileCheck %s --check-prefix=DECL
 // RUN: mlir-tblgen -gen-typedef-defs -I %S/../../include %s | FileCheck %s --check-prefix=DEF
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 
 // DECL: #ifdef GET_TYPEDEF_CLASSES
@@ -21,21 +22,23 @@ include "mlir/IR/OpBase.td"
 
 // DEF-LABEL: ::mlir::OptionalParseResult generatedTypeParser(
 // DEF-SAME: ::mlir::AsmParser &parser,
-// DEF-SAME: ::llvm::StringRef mnemonic,
+// DEF-SAME: ::llvm::StringRef *mnemonic,
 // DEF-SAME: ::mlir::Type &value) {
-// DEF: if (mnemonic == ::test::CompoundAType::getMnemonic()) {
+// DEF: .Case(::test::CompoundAType::getMnemonic()
 // DEF-NEXT:   value = ::test::CompoundAType::parse(parser);
 // DEF-NEXT:   return ::mlir::success(!!value);
-// DEF-NEXT: }
-// DEF-NEXT: if (mnemonic == ::test::IndexType::getMnemonic()) {
+// DEF-NEXT: })
+// DEF-NEXT: .Case(::test::IndexType::getMnemonic()
 // DEF-NEXT:   value = ::test::IndexType::parse(parser);
 // DEF-NEXT:   return ::mlir::success(!!value);
-// DEF: return {};
+// DEF: .Default([&](llvm::StringRef keyword, 
+// DEF-NEXT:   *mnemonic = keyword;
+// DEF-NEXT:   return llvm::None; 
 
 def Test_Dialect: Dialect {
 // DECL-NOT: TestDialect
-    let name = "TestDialect";
-    let cppNamespace = "::test";
+  let name = "TestDialect";
+  let cppNamespace = "::test";
 }
 
 class TestType<string name> : TypeDef<Test_Dialect, name> { }
@@ -53,16 +56,16 @@ def B_CompoundTypeA : TestType<"CompoundA"> {
   let summary = "A more complex parameterized type";
   let description = "This type is to test a reasonably complex type";
   let mnemonic = "cmpnd_a";
-  let parameters = (
-      ins
-      "int":$widthOfSomething,
-      "::test::SimpleTypeA": $exampleTdType,
-      "SomeCppStruct": $exampleCppType,
-      ArrayRefParameter<"int", "Matrix dimensions">:$dims,
-      RTLValueType:$inner
+  let parameters = (ins
+    "int":$widthOfSomething,
+    "::test::SimpleTypeA": $exampleTdType,
+    "SomeCppStruct": $exampleCppType,
+    ArrayRefParameter<"int", "Matrix dimensions">:$dims,
+    RTLValueType:$inner
   );
 
   let genVerifyDecl = 1;
+  let hasCustomAssemblyFormat = 1;
 
 // DECL-LABEL: class CompoundAType : public ::mlir::Type
 // DECL: static CompoundAType getChecked(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError, ::mlir::MLIRContext *context, int widthOfSomething, ::test::SimpleTypeA exampleTdType, SomeCppStruct exampleCppType, ::llvm::ArrayRef<int> dims, ::mlir::Type inner);
@@ -70,32 +73,31 @@ def B_CompoundTypeA : TestType<"CompoundA"> {
 // DECL: static constexpr ::llvm::StringLiteral getMnemonic() {
 // DECL:   return {"cmpnd_a"};
 // DECL: }
-// DECL: static ::mlir::Type parse(::mlir::AsmParser &parser);
-// DECL: void print(::mlir::AsmPrinter &printer) const;
+// DECL: static ::mlir::Type parse(::mlir::AsmParser &odsParser);
+// DECL: void print(::mlir::AsmPrinter &odsPrinter) const;
 // DECL: int getWidthOfSomething() const;
 // DECL: ::test::SimpleTypeA getExampleTdType() const;
 // DECL: SomeCppStruct getExampleCppType() const;
 }
 
 def C_IndexType : TestType<"Index"> {
-    let mnemonic = "index";
+  let mnemonic = "index";
 
-    let parameters = (
-      ins
-      StringRefParameter<"Label for index">:$label
-    );
+  let parameters = (ins
+    StringRefParameter<"Label for index">:$label
+  );
+  let hasCustomAssemblyFormat = 1;
 
 // DECL-LABEL: class IndexType : public ::mlir::Type
 // DECL: static constexpr ::llvm::StringLiteral getMnemonic() {
 // DECL:   return {"index"};
 // DECL: }
-// DECL: static ::mlir::Type parse(::mlir::AsmParser &parser);
-// DECL: void print(::mlir::AsmPrinter &printer) const;
+// DECL: static ::mlir::Type parse(::mlir::AsmParser &odsParser);
+// DECL: void print(::mlir::AsmPrinter &odsPrinter) const;
 }
 
 def D_SingleParameterType : TestType<"SingleParameter"> {
-  let parameters = (
-    ins
+  let parameters = (ins
     "int": $num
   );
 // DECL-LABEL: struct SingleParameterTypeStorage;
@@ -104,17 +106,17 @@ def D_SingleParameterType : TestType<"SingleParameter"> {
 }
 
 def E_IntegerType : TestType<"Integer"> {
-    let mnemonic = "int";
-    let genVerifyDecl = 1;
-    let parameters = (
-        ins
-        "SignednessSemantics":$signedness,
-        TypeParameter<"unsigned", "Bitwidth of integer">:$width
-    );
+  let mnemonic = "int";
+  let genVerifyDecl = 1;
+  let hasCustomAssemblyFormat = 1;
+  let parameters = (ins
+      "SignednessSemantics":$signedness,
+      TypeParameter<"unsigned", "Bitwidth of integer">:$width
+  );
 
 // DECL-LABEL: IntegerType : public ::mlir::Type
 
-    let extraClassDeclaration = [{
+  let extraClassDeclaration = [{
   /// Signedness semantics.
   enum SignednessSemantics {
     Signless, /// No signedness semantics
@@ -131,7 +133,7 @@ def E_IntegerType : TestType<"Integer"> {
   bool isSigned() const { return getSignedness() == Signed; }
   /// Return true if this is an unsigned integer type.
   bool isUnsigned() const { return getSignedness() == Unsigned; }
-    }];
+  }];
 
 // DECL: /// Signedness semantics.
 // DECL-NEXT: enum SignednessSemantics {

@@ -30,6 +30,7 @@
 #include "lldb/Target/Platform.h"
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/GDBRemote.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StructuredData.h"
@@ -426,7 +427,7 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qUserName(
     StringExtractorGDBRemote &packet) {
 #if LLDB_ENABLE_POSIX
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOGF(log, "GDBRemoteCommunicationServerCommon::%s begin", __FUNCTION__);
 
   // Packet format: "qUserName:%i" where %i is the uid
@@ -1020,7 +1021,7 @@ GDBRemoteCommunicationServerCommon::Handle_A(StringExtractorGDBRemote &packet) {
   // encoded argument value list, but we will stay true to the documented
   // version of the 'A' packet here...
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   int actual_arg_index = 0;
 
   packet.SetFilePos(1); // Skip the 'A'
@@ -1137,7 +1138,8 @@ GDBRemoteCommunicationServerCommon::Handle_qModuleInfo(
   response.PutChar(';');
 
   response.PutCString("file_path:");
-  response.PutStringAsRawHex8(matched_module_spec.GetFileSpec().GetCString());
+  response.PutStringAsRawHex8(
+        matched_module_spec.GetFileSpec().GetPath().c_str());
   response.PutChar(';');
   response.PutCString("file_offset:");
   response.PutHex64(file_offset);
@@ -1212,7 +1214,7 @@ void GDBRemoteCommunicationServerCommon::CreateProcessInfoResponse(
       proc_info.GetUserID(), proc_info.GetGroupID(),
       proc_info.GetEffectiveUserID(), proc_info.GetEffectiveGroupID());
   response.PutCString("name:");
-  response.PutStringAsRawHex8(proc_info.GetExecutableFile().GetCString());
+  response.PutStringAsRawHex8(proc_info.GetExecutableFile().GetPath().c_str());
 
   response.PutChar(';');
   response.PutCString("args:");

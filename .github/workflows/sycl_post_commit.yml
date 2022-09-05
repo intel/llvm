@@ -1,25 +1,38 @@
-name: Linux Post Commit Checks
+name: SYCL Post Commit
 
 on:
   push:
     branches:
-      - sycl
+    - sycl
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - .github/workflows/sycl_post_commit.yml
+
 jobs:
+  # This job generates matrix of tests for LLVM Test Suite
+  resolve_matrix:
+    name: Resolve Test Matrix
+    uses: ./.github/workflows/sycl_resolve_test_matrix.yml
+    with:
+      lts_config: "l0_gen9"
   linux_default:
     name: Linux Default
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    needs: resolve_matrix
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
-      build_artifact_suffix: default
+      build_artifact_suffix: "post_commit"
+      lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
     name: Linux (no assert)
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
       build_cache_suffix: gcc_no_assertions
       build_artifact_suffix: gcc_no_assertions
       build_configure_extra_args: --no-assertions
@@ -93,3 +106,8 @@ jobs:
       with:
         name: sycl_linux_${{ matrix.config }}
         path: llvm_sycl.tar.gz
+
+  windows_default:
+    name: Windows
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml

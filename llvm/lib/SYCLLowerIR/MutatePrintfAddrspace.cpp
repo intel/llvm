@@ -20,6 +20,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/Pass.h"
 
 using namespace llvm;
 

@@ -929,13 +929,13 @@ foreach name = ["GroupBroadcast"] in {
   }
 }
 
-foreach name = ["GroupIAdd", "GroupNonUniformIMul", "GroupNonUniformBitwiseOr",
-                "GroupNonUniformBitwiseXor", "GroupNonUniformBitwiseAnd"] in {
+foreach name = ["GroupIAdd", "GroupIMulKHR", "GroupBitwiseOrKHR",
+                "GroupBitwiseXorKHR", "GroupBitwiseAndKHR"] in {
   def : SPVBuiltin<name, [AIGenTypeN, UInt, UInt, AIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupFAdd", "GroupFMin", "GroupFMax",
-                "GroupNonUniformFMul"] in {
+                "GroupFMulKHR"] in {
   def : SPVBuiltin<name, [FGenTypeN, UInt, UInt, FGenTypeN], Attr.Convergent>;
 }
 

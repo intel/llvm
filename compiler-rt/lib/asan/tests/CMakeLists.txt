@@ -23,6 +23,7 @@ set(ASAN_UNITTEST_HEADERS
 set(ASAN_UNITTEST_COMMON_CFLAGS
   ${COMPILER_RT_UNITTEST_CFLAGS}
   ${COMPILER_RT_GTEST_CFLAGS}
+  ${SANITIZER_TEST_CXX_CFLAGS}
   -I${COMPILER_RT_SOURCE_DIR}/include
   -I${COMPILER_RT_SOURCE_DIR}/lib
   -I${COMPILER_RT_SOURCE_DIR}/lib/asan
@@ -36,7 +37,9 @@ append_list_if(COMPILER_RT_HAS_WVARIADIC_MACROS_FLAG -Wno-variadic-macros ASAN_U
 # This will ensure the target linker is used
 # during cross compilation
 set(ASAN_UNITTEST_COMMON_LINK_FLAGS
-  ${COMPILER_RT_UNITTEST_LINK_FLAGS})
+  ${COMPILER_RT_UNITTEST_LINK_FLAGS}
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_TEST_CXX_LIBRARIES})
 
 # -gline-tables-only must be enough for ASan, so use it if possible.
 if(COMPILER_RT_TEST_COMPILER_ID MATCHES "Clang")
@@ -172,18 +175,21 @@ function(add_asan_tests arch test_runtime)
   function(generate_asan_tests test_objects test_suite testname)
     generate_compiler_rt_tests(${test_objects} ${test_suite} ${testname} ${arch}
       COMPILE_DEPS ${ASAN_UNITTEST_HEADERS} ${ASAN_IGNORELIST_FILE}
-      DEPS gtest asan
+      DEPS llvm_gtest asan
       KIND ${TEST_KIND}
       ${ARGN}
       )
     set("${test_objects}" "${${test_objects}}" PARENT_SCOPE)
   endfunction()
 
+  set(TARGET_LINK_FLAGS)
+  get_target_link_flags_for_arch(${arch} TARGET_LINK_FLAGS)
+
   set(ASAN_INST_TEST_OBJECTS)
   generate_asan_tests(ASAN_INST_TEST_OBJECTS AsanUnitTests
     "Asan-${arch}${TEST_KIND}-Test"
     SUBDIR "${CONFIG_NAME}"
-    LINK_FLAGS ${ASAN_UNITTEST_INSTRUMENTED_LINK_FLAGS}
+    LINK_FLAGS ${ASAN_UNITTEST_INSTRUMENTED_LINK_FLAGS} ${TARGET_LINK_FLAGS}
     SOURCES ${ASAN_INST_TEST_SOURCES}
     CFLAGS ${ASAN_UNITTEST_INSTRUMENTED_CFLAGS} ${TEST_CFLAGS})
 
@@ -209,7 +215,7 @@ function(add_asan_tests arch test_runtime)
         SUBDIR "${CONFIG_NAME_DYNAMIC}"
         OBJECTS ${ASAN_INST_TEST_OBJECTS}
         DEPS asan ${ASAN_INST_TEST_OBJECTS}
-        LINK_FLAGS ${ASAN_DYNAMIC_UNITTEST_INSTRUMENTED_LINK_FLAGS}
+        LINK_FLAGS ${ASAN_DYNAMIC_UNITTEST_INSTRUMENTED_LINK_FLAGS} ${TARGET_LINK_FLAGS}
         )
     endif()
   endif()
@@ -220,7 +226,7 @@ function(add_asan_tests arch test_runtime)
     AsanUnitTests "Asan-${arch}${TEST_KIND}-Noinst-Test"
     SUBDIR "${CONFIG_NAME}"
     CFLAGS ${ASAN_UNITTEST_COMMON_CFLAGS}
-    LINK_FLAGS ${ASAN_UNITTEST_NOINST_LINK_FLAGS}
+    LINK_FLAGS ${ASAN_UNITTEST_NOINST_LINK_FLAGS} ${TARGET_LINK_FLAGS}
     SOURCES ${ASAN_NOINST_TEST_SOURCES}
     RUNTIME ${test_runtime})
 
@@ -230,7 +236,7 @@ function(add_asan_tests arch test_runtime)
     SUBDIR "${CONFIG_NAME}"
     CFLAGS ${ASAN_UNITTEST_INSTRUMENTED_CFLAGS}
     SOURCES ${ASAN_BENCHMARKS_SOURCES}
-    LINK_FLAGS ${ASAN_UNITTEST_INSTRUMENTED_LINK_FLAGS})
+    LINK_FLAGS ${ASAN_UNITTEST_INSTRUMENTED_LINK_FLAGS} ${TARGET_LINK_FLAGS})
 endfunction()
 
 if(COMPILER_RT_CAN_EXECUTE_TESTS AND NOT ANDROID)

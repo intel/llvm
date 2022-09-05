@@ -56,6 +56,7 @@ public:
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__availability>
 #include <__config>
 #include <cstddef>
@@ -68,7 +69,7 @@ public:
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 #if defined(_LIBCPP_ABI_VCRUNTIME)
@@ -173,8 +174,8 @@ public:
 // we pick a default implementation based on the platform here.
 #ifndef _LIBCPP_TYPEINFO_COMPARISON_IMPLEMENTATION
 
-  // Windows binaries can't merge typeinfos, so use the NonUnique implementation.
-# ifdef _LIBCPP_OBJECT_FORMAT_COFF
+  // Windows and AIX binaries can't merge typeinfos, so use the NonUnique implementation.
+# if defined(_LIBCPP_OBJECT_FORMAT_COFF) || defined(_LIBCPP_OBJECT_FORMAT_XCOFF)
 #   define _LIBCPP_TYPEINFO_COMPARISON_IMPLEMENTATION 2
 
   // On arm64 on Apple platforms, use the special NonUniqueARMRTTIBit implementation.

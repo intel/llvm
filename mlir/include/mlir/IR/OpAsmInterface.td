@@ -6,17 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains Interfaces for interacting with the AsmParser and
-// AsmPrinter.
+// This file contains interfaces and other utilities for interacting with the
+// AsmParser and AsmPrinter.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_OPASMINTERFACE
-#define MLIR_OPASMINTERFACE
+#ifndef MLIR_IR_OPASMINTERFACE_TD
+#define MLIR_IR_OPASMINTERFACE_TD
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 
-/// Interface for hooking into the OpAsmPrinter and OpAsmParser.
+//===----------------------------------------------------------------------===//
+// OpAsmOpInterface
+//===----------------------------------------------------------------------===//
+
 def OpAsmOpInterface : OpInterface<"OpAsmOpInterface"> {
   let description = [{
     This interface provides hooks to interact with the AsmPrinter and AsmParser
@@ -62,6 +66,36 @@ def OpAsmOpInterface : OpInterface<"OpAsmOpInterface"> {
       ),
       "", "return;"
     >,
+    InterfaceMethod<[{
+        Get the name to use for a given block inside a region attached to this
+        operation.
+
+        For example if this operation has multiple blocks:
+
+        ```mlir
+          some.op() ({
+            ^bb0:
+              ...
+            ^bb1:
+              ...
+          })
+        ```
+
+        the method will be invoked on each of the blocks allowing the op to
+        print:
+
+        ```mlir
+          some.op() ({
+            ^custom_foo_name:
+              ...
+            ^custom_bar_name:
+              ...
+          })
+        ```
+      }],
+      "void", "getAsmBlockNames",
+      (ins "::mlir::OpAsmSetBlockNameFn":$setNameFn), "", ";"
+    >,
     StaticInterfaceMethod<[{
       Return the default dialect used when printing/parsing operations in
       regions nested under this operation. This allows for eliding the dialect
@@ -75,4 +109,18 @@ def OpAsmOpInterface : OpInterface<"OpAsmOpInterface"> {
   ];
 }
 
-#endif // MLIR_OPASMINTERFACE
+//===----------------------------------------------------------------------===//
+// ResourceHandleParameter
+//===----------------------------------------------------------------------===//
+
+/// This parameter represents a handle to a resource that is encoded into the
+/// "dialect_resources" section of the assembly format. This parameter expects a
+/// C++ `handleType` that derives from `AsmDialectResourceHandleBase` and
+/// implements a derived handle to the desired resource type. 
+class ResourceHandleParameter<string handleType, string desc = "">
+    : AttrOrTypeParameter<handleType, desc> {
+  let parser = "$_parser.parseResourceHandle<" # handleType # ">()";
+  let printer = "$_printer.printResourceHandle($_self)";
+}
+
+#endif // MLIR_IR_OPASMINTERFACE_TD

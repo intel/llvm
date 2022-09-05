@@ -15,19 +15,13 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Tooling/Core/Diagnostic.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Regex.h"
 
 namespace clang {
 
 class ASTContext;
-class CompilerInstance;
 class SourceManager;
-namespace ast_matchers {
-class MatchFinder;
-} // namespace ast_matchers
-namespace tooling {
-class CompilationDatabase;
-} // namespace tooling
 
 namespace tidy {
 class CachedGlobList;
@@ -194,6 +188,10 @@ public:
     return AllowEnablingAnalyzerAlphaCheckers;
   }
 
+  void setSelfContainedDiags(bool Value) { SelfContainedDiags = Value; }
+
+  bool areDiagsSelfContained() const { return SelfContainedDiags; }
+
   using DiagLevelAndFormatString = std::pair<DiagnosticIDs::Level, std::string>;
   DiagLevelAndFormatString getDiagLevelAndFormatString(unsigned DiagnosticID,
                                                        SourceLocation Loc) {
@@ -203,6 +201,11 @@ public:
         std::string(
             DiagEngine->getDiagnosticIDs()->getDescription(DiagnosticID)));
   }
+
+  void setOptionsCollector(llvm::StringSet<> *Collector) {
+    OptionsCollector = Collector;
+  }
+  llvm::StringSet<> *getOptionsCollector() const { return OptionsCollector; }
 
 private:
   // Writes to Stats.
@@ -230,7 +233,10 @@ private:
 
   bool AllowEnablingAnalyzerAlphaCheckers;
 
+  bool SelfContainedDiags;
+
   NoLintDirectiveHandler NoLintHandler;
+  llvm::StringSet<> *OptionsCollector = nullptr;
 };
 
 /// Gets the Fix attached to \p Diagnostic.

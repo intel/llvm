@@ -11,17 +11,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/Presburger/Utils.h"
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/MathExtras.h"
 
 using namespace mlir;
-using namespace presburger_utils;
+using namespace presburger;
 
 /// Normalize a division's `dividend` and the `divisor` by their GCD. For
 /// example: if the dividend and divisor are [2,0,4] and 4 respectively,
 /// they get normalized to [1,0,2] and 2.
-static void normalizeDivisionByGCD(SmallVectorImpl<int64_t> &dividend,
+static void normalizeDivisionByGCD(MutableArrayRef<int64_t> dividend,
                                    unsigned &divisor) {
   if (divisor == 0 || dividend.empty())
     return;
@@ -45,20 +45,20 @@ static void normalizeDivisionByGCD(SmallVectorImpl<int64_t> &dividend,
 
   // Normalize the dividend and the denominator.
   std::transform(dividend.begin(), dividend.end(), dividend.begin(),
-                 [gcd](int64_t &n) { return floor(n / gcd); });
+                 [gcd](int64_t &n) { return floorDiv(n, gcd); });
   divisor /= gcd;
 }
 
-/// Check if the pos^th identifier can be represented as a division using upper
+/// Check if the pos^th variable can be represented as a division using upper
 /// bound inequality at position `ubIneq` and lower bound inequality at position
 /// `lbIneq`.
 ///
-/// Let `id` be the pos^th identifier, then `id` is equivalent to
+/// Let `var` be the pos^th variable, then `var` is equivalent to
 /// `expr floordiv divisor` if there are constraints of the form:
-///      0 <= expr - divisor * id <= divisor - 1
+///      0 <= expr - divisor * var <= divisor - 1
 /// Rearranging, we have:
-///       divisor * id - expr + (divisor - 1) >= 0  <-- Lower bound for 'id'
-///      -divisor * id + expr                 >= 0  <-- Upper bound for 'id'
+///       divisor * var - expr + (divisor - 1) >= 0  <-- Lower bound for 'var'
+///      -divisor * var + expr                 >= 0  <-- Upper bound for 'var'
 ///
 /// For example:
 ///     32*k >= 16*i + j - 31                 <-- Lower bound for 'k'
@@ -79,24 +79,25 @@ static void normalizeDivisionByGCD(SmallVectorImpl<int64_t> &dividend,
 ///
 /// To extract floor divisions with tighter bounds, we assume that that the
 /// constraints are of the form:
-///     c <= expr - divisior * id <= divisor - 1, where 0 <= c <= divisor - 1
+///     c <= expr - divisior * var <= divisor - 1, where 0 <= c <= divisor - 1
 /// Rearranging, we have:
-///     divisor * id - expr + (divisor - 1) >= 0  <-- Lower bound for 'id'
-///    -divisor * id + expr - c             >= 0  <-- Upper bound for 'id'
+///     divisor * var - expr + (divisor - 1) >= 0  <-- Lower bound for 'var'
+///    -divisor * var + expr - c             >= 0  <-- Upper bound for 'var'
 ///
 /// If successful, `expr` is set to dividend of the division and `divisor` is
 /// set to the denominator of the division. The final division expression is
 /// normalized by GCD.
-static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
+static LogicalResult getDivRepr(const IntegerRelation &cst, unsigned pos,
                                 unsigned ubIneq, unsigned lbIneq,
-                                SmallVector<int64_t, 8> &expr,
+                                MutableArrayRef<int64_t> expr,
                                 unsigned &divisor) {
 
-  assert(pos <= cst.getNumIds() && "Invalid identifier position");
+  assert(pos <= cst.getNumVars() && "Invalid variable position");
   assert(ubIneq <= cst.getNumInequalities() &&
          "Invalid upper bound inequality position");
   assert(lbIneq <= cst.getNumInequalities() &&
          "Invalid upper bound inequality position");
+  assert(expr.size() == cst.getNumCols() && "Invalid expression size");
 
   // Extract divisor from the lower bound.
   divisor = cst.atIneq(lbIneq, pos);
@@ -104,7 +105,7 @@ static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
   // First, check if the constraints are opposite of each other except the
   // constant term.
   unsigned i = 0, e = 0;
-  for (i = 0, e = cst.getNumIds(); i < e; ++i)
+  for (i = 0, e = cst.getNumVars(); i < e; ++i)
     if (cst.atIneq(ubIneq, i) != -cst.atIneq(lbIneq, i))
       break;
 
@@ -120,14 +121,13 @@ static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
 
   // Check if `c` satisfies the condition `0 <= c <= divisor - 1`. This also
   // implictly checks that `divisor` is positive.
-  if (!(c >= 0 && c <= divisor - 1))
+  if (!(0 <= c && c <= divisor - 1)) // NOLINT
     return failure();
 
   // The inequality pair can be used to extract the division.
   // Set `expr` to the dividend of the division except the constant term, which
   // is set below.
-  expr.resize(cst.getNumCols(), 0);
-  for (i = 0, e = cst.getNumIds(); i < e; ++i)
+  for (i = 0, e = cst.getNumVars(); i < e; ++i)
     if (i != pos)
       expr[i] = cst.atIneq(ubIneq, i);
 
@@ -140,24 +140,90 @@ static LogicalResult getDivRepr(const IntegerPolyhedron &cst, unsigned pos,
   return success();
 }
 
-/// Check if the pos^th identifier can be expressed as a floordiv of an affine
-/// function of other identifiers (where the divisor is a positive constant).
-/// `foundRepr` contains a boolean for each identifier indicating if the
-/// explicit representation for that identifier has already been computed.
-/// Returns the upper and lower bound inequalities using which the floordiv can
-/// be computed. If the representation could be computed, `dividend` and
-/// `denominator` are set. If the representation could not be computed,
-/// `llvm::None` is returned.
-MaybeLocalRepr presburger_utils::computeSingleVarRepr(
-    const IntegerPolyhedron &cst, ArrayRef<bool> foundRepr, unsigned pos,
-    SmallVector<int64_t, 8> &dividend, unsigned &divisor) {
-  assert(pos < cst.getNumIds() && "invalid position");
-  assert(foundRepr.size() == cst.getNumIds() &&
-         "Size of foundRepr does not match total number of variables");
+/// Check if the pos^th variable can be represented as a division using
+/// equality at position `eqInd`.
+///
+/// For example:
+///     32*k == 16*i + j - 31                 <-- `eqInd` for 'k'
+///     expr = 16*i + j - 31, divisor = 32
+///     k = (16*i + j - 31) floordiv 32
+///
+/// If successful, `expr` is set to dividend of the division and `divisor` is
+/// set to the denominator of the division. The final division expression is
+/// normalized by GCD.
+static LogicalResult getDivRepr(const IntegerRelation &cst, unsigned pos,
+                                unsigned eqInd, MutableArrayRef<int64_t> expr,
+                                unsigned &divisor) {
 
-  SmallVector<unsigned, 4> lbIndices, ubIndices;
-  cst.getLowerAndUpperBoundIndices(pos, &lbIndices, &ubIndices);
-  MaybeLocalRepr repr;
+  assert(pos <= cst.getNumVars() && "Invalid variable position");
+  assert(eqInd <= cst.getNumEqualities() && "Invalid equality position");
+  assert(expr.size() == cst.getNumCols() && "Invalid expression size");
+
+  // Extract divisor, the divisor can be negative and hence its sign information
+  // is stored in `signDiv` to reverse the sign of dividend's coefficients.
+  // Equality must involve the pos-th variable and hence `tempDiv` != 0.
+  int64_t tempDiv = cst.atEq(eqInd, pos);
+  if (tempDiv == 0)
+    return failure();
+  int64_t signDiv = tempDiv < 0 ? -1 : 1;
+
+  // The divisor is always a positive integer.
+  divisor = tempDiv * signDiv;
+
+  for (unsigned i = 0, e = cst.getNumVars(); i < e; ++i)
+    if (i != pos)
+      expr[i] = -signDiv * cst.atEq(eqInd, i);
+
+  expr.back() = -signDiv * cst.atEq(eqInd, cst.getNumCols() - 1);
+  normalizeDivisionByGCD(expr, divisor);
+
+  return success();
+}
+
+// Returns `false` if the constraints depends on a variable for which an
+// explicit representation has not been found yet, otherwise returns `true`.
+static bool checkExplicitRepresentation(const IntegerRelation &cst,
+                                        ArrayRef<bool> foundRepr,
+                                        ArrayRef<int64_t> dividend,
+                                        unsigned pos) {
+  // Exit to avoid circular dependencies between divisions.
+  for (unsigned c = 0, e = cst.getNumVars(); c < e; ++c) {
+    if (c == pos)
+      continue;
+
+    if (!foundRepr[c] && dividend[c] != 0) {
+      // Expression can't be constructed as it depends on a yet unknown
+      // variable.
+      //
+      // TODO: Visit/compute the variables in an order so that this doesn't
+      // happen. More complex but much more efficient.
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/// Check if the pos^th variable can be expressed as a floordiv of an affine
+/// function of other variables (where the divisor is a positive constant).
+/// `foundRepr` contains a boolean for each variable indicating if the
+/// explicit representation for that variable has already been computed.
+/// Returns the `MaybeLocalRepr` struct which contains the indices of the
+/// constraints that can be expressed as a floordiv of an affine function. If
+/// the representation could be computed, `dividend` and `denominator` are set.
+/// If the representation could not be computed, the kind attribute in
+/// `MaybeLocalRepr` is set to None.
+MaybeLocalRepr presburger::computeSingleVarRepr(
+    const IntegerRelation &cst, ArrayRef<bool> foundRepr, unsigned pos,
+    MutableArrayRef<int64_t> dividend, unsigned &divisor) {
+  assert(pos < cst.getNumVars() && "invalid position");
+  assert(foundRepr.size() == cst.getNumVars() &&
+         "Size of foundRepr does not match total number of variables");
+  assert(dividend.size() == cst.getNumCols() && "Invalid dividend size");
+
+  SmallVector<unsigned, 4> lbIndices, ubIndices, eqIndices;
+  cst.getLowerAndUpperBoundIndices(pos, &lbIndices, &ubIndices, &eqIndices);
+  MaybeLocalRepr repr{};
 
   for (unsigned ubPos : ubIndices) {
     for (unsigned lbPos : lbIndices) {
@@ -165,58 +231,156 @@ MaybeLocalRepr presburger_utils::computeSingleVarRepr(
       if (failed(getDivRepr(cst, pos, ubPos, lbPos, dividend, divisor)))
         continue;
 
-      // Check if the inequalities depend on a variable for which
-      // an explicit representation has not been found yet.
-      // Exit to avoid circular dependencies between divisions.
-      unsigned c, f;
-      for (c = 0, f = cst.getNumIds(); c < f; ++c) {
-        if (c == pos)
-          continue;
-        if (!foundRepr[c] && dividend[c] != 0)
-          break;
-      }
-
-      // Expression can't be constructed as it depends on a yet unknown
-      // identifier.
-      // TODO: Visit/compute the identifiers in an order so that this doesn't
-      // happen. More complex but much more efficient.
-      if (c < f)
+      if (!checkExplicitRepresentation(cst, foundRepr, dividend, pos))
         continue;
 
       repr.kind = ReprKind::Inequality;
-      repr.repr.inEqualityPair = {ubPos, lbPos};
+      repr.repr.inequalityPair = {ubPos, lbPos};
       return repr;
     }
+  }
+  for (unsigned eqPos : eqIndices) {
+    // Attempt to get divison representation from eqPos.
+    if (failed(getDivRepr(cst, pos, eqPos, dividend, divisor)))
+      continue;
+
+    if (!checkExplicitRepresentation(cst, foundRepr, dividend, pos))
+      continue;
+
+    repr.kind = ReprKind::Equality;
+    repr.repr.equalityIdx = eqPos;
+    return repr;
   }
   return repr;
 }
 
-void presburger_utils::removeDuplicateDivs(
-    std::vector<SmallVector<int64_t, 8>> &divs,
-    SmallVectorImpl<unsigned> &denoms, unsigned localOffset,
+llvm::SmallBitVector presburger::getSubrangeBitVector(unsigned len,
+                                                      unsigned setOffset,
+                                                      unsigned numSet) {
+  llvm::SmallBitVector vec(len, false);
+  vec.set(setOffset, setOffset + numSet);
+  return vec;
+}
+
+void presburger::mergeLocalVars(
+    IntegerRelation &relA, IntegerRelation &relB,
+    llvm::function_ref<bool(unsigned i, unsigned j)> merge) {
+  assert(relA.getSpace().isCompatible(relB.getSpace()) &&
+         "Spaces should be compatible.");
+
+  // Merge local vars of relA and relB without using division information,
+  // i.e. append local vars of `relB` to `relA` and insert local vars of `relA`
+  // to `relB` at start of its local vars.
+  unsigned initLocals = relA.getNumLocalVars();
+  relA.insertVar(VarKind::Local, relA.getNumLocalVars(),
+                 relB.getNumLocalVars());
+  relB.insertVar(VarKind::Local, 0, initLocals);
+
+  // Get division representations from each rel.
+  DivisionRepr divsA = relA.getLocalReprs();
+  DivisionRepr divsB = relB.getLocalReprs();
+
+  for (unsigned i = initLocals, e = divsB.getNumDivs(); i < e; ++i) {
+    divsA.setDividend(i, divsB.getDividend(i));
+    divsA.getDenom(i) = divsB.getDenom(i);
+  }
+
+  // Remove duplicate divisions from divsA. The removing duplicate divisions
+  // call, calls `merge` to effectively merge divisions in relA and relB.
+  divsA.removeDuplicateDivs(merge);
+}
+
+SmallVector<int64_t, 8> presburger::getDivUpperBound(ArrayRef<int64_t> dividend,
+                                                     int64_t divisor,
+                                                     unsigned localVarIdx) {
+  assert(dividend[localVarIdx] == 0 &&
+         "Local to be set to division must have zero coeff!");
+  SmallVector<int64_t, 8> ineq(dividend.begin(), dividend.end());
+  ineq[localVarIdx] = -divisor;
+  return ineq;
+}
+
+SmallVector<int64_t, 8> presburger::getDivLowerBound(ArrayRef<int64_t> dividend,
+                                                     int64_t divisor,
+                                                     unsigned localVarIdx) {
+  assert(dividend[localVarIdx] == 0 &&
+         "Local to be set to division must have zero coeff!");
+  SmallVector<int64_t, 8> ineq(dividend.size());
+  std::transform(dividend.begin(), dividend.end(), ineq.begin(),
+                 std::negate<int64_t>());
+  ineq[localVarIdx] = divisor;
+  ineq.back() += divisor - 1;
+  return ineq;
+}
+
+int64_t presburger::gcdRange(ArrayRef<int64_t> range) {
+  int64_t gcd = 0;
+  for (int64_t elem : range) {
+    gcd = llvm::GreatestCommonDivisor64(gcd, std::abs(elem));
+    if (gcd == 1)
+      return gcd;
+  }
+  return gcd;
+}
+
+int64_t presburger::normalizeRange(MutableArrayRef<int64_t> range) {
+  int64_t gcd = gcdRange(range);
+  if (gcd == 0 || gcd == 1)
+    return gcd;
+  for (int64_t &elem : range)
+    elem /= gcd;
+  return gcd;
+}
+
+void presburger::normalizeDiv(MutableArrayRef<int64_t> num, int64_t &denom) {
+  assert(denom > 0 && "denom must be positive!");
+  int64_t gcd = llvm::greatestCommonDivisor(gcdRange(num), denom);
+  for (int64_t &coeff : num)
+    coeff /= gcd;
+  denom /= gcd;
+}
+
+SmallVector<int64_t, 8> presburger::getNegatedCoeffs(ArrayRef<int64_t> coeffs) {
+  SmallVector<int64_t, 8> negatedCoeffs;
+  negatedCoeffs.reserve(coeffs.size());
+  for (int64_t coeff : coeffs)
+    negatedCoeffs.emplace_back(-coeff);
+  return negatedCoeffs;
+}
+
+SmallVector<int64_t, 8> presburger::getComplementIneq(ArrayRef<int64_t> ineq) {
+  SmallVector<int64_t, 8> coeffs;
+  coeffs.reserve(ineq.size());
+  for (int64_t coeff : ineq)
+    coeffs.emplace_back(-coeff);
+  --coeffs.back();
+  return coeffs;
+}
+
+void DivisionRepr::removeDuplicateDivs(
     llvm::function_ref<bool(unsigned i, unsigned j)> merge) {
 
   // Find and merge duplicate divisions.
   // TODO: Add division normalization to support divisions that differ by
   // a constant.
   // TODO: Add division ordering such that a division representation for local
-  // identifier at position `i` only depends on local identifiers at position <
+  // variable at position `i` only depends on local variables at position <
   // `i`. This would make sure that all divisions depending on other local
   // variables that can be merged, are merged.
-  for (unsigned i = 0; i < divs.size(); ++i) {
-    // Check if a division representation exists for the `i^th` local id.
+  for (unsigned i = 0; i < getNumDivs(); ++i) {
+    // Check if a division representation exists for the `i^th` local var.
     if (denoms[i] == 0)
       continue;
     // Check if a division exists which is a duplicate of the division at `i`.
-    for (unsigned j = i + 1; j < divs.size(); ++j) {
-      // Check if a division representation exists for the `j^th` local id.
+    for (unsigned j = i + 1; j < getNumDivs(); ++j) {
+      // Check if a division representation exists for the `j^th` local var.
       if (denoms[j] == 0)
         continue;
       // Check if the denominators match.
       if (denoms[i] != denoms[j])
         continue;
       // Check if the representations are equal.
-      if (divs[i] != divs[j])
+      if (dividends.getRow(i) != dividends.getRow(j))
         continue;
 
       // Merge divisions at position `j` into division at position `i`. If
@@ -226,18 +390,37 @@ void presburger_utils::removeDuplicateDivs(
         continue;
 
       // Update division information to reflect merging.
-      for (unsigned k = 0, g = divs.size(); k < g; ++k) {
-        SmallVector<int64_t, 8> &div = divs[k];
-        if (denoms[k] != 0) {
-          div[localOffset + i] += div[localOffset + j];
-          div.erase(div.begin() + localOffset + j);
-        }
-      }
-
-      divs.erase(divs.begin() + j);
+      unsigned divOffset = getDivOffset();
+      dividends.addToColumn(divOffset + j, divOffset + i, /*scale=*/1);
+      dividends.removeColumn(divOffset + j);
+      dividends.removeRow(j);
       denoms.erase(denoms.begin() + j);
+
       // Since `j` can never be zero, we do not need to worry about overflows.
       --j;
     }
   }
+}
+
+void DivisionRepr::print(raw_ostream &os) const {
+  os << "Dividends:\n";
+  dividends.print(os);
+  os << "Denominators\n";
+  for (unsigned i = 0, e = denoms.size(); i < e; ++i)
+    os << denoms[i] << " ";
+  os << "\n";
+}
+
+void DivisionRepr::dump() const { print(llvm::errs()); }
+
+SmallVector<MPInt, 8> presburger::getMPIntVec(ArrayRef<int64_t> range) {
+  SmallVector<MPInt, 8> result(range.size());
+  std::transform(range.begin(), range.end(), result.begin(), mpintFromInt64);
+  return result;
+}
+
+SmallVector<int64_t, 8> presburger::getInt64Vec(ArrayRef<MPInt> range) {
+  SmallVector<int64_t, 8> result(range.size());
+  std::transform(range.begin(), range.end(), result.begin(), int64FromMPInt);
+  return result;
 }

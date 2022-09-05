@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03 && !stdlib=libc++
 
 // <vector>
 
@@ -29,7 +29,7 @@ public:
 };
 
 int main(int, char**) {
-  // expected-error@* 2 {{"The specified type does not meet the requirements of Cpp17MoveInsertable"}}
+  // expected-error@* 2 {{The specified type does not meet the requirements of Cpp17MoveInsertable}}
 
   // Other diagnostics that might be seen as Clang tries to continue compiling:
   // expected-error@* 0-2 {{call to deleted constructor}}
@@ -40,7 +40,7 @@ int main(int, char**) {
     x.emplace_back();
   }
   {
-    std::vector<BadUserNoCookie<2>> x;
+    std::vector<BadUserNoCookie<2> > x;
     BadUserNoCookie<2> c;
     x.push_back(c);
   }

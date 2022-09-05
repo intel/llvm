@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -triple wasm32-unknown-unknown %s -emit-llvm -o - \
+// RUN: %clang_cc1 -no-opaque-pointers -triple wasm32-unknown-unknown %s -emit-llvm -o - \
 // RUN:   | FileCheck %s -check-prefix=WEBASSEMBLY32
-// RUN: %clang_cc1 -triple wasm64-unknown-unknown %s -emit-llvm -o - \
+// RUN: %clang_cc1 -no-opaque-pointers -triple wasm64-unknown-unknown %s -emit-llvm -o - \
 // RUN:   | FileCheck %s -check-prefix=WEBASSEMBLY64
-// RUN: %clang_cc1 -triple wasm32-unknown-unknown %s -target-abi experimental-mv -emit-llvm -o - \
+// RUN: %clang_cc1 -no-opaque-pointers -triple wasm32-unknown-unknown %s -target-abi experimental-mv -emit-llvm -o - \
 // RUN:   | FileCheck %s -check-prefix=EXPERIMENTAL-MV
 
 // Basic argument/attribute and return tests for WebAssembly
@@ -33,7 +33,7 @@ void struct_arg(s1 i) {}
 // Except with the experimental multivalue ABI, which returns structs by value
 // EXPERIMENTAL-MV: define %struct.s1 @struct_ret()
 // EXPERIMENTAL-MV: ret %struct.s1 %0
-s1 struct_ret() {
+s1 struct_ret(void) {
   s1 foo;
   return foo;
 }
@@ -53,7 +53,7 @@ void single_elem_arg(s2 i) {}
 // WEBASSEMBLY32: ret i32
 // WEBASSEMBLY64: define i32 @single_elem_ret()
 // EXPERIMENTAL-MV: define i32 @single_elem_ret()
-s2 single_elem_ret() {
+s2 single_elem_ret(void) {
   s2 foo;
   return foo;
 }
@@ -111,7 +111,7 @@ void union_arg(union simple_union s) {}
 // The experimental multivalue ABI returns them by value, though.
 // EXPERIMENTAL-MV: define %union.simple_union @union_ret()
 // EXPERIMENTAL-MV: ret %union.simple_union %0
-union simple_union union_ret() {
+union simple_union union_ret(void) {
   union simple_union bar;
   return bar;
 }
@@ -134,7 +134,7 @@ void bitfield_arg(bitfield1 bf1) {}
 
 // Except, of course, in the experimental multivalue ABI
 // EXPERIMENTAL-MV: define %struct.bitfield1 @bitfield_ret()
-bitfield1 bitfield_ret() {
+bitfield1 bitfield_ret(void) {
   bitfield1 baz;
   return baz;
 }

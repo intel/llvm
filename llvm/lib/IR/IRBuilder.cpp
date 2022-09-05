@@ -16,6 +16,7 @@
 #include "llvm/ADT/None.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
@@ -29,7 +30,6 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/MathExtras.h"
 #include <cassert>
 #include <cstdint>
 #include <vector>
@@ -69,12 +69,26 @@ Value *IRBuilderBase::getCastedInt8PtrValue(Value *Ptr) {
   return CreateBitCast(Ptr, getInt8PtrTy(PT->getAddressSpace()));
 }
 
-static CallInst *createCallHelper(Function *Callee, ArrayRef<Value *> Ops,
-                                  IRBuilderBase *Builder,
-                                  const Twine &Name = "",
-                                  Instruction *FMFSource = nullptr,
-                                  ArrayRef<OperandBundleDef> OpBundles = {}) {
-  CallInst *CI = Builder->CreateCall(Callee, Ops, OpBundles, Name);
+DebugLoc IRBuilderBase::getCurrentDebugLocation() const {
+  for (auto &KV : MetadataToCopy)
+    if (KV.first == LLVMContext::MD_dbg)
+      return {cast<DILocation>(KV.second)};
+
+  return {};
+}
+void IRBuilderBase::SetInstDebugLocation(Instruction *I) const {
+  for (const auto &KV : MetadataToCopy)
+    if (KV.first == LLVMContext::MD_dbg) {
+      I->setDebugLoc(DebugLoc(KV.second));
+      return;
+    }
+}
+
+CallInst *
+IRBuilderBase::createCallHelper(Function *Callee, ArrayRef<Value *> Ops,
+                                const Twine &Name, Instruction *FMFSource,
+                                ArrayRef<OperandBundleDef> OpBundles) {
+  CallInst *CI = CreateCall(Callee, Ops, OpBundles, Name);
   if (FMFSource)
     CI->copyFastMathFlags(FMFSource);
   return CI;
@@ -87,7 +101,7 @@ Value *IRBuilderBase::CreateVScale(Constant *Scaling, const Twine &Name) {
   Module *M = GetInsertBlock()->getParent()->getParent();
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::vscale, {Scaling->getType()});
-  CallInst *CI = createCallHelper(TheFn, {}, this, Name);
+  CallInst *CI = CreateCall(TheFn, {}, {}, Name);
   return cast<ConstantInt>(Scaling)->getSExtValue() == 1
              ? CI
              : CreateMul(CI, Scaling);
@@ -131,10 +145,39 @@ CallInst *IRBuilderBase::CreateMemSet(Value *Ptr, Value *Val, Value *Size,
   Module *M = BB->getParent()->getParent();
   Function *TheFn = Intrinsic::getDeclaration(M, Intrinsic::memset, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   if (Align)
-    cast<MemSetInst>(CI)->setDestAlignment(Align->value());
+    cast<MemSetInst>(CI)->setDestAlignment(*Align);
+
+  // Set the TBAA info if present.
+  if (TBAATag)
+    CI->setMetadata(LLVMContext::MD_tbaa, TBAATag);
+
+  if (ScopeTag)
+    CI->setMetadata(LLVMContext::MD_alias_scope, ScopeTag);
+
+  if (NoAliasTag)
+    CI->setMetadata(LLVMContext::MD_noalias, NoAliasTag);
+
+  return CI;
+}
+
+CallInst *IRBuilderBase::CreateMemSetInline(Value *Dst, MaybeAlign DstAlign,
+                                            Value *Val, Value *Size,
+                                            bool IsVolatile, MDNode *TBAATag,
+                                            MDNode *ScopeTag,
+                                            MDNode *NoAliasTag) {
+  Dst = getCastedInt8PtrValue(Dst);
+  Value *Ops[] = {Dst, Val, Size, getInt1(IsVolatile)};
+  Type *Tys[] = {Dst->getType(), Size->getType()};
+  Module *M = BB->getParent()->getParent();
+  Function *TheFn = Intrinsic::getDeclaration(M, Intrinsic::memset_inline, Tys);
+
+  CallInst *CI = CreateCall(TheFn, Ops);
+
+  if (DstAlign)
+    cast<MemSetInlineInst>(CI)->setDestAlignment(*DstAlign);
 
   // Set the TBAA info if present.
   if (TBAATag)
@@ -160,7 +203,7 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemSet(
   Function *TheFn = Intrinsic::getDeclaration(
       M, Intrinsic::memset_element_unordered_atomic, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   cast<AtomicMemSetInst>(CI)->setDestAlignment(Alignment);
 
@@ -189,7 +232,7 @@ CallInst *IRBuilderBase::CreateMemTransferInst(
   Module *M = BB->getParent()->getParent();
   Function *TheFn = Intrinsic::getDeclaration(M, IntrID, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   auto* MCI = cast<MemTransferInst>(CI);
   if (DstAlign)
@@ -227,7 +270,7 @@ CallInst *IRBuilderBase::CreateMemCpyInline(
   Module *M = F->getParent();
   Function *TheFn = Intrinsic::getDeclaration(M, Intrinsic::memcpy_inline, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   auto *MCI = cast<MemCpyInlineInst>(CI);
   if (DstAlign)
@@ -269,7 +312,7 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemCpy(
   Function *TheFn = Intrinsic::getDeclaration(
       M, Intrinsic::memcpy_element_unordered_atomic, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   // Set the alignment of the pointer args.
   auto *AMCI = cast<AtomicMemCpyInst>(CI);
@@ -306,7 +349,7 @@ CallInst *IRBuilderBase::CreateMemMove(Value *Dst, MaybeAlign DstAlign,
   Module *M = BB->getParent()->getParent();
   Function *TheFn = Intrinsic::getDeclaration(M, Intrinsic::memmove, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   auto *MMI = cast<MemMoveInst>(CI);
   if (DstAlign)
@@ -344,7 +387,7 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemMove(
   Function *TheFn = Intrinsic::getDeclaration(
       M, Intrinsic::memmove_element_unordered_atomic, Tys);
 
-  CallInst *CI = createCallHelper(TheFn, Ops, this);
+  CallInst *CI = CreateCall(TheFn, Ops);
 
   // Set the alignment of the pointer args.
   CI->addParamAttr(0, Attribute::getWithAlignment(CI->getContext(), DstAlign));
@@ -367,13 +410,12 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemMove(
   return CI;
 }
 
-static CallInst *getReductionIntrinsic(IRBuilderBase *Builder, Intrinsic::ID ID,
-                                    Value *Src) {
-  Module *M = Builder->GetInsertBlock()->getParent()->getParent();
+CallInst *IRBuilderBase::getReductionIntrinsic(Intrinsic::ID ID, Value *Src) {
+  Module *M = GetInsertBlock()->getParent()->getParent();
   Value *Ops[] = {Src};
   Type *Tys[] = { Src->getType() };
   auto Decl = Intrinsic::getDeclaration(M, ID, Tys);
-  return createCallHelper(Decl, Ops, Builder);
+  return CreateCall(Decl, Ops);
 }
 
 CallInst *IRBuilderBase::CreateFAddReduce(Value *Acc, Value *Src) {
@@ -381,7 +423,7 @@ CallInst *IRBuilderBase::CreateFAddReduce(Value *Acc, Value *Src) {
   Value *Ops[] = {Acc, Src};
   auto Decl = Intrinsic::getDeclaration(M, Intrinsic::vector_reduce_fadd,
                                         {Src->getType()});
-  return createCallHelper(Decl, Ops, this);
+  return CreateCall(Decl, Ops);
 }
 
 CallInst *IRBuilderBase::CreateFMulReduce(Value *Acc, Value *Src) {
@@ -389,47 +431,47 @@ CallInst *IRBuilderBase::CreateFMulReduce(Value *Acc, Value *Src) {
   Value *Ops[] = {Acc, Src};
   auto Decl = Intrinsic::getDeclaration(M, Intrinsic::vector_reduce_fmul,
                                         {Src->getType()});
-  return createCallHelper(Decl, Ops, this);
+  return CreateCall(Decl, Ops);
 }
 
 CallInst *IRBuilderBase::CreateAddReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_add, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_add, Src);
 }
 
 CallInst *IRBuilderBase::CreateMulReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_mul, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_mul, Src);
 }
 
 CallInst *IRBuilderBase::CreateAndReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_and, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_and, Src);
 }
 
 CallInst *IRBuilderBase::CreateOrReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_or, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_or, Src);
 }
 
 CallInst *IRBuilderBase::CreateXorReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_xor, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_xor, Src);
 }
 
 CallInst *IRBuilderBase::CreateIntMaxReduce(Value *Src, bool IsSigned) {
   auto ID =
       IsSigned ? Intrinsic::vector_reduce_smax : Intrinsic::vector_reduce_umax;
-  return getReductionIntrinsic(this, ID, Src);
+  return getReductionIntrinsic(ID, Src);
 }
 
 CallInst *IRBuilderBase::CreateIntMinReduce(Value *Src, bool IsSigned) {
   auto ID =
       IsSigned ? Intrinsic::vector_reduce_smin : Intrinsic::vector_reduce_umin;
-  return getReductionIntrinsic(this, ID, Src);
+  return getReductionIntrinsic(ID, Src);
 }
 
 CallInst *IRBuilderBase::CreateFPMaxReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_fmax, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_fmax, Src);
 }
 
 CallInst *IRBuilderBase::CreateFPMinReduce(Value *Src) {
-  return getReductionIntrinsic(this, Intrinsic::vector_reduce_fmin, Src);
+  return getReductionIntrinsic(Intrinsic::vector_reduce_fmin, Src);
 }
 
 CallInst *IRBuilderBase::CreateLifetimeStart(Value *Ptr, ConstantInt *Size) {
@@ -445,7 +487,7 @@ CallInst *IRBuilderBase::CreateLifetimeStart(Value *Ptr, ConstantInt *Size) {
   Module *M = BB->getParent()->getParent();
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::lifetime_start, {Ptr->getType()});
-  return createCallHelper(TheFn, Ops, this);
+  return CreateCall(TheFn, Ops);
 }
 
 CallInst *IRBuilderBase::CreateLifetimeEnd(Value *Ptr, ConstantInt *Size) {
@@ -461,7 +503,7 @@ CallInst *IRBuilderBase::CreateLifetimeEnd(Value *Ptr, ConstantInt *Size) {
   Module *M = BB->getParent()->getParent();
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::lifetime_end, {Ptr->getType()});
-  return createCallHelper(TheFn, Ops, this);
+  return CreateCall(TheFn, Ops);
 }
 
 CallInst *IRBuilderBase::CreateInvariantStart(Value *Ptr, ConstantInt *Size) {
@@ -481,7 +523,25 @@ CallInst *IRBuilderBase::CreateInvariantStart(Value *Ptr, ConstantInt *Size) {
   Module *M = BB->getParent()->getParent();
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::invariant_start, ObjectPtr);
-  return createCallHelper(TheFn, Ops, this);
+  return CreateCall(TheFn, Ops);
+}
+
+CallInst *IRBuilderBase::CreateThreadLocalAddress(Value *Ptr) {
+#ifndef NDEBUG
+  // Handle specially for constexpr cast. This is possible when
+  // opaque pointers not enabled since constant could be sinked
+  // directly by the design of llvm. This could be eliminated
+  // after we eliminate the abuse of constexpr.
+  auto *V = Ptr;
+  if (auto *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->isCast())
+      V = CE->getOperand(0);
+
+  assert(isa<GlobalValue>(V) && cast<GlobalValue>(V)->isThreadLocal() &&
+         "threadlocal_address only applies to thread local variables.");
+#endif
+  return CreateIntrinsic(llvm::Intrinsic::threadlocal_address, {Ptr->getType()},
+                         {Ptr});
 }
 
 CallInst *
@@ -493,14 +553,14 @@ IRBuilderBase::CreateAssumption(Value *Cond,
   Value *Ops[] = { Cond };
   Module *M = BB->getParent()->getParent();
   Function *FnAssume = Intrinsic::getDeclaration(M, Intrinsic::assume);
-  return createCallHelper(FnAssume, Ops, this, "", nullptr, OpBundles);
+  return CreateCall(FnAssume, Ops, OpBundles);
 }
 
 Instruction *IRBuilderBase::CreateNoAliasScopeDeclaration(Value *Scope) {
   Module *M = BB->getModule();
   auto *FnIntrinsic = Intrinsic::getDeclaration(
       M, Intrinsic::experimental_noalias_scope_decl, {});
-  return createCallHelper(FnIntrinsic, {Scope}, this);
+  return CreateCall(FnIntrinsic, {Scope});
 }
 
 /// Create a call to a Masked Load intrinsic.
@@ -554,7 +614,7 @@ CallInst *IRBuilderBase::CreateMaskedIntrinsic(Intrinsic::ID Id,
                                                const Twine &Name) {
   Module *M = BB->getParent()->getParent();
   Function *TheFn = Intrinsic::getDeclaration(M, Id, OverloadedTypes);
-  return createCallHelper(TheFn, Ops, this, Name);
+  return CreateCall(TheFn, Ops, {}, Name);
 }
 
 /// Create a call to a Masked Gather intrinsic.
@@ -673,34 +733,29 @@ getStatepointBundles(Optional<ArrayRef<T1>> TransitionArgs,
 template <typename T0, typename T1, typename T2, typename T3>
 static CallInst *CreateGCStatepointCallCommon(
     IRBuilderBase *Builder, uint64_t ID, uint32_t NumPatchBytes,
-    Value *ActualCallee, uint32_t Flags, ArrayRef<T0> CallArgs,
-    Optional<ArrayRef<T1>> TransitionArgs,
-    Optional<ArrayRef<T2>> DeoptArgs, ArrayRef<T3> GCArgs,
-    const Twine &Name) {
-  // Extract out the type of the callee.
-  auto *FuncPtrType = cast<PointerType>(ActualCallee->getType());
-  assert(isa<FunctionType>(FuncPtrType->getPointerElementType()) &&
-         "actual callee must be a callable value");
-
+    FunctionCallee ActualCallee, uint32_t Flags, ArrayRef<T0> CallArgs,
+    Optional<ArrayRef<T1>> TransitionArgs, Optional<ArrayRef<T2>> DeoptArgs,
+    ArrayRef<T3> GCArgs, const Twine &Name) {
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   // Fill in the one generic type'd argument (the function is also vararg)
-  Type *ArgTypes[] = { FuncPtrType };
   Function *FnStatepoint =
-    Intrinsic::getDeclaration(M, Intrinsic::experimental_gc_statepoint,
-                              ArgTypes);
+      Intrinsic::getDeclaration(M, Intrinsic::experimental_gc_statepoint,
+                                {ActualCallee.getCallee()->getType()});
 
-  std::vector<Value *> Args =
-      getStatepointArgs(*Builder, ID, NumPatchBytes, ActualCallee, Flags,
-                        CallArgs);
+  std::vector<Value *> Args = getStatepointArgs(
+      *Builder, ID, NumPatchBytes, ActualCallee.getCallee(), Flags, CallArgs);
 
-  return Builder->CreateCall(FnStatepoint, Args,
-                             getStatepointBundles(TransitionArgs, DeoptArgs,
-                                                  GCArgs),
-                             Name);
+  CallInst *CI = Builder->CreateCall(
+      FnStatepoint, Args,
+      getStatepointBundles(TransitionArgs, DeoptArgs, GCArgs), Name);
+  CI->addParamAttr(2,
+                   Attribute::get(Builder->getContext(), Attribute::ElementType,
+                                  ActualCallee.getFunctionType()));
+  return CI;
 }
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
-    uint64_t ID, uint32_t NumPatchBytes, Value *ActualCallee,
+    uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
     ArrayRef<Value *> CallArgs, Optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Value *, Value *, Value *, Value *>(
@@ -709,17 +764,17 @@ CallInst *IRBuilderBase::CreateGCStatepointCall(
 }
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
-    uint64_t ID, uint32_t NumPatchBytes, Value *ActualCallee, uint32_t Flags,
-    ArrayRef<Value *> CallArgs, Optional<ArrayRef<Use>> TransitionArgs,
-    Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
-    const Twine &Name) {
+    uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
+    uint32_t Flags, ArrayRef<Value *> CallArgs,
+    Optional<ArrayRef<Use>> TransitionArgs, Optional<ArrayRef<Use>> DeoptArgs,
+    ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualCallee, Flags, CallArgs, TransitionArgs,
       DeoptArgs, GCArgs, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
-    uint64_t ID, uint32_t NumPatchBytes, Value *ActualCallee,
+    uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
     ArrayRef<Use> CallArgs, Optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Use, Value *, Value *, Value *>(
@@ -730,32 +785,31 @@ CallInst *IRBuilderBase::CreateGCStatepointCall(
 template <typename T0, typename T1, typename T2, typename T3>
 static InvokeInst *CreateGCStatepointInvokeCommon(
     IRBuilderBase *Builder, uint64_t ID, uint32_t NumPatchBytes,
-    Value *ActualInvokee, BasicBlock *NormalDest, BasicBlock *UnwindDest,
-    uint32_t Flags, ArrayRef<T0> InvokeArgs,
+    FunctionCallee ActualInvokee, BasicBlock *NormalDest,
+    BasicBlock *UnwindDest, uint32_t Flags, ArrayRef<T0> InvokeArgs,
     Optional<ArrayRef<T1>> TransitionArgs, Optional<ArrayRef<T2>> DeoptArgs,
     ArrayRef<T3> GCArgs, const Twine &Name) {
-  // Extract out the type of the callee.
-  auto *FuncPtrType = cast<PointerType>(ActualInvokee->getType());
-  assert(isa<FunctionType>(FuncPtrType->getPointerElementType()) &&
-         "actual callee must be a callable value");
-
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   // Fill in the one generic type'd argument (the function is also vararg)
-  Function *FnStatepoint = Intrinsic::getDeclaration(
-      M, Intrinsic::experimental_gc_statepoint, {FuncPtrType});
+  Function *FnStatepoint =
+      Intrinsic::getDeclaration(M, Intrinsic::experimental_gc_statepoint,
+                                {ActualInvokee.getCallee()->getType()});
 
   std::vector<Value *> Args =
-      getStatepointArgs(*Builder, ID, NumPatchBytes, ActualInvokee, Flags,
-                        InvokeArgs);
+      getStatepointArgs(*Builder, ID, NumPatchBytes, ActualInvokee.getCallee(),
+                        Flags, InvokeArgs);
 
-  return Builder->CreateInvoke(FnStatepoint, NormalDest, UnwindDest, Args,
-                               getStatepointBundles(TransitionArgs, DeoptArgs,
-                                                    GCArgs),
-                               Name);
+  InvokeInst *II = Builder->CreateInvoke(
+      FnStatepoint, NormalDest, UnwindDest, Args,
+      getStatepointBundles(TransitionArgs, DeoptArgs, GCArgs), Name);
+  II->addParamAttr(2,
+                   Attribute::get(Builder->getContext(), Attribute::ElementType,
+                                  ActualInvokee.getFunctionType()));
+  return II;
 }
 
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
-    uint64_t ID, uint32_t NumPatchBytes, Value *ActualInvokee,
+    uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest,
     ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
@@ -766,19 +820,21 @@ InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
 }
 
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
-    uint64_t ID, uint32_t NumPatchBytes, Value *ActualInvokee,
+    uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
     ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Use>> TransitionArgs,
-    Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs, const Twine &Name) {
+    Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest, Flags,
       InvokeArgs, TransitionArgs, DeoptArgs, GCArgs, Name);
 }
 
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
-    uint64_t ID, uint32_t NumPatchBytes, Value *ActualInvokee,
+    uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, ArrayRef<Use> InvokeArgs,
-    Optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs, const Twine &Name) {
+    Optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Use, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest,
       uint32_t(StatepointFlags::None), InvokeArgs, None, DeoptArgs, GCArgs,
@@ -786,31 +842,26 @@ InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
 }
 
 CallInst *IRBuilderBase::CreateGCResult(Instruction *Statepoint,
-                                       Type *ResultType,
-                                       const Twine &Name) {
- Intrinsic::ID ID = Intrinsic::experimental_gc_result;
- Module *M = BB->getParent()->getParent();
- Type *Types[] = {ResultType};
- Function *FnGCResult = Intrinsic::getDeclaration(M, ID, Types);
+                                        Type *ResultType, const Twine &Name) {
+  Intrinsic::ID ID = Intrinsic::experimental_gc_result;
+  Module *M = BB->getParent()->getParent();
+  Type *Types[] = {ResultType};
+  Function *FnGCResult = Intrinsic::getDeclaration(M, ID, Types);
 
- Value *Args[] = {Statepoint};
- return createCallHelper(FnGCResult, Args, this, Name);
+  Value *Args[] = {Statepoint};
+  return CreateCall(FnGCResult, Args, {}, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCRelocate(Instruction *Statepoint,
-                                         int BaseOffset,
-                                         int DerivedOffset,
-                                         Type *ResultType,
-                                         const Twine &Name) {
- Module *M = BB->getParent()->getParent();
- Type *Types[] = {ResultType};
- Function *FnGCRelocate =
-     Intrinsic::getDeclaration(M, Intrinsic::experimental_gc_relocate, Types);
+                                          int BaseOffset, int DerivedOffset,
+                                          Type *ResultType, const Twine &Name) {
+  Module *M = BB->getParent()->getParent();
+  Type *Types[] = {ResultType};
+  Function *FnGCRelocate =
+      Intrinsic::getDeclaration(M, Intrinsic::experimental_gc_relocate, Types);
 
- Value *Args[] = {Statepoint,
-                  getInt32(BaseOffset),
-                  getInt32(DerivedOffset)};
- return createCallHelper(FnGCRelocate, Args, this, Name);
+  Value *Args[] = {Statepoint, getInt32(BaseOffset), getInt32(DerivedOffset)};
+  return CreateCall(FnGCRelocate, Args, {}, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCGetPointerBase(Value *DerivedPtr,
@@ -819,7 +870,7 @@ CallInst *IRBuilderBase::CreateGCGetPointerBase(Value *DerivedPtr,
   Type *PtrTy = DerivedPtr->getType();
   Function *FnGCFindBase = Intrinsic::getDeclaration(
       M, Intrinsic::experimental_gc_get_pointer_base, {PtrTy, PtrTy});
-  return createCallHelper(FnGCFindBase, {DerivedPtr}, this, Name);
+  return CreateCall(FnGCFindBase, {DerivedPtr}, {}, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCGetPointerOffset(Value *DerivedPtr,
@@ -828,7 +879,7 @@ CallInst *IRBuilderBase::CreateGCGetPointerOffset(Value *DerivedPtr,
   Type *PtrTy = DerivedPtr->getType();
   Function *FnGCGetOffset = Intrinsic::getDeclaration(
       M, Intrinsic::experimental_gc_get_pointer_offset, {PtrTy});
-  return createCallHelper(FnGCGetOffset, {DerivedPtr}, this, Name);
+  return CreateCall(FnGCGetOffset, {DerivedPtr}, {}, Name);
 }
 
 CallInst *IRBuilderBase::CreateUnaryIntrinsic(Intrinsic::ID ID, Value *V,
@@ -836,7 +887,7 @@ CallInst *IRBuilderBase::CreateUnaryIntrinsic(Intrinsic::ID ID, Value *V,
                                               const Twine &Name) {
   Module *M = BB->getModule();
   Function *Fn = Intrinsic::getDeclaration(M, ID, {V->getType()});
-  return createCallHelper(Fn, {V}, this, Name, FMFSource);
+  return createCallHelper(Fn, {V}, Name, FMFSource);
 }
 
 CallInst *IRBuilderBase::CreateBinaryIntrinsic(Intrinsic::ID ID, Value *LHS,
@@ -845,7 +896,7 @@ CallInst *IRBuilderBase::CreateBinaryIntrinsic(Intrinsic::ID ID, Value *LHS,
                                                const Twine &Name) {
   Module *M = BB->getModule();
   Function *Fn = Intrinsic::getDeclaration(M, ID, { LHS->getType() });
-  return createCallHelper(Fn, {LHS, RHS}, this, Name, FMFSource);
+  return createCallHelper(Fn, {LHS, RHS}, Name, FMFSource);
 }
 
 CallInst *IRBuilderBase::CreateIntrinsic(Intrinsic::ID ID,
@@ -855,7 +906,34 @@ CallInst *IRBuilderBase::CreateIntrinsic(Intrinsic::ID ID,
                                          const Twine &Name) {
   Module *M = BB->getModule();
   Function *Fn = Intrinsic::getDeclaration(M, ID, Types);
-  return createCallHelper(Fn, Args, this, Name, FMFSource);
+  return createCallHelper(Fn, Args, Name, FMFSource);
+}
+
+CallInst *IRBuilderBase::CreateIntrinsic(Type *RetTy, Intrinsic::ID ID,
+                                         ArrayRef<Value *> Args,
+                                         Instruction *FMFSource,
+                                         const Twine &Name) {
+  Module *M = BB->getModule();
+
+  SmallVector<Intrinsic::IITDescriptor> Table;
+  Intrinsic::getIntrinsicInfoTableEntries(ID, Table);
+  ArrayRef<Intrinsic::IITDescriptor> TableRef(Table);
+
+  SmallVector<Type *> ArgTys;
+  ArgTys.reserve(Args.size());
+  for (auto &I : Args)
+    ArgTys.push_back(I->getType());
+  FunctionType *FTy = FunctionType::get(RetTy, ArgTys, false);
+  SmallVector<Type *> OverloadTys;
+  Intrinsic::MatchIntrinsicTypesResult Res =
+      matchIntrinsicSignature(FTy, TableRef, OverloadTys);
+  (void)Res;
+  assert(Res == Intrinsic::MatchIntrinsicTypes_Match && TableRef.empty() &&
+         "Wrong types for intrinsic!");
+  // TODO: Handle varargs intrinsics.
+
+  Function *Fn = Intrinsic::getDeclaration(M, ID, OverloadTys);
+  return createCallHelper(Fn, Args, Name, FMFSource);
 }
 
 CallInst *IRBuilderBase::CreateConstrainedFPBinOp(
@@ -1263,8 +1341,8 @@ CallInst *IRBuilderBase::CreateAlignmentAssumption(const DataLayout &DL,
   return CreateAlignmentAssumptionHelper(DL, PtrValue, Alignment, OffsetValue);
 }
 
-IRBuilderDefaultInserter::~IRBuilderDefaultInserter() {}
-IRBuilderCallbackInserter::~IRBuilderCallbackInserter() {}
-IRBuilderFolder::~IRBuilderFolder() {}
+IRBuilderDefaultInserter::~IRBuilderDefaultInserter() = default;
+IRBuilderCallbackInserter::~IRBuilderCallbackInserter() = default;
+IRBuilderFolder::~IRBuilderFolder() = default;
 void ConstantFolder::anchor() {}
 void NoFolder::anchor() {}

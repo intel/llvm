@@ -16,8 +16,7 @@
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/Transforms/Passes.h"
@@ -30,11 +29,10 @@ using namespace bufferization;
 namespace {
 struct TensorBufferizePass : public TensorBufferizeBase<TensorBufferizePass> {
   void runOnOperation() override {
-    std::unique_ptr<BufferizationOptions> options =
-        getPartialBufferizationOptions();
-    options->addToDialectFilter<tensor::TensorDialect>();
+    BufferizationOptions options = getPartialBufferizationOptions();
+    options.opFilter.allowDialect<tensor::TensorDialect>();
 
-    if (failed(bufferizeOp(getOperation(), *options)))
+    if (failed(bufferizeOp(getOperation(), options)))
       signalPassFailure();
   }
 

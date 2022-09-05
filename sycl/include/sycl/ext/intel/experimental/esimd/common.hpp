@@ -5,181 +5,287 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// definitions used in Explicit SIMD APIs.
+// Common definitions used in experimental Explicit SIMD APIs.
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/native/common.hpp>
 
-#include <cstdint> // for uint* types
+#include <cstdint>
+#include <type_traits>
 
-/// @cond ESIMD_DETAIL
-
-#ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_ESIMD_KERNEL __attribute__((sycl_explicit_simd))
-#define SYCL_ESIMD_FUNCTION __attribute__((sycl_explicit_simd))
-
-// Mark a function being nodebug.
-#define ESIMD_NODEBUG __attribute__((nodebug))
-// Mark a "ESIMD global": accessible from all functions in current translation
-// unit, separate copy per subgroup (work-item), mapped to SPIR-V private
-// storage class.
-#define ESIMD_PRIVATE                                                          \
-  __attribute__((opencl_private)) __attribute__((sycl_explicit_simd))
-// Bind a ESIMD global variable to a specific register.
-#define ESIMD_REGISTER(n) __attribute__((register_num(n)))
-
-#define __ESIMD_API ESIMD_NODEBUG ESIMD_INLINE
-
-#define __ESIMD_UNSUPPORTED_ON_HOST
-
-#else // __SYCL_DEVICE_ONLY__
-#define SYCL_ESIMD_KERNEL
-#define SYCL_ESIMD_FUNCTION
-
-// TODO ESIMD define what this means on Windows host
-#define ESIMD_NODEBUG
-// On host device ESIMD global is a thread local static var. This assumes that
-// each work-item is mapped to a separate OS thread on host device.
-#define ESIMD_PRIVATE thread_local
-#define ESIMD_REGISTER(n)
-
-#define __ESIMD_API ESIMD_INLINE
-
-#define __ESIMD_UNSUPPORTED_ON_HOST throw cl::sycl::feature_not_supported()
-
-#endif // __SYCL_DEVICE_ONLY__
-
-// Mark a function being noinline
-#define ESIMD_NOINLINE __attribute__((noinline))
-// Force a function to be inlined. 'inline' is used to preserve ODR for
-// functions defined in a header.
-#define ESIMD_INLINE inline __attribute__((always_inline))
-
-// Macros for internal use
-#define __ESIMD_NS sycl::ext::intel::experimental::esimd
-#define __ESIMD_QUOTE1(m) #m
-#define __ESIMD_QUOTE(m) __ESIMD_QUOTE1(m)
-#define __ESIMD_NS_QUOTED __ESIMD_QUOTE(__ESIMD_NS)
-#define __ESIMD_DEPRECATED(new_api)                                            \
-  __SYCL_DEPRECATED("use " __ESIMD_NS_QUOTED "::" __ESIMD_QUOTE(new_api))
-
-/// @endcond ESIMD_DETAIL
-
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
 
-using uchar = unsigned char;
-using ushort = unsigned short;
-using uint = unsigned int;
+enum class argument_type {
+  U1 = 1,   // unsigned 1 bit
+  S1 = 2,   // signed 1 bit
+  U2 = 3,   // unsigned 2 bits
+  S2 = 4,   // signed 2 bits
+  U4 = 5,   // unsigned 4 bits
+  S4 = 6,   // signed 4 bits
+  U8 = 7,   // unsigned 8 bits
+  S8 = 8,   // signed 8 bits
+  BF16 = 9, // bfloat 16
+  FP16 = 10, // half float
+  TF32 = 12 // tensorfloat 32
+};
 
-/// Gen hardware supports applying saturation to results of some operation.
-/// This enum allows to control this behavior.
-enum class saturation : uint8_t { off, on };
+/// The scope that lsc_fence operation should apply to
+/// Supported platforms: DG2, PVC
+enum class lsc_scope : uint8_t {
+  group = 0,  /// flush out to the threadgroup's scope
+  local = 1,  /// flush out to the local scope
+  tile = 2,   /// tile, flush out to several DSSs
+  gpu = 3,    /// entire GPU, flush out to the GPUs LLC
+  gpus = 4,   /// all GPUs in the system, flush out to memory shared by all GPUs
+  system = 5, /// the entire system memory space
+  sysacq = 6, /// the entire system memory space with system-acquire semantics
+};
 
-/// Integer type short-cut to saturation::off.
-static inline constexpr uint8_t saturation_off =
-    static_cast<uint8_t>(saturation::off);
-/// Integer type short-cut to saturation::on.
-static inline constexpr uint8_t saturation_on =
-    static_cast<uint8_t>(saturation::on);
+/// The lsc_fence operation to apply to caches
+/// Supported platforms: DG2, PVC
+enum class lsc_fence_op : uint8_t {
+  none = 0,       /// no operation
+  evict = 1,      /// dirty lines evicted and invalidated from L1
+  invalidate = 2, /// invalidate all clean lines
+  discard = 3,    /// direct and clean lines are discarded w/o eviction
+  clean = 4,      /// dirty lines are written to memory, but retained in cache
+                  /// in clean state
+  flushl3 = 5,    /// flush only L3
+};
 
-/// Represents a pixel's channel.
-enum class rgba_channel : uint8_t { R, G, B, A };
+/// The specific LSC shared function to fence with lsc_fence
+/// Supported platforms: DG2, PVC
+enum class lsc_memory_kind : uint8_t {
+  untyped_global = 0,         /// untyped global memory
+  untyped_global_low_pri = 1, /// low-priority untyped global memory
+  typed_global = 2,           /// typed global memory
+  shared_local = 3,           /// shared local memory
+};
+
+/// Data size or format to read or store
+enum class lsc_data_size : uint8_t {
+  default_size = 0,
+  u8 = 1,
+  u16 = 2,
+  u32 = 3,
+  u64 = 4,
+  u8u32 = 5,   /// load 8b, zero extend to 32b; store the opposite
+  u16u32 = 6,  /// load 16b, zero extend to 32b; store the opposite
+  u16u32h = 7, /// load 16b into high 16 of each 32b; store the high 16
+};
 
 namespace detail {
-template <rgba_channel Ch>
-static inline constexpr uint8_t ch = 1 << static_cast<int>(Ch);
-static inline constexpr uint8_t chR = ch<rgba_channel::R>;
-static inline constexpr uint8_t chG = ch<rgba_channel::G>;
-static inline constexpr uint8_t chB = ch<rgba_channel::B>;
-static inline constexpr uint8_t chA = ch<rgba_channel::A>;
+
+enum class lsc_vector_size : uint8_t {
+  n1 = 1,
+  n2 = 2,
+  n3 = 3,
+  n4 = 4,
+  n8 = 5,
+  n16 = 6,
+  n32 = 7,
+  n64 = 8,
+};
+
+enum class lsc_data_order : uint8_t {
+  nontranspose = 1,
+  transpose = 2,
+};
+
+template <lsc_vector_size VS> constexpr void check_lsc_vector_size() {
+  static_assert(VS == lsc_vector_size::n1 || VS == lsc_vector_size::n2 ||
+                    VS == lsc_vector_size::n3 || VS == lsc_vector_size::n4 ||
+                    VS == lsc_vector_size::n8 || VS == lsc_vector_size::n16 ||
+                    VS == lsc_vector_size::n64 || VS == lsc_vector_size::n32,
+                "Unsupported vector size");
+}
+
+template <uint8_t VS> constexpr void check_lsc_vector_size() {
+  static_assert(VS == 1 || VS == 2 || VS == 3 || VS == 4 || VS == 8 ||
+                    VS == 16 || VS == 32 || VS == 64,
+                "Unsupported vector size");
+}
+
+template <typename T, lsc_data_size DS> constexpr void check_lsc_data_size() {
+  static_assert(DS != lsc_data_size::default_size || sizeof(T) == 1 ||
+                    sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+                "Unsupported data type");
+}
+
+template <lsc_vector_size VS> constexpr uint8_t to_int() {
+  check_lsc_vector_size<VS>();
+  switch (VS) {
+  case lsc_vector_size::n1:
+    return 1;
+  case lsc_vector_size::n2:
+    return 2;
+  case lsc_vector_size::n3:
+    return 3;
+  case lsc_vector_size::n4:
+    return 4;
+  case lsc_vector_size::n8:
+    return 8;
+  case lsc_vector_size::n16:
+    return 16;
+  case lsc_vector_size::n32:
+    return 32;
+  case lsc_vector_size::n64:
+    return 64;
+  default:
+    return 1;
+  }
+}
+
+template <uint8_t VS> constexpr lsc_vector_size to_lsc_vector_size() {
+  check_lsc_vector_size<VS>();
+  switch (VS) {
+  case 1:
+    return lsc_vector_size::n1;
+  case 2:
+    return lsc_vector_size::n2;
+  case 3:
+    return lsc_vector_size::n3;
+  case 4:
+    return lsc_vector_size::n4;
+  case 8:
+    return lsc_vector_size::n8;
+  case 16:
+    return lsc_vector_size::n16;
+  case 32:
+    return lsc_vector_size::n32;
+  case 64:
+    return lsc_vector_size::n64;
+  default:
+    return lsc_vector_size::n1;
+  }
+}
+
+template <typename T, lsc_data_size DS>
+constexpr lsc_data_size finalize_data_size() {
+  check_lsc_data_size<T, DS>();
+  if (DS != lsc_data_size::default_size)
+    return DS;
+  else if (sizeof(T) == 1)
+    return lsc_data_size::u8;
+  else if (sizeof(T) == 2)
+    return lsc_data_size::u16;
+  else if (sizeof(T) == 4)
+    return lsc_data_size::u32;
+  else if (sizeof(T) == 8)
+    return lsc_data_size::u64;
+  else
+    return DS;
+}
+
+constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
+  if (DS == lsc_data_size::u8)
+    return lsc_data_size::u8u32;
+  if (DS == lsc_data_size::u16)
+    return lsc_data_size::u16u32;
+  return DS;
+}
+
+template <typename T> struct lsc_expand_type {
+  using type = typename std::conditional<sizeof(T) < 4, uint32_t, T>::type;
+};
+
+template <typename T> struct lsc_bitcast_type {
+private:
+  using _type1 = typename std::conditional<sizeof(T) == 2, uint16_t, T>::type;
+  using _type2 = typename std::conditional<sizeof(T) == 1, uint8_t, T>::type;
+
+public:
+  using type =
+      typename std::conditional<sizeof(_type2) == 1, _type2, _type1>::type;
+};
+
 } // namespace detail
 
-/// Represents a pixel's channel mask - all possible combinations of enabled
-/// channels.
-enum class rgba_channel_mask : uint8_t {
-  R = detail::chR,
-  G = detail::chG,
-  GR = detail::chG | detail::chR,
-  B = detail::chB,
-  BR = detail::chB | detail::chR,
-  BG = detail::chB | detail::chG,
-  BGR = detail::chB | detail::chG | detail::chR,
-  A = detail::chA,
-  AR = detail::chA | detail::chR,
-  AG = detail::chA | detail::chG,
-  AGR = detail::chA | detail::chG | detail::chR,
-  AB = detail::chA | detail::chB,
-  ABR = detail::chA | detail::chB | detail::chR,
-  ABG = detail::chA | detail::chB | detail::chG,
-  ABGR = detail::chA | detail::chB | detail::chG | detail::chR,
+/// L1 or L3 cache hint kinds.
+enum class cache_hint : uint8_t {
+  none = 0,
+  uncached = 1,
+  cached = 2,
+  write_back = 3,
+  write_through = 4,
+  streaming = 5,
+  read_invalidate = 6
 };
 
-constexpr int is_channel_enabled(rgba_channel_mask M, rgba_channel Ch) {
-  int Pos = static_cast<int>(Ch);
-  return (static_cast<int>(M) & (1 << Pos)) >> Pos;
-}
+namespace detail {
 
-constexpr int get_num_channels_enabled(rgba_channel_mask M) {
-  return is_channel_enabled(M, rgba_channel::R) +
-         is_channel_enabled(M, rgba_channel::G) +
-         is_channel_enabled(M, rgba_channel::B) +
-         is_channel_enabled(M, rgba_channel::A);
-}
+template <cache_hint Hint> class cache_hint_wrap {
+  template <cache_hint...> class is_one_of_t;
+  template <cache_hint Last>
+  struct is_one_of_t<Last>
+      : std::conditional<Last == Hint, std::true_type, std::false_type>::type {
+  };
+  template <cache_hint Head, cache_hint... Tail>
+  struct is_one_of_t<Head, Tail...>
+      : std::conditional<Head == Hint, std::true_type,
+                         is_one_of_t<Tail...>>::type {};
 
-/// Represents an atomic operation. Operations always return the old value(s) of
-/// the target memory location(s) as it was before the operation was applied.
-/// Each operation is annotated with a pseudocode illustrating its semantics,
-/// \c addr is a memory address (one of the many, as the atomic operation is
-/// vector) the operation is applied at, \c src0 is its first argumnet,
-/// \c src1 - second.
-enum class atomic_op : uint8_t {
-  /// Addition: <code>*addr = *addr + src0</code>.
-  add = 0x0,
-  /// Subtraction: <code>*addr = *addr - src0</code>.
-  sub = 0x1,
-  /// Increment: <code>*addr = *addr + 1</code>.
-  inc = 0x2,
-  /// Decrement: <code>*addr = *addr - 1</code>.
-  dec = 0x3,
-  /// Minimum: <code>*addr = min(*addr, src0)</code>.
-  min = 0x4,
-  /// Maximum: <code>*addr = max(*addr, src0)</code>.
-  max = 0x5,
-  /// Exchange. <code>*addr == src0;</code>
-  xchg = 0x6,
-  /// Compare and exchange. <code>if (*addr == src0) *sddr = src1;</code>
-  cmpxchg = 0x7,
-  /// Bit \c and: <code>*addr = *addr & src0</code>.
-  bit_and = 0x8,
-  /// Bit \c or: <code>*addr = *addr | src0</code>.
-  bit_or = 0x9,
-  /// Bit \c xor: <code>*addr = *addr | src0</code>.
-  bit_xor = 0xa,
-  /// Minimum (signed integer): <code>*addr = min(*addr, src0)</code>.
-  minsint = 0xb,
-  /// Maximum (signed integer): <code>*addr = max(*addr, src0)</code>.
-  maxsint = 0xc,
-  /// Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
-  fmax = 0x10,
-  /// Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
-  fmin = 0x11,
-  /// Compare and exchange (floating point).
-  /// <code>if (*addr == src0) *addr = src1;</code>
-  fcmpwr = 0x12,
-  /// Decrement: <code>*addr = *addr - 1</code>. The only operation which
-  /// returns new value of the destination rather than old.
-  predec = 0xff,
+public:
+  constexpr operator cache_hint() const { return Hint; }
+  template <cache_hint... Hints> constexpr bool is_one_of() const {
+    return is_one_of_t<Hints...>::value;
+  }
 };
+
+constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
+  return First == Val && Second == Val;
+}
+
+enum class lsc_action { prefetch, load, store, atomic };
+
+template <lsc_action Action, cache_hint L1, cache_hint L3>
+constexpr void check_lsc_cache_hint() {
+  constexpr auto L1H = cache_hint_wrap<L1>{};
+  constexpr auto L3H = cache_hint_wrap<L3>{};
+  if constexpr (Action == lsc_action::prefetch) {
+    static_assert(
+        L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
+                               cache_hint::streaming>() &&
+            L3H.template is_one_of<cache_hint::cached,
+                                   cache_hint::uncached>() &&
+            !are_both(L1H, L3H, cache_hint::uncached),
+        "unsupported cache hint");
+  } else if constexpr (Action == lsc_action::load) {
+    static_assert(
+        are_both(L1H, L3H, cache_hint::none) ||
+            (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
+                                    cache_hint::streaming>() &&
+             L3H.template is_one_of<cache_hint::uncached,
+                                    cache_hint::cached>()) ||
+            (L1H == cache_hint::read_invalidate && L3H == cache_hint::cached),
+        "unsupported cache hint");
+  } else if constexpr (Action == lsc_action::store) {
+    static_assert(are_both(L1H, L3H, cache_hint::none) ||
+                      are_both(L1H, L3H, cache_hint::write_back) ||
+                      (L1H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_through,
+                                              cache_hint::streaming>() &&
+                       L3H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  } else if constexpr (Action == lsc_action::atomic) {
+    static_assert(are_both(L1H, L3H, cache_hint::none) ||
+                      (L1H == cache_hint::uncached &&
+                       L3H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  }
+}
+
+} // namespace detail
 
 /// Represents a split barrier action.
 enum class split_barrier_action : uint8_t {
@@ -187,16 +293,8 @@ enum class split_barrier_action : uint8_t {
   signal = 1, // split barrier signal
 };
 
-/// Surface index type. Surface is an internal representation of a memory block
-/// addressable by GPU in "stateful" memory model, and each surface is
-/// identified by its "binding table index" - surface index.
-using SurfaceIndex = unsigned int;
-
 /// @} sycl_esimd_core
 
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

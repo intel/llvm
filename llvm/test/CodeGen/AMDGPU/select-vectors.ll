@@ -79,9 +79,7 @@ define amdgpu_kernel void @select_v4i8(<4 x i8> addrspace(1)* %out, <4 x i8> %a,
 }
 
 ; GCN-LABEL: {{^}}select_v2i16:
-; GFX89: s_load_dword
-; GFX89: s_load_dword
-; GFX89: s_load_dword
+; GFX89: s_load_dwordx4
 ; GFX89: s_cselect_b32
 ; GFX89-NOT: s_cselect_b32
 
@@ -216,7 +214,7 @@ define amdgpu_kernel void @select_v8i32(<8 x i32> addrspace(1)* %out, <8 x i32> 
 }
 
 ; GCN-LABEL: {{^}}s_select_v2f32:
-; GCN-DAG: s_load_dwordx4 s{{\[}}[[ALO:[0-9]+]]:[[BHI:[0-9]+]]{{\]}}, s{{\[[0-9]+:[0-9]+\]}}, {{0xb|0x2c}}
+; GCN-DAG: s_load_dwordx4 s[[[ALO:[0-9]+]]:[[BHI:[0-9]+]]], s{{\[[0-9]+:[0-9]+\]}}, {{0xb|0x2c}}
 
 ; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, s[[BHI]]
 ; GCN-DAG: v_mov_b32_e32 v{{[0-9]+}}, s[[ALO]]

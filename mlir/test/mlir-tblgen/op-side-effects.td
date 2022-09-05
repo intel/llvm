@@ -4,8 +4,11 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def TEST_Dialect : Dialect {
   let name = "test";
+
+  // TODO: Flip to _Prefixed
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
-class TEST_Op<string mnemonic, list<OpTrait> traits = []> :
+class TEST_Op<string mnemonic, list<Trait> traits = []> :
     Op<TEST_Dialect, mnemonic, traits>;
 
 def CustomResource : Resource<"CustomResource">;

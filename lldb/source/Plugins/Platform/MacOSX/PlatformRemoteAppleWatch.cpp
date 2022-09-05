@@ -21,6 +21,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
@@ -55,7 +56,7 @@ void PlatformRemoteAppleWatch::Terminate() {
 
 PlatformSP PlatformRemoteAppleWatch::CreateInstance(bool force,
                                                     const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   if (log) {
     const char *arch_name;
     if (arch && arch->GetArchitectureName())
@@ -143,7 +144,8 @@ llvm::StringRef PlatformRemoteAppleWatch::GetDescriptionStatic() {
 PlatformRemoteAppleWatch::PlatformRemoteAppleWatch()
     : PlatformRemoteDarwinDevice() {}
 
-std::vector<ArchSpec> PlatformRemoteAppleWatch::GetSupportedArchitectures() {
+std::vector<ArchSpec>
+PlatformRemoteAppleWatch::GetSupportedArchitectures(const ArchSpec &host_info) {
   ArchSpec system_arch(GetSystemArchitecture());
 
   const ArchSpec::Core system_core = system_arch.GetCore();

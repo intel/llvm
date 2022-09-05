@@ -71,7 +71,8 @@ public:
   bool shouldPrint(const BinaryFunction &BF) const override { return false; }
 
   void runOnFunctions(BinaryContext &BC) override {
-    const DynoStats NewDynoStats = getDynoStats(BC.getBinaryFunctions());
+    const DynoStats NewDynoStats =
+        getDynoStats(BC.getBinaryFunctions(), BC.isAArch64());
     const bool Changed = (NewDynoStats != PrevDynoStats);
     outs() << "BOLT-INFO: program-wide dynostats " << Title
            << (Changed ? "" : " (no change)") << ":\n\n"
@@ -142,6 +143,8 @@ public:
     /// LT_OPTIMIZE_CACHE piggybacks on the idea from Ispike paper (CGO '04)
     /// that suggests putting frequently executed chains first in the layout.
     LT_OPTIMIZE_CACHE,
+    // CACHE_PLUS and EXT_TSP are synonyms, emit warning of deprecation.
+    LT_OPTIMIZE_CACHE_PLUS,
     /// Block reordering guided by the extended TSP metric.
     LT_OPTIMIZE_EXT_TSP,
     /// Create clusters and use random order for them.
@@ -295,6 +298,16 @@ public:
 
 /// Perform simple peephole optimizations.
 class Peepholes : public BinaryFunctionPass {
+public:
+  enum PeepholeOpts : char {
+    PEEP_NONE = 0x0,
+    PEEP_DOUBLE_JUMPS = 0x2,
+    PEEP_TAILCALL_TRAPS = 0x4,
+    PEEP_USELESS_BRANCHES = 0x8,
+    PEEP_ALL = 0xf
+  };
+
+private:
   uint64_t NumDoubleJumps{0};
   uint64_t TailCallTraps{0};
   uint64_t NumUselessCondBranches{0};

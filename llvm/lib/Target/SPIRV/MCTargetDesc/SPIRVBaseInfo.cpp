@@ -1,0 +1,188 @@
+//===-- SPIRVBaseInfo.cpp - Top level SPIRV definitions ---------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file contains the implementation for helper mnemonic lookup functions,
+// versioning/capabilities/extensions getters for symbolic/named operands used
+// in various SPIR-V instructions.
+//
+//===----------------------------------------------------------------------===//
+
+#include "SPIRVBaseInfo.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+
+namespace llvm {
+namespace SPIRV {
+struct SymbolicOperand {
+  OperandCategory::OperandCategory Category;
+  uint32_t Value;
+  StringRef Mnemonic;
+  uint32_t MinVersion;
+  uint32_t MaxVersion;
+};
+
+struct ExtensionEntry {
+  OperandCategory::OperandCategory Category;
+  uint32_t Value;
+  Extension::Extension ReqExtension;
+};
+
+struct CapabilityEntry {
+  OperandCategory::OperandCategory Category;
+  uint32_t Value;
+  Capability::Capability ReqCapability;
+};
+
+using namespace OperandCategory;
+using namespace Extension;
+using namespace Capability;
+#define GET_SymbolicOperands_DECL
+#define GET_SymbolicOperands_IMPL
+#define GET_ExtensionEntries_DECL
+#define GET_ExtensionEntries_IMPL
+#define GET_CapabilityEntries_DECL
+#define GET_CapabilityEntries_IMPL
+#define GET_ExtendedBuiltins_DECL
+#define GET_ExtendedBuiltins_IMPL
+#include "SPIRVGenTables.inc"
+
+#define CASE(CLASS, ATTR)                                                      \
+  case CLASS::ATTR:                                                            \
+    return #ATTR;
+std::string getExtInstSetName(InstructionSet e) {
+  switch (e) {
+    CASE(InstructionSet, OpenCL_std)
+    CASE(InstructionSet, GLSL_std_450)
+    CASE(InstructionSet, SPV_AMD_shader_trinary_minmax)
+    break;
+  }
+  llvm_unreachable("Unexpected operand");
+}
+} // namespace SPIRV
+
+std::string
+getSymbolicOperandMnemonic(SPIRV::OperandCategory::OperandCategory Category,
+                           int32_t Value) {
+  const SPIRV::SymbolicOperand *Lookup =
+      SPIRV::lookupSymbolicOperandByCategoryAndValue(Category, Value);
+  // Value that encodes just one enum value.
+  if (Lookup)
+    return Lookup->Mnemonic.str();
+  if (Category != SPIRV::OperandCategory::ImageOperandOperand &&
+      Category != SPIRV::OperandCategory::FPFastMathModeOperand &&
+      Category != SPIRV::OperandCategory::SelectionControlOperand &&
+      Category != SPIRV::OperandCategory::LoopControlOperand &&
+      Category != SPIRV::OperandCategory::FunctionControlOperand &&
+      Category != SPIRV::OperandCategory::MemorySemanticsOperand &&
+      Category != SPIRV::OperandCategory::MemoryOperandOperand &&
+      Category != SPIRV::OperandCategory::KernelProfilingInfoOperand)
+    return "UNKNOWN";
+  // Value that encodes many enum values (one bit per enum value).
+  std::string Name;
+  std::string Separator;
+  const SPIRV::SymbolicOperand *EnumValueInCategory =
+      SPIRV::lookupSymbolicOperandByCategory(Category);
+
+  while (EnumValueInCategory && EnumValueInCategory->Category == Category) {
+    if ((EnumValueInCategory->Value != 0) &&
+        (Value & EnumValueInCategory->Value)) {
+      Name += Separator + EnumValueInCategory->Mnemonic.str();
+      Separator = "|";
+    }
+    ++EnumValueInCategory;
+  }
+
+  return Name;
+}
+
+uint32_t
+getSymbolicOperandMinVersion(SPIRV::OperandCategory::OperandCategory Category,
+                             uint32_t Value) {
+  const SPIRV::SymbolicOperand *Lookup =
+      SPIRV::lookupSymbolicOperandByCategoryAndValue(Category, Value);
+
+  if (Lookup)
+    return Lookup->MinVersion;
+
+  return 0;
+}
+
+uint32_t
+getSymbolicOperandMaxVersion(SPIRV::OperandCategory::OperandCategory Category,
+                             uint32_t Value) {
+  const SPIRV::SymbolicOperand *Lookup =
+      SPIRV::lookupSymbolicOperandByCategoryAndValue(Category, Value);
+
+  if (Lookup)
+    return Lookup->MaxVersion;
+
+  return 0;
+}
+
+CapabilityList
+getSymbolicOperandCapabilities(SPIRV::OperandCategory::OperandCategory Category,
+                               uint32_t Value) {
+  const SPIRV::CapabilityEntry *Capability =
+      SPIRV::lookupCapabilityByCategoryAndValue(Category, Value);
+
+  CapabilityList Capabilities;
+  while (Capability && Capability->Category == Category &&
+         Capability->Value == Value) {
+    Capabilities.push_back(
+        static_cast<SPIRV::Capability::Capability>(Capability->ReqCapability));
+    ++Capability;
+  }
+
+  return Capabilities;
+}
+
+ExtensionList
+getSymbolicOperandExtensions(SPIRV::OperandCategory::OperandCategory Category,
+                             uint32_t Value) {
+  const SPIRV::ExtensionEntry *Extension =
+      SPIRV::lookupExtensionByCategoryAndValue(Category, Value);
+
+  ExtensionList Extensions;
+  while (Extension && Extension->Category == Category &&
+         Extension->Value == Value) {
+    Extensions.push_back(
+        static_cast<SPIRV::Extension::Extension>(Extension->ReqExtension));
+    ++Extension;
+  }
+
+  return Extensions;
+}
+
+std::string getLinkStringForBuiltIn(SPIRV::BuiltIn::BuiltIn BuiltInValue) {
+  const SPIRV::SymbolicOperand *Lookup =
+      SPIRV::lookupSymbolicOperandByCategoryAndValue(
+          SPIRV::OperandCategory::BuiltInOperand, BuiltInValue);
+
+  if (Lookup)
+    return "__spirv_BuiltIn" + Lookup->Mnemonic.str();
+  return "UNKNOWN_BUILTIN";
+}
+
+bool getSpirvBuiltInIdByName(llvm::StringRef Name,
+                             SPIRV::BuiltIn::BuiltIn &BI) {
+  const std::string Prefix = "__spirv_BuiltIn";
+  if (!Name.startswith(Prefix))
+    return false;
+
+  const SPIRV::SymbolicOperand *Lookup =
+      SPIRV::lookupSymbolicOperandByCategoryAndMnemonic(
+          SPIRV::OperandCategory::BuiltInOperand,
+          Name.drop_front(Prefix.length()));
+
+  if (!Lookup)
+    return false;
+
+  BI = static_cast<SPIRV::BuiltIn::BuiltIn>(Lookup->Value);
+  return true;
+}
+} // namespace llvm

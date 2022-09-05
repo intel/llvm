@@ -28,11 +28,11 @@ define amdgpu_vs float @load_i32(i32 addrspace(6)* inreg %p0, i32 addrspace(6)* 
 ; SICI-DAG: s_load_dwordx2 s[{{.*}}], s[2:3], 0x4
 ; VI-DAG: s_load_dwordx2 s[{{.*}}], s[0:1], 0x0
 ; VI-DAG: s_load_dwordx2 s[{{.*}}], s[2:3], 0x10
-; GFX9-DAG: s_mov_b32 s6, s1
-; GFX9-DAG: s_mov_b32 s7, 0
-; GFX9-DAG: s_mov_b32 s1, s7
+; GFX9-DAG: s_mov_b32 s2, s1
+; GFX9-DAG: s_mov_b32 s3, 0
+; GFX9-DAG: s_mov_b32 s1, s3
 ; GFX9-DAG: s_load_dwordx2 s[{{.*}}], s[0:1], 0x0
-; GFX9-DAG: s_load_dwordx2 s[{{.*}}], s[6:7], 0x10
+; GFX9-DAG: s_load_dwordx2 s[{{.*}}], s[2:3], 0x10
 define amdgpu_vs <2 x float> @load_v2i32(<2 x i32> addrspace(6)* inreg %p0, <2 x i32> addrspace(6)* inreg %p1) #0 {
   %gep1 = getelementptr inbounds <2 x i32>, <2 x i32> addrspace(6)* %p1, i32 2
   %r0 = load <2 x i32>, <2 x i32> addrspace(6)* %p0
@@ -125,11 +125,11 @@ define amdgpu_vs float @load_float(float addrspace(6)* inreg %p0, float addrspac
 ; SICI-DAG: s_load_dwordx2 s[{{.*}}], s[2:3], 0x4
 ; VI-DAG: s_load_dwordx2 s[{{.*}}], s[0:1], 0x0
 ; VI-DAG: s_load_dwordx2 s[{{.*}}], s[2:3], 0x10
-; GFX9-DAG: s_mov_b32 s6, s1
-; GFX9-DAG: s_mov_b32 s7, 0
-; GFX9-DAG: s_mov_b32 s1, s7
+; GFX9-DAG: s_mov_b32 s2, s1
+; GFX9-DAG: s_mov_b32 s3, 0
+; GFX9-DAG: s_mov_b32 s1, s3
 ; GFX9-DAG: s_load_dwordx2 s[{{.*}}], s[0:1], 0x0
-; GFX9-DAG: s_load_dwordx2 s[{{.*}}], s[6:7], 0x10
+; GFX9-DAG: s_load_dwordx2 s[{{.*}}], s[2:3], 0x10
 define amdgpu_vs <2 x float> @load_v2float(<2 x float> addrspace(6)* inreg %p0, <2 x float> addrspace(6)* inreg %p1) #0 {
   %gep1 = getelementptr inbounds <2 x float>, <2 x float> addrspace(6)* %p1, i32 2
   %r0 = load <2 x float>, <2 x float> addrspace(6)* %p0
@@ -226,7 +226,6 @@ define amdgpu_vs i32 @load_i32_hifffffff0(i32 addrspace(6)* inreg %p) #4 {
 
 ; GCN-LABEL: {{^}}load_sampler
 ; GCN: v_readfirstlane_b32
-; GCN-NEXT: v_readfirstlane_b32
 ; SI: s_nop
 ; GCN: s_load_dwordx8
 ; GCN-NEXT: s_load_dwordx4
@@ -260,7 +259,6 @@ main_body:
 
 ; GCN-LABEL: {{^}}load_sampler_nouniform
 ; GCN: v_readfirstlane_b32
-; GCN-NEXT: v_readfirstlane_b32
 ; SI: s_nop
 ; GCN: s_load_dwordx8
 ; GCN-NEXT: s_load_dwordx4
@@ -306,7 +304,7 @@ define amdgpu_vs float @load_addr_no_fold(i32 addrspace(6)* inreg noalias %p0) #
 ; GCN-LABEL: {{^}}vgpr_arg_src:
 ; GCN: v_readfirstlane_b32 s[[READLANE:[0-9]+]], v0
 ; GCN: s_mov_b32 s[[ZERO:[0-9]+]]
-; GCN: s_load_dwordx4 s{{\[[0-9]+:[0-9]+\]}}, s{{\[}}[[READLANE]]:[[ZERO]]{{\]}}
+; GCN: s_load_dwordx4 s{{\[[0-9]+:[0-9]+\]}}, s[[[READLANE]]:[[ZERO]]]
 define amdgpu_vs float @vgpr_arg_src(<4 x i32> addrspace(6)* %arg) {
 main_body:
   %tmp9 = load <4 x i32>, <4 x i32> addrspace(6)* %arg

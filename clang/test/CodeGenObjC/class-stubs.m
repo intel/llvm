@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -Wno-objc-root-class -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin10 -Wno-objc-root-class -emit-llvm -o - %s | FileCheck %s
 
 // -- classref for the message send in main()
 //
@@ -36,7 +36,7 @@ __attribute__((objc_subclassing_restricted))
 @interface Derived : Base
 @end
 
-int main() {
+int main(void) {
   [Base classMethod];
 }
 // CHECK-LABEL: define{{.*}} i32 @main()

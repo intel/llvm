@@ -33,22 +33,20 @@ run(testCapsule)
 # CHECK-LABEL: TEST: testParseSuccess
 def testParseSuccess():
   with Context():
-    # A first import is expected to fail because the pass isn't registered
-    # until we import mlir.transforms
+    # An unregistered pass should not parse.
     try:
-      pm = PassManager.parse("builtin.module(builtin.func(print-op-stats))")
+      pm = PassManager.parse("builtin.module(func.func(not-existing-pass{json=false}))")
       # TODO: this error should be propagate to Python but the C API does not help right now.
-      # CHECK: error: 'print-op-stats' does not refer to a registered pass or pass pipeline
+      # CHECK: error: 'not-existing-pass' does not refer to a registered pass or pass pipeline
     except ValueError as e:
-      # CHECK: ValueError exception: invalid pass pipeline 'builtin.module(builtin.func(print-op-stats))'.
+      # CHECK: ValueError exception: invalid pass pipeline 'builtin.module(func.func(not-existing-pass{json=false}))'.
       log("ValueError exception:", e)
     else:
       log("Exception not produced")
 
-    # This will register the pass and round-trip should be possible now.
-    import mlir.transforms
-    pm = PassManager.parse("builtin.module(builtin.func(print-op-stats))")
-    # CHECK: Roundtrip: builtin.module(builtin.func(print-op-stats))
+    # A registered pass should parse successfully.
+    pm = PassManager.parse("builtin.module(func.func(print-op-stats{json=false}))")
+    # CHECK: Roundtrip: builtin.module(func.func(print-op-stats{json=false}))
     log("Roundtrip: ", pm)
 run(testParseSuccess)
 
@@ -71,11 +69,10 @@ run(testParseFail)
 def testInvalidNesting():
   with Context():
     try:
-      import mlir.all_passes_registration
-      pm = PassManager.parse("builtin.func(normalize-memrefs)")
+      pm = PassManager.parse("func.func(normalize-memrefs)")
     except ValueError as e:
-      # CHECK: Can't add pass 'NormalizeMemRefs' restricted to 'builtin.module' on a PassManager intended to run on 'builtin.func', did you intend to nest?
-      # CHECK: ValueError exception: invalid pass pipeline 'builtin.func(normalize-memrefs)'.
+      # CHECK: Can't add pass 'NormalizeMemRefs' restricted to 'builtin.module' on a PassManager intended to run on 'func.func', did you intend to nest?
+      # CHECK: ValueError exception: invalid pass pipeline 'func.func(normalize-memrefs)'.
       log("ValueError exception:", e)
     else:
       log("Exception not produced")
@@ -86,11 +83,11 @@ run(testInvalidNesting)
 # CHECK-LABEL: TEST: testRun
 def testRunPipeline():
   with Context():
-    pm = PassManager.parse("print-op-stats")
-    module = Module.parse(r"""func @successfulParse() { return }""")
+    pm = PassManager.parse("print-op-stats{json=false}")
+    module = Module.parse(r"""func.func @successfulParse() { return }""")
     pm.run(module)
 # CHECK: Operations encountered:
-# CHECK: builtin.func      , 1
 # CHECK: builtin.module    , 1
-# CHECK: std.return        , 1
+# CHECK: func.func      , 1
+# CHECK: func.return        , 1
 run(testRunPipeline)

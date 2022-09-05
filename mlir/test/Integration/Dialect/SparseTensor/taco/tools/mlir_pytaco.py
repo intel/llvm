@@ -30,17 +30,16 @@ import os
 import threading
 
 # Import MLIR related modules.
-from mlir import all_passes_registration  # Register MLIR compiler passes.
 from mlir import execution_engine
 from mlir import ir
 from mlir import runtime
 from mlir.dialects import arith
+from mlir.dialects import bufferization
 from mlir.dialects import builtin
+from mlir.dialects import func
 from mlir.dialects import linalg
-from mlir.dialects import std
 from mlir.dialects import sparse_tensor
 from mlir.dialects.linalg.opdsl import lang
-from mlir.passmanager import PassManager
 
 from . import mlir_pytaco_utils as utils
 
@@ -51,17 +50,11 @@ _TACO_TENSOR_PREFIX = "A"
 # Bitwidths for pointers and indices.
 _POINTER_BIT_WIDTH = 0
 _INDEX_BIT_WIDTH = 0
-# The name for the environment variable that provides the full path for the
-# supporting library.
-_SUPPORTLIB_ENV_VAR = "SUPPORTLIB"
-# The default supporting library if the environment variable is not provided.
-_DEFAULT_SUPPORTLIB = "libmlir_c_runner_utils.so"
-# The JIT compiler optimization level.
-_OPT_LEVEL = 2
 # The entry point to the JIT compiled program.
 _ENTRY_NAME = "main"
 
 # Type aliases for type annotation.
+_UnaryOp = Callable[[Any], Any]
 _BinaryOp = Callable[[Any, Any], Any]
 _ExprVisitor = Callable[..., None]
 _ExprInfoDict = Dict["IndexExpr", "_ExprInfo"]
@@ -75,21 +68,27 @@ class Type(enum.Enum):
 
   We use numpy data types to implement the enum data types.
   """
+  INT8 = np.int8
   INT16 = np.int16
   INT32 = np.int32
   INT64 = np.int64
-  # numpy _ctype_from_dtype_scalar can't handle np.float16 yet.
+  FLOAT16 = np.float16
   FLOAT32 = np.float32
   FLOAT64 = np.float64
+  COMPLEX64 = np.complex64
+  COMPLEX128 = np.complex128
 
 
 # All floating point type enums.
-_FLOAT_TYPES = (Type.FLOAT32, Type.FLOAT64)
+_FLOAT_TYPES = (Type.FLOAT16, Type.FLOAT32, Type.FLOAT64)
 # All integral type enums.
-_INT_TYPES = (Type.INT16, Type.INT32, Type.INT64)
+_INT_TYPES = (Type.INT8, Type.INT16, Type.INT32, Type.INT64)
+# All complex type enums.
+_COMPLEX_TYPES = (Type.COMPLEX64, Type.COMPLEX128)
 # Type alias for any numpy type used to implement the runtime support for the
 # enum data types.
-_AnyRuntimeType = Union[np.int16, np.int32, np.int64, np.float32, np.float64]
+_AnyRuntimeType = Union[np.int8, np.int16, np.int32, np.int64, np.float16,
+                        np.float32, np.float64, np.complex64, np.complex128]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -106,7 +105,7 @@ class DType:
     kind: A Type enum representing the data type.
     value: The numpy data type for the TACO data type.
   """
-  kind: Type = Type.FLOAT64
+  kind: Type = Type.FLOAT32
 
   def is_float(self) -> bool:
     """Returns whether the data type represents a floating point value."""
@@ -116,50 +115,62 @@ class DType:
     """Returns whether the data type represents an integral value."""
     return self.kind in _INT_TYPES
 
+  def is_complex(self) -> bool:
+    """Returns whether the data type represents a complex value."""
+    return self.kind in _COMPLEX_TYPES
+
   @property
   def value(self) -> _AnyRuntimeType:
     """Returns the numpy dtype for the data type."""
     return self.kind.value
 
 
+def _dtype_to_mlir_str(dtype: DType) -> str:
+  """Returns the MLIR string for the given dtype."""
+  dtype_to_str = {
+      Type.INT16: "i8",
+      Type.INT16: "i16",
+      Type.INT32: "i32",
+      Type.INT64: "i64",
+      Type.FLOAT16: "f16",
+      Type.FLOAT32: "f32",
+      Type.FLOAT64: "f64",
+      Type.COMPLEX64: "complex<f32>",
+      Type.COMPLEX128: "complex<f64>"
+  }
+  return dtype_to_str[dtype.kind]
+
+
+def _nptype_to_taco_type(ty: np.dtype) -> DType:
+  """Returns the TACO type for the given numpy type."""
+  nptype_to_dtype = {
+      np.int8: Type.INT8,
+      np.int16: Type.INT16,
+      np.int32: Type.INT32,
+      np.int64: Type.INT64,
+      np.float16: Type.FLOAT16,
+      np.float32: Type.FLOAT32,
+      np.float64: Type.FLOAT64,
+      np.complex64: Type.COMPLEX64,
+      np.complex128: Type.COMPLEX128
+  }
+  return DType(nptype_to_dtype[ty])
+
+
 def _mlir_type_from_taco_type(dtype: DType) -> ir.Type:
   """Returns the MLIR type corresponding to the given TACO type."""
   dtype_to_irtype = {
+      Type.INT8: ir.IntegerType.get_signless(8),
       Type.INT16: ir.IntegerType.get_signless(16),
       Type.INT32: ir.IntegerType.get_signless(32),
       Type.INT64: ir.IntegerType.get_signless(64),
+      Type.FLOAT16: ir.F16Type.get(),
       Type.FLOAT32: ir.F32Type.get(),
-      Type.FLOAT64: ir.F64Type.get()
+      Type.FLOAT64: ir.F64Type.get(),
+      Type.COMPLEX64: ir.ComplexType.get(ir.F32Type.get()),
+      Type.COMPLEX128: ir.ComplexType.get(ir.F64Type.get())
   }
   return dtype_to_irtype[dtype.kind]
-
-
-def _compile_mlir(module: ir.Module) -> ir.Module:
-  """Compiles an MLIR module and returns the compiled module."""
-  # TODO: Replace this with a pipeline implemented for 
-  #   https://github.com/llvm/llvm-project/issues/51751.
-  pipeline = (
-      f"sparsification,"
-      f"sparse-tensor-conversion,"
-      f"builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),"
-      f"convert-scf-to-std,"
-      f"func-bufferize,"
-      f"tensor-constant-bufferize,"
-      f"builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),"
-      f"convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},"
-      f"lower-affine,"
-      f"convert-memref-to-llvm,"
-      f"convert-std-to-llvm,"
-      f"reconcile-unrealized-casts")
-  PassManager.parse(pipeline).run(module)
-  return module
-
-
-@functools.lru_cache()
-def _get_support_lib_name() -> str:
-  """Returns the string for the supporting C shared library."""
-  return os.getenv(_SUPPORTLIB_ENV_VAR, _DEFAULT_SUPPORTLIB)
-
 
 def _ctype_pointer_from_array(array: np.ndarray) -> ctypes.pointer:
   """Returns the ctype pointer for the given numpy array."""
@@ -323,6 +334,10 @@ class Format:
 
     if self.ordering is None:
       self.ordering = ModeOrdering(list(range(self.rank())))
+    if isinstance(self.ordering, list):
+      if not _all_instance_of(self.ordering, int):
+        raise ValueError(f"Expected a list of integer: {self.ordering}")
+      self.ordering = ModeOrdering(self.ordering)
     if not isinstance(self.ordering, ModeOrdering):
       raise ValueError(f"Expected ModeOrdering: {self.ordering}")
 
@@ -331,19 +346,19 @@ class Format:
                        f"len({self.format_pack}) != "
                        f"len({self.ordering})")
 
-  def is_dense(self) -> bool:
-    """Returns true if all the Tensor dimensions have a dense format."""
-    return all([f == ModeFormat.DENSE for f in self.format_pack.formats])
-
   def rank(self) -> int:
     """Returns the number of dimensions represented by the format."""
     return self.format_pack.rank()
 
+  def get_permutation_and_sparsity(self) -> Tuple[np.ndarray, np.ndarray]:
+    """Constructs the numpy arrays for the permutation and sparsity."""
+    perm = np.array(self.ordering.ordering, dtype=np.ulonglong)
+    a = [0 if s == ModeFormat.DENSE else 1 for s in self.format_pack.formats]
+    sparse = np.array(a, dtype=np.uint8)
+    return (perm, sparse)
+
   def mlir_tensor_attr(self) -> Optional[sparse_tensor.EncodingAttr]:
     """Constructs the MLIR attributes for the tensor format."""
-    if self.is_dense():
-      return None
-
     order = (
         range(self.rank()) if
         (self.ordering is None) else self.ordering.ordering)
@@ -373,621 +388,6 @@ def _make_format(formats: List[ModeFormat],
   return Format(ModeFormatPack(formats), ModeOrdering(ordering))
 
 
-class _AtomicCounter:
-  """An atomic counter."""
-
-  def __init__(self):
-    self._counter = 0
-    self._counter_lock = threading.Lock()
-
-  def increment(self) -> int:
-    """Increments the counter by one and returns the old value."""
-    old_value = self._counter
-    with self._counter_lock:
-      self._counter = self._counter + 1
-    return old_value
-
-
-class IndexVar:
-  """The tensor index class.
-
-  We support the TACO API index_var class with an alias of this class.
-
-  An IndexVar object represents an index variable in tensor index notation.
-
-  Attributes:
-    name: A unique string name of the IndexVar.
-  """
-  _counter = _AtomicCounter()
-
-  def __init__(self):
-    id = self._counter.increment()
-    self._name = f"{_TACO_INDEX_PREFIX}{id}"
-
-  def __repr__(self) -> str:
-    return f"IndexVar(name={repr(self._name)})"
-
-  @property
-  def name(self) -> str:
-    """Returns the name of the IndexVar."""
-    return self._name
-
-
-def get_index_vars(n: int) -> List[IndexVar]:
-  """Returns a list of n IndexVar.
-
-  This routine is defined by the TACO API.
-
-  Args:
-    n: An interger representing the number of IndexVar to get.
-
-  Returns:
-    A list of IndexVar.
-
-  Raises:
-    ValueError: if n is not a positive integer.
-  """
-  if not isinstance(n, int) or n <= 0:
-    raise ValueError(f"Expected an integer: {n}.")
-  # If lock contention ever becomes an issue, we could implement a bulk getter
-  # that returns a range by only claiming the lock once.
-  return [IndexVar() for i in range(n)]
-
-
-def _mlir_symbols_from_index_vars(
-    index_vars: Tuple[IndexVar, ...]) -> Tuple[lang.SymbolDef, ...]:
-  """Returns a tuple of MLIR symbols for the given tuple of index_var."""
-  return tuple(getattr(lang.S, i.name) for i in index_vars)
-
-
-def _mlir_dimensions_from_index_vars(
-    index_vars: Tuple[IndexVar, ...]) -> Tuple[lang.DimDef, ...]:
-  """Returns a tuple of MLIR dimensions for the given tuple of index_var."""
-  return tuple(getattr(lang.D, i.name) for i in index_vars)
-
-
-def _mlir_tensor_type(
-    dtype: DType, shape: Tuple[int, ...],
-    attr: Optional[sparse_tensor.EncodingAttr]) -> ir.RankedTensorType:
-  """Returns an MLIR tensor type.
-
-  Args:
-    dtype: An DType object for the element data type of the tensor.
-    shape: A tuple of integer for the shape of the tensor.
-    attr: An optional MLIR sparse tensor attribute, only provided if the tensor
-      is a sparse tensor.
-
-  Returns:
-    An MLIR ranked tensor type.
-  """
-  ir_type = _mlir_type_from_taco_type(dtype)
-  return ir.RankedTensorType.get(shape, ir_type, attr)
-
-
-def _verify_and_normalize_indices(indices) -> Tuple[IndexVar, ...]:
-  """Verifies and normalizes the indices for a tensor access.
-
-  Args:
-    indices: The index expression used to access a tensor, which could be any
-      Python object from user inputs.
-
-  Returns:
-    A tuple of IndexVar.
-
-  Raises:
-    ValueError: If indices is not an IndexVar or a tuple of IndexVar.
-  """
-  if isinstance(indices, IndexVar):
-    return (indices,)
-  elif isinstance(indices, tuple) and _all_instance_of(indices, IndexVar):
-    return indices
-
-  raise ValueError(f"Expected IndexVars: {indices}")
-
-
-@dataclasses.dataclass(frozen=True)
-class _StructOpInfo:
-  """Information for generating a structured op in the linalg dialect.
-
-  This information is associated with an expression node that serves as the
-  root for an expression subtree implemented with a structured op.
-
-  Attributes:
-    dst_indices: A tuple of IndexVar, representing the result dimensions of the
-      structured op. This is used to construct the temporary variable for the
-      tensor to hold the structured op result.
-    dst_dims: A tuple of int, representing the result shape of the structured
-      op.
-    dst_dtype: A DType representing the data type of the structured op result.
-    dst_name: A string representing the name of the structured op result.
-    dst_format: A Format object representing the destination tensor format.
-  """
-  dst_indices: Tuple[IndexVar, ...]
-  dst_dims: Tuple[int, ...]
-  dst_dtype: DType
-  dst_name: str
-  dst_format: Format
-
-  def __post_init__(self) -> None:
-    """Verifies the integrity of the attribute values."""
-    assert len(self.dst_indices) == len(self.dst_dims)
-    assert self.dst_format is not None
-
-  def emit_tensor_init(self) -> ir.RankedTensorType:
-    """Returns an initialization for the destination tensor."""
-    if self.dst_format.is_dense():
-      # Initialize the dense tensor.
-      ir_type = _mlir_type_from_taco_type(self.dst_dtype)
-      tensor = linalg.InitTensorOp(self.dst_dims, ir_type).result
-      zero = arith.ConstantOp(ir_type, 0.0)
-      return linalg.FillOp(output=tensor, value=zero).results[0]
-
-    # Initialize the sparse tensor.
-    mlir_type = _mlir_tensor_type(self.dst_dtype, self.dst_dims,
-                                  self.dst_format.mlir_tensor_attr())
-    index_type = ir.IndexType.get()
-    dims = [arith.ConstantOp(index_type, d).result for d in mlir_type.shape]
-    return sparse_tensor.InitOp(mlir_type, dims)
-
-
-class _Stats:
-  """Information to describe how a tensor expression is implemented.
-
-  Currently, we only record the temporary tensors introduced for splitting the
-  original expression.
-  """
-
-  def __init__(self):
-    self._temps = []
-
-  def __repr__(self) -> str:
-    return f"_Stats({repr(self._temps)})"
-
-  def add_element(self, structop: _StructOpInfo):
-    """Adds a temporary tensor."""
-    self._temps.append(structop)
-
-  def get_total(self) -> int:
-    """Gets the total number of temporary tensors."""
-    return len(self._temps)
-
-  def _get_element(self, idx: int) -> _StructOpInfo:
-    """Gets the ith temporary tensor."""
-    assert idx < self.get_total()
-    return self._temps[idx]
-
-  def get_dimensions(self, idx: int) -> Tuple[int]:
-    """Gets the dimensions for the ith temporary tensor."""
-    return self._get_element(idx).dst_dims
-
-  def get_formats(self, idx: int) -> Tuple[ModeFormat]:
-    """Gets the ModeFormats for the ith temporary tensor."""
-    return tuple(self._get_element(idx).dst_format.format_pack.formats)
-
-
-class Tensor:
-  """The tensor class.
-
-  We support the TACO API tensor class with an alias of this class.
-
-  This class is part of the TACO API with the following methods:
-    insert: Inserts a value to the given coordinate in the tensor.
-    to_array: Returns a numpy ndarray for the tensor.
-
-  TACO API also defines the following arrtibutes for the class:
-    dtype: A dtype object representing the data type of the tensor.
-    format: A format object representing the storage format of the tensor.
-    name: A string object representing the name of the tensor.
-    order: An integral rank of the tensor.
-    shape: A list of integers representing the shape of the tensor.
-
-  We currently ignore the tensor dimension ordering for dense tensor.
-  """
-  _counter = _AtomicCounter()
-
-  def _get_unique_name(self) -> str:
-    """Returns a unique name for creating a new Tensor."""
-    return f"{_TACO_TENSOR_PREFIX}{self._counter.increment()}"
-
-  def _init_format(self, fmt: Union[ModeFormat, List[ModeFormat],
-                                    Format]) -> None:
-    """Process the fmt argument for the Tensor constructor.
-
-    Args:
-      fmt: This argument can be a ModeFormat, List[ModeFormat], or format. If
-        this argument is a ModeFormat, uses this ModeFormat for all the tensor
-        dimensions. If this argument is a list of ModeFormat, the len of the
-        list should equal to the rank of the tensor. If this argument is a
-        format, uses it for the format of the tensor.
-
-    Raises:
-      ValueError: If fmt is not one of the expected type or is inconsistent
-        with the rank of the tensor. This is because fmt could be an users
-        input.
-    """
-    if isinstance(fmt, ModeFormat):
-      self._format = _make_format([fmt] * self.order)
-    elif isinstance(fmt, list):
-      if len(fmt) == self.order and isinstance(fmt[0], ModeFormat):
-        self._format = _make_format(fmt)
-      else:
-        raise ValueError("Inconsistent shape and format: "
-                         f"{self._shape}, {fmt}.")
-    elif isinstance(fmt, Format):
-      if fmt.rank() != self.order:
-        raise ValueError("Inconsistent shape and format: "
-                         f"{self._shape}, {fmt}.")
-      else:
-        self._format = fmt
-    else:
-      raise ValueError(f"Invalid format argument: {fmt}.")
-
-  def __init__(self,
-               value_or_shape: Optional[Union[List[int], Tuple[int, ...], float,
-                                              int]] = None,
-               fmt: Optional[Union[ModeFormat, List[ModeFormat],
-                                   Format]] = None,
-               dtype: Optional[DType] = None,
-               name: Optional[str] = None):
-    """The tensor constructor interface defined by TACO API.
-
-    Args:
-      value_or_shape: This argument is optional and can be int, float,
-        List[int], or Tuple[int, ...]. If this argument is an int or float,
-        creates a scalar tensor and initializes it with the value. If this
-        argument is a list or tuple of int, uses it as the shape to create a
-        tensor.
-      fmt: This argument can be a ModeFormat, List[ModeFormat], or format. If
-        this argument is a ModeFormat, uses this ModeFormat for all the tensor
-        dimensions. If this argument is a list of ModeFormat, the len of the
-        list should equal to the rank of the tensor. If this argument is a
-        format, uses it for the format of the tensor.
-      dtype: An object of dtype, representing the data type of the tensor.
-      name: A string name of the tensor. If a name is not given, creates a
-        unique name for the tensor.
-
-    Raises:
-      ValueError: If there is any inconsistency among the input arguments.
-    """
-    # Take care of the argument default values.
-    fmt = fmt or ModeFormat.COMPRESSED
-    dtype = dtype or DType(Type.FLOAT64)
-    self._name = name or self._get_unique_name()
-
-    self._dtype = dtype
-    # We currently use _coords and _values to host the sparse tensor value with
-    # COO format, and _dense_storage to host the dense tensor value. We haven't
-    # implement the conversion between the two storages yet. This will be
-    # improved in a follow up CL.
-    self._coords = []
-    self._values = []
-    self._dense_storage = None
-    self._stats = _Stats()
-    if value_or_shape is None or isinstance(value_or_shape, int) or isinstance(
-        value_or_shape, float):
-      # Create a scalar tensor and ignore the fmt parameter.
-      self._shape = []
-      self._format = _make_format([], [])
-      if value_or_shape is not None:
-        self._dense_storage = np.array(value_or_shape, dtype=self._dtype.value)
-    elif (isinstance(value_or_shape, tuple) or isinstance(
-        value_or_shape, list)) and _all_instance_of(value_or_shape, int):
-      # Create a tensor with the specified shape and format.
-      self._shape = list(value_or_shape)
-      self._init_format(fmt)
-    else:
-      raise ValueError("Invalid first argument. "
-                       "Must be a tuple or list for a shape or a single value"
-                       f"if initializing a scalar tensor: {value_or_shape}.")
-
-  def __repr__(self) -> str:
-    value_str = (f"{repr(self._dense_storage)})" if self.is_dense() else
-                 f"{repr(self._coords)} {repr(self._values)})")
-    return (f"Tensor(_name={repr(self._name)} "
-            f"_dtype={repr(self._dtype)} : ") + value_str
-
-  def insert(self, coords: List[int], val: Union[float, int]) -> None:
-    """Inserts a value to the given coordinate.
-
-    Args:
-      coords: A list of integer coordinates. The length of the list must be the
-        same as the rank of the tensor.
-      val: A value being inserted. It is either an integral or a floating point
-        value. This value will be converted to the data type of the tensor.
-
-    Raises:
-      ValueError: When there is any problem in the parameters.
-    """
-    if not isinstance(coords, list):
-      raise ValueError(f"Non list coordinate detected: {coords}.")
-    if not _all_instance_of(coords, int):
-      raise ValueError(f"Non integer coordinate detected: {coords}.")
-    if (len(coords) != self.order or
-        any([c < 0 or c >= self._shape[i] for i, c in enumerate(coords)])):
-      raise ValueError("Invalid coordinate for rank: "
-                       f"{self.order}, {coords}.")
-
-    if not isinstance(val, int) and not isinstance(val, float):
-      raise ValueError(f"Value is neither int nor float: {val}.")
-
-    self._coords.append(tuple(coords))
-    self._values.append(self._dtype.value(val))
-
-  def is_dense(self) -> bool:
-    """Returns true if all the Tensor dimensions have a dense format."""
-    return self._format.is_dense()
-
-  def to_array(self) -> np.ndarray:
-    """Returns the numpy array for the Tensor.
-
-    This is currenly only implemented for dense Tensor.
-    """
-    if not self.is_dense():
-      raise ValueError("Conversion from non-dense Tensor "
-                       "to numpy array not supported yet.")
-    return self._dense_storage
-
-  @staticmethod
-  def from_array(array: np.ndarray) -> "Tensor":
-    """Returns a dense tensor with the value copied from the input array.
-
-    We currently only support the conversion of float64 numpy arrays to Tensor.
-
-    Args:
-      array: The numpy array that provides the data type, shape and value for
-        the tensor.
-
-    Returns:
-      A Tensor object.
-
-    Raises:
-      ValueError if the data type of the numpy array is not float64.
-    """
-    if array.dtype != np.float64:
-      raise ValueError(f"Expected float64 value type: {array.dtype}.")
-    tensor = Tensor(array.shape, ModeFormat.DENSE)
-    tensor._dense_storage = np.copy(array)
-    return tensor
-
-  @staticmethod
-  def from_coo(
-      coordinates: List[Tuple[int, ...]],
-      values: List[_AnyRuntimeType],
-      fmt: Format,
-      dtype: DType,
-  ) -> "Tensor":
-    """Converts coordinates and values to a sparse tensor representation.
-
-    Args:
-      coordinates: A list of coordinates with non-zero values.
-      values: The non-zero values.
-      fmt: The tensor storage format.
-      dtype: The tensor element data type.
-
-    Returns:
-      A tensor with the given non-zero values and storage format. The shape of
-      the tensor has the minimum size for each dimension to make the given
-      coordinates valid.
-    """
-    assert (isinstance(coordinates, List) and
-            _all_instance_of(coordinates, Tuple))
-    assert (isinstance(values, List) and _all_instance_of(values, dtype.value))
-    assert isinstance(fmt, Format)
-
-    rank = fmt.rank()
-    assert all(len(c) == rank and _all_instance_of(c, int) for c in coordinates)
-
-    # Find the maximum coordinate value for each dimension.
-    max_coordinate = list(map(max, zip(*coordinates)))
-    # The size of each dimension is one more that such a maximum coordinate
-    # value.
-    shape = [c + 1 for c in max_coordinate]
-    tensor = Tensor(shape, fmt)
-    tensor._coords = coordinates
-    tensor._values = values
-
-    return tensor
-
-  @property
-  def dtype(self) -> DType:
-    """Returns the data type for the Tensor."""
-    return self._dtype
-
-  @property
-  def format(self) -> Format:
-    """Returns the storage format for the Tensor."""
-    return self._format
-
-  @property
-  def name(self) -> str:
-    """Returns the name for the Tensor."""
-    return self._name
-
-  @property
-  def order(self) -> int:
-    """Returns the rank of the Tensor."""
-    return len(self._shape)
-
-  @property
-  def shape(self) -> List[int]:
-    """Returns the shape of the Tensor."""
-    return self._shape
-
-  def __getitem__(self, key) -> "Access":
-    """Verifies and processes a tensor access.
-
-    In the tensor index notation, a tensor access T[i, j] is represented as
-    retrieving a value with key (i, j) from the tensor object T in Python. This
-    routine verifies the key for the tensor access and returns a tensor access
-    object.
-
-    Args:
-      key: The key used to access the tensor, which could be any Python object
-        from user inputs.
-
-    Returns:
-      The corresponding tensor access object.
-
-    Raises:
-      ValueError: If key is not an IndexVar or a tuple of IndexVar.
-    """
-    indices = _verify_and_normalize_indices(key)
-    return Access(self, indices)
-
-  def __setitem__(self, key, value) -> None:
-    """Verifies and processes a tensor assignment.
-
-    In the tensor index notation, a tensor assignment "T[i, j] = ..." is
-    represented as setting a value for a tensor object T via key (i, j) in
-    Python. This routine verifies the key, evaluates the value, and assigns the
-    value to the tensor.
-
-    We only support assignment of dense tensor currently.
-
-    Args:
-      key: The key used to access the tensor, which could be any Python object
-        from user inputs.
-      value: The value assigned to the tensor, which could be any Python object
-        from user inputs.
-
-    Raises:
-      ValueError: If tensor is not a dense tensor, or the key is not an IndexVar
-        or a tuple of IndexVar, or the length of the indices is not the same as
-        the rank of the tensor.
-    """
-    indices = _verify_and_normalize_indices(key)
-    if len(indices) != self.order:
-      raise ValueError("Mismatch between indices and tensor rank: "
-                       f"len({indices}) != {self.order}.")
-
-    result = value.evaluate(self, indices)
-    if self.is_dense():
-      assert isinstance(result, np.ndarray)
-      self._dense_storage = result
-    else:
-      assert _all_instance_of(result, np.ndarray) and len(result) == 2
-      assert (result[0].ndim, result[1].ndim) == (1, 2)
-      (self._values, self._coords) = result
-
-  def mlir_tensor_type(self) -> ir.RankedTensorType:
-    """Returns the MLIR type for the tensor."""
-    return _mlir_tensor_type(self._dtype, tuple(self._shape),
-                             self._format.mlir_tensor_attr())
-
-  def dense_dst_ctype_pointer(self) -> ctypes.pointer:
-    """Returns the ctypes pointer for the pointer to an MemRefDescriptor.
-
-    For a dense tensor output, the MLIR compiler allocates the storage for
-    the tensor. This routine returns the pointer to an MLIR MemRefDescriptor for
-    receiving the tensor.
-    """
-    assert self.is_dense()
-    mem_ref_desc = runtime.make_nd_memref_descriptor(
-        self.order, np.ctypeslib.as_ctypes_type(self.dtype.value))()
-    return ctypes.pointer(ctypes.pointer(mem_ref_desc))
-
-  def ctype_pointer(self) -> ctypes.pointer:
-    """Returns the ctypes pointer for the pointer to the input tensor."""
-    if self.is_dense():
-      if self._dense_storage is None:
-        self._dense_storage = np.zeros(self._shape, self._dtype.value)
-      return _ctype_pointer_from_array(self._dense_storage)
-
-    shape = np.array(self._shape, np.int64)
-    indices = np.array(self._coords, np.int64)
-    values = np.array(self._values, self._dtype.value)
-    ptr = utils.coo_tensor_to_sparse_tensor(_get_support_lib_name(), shape,
-                                            values, indices)
-    return ctypes.pointer(ctypes.cast(ptr, ctypes.c_void_p))
-
-  def get_coordinates_and_values(
-      self) -> Tuple[List[Tuple[int, ...]], List[_AnyRuntimeType]]:
-    """Returns the coordinates and values for the non-zero elements."""
-    if not self.is_dense():
-      return (self._coords, self._values)
-
-    # Coordinates for non-zero elements, grouped by dimensions.
-    coords_by_dims = self._dense_storage.nonzero()
-    # Coordinates for non-zero elements, grouped by elements.
-    coords = np.transpose(coords_by_dims)
-    values = self._dense_storage[coords_by_dims]
-    return (coords, values)
-
-  def _record_stats(self, structop: "_StructOpInfo"):
-    """Collects information for temporary tensors."""
-    # Exclude user specified destination tensors.
-    if structop.dst_name == self.name:
-      return
-
-    self._stats.add_element(structop)
-
-
-def _emit_operand(op_def: lang.LinalgOpDef, indices: Tuple[IndexVar, ...],
-                  name: str, kind: lang.OperandKind) -> lang.OperandDef:
-  """Emits an operand for a tensor access in the current linalg operation.
-
-  Args:
-    op_def: A LinalgOpDef representing the current linalg dialect operation.
-    indices: A tuple of IndexVar used to access the tensor.
-    name: A unique string name of the tensor.
-    kind: An OperandKind for the operand.
-
-  Returns:
-    An OperandDef representing the operand.
-  """
-  dim_sym = _mlir_symbols_from_index_vars(indices)
-  opnd = lang.OperandDef(kind, lang.T, dim_sym)
-  op_def.add_operand(name, opnd)
-  return opnd
-
-
-@dataclasses.dataclass(frozen=True)
-class _DimInfo:
-  """Information for an operand dimension.
-
-  Attributes:
-    dim: An integer for the size of the dimension.
-    mode_format: A ModeFormat for the dimension sparsity.
-  """
-  dim: int
-  mode_format: ModeFormat
-
-
-@dataclasses.dataclass()
-class _ExprInfo:
-  """Expression information for validation and code generation.
-
-  Attributes:
-    src_indices: A tuple of IndexVar for the indices used by the tensors in the
-      expression tree.
-    dim_infos: A tuple of _DimInfo, representing the dimension information
-      corresponding to the src_indices.
-    reduce_indices: A set of IndexVar for the indices reduced by the expression.
-    acc_reduce_indices: An accumulated set of IndexVar for the indices reduced
-      by the expression and its children.
-    structop_info: Information to support the code generation for a structured
-      op in the linalg dialect, if the corresponding expression node is the root
-      of a subtree for a structured op.
-    mlir_value: The MLIR value generated for the structured op.
-  """
-  src_indices: Tuple[IndexVar, ...]
-  dim_infos: Tuple[_DimInfo, ...]
-  reduce_indices: Optional[Set[IndexVar]] = None
-  acc_reduce_indices: Optional[Set[IndexVar]] = None
-  structop_info: Optional[_StructOpInfo] = None
-  mlir_value: Optional[ir.Value] = None
-
-  def __post_init__(self) -> None:
-    """Verifies and fix up attribute values.
-
-    Verifies the consistency of the attributes and modifies the default values
-    to support convenient initializer syntax.
-    """
-    assert len(self.src_indices) == len(self.dim_infos)
-    self.reduce_indices = self.reduce_indices or set()
-    self.acc_reduce_indices = self.acc_reduce_indices or set()
-
-
 class IndexExpr(abc.ABC):
   """The index notation base class.
 
@@ -1008,6 +408,14 @@ class IndexExpr(abc.ABC):
     if not isinstance(rhs, IndexExpr):
       raise ValueError(f"Expected IndexExpr: {rhs}")
     return _BinaryExpr(op, self, rhs)
+
+  def _build_unary_expr(self, op: _UnaryOp) -> "_UnaryExpr":
+    """Build a unary expression.
+
+    Args:
+      op: A _UnaryOp object representing the unary operation.
+    """
+    return _UnaryExpr(op, self)
 
   def __add__(self, rhs) -> "_BinaryExpr":
     """Defines the operator +.
@@ -1038,6 +446,22 @@ class IndexExpr(abc.ABC):
       ValueError: If rhs is not an IndexExpr.
     """
     return self._verify_operand_and_build_expr(rhs, operator.mul)
+
+  def __abs__(self) -> "_UnaryExpr":
+    """Defines the operator abs.
+
+    Returns:
+      A _UnaryExpr object representing the operation.
+    """
+    return self._build_unary_expr(operator.abs)
+
+  def __neg__(self) -> "_UnaryExpr":
+    """Defines the operator neg.
+
+    Returns:
+      A _UnaryExpr object representing the operation.
+    """
+    return self._build_unary_expr(operator.neg)
 
   def __sub__(self, rhs) -> "_BinaryExpr":
     """Defines the operator -.
@@ -1133,7 +557,7 @@ class IndexExpr(abc.ABC):
     value = self._emit_expression(expr_to_input_opnd, expr_to_info)
     # Emit the structured op representation for the destination tensor.
     dst_opnd = _emit_operand(op_def, op_info.dst_indices, op_info.dst_name,
-                             lang.OperandKind.OutputTensor)
+                             lang.OperandKind.OUTPUT_TENSOR)
     dst_dim_syms = _mlir_dimensions_from_index_vars(op_info.dst_indices)
     dst_use = lang.TensorUse(dst_opnd, dst_dim_syms)
 
@@ -1168,8 +592,8 @@ class IndexExpr(abc.ABC):
   def _identify_structured_ops(
       self,
       expr_to_info: _ExprInfoDict,
-      dst: Tensor,
-      dst_indices: Tuple[IndexVar, ...],
+      dst: "Tensor",
+      dst_indices: Tuple["IndexVar", ...],
   ) -> List["IndexExpr"]:
     """Returns expression nodes for the roots of the identified structured ops.
 
@@ -1210,15 +634,15 @@ class IndexExpr(abc.ABC):
     # _StructOpInfo for the top level expression.
     expr_to_info[self].structop_info = _StructOpInfo(dst_indices,
                                                      tuple(dst.shape),
-                                                     self.dtype(), dst.name,
+                                                     dst.dtype, dst.name,
                                                      dst.format)
 
     return structop_roots
 
   def _validate_and_collect_expr_info(
       self,
-      dst: Tensor,
-      dst_indices: Tuple[IndexVar, ...],
+      dst: "Tensor",
+      dst_indices: Tuple["IndexVar", ...],
   ) -> _ExprInfoDict:
     """Propagates expression information for validation.
 
@@ -1249,7 +673,7 @@ class IndexExpr(abc.ABC):
         raise ValueError("Destination IndexVar not used in the "
                          f"source expression: {i}")
       else:
-        if d != index_to_dim_info[i].dim:
+        if d != index_to_dim_info[i].dim and index_to_dim_info[i].dim != -1:
           raise ValueError(f"Inconsistent destination dimension for {i}: "
                            f"{d} vs {index_to_dim_info[i].dim}")
 
@@ -1258,8 +682,8 @@ class IndexExpr(abc.ABC):
   def _emit_assignment(
       self,
       module: ir.Module,
-      dst: Tensor,
-      dst_indices: Tuple[IndexVar, ...],
+      dst: "Tensor",
+      dst_indices: Tuple["IndexVar", ...],
       expr_to_info: _ExprInfoDict,
       input_accesses: List["Access"],
   ) -> None:
@@ -1269,7 +693,7 @@ class IndexExpr(abc.ABC):
     # Build the kernel for the operations.
     with ir.InsertionPoint(module.body):
 
-      @builtin.FuncOp.from_py_func(*input_types, name=_ENTRY_NAME)
+      @func.FuncOp.from_py_func(*input_types, name=_ENTRY_NAME)
       def linalg_funcop(*args):
         # Set up the mapping from the Access nodes to their MLIR values.
         for e, mlir in zip(input_accesses, args):
@@ -1287,76 +711,911 @@ class IndexExpr(abc.ABC):
       linalg_funcop.func_op.attributes[
           "llvm.emit_c_interface"] = ir.UnitAttr.get()
 
-  def evaluate(
+  def get_input_accesses(self) -> List["Access"]:
+    """Compute the list of input accesses for the expression."""
+    input_accesses = []
+    self._visit(_gather_input_accesses_index_vars, (input_accesses,))
+    return input_accesses
+
+  def compile(
       self,
-      dst: Tensor,
-      dst_indices: Tuple[IndexVar, ...],
-  ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
-    """Evaluates tensor assignment dst[dst_indices] = expression.
+      dst: "Tensor",
+      dst_indices: Tuple["IndexVar", ...],
+  ) -> execution_engine.ExecutionEngine:
+    """Compiles the tensor assignment dst[dst_indices] = expression.
 
     Args:
       dst: The destination tensor.
       dst_indices: The tuple of IndexVar used to access the destination tensor.
 
     Returns:
-      The result of the dense tensor represented in numpy ndarray or the sparse
-      tensor represented by two numpy ndarray for its non-zero values and
-      indices.
+      The execution engine for the tensor assignment.
 
     Raises:
       ValueError: If the expression is not proper or not supported.
     """
     expr_to_info = self._validate_and_collect_expr_info(dst, dst_indices)
+    input_accesses = self.get_input_accesses()
 
-    # Compute a list of input accesses.
-    input_accesses = []
-    self._visit(_gather_input_accesses_index_vars, (input_accesses,))
-
-    support_lib = _get_support_lib_name()
     # Build and compile the module to produce the execution engine.
     with ir.Context(), ir.Location.unknown():
       module = ir.Module.create()
       self._emit_assignment(module, dst, dst_indices, expr_to_info,
                             input_accesses)
-      compiled_module = _compile_mlir(module)
+      engine = utils.compile_and_build_engine(module)
 
-      # We currently rely on an environment to pass in the full path of a
-      # supporting library for the execution engine.
-      engine = execution_engine.ExecutionEngine(
-          compiled_module, opt_level=_OPT_LEVEL, shared_libs=[support_lib])
+    return engine
 
+
+class _AtomicCounter:
+  """An atomic counter."""
+
+  def __init__(self):
+    self._counter = 0
+    self._counter_lock = threading.Lock()
+
+  def increment(self) -> int:
+    """Increments the counter by one and returns the old value."""
+    old_value = self._counter
+    with self._counter_lock:
+      self._counter = self._counter + 1
+    return old_value
+
+
+class IndexVar(IndexExpr):
+  """The tensor index class.
+
+  We support the TACO API index_var class with an alias of this class.
+
+  An IndexVar object represents an index variable in tensor index notation.
+
+  Attributes:
+    name: A unique string name of the IndexVar.
+  """
+  _counter = _AtomicCounter()
+
+  def __init__(self):
+    id = self._counter.increment()
+    self._name = f"{_TACO_INDEX_PREFIX}{id}"
+
+  def __repr__(self) -> str:
+    return f"IndexVar(name={repr(self._name)})"
+
+  @property
+  def name(self) -> str:
+    """Returns the name of the IndexVar."""
+    return self._name
+
+  def _visit(self,
+             func: _ExprVisitor,
+             args,
+             *,
+             leaf_checker: _SubtreeLeafChecker = None) -> None:
+    """A post-order visitor."""
+    if leaf_checker:
+      assert leaf_checker(self, *args)
+    func(self, *args)
+
+  def _emit_expression(
+      self,
+      expr_to_opnd: Dict[IndexExpr, lang.OperandDef],
+      expr_to_info: _ExprInfoDict,
+  ) -> lang.ScalarExpression:
+    """Emits a index value casted to the data type of the tensor expression."""
+    dim = getattr(lang.D, self.name)
+    index = lang.index(dim)
+    int_value = lang.TypeFn.cast_unsigned(lang.TV.I64, index)
+    return lang.TypeFn.cast_unsigned(lang.T, int_value)
+
+  def dtype(self) -> DType:
+    """Returns the data type for the index value.
+
+    This is unreachable for IndexVar.
+    """
+    assert 0
+
+
+def get_index_vars(n: int) -> List[IndexVar]:
+  """Returns a list of n IndexVar.
+
+  This routine is defined by the TACO API.
+
+  Args:
+    n: An integer representing the number of IndexVar to get.
+
+  Returns:
+    A list of IndexVar.
+
+  Raises:
+    ValueError: if n is not a positive integer.
+  """
+  if not isinstance(n, int) or n <= 0:
+    raise ValueError(f"Expected an integer: {n}.")
+  # If lock contention ever becomes an issue, we could implement a bulk getter
+  # that returns a range by only claiming the lock once.
+  return [IndexVar() for i in range(n)]
+
+
+def _mlir_symbols_from_index_vars(
+    index_vars: Tuple[IndexVar, ...]) -> Tuple[lang.SymbolDef, ...]:
+  """Returns a tuple of MLIR symbols for the given tuple of index_var."""
+  return tuple(getattr(lang.S, i.name) for i in index_vars)
+
+
+def _mlir_dimensions_from_index_vars(
+    index_vars: Tuple[IndexVar, ...]) -> Tuple[lang.DimDef, ...]:
+  """Returns a tuple of MLIR dimensions for the given tuple of index_var."""
+  return tuple(getattr(lang.D, i.name) for i in index_vars)
+
+
+def _mlir_tensor_type(
+    dtype: DType, shape: Tuple[int, ...],
+    attr: Optional[sparse_tensor.EncodingAttr]) -> ir.RankedTensorType:
+  """Returns an MLIR tensor type.
+
+  Args:
+    dtype: An DType object for the element data type of the tensor.
+    shape: A tuple of integer for the shape of the tensor.
+    attr: An optional MLIR sparse tensor attribute, only provided if the tensor
+      is a sparse tensor.
+
+  Returns:
+    An MLIR ranked tensor type.
+  """
+  ir_type = _mlir_type_from_taco_type(dtype)
+  return ir.RankedTensorType.get(shape, ir_type, attr)
+
+
+@dataclasses.dataclass(frozen=True)
+class _StructOpInfo:
+  """Information for generating a structured op in the linalg dialect.
+
+  This information is associated with an expression node that serves as the
+  root for an expression subtree implemented with a structured op.
+
+  Attributes:
+    dst_indices: A tuple of IndexVar, representing the result dimensions of the
+      structured op. This is used to construct the temporary variable for the
+      tensor to hold the structured op result.
+    dst_dims: A tuple of int, representing the result shape of the structured
+      op.
+    dst_dtype: A DType representing the data type of the structured op result.
+    dst_name: A string representing the name of the structured op result.
+    dst_format: An optional Format object representing the destination tensor
+      format. None represents a true dense tensor.
+  """
+  dst_indices: Tuple[IndexVar, ...]
+  dst_dims: Tuple[int, ...]
+  dst_dtype: DType
+  dst_name: str
+  dst_format: Optional[Format]
+
+  def __post_init__(self) -> None:
+    """Verifies the integrity of the attribute values."""
+    assert len(self.dst_indices) == len(self.dst_dims)
+
+  def emit_tensor_init(self) -> ir.RankedTensorType:
+    """Returns an initialization for the destination tensor."""
+    if self.dst_format is None or self.dst_format.rank() == 0:
+      # Initialize the dense tensor.
+      ir_type = _mlir_type_from_taco_type(self.dst_dtype)
+      tensor = linalg.InitTensorOp(self.dst_dims, ir_type).result
+      zero = arith.ConstantOp(ir_type, 0.0)
+      return linalg.fill(zero, outs=[tensor])
+
+    # Initialize the sparse tensor.
+    mlir_type = _mlir_tensor_type(self.dst_dtype, self.dst_dims,
+                                  self.dst_format.mlir_tensor_attr())
+    index_type = ir.IndexType.get()
+    return bufferization.AllocTensorOp(mlir_type, [], None, None)
+
+
+class _Stats:
+  """Information to describe how a tensor expression is implemented.
+
+  Currently, we only record the temporary tensors introduced for splitting the
+  original expression.
+  """
+
+  def __init__(self):
+    self._temps = []
+
+  def __repr__(self) -> str:
+    return f"_Stats({repr(self._temps)})"
+
+  def add_element(self, structop: _StructOpInfo):
+    """Adds a temporary tensor."""
+    self._temps.append(structop)
+
+  def get_total(self) -> int:
+    """Gets the total number of temporary tensors."""
+    return len(self._temps)
+
+  def _get_element(self, idx: int) -> _StructOpInfo:
+    """Gets the ith temporary tensor."""
+    assert idx < self.get_total()
+    return self._temps[idx]
+
+  def get_dimensions(self, idx: int) -> Tuple[int]:
+    """Gets the dimensions for the ith temporary tensor."""
+    return self._get_element(idx).dst_dims
+
+  def get_formats(self, idx: int) -> Tuple[ModeFormat]:
+    """Gets the ModeFormats for the ith temporary tensor."""
+    return tuple(self._get_element(idx).dst_format.format_pack.formats)
+
+
+class _SparseValueInfo(enum.Enum):
+  """Describes how a sparse tensor value is stored.
+  _UNPACKED: The sparse tensor value is stored as (coordnates, values) in
+    Python.
+  _PACKED: The sparse tensor value is stored as a C pointer to a packed MLIR
+    sparse tensor.
+  """
+  _UNPACKED = 0
+  _PACKED = 1
+
+
+@dataclasses.dataclass(frozen=True)
+class _Assignment:
+  """Records an assignment to a tensor T as T[indices] = expression."""
+  indices: Tuple["IndexVar", ...]
+  expression: "IndexExpr"
+
+
+class Tensor:
+  """The tensor class.
+
+  We support the TACO API tensor class with an alias of this class.
+
+  This class is part of the TACO API with the following methods:
+    insert: Inserts a value to the given coordinate in the tensor.
+    to_array: Returns a numpy ndarray for the tensor.
+
+  TACO API also defines the following arrtibutes for the class:
+    dtype: A dtype object representing the data type of the tensor.
+    format: A format object representing the storage format of the tensor.
+    name: A string object representing the name of the tensor.
+    order: An integral rank of the tensor.
+    shape: A list of integers representing the shape of the tensor.
+
+  We currently ignore the tensor dimension ordering for dense tensor.
+  """
+  _counter = _AtomicCounter()
+
+  def _get_unique_name(self) -> str:
+    """Returns a unique name for creating a new Tensor."""
+    return f"{_TACO_TENSOR_PREFIX}{self._counter.increment()}"
+
+  def _init_format(self, fmt: Union[ModeFormat, List[ModeFormat],
+                                    Format]) -> None:
+    """Process the fmt argument for the Tensor constructor.
+
+    Args:
+      fmt: This argument can be a ModeFormat, List[ModeFormat], or format. If
+        this argument is a ModeFormat, uses this ModeFormat for all the tensor
+        dimensions. If this argument is a list of ModeFormat, the len of the
+        list should equal to the rank of the tensor. If this argument is a
+        format, uses it for the format of the tensor.
+
+    Raises:
+      ValueError: If fmt is not one of the expected type or is inconsistent
+        with the rank of the tensor. This is because fmt could be an users
+        input.
+    """
+    if isinstance(fmt, ModeFormat):
+      self._format = _make_format([fmt] * self.order)
+    elif isinstance(fmt, list):
+      if len(fmt) == self.order and isinstance(fmt[0], ModeFormat):
+        self._format = _make_format(fmt)
+      else:
+        raise ValueError("Inconsistent shape and format: "
+                         f"{self._shape}, {fmt}.")
+    elif isinstance(fmt, Format):
+      if fmt.rank() != self.order:
+        raise ValueError("Inconsistent shape and format: "
+                         f"{self._shape}, {fmt}.")
+      else:
+        self._format = fmt
+    else:
+      raise ValueError(f"Invalid format argument: {fmt}.")
+
+  def __init__(self,
+               value_or_shape: Optional[Union[List[int], Tuple[int, ...],
+                                              complex, float, int]] = None,
+               fmt: Optional[Union[ModeFormat, List[ModeFormat],
+                                   Format]] = None,
+               dtype: Optional[DType] = None,
+               name: Optional[str] = None,
+               is_dense: bool = False):
+    """The tensor constructor interface defined by TACO API.
+
+    Args:
+      value_or_shape: This argument is optional and can be int, float,
+        List[int], or Tuple[int, ...]. If this argument is an int or float,
+        creates a scalar tensor and initializes it with the value. If this
+        argument is a list or tuple of int, uses it as the shape to create a
+        tensor.
+      fmt: This argument can be a ModeFormat, List[ModeFormat], or format. If
+        this argument is a ModeFormat, uses this ModeFormat for all the tensor
+        dimensions. If this argument is a list of ModeFormat, the len of the
+        list should equal to the rank of the tensor. If this argument is a
+        format, uses it for the format of the tensor.
+      dtype: An object of dtype, representing the data type of the tensor.
+      name: A string name of the tensor. If a name is not given, creates a
+        unique name for the tensor.
+      is_dense: A boolean variable to indicate whether the tensor is a dense
+        tensor without any sparsity annotation.
+
+    Raises:
+      ValueError: If there is any inconsistency among the input arguments.
+    """
+    # Take care of the argument default values common to both sparse tensors
+    # and dense tensors.
+    dtype = dtype or DType(Type.FLOAT32)
+    self._name = name or self._get_unique_name()
+    self._assignment = None
+    self._engine = None
+    self._sparse_value_location = _SparseValueInfo._UNPACKED
+    self._dense_storage = None
+    self._dtype = dtype
+
+    if is_dense:
+      assert (fmt is None)
+      assert (isinstance(value_or_shape, tuple) or isinstance(
+          value_or_shape, list)) and _all_instance_of(value_or_shape, int)
+      self._shape = value_or_shape
+      self._format = None
+      return
+
+    fmt = fmt or ModeFormat.COMPRESSED
+    # We currently use _coords and _values to host the sparse tensor value with
+    # COO format, and _dense_storage to host the dense tensor value. We don't
+    # support the conversion between the two storages.
+    self._coords = []
+    self._values = []
+    self._stats = _Stats()
+    if value_or_shape is None or isinstance(value_or_shape, int) or isinstance(
+        value_or_shape, float) or isinstance(value_or_shape, complex):
+      # Create a scalar tensor and ignore the fmt parameter.
+      self._shape = []
+      self._format = _make_format([], [])
+      if value_or_shape is not None:
+        self._dense_storage = np.array(value_or_shape, dtype=self._dtype.value)
+    elif (isinstance(value_or_shape, tuple) or isinstance(
+        value_or_shape, list)) and _all_instance_of(value_or_shape, int):
+      # Create a tensor with the specified shape and format.
+      self._shape = list(value_or_shape)
+      self._init_format(fmt)
+    else:
+      raise ValueError("Invalid first argument. "
+                       "Must be a tuple or list for a shape or a single value"
+                       f"if initializing a scalar tensor: {value_or_shape}.")
+
+  def _set_packed_sparse_tensor(self, pointer: ctypes.c_void_p) -> None:
+    """Records the MLIR sparse tensor pointer."""
+    self._sparse_value_location = _SparseValueInfo._PACKED
+    self._packed_sparse_value = pointer
+
+  def is_unpacked(self) -> bool:
+    """Returns true if the tensor value is not packed as MLIR sparse tensor."""
+    return (self._sparse_value_location == _SparseValueInfo._UNPACKED)
+
+  def unpack(self) -> None:
+    """Unpacks the MLIR sparse tensor representation."""
+    if self.is_dense() or self.is_unpacked():
+      return
+
+    # Use the output MLIR sparse tensor pointer to retrieve the COO-flavored
+    # values and verify the values.
+    rank, nse, shape, values, indices = utils.sparse_tensor_to_coo_tensor(
+        self._packed_sparse_value, self._dtype.value)
+    assert rank == self.order
+    assert np.array_equal(self.shape, shape)
+    assert nse == len(values)
+    self._coords = indices
+    self._values = values
+    self._sparse_value_location = _SparseValueInfo._UNPACKED
+
+  def __repr__(self) -> str:
+    self._sync_value()
+    self.unpack()
+    value_str = (f"{repr(self._dense_storage)})" if self.is_dense() else
+                 f"{repr(self._coords)} {repr(self._values)})")
+    return (f"Tensor(_name={repr(self._name)} "
+            f"_dtype={repr(self._dtype)} : ") + value_str
+
+  def insert(self, coords: List[int], val: Union[complex, float, int]) -> None:
+    """Inserts a value to the given coordinate.
+
+    Args:
+      coords: A list of integer coordinates. The length of the list must be the
+        same as the rank of the tensor.
+      val: A value being inserted. It is either an integral or a floating point
+        value. This value will be converted to the data type of the tensor.
+
+    Raises:
+      ValueError: When there is any problem in the parameters.
+    """
+    if self.is_dense():
+      raise ValueError("Insert method is not supported for dense tensors.")
+    if self._assignment != None or not self.is_unpacked():
+      raise ValueError(
+          "Can't use Insert method for a tensor constructed from a file.")
+    if not isinstance(coords, list):
+      raise ValueError(f"Non list coordinate detected: {coords}.")
+    if not _all_instance_of(coords, int):
+      raise ValueError(f"Non integer coordinate detected: {coords}.")
+    if (len(coords) != self.order or
+        any([c < 0 or c >= self._shape[i] for i, c in enumerate(coords)])):
+      raise ValueError("Invalid coordinate for rank: "
+                       f"{self.order}, {coords}.")
+
+    if not isinstance(val, int) and not isinstance(
+        val, float) and not isinstance(val, complex):
+      raise ValueError(f"Value is neither int nor float: {val}.")
+
+    self._coords.append(tuple(coords))
+    self._values.append(self._dtype.value(val))
+
+  def is_dense(self) -> bool:
+    """Returns true if the tensor doesn't have sparsity annotation."""
+    return self.order == 0 or self._format is None
+
+  def to_array(self) -> np.ndarray:
+    """Returns the numpy array for the Tensor.
+
+    This is currenly only implemented for dense Tensor.
+    """
+    if not self.is_dense():
+      raise ValueError("Conversion from non-dense Tensor "
+                       "to numpy array not supported yet.")
+
+    self._sync_value()
+
+    return self._dense_storage
+
+  @staticmethod
+  def from_array(array: np.ndarray) -> "Tensor":
+    """Returns a dense tensor with the value copied from the input array.
+
+    We currently only support the conversion of float32 and float64 numpy arrays
+    to Tensor.
+
+    Args:
+      array: The numpy array that provides the data type, shape and value for
+        the tensor.
+
+    Returns:
+      A Tensor object.
+
+    Raises:
+      ValueError if the data type of the numpy array is not supported.
+    """
+    if array.dtype != np.float32 and array.dtype != np.float64:
+      raise ValueError(f"Expected floating point value type: {array.dtype}.")
+    tensor = Tensor(
+        array.shape,
+        dtype=_nptype_to_taco_type(array.dtype.type),
+        is_dense=True)
+    tensor._dense_storage = np.copy(array)
+    return tensor
+
+  @staticmethod
+  def from_coo(
+      coordinates: List[Tuple[int, ...]],
+      values: List[_AnyRuntimeType],
+      fmt: Format,
+      dtype: DType,
+  ) -> "Tensor":
+    """Converts coordinates and values to a sparse tensor representation.
+
+    Args:
+      coordinates: A list of coordinates with non-zero values.
+      values: The non-zero values.
+      fmt: The tensor storage format.
+      dtype: The tensor element data type.
+
+    Returns:
+      A tensor with the given non-zero values and storage format. The shape of
+      the tensor has the minimum size for each dimension to make the given
+      coordinates valid.
+    """
+    assert (isinstance(coordinates, List) and
+            _all_instance_of(coordinates, Tuple))
+    assert (isinstance(values, List) and _all_instance_of(values, dtype.value))
+    assert isinstance(fmt, Format)
+
+    rank = fmt.rank()
+    assert all(len(c) == rank and _all_instance_of(c, int) for c in coordinates)
+
+    # Find the maximum coordinate value for each dimension.
+    max_coordinate = list(map(max, zip(*coordinates)))
+    # The size of each dimension is one more that such a maximum coordinate
+    # value.
+    shape = [c + 1 for c in max_coordinate]
+    tensor = Tensor(shape, fmt, dtype=dtype)
+    tensor._coords = coordinates
+    tensor._values = values
+
+    return tensor
+
+  @staticmethod
+  def from_file(
+      filename: str,
+      fmt: Format,
+      dtype: DType,
+  ) -> "Tensor":
+    """Constructs a sparse tensor using the COO-flavored values from a file.
+
+    Args:
+      filename: A string for the name of the file that contains the sparse
+        tensor data.
+      fmt: The tensor storage format.
+      dtype: The tensor element data type.
+
+    Returns:
+      A tensor with the given non-zero values and storage format. The tensor
+      value is stored as an MLIR sparse tensor.
+    """
+    sparse_tensor, shape = utils.create_sparse_tensor(filename,
+                                                      fmt.format_pack.formats,
+                                                      _dtype_to_mlir_str(dtype))
+    tensor = Tensor(shape.tolist(), fmt, dtype=dtype)
+    tensor._set_packed_sparse_tensor(sparse_tensor)
+
+    return tensor
+
+  def to_file(self, filename: str) -> None:
+    """Output the tensor value to a file.
+
+    This method evaluates any pending assignment to the tensor and outputs the
+    tensor value.
+
+    Args:
+      filename: A string file name.
+
+    Raises:
+       ValueError: If the tensor is dense, or an unpacked sparse tensor.
+    """
+    self._sync_value()
+
+    if self.is_dense():
+      raise ValueError("Writing dense tensors without sparsity annotation to "
+                       "file is not supported.")
+
+    if self.is_unpacked():
+      raise ValueError("Writing unpacked sparse tensors to file is not "
+                       "supported.")
+
+    utils.output_sparse_tensor(self._packed_sparse_value, filename,
+                               self._format.format_pack.formats,
+                               _dtype_to_mlir_str(self._dtype))
+
+  @property
+  def dtype(self) -> DType:
+    """Returns the data type for the Tensor."""
+    return self._dtype
+
+  @property
+  def format(self) -> Format:
+    """Returns the storage format for the Tensor."""
+    return self._format
+
+  @property
+  def name(self) -> str:
+    """Returns the name for the Tensor."""
+    return self._name
+
+  @property
+  def order(self) -> int:
+    """Returns the rank of the Tensor."""
+    return len(self._shape)
+
+  @property
+  def shape(self) -> List[int]:
+    """Returns the shape of the Tensor."""
+    return self._shape
+
+  def _verify_and_normalize_indices(self, indices) -> Tuple[IndexVar, ...]:
+    """Verifies and normalizes the indices to access the tensor.
+
+    Args:
+      indices: The index expression used to access a tensor, which could be any
+        Python object from user inputs.
+
+    Returns:
+      A tuple of IndexVar.
+
+    Raises:
+      ValueError: If indices is not 0 for scalar tensors, or not an IndexVar or
+        a tuple of IndexVar for other tensors.
+    """
+    if self.order == 0:
+      if not isinstance(indices, int) or indices != 0:
+        raise ValueError(f"Expected 0 to index scalar tensors: {indices}")
+      return ()
+
+    if isinstance(indices, IndexVar):
+      return (indices,)
+    elif isinstance(indices, tuple) and _all_instance_of(indices, IndexVar):
+      return indices
+
+    raise ValueError(f"Expected IndexVars: {indices}")
+
+  def __getitem__(self, key) -> "Access":
+    """Verifies and processes a tensor access.
+
+    In the tensor index notation, a tensor access T[i, j] is represented as
+    retrieving a value with key (i, j) from the tensor object T in Python. This
+    routine verifies the key for the tensor access and returns a tensor access
+    object.
+
+    Args:
+      key: The key used to access the tensor, which could be any Python object
+        from user inputs.
+
+    Returns:
+      The corresponding tensor access object.
+
+    Raises:
+      ValueError: If key is not an IndexVar or a tuple of IndexVar.
+    """
+    indices = self._verify_and_normalize_indices(key)
+    return Access(self, indices)
+
+  def __setitem__(self, key, value) -> None:
+    """Verifies and processes a tensor assignment.
+
+    In the tensor index notation, a tensor assignment "T[i, j] = ..." is
+    represented as setting a value for a tensor object T via key (i, j) in
+    Python. This routine verifies the key, evaluates the value, and assigns the
+    value to the tensor.
+
+    We only support assignment of dense tensor currently.
+
+    Args:
+      key: The key used to access the tensor, which could be any Python object
+        from user inputs.
+      value: The value assigned to the tensor, which could be any Python object
+        from user inputs.
+
+    Raises:
+      ValueError: If tensor is not a dense tensor, or the key is not an IndexVar
+        or a tuple of IndexVar, or the length of the indices is not the same as
+        the rank of the tensor.
+    """
+    indices = self._verify_and_normalize_indices(key)
+    if len(indices) != self.order:
+      raise ValueError("Mismatch between indices and tensor rank: "
+                       f"len({indices}) != {self.order}.")
+
+    self._assignment = _Assignment(indices, value)
+    self._engine = None
+
+  def compile(self, force_recompile: bool = False) -> None:
+    """Compiles the tensor assignment to an execution engine.
+
+    Calling compile the second time does not do anything unless
+    force_recompile is True.
+
+    Args:
+      force_recompile: A boolean value to enable recompilation, such as for the
+        purpose of timing.
+
+    Raises:
+      ValueError: If the assignment is not proper or not supported.
+    """
+    if self._assignment is None or (self._engine is not None and
+                                    not force_recompile):
+      return
+
+    self._engine = self._assignment.expression.compile(self,
+                                                       self._assignment.indices)
+
+  def compute(self) -> None:
+    """Executes the engine for the tensor assignment.
+
+    Raises:
+      ValueError: If the assignment hasn't been compiled yet.
+    """
+    if self._assignment is None:
+      return
+
+    if self._engine is None:
+      raise ValueError("Need to invoke compile() before invoking compute().")
+
+    input_accesses = self._assignment.expression.get_input_accesses()
     # Gather the pointers for the input buffers.
     input_pointers = [a.tensor.ctype_pointer() for a in input_accesses]
-    if dst.is_dense():
+    if self.is_dense():
       # The pointer to receive dense output is the first argument to the
       # execution engine.
-      arg_pointers = [dst.dense_dst_ctype_pointer()] + input_pointers
+      arg_pointers = [self.dense_dst_ctype_pointer()] + input_pointers
     else:
-      # The pointer to receive sparse output is the last argument to the
-      # execution engine. The pointer to receive a sparse tensor output is a
-      # pointer to pointer of char.
+      # The pointer to receive the sparse tensor output is the last argument
+      # to the execution engine and is a pointer to pointer of char.
       arg_pointers = input_pointers + [
           ctypes.pointer(ctypes.pointer(ctypes.c_char(0)))
       ]
 
-    # Invoke the execution engine to run the module and return the result.
-    engine.invoke(_ENTRY_NAME, *arg_pointers)
+    # Invoke the execution engine to run the module.
+    self._engine.invoke(_ENTRY_NAME, *arg_pointers)
 
-    if dst.is_dense():
-      return runtime.ranked_memref_to_numpy(arg_pointers[0][0])
+    # Retrieve the result.
+    if self.is_dense():
+      result = runtime.ranked_memref_to_numpy(arg_pointers[0][0])
+      assert isinstance(result, np.ndarray)
+      self._dense_storage = result
+    else:
+      self._set_packed_sparse_tensor(arg_pointers[-1][0])
 
-    # Check and return the sparse tensor output.
-    rank, nse, shape, values, indices = utils.sparse_tensor_to_coo_tensor(
-        support_lib,
-        ctypes.cast(arg_pointers[-1][0], ctypes.c_void_p),
-        np.float64,
-    )
-    assert (np.equal(rank, dst.order)
-            and np.array_equal(shape, np.array(dst.shape)) and
-            np.equal(values.ndim, 1) and np.equal(values.shape[0], nse) and
-            np.equal(indices.ndim, 2) and np.equal(indices.shape[0], nse) and
-            np.equal(indices.shape[1], rank))
-    return (values, indices)
+    self._assignment = None
+    self._engine = None
+
+  def evaluate(self) -> None:
+    """Evaluates the tensor assignment."""
+    self.compile()
+    self.compute()
+
+  def _sync_value(self) -> None:
+    """Updates the tensor value by evaluating the pending assignment."""
+    if self._assignment is not None:
+      self.evaluate()
+
+  def mlir_tensor_type(self) -> ir.RankedTensorType:
+    """Returns the MLIR type for the tensor."""
+    mlir_attr = (None if (self._format is None or self.order == 0) else
+                 self._format.mlir_tensor_attr())
+    return _mlir_tensor_type(self._dtype, tuple(self._shape), mlir_attr)
+
+  def dense_dst_ctype_pointer(self) -> ctypes.pointer:
+    """Returns the ctypes pointer for the pointer to an MemRefDescriptor.
+
+    For a dense tensor output, the MLIR compiler allocates the storage for
+    the tensor. This routine returns the pointer to an MLIR MemRefDescriptor for
+    receiving the tensor.
+    """
+    assert self.is_dense()
+    mem_ref_desc = runtime.make_nd_memref_descriptor(
+        self.order, np.ctypeslib.as_ctypes_type(self.dtype.value))()
+    return ctypes.pointer(ctypes.pointer(mem_ref_desc))
+
+  def ctype_pointer(self) -> ctypes.pointer:
+    """Returns the ctypes pointer for the pointer to the input tensor."""
+    if self.is_dense():
+      if self._dense_storage is None:
+        self._dense_storage = np.zeros(self._shape, self._dtype.value)
+      return _ctype_pointer_from_array(self._dense_storage)
+
+    if self.is_unpacked():
+      shape = np.array(self._shape, np.int64)
+      indices = np.array(self._coords, np.int64)
+      values = np.array(self._values, self._dtype.value)
+      perm, sparse = self.format.get_permutation_and_sparsity()
+      ptr = utils.coo_tensor_to_sparse_tensor(shape, values, indices, perm,
+                                              sparse)
+    else:
+      ptr = self._packed_sparse_value
+
+    return ctypes.pointer(ctypes.cast(ptr, ctypes.c_void_p))
+
+  def get_scalar_value(self) -> _AnyRuntimeType:
+    """Returns the value for the scalar tensor.
+
+    This method also evaluates the assignment to the tensor.
+
+    Raises:
+      ValueError: If the tensor is not a scalar.
+    """
+    if self.order != 0:
+      raise ValueError(f"Expected a scalar tensor, got: rank={self.order}")
+
+    self._sync_value()
+    return self._dense_storage
+
+
+  def get_coordinates_and_values(
+      self) -> Tuple[List[Tuple[int, ...]], List[_AnyRuntimeType]]:
+    """Returns the coordinates and values for the non-zero elements.
+
+    This method also evaluates the assignment to the tensor and unpack the
+    sparse tensor.
+    """
+    self._sync_value()
+
+    if not self.is_dense():
+      self.unpack()
+      return (self._coords, self._values)
+
+    if self.order == 0:
+      return ([], self._dense_storage)
+
+    # Coordinates for non-zero elements, grouped by dimensions.
+    coords_by_dims = self._dense_storage.nonzero()
+    # Coordinates for non-zero elements, grouped by elements.
+    coords = np.transpose(coords_by_dims)
+    values = self._dense_storage[coords_by_dims]
+    return (coords, values)
+
+  def _record_stats(self, structop: "_StructOpInfo"):
+    """Collects information for temporary tensors."""
+    # Exclude user specified destination tensors.
+    if structop.dst_name == self.name:
+      return
+
+    self._stats.add_element(structop)
+
+
+def _emit_operand(op_def: lang.LinalgOpDef, indices: Tuple[IndexVar, ...],
+                  name: str, kind: lang.OperandKind) -> lang.OperandDef:
+  """Emits an operand for a tensor access in the current linalg operation.
+
+  Args:
+    op_def: A LinalgOpDef representing the current linalg dialect operation.
+    indices: A tuple of IndexVar used to access the tensor.
+    name: A unique string name of the tensor.
+    kind: An OperandKind for the operand.
+
+  Returns:
+    An OperandDef representing the operand.
+  """
+  dim_sym = _mlir_symbols_from_index_vars(indices)
+  opnd = lang.OperandDef(kind, lang.T, dim_sym)
+  op_def.add_operand(name, opnd)
+  return opnd
+
+
+@dataclasses.dataclass(frozen=True)
+class _DimInfo:
+  """Information for an operand dimension.
+
+  Attributes:
+    dim: An integer for the size of the dimension.
+    mode_format: A ModeFormat for the dimension sparsity.
+  """
+  dim: int
+  mode_format: ModeFormat
+
+
+def _get_dummy_dim_info() -> _DimInfo:
+  """Constructs the _DimInfo for an index used in tensor expressions."""
+  return _DimInfo(-1, ModeFormat.DENSE)
+
+
+@dataclasses.dataclass()
+class _ExprInfo:
+  """Expression information for validation and code generation.
+
+  Attributes:
+    src_indices: A tuple of IndexVar for the indices used by the tensors in the
+      expression tree.
+    dim_infos: A tuple of _DimInfo, representing the dimension information
+      corresponding to the src_indices.
+    reduce_indices: A set of IndexVar for the indices reduced by the expression.
+    acc_reduce_indices: An accumulated set of IndexVar for the indices reduced
+      by the expression and its children.
+    structop_info: Information to support the code generation for a structured
+      op in the linalg dialect, if the corresponding expression node is the root
+      of a subtree for a structured op.
+    mlir_value: The MLIR value generated for the structured op.
+  """
+  src_indices: Tuple[IndexVar, ...]
+  dim_infos: Tuple[_DimInfo, ...]
+  reduce_indices: Optional[Set[IndexVar]] = None
+  acc_reduce_indices: Optional[Set[IndexVar]] = None
+  structop_info: Optional[_StructOpInfo] = None
+  mlir_value: Optional[ir.Value] = None
+
+  def __post_init__(self) -> None:
+    """Verifies and fix up attribute values.
+
+    Verifies the consistency of the attributes and modifies the default values
+    to support convenient initializer syntax.
+    """
+    assert len(self.src_indices) == len(self.dim_infos)
+    self.reduce_indices = self.reduce_indices or set()
+    self.acc_reduce_indices = self.acc_reduce_indices or set()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1386,6 +1645,13 @@ class Access(IndexExpr):
     if self.tensor.order != len(self.indices):
       raise ValueError("Invalid indices for rank: "
                        f"str{self.tensor.order} != len({str(self.indices)}).")
+
+  def __repr__(self) -> str:
+    # The Tensor __repr__ method evaluates the pending assignment to the tensor.
+    # We want to define the __repr__ method here to avoid such evaluation of the
+    # tensor assignment.
+    indices_str = ", ".join(map(lambda i: i.name, self.indices))
+    return (f"Tensor({self.tensor.name}) " f"Indices({indices_str})")
 
   def _emit_expression(
       self,
@@ -1419,15 +1685,83 @@ def _gather_input_accesses_index_vars(
     input_accesses.append(expr)
 
 
-def _op_to_callable(op: _BinaryOp) -> lang.ArithFnType:
+def _op_ceil(__a: Any) -> Any:
+  """A _UnaryOp object for operation ceil."""
+  pass
+
+
+def _op_floor(__a: Any) -> Any:
+  """A _UnaryOp object for operation floor."""
+  pass
+
+
+def _op_unary_to_callable(op: _UnaryOp) -> lang.UnaryFnType:
   """Returns the linalg dialect function object for the given operation."""
   op_to_callable = {
-      operator.add: lang.ArithFn.add,
-      operator.sub: lang.ArithFn.sub,
-      operator.mul: lang.ArithFn.mul,
+      operator.abs: lang.UnaryFn.abs,
+      operator.neg: lang.UnaryFn.negf,
+      _op_ceil: lang.UnaryFn.ceil,
+      _op_floor: lang.UnaryFn.floor,
   }
   return op_to_callable[op]
 
+
+@dataclasses.dataclass(frozen=True)
+class _UnaryExpr(IndexExpr):
+  """The representation for a Unary operation.
+
+  Attributes:
+  op: A _UnaryOp representing the operation.
+  a: An IndexExpr representing the operand for the operation.
+  """
+  op: _BinaryOp
+  a: IndexExpr
+
+  def __post_init__(self) -> None:
+    """Verifies that the operand being added is an IndexExpr."""
+    assert isinstance(self.a, IndexExpr)
+
+  def _emit_expression(
+      self,
+      expr_to_opnd: Dict[IndexExpr, lang.OperandDef],
+      expr_to_info: _ExprInfoDict,
+  ) -> lang.ScalarExpression:
+    """Emits the expression tree and returns the expression."""
+    # The current expression node is an internal node of the structured op.
+    if self not in expr_to_opnd:
+      a = self.a._emit_expression(expr_to_opnd, expr_to_info)
+      return _op_unary_to_callable(self.op)(a)
+
+    # The current expression is a leaf node of the structured op. That is, it is
+    # a temporary tensor generated by its child structured op.
+    op_info = expr_to_info[self].structop_info
+    assert op_info is not None
+    dims = _mlir_dimensions_from_index_vars(op_info.dst_indices)
+    return lang.TensorUse(expr_to_opnd[self], dims)
+
+  def _visit(self,
+             func: _ExprVisitor,
+             args,
+             *,
+             leaf_checker: _SubtreeLeafChecker = None) -> None:
+    """A post-order visitor."""
+    if leaf_checker is None or not leaf_checker(self, *args):
+      self.a._visit(func, args, leaf_checker=leaf_checker)
+    func(self, *args)
+
+  def dtype(self) -> DType:
+    """Returns the data type of the operation."""
+    return self.a.dtype()
+
+
+def _op_to_callable(op: _BinaryOp) -> lang.BinaryFnType:
+  """Returns the linalg dialect function object for the given operation."""
+  op_to_callable = {
+      operator.add: lang.BinaryFn.add,
+      operator.sub: lang.BinaryFn.sub,
+      operator.mul: lang.BinaryFn.mul,
+  }
+  return op_to_callable[op]
 
 @dataclasses.dataclass(frozen=True)
 class _BinaryExpr(IndexExpr):
@@ -1510,9 +1844,12 @@ def _validate_and_collect_dim_info(
     if i not in index_to_dim_info:
       index_to_dim_info[i] = d
     else:
-      if d.dim != index_to_dim_info[i].dim:
+      dim = index_to_dim_info[i].dim
+      if dim == -1 or d.dim == -1:
+        dim = dim if dim != -1 else d.dim
+      elif dim != d.dim:
         raise ValueError(f"Inconsistent source dimension for {i}: "
-                         f"{d.dim} vs {index_to_dim_info[i].dim}")
+                         f"{d.dim} vs {dim}")
       mode_format = _mode_format_estimator(expr.op)(
           index_to_dim_info[i].mode_format, d.mode_format)
       index_to_dim_info[i] = _DimInfo(d.dim, mode_format)
@@ -1545,12 +1882,29 @@ def _validate_and_collect_expr_info(
   if expr in expr_to_info:
     return
 
-  if isinstance(expr, Access):
+  if isinstance(expr, IndexVar):
+    src_indices = expr,  # A tuple with one element.
+    dim_infos = _get_dummy_dim_info(),  # A tuple with one element.
+  elif isinstance(expr, Access):
     src_indices = expr.indices
     src_dims = tuple(expr.tensor.shape)
-    mode_formats = tuple(expr.tensor.format.format_pack.formats)
+    if expr.tensor.format is None:
+      # Treat each dimension of a dense tensor as DENSE for the purpose of
+      # calculating temporary tensor storage format.
+      mode_formats = tuple([ModeFormat.DENSE] * len(src_dims))
+    else:
+      mode_formats = tuple(expr.tensor.format.format_pack.formats)
     assert len(src_dims) == len(mode_formats)
     dim_infos = tuple([_DimInfo(d, m) for d, m in zip(src_dims, mode_formats)])
+  elif isinstance(expr, _UnaryExpr):
+    a_info = expr_to_info[expr.a]
+    index_to_dim_info = {
+        i: d for i, d in zip(a_info.src_indices, a_info.dim_infos)
+    }
+    # Here we rely on the fact that dictionaries keep the insertion order for
+    # keys and values.
+    src_indices = tuple(index_to_dim_info.keys())
+    dim_infos = tuple(index_to_dim_info.values())
   else:
     assert isinstance(expr, _BinaryExpr)
     a_info = expr_to_info[expr.a]
@@ -1591,11 +1945,23 @@ def _mark_structured_op_root(
     reduce_index: The IndexVar which we want to find out the proper expression
       to perform a reduction.
     expr_to_info: The dictionary to look up _ExprInfo for IndexExpr.
+
+  Raises:
+      ValueError: If the expression is not proper or not supported.
   """
+  expr_info = expr_to_info[expr]
+  if isinstance(expr, Access):
+    # Handle simple reduction expression in the format of A[i] = B[i, j].
+    if reduce_index in expr_info.src_indices:
+      expr_info.reduce_indices.add(reduce_index)
+    return
+  elif isinstance(expr, IndexVar):
+    # A[i] = B[i] + j is not allowed.
+    raise ValueError(f"IndexVar is not part of the iteration domain: {expr}.")
+
   assert (isinstance(expr, _BinaryExpr))
   a_info = expr_to_info[expr.a]
   b_info = expr_to_info[expr.b]
-  expr_info = expr_to_info[expr]
 
   if reduce_index in a_info.src_indices and reduce_index in b_info.src_indices:
     expr_info.reduce_indices.add(reduce_index)
@@ -1631,8 +1997,20 @@ def _accumulate_reduce_indices(
     expr_info.acc_reduce_indices = (
         a_info.acc_reduce_indices | b_info.acc_reduce_indices
         | expr_info.reduce_indices)
+  elif isinstance(expr, _UnaryExpr):
+    a_info = expr_to_info[expr.a]
+    expr_info.acc_reduce_indices = (
+        a_info.acc_reduce_indices | expr_info.reduce_indices)
+  elif isinstance(expr, IndexVar):
+    # If an IndexVar is reducing itself, it means the IndexVar is outside the
+    # iteration domain. This usage is now allowed and we should emit an error
+    # before reaching here.
+    assert not expr_info.reduce_indices
   else:
     assert isinstance(expr, Access)
+    # Handle simple reduction expression in the format of A[i] = B[i, j].
+    expr_info.acc_reduce_indices = expr_info.reduce_indices
+
 
 
 def _gather_structured_op(
@@ -1706,7 +2084,7 @@ def _is_structured_op_leaf(
   """
   return (expr != root and
           expr_to_info[expr].structop_info is not None) or isinstance(
-              expr, Access)
+              expr, Access) or isinstance(expr, IndexVar)
 
 
 def _gather_structured_op_input(
@@ -1730,9 +2108,10 @@ def _gather_structured_op_input(
     structop_inputs: The resulting list of IndexExpr that provide input to the
       current structured op.
   """
-  if (expr != root and expr not in structop_inputs) and (
-      isinstance(expr, Access) or
-      (expr in expr_to_info and expr_to_info[expr].structop_info)):
+  if ((expr != root or isinstance(expr, Access)) and
+      expr not in structop_inputs) and (isinstance(expr, Access) or
+                                        (expr in expr_to_info and
+                                         expr_to_info[expr].structop_info)):
     structop_inputs.append(expr)
 
 
@@ -1752,7 +2131,7 @@ def _emit_structured_op_input(
     An OperandDef in the linalg dialect for the input IndexExpr.
   """
   op_info = expr_to_info[expr].structop_info
-  if op_info:
+  if op_info and not isinstance(expr, Access):
     # The input is a temporary tensor produced by another structured op.
     indices = op_info.dst_indices
     name = op_info.dst_name
@@ -1763,6 +2142,54 @@ def _emit_structured_op_input(
     name = expr.tensor.name
 
   dim_sym = _mlir_symbols_from_index_vars(indices)
-  opnd = lang.OperandDef(lang.OperandKind.InputTensor, lang.T, dim_sym)
+  opnd = lang.OperandDef(lang.OperandKind.INPUT_TENSOR, lang.T, dim_sym)
   op_def.add_operand(name, opnd)
   return opnd
+
+
+def _check_and_build_unary(a: Access, op: _UnaryOp) -> "_UnaryExpr":
+  """Build a unary operation ceil.
+
+    Args:
+      a: The operand, which could be any Python object from user inputs.
+      op: An _UnaryOp object representing the operation.
+
+    Returns:
+      A _UnaryExpr object representing the operation.
+
+    Raises:
+      ValueError: If a is not an IndexExpr.
+    """
+  if not isinstance(a, Access):
+    raise ValueError(f"Expected an Access Operand: {a}")
+  return a._build_unary_expr(op)
+
+
+def ceil(a: Access) -> "_UnaryExpr":
+  """Defines the operation ceil.
+
+    Args:
+      a: The operand, which could be any Python object from user inputs.
+
+    Returns:
+      A _UnaryExpr object representing the operation.
+
+    Raises:
+      ValueError: If a is not an IndexExpr.
+    """
+  return _check_and_build_unary(a, _op_ceil)
+
+
+def floor(a: Access) -> "_UnaryExpr":
+  """Defines the operation floor.
+
+    Args:
+      a: The operand, which could be any Python object from user inputs.
+
+    Returns:
+      A _UnaryExpr object representing the operation.
+
+    Raises:
+      ValueError: If a is not an IndexExpr.
+    """
+  return _check_and_build_unary(a, _op_floor)

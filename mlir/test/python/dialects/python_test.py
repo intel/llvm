@@ -28,13 +28,13 @@ def testAttributes():
     # CHECK-DAG: optional_i32 = 2 : i32
     # CHECK-DAG: unit
     # CHECK: }
-    op = test.AttributedOp(one, two, unit)
+    op = test.AttributedOp(one, optional_i32=two, unit=unit)
     print(f"{op}")
 
     # CHECK: "python_test.attributed_op"() {
     # CHECK: mandatory_i32 = 2 : i32
     # CHECK: }
-    op2 = test.AttributedOp(two, None, None)
+    op2 = test.AttributedOp(two)
     print(f"{op2}")
 
     #
@@ -218,11 +218,11 @@ def testOptionalOperandOp():
     module = Module.create()
     with InsertionPoint(module.body):
 
-      op1 = test.OptionalOperandOp(None)
+      op1 = test.OptionalOperandOp()
       # CHECK: op1.input is None: True
       print(f"op1.input is None: {op1.input is None}")
 
-      op2 = test.OptionalOperandOp(op1)
+      op2 = test.OptionalOperandOp(input=op1)
       # CHECK: op2.input is None: False
       print(f"op2.input is None: {op2.input is None}")
 
@@ -244,6 +244,15 @@ def testCustomAttribute():
       test.TestAttr(unit)
     except ValueError as e:
       assert "Cannot cast attribute to TestAttr" in str(e)
+    else:
+      raise
+
+    # The following must trigger a TypeError from our adaptors and must not
+    # crash.
+    try:
+      test.TestAttr(42)
+    except TypeError as e:
+      assert "Expected an MLIR object" in str(e)
     else:
       raise
 
@@ -273,6 +282,15 @@ def testCustomType():
       test.TestType(i8)
     except ValueError as e:
       assert "Cannot cast type to TestType" in str(e)
+    else:
+      raise
+
+    # The following must trigger a TypeError from our adaptors and must not
+    # crash.
+    try:
+      test.TestType(42)
+    except TypeError as e:
+      assert "Expected an MLIR object" in str(e)
     else:
       raise
 

@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class platform;
@@ -58,5 +58,5 @@ public:
 } // namespace intel
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

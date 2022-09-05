@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple i386-unknown-unknown %s -emit-llvm -o - | FileCheck %s -check-prefixes=CHECK,NULL-INVALID
-// RUN: %clang_cc1 -triple i386-unknown-unknown %s -emit-llvm -fno-delete-null-pointer-checks -o - | FileCheck %s -check-prefixes=CHECK,NULL-VALID
+// RUN: %clang_cc1 -no-opaque-pointers -Wno-int-conversion -triple i386-unknown-unknown %s -emit-llvm -o - | FileCheck %s -check-prefixes=CHECK,NULL-INVALID
+// RUN: %clang_cc1 -no-opaque-pointers -Wno-int-conversion -triple i386-unknown-unknown %s -emit-llvm -fno-delete-null-pointer-checks -o - | FileCheck %s -check-prefixes=CHECK,NULL-VALID
 
 int b(char* x);
 
@@ -55,7 +55,7 @@ void f_8403108(unsigned x) {
 // pr7827
 void function(short width, int data[][width]) {} // expected-note {{passing argument to parameter 'data' here}}
 
-void test() {
+void test(void) {
      int bork[4][13];
      // CHECK: call void @function(i16 noundef signext 1, i32* noundef null)
      function(1, 0);
@@ -66,11 +66,11 @@ void test() {
 }
 
 void function1(short width, int data[][width][width]) {}
-void test1() {
+void test1(void) {
      int bork[4][13][15];
      // CHECK: call void @function1(i16 noundef signext 1, i32* noundef {{.*}})
      function1(1, bork);
-     // CHECK: call void @function(i16 noundef signext 1, i32* noundef {{.*}}) 
+     // CHECK: call void @function(i16 noundef signext 1, i32* noundef {{.*}})
      function(1, bork[2]);
 }
 
@@ -213,7 +213,7 @@ void test10(int a[static 0]) {}
 
 const int constant = 32;
 // CHECK: define {{.*}}pr44406(
-int pr44406() {
+int pr44406(void) {
   int n = 0;
   // Do not fold this VLA to an array of constant bound; that would miscompile
   // this testcase.

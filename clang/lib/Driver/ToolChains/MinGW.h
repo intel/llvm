@@ -90,6 +90,8 @@ public:
 
   void printVerboseInfo(raw_ostream &OS) const override;
 
+  unsigned GetDefaultDwarfVersion() const override { return 4; }
+
 protected:
   Tool *getTool(Action::ActionClass AC) const override;
   Tool *buildLinker() const override;
@@ -101,6 +103,7 @@ private:
 
   std::string Base;
   std::string GccLibDir;
+  clang::driver::toolchains::Generic_GCC::GCCVersion GccVer;
   std::string Ver;
   std::string SubdirName;
   mutable std::unique_ptr<tools::gcc::Preprocessor> Preprocessor;

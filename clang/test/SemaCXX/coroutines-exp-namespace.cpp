@@ -939,7 +939,7 @@ struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag2> {
 
 extern "C" int f(mismatch_gro_type_tag2) {
   // cxx2b-error@-1 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
-  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an lvalue of type 'void *'}}
+  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
 
@@ -1109,8 +1109,8 @@ struct TestType {
 
   CoroMemberTag test_asserts(int *) const {
     auto TC = co_yield 0;
-    static_assert(TC.MatchesArgs<const TestType &>, ""); // expected-error {{static_assert failed}}
-    static_assert(TC.MatchesArgs<const TestType &>, ""); // expected-error {{static_assert failed}}
+    static_assert(TC.MatchesArgs<const TestType &>, ""); // expected-error {{static assertion failed}}
+    static_assert(TC.MatchesArgs<const TestType &>, ""); // expected-error {{static assertion failed}}
     static_assert(TC.MatchesArgs<const TestType &, int *>, "");
   }
 
@@ -1201,8 +1201,8 @@ struct DepTestType {
 
   CoroMemberTag test_asserts(int *) const {
     auto TC = co_yield 0;
-    static_assert(TC.template MatchesArgs<const DepTestType &>, ""); // expected-error {{static_assert failed}}
-    static_assert(TC.template MatchesArgs<>, "");                    // expected-error {{static_assert failed}}
+    static_assert(TC.template MatchesArgs<const DepTestType &>, ""); // expected-error {{static assertion failed}}
+    static_assert(TC.template MatchesArgs<>, "");                    // expected-error {{static assertion failed}}
     static_assert(TC.template MatchesArgs<const DepTestType &, int *>, "");
   }
 
@@ -1265,7 +1265,7 @@ struct DepTestType {
     static_assert(!TCT::MatchesArgs<DepTestType *>, "");
 
     // Ensure diagnostics are actually being generated here
-    static_assert(TCT::MatchesArgs<int>, ""); // expected-error {{static_assert failed}}
+    static_assert(TCT::MatchesArgs<int>, ""); // expected-error {{static assertion failed}}
   }
 
   static CoroMemberTag test_static(volatile void *const, char &&) {

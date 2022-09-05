@@ -12,9 +12,9 @@
 #include "support/Trace.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
-#include "clang/Driver/ToolChain.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -48,7 +48,7 @@ llvm::Optional<std::string> queryXcrun(llvm::ArrayRef<llvm::StringRef> Argv) {
   llvm::sys::fs::createTemporaryFile("clangd-xcrun", "", OutFile);
   llvm::FileRemover OutRemover(OutFile);
   llvm::Optional<llvm::StringRef> Redirects[3] = {
-      /*stdin=*/{""}, /*stdout=*/{OutFile}, /*stderr=*/{""}};
+      /*stdin=*/{""}, /*stdout=*/{OutFile.str()}, /*stderr=*/{""}};
   vlog("Invoking {0} to find clang installation", *Xcrun);
   int Ret = llvm::sys::ExecuteAndWait(*Xcrun, Argv,
                                       /*Env=*/llvm::None, Redirects,
@@ -423,6 +423,8 @@ unsigned char getModes(const llvm::opt::Option &Opt) {
   if (!Opt.hasFlag(driver::options::NoDriverOption)) {
     if (Opt.hasFlag(driver::options::CLOption)) {
       Result |= DM_CL;
+    } else if (Opt.hasFlag(driver::options::CLDXCOption)) {
+      Result |= DM_CL;
     } else {
       Result |= DM_GCC;
       if (Opt.hasFlag(driver::options::CoreOption)) {
@@ -471,11 +473,11 @@ llvm::ArrayRef<ArgStripper::Rule> ArgStripper::rulesFor(llvm::StringRef Arg) {
     struct {
       DriverID ID;
       DriverID AliasID;
-      void *AliasArgs;
+      const void *AliasArgs;
     } AliasTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELP, METAVAR, VALUES)                                          \
-  {DriverID::OPT_##ID, DriverID::OPT_##ALIAS, (void *)ALIASARGS},
+  {DriverID::OPT_##ID, DriverID::OPT_##ALIAS, ALIASARGS},
 #include "clang/Driver/Options.inc"
 #undef OPTION
     };

@@ -120,6 +120,7 @@ define amdgpu_kernel void @test_call_external_void_func_void() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -138,8 +139,9 @@ define amdgpu_kernel void @test_call_external_void_func_void() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_void, csr_amdgpu_highregs, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_void, csr_amdgpu, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_void()
@@ -149,17 +151,13 @@ define amdgpu_kernel void @test_call_external_void_func_void() #0 {
 define amdgpu_gfx void @test_gfx_call_external_void_func_void() #0 {
   ; CHECK-LABEL: name: test_gfx_call_external_void_func_void
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   liveins: $sgpr30_sgpr31
-  ; CHECK-NEXT: {{  $}}
-  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_gfx_void_func_void
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY1]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_gfx_void_func_void, csr_amdgpu_si_gfx, implicit $sgpr0_sgpr1_sgpr2_sgpr3
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:gfx_ccr_sgpr_64 = COPY [[COPY]]
-  ; CHECK-NEXT:   S_SETPC_B64_return_gfx [[COPY2]]
+  ; CHECK-NEXT:   SI_RETURN
   call amdgpu_gfx void @external_gfx_void_func_void()
   ret void
 }
@@ -167,29 +165,30 @@ define amdgpu_gfx void @test_gfx_call_external_void_func_void() #0 {
 define void @test_func_call_external_void_func_void() #0 {
   ; CHECK-LABEL: name: test_func_call_external_void_func_void
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_void
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY17]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY18]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY9]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY10]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY11]](p4)
@@ -197,11 +196,11 @@ define void @test_func_call_external_void_func_void() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY13]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY15]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY16]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_void, csr_amdgpu_highregs, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_void, csr_amdgpu, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY8]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY18]]
+  ; CHECK-NEXT:   SI_RETURN
   call void @external_void_func_void()
   ret void
 }
@@ -233,6 +232,7 @@ define amdgpu_kernel void @test_call_external_void_func_empty_struct() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -252,8 +252,9 @@ define amdgpu_kernel void @test_call_external_void_func_empty_struct() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_empty_struct, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_empty_struct, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_empty_struct({} zeroinitializer, i32 23)
@@ -287,6 +288,7 @@ define amdgpu_kernel void @test_call_external_void_func_empty_array() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -306,8 +308,9 @@ define amdgpu_kernel void @test_call_external_void_func_empty_array() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_empty_array, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_empty_array, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_empty_array([0 x i8] zeroinitializer, i32 23)
@@ -341,6 +344,7 @@ define amdgpu_kernel void @test_call_external_void_func_i1_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -361,8 +365,9 @@ define amdgpu_kernel void @test_call_external_void_func_i1_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i1, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i1, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_i1(i1 true)
@@ -386,7 +391,7 @@ define amdgpu_kernel void @test_call_external_void_func_i1_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s1) = G_LOAD [[DEF]](p1) :: (volatile load (s1) from `i1 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s1) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s1) from `i1 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i1_signext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -398,6 +403,7 @@ define amdgpu_kernel void @test_call_external_void_func_i1_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -418,8 +424,9 @@ define amdgpu_kernel void @test_call_external_void_func_i1_signext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i1_signext, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i1_signext, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i1, i1 addrspace(1)* undef
@@ -444,7 +451,7 @@ define amdgpu_kernel void @test_call_external_void_func_i1_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s1) = G_LOAD [[DEF]](p1) :: (volatile load (s1) from `i1 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s1) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s1) from `i1 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i1_zeroext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -456,6 +463,7 @@ define amdgpu_kernel void @test_call_external_void_func_i1_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -476,8 +484,9 @@ define amdgpu_kernel void @test_call_external_void_func_i1_zeroext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i1_zeroext, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i1_zeroext, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i1, i1 addrspace(1)* undef
@@ -513,6 +522,7 @@ define amdgpu_kernel void @test_call_external_void_func_i8_imm(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -534,8 +544,9 @@ define amdgpu_kernel void @test_call_external_void_func_i8_imm(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i8, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i8, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_i8(i8 123)
@@ -559,7 +570,7 @@ define amdgpu_kernel void @test_call_external_void_func_i8_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[DEF]](p1) :: (volatile load (s8) from `i8 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s8) from `i8 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i8_signext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -571,6 +582,7 @@ define amdgpu_kernel void @test_call_external_void_func_i8_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -592,8 +604,9 @@ define amdgpu_kernel void @test_call_external_void_func_i8_signext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i8_signext, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i8_signext, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i8, i8 addrspace(1)* undef
@@ -618,7 +631,7 @@ define amdgpu_kernel void @test_call_external_void_func_i8_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[DEF]](p1) :: (volatile load (s8) from `i8 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s8) from `i8 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i8_zeroext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -630,6 +643,7 @@ define amdgpu_kernel void @test_call_external_void_func_i8_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -651,8 +665,9 @@ define amdgpu_kernel void @test_call_external_void_func_i8_zeroext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i8_zeroext, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i8_zeroext, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i8, i8 addrspace(1)* undef
@@ -687,6 +702,7 @@ define amdgpu_kernel void @test_call_external_void_func_i16_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -707,8 +723,9 @@ define amdgpu_kernel void @test_call_external_void_func_i16_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i16, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_i16(i16 123)
@@ -732,7 +749,7 @@ define amdgpu_kernel void @test_call_external_void_func_i16_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[DEF]](p1) :: (volatile load (s16) from `i16 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s16) from `i16 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i16_signext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -744,6 +761,7 @@ define amdgpu_kernel void @test_call_external_void_func_i16_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -764,8 +782,9 @@ define amdgpu_kernel void @test_call_external_void_func_i16_signext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i16_signext, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i16_signext, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i16, i16 addrspace(1)* undef
@@ -790,7 +809,7 @@ define amdgpu_kernel void @test_call_external_void_func_i16_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[DEF]](p1) :: (volatile load (s16) from `i16 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s16) from `i16 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i16_zeroext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -802,6 +821,7 @@ define amdgpu_kernel void @test_call_external_void_func_i16_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -822,8 +842,9 @@ define amdgpu_kernel void @test_call_external_void_func_i16_zeroext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i16_zeroext, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i16_zeroext, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i16, i16 addrspace(1)* undef
@@ -859,6 +880,7 @@ define amdgpu_kernel void @test_call_external_void_func_i32_imm(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -878,8 +900,9 @@ define amdgpu_kernel void @test_call_external_void_func_i32_imm(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i32, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_i32(i32 42)
@@ -889,20 +912,18 @@ define amdgpu_kernel void @test_call_external_void_func_i32_imm(i32) #0 {
 define amdgpu_gfx void @test_gfx_call_external_void_func_i32_imm(i32) #0 {
   ; CHECK-LABEL: name: test_gfx_call_external_void_func_i32_imm
   ; CHECK: bb.1 (%ir-block.1):
-  ; CHECK-NEXT:   liveins: $vgpr0, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $vgpr0
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 42
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_gfx_void_func_i32
   ; CHECK-NEXT:   $vgpr0 = COPY [[C]](s32)
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY2]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY1]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_gfx_void_func_i32, csr_amdgpu_si_gfx, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:gfx_ccr_sgpr_64 = COPY [[COPY1]]
-  ; CHECK-NEXT:   S_SETPC_B64_return_gfx [[COPY3]]
+  ; CHECK-NEXT:   SI_RETURN
   call amdgpu_gfx void @external_gfx_void_func_i32(i32 42)
   ret void
 }
@@ -910,20 +931,18 @@ define amdgpu_gfx void @test_gfx_call_external_void_func_i32_imm(i32) #0 {
 define amdgpu_gfx void @test_gfx_call_external_void_func_i32_imm_inreg(i32 inreg) #0 {
   ; CHECK-LABEL: name: test_gfx_call_external_void_func_i32_imm_inreg
   ; CHECK: bb.1 (%ir-block.1):
-  ; CHECK-NEXT:   liveins: $sgpr4, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr4
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $sgpr4
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 42
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_gfx_void_func_i32_inreg
   ; CHECK-NEXT:   $sgpr4 = COPY [[C]](s32)
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY2]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY1]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_gfx_void_func_i32_inreg, csr_amdgpu_si_gfx, implicit $sgpr4, implicit $sgpr0_sgpr1_sgpr2_sgpr3
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:gfx_ccr_sgpr_64 = COPY [[COPY1]]
-  ; CHECK-NEXT:   S_SETPC_B64_return_gfx [[COPY3]]
+  ; CHECK-NEXT:   SI_RETURN
   call amdgpu_gfx void @external_gfx_void_func_i32_inreg(i32 inreg 42)
   ret void
 }
@@ -955,6 +974,7 @@ define amdgpu_kernel void @test_call_external_void_func_i64_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -976,8 +996,9 @@ define amdgpu_kernel void @test_call_external_void_func_i64_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_i64(i64 123)
@@ -1000,7 +1021,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i64() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(p1) = G_CONSTANT i64 0
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s64>) = G_LOAD [[C]](p1) :: (load (<2 x s64>) from `<2 x i64> addrspace(1)* null`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s64>) = G_LOAD [[C]](p1) :: ("amdgpu-noclobber" load (<2 x s64>) from `<2 x i64> addrspace(1)* null`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v2i64
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -1012,6 +1033,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i64() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1035,8 +1057,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2i64() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <2 x i64>, <2 x i64> addrspace(1)* null
@@ -1073,6 +1096,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i64_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1096,8 +1120,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2i64_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v2i64(<2 x i64> <i64 8589934593, i64 17179869187>)
@@ -1121,7 +1146,7 @@ define amdgpu_kernel void @test_call_external_void_func_i48(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s48) = G_LOAD [[DEF]](p1) :: (volatile load (s48) from `i48 addrspace(1)* undef`, align 8, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s48) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s48) from `i48 addrspace(1)* undef`, align 8, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i48
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -1133,6 +1158,7 @@ define amdgpu_kernel void @test_call_external_void_func_i48(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1155,8 +1181,9 @@ define amdgpu_kernel void @test_call_external_void_func_i48(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i48, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i48, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i48, i48 addrspace(1)* undef
@@ -1181,7 +1208,7 @@ define amdgpu_kernel void @test_call_external_void_func_i48_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s48) = G_LOAD [[DEF]](p1) :: (volatile load (s48) from `i48 addrspace(1)* undef`, align 8, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s48) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s48) from `i48 addrspace(1)* undef`, align 8, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i48_signext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -1193,6 +1220,7 @@ define amdgpu_kernel void @test_call_external_void_func_i48_signext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1215,8 +1243,9 @@ define amdgpu_kernel void @test_call_external_void_func_i48_signext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i48_signext, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i48_signext, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i48, i48 addrspace(1)* undef
@@ -1241,7 +1270,7 @@ define amdgpu_kernel void @test_call_external_void_func_i48_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s48) = G_LOAD [[DEF]](p1) :: (volatile load (s48) from `i48 addrspace(1)* undef`, align 8, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(s48) = G_LOAD [[DEF]](p1) :: (volatile "amdgpu-noclobber" load (s48) from `i48 addrspace(1)* undef`, align 8, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_i48_zeroext
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -1253,6 +1282,7 @@ define amdgpu_kernel void @test_call_external_void_func_i48_zeroext(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1275,8 +1305,9 @@ define amdgpu_kernel void @test_call_external_void_func_i48_zeroext(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i48_zeroext, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_i48_zeroext, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %var = load volatile i48, i48 addrspace(1)* undef
@@ -1312,6 +1343,7 @@ define amdgpu_kernel void @test_call_external_void_func_p0_imm(i8* %arg) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1333,8 +1365,9 @@ define amdgpu_kernel void @test_call_external_void_func_p0_imm(i8* %arg) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_p0, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_p0, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_p0(i8* %arg)
@@ -1357,7 +1390,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2p0() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(p1) = G_CONSTANT i64 0
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x p0>) = G_LOAD [[C]](p1) :: (load (<2 x p0>) from `<2 x i8*> addrspace(1)* null`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x p0>) = G_LOAD [[C]](p1) :: ("amdgpu-noclobber" load (<2 x p0>) from `<2 x i8*> addrspace(1)* null`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v2p0
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -1369,6 +1402,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2p0() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1392,8 +1426,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2p0() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2p0, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2p0, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <2 x i8*>, <2 x i8*> addrspace(1)* null
@@ -1420,7 +1455,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i64() #0 {
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s64) = G_CONSTANT i64 8589934593
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s64) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<2 x s64>) = G_BUILD_VECTOR [[C1]](s64), [[DEF]](s64)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s64>) = G_LOAD [[C]](p1) :: (load (<2 x s64>) from `<2 x i64> addrspace(1)* null`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s64>) = G_LOAD [[C]](p1) :: ("amdgpu-noclobber" load (<2 x s64>) from `<2 x i64> addrspace(1)* null`, addrspace 1)
   ; CHECK-NEXT:   [[SHUF:%[0-9]+]]:_(<3 x s64>) = G_SHUFFLE_VECTOR [[LOAD]](<2 x s64>), [[BUILD_VECTOR]], shufflemask(0, 1, 2)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v3i64
@@ -1433,6 +1468,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i64() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1458,8 +1494,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3i64() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %load = load <2 x i64>, <2 x i64> addrspace(1)* null
@@ -1488,7 +1525,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i64() #0 {
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s64) = G_CONSTANT i64 8589934593
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s64) = G_CONSTANT i64 17179869187
   ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<2 x s64>) = G_BUILD_VECTOR [[C1]](s64), [[C2]](s64)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s64>) = G_LOAD [[C]](p1) :: (load (<2 x s64>) from `<2 x i64> addrspace(1)* null`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s64>) = G_LOAD [[C]](p1) :: ("amdgpu-noclobber" load (<2 x s64>) from `<2 x i64> addrspace(1)* null`, addrspace 1)
   ; CHECK-NEXT:   [[SHUF:%[0-9]+]]:_(<4 x s64>) = G_SHUFFLE_VECTOR [[LOAD]](<2 x s64>), [[BUILD_VECTOR]], shufflemask(0, 1, 2, 3)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v4i64
@@ -1501,6 +1538,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i64() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1528,8 +1566,9 @@ define amdgpu_kernel void @test_call_external_void_func_v4i64() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %load = load <2 x i64>, <2 x i64> addrspace(1)* null
@@ -1565,6 +1604,7 @@ define amdgpu_kernel void @test_call_external_void_func_f16_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1585,8 +1625,9 @@ define amdgpu_kernel void @test_call_external_void_func_f16_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_f16, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_f16, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_f16(half 4.0)
@@ -1620,6 +1661,7 @@ define amdgpu_kernel void @test_call_external_void_func_f32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1639,8 +1681,9 @@ define amdgpu_kernel void @test_call_external_void_func_f32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_f32, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_f32, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_f32(float 4.0)
@@ -1676,6 +1719,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2f32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1697,8 +1741,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2f32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2f32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2f32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v2f32(<2 x float> <float 1.0, float 2.0>)
@@ -1735,6 +1780,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3f32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1757,8 +1803,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3f32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3f32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3f32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v3f32(<3 x float> <float 1.0, float 2.0, float 4.0>)
@@ -1797,6 +1844,7 @@ define amdgpu_kernel void @test_call_external_void_func_v5f32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C6:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1821,8 +1869,9 @@ define amdgpu_kernel void @test_call_external_void_func_v5f32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v5f32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v5f32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v5f32(<5 x float> <float 1.0, float 2.0, float 4.0, float -1.0, float 0.5>)
@@ -1856,6 +1905,7 @@ define amdgpu_kernel void @test_call_external_void_func_f64_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1877,8 +1927,9 @@ define amdgpu_kernel void @test_call_external_void_func_f64_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_f64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_f64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_f64(double 4.0)
@@ -1914,6 +1965,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2f64_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -1937,8 +1989,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2f64_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2f64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2f64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v2f64(<2 x double> <double 2.0, double 4.0>)
@@ -1975,6 +2028,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3f64_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2000,8 +2054,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3f64_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3f64, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3f64, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v3f64(<3 x double> <double 2.0, double 4.0, double 8.0>)
@@ -2024,7 +2079,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s16>) = G_LOAD [[DEF]](p1) :: (load (<2 x s16>) from `<2 x i16> addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<2 x s16>) from `<2 x i16> addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v2i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2036,6 +2091,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2055,8 +2111,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i16, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <2 x i16>, <2 x i16> addrspace(1)* undef
@@ -2080,7 +2137,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<3 x s16>) = G_LOAD [[DEF]](p1) :: (load (<3 x s16>) from `<3 x i16> addrspace(1)* undef`, align 8, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<3 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<3 x s16>) from `<3 x i16> addrspace(1)* undef`, align 8, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v3i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2092,6 +2149,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2102,8 +2160,8 @@ define amdgpu_kernel void @test_call_external_void_func_v3i16() #0 {
   ; CHECK-NEXT:   [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[COPY19]], [[C2]](s32)
   ; CHECK-NEXT:   [[OR1:%[0-9]+]]:_(s32) = G_OR [[OR]], [[SHL1]]
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[LOAD]](<3 x s16>)
-  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<4 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[DEF1]](s16)
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
+  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<4 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[DEF2]](s16)
   ; CHECK-NEXT:   [[UV3:%[0-9]+]]:_(<2 x s16>), [[UV4:%[0-9]+]]:_(<2 x s16>) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<4 x s16>)
   ; CHECK-NEXT:   $vgpr0 = COPY [[UV3]](<2 x s16>)
   ; CHECK-NEXT:   $vgpr1 = COPY [[UV4]](<2 x s16>)
@@ -2116,8 +2174,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <3 x i16>, <3 x i16> addrspace(1)* undef
@@ -2141,7 +2200,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3f16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<3 x s16>) = G_LOAD [[DEF]](p1) :: (load (<3 x s16>) from `<3 x half> addrspace(1)* undef`, align 8, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<3 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<3 x s16>) from `<3 x half> addrspace(1)* undef`, align 8, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v3f16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2153,6 +2212,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3f16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2163,8 +2223,8 @@ define amdgpu_kernel void @test_call_external_void_func_v3f16() #0 {
   ; CHECK-NEXT:   [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[COPY19]], [[C2]](s32)
   ; CHECK-NEXT:   [[OR1:%[0-9]+]]:_(s32) = G_OR [[OR]], [[SHL1]]
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[LOAD]](<3 x s16>)
-  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<4 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[DEF1]](s16)
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
+  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<4 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[DEF2]](s16)
   ; CHECK-NEXT:   [[UV3:%[0-9]+]]:_(<2 x s16>), [[UV4:%[0-9]+]]:_(<2 x s16>) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<4 x s16>)
   ; CHECK-NEXT:   $vgpr0 = COPY [[UV3]](<2 x s16>)
   ; CHECK-NEXT:   $vgpr1 = COPY [[UV4]](<2 x s16>)
@@ -2177,8 +2237,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3f16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3f16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3f16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <3 x half>, <3 x half> addrspace(1)* undef
@@ -2202,7 +2263,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<4 x s16>) = G_LOAD [[DEF]](p1) :: (load (<4 x s16>) from `<4 x i16> addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<4 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<4 x s16>) from `<4 x i16> addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v4i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2214,6 +2275,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2235,8 +2297,9 @@ define amdgpu_kernel void @test_call_external_void_func_v4i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <4 x i16>, <4 x i16> addrspace(1)* undef
@@ -2275,6 +2338,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i16_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C5:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2296,8 +2360,9 @@ define amdgpu_kernel void @test_call_external_void_func_v4i16_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v4i16(<4 x i16> <i16 1, i16 2, i16 3, i16 4>)
@@ -2320,7 +2385,7 @@ define amdgpu_kernel void @test_call_external_void_func_v5i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<5 x s16>) = G_LOAD [[DEF]](p1) :: (load (<5 x s16>) from `<5 x i16> addrspace(1)* undef`, align 16, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<5 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<5 x s16>) from `<5 x i16> addrspace(1)* undef`, align 16, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v5i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2332,6 +2397,7 @@ define amdgpu_kernel void @test_call_external_void_func_v5i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2342,8 +2408,8 @@ define amdgpu_kernel void @test_call_external_void_func_v5i16() #0 {
   ; CHECK-NEXT:   [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[COPY19]], [[C2]](s32)
   ; CHECK-NEXT:   [[OR1:%[0-9]+]]:_(s32) = G_OR [[OR]], [[SHL1]]
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16), [[UV4:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[LOAD]](<5 x s16>)
-  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<6 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[DEF1]](s16)
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
+  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<6 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[DEF2]](s16)
   ; CHECK-NEXT:   [[UV5:%[0-9]+]]:_(<2 x s16>), [[UV6:%[0-9]+]]:_(<2 x s16>), [[UV7:%[0-9]+]]:_(<2 x s16>) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<6 x s16>)
   ; CHECK-NEXT:   $vgpr0 = COPY [[UV5]](<2 x s16>)
   ; CHECK-NEXT:   $vgpr1 = COPY [[UV6]](<2 x s16>)
@@ -2357,8 +2423,9 @@ define amdgpu_kernel void @test_call_external_void_func_v5i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v5i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v5i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <5 x i16>, <5 x i16> addrspace(1)* undef
@@ -2382,7 +2449,7 @@ define amdgpu_kernel void @test_call_external_void_func_v7i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<7 x s16>) = G_LOAD [[DEF]](p1) :: (load (<7 x s16>) from `<7 x i16> addrspace(1)* undef`, align 16, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<7 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<7 x s16>) from `<7 x i16> addrspace(1)* undef`, align 16, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v7i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2394,6 +2461,7 @@ define amdgpu_kernel void @test_call_external_void_func_v7i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2404,8 +2472,8 @@ define amdgpu_kernel void @test_call_external_void_func_v7i16() #0 {
   ; CHECK-NEXT:   [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[COPY19]], [[C2]](s32)
   ; CHECK-NEXT:   [[OR1:%[0-9]+]]:_(s32) = G_OR [[OR]], [[SHL1]]
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16), [[UV4:%[0-9]+]]:_(s16), [[UV5:%[0-9]+]]:_(s16), [[UV6:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[LOAD]](<7 x s16>)
-  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<8 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[UV5]](s16), [[UV6]](s16), [[DEF1]](s16)
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
+  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<8 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[UV5]](s16), [[UV6]](s16), [[DEF2]](s16)
   ; CHECK-NEXT:   [[UV7:%[0-9]+]]:_(<2 x s16>), [[UV8:%[0-9]+]]:_(<2 x s16>), [[UV9:%[0-9]+]]:_(<2 x s16>), [[UV10:%[0-9]+]]:_(<2 x s16>) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<8 x s16>)
   ; CHECK-NEXT:   $vgpr0 = COPY [[UV7]](<2 x s16>)
   ; CHECK-NEXT:   $vgpr1 = COPY [[UV8]](<2 x s16>)
@@ -2420,8 +2488,9 @@ define amdgpu_kernel void @test_call_external_void_func_v7i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v7i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v7i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <7 x i16>, <7 x i16> addrspace(1)* undef
@@ -2445,7 +2514,7 @@ define amdgpu_kernel void @test_call_external_void_func_v63i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<63 x s16>) = G_LOAD [[DEF]](p1) :: (load (<63 x s16>) from `<63 x i16> addrspace(1)* undef`, align 128, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<63 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<63 x s16>) from `<63 x i16> addrspace(1)* undef`, align 128, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v63i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2457,6 +2526,7 @@ define amdgpu_kernel void @test_call_external_void_func_v63i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2467,8 +2537,8 @@ define amdgpu_kernel void @test_call_external_void_func_v63i16() #0 {
   ; CHECK-NEXT:   [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[COPY19]], [[C2]](s32)
   ; CHECK-NEXT:   [[OR1:%[0-9]+]]:_(s32) = G_OR [[OR]], [[SHL1]]
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16), [[UV4:%[0-9]+]]:_(s16), [[UV5:%[0-9]+]]:_(s16), [[UV6:%[0-9]+]]:_(s16), [[UV7:%[0-9]+]]:_(s16), [[UV8:%[0-9]+]]:_(s16), [[UV9:%[0-9]+]]:_(s16), [[UV10:%[0-9]+]]:_(s16), [[UV11:%[0-9]+]]:_(s16), [[UV12:%[0-9]+]]:_(s16), [[UV13:%[0-9]+]]:_(s16), [[UV14:%[0-9]+]]:_(s16), [[UV15:%[0-9]+]]:_(s16), [[UV16:%[0-9]+]]:_(s16), [[UV17:%[0-9]+]]:_(s16), [[UV18:%[0-9]+]]:_(s16), [[UV19:%[0-9]+]]:_(s16), [[UV20:%[0-9]+]]:_(s16), [[UV21:%[0-9]+]]:_(s16), [[UV22:%[0-9]+]]:_(s16), [[UV23:%[0-9]+]]:_(s16), [[UV24:%[0-9]+]]:_(s16), [[UV25:%[0-9]+]]:_(s16), [[UV26:%[0-9]+]]:_(s16), [[UV27:%[0-9]+]]:_(s16), [[UV28:%[0-9]+]]:_(s16), [[UV29:%[0-9]+]]:_(s16), [[UV30:%[0-9]+]]:_(s16), [[UV31:%[0-9]+]]:_(s16), [[UV32:%[0-9]+]]:_(s16), [[UV33:%[0-9]+]]:_(s16), [[UV34:%[0-9]+]]:_(s16), [[UV35:%[0-9]+]]:_(s16), [[UV36:%[0-9]+]]:_(s16), [[UV37:%[0-9]+]]:_(s16), [[UV38:%[0-9]+]]:_(s16), [[UV39:%[0-9]+]]:_(s16), [[UV40:%[0-9]+]]:_(s16), [[UV41:%[0-9]+]]:_(s16), [[UV42:%[0-9]+]]:_(s16), [[UV43:%[0-9]+]]:_(s16), [[UV44:%[0-9]+]]:_(s16), [[UV45:%[0-9]+]]:_(s16), [[UV46:%[0-9]+]]:_(s16), [[UV47:%[0-9]+]]:_(s16), [[UV48:%[0-9]+]]:_(s16), [[UV49:%[0-9]+]]:_(s16), [[UV50:%[0-9]+]]:_(s16), [[UV51:%[0-9]+]]:_(s16), [[UV52:%[0-9]+]]:_(s16), [[UV53:%[0-9]+]]:_(s16), [[UV54:%[0-9]+]]:_(s16), [[UV55:%[0-9]+]]:_(s16), [[UV56:%[0-9]+]]:_(s16), [[UV57:%[0-9]+]]:_(s16), [[UV58:%[0-9]+]]:_(s16), [[UV59:%[0-9]+]]:_(s16), [[UV60:%[0-9]+]]:_(s16), [[UV61:%[0-9]+]]:_(s16), [[UV62:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[LOAD]](<63 x s16>)
-  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<64 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[UV5]](s16), [[UV6]](s16), [[UV7]](s16), [[UV8]](s16), [[UV9]](s16), [[UV10]](s16), [[UV11]](s16), [[UV12]](s16), [[UV13]](s16), [[UV14]](s16), [[UV15]](s16), [[UV16]](s16), [[UV17]](s16), [[UV18]](s16), [[UV19]](s16), [[UV20]](s16), [[UV21]](s16), [[UV22]](s16), [[UV23]](s16), [[UV24]](s16), [[UV25]](s16), [[UV26]](s16), [[UV27]](s16), [[UV28]](s16), [[UV29]](s16), [[UV30]](s16), [[UV31]](s16), [[UV32]](s16), [[UV33]](s16), [[UV34]](s16), [[UV35]](s16), [[UV36]](s16), [[UV37]](s16), [[UV38]](s16), [[UV39]](s16), [[UV40]](s16), [[UV41]](s16), [[UV42]](s16), [[UV43]](s16), [[UV44]](s16), [[UV45]](s16), [[UV46]](s16), [[UV47]](s16), [[UV48]](s16), [[UV49]](s16), [[UV50]](s16), [[UV51]](s16), [[UV52]](s16), [[UV53]](s16), [[UV54]](s16), [[UV55]](s16), [[UV56]](s16), [[UV57]](s16), [[UV58]](s16), [[UV59]](s16), [[UV60]](s16), [[UV61]](s16), [[UV62]](s16), [[DEF1]](s16)
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
+  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<64 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[UV5]](s16), [[UV6]](s16), [[UV7]](s16), [[UV8]](s16), [[UV9]](s16), [[UV10]](s16), [[UV11]](s16), [[UV12]](s16), [[UV13]](s16), [[UV14]](s16), [[UV15]](s16), [[UV16]](s16), [[UV17]](s16), [[UV18]](s16), [[UV19]](s16), [[UV20]](s16), [[UV21]](s16), [[UV22]](s16), [[UV23]](s16), [[UV24]](s16), [[UV25]](s16), [[UV26]](s16), [[UV27]](s16), [[UV28]](s16), [[UV29]](s16), [[UV30]](s16), [[UV31]](s16), [[UV32]](s16), [[UV33]](s16), [[UV34]](s16), [[UV35]](s16), [[UV36]](s16), [[UV37]](s16), [[UV38]](s16), [[UV39]](s16), [[UV40]](s16), [[UV41]](s16), [[UV42]](s16), [[UV43]](s16), [[UV44]](s16), [[UV45]](s16), [[UV46]](s16), [[UV47]](s16), [[UV48]](s16), [[UV49]](s16), [[UV50]](s16), [[UV51]](s16), [[UV52]](s16), [[UV53]](s16), [[UV54]](s16), [[UV55]](s16), [[UV56]](s16), [[UV57]](s16), [[UV58]](s16), [[UV59]](s16), [[UV60]](s16), [[UV61]](s16), [[UV62]](s16), [[DEF2]](s16)
   ; CHECK-NEXT:   [[UV63:%[0-9]+]]:_(<2 x s16>), [[UV64:%[0-9]+]]:_(<2 x s16>), [[UV65:%[0-9]+]]:_(<2 x s16>), [[UV66:%[0-9]+]]:_(<2 x s16>), [[UV67:%[0-9]+]]:_(<2 x s16>), [[UV68:%[0-9]+]]:_(<2 x s16>), [[UV69:%[0-9]+]]:_(<2 x s16>), [[UV70:%[0-9]+]]:_(<2 x s16>), [[UV71:%[0-9]+]]:_(<2 x s16>), [[UV72:%[0-9]+]]:_(<2 x s16>), [[UV73:%[0-9]+]]:_(<2 x s16>), [[UV74:%[0-9]+]]:_(<2 x s16>), [[UV75:%[0-9]+]]:_(<2 x s16>), [[UV76:%[0-9]+]]:_(<2 x s16>), [[UV77:%[0-9]+]]:_(<2 x s16>), [[UV78:%[0-9]+]]:_(<2 x s16>), [[UV79:%[0-9]+]]:_(<2 x s16>), [[UV80:%[0-9]+]]:_(<2 x s16>), [[UV81:%[0-9]+]]:_(<2 x s16>), [[UV82:%[0-9]+]]:_(<2 x s16>), [[UV83:%[0-9]+]]:_(<2 x s16>), [[UV84:%[0-9]+]]:_(<2 x s16>), [[UV85:%[0-9]+]]:_(<2 x s16>), [[UV86:%[0-9]+]]:_(<2 x s16>), [[UV87:%[0-9]+]]:_(<2 x s16>), [[UV88:%[0-9]+]]:_(<2 x s16>), [[UV89:%[0-9]+]]:_(<2 x s16>), [[UV90:%[0-9]+]]:_(<2 x s16>), [[UV91:%[0-9]+]]:_(<2 x s16>), [[UV92:%[0-9]+]]:_(<2 x s16>), [[UV93:%[0-9]+]]:_(<2 x s16>), [[UV94:%[0-9]+]]:_(<2 x s16>) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<64 x s16>)
   ; CHECK-NEXT:   [[AMDGPU_WAVE_ADDRESS:%[0-9]+]]:_(p5) = G_AMDGPU_WAVE_ADDRESS $sp_reg
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
@@ -2514,8 +2584,9 @@ define amdgpu_kernel void @test_call_external_void_func_v63i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v63i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v63i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 4, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <63 x i16>, <63 x i16> addrspace(1)* undef
@@ -2539,7 +2610,7 @@ define amdgpu_kernel void @test_call_external_void_func_v65i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<65 x s16>) = G_LOAD [[DEF]](p1) :: (load (<65 x s16>) from `<65 x i16> addrspace(1)* undef`, align 256, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<65 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<65 x s16>) from `<65 x i16> addrspace(1)* undef`, align 256, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v65i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2551,6 +2622,7 @@ define amdgpu_kernel void @test_call_external_void_func_v65i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2561,8 +2633,8 @@ define amdgpu_kernel void @test_call_external_void_func_v65i16() #0 {
   ; CHECK-NEXT:   [[SHL1:%[0-9]+]]:_(s32) = G_SHL [[COPY19]], [[C2]](s32)
   ; CHECK-NEXT:   [[OR1:%[0-9]+]]:_(s32) = G_OR [[OR]], [[SHL1]]
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16), [[UV4:%[0-9]+]]:_(s16), [[UV5:%[0-9]+]]:_(s16), [[UV6:%[0-9]+]]:_(s16), [[UV7:%[0-9]+]]:_(s16), [[UV8:%[0-9]+]]:_(s16), [[UV9:%[0-9]+]]:_(s16), [[UV10:%[0-9]+]]:_(s16), [[UV11:%[0-9]+]]:_(s16), [[UV12:%[0-9]+]]:_(s16), [[UV13:%[0-9]+]]:_(s16), [[UV14:%[0-9]+]]:_(s16), [[UV15:%[0-9]+]]:_(s16), [[UV16:%[0-9]+]]:_(s16), [[UV17:%[0-9]+]]:_(s16), [[UV18:%[0-9]+]]:_(s16), [[UV19:%[0-9]+]]:_(s16), [[UV20:%[0-9]+]]:_(s16), [[UV21:%[0-9]+]]:_(s16), [[UV22:%[0-9]+]]:_(s16), [[UV23:%[0-9]+]]:_(s16), [[UV24:%[0-9]+]]:_(s16), [[UV25:%[0-9]+]]:_(s16), [[UV26:%[0-9]+]]:_(s16), [[UV27:%[0-9]+]]:_(s16), [[UV28:%[0-9]+]]:_(s16), [[UV29:%[0-9]+]]:_(s16), [[UV30:%[0-9]+]]:_(s16), [[UV31:%[0-9]+]]:_(s16), [[UV32:%[0-9]+]]:_(s16), [[UV33:%[0-9]+]]:_(s16), [[UV34:%[0-9]+]]:_(s16), [[UV35:%[0-9]+]]:_(s16), [[UV36:%[0-9]+]]:_(s16), [[UV37:%[0-9]+]]:_(s16), [[UV38:%[0-9]+]]:_(s16), [[UV39:%[0-9]+]]:_(s16), [[UV40:%[0-9]+]]:_(s16), [[UV41:%[0-9]+]]:_(s16), [[UV42:%[0-9]+]]:_(s16), [[UV43:%[0-9]+]]:_(s16), [[UV44:%[0-9]+]]:_(s16), [[UV45:%[0-9]+]]:_(s16), [[UV46:%[0-9]+]]:_(s16), [[UV47:%[0-9]+]]:_(s16), [[UV48:%[0-9]+]]:_(s16), [[UV49:%[0-9]+]]:_(s16), [[UV50:%[0-9]+]]:_(s16), [[UV51:%[0-9]+]]:_(s16), [[UV52:%[0-9]+]]:_(s16), [[UV53:%[0-9]+]]:_(s16), [[UV54:%[0-9]+]]:_(s16), [[UV55:%[0-9]+]]:_(s16), [[UV56:%[0-9]+]]:_(s16), [[UV57:%[0-9]+]]:_(s16), [[UV58:%[0-9]+]]:_(s16), [[UV59:%[0-9]+]]:_(s16), [[UV60:%[0-9]+]]:_(s16), [[UV61:%[0-9]+]]:_(s16), [[UV62:%[0-9]+]]:_(s16), [[UV63:%[0-9]+]]:_(s16), [[UV64:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[LOAD]](<65 x s16>)
-  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<66 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[UV5]](s16), [[UV6]](s16), [[UV7]](s16), [[UV8]](s16), [[UV9]](s16), [[UV10]](s16), [[UV11]](s16), [[UV12]](s16), [[UV13]](s16), [[UV14]](s16), [[UV15]](s16), [[UV16]](s16), [[UV17]](s16), [[UV18]](s16), [[UV19]](s16), [[UV20]](s16), [[UV21]](s16), [[UV22]](s16), [[UV23]](s16), [[UV24]](s16), [[UV25]](s16), [[UV26]](s16), [[UV27]](s16), [[UV28]](s16), [[UV29]](s16), [[UV30]](s16), [[UV31]](s16), [[UV32]](s16), [[UV33]](s16), [[UV34]](s16), [[UV35]](s16), [[UV36]](s16), [[UV37]](s16), [[UV38]](s16), [[UV39]](s16), [[UV40]](s16), [[UV41]](s16), [[UV42]](s16), [[UV43]](s16), [[UV44]](s16), [[UV45]](s16), [[UV46]](s16), [[UV47]](s16), [[UV48]](s16), [[UV49]](s16), [[UV50]](s16), [[UV51]](s16), [[UV52]](s16), [[UV53]](s16), [[UV54]](s16), [[UV55]](s16), [[UV56]](s16), [[UV57]](s16), [[UV58]](s16), [[UV59]](s16), [[UV60]](s16), [[UV61]](s16), [[UV62]](s16), [[UV63]](s16), [[UV64]](s16), [[DEF1]](s16)
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s16) = G_IMPLICIT_DEF
+  ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<66 x s16>) = G_BUILD_VECTOR [[UV]](s16), [[UV1]](s16), [[UV2]](s16), [[UV3]](s16), [[UV4]](s16), [[UV5]](s16), [[UV6]](s16), [[UV7]](s16), [[UV8]](s16), [[UV9]](s16), [[UV10]](s16), [[UV11]](s16), [[UV12]](s16), [[UV13]](s16), [[UV14]](s16), [[UV15]](s16), [[UV16]](s16), [[UV17]](s16), [[UV18]](s16), [[UV19]](s16), [[UV20]](s16), [[UV21]](s16), [[UV22]](s16), [[UV23]](s16), [[UV24]](s16), [[UV25]](s16), [[UV26]](s16), [[UV27]](s16), [[UV28]](s16), [[UV29]](s16), [[UV30]](s16), [[UV31]](s16), [[UV32]](s16), [[UV33]](s16), [[UV34]](s16), [[UV35]](s16), [[UV36]](s16), [[UV37]](s16), [[UV38]](s16), [[UV39]](s16), [[UV40]](s16), [[UV41]](s16), [[UV42]](s16), [[UV43]](s16), [[UV44]](s16), [[UV45]](s16), [[UV46]](s16), [[UV47]](s16), [[UV48]](s16), [[UV49]](s16), [[UV50]](s16), [[UV51]](s16), [[UV52]](s16), [[UV53]](s16), [[UV54]](s16), [[UV55]](s16), [[UV56]](s16), [[UV57]](s16), [[UV58]](s16), [[UV59]](s16), [[UV60]](s16), [[UV61]](s16), [[UV62]](s16), [[UV63]](s16), [[UV64]](s16), [[DEF2]](s16)
   ; CHECK-NEXT:   [[UV65:%[0-9]+]]:_(<2 x s16>), [[UV66:%[0-9]+]]:_(<2 x s16>), [[UV67:%[0-9]+]]:_(<2 x s16>), [[UV68:%[0-9]+]]:_(<2 x s16>), [[UV69:%[0-9]+]]:_(<2 x s16>), [[UV70:%[0-9]+]]:_(<2 x s16>), [[UV71:%[0-9]+]]:_(<2 x s16>), [[UV72:%[0-9]+]]:_(<2 x s16>), [[UV73:%[0-9]+]]:_(<2 x s16>), [[UV74:%[0-9]+]]:_(<2 x s16>), [[UV75:%[0-9]+]]:_(<2 x s16>), [[UV76:%[0-9]+]]:_(<2 x s16>), [[UV77:%[0-9]+]]:_(<2 x s16>), [[UV78:%[0-9]+]]:_(<2 x s16>), [[UV79:%[0-9]+]]:_(<2 x s16>), [[UV80:%[0-9]+]]:_(<2 x s16>), [[UV81:%[0-9]+]]:_(<2 x s16>), [[UV82:%[0-9]+]]:_(<2 x s16>), [[UV83:%[0-9]+]]:_(<2 x s16>), [[UV84:%[0-9]+]]:_(<2 x s16>), [[UV85:%[0-9]+]]:_(<2 x s16>), [[UV86:%[0-9]+]]:_(<2 x s16>), [[UV87:%[0-9]+]]:_(<2 x s16>), [[UV88:%[0-9]+]]:_(<2 x s16>), [[UV89:%[0-9]+]]:_(<2 x s16>), [[UV90:%[0-9]+]]:_(<2 x s16>), [[UV91:%[0-9]+]]:_(<2 x s16>), [[UV92:%[0-9]+]]:_(<2 x s16>), [[UV93:%[0-9]+]]:_(<2 x s16>), [[UV94:%[0-9]+]]:_(<2 x s16>), [[UV95:%[0-9]+]]:_(<2 x s16>), [[UV96:%[0-9]+]]:_(<2 x s16>), [[UV97:%[0-9]+]]:_(<2 x s16>) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<66 x s16>)
   ; CHECK-NEXT:   [[AMDGPU_WAVE_ADDRESS:%[0-9]+]]:_(p5) = G_AMDGPU_WAVE_ADDRESS $sp_reg
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
@@ -2611,8 +2683,9 @@ define amdgpu_kernel void @test_call_external_void_func_v65i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v65i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v65i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 8, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <65 x i16>, <65 x i16> addrspace(1)* undef
@@ -2636,7 +2709,7 @@ define amdgpu_kernel void @test_call_external_void_func_v66i16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<66 x s16>) = G_LOAD [[DEF]](p1) :: (load (<66 x s16>) from `<66 x i16> addrspace(1)* undef`, align 256, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<66 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<66 x s16>) from `<66 x i16> addrspace(1)* undef`, align 256, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v66i16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2648,6 +2721,7 @@ define amdgpu_kernel void @test_call_external_void_func_v66i16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2705,8 +2779,9 @@ define amdgpu_kernel void @test_call_external_void_func_v66i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v66i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v66i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 8, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <66 x i16>, <66 x i16> addrspace(1)* undef
@@ -2730,7 +2805,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2f16() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s16>) = G_LOAD [[DEF]](p1) :: (load (<2 x s16>) from `<2 x half> addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s16>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<2 x s16>) from `<2 x half> addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v2f16
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2742,6 +2817,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2f16() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2761,8 +2837,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2f16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2f16, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2f16, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <2 x half>, <2 x half> addrspace(1)* undef
@@ -2786,7 +2863,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i32() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s32>) = G_LOAD [[DEF]](p1) :: (load (<2 x s32>) from `<2 x i32> addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<2 x s32>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<2 x s32>) from `<2 x i32> addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v2i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -2798,6 +2875,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i32() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2819,8 +2897,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <2 x i32>, <2 x i32> addrspace(1)* undef
@@ -2857,6 +2936,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2878,8 +2958,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2i32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v2i32(<2 x i32> <i32 1, i32 2>)
@@ -2917,6 +2998,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i32_imm(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -2939,8 +3021,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3i32_imm(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v3i32(<3 x i32> <i32 3, i32 4, i32 5>)
@@ -2979,6 +3062,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i32_i32(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C5:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3002,8 +3086,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3i32_i32(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i32_i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i32_i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v3i32_i32(<3 x i32> <i32 3, i32 4, i32 5>, i32 6)
@@ -3026,7 +3111,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i32() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<4 x s32>) = G_LOAD [[DEF]](p1) :: (load (<4 x s32>) from `<4 x i32> addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(<4 x s32>) = G_LOAD [[DEF]](p1) :: ("amdgpu-noclobber" load (<4 x s32>) from `<4 x i32> addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v4i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3038,6 +3123,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i32() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3061,8 +3147,9 @@ define amdgpu_kernel void @test_call_external_void_func_v4i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = load <4 x i32>, <4 x i32> addrspace(1)* undef
@@ -3101,6 +3188,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C5:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3124,8 +3212,9 @@ define amdgpu_kernel void @test_call_external_void_func_v4i32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v4i32(<4 x i32> <i32 1, i32 2, i32 3, i32 4>)
@@ -3164,6 +3253,7 @@ define amdgpu_kernel void @test_call_external_void_func_v5i32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C6:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3188,8 +3278,9 @@ define amdgpu_kernel void @test_call_external_void_func_v5i32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v5i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v5i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v5i32(<5 x i32> <i32 1, i32 2, i32 3, i32 4, i32 5>)
@@ -3212,8 +3303,8 @@ define amdgpu_kernel void @test_call_external_void_func_v8i32() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<8 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<8 x s32>) = G_LOAD [[LOAD]](p1) :: (load (<8 x s32>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<8 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<8 x s32>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<8 x s32>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v8i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3225,6 +3316,7 @@ define amdgpu_kernel void @test_call_external_void_func_v8i32() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3252,8 +3344,9 @@ define amdgpu_kernel void @test_call_external_void_func_v8i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v8i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v8i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <8 x i32> addrspace(1)*, <8 x i32> addrspace(1)* addrspace(4)* undef
@@ -3297,6 +3390,7 @@ define amdgpu_kernel void @test_call_external_void_func_v8i32_imm() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C9:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3324,8 +3418,9 @@ define amdgpu_kernel void @test_call_external_void_func_v8i32_imm() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v8i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v8i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   call void @external_void_func_v8i32(<8 x i32> <i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8>)
@@ -3348,8 +3443,8 @@ define amdgpu_kernel void @test_call_external_void_func_v16i32() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<16 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<16 x s32>) = G_LOAD [[LOAD]](p1) :: (load (<16 x s32>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<16 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<16 x s32>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<16 x s32>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v16i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3361,6 +3456,7 @@ define amdgpu_kernel void @test_call_external_void_func_v16i32() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3396,8 +3492,9 @@ define amdgpu_kernel void @test_call_external_void_func_v16i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v16i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v16i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <16 x i32> addrspace(1)*, <16 x i32> addrspace(1)* addrspace(4)* undef
@@ -3422,8 +3519,8 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: (load (<32 x s32>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<32 x s32>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v32i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3435,6 +3532,7 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3489,8 +3587,9 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 4, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <32 x i32> addrspace(1)*, <32 x i32> addrspace(1)* addrspace(4)* undef
@@ -3517,9 +3616,9 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_i32(i32) #0 {
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[INT:%[0-9]+]]:_(p4) = G_INTRINSIC intrinsic(@llvm.amdgcn.kernarg.segment.ptr)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: (load (<32 x s32>) from %ir.ptr0, addrspace 1)
-  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(s32) = G_LOAD [[DEF1]](p1) :: (load (s32) from `i32 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<32 x s32>) from %ir.ptr0, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(s32) = G_LOAD [[DEF1]](p1) :: ("amdgpu-noclobber" load (s32) from `i32 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v32i32_i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3531,6 +3630,7 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_i32(i32) #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3588,8 +3688,9 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_i32(i32) #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF2]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32_i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32_i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 8, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr0 = load <32 x i32> addrspace(1)*, <32 x i32> addrspace(1)* addrspace(4)* undef
@@ -3617,10 +3718,10 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_i8_i8_i16() #0 {
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p1) = COPY [[DEF1]](p1)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: (load (<32 x s32>) from %ir.ptr0, addrspace 1)
-  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(s8) = G_LOAD [[DEF1]](p1) :: (load (s8) from `i8 addrspace(1)* undef`, addrspace 1)
-  ; CHECK-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[COPY10]](p1) :: (load (s16) from `i16 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<32 x s32>) from %ir.ptr0, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(s8) = G_LOAD [[DEF1]](p1) :: ("amdgpu-noclobber" load (s8) from `i8 addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[COPY10]](p1) :: ("amdgpu-noclobber" load (s16) from `i16 addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v32i32_i8_i8_i16
   ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3632,6 +3733,7 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_i8_i8_i16() #0 {
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY19:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3697,8 +3799,9 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_i8_i8_i16() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY16]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF2]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32_i8_i8_i16, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32_i8_i8_i16, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 16, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr0 = load <32 x i32> addrspace(1)*, <32 x i32> addrspace(1)* addrspace(4)* undef
@@ -3728,10 +3831,10 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_p3_p5() #0 {
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p1) = COPY [[DEF1]](p1)
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: (load (<32 x s32>) from %ir.ptr0, addrspace 1)
-  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(p3) = G_LOAD [[DEF1]](p1) :: (load (p3) from `i8 addrspace(3)* addrspace(1)* undef`, addrspace 1)
-  ; CHECK-NEXT:   [[LOAD3:%[0-9]+]]:_(p5) = G_LOAD [[COPY10]](p1) :: (load (p5) from `i8 addrspace(5)* addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<32 x i32> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<32 x s32>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<32 x s32>) from %ir.ptr0, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(p3) = G_LOAD [[DEF1]](p1) :: ("amdgpu-noclobber" load (p3) from `i8 addrspace(3)* addrspace(1)* undef`, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD3:%[0-9]+]]:_(p5) = G_LOAD [[COPY10]](p1) :: ("amdgpu-noclobber" load (p5) from `i8 addrspace(5)* addrspace(1)* undef`, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v32i32_p3_p5
   ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3743,6 +3846,7 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_p3_p5() #0 {
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY19:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3803,8 +3907,9 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32_p3_p5() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY16]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF2]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32_p3_p5, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v32i32_p3_p5, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 12, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr0 = load <32 x i32> addrspace(1)*, <32 x i32> addrspace(1)* addrspace(4)* undef
@@ -3831,11 +3936,11 @@ define amdgpu_kernel void @test_call_external_void_func_struct_i8_i32() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `{ i8, i32 } addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[LOAD]](p1) :: (load (s8) from %ir.ptr0, align 4, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `{ i8, i32 } addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (s8) from %ir.ptr0, align 4, addrspace 1)
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 4
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p1) = G_PTR_ADD [[LOAD]], [[C]](s64)
-  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(s32) = G_LOAD [[PTR_ADD]](p1) :: (load (s32) from %ir.ptr0 + 4, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD2:%[0-9]+]]:_(s32) = G_LOAD [[PTR_ADD]](p1) :: ("amdgpu-noclobber" load (s32) from %ir.ptr0 + 4, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_struct_i8_i32
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -3847,6 +3952,7 @@ define amdgpu_kernel void @test_call_external_void_func_struct_i8_i32() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3869,8 +3975,9 @@ define amdgpu_kernel void @test_call_external_void_func_struct_i8_i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_struct_i8_i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_struct_i8_i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr0 = load { i8, i32 } addrspace(1)*, { i8, i32 } addrspace(1)* addrspace(4)* undef
@@ -3882,11 +3989,8 @@ define amdgpu_kernel void @test_call_external_void_func_struct_i8_i32() #0 {
 define amdgpu_gfx void @test_gfx_call_external_void_func_struct_i8_i32() #0 {
   ; CHECK-LABEL: name: test_gfx_call_external_void_func_struct_i8_i32
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   liveins: $sgpr30_sgpr31
-  ; CHECK-NEXT: {{  $}}
-  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `{ i8, i32 } addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `{ i8, i32 } addrspace(1)* addrspace(4)* undef`, addrspace 4)
   ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[LOAD]](p1) :: (load (s8) from %ir.ptr0, align 4, addrspace 1)
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 4
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p1) = G_PTR_ADD [[LOAD]], [[C]](s64)
@@ -3897,12 +4001,11 @@ define amdgpu_gfx void @test_gfx_call_external_void_func_struct_i8_i32() #0 {
   ; CHECK-NEXT:   [[ANYEXT1:%[0-9]+]]:_(s32) = G_ANYEXT [[ANYEXT]](s16)
   ; CHECK-NEXT:   $vgpr0 = COPY [[ANYEXT1]](s32)
   ; CHECK-NEXT:   $vgpr1 = COPY [[LOAD2]](s32)
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY1]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_gfx_void_func_struct_i8_i32, csr_amdgpu_si_gfx, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:gfx_ccr_sgpr_64 = COPY [[COPY]]
-  ; CHECK-NEXT:   S_SETPC_B64_return_gfx [[COPY2]]
+  ; CHECK-NEXT:   SI_RETURN
   %ptr0 = load { i8, i32 } addrspace(1)*, { i8, i32 } addrspace(1)* addrspace(4)* undef
   %val = load { i8, i32 }, { i8, i32 } addrspace(1)* %ptr0
   call amdgpu_gfx void @external_gfx_void_func_struct_i8_i32({ i8, i32 } %val)
@@ -3912,11 +4015,8 @@ define amdgpu_gfx void @test_gfx_call_external_void_func_struct_i8_i32() #0 {
 define amdgpu_gfx void @test_gfx_call_external_void_func_struct_i8_i32_inreg() #0 {
   ; CHECK-LABEL: name: test_gfx_call_external_void_func_struct_i8_i32_inreg
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   liveins: $sgpr30_sgpr31
-  ; CHECK-NEXT: {{  $}}
-  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `{ i8, i32 } addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `{ i8, i32 } addrspace(1)* addrspace(4)* undef`, addrspace 4)
   ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[LOAD]](p1) :: (load (s8) from %ir.ptr0, align 4, addrspace 1)
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 4
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p1) = G_PTR_ADD [[LOAD]], [[C]](s64)
@@ -3927,12 +4027,11 @@ define amdgpu_gfx void @test_gfx_call_external_void_func_struct_i8_i32_inreg() #
   ; CHECK-NEXT:   [[ANYEXT1:%[0-9]+]]:_(s32) = G_ANYEXT [[ANYEXT]](s16)
   ; CHECK-NEXT:   $sgpr4 = COPY [[ANYEXT1]](s32)
   ; CHECK-NEXT:   $sgpr5 = COPY [[LOAD2]](s32)
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY1]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_gfx_void_func_struct_i8_i32_inreg, csr_amdgpu_si_gfx, implicit $sgpr4, implicit $sgpr5, implicit $sgpr0_sgpr1_sgpr2_sgpr3
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:gfx_ccr_sgpr_64 = COPY [[COPY]]
-  ; CHECK-NEXT:   S_SETPC_B64_return_gfx [[COPY2]]
+  ; CHECK-NEXT:   SI_RETURN
   %ptr0 = load { i8, i32 } addrspace(1)*, { i8, i32 } addrspace(1)* addrspace(4)* undef
   %val = load { i8, i32 }, { i8, i32 } addrspace(1)* %ptr0
   call amdgpu_gfx void @external_gfx_void_func_struct_i8_i32_inreg({ i8, i32 } inreg %val)
@@ -3972,6 +4071,7 @@ define amdgpu_kernel void @test_call_external_void_func_byval_struct_i8_i32() #0
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -3995,8 +4095,9 @@ define amdgpu_kernel void @test_call_external_void_func_byval_struct_i8_i32() #0
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_byval_struct_i8_i32, csr_amdgpu_highregs, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_byval_struct_i8_i32, csr_amdgpu, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 8, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %val = alloca { i8, i32 }, align 4, addrspace(5)
@@ -4013,42 +4114,43 @@ declare void @void_func_byval_a3i32_byval_i8_align32([3 x i32] addrspace(5)* byv
 define void @call_byval_3ai32_byval_i8_align32([3 x i32] addrspace(5)* %incoming0, i8 addrspace(5)* align 32 %incoming1) #0 {
   ; CHECK-LABEL: name: call_byval_3ai32_byval_i8_align32
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr0, $vgpr1, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr0, $vgpr1, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:_(p5) = COPY $vgpr0
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p5) = COPY $vgpr1
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p5) = COPY $vgpr0
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p5) = COPY $vgpr1
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 999
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @void_func_byval_a3i32_byval_i8_align32
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY19:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
   ; CHECK-NEXT:   [[AMDGPU_WAVE_ADDRESS:%[0-9]+]]:_(p5) = G_AMDGPU_WAVE_ADDRESS $sgpr32
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p5) = G_PTR_ADD [[AMDGPU_WAVE_ADDRESS]], [[C1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 12
-  ; CHECK-NEXT:   G_MEMCPY [[PTR_ADD]](p5), [[COPY8]](p5), [[C2]](s32), 0 :: (dereferenceable store (s96) into stack, align 4, addrspace 5), (dereferenceable load (s96) from %ir.incoming0, align 4, addrspace 5)
+  ; CHECK-NEXT:   G_MEMCPY [[PTR_ADD]](p5), [[COPY9]](p5), [[C2]](s32), 0 :: (dereferenceable store (s96) into stack, align 4, addrspace 5), (dereferenceable load (s96) from %ir.incoming0, align 4, addrspace 5)
   ; CHECK-NEXT:   [[C3:%[0-9]+]]:_(s32) = G_CONSTANT i32 32
   ; CHECK-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p5) = G_PTR_ADD [[AMDGPU_WAVE_ADDRESS]], [[C3]](s32)
   ; CHECK-NEXT:   [[C4:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
-  ; CHECK-NEXT:   G_MEMCPY [[PTR_ADD1]](p5), [[COPY9]](p5), [[C4]](s32), 0 :: (dereferenceable store (s8) into stack + 32, align 32, addrspace 5), (dereferenceable load (s8) from %ir.incoming1, align 32, addrspace 5)
+  ; CHECK-NEXT:   G_MEMCPY [[PTR_ADD1]](p5), [[COPY10]](p5), [[C4]](s32), 0 :: (dereferenceable store (s8) into stack + 32, align 32, addrspace 5), (dereferenceable load (s8) from %ir.incoming1, align 32, addrspace 5)
   ; CHECK-NEXT:   $vgpr0 = COPY [[C]](s32)
-  ; CHECK-NEXT:   [[COPY19:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY19]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY20:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY20]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY11]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY12]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY13]](p4)
@@ -4056,11 +4158,11 @@ define void @call_byval_3ai32_byval_i8_align32([3 x i32] addrspace(5)* %incoming
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY16]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY17]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY18]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @void_func_byval_a3i32_byval_i8_align32, csr_amdgpu_highregs, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY18]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY19]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @void_func_byval_a3i32_byval_i8_align32, csr_amdgpu, implicit $vgpr0, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 36, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY20:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY10]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY20]]
+  ; CHECK-NEXT:   SI_RETURN
   call void @void_func_byval_a3i32_byval_i8_align32([3 x i32] addrspace(5)* byval([3 x i32]) %incoming0, i8 addrspace(5)* align 32 %incoming1, i32 999)
   ret void
 }
@@ -4072,35 +4174,36 @@ declare void @void_func_byval_a4i64_align4([4 x i64] addrspace(5)* byval([4 x i6
 define void @call_byval_a4i64_align4_higher_source_align([4 x i64] addrspace(5)* align 256 %incoming_high_align) #0 {
   ; CHECK-LABEL: name: call_byval_a4i64_align4_higher_source_align
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr0, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr0, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:_(p5) = COPY $vgpr0
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p5) = COPY $vgpr0
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @void_func_byval_a4i64_align4
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
   ; CHECK-NEXT:   [[AMDGPU_WAVE_ADDRESS:%[0-9]+]]:_(p5) = G_AMDGPU_WAVE_ADDRESS $sgpr32
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p5) = G_PTR_ADD [[AMDGPU_WAVE_ADDRESS]], [[C]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 32
-  ; CHECK-NEXT:   G_MEMCPY [[PTR_ADD]](p5), [[COPY8]](p5), [[C1]](s32), 0 :: (dereferenceable store (s256) into stack, align 4, addrspace 5), (dereferenceable load (s256) from %ir.incoming_high_align, align 256, addrspace 5)
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY18]](<4 x s32>)
+  ; CHECK-NEXT:   G_MEMCPY [[PTR_ADD]](p5), [[COPY9]](p5), [[C1]](s32), 0 :: (dereferenceable store (s256) into stack, align 4, addrspace 5), (dereferenceable load (s256) from %ir.incoming_high_align, align 256, addrspace 5)
+  ; CHECK-NEXT:   [[COPY19:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY19]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY10]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY11]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY12]](p4)
@@ -4108,11 +4211,11 @@ define void @call_byval_a4i64_align4_higher_source_align([4 x i64] addrspace(5)*
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY17]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @void_func_byval_a4i64_align4, csr_amdgpu_highregs, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY18]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @void_func_byval_a4i64_align4, csr_amdgpu, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 32, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY19:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY9]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY19]]
+  ; CHECK-NEXT:   SI_RETURN
   call void @void_func_byval_a4i64_align4([4 x i64] addrspace(5)* byval([4 x i64]) align 4 %incoming_high_align)
   ret void
 }
@@ -4133,8 +4236,8 @@ define amdgpu_kernel void @test_call_external_void_func_v2i8() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<2 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<2 x s8>) = G_LOAD [[LOAD]](p1) :: (load (<2 x s8>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<2 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<2 x s8>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<2 x s8>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v2i8
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -4146,6 +4249,7 @@ define amdgpu_kernel void @test_call_external_void_func_v2i8() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -4171,8 +4275,9 @@ define amdgpu_kernel void @test_call_external_void_func_v2i8() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i8, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v2i8, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <2 x i8> addrspace(1)*, <2 x i8> addrspace(1)* addrspace(4)* undef
@@ -4197,8 +4302,8 @@ define amdgpu_kernel void @test_call_external_void_func_v3i8() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<3 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<3 x s8>) = G_LOAD [[LOAD]](p1) :: (load (<3 x s8>) from %ir.ptr, align 4, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<3 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<3 x s8>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<3 x s8>) from %ir.ptr, align 4, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v3i8
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -4210,6 +4315,7 @@ define amdgpu_kernel void @test_call_external_void_func_v3i8() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -4238,8 +4344,9 @@ define amdgpu_kernel void @test_call_external_void_func_v3i8() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i8, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v3i8, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <3 x i8> addrspace(1)*, <3 x i8> addrspace(1)* addrspace(4)* undef
@@ -4264,8 +4371,8 @@ define amdgpu_kernel void @test_call_external_void_func_v4i8() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<4 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<4 x s8>) = G_LOAD [[LOAD]](p1) :: (load (<4 x s8>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<4 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<4 x s8>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<4 x s8>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v4i8
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -4277,6 +4384,7 @@ define amdgpu_kernel void @test_call_external_void_func_v4i8() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -4308,8 +4416,9 @@ define amdgpu_kernel void @test_call_external_void_func_v4i8() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i8, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v4i8, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <4 x i8> addrspace(1)*, <4 x i8> addrspace(1)* addrspace(4)* undef
@@ -4334,8 +4443,8 @@ define amdgpu_kernel void @test_call_external_void_func_v8i8() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<8 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<8 x s8>) = G_LOAD [[LOAD]](p1) :: (load (<8 x s8>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<8 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<8 x s8>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<8 x s8>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v8i8
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -4347,6 +4456,7 @@ define amdgpu_kernel void @test_call_external_void_func_v8i8() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -4390,8 +4500,9 @@ define amdgpu_kernel void @test_call_external_void_func_v8i8() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v8i8, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v8i8, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <8 x i8> addrspace(1)*, <8 x i8> addrspace(1)* addrspace(4)* undef
@@ -4416,8 +4527,8 @@ define amdgpu_kernel void @test_call_external_void_func_v16i8() #0 {
   ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY $sgpr8_sgpr9
   ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(p4) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (load (p1) from `<16 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
-  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<16 x s8>) = G_LOAD [[LOAD]](p1) :: (load (<16 x s8>) from %ir.ptr, addrspace 1)
+  ; CHECK-NEXT:   [[LOAD:%[0-9]+]]:_(p1) = G_LOAD [[DEF]](p4) :: (dereferenceable invariant load (p1) from `<16 x i8> addrspace(1)* addrspace(4)* undef`, addrspace 4)
+  ; CHECK-NEXT:   [[LOAD1:%[0-9]+]]:_(<16 x s8>) = G_LOAD [[LOAD]](p1) :: ("amdgpu-noclobber" load (<16 x s8>) from %ir.ptr, addrspace 1)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_v16i8
   ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY8]]
@@ -4429,6 +4540,7 @@ define amdgpu_kernel void @test_call_external_void_func_v16i8() #0 {
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -4496,8 +4608,9 @@ define amdgpu_kernel void @test_call_external_void_func_v16i8() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF1]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v16i8, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_v16i8, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
   %ptr = load <16 x i8> addrspace(1)*, <16 x i8> addrspace(1)* addrspace(4)* undef
@@ -4537,6 +4650,7 @@ define amdgpu_kernel void @stack_passed_arg_alignment_v32i32_f64(<32 x i32> %val
   ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY5]]
   ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY4]]
   ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[DEF:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
@@ -4598,8 +4712,9 @@ define amdgpu_kernel void @stack_passed_arg_alignment_v32i32_f64(<32 x i32> %val
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY15]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[DEF]](s32)
   ; CHECK-NEXT:   $vgpr31 = COPY [[OR1]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @stack_passed_f64_arg, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @stack_passed_f64_arg, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 12, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
 entry:
@@ -4610,17 +4725,17 @@ entry:
 define void @stack_12xv3i32() #0 {
   ; CHECK-LABEL: name: stack_12xv3i32
   ; CHECK: bb.1.entry:
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
   ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<3 x s32>) = G_BUILD_VECTOR [[C]](s32), [[C]](s32), [[C]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
@@ -4651,14 +4766,15 @@ define void @stack_12xv3i32() #0 {
   ; CHECK-NEXT:   [[BUILD_VECTOR11:%[0-9]+]]:_(<3 x s32>) = G_BUILD_VECTOR [[C13]](s32), [[C14]](s32), [[C15]](s32)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_12xv3i32
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32), [[UV2:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<3 x s32>)
   ; CHECK-NEXT:   [[UV3:%[0-9]+]]:_(s32), [[UV4:%[0-9]+]]:_(s32), [[UV5:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<3 x s32>)
   ; CHECK-NEXT:   [[UV6:%[0-9]+]]:_(s32), [[UV7:%[0-9]+]]:_(s32), [[UV8:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<3 x s32>)
@@ -4718,8 +4834,8 @@ define void @stack_12xv3i32() #0 {
   ; CHECK-NEXT:   $vgpr28 = COPY [[UV28]](s32)
   ; CHECK-NEXT:   $vgpr29 = COPY [[UV29]](s32)
   ; CHECK-NEXT:   $vgpr30 = COPY [[UV30]](s32)
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY17]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY18]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY9]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY10]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY11]](p4)
@@ -4727,11 +4843,11 @@ define void @stack_12xv3i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY13]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY15]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY16]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_12xv3i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_12xv3i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 20, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY8]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY18]]
+  ; CHECK-NEXT:   SI_RETURN
 entry:
   call void @external_void_func_12xv3i32(
       <3 x i32> <i32 0, i32 0, i32 0>,
@@ -4752,17 +4868,17 @@ entry:
 define void @stack_12xv3f32() #0 {
   ; CHECK-LABEL: name: stack_12xv3f32
   ; CHECK: bb.1.entry:
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_FCONSTANT float 0.000000e+00
   ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<3 x s32>) = G_BUILD_VECTOR [[C]](s32), [[C]](s32), [[C]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_FCONSTANT float 1.000000e+00
@@ -4793,14 +4909,15 @@ define void @stack_12xv3f32() #0 {
   ; CHECK-NEXT:   [[BUILD_VECTOR11:%[0-9]+]]:_(<3 x s32>) = G_BUILD_VECTOR [[C13]](s32), [[C14]](s32), [[C15]](s32)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_12xv3f32
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32), [[UV2:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<3 x s32>)
   ; CHECK-NEXT:   [[UV3:%[0-9]+]]:_(s32), [[UV4:%[0-9]+]]:_(s32), [[UV5:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<3 x s32>)
   ; CHECK-NEXT:   [[UV6:%[0-9]+]]:_(s32), [[UV7:%[0-9]+]]:_(s32), [[UV8:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<3 x s32>)
@@ -4860,8 +4977,8 @@ define void @stack_12xv3f32() #0 {
   ; CHECK-NEXT:   $vgpr28 = COPY [[UV28]](s32)
   ; CHECK-NEXT:   $vgpr29 = COPY [[UV29]](s32)
   ; CHECK-NEXT:   $vgpr30 = COPY [[UV30]](s32)
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY17]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY18]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY9]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY10]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY11]](p4)
@@ -4869,11 +4986,11 @@ define void @stack_12xv3f32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY13]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY15]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY16]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_12xv3f32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_12xv3f32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 20, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY8]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY18]]
+  ; CHECK-NEXT:   SI_RETURN
 entry:
   call void @external_void_func_12xv3f32(
       <3 x float> <float 0.0, float 0.0, float 0.0>,
@@ -4894,17 +5011,17 @@ entry:
 define void @stack_8xv5i32() #0 {
   ; CHECK-LABEL: name: stack_8xv5i32
   ; CHECK: bb.1.entry:
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
   ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<5 x s32>) = G_BUILD_VECTOR [[C]](s32), [[C]](s32), [[C]](s32), [[C]](s32), [[C]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
@@ -4931,14 +5048,15 @@ define void @stack_8xv5i32() #0 {
   ; CHECK-NEXT:   [[BUILD_VECTOR7:%[0-9]+]]:_(<5 x s32>) = G_BUILD_VECTOR [[C11]](s32), [[C12]](s32), [[C13]](s32), [[C14]](s32), [[C15]](s32)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_8xv5i32
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32), [[UV2:%[0-9]+]]:_(s32), [[UV3:%[0-9]+]]:_(s32), [[UV4:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<5 x s32>)
   ; CHECK-NEXT:   [[UV5:%[0-9]+]]:_(s32), [[UV6:%[0-9]+]]:_(s32), [[UV7:%[0-9]+]]:_(s32), [[UV8:%[0-9]+]]:_(s32), [[UV9:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<5 x s32>)
   ; CHECK-NEXT:   [[UV10:%[0-9]+]]:_(s32), [[UV11:%[0-9]+]]:_(s32), [[UV12:%[0-9]+]]:_(s32), [[UV13:%[0-9]+]]:_(s32), [[UV14:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<5 x s32>)
@@ -5006,8 +5124,8 @@ define void @stack_8xv5i32() #0 {
   ; CHECK-NEXT:   $vgpr28 = COPY [[UV28]](s32)
   ; CHECK-NEXT:   $vgpr29 = COPY [[UV29]](s32)
   ; CHECK-NEXT:   $vgpr30 = COPY [[UV30]](s32)
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY17]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY18]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY9]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY10]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY11]](p4)
@@ -5015,11 +5133,11 @@ define void @stack_8xv5i32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY13]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY15]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY16]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_8xv5i32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_8xv5i32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 36, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY8]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY18]]
+  ; CHECK-NEXT:   SI_RETURN
 entry:
   call void @external_void_func_8xv5i32(
       <5 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0>,
@@ -5036,17 +5154,17 @@ entry:
 define void @stack_8xv5f32() #0 {
   ; CHECK-LABEL: name: stack_8xv5f32
   ; CHECK: bb.1.entry:
-  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11, $sgpr30_sgpr31
+  ; CHECK-NEXT:   liveins: $sgpr12, $sgpr13, $sgpr14, $sgpr15, $vgpr31, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr10_sgpr11
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:vgpr_32(s32) = COPY $vgpr31
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr14
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr13
-  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr12
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
-  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
-  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
-  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
-  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:sgpr_32 = COPY $sgpr15
+  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:sgpr_32 = COPY $sgpr14
+  ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:sgpr_32 = COPY $sgpr13
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:sgpr_32 = COPY $sgpr12
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:sgpr_64 = COPY $sgpr10_sgpr11
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:sgpr_64 = COPY $sgpr8_sgpr9
+  ; CHECK-NEXT:   [[COPY7:%[0-9]+]]:sgpr_64 = COPY $sgpr6_sgpr7
+  ; CHECK-NEXT:   [[COPY8:%[0-9]+]]:sgpr_64 = COPY $sgpr4_sgpr5
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_FCONSTANT float 0.000000e+00
   ; CHECK-NEXT:   [[BUILD_VECTOR:%[0-9]+]]:_(<5 x s32>) = G_BUILD_VECTOR [[C]](s32), [[C]](s32), [[C]](s32), [[C]](s32), [[C]](s32)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_FCONSTANT float 1.000000e+00
@@ -5073,14 +5191,15 @@ define void @stack_8xv5f32() #0 {
   ; CHECK-NEXT:   [[BUILD_VECTOR7:%[0-9]+]]:_(<5 x s32>) = G_BUILD_VECTOR [[C11]](s32), [[C12]](s32), [[C13]](s32), [[C14]](s32), [[C15]](s32)
   ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0, implicit-def $scc
   ; CHECK-NEXT:   [[GV:%[0-9]+]]:_(p0) = G_GLOBAL_VALUE @external_void_func_8xv5f32
-  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY7]]
-  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY6]]
-  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY5]]
-  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY4]]
-  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY3]]
-  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY2]]
-  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY1]]
-  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+  ; CHECK-NEXT:   [[COPY9:%[0-9]+]]:_(p4) = COPY [[COPY8]]
+  ; CHECK-NEXT:   [[COPY10:%[0-9]+]]:_(p4) = COPY [[COPY7]]
+  ; CHECK-NEXT:   [[COPY11:%[0-9]+]]:_(p4) = COPY [[COPY6]]
+  ; CHECK-NEXT:   [[COPY12:%[0-9]+]]:_(s64) = COPY [[COPY5]]
+  ; CHECK-NEXT:   [[COPY13:%[0-9]+]]:_(s32) = COPY [[COPY4]]
+  ; CHECK-NEXT:   [[COPY14:%[0-9]+]]:_(s32) = COPY [[COPY3]]
+  ; CHECK-NEXT:   [[COPY15:%[0-9]+]]:_(s32) = COPY [[COPY2]]
+  ; CHECK-NEXT:   [[COPY16:%[0-9]+]]:_(s32) = COPY [[COPY1]]
+  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32), [[UV2:%[0-9]+]]:_(s32), [[UV3:%[0-9]+]]:_(s32), [[UV4:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR]](<5 x s32>)
   ; CHECK-NEXT:   [[UV5:%[0-9]+]]:_(s32), [[UV6:%[0-9]+]]:_(s32), [[UV7:%[0-9]+]]:_(s32), [[UV8:%[0-9]+]]:_(s32), [[UV9:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR1]](<5 x s32>)
   ; CHECK-NEXT:   [[UV10:%[0-9]+]]:_(s32), [[UV11:%[0-9]+]]:_(s32), [[UV12:%[0-9]+]]:_(s32), [[UV13:%[0-9]+]]:_(s32), [[UV14:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[BUILD_VECTOR2]](<5 x s32>)
@@ -5148,8 +5267,8 @@ define void @stack_8xv5f32() #0 {
   ; CHECK-NEXT:   $vgpr28 = COPY [[UV28]](s32)
   ; CHECK-NEXT:   $vgpr29 = COPY [[UV29]](s32)
   ; CHECK-NEXT:   $vgpr30 = COPY [[UV30]](s32)
-  ; CHECK-NEXT:   [[COPY17:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY17]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:_(<4 x s32>) = COPY $sgpr0_sgpr1_sgpr2_sgpr3
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY18]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[COPY9]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY10]](p4)
   ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY11]](p4)
@@ -5157,11 +5276,11 @@ define void @stack_8xv5f32() #0 {
   ; CHECK-NEXT:   $sgpr12 = COPY [[COPY13]](s32)
   ; CHECK-NEXT:   $sgpr13 = COPY [[COPY14]](s32)
   ; CHECK-NEXT:   $sgpr14 = COPY [[COPY15]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY16]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_8xv5f32, csr_amdgpu_highregs, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY16]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY17]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[GV]](p0), @external_void_func_8xv5f32, csr_amdgpu, implicit $vgpr0, implicit $vgpr1, implicit $vgpr2, implicit $vgpr3, implicit $vgpr4, implicit $vgpr5, implicit $vgpr6, implicit $vgpr7, implicit $vgpr8, implicit $vgpr9, implicit $vgpr10, implicit $vgpr11, implicit $vgpr12, implicit $vgpr13, implicit $vgpr14, implicit $vgpr15, implicit $vgpr16, implicit $vgpr17, implicit $vgpr18, implicit $vgpr19, implicit $vgpr20, implicit $vgpr21, implicit $vgpr22, implicit $vgpr23, implicit $vgpr24, implicit $vgpr25, implicit $vgpr26, implicit $vgpr27, implicit $vgpr28, implicit $vgpr29, implicit $vgpr30, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 36, implicit-def $scc
-  ; CHECK-NEXT:   [[COPY18:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY8]]
-  ; CHECK-NEXT:   S_SETPC_B64_return [[COPY18]]
+  ; CHECK-NEXT:   SI_RETURN
 entry:
   call void @external_void_func_8xv5f32(
       <5 x float> <float 0.0, float 0.0, float 0.0, float 0.0, float 0.0>,
@@ -5184,23 +5303,25 @@ define amdgpu_ps void @amdgpu_ps_call_default_cc() {
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(p4) = COPY [[DEF]](p4)
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(p4) = G_CONSTANT i64 0
   ; CHECK-NEXT:   [[C2:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
-  ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p4) = G_PTR_ADD [[C1]], [[C2]](s64)
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(p4) = COPY [[C1]](p4)
   ; CHECK-NEXT:   [[DEF1:%[0-9]+]]:_(s64) = G_IMPLICIT_DEF
   ; CHECK-NEXT:   [[DEF2:%[0-9]+]]:_(s32) = G_IMPLICIT_DEF
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY [[DEF2]](s32)
   ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:_(s32) = COPY [[DEF2]](s32)
   ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:_(s32) = COPY [[DEF2]](s32)
-  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:_(<4 x s32>) = COPY $private_rsrc_reg
-  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY4]](<4 x s32>)
+  ; CHECK-NEXT:   [[COPY4:%[0-9]+]]:_(s32) = COPY [[DEF2]](s32)
+  ; CHECK-NEXT:   [[COPY5:%[0-9]+]]:_(s32) = COPY [[DEF2]](s32)
+  ; CHECK-NEXT:   [[COPY6:%[0-9]+]]:_(<4 x s32>) = COPY $private_rsrc_reg
+  ; CHECK-NEXT:   $sgpr0_sgpr1_sgpr2_sgpr3 = COPY [[COPY6]](<4 x s32>)
   ; CHECK-NEXT:   $sgpr4_sgpr5 = COPY [[DEF]](p4)
   ; CHECK-NEXT:   $sgpr6_sgpr7 = COPY [[COPY]](p4)
-  ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[PTR_ADD]](p4)
+  ; CHECK-NEXT:   $sgpr8_sgpr9 = COPY [[COPY1]](p4)
   ; CHECK-NEXT:   $sgpr10_sgpr11 = COPY [[DEF1]](s64)
   ; CHECK-NEXT:   $sgpr12 = COPY [[DEF2]](s32)
-  ; CHECK-NEXT:   $sgpr13 = COPY [[COPY1]](s32)
-  ; CHECK-NEXT:   $sgpr14 = COPY [[COPY2]](s32)
-  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY3]](s32)
-  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[C]](p0), 0, csr_amdgpu_highregs, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $vgpr31
+  ; CHECK-NEXT:   $sgpr13 = COPY [[COPY2]](s32)
+  ; CHECK-NEXT:   $sgpr14 = COPY [[COPY3]](s32)
+  ; CHECK-NEXT:   $sgpr15 = COPY [[COPY4]](s32)
+  ; CHECK-NEXT:   $vgpr31 = COPY [[COPY5]](s32)
+  ; CHECK-NEXT:   $sgpr30_sgpr31 = G_SI_CALL [[C]](p0), 0, csr_amdgpu, implicit $sgpr0_sgpr1_sgpr2_sgpr3, implicit $sgpr4_sgpr5, implicit $sgpr6_sgpr7, implicit $sgpr8_sgpr9, implicit $sgpr10_sgpr11, implicit $sgpr12, implicit $sgpr13, implicit $sgpr14, implicit $sgpr15, implicit $vgpr31
   ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0, implicit-def $scc
   ; CHECK-NEXT:   S_ENDPGM 0
 main_body:

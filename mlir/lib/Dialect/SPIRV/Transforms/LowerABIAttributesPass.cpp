@@ -39,7 +39,7 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
   // Get the type of variable. If this is a scalar/vector type and has an ABI
   // info create a variable of type !spv.ptr<!spv.struct<elementType>>. If not
   // it must already be a !spv.ptr<!spv.struct<...>>.
-  auto varType = funcOp.getType().getInput(argIndex);
+  auto varType = funcOp.getFunctionType().getInput(argIndex);
   if (varType.cast<spirv::SPIRVType>().isScalarOrVector()) {
     auto storageClass = abiInfo.getStorageClass();
     if (!storageClass)
@@ -131,15 +131,18 @@ static LogicalResult lowerEntryPointABIAttr(spirv::FuncOp funcOp,
     return funcOp.emitRemark("lower entry point failure: could not select "
                              "execution model based on 'spv.target_env'");
 
-  builder.create<spirv::EntryPointOp>(
-      funcOp.getLoc(), executionModel.getValue(), funcOp, interfaceVars);
+  builder.create<spirv::EntryPointOp>(funcOp.getLoc(), executionModel.value(),
+                                      funcOp, interfaceVars);
 
   // Specifies the spv.ExecutionModeOp.
-  auto localSizeAttr = entryPointAttr.local_size();
-  SmallVector<int32_t, 3> localSize(localSizeAttr.getValues<int32_t>());
-  builder.create<spirv::ExecutionModeOp>(
-      funcOp.getLoc(), funcOp, spirv::ExecutionMode::LocalSize, localSize);
-  funcOp->removeAttr(entryPointAttrName);
+  auto localSizeAttr = entryPointAttr.getLocalSize();
+  if (localSizeAttr) {
+    auto values = localSizeAttr.getValues<int32_t>();
+    SmallVector<int32_t, 3> localSize(values);
+    builder.create<spirv::ExecutionModeOp>(
+        funcOp.getLoc(), funcOp, spirv::ExecutionMode::LocalSize, localSize);
+    funcOp->removeAttr(entryPointAttrName);
+  }
   return success();
 }
 
@@ -176,13 +179,14 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
     return failure();
   }
   TypeConverter::SignatureConversion signatureConverter(
-      funcOp.getType().getNumInputs());
+      funcOp.getFunctionType().getNumInputs());
 
   auto &typeConverter = *getTypeConverter<SPIRVTypeConverter>();
   auto indexType = typeConverter.getIndexType();
 
   auto attrName = spirv::getInterfaceVarABIAttrName();
-  for (const auto &argType : llvm::enumerate(funcOp.getType().getInputs())) {
+  for (const auto &argType :
+       llvm::enumerate(funcOp.getFunctionType().getInputs())) {
     auto abiInfo = funcOp.getArgAttrOfType<spirv::InterfaceVarABIAttr>(
         argType.index(), attrName);
     if (!abiInfo) {

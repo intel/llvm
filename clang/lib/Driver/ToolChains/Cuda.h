@@ -138,6 +138,10 @@ private:
   mutable std::unique_ptr<Tool> SYCLToolChainLinker;
 };
 
+void getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                            const llvm::opt::ArgList &Args,
+                            std::vector<StringRef> &Features);
+
 } // end namespace NVPTX
 } // end namespace tools
 
@@ -179,7 +183,9 @@ public:
   bool supportsDebugInfoOption(const llvm::opt::Arg *A) const override;
   void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
                            const llvm::opt::ArgList &Args) const override;
-  bool IsMathErrnoDefault() const override { return false; }
+
+  // math-errno should be the default for SYCL but not other OFK using CUDA TC
+  bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;

@@ -23,7 +23,7 @@ namespace {
 
 constexpr StringRef SYCL_DEVICE_GLOBAL_SIZE_ATTR = "sycl-device-global-size";
 constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
-constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
+constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "sycl-device-image-scope";
 
 /// Returns the size (in bytes) of the underlying type \c T of the device
 /// global variable.
@@ -59,6 +59,19 @@ bool isDeviceGlobalVariable(const GlobalVariable &GV) {
   return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
 }
 
+/// Return \c true if the variable @GV has the "device_image_scope" property.
+///
+/// The function checks whether the variable has the LLVM IR attribute \c
+/// device_image_scope and the attribute is not set to \c "false"
+///
+/// @param GV [in] A variable to test.
+///
+/// @return \c true if the variable has the "device_image_scope" property,
+/// \c false otherwise.
+bool hasDeviceImageScopeProperty(const GlobalVariable &GV) {
+  return hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR);
+}
+
 /// Returns the unique id for the device global variable.
 ///
 /// The function gets this value from the LLVM IR attribute \c
@@ -88,8 +101,7 @@ DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M) {
       continue;
 
     DGM[getGlobalVariableUniqueId(GV)] = {
-        {{getUnderlyingTypeSize(GV),
-          hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR)}}};
+        {{getUnderlyingTypeSize(GV), hasDeviceImageScopeProperty(GV)}}};
   }
 
   return DGM;

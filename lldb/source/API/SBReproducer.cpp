@@ -110,20 +110,7 @@ const char *SBReproducer::Replay(const char *path,
 
 const char *SBReproducer::Finalize(const char *path) {
   LLDB_INSTRUMENT_VA(path)
-  static std::string error;
-
-  repro::Loader *loader = repro::Reproducer::Instance().GetLoader();
-  if (!loader) {
-    error = "unable to get replay loader.";
-    return error.c_str();
-  }
-
-  if (auto e = repro::Finalize(loader)) {
-    error = llvm::toString(std::move(e));
-    return error.c_str();
-  }
-
-  return nullptr;
+  return "Reproducer finalize has been removed";
 }
 
 bool SBReproducer::Generate() {
@@ -149,9 +136,8 @@ bool SBReproducer::SetAutoGenerate(bool b) {
 const char *SBReproducer::GetPath() {
   LLDB_INSTRUMENT()
   ConstString path;
-  auto &r = Reproducer::Instance();
   if (FileSpec reproducer_path = Reproducer::Instance().GetReproducerPath())
-    path = ConstString(r.GetReproducerPath().GetCString());
+    path = ConstString(reproducer_path.GetPathAsConstString());
   return path.GetCString();
 }
 

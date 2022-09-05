@@ -6,10 +6,10 @@
 // calls added by the API headers or compiler when generating code
 // for math operations on simd<sycl::half, N> values.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel;
 using namespace sycl;
 
 // clang-format off

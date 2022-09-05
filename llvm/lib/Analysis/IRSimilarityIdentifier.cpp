@@ -39,6 +39,10 @@ cl::opt<bool>
     MatchCallsByName("ir-sim-calls-by-name", cl::init(false), cl::ReallyHidden,
                      cl::desc("only allow matching call instructions if the "
                               "name and type signature match."));
+
+cl::opt<bool>
+    DisableIntrinsics("no-ir-sim-intrinsics", cl::init(false), cl::ReallyHidden,
+                      cl::desc("Don't match or outline intrinsics"));
 } // namespace llvm
 
 IRInstructionData::IRInstructionData(Instruction &I, bool Legality,
@@ -60,7 +64,7 @@ void IRInstructionData::initializeInstruction() {
   // Here we collect the operands and their types for determining whether
   // the structure of the operand use matches between two different candidates.
   for (Use &OI : Inst->operands()) {
-    if (isa<CmpInst>(Inst) && RevisedPredicate.hasValue()) {
+    if (isa<CmpInst>(Inst) && RevisedPredicate) {
       // If we have a CmpInst where the predicate is reversed, it means the
       // operands must be reversed as well.
       OperVals.insert(OperVals.begin(), OI.get());
@@ -109,6 +113,24 @@ void IRInstructionData::setCalleeName(bool MatchByName) {
   assert(CI && "Instruction must be call");
 
   CalleeName = "";
+  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst)) {
+    // To hash intrinsics, we use the opcode, and types like the other
+    // instructions, but also, the Intrinsic ID, and the Name of the
+    // intrinsic.
+    Intrinsic::ID IntrinsicID = II->getIntrinsicID();
+    FunctionType *FT = II->getFunctionType();
+    // If there is an overloaded name, we have to use the complex version
+    // of getName to get the entire string.
+    if (Intrinsic::isOverloaded(IntrinsicID))
+      CalleeName =
+          Intrinsic::getName(IntrinsicID, FT->params(), II->getModule(), FT);
+    // If there is not an overloaded name, we only need to use this version.
+    else
+      CalleeName = Intrinsic::getName(IntrinsicID).str();
+
+    return;
+  }
+
   if (!CI->isIndirectCall() && MatchByName)
     CalleeName = CI->getCalledFunction()->getName().str();
 }
@@ -161,9 +183,9 @@ CmpInst::Predicate IRInstructionData::getPredicate() const {
   assert(isa<CmpInst>(Inst) &&
          "Can only get a predicate from a compare instruction");
 
-  if (RevisedPredicate.hasValue())
-    return RevisedPredicate.getValue();
-  
+  if (RevisedPredicate)
+    return RevisedPredicate.value();
+
   return cast<CmpInst>(Inst)->getPredicate();
 }
 
@@ -171,7 +193,7 @@ StringRef IRInstructionData::getCalleeName() const {
   assert(isa<CallInst>(Inst) &&
          "Can only get a name from a call instruction");
 
-  assert(CalleeName.hasValue() && "CalleeName has not been set");
+  assert(CalleeName && "CalleeName has not been set");
 
   return *CalleeName;
 }
@@ -232,7 +254,7 @@ bool IRSimilarity::isClose(const IRInstructionData &A,
   // name is the same.  We already know that the types are since is
   // isSameOperationAs is true.
   if (isa<CallInst>(A.Inst) && isa<CallInst>(B.Inst)) {
-    if (A.getCalleeName().str().compare(B.getCalleeName().str()) != 0)
+    if (A.getCalleeName().str() != B.getCalleeName().str())
       return false;
   }
 
@@ -267,14 +289,12 @@ void IRInstructionMapper::convertToUnsignedVec(
     }
   }
 
-  if (HaveLegalRange) {
-    if (AddedIllegalLastTime)
-      mapToIllegalUnsigned(It, IntegerMappingForBB, InstrListForBB, true);
-    for (IRInstructionData *ID : InstrListForBB)
-      this->IDL->push_back(*ID);
-    llvm::append_range(InstrList, InstrListForBB);
-    llvm::append_range(IntegerMapping, IntegerMappingForBB);
-  }
+  if (AddedIllegalLastTime)
+    mapToIllegalUnsigned(It, IntegerMappingForBB, InstrListForBB, true);
+  for (IRInstructionData *ID : InstrListForBB)
+    this->IDL->push_back(*ID);
+  llvm::append_range(InstrList, InstrListForBB);
+  llvm::append_range(IntegerMapping, IntegerMappingForBB);
 }
 
 // TODO: This is the same as the MachineOutliner, and should be consolidated
@@ -439,6 +459,18 @@ IRSimilarityCandidate::IRSimilarityCandidate(unsigned StartIdx, unsigned Len,
   // that both of these instructions are not nullptrs.
   FirstInst = FirstInstIt;
   LastInst = LastInstIt;
+
+  // Add the basic blocks contained in the set into the global value numbering.
+  DenseSet<BasicBlock *> BBSet;
+  getBasicBlocks(BBSet);
+  for (BasicBlock *BB : BBSet) {
+    if (ValueToNumber.find(BB) != ValueToNumber.end())
+      continue;
+    
+    ValueToNumber.try_emplace(BB, LocalValNumber);
+    NumberToValue.try_emplace(LocalValNumber, BB);
+    LocalValNumber++;
+  }
 }
 
 bool IRSimilarityCandidate::isSimilar(const IRSimilarityCandidate &A,
@@ -494,19 +526,13 @@ static bool checkNumberingAndReplaceCommutative(
   for (Value *V : SourceOperands) {
     ArgVal = SourceValueToNumberMapping.find(V)->second;
 
+    // Instead of finding a current mapping, we attempt to insert a set.
     std::tie(ValueMappingIt, WasInserted) = CurrentSrcTgtNumberMapping.insert(
         std::make_pair(ArgVal, TargetValueNumbers));
 
-    // Instead of finding a current mapping, we inserted a set.  This means a
-    // mapping did not exist for the source Instruction operand, it has no
-    // current constraints we need to check.
-    if (WasInserted)
-      continue;
-
-    // If a mapping already exists for the source operand to the values in the
-    // other IRSimilarityCandidate we need to iterate over the items in other
-    // IRSimilarityCandidate's Instruction to determine whether there is a valid
-    // mapping of Value to Value.
+    // We need to iterate over the items in other IRSimilarityCandidate's
+    // Instruction to determine whether there is a valid mapping of
+    // Value to Value.
     DenseSet<unsigned> NewSet;
     for (unsigned &Curr : ValueMappingIt->second)
       // If we can find the value in the mapping, we add it to the new set.
@@ -525,7 +551,6 @@ static bool checkNumberingAndReplaceCommutative(
     // any items from the other operands, so we move to check the next operand.
     if (ValueMappingIt->second.size() != 1)
       continue;
-
 
     unsigned ValToRemove = *ValueMappingIt->second.begin();
     // When there is only one item left in the mapping for and operand, remove
@@ -769,7 +794,8 @@ bool IRSimilarityCandidate::compareStructure(
     // We have different paths for commutative instructions and non-commutative
     // instructions since commutative instructions could allow multiple mappings
     // to certain values.
-    if (IA->isCommutative() && !isa<FPMathOperator>(IA)) {
+    if (IA->isCommutative() && !isa<FPMathOperator>(IA) &&
+        !isa<IntrinsicInst>(IA)) {
       if (!compareCommutativeOperandMapping(
               {A, OperValsA, ValueNumberMappingA},
               {B, OperValsB, ValueNumberMappingB}))
@@ -986,6 +1012,40 @@ void IRSimilarityCandidate::createCanonicalRelationFrom(
     CanonNumToNumber.insert(std::make_pair(CanonNum, SourceGVN));
     NumberToCanonNum.insert(std::make_pair(SourceGVN, CanonNum));
   }
+
+  DenseSet<BasicBlock *> BBSet;
+  getBasicBlocks(BBSet);
+  // Find canonical numbers for the BasicBlocks in the current candidate.
+  // This is done by finding the corresponding value for the first instruction
+  // in the block in the current candidate, finding the matching value in the
+  // source candidate.  Then by finding the parent of this value, use the
+  // canonical number of the block in the source candidate for the canonical
+  // number in the current candidate.
+  for (BasicBlock *BB : BBSet) {
+    unsigned BBGVNForCurrCand = ValueToNumber.find(BB)->second;
+
+    // We can skip the BasicBlock if the canonical numbering has already been
+    // found in a separate instruction.
+    if (NumberToCanonNum.find(BBGVNForCurrCand) != NumberToCanonNum.end())
+      continue;
+
+    // If the basic block is the starting block, then the shared instruction may
+    // not be the first instruction in the block, it will be the first
+    // instruction in the similarity region.
+    Value *FirstOutlineInst = BB == getStartBB()
+                                  ? frontInstruction()
+                                  : &*BB->instructionsWithoutDebug().begin();
+
+    unsigned FirstInstGVN = *getGVN(FirstOutlineInst);
+    unsigned FirstInstCanonNum = *getCanonicalNum(FirstInstGVN);
+    unsigned SourceGVN = *SourceCand.fromCanonicalNum(FirstInstCanonNum);
+    Value *SourceV = *SourceCand.fromGVN(SourceGVN);
+    BasicBlock *SourceBB = cast<Instruction>(SourceV)->getParent();
+    unsigned SourceBBGVN = *SourceCand.getGVN(SourceBB);
+    unsigned SourceCanonBBGVN = *SourceCand.getCanonicalNum(SourceBBGVN);
+    CanonNumToNumber.insert(std::make_pair(SourceCanonBBGVN, BBGVNForCurrCand));
+    NumberToCanonNum.insert(std::make_pair(BBGVNForCurrCand, SourceCanonBBGVN));
+  }
 }
 
 void IRSimilarityCandidate::createCanonicalMappingFor(
@@ -1139,11 +1199,13 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(
   Mapper.InstClassifier.EnableBranches = this->EnableBranches;
   Mapper.InstClassifier.EnableIndirectCalls = EnableIndirectCalls;
   Mapper.EnableMatchCallsByName = EnableMatchingCallsByName;
+  Mapper.InstClassifier.EnableIntrinsics = EnableIntrinsics;
+  Mapper.InstClassifier.EnableMustTailCalls = EnableMustTailCalls;
 
   populateMapper(Modules, InstrList, IntegerMapping);
   findCandidates(InstrList, IntegerMapping);
 
-  return SimilarityCandidates.getValue();
+  return *SimilarityCandidates;
 }
 
 SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(Module &M) {
@@ -1151,6 +1213,8 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(Module &M) {
   Mapper.InstClassifier.EnableBranches = this->EnableBranches;
   Mapper.InstClassifier.EnableIndirectCalls = EnableIndirectCalls;
   Mapper.EnableMatchCallsByName = EnableMatchingCallsByName;
+  Mapper.InstClassifier.EnableIntrinsics = EnableIntrinsics;
+  Mapper.InstClassifier.EnableMustTailCalls = EnableMustTailCalls;
 
   std::vector<IRInstructionData *> InstrList;
   std::vector<unsigned> IntegerMapping;
@@ -1158,7 +1222,7 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(Module &M) {
   populateMapper(M, InstrList, IntegerMapping);
   findCandidates(InstrList, IntegerMapping);
 
-  return SimilarityCandidates.getValue();
+  return *SimilarityCandidates;
 }
 
 INITIALIZE_PASS(IRSimilarityIdentifierWrapperPass, "ir-similarity-identifier",
@@ -1172,7 +1236,8 @@ IRSimilarityIdentifierWrapperPass::IRSimilarityIdentifierWrapperPass()
 
 bool IRSimilarityIdentifierWrapperPass::doInitialization(Module &M) {
   IRSI.reset(new IRSimilarityIdentifier(!DisableBranches, !DisableIndirectCalls,
-                                        MatchCallsByName));
+                                        MatchCallsByName, !DisableIntrinsics,
+                                        false));
   return false;
 }
 
@@ -1189,9 +1254,9 @@ bool IRSimilarityIdentifierWrapperPass::runOnModule(Module &M) {
 AnalysisKey IRSimilarityAnalysis::Key;
 IRSimilarityIdentifier IRSimilarityAnalysis::run(Module &M,
                                                  ModuleAnalysisManager &) {
-
   auto IRSI = IRSimilarityIdentifier(!DisableBranches, !DisableIndirectCalls,
-                                     MatchCallsByName);
+                                     MatchCallsByName, !DisableIntrinsics,
+                                     false);
   IRSI.findSimilarity(M);
   return IRSI;
 }

@@ -50,8 +50,8 @@ set(XRAY_TEST_ARCH ${XRAY_SUPPORTED_ARCH})
 set(XRAY_UNITTEST_LINK_FLAGS
   ${COMPILER_RT_UNITTEST_LINK_FLAGS}
   ${CMAKE_THREAD_LIBS_INIT}
-  ${SANITIZER_TEST_CXX_LIBRARIES}
-  )
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${COMPILER_RT_CXX_LINK_LIBS})
 
 if (NOT APPLE)
   # Needed by LLVMSupport.
@@ -102,7 +102,7 @@ macro(add_xray_unittest testname)
         ${XRAY_HEADERS} ${XRAY_ALL_SOURCE_FILES_ABS_PATHS}
         "test_helpers.h"
         RUNTIME "${XRAY_RUNTIME_LIBS}"
-        DEPS gtest xray llvm-xray LLVMXRay LLVMTestingSupport
+        DEPS llvm_gtest xray llvm-xray LLVMXRay LLVMTestingSupport
         CFLAGS ${XRAY_UNITTEST_CFLAGS}
         LINK_FLAGS ${TARGET_LINK_FLAGS} ${XRAY_UNITTEST_LINK_FLAGS}
         )

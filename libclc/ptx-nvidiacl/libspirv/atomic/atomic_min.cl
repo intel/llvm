@@ -68,10 +68,12 @@ __CLC_NVVM_ATOMIC(ulong, m, ulong, ul, min, _Z18__spirv_AtomicUMin)
 
 #define __CLC_NVVM_ATOMIC_MIN(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,  \
                               OP_MANGLED)                                      \
+  __attribute__((always_inline))                                               \
   __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
                              OP_MANGLED, __global, AS1)                        \
-  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
-                             OP_MANGLED, __local, AS3)
+      __attribute__((always_inline))                                           \
+      __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_MANGLED, TYPE_INT,                 \
+                                 TYPE_INT_MANGLED, OP_MANGLED, __local, AS3)
 
 __CLC_NVVM_ATOMIC_MIN(float, f, int, i, FMinEXT)
 __CLC_NVVM_ATOMIC_MIN(double, d, long, l, FMinEXT)

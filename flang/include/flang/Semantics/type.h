@@ -109,6 +109,7 @@ public:
   bool operator==(const ParamValue &that) const {
     return category_ == that.category_ && expr_ == that.expr_;
   }
+  bool operator!=(const ParamValue &that) const { return !(*this == that); }
   std::string AsFortran() const;
 
 private:
@@ -265,7 +266,7 @@ public:
 
   bool MightBeParameterized() const;
   bool IsForwardReferenced() const;
-  bool HasDefaultInitialization() const;
+  bool HasDefaultInitialization(bool ignoreAllocatable = false) const;
   bool HasDestruction() const;
   bool HasFinalization() const;
 
@@ -299,6 +300,9 @@ public:
   bool operator!=(const DerivedTypeSpec &that) const {
     return !(*this == that);
   }
+  // For TYPE IS & CLASS IS: kind type parameters must be
+  // explicit and equal, len type parameters are ignored.
+  bool Match(const DerivedTypeSpec &) const;
   std::string AsFortran() const;
 
 private:

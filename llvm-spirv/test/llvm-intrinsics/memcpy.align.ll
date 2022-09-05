@@ -42,7 +42,7 @@ target triple = "spir"
 @__const.bar.a = private unnamed_addr addrspace(2) constant %struct.A { i64 0, %struct.B { [2 x i32] [i32 1, i32 2] } }, align 8
 
 ; Function Attrs: convergent nounwind
-define spir_func void @foo(%struct.A* noalias sret(%struct.A*) %agg.result) #0 {
+define spir_func void @foo(%struct.A* noalias sret(%struct.A) %agg.result) #0 {
 entry:
   %b = alloca %struct.B, align 4
   %0 = bitcast %struct.B* %b to i8*
@@ -74,7 +74,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) #1
 
 ; Function Attrs: convergent nounwind
-define spir_func void @bar(%struct.B* noalias sret(%struct.B*) %agg.result) #0 {
+define spir_func void @bar(%struct.B* noalias sret(%struct.B) %agg.result) #0 {
 entry:
   %a = alloca %struct.A, align 8
   %0 = bitcast %struct.A* %a to i8*

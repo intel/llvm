@@ -398,8 +398,8 @@ static bool isAliasDecl(ASTContext *Context, const Decl *TheDecl,
     if (OpCall->getOperator() == OO_Star)
       return isDereferenceOfOpCall(OpCall, IndexVar);
     if (OpCall->getOperator() == OO_Subscript) {
-      assert(OpCall->getNumArgs() == 2);
-      return isIndexInSubscriptExpr(OpCall->getArg(1), IndexVar);
+      return OpCall->getNumArgs() == 2 &&
+             isIndexInSubscriptExpr(OpCall->getArg(1), IndexVar);
     }
     break;
   }
@@ -785,8 +785,8 @@ bool ForLoopIndexUseVisitor::TraverseLambdaCapture(LambdaExpr *LE,
                                                    const LambdaCapture *C,
                                                    Expr *Init) {
   if (C->capturesVariable()) {
-    const VarDecl *VDecl = C->getCapturedVar();
-    if (areSameVariable(IndexVar, cast<ValueDecl>(VDecl))) {
+    const ValueDecl *VDecl = C->getCapturedVar();
+    if (areSameVariable(IndexVar, VDecl)) {
       // FIXME: if the index is captured, it will count as an usage and the
       // alias (if any) won't work, because it is only used in case of having
       // exactly one usage.

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -verify -o /dev/null
-// RUN: %clang_cc1 %s -triple x86_64-apple-darwin -emit-llvm -fsanitize=objc-cast -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers %s -verify -o /dev/null
+// RUN: %clang_cc1 -no-opaque-pointers %s -triple x86_64-apple-darwin -emit-llvm -fsanitize=objc-cast -o - | FileCheck %s
 
 void p(const char*, ...);
 
@@ -20,7 +20,7 @@ void p(const char*, ...);
 #define L6(n) L5(n+0),L5(n+32)
 
 // CHECK-LABEL: define{{.*}} void @t0
-void t0() {
+void t0(void) {
   NSArray *array = [NSArray arrayWithObjects: L1(0), (void*)0];
 
   p("array.length: %d\n", [array count]);
@@ -43,7 +43,7 @@ void t0() {
   }
 }
 
-void t1() {
+void t1(void) {
   NSArray *array = [NSArray arrayWithObjects: L6(0), (void*)0];
 
   p("array.length: %d\n", [array count]);

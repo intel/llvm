@@ -91,11 +91,11 @@ TargetInfo *elf::getTarget() {
   llvm_unreachable("unknown target machine");
 }
 
-template <class ELFT> static ErrorPlace getErrPlace(const uint8_t *loc) {
+ErrorPlace elf::getErrorPlace(const uint8_t *loc) {
   assert(loc != nullptr);
   for (InputSectionBase *d : inputSections) {
-    auto *isec = cast<InputSection>(d);
-    if (!isec->getParent() || (isec->type & SHT_NOBITS))
+    auto *isec = dyn_cast<InputSection>(d);
+    if (!isec || !isec->getParent() || (isec->type & SHT_NOBITS))
       continue;
 
     const uint8_t *isecLoc =
@@ -116,21 +116,6 @@ template <class ELFT> static ErrorPlace getErrPlace(const uint8_t *loc) {
     }
   }
   return {};
-}
-
-ErrorPlace elf::getErrorPlace(const uint8_t *loc) {
-  switch (config->ekind) {
-  case ELF32LEKind:
-    return getErrPlace<ELF32LE>(loc);
-  case ELF32BEKind:
-    return getErrPlace<ELF32BE>(loc);
-  case ELF64LEKind:
-    return getErrPlace<ELF64LE>(loc);
-  case ELF64BEKind:
-    return getErrPlace<ELF64BE>(loc);
-  default:
-    llvm_unreachable("unknown ELF type");
-  }
 }
 
 TargetInfo::~TargetInfo() {}

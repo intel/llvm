@@ -275,7 +275,7 @@ define i32 @test5(i32* %a, i32 %b) {
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, i32* [[A:%.*]], i64 [[INDVARS_IV]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[ADD]] = add nsw i32 [[SUM_0]], [[TMP1]]
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw i64 [[INDVARS_IV]], 1
+; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
 ; CHECK:       for.end:
 ; CHECK-NEXT:    [[SUM_0_LCSSA:%.*]] = phi i32 [ [[SUM_0]], [[FOR_COND]] ]
@@ -410,7 +410,7 @@ define i32 @test8(i32* %a, i32 %b, i32 %init) {
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, i32* [[A:%.*]], i64 [[INDVARS_IV]]
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i32, i32* [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[ADD]] = add nsw i32 [[SUM_0]], [[TMP2]]
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add i64 [[INDVARS_IV]], 1
+; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
 ; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt i64 0, [[INDVARS_IV_NEXT]]
 ; CHECK-NEXT:    br i1 [[CMP2]], label [[FOR_COND]], label [[FOR_END]]
 ; CHECK:       for.end:
@@ -1433,6 +1433,43 @@ loop:                                             ; preds = %loop, %entry
   %iv.wide = zext i32 %iv to i64
   call void @foo(i64 %iv.wide)
   %iv.next = add i32 %iv, 1
+  %loop.cond = icmp eq i32 %iv, 1000
+  br i1 %loop.cond, label %exit, label %loop
+
+exit:                                             ; preds = %loop
+  ret void
+}
+
+define void @test22(i16* %ptr) {
+; CHECK-LABEL: @test22(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    store i16 0, i16* [[PTR:%.*]], align 4
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ [[IV_NEXT:%.*]], [[LOOP]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[INDVARS:%.*]] = trunc i32 [[IV]] to i16
+; CHECK-NEXT:    [[VAL_INC:%.*]] = add i16 [[INDVARS]], 1
+; CHECK-NEXT:    store i16 [[VAL_INC]], i16* [[PTR]], align 4
+; CHECK-NEXT:    [[IV_WIDE:%.*]] = zext i32 [[IV]] to i64
+; CHECK-NEXT:    call void @foo(i64 [[IV_WIDE]])
+; CHECK-NEXT:    [[IV_NEXT]] = zext i16 [[VAL_INC]] to i32
+; CHECK-NEXT:    [[LOOP_COND:%.*]] = icmp eq i32 [[IV]], 1000
+; CHECK-NEXT:    br i1 [[LOOP_COND]], label [[EXIT:%.*]], label [[LOOP]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  store i16 0, i16* %ptr, align 4
+  br label %loop
+
+loop:                                             ; preds = %loop, %entry
+  %val = phi i16 [ %val.inc, %loop ], [ 0, %entry ]
+  %iv = phi i32 [ %iv.next, %loop ], [ 0, %entry ]
+  %val.inc = add i16 %val, 1
+  store i16 %val.inc, i16* %ptr, align 4
+  %iv.wide = zext i32 %iv to i64
+  call void @foo(i64 %iv.wide)
+  %iv.next = zext i16 %val.inc to i32
   %loop.cond = icmp eq i32 %iv, 1000
   br i1 %loop.cond, label %exit, label %loop
 

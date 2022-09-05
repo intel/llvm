@@ -30,13 +30,14 @@ struct AffineLoopNormalizePass
       if (auto affineParallel = dyn_cast<AffineParallelOp>(op))
         normalizeAffineParallel(affineParallel);
       else if (auto affineFor = dyn_cast<AffineForOp>(op))
-        normalizeAffineFor(affineFor);
+        (void)normalizeAffineFor(affineFor);
     });
   }
 };
 
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createAffineLoopNormalizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createAffineLoopNormalizePass() {
   return std::make_unique<AffineLoopNormalizePass>();
 }

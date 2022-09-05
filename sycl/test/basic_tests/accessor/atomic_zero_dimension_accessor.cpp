@@ -6,7 +6,7 @@
 // especially FPGA which changes some of the template specializations
 // with the __ENABLE_USM_ADDR_SPACE__ macro.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

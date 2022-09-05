@@ -81,7 +81,7 @@ Interface::Interface(const llvm::Record *def) : def(def) {
 
 // Return the name of this interface.
 StringRef Interface::getName() const {
-  return def->getValueAsString("cppClassName");
+  return def->getValueAsString("cppInterfaceName");
 }
 
 // Return the C++ namespace of this interface.
@@ -123,6 +123,10 @@ llvm::Optional<StringRef> Interface::getVerify() const {
     return llvm::None;
   auto value = def->getValueAsString("verify");
   return value.empty() ? llvm::Optional<StringRef>() : value;
+}
+
+bool Interface::verifyWithRegions() const {
+  return def->getValueAsBit("verifyWithRegions");
 }
 
 //===----------------------------------------------------------------------===//

@@ -1,13 +1,13 @@
-// RUN: %clang_cc1 -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
+// RUN: %clang_cc1 -no-opaque-pointers -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
 // RUN:         -triple i686--windows -Oz -emit-llvm %s -o - \
 // RUN:         | FileCheck %s -check-prefixes CHECK,CHECK-I386,CHECK-INTEL
-// RUN: %clang_cc1 -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
+// RUN: %clang_cc1 -no-opaque-pointers -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
 // RUN:         -triple thumbv7--windows -Oz -emit-llvm %s -o - \
 // RUN:         | FileCheck %s --check-prefixes CHECK,CHECK-ARM,CHECK-ARM-ARM64,CHECK-ARM-X64
-// RUN: %clang_cc1 -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
+// RUN: %clang_cc1 -no-opaque-pointers -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
 // RUN:         -triple x86_64--windows -Oz -emit-llvm -target-feature +cx16 %s -o - \
 // RUN:         | FileCheck %s --check-prefixes CHECK,CHECK-X64,CHECK-ARM-X64,CHECK-INTEL,CHECK-64
-// RUN: %clang_cc1 -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
+// RUN: %clang_cc1 -no-opaque-pointers -ffreestanding -fms-extensions -fms-compatibility -fms-compatibility-version=17.00 \
 // RUN:         -triple aarch64-windows -Oz -emit-llvm %s -o - \
 // RUN:         | FileCheck %s --check-prefixes CHECK-ARM-ARM64,CHECK-ARM-X64,CHECK-ARM64,CHECK-64
 
@@ -130,7 +130,7 @@ void test__int2c(void) {
 
 #endif
 
-void *test_ReturnAddress() {
+void *test_ReturnAddress(void) {
   return _ReturnAddress();
 }
 // CHECK-LABEL: define{{.*}}i8* @test_ReturnAddress()
@@ -138,7 +138,7 @@ void *test_ReturnAddress() {
 // CHECK: ret i8*
 
 #if defined(__i386__) || defined(__x86_64__) || defined (__aarch64__)
-void *test_AddressOfReturnAddress() {
+void *test_AddressOfReturnAddress(void) {
   return _AddressOfReturnAddress();
 }
 // CHECK-INTEL-LABEL: define dso_local i8* @test_AddressOfReturnAddress()
@@ -1402,7 +1402,7 @@ __int64 test_InterlockedDecrement64_nf(__int64 volatile *Addend) {
 // CHECK-ARM-ARM64: }
 #endif
 
-void test__fastfail() {
+void test__fastfail(void) {
   __fastfail(42);
 }
 // CHECK-LABEL: define{{.*}} void @test__fastfail()

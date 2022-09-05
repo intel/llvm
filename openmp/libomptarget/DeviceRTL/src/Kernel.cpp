@@ -19,7 +19,7 @@
 
 using namespace _OMP;
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 static void inititializeRuntime(bool IsSPMD) {
   // Order is important here.
@@ -100,7 +100,7 @@ int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
   // doing any work.  mapping::getBlockSize() does not include any of the main
   // thread's warp, so none of its threads can ever be active worker threads.
   if (UseGenericStateMachine &&
-      mapping::getThreadIdInBlock() < mapping::getBlockSize())
+      mapping::getThreadIdInBlock() < mapping::getBlockSize(IsSPMD))
     genericStateMachine(Ident);
 
   return mapping::getThreadIdInBlock();

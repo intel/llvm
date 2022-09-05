@@ -32,7 +32,9 @@ Type mlir::getElementTypeOrSelf(Value val) {
 }
 
 Type mlir::getElementTypeOrSelf(Attribute attr) {
-  return getElementTypeOrSelf(attr.getType());
+  if (auto typedAttr = attr.dyn_cast<TypedAttr>())
+    return getElementTypeOrSelf(typedAttr.getType());
+  return {};
 }
 
 SmallVector<Type, 10> mlir::getFlattenedTypes(TupleType t) {
@@ -125,6 +127,19 @@ LogicalResult mlir::verifyCompatibleShapes(TypeRange types) {
     return success();
   if (!llvm::all_of(shapedTypes, [](auto t) { return t; }))
     return failure();
+
+  // Return failure if some, but not all, are scalable vectors.
+  bool hasScalableVecTypes = false;
+  bool hasNonScalableVecTypes = false;
+  for (Type t : types) {
+    auto vType = t.dyn_cast<VectorType>();
+    if (vType && vType.isScalable())
+      hasScalableVecTypes = true;
+    else
+      hasNonScalableVecTypes = true;
+    if (hasScalableVecTypes && hasNonScalableVecTypes)
+      return failure();
+  }
 
   // Remove all unranked shapes
   auto shapes = llvm::to_vector<8>(llvm::make_filter_range(

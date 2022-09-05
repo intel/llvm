@@ -17,13 +17,12 @@
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/Support/MathExtras.h"
-#include "llvm/ADT/DenseMap.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -31,6 +30,7 @@
 #define DEBUG_TYPE "affine-analysis"
 
 using namespace mlir;
+using namespace presburger;
 
 /// Get the value that is being reduced by `pos`-th reduction in the loop if
 /// such a reduction can be performed by affine parallel loops. This assumes
@@ -115,18 +115,46 @@ bool mlir::isLoopParallel(AffineForOp forOp,
   return isLoopMemoryParallel(forOp);
 }
 
-/// Returns true if `forOp' doesn't have memory dependences preventing
-/// parallelization. This function doesn't check iter_args and should be used
-/// only as a building block for full parallel-checking functions.
+/// Returns true if `v` is allocated locally to `enclosingOp` -- i.e., it is
+/// allocated by an operation nested within `enclosingOp`.
+static bool isLocallyDefined(Value v, Operation *enclosingOp) {
+  Operation *defOp = v.getDefiningOp();
+  if (!defOp)
+    return false;
+
+  if (hasSingleEffect<MemoryEffects::Allocate>(defOp, v) &&
+      enclosingOp->isProperAncestor(defOp))
+    return true;
+
+  // Aliasing ops.
+  auto viewOp = dyn_cast<ViewLikeOpInterface>(defOp);
+  return viewOp && isLocallyDefined(viewOp.getViewSource(), enclosingOp);
+}
+
 bool mlir::isLoopMemoryParallel(AffineForOp forOp) {
+  // Any memref-typed iteration arguments are treated as serializing.
+  if (llvm::any_of(forOp.getResultTypes(),
+                   [](Type type) { return type.isa<BaseMemRefType>(); }))
+    return false;
+
   // Collect all load and store ops in loop nest rooted at 'forOp'.
   SmallVector<Operation *, 8> loadAndStoreOps;
   auto walkResult = forOp.walk([&](Operation *op) -> WalkResult {
-    if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op))
-      loadAndStoreOps.push_back(op);
-    else if (!isa<AffineForOp, AffineYieldOp, AffineIfOp>(op) &&
-             !MemoryEffectOpInterface::hasNoEffect(op))
+    if (auto readOp = dyn_cast<AffineReadOpInterface>(op)) {
+      // Memrefs that are allocated inside `forOp` need not be considered.
+      if (!isLocallyDefined(readOp.getMemRef(), forOp))
+        loadAndStoreOps.push_back(op);
+    } else if (auto writeOp = dyn_cast<AffineWriteOpInterface>(op)) {
+      // Filter out stores the same way as above.
+      if (!isLocallyDefined(writeOp.getMemRef(), forOp))
+        loadAndStoreOps.push_back(op);
+    } else if (!isa<AffineForOp, AffineYieldOp, AffineIfOp>(op) &&
+               !hasSingleEffect<MemoryEffects::Allocate>(op) &&
+               !MemoryEffectOpInterface::hasNoEffect(op)) {
+      // Alloc-like ops inside `forOp` are fine (they don't impact parallelism)
+      // as long as they don't escape the loop (which has been checked above).
       return WalkResult::interrupt();
+    }
 
     return WalkResult::advance();
   });
@@ -201,7 +229,7 @@ void mlir::getReachableAffineApplyOps(
   }
 }
 
-// Builds a system of constraints with dimensional identifiers corresponding to
+// Builds a system of constraints with dimensional variables corresponding to
 // the loop IVs of the forOps appearing in that order. Any symbols founds in
 // the bound operands are added as symbols in the system. Returns failure for
 // the yet unimplemented cases.
@@ -237,7 +265,7 @@ LogicalResult mlir::getIndexSet(MutableArrayRef<Operation *> ops,
 
 /// Computes the iteration domain for 'op' and populates 'indexSet', which
 /// encapsulates the constraints involving loops surrounding 'op' and
-/// potentially involving any Function symbols. The dimensional identifiers in
+/// potentially involving any Function symbols. The dimensional variables in
 /// 'indexSet' correspond to the loops surrounding 'op' from outermost to
 /// innermost.
 static LogicalResult getOpIndexSet(Operation *op,
@@ -255,7 +283,7 @@ getNumCommonLoops(const FlatAffineValueConstraints &srcDomain,
                   SmallVectorImpl<AffineForOp> *commonLoops = nullptr) {
   // Find the number of common loops shared by src and dst accesses.
   unsigned minNumLoops =
-      std::min(srcDomain.getNumDimIds(), dstDomain.getNumDimIds());
+      std::min(srcDomain.getNumDimVars(), dstDomain.getNumDimVars());
   unsigned numCommonLoops = 0;
   for (unsigned i = 0; i < minNumLoops; ++i) {
     if (!isForInductionVar(srcDomain.getValue(i)) ||
@@ -294,9 +322,8 @@ static Block *getCommonBlock(const MemRefAccess &srcAccess,
 
   if (numCommonLoops == 0) {
     Block *block = srcAccess.opInst->getBlock();
-    while (!llvm::isa<FuncOp>(block->getParentOp())) {
+    while (!block->getParentOp()->hasTrait<OpTrait::AffineScope>())
       block = block->getParentOp()->getBlock();
-    }
     return block;
   }
   Value commonForIV = srcDomain.getValue(numCommonLoops - 1);
@@ -354,7 +381,7 @@ addOrderingConstraints(const FlatAffineValueConstraints &srcDomain,
                        FlatAffineValueConstraints *dependenceDomain) {
   unsigned numCols = dependenceDomain->getNumCols();
   SmallVector<int64_t, 4> eq(numCols);
-  unsigned numSrcDims = srcDomain.getNumDimIds();
+  unsigned numSrcDims = srcDomain.getNumDimVars();
   unsigned numCommonLoops = getNumCommonLoops(srcDomain, dstDomain);
   unsigned numCommonLoopConstraints = std::min(numCommonLoops, loopDepth);
   for (unsigned i = 0; i < numCommonLoopConstraints; ++i) {
@@ -386,16 +413,16 @@ static void computeDirectionVector(
   if (numCommonLoops == 0)
     return;
   // Compute direction vectors for requested loop depth.
-  unsigned numIdsToEliminate = dependenceDomain->getNumIds();
+  unsigned numIdsToEliminate = dependenceDomain->getNumVars();
   // Add new variables to 'dependenceDomain' to represent the direction
   // constraints for each shared loop.
-  dependenceDomain->insertDimId(/*pos=*/0, /*num=*/numCommonLoops);
+  dependenceDomain->insertDimVar(/*pos=*/0, /*num=*/numCommonLoops);
 
   // Add equality constraints for each common loop, setting newly introduced
   // variable at column 'j' to the 'dst' IV minus the 'src IV.
   SmallVector<int64_t, 4> eq;
   eq.resize(dependenceDomain->getNumCols());
-  unsigned numSrcDims = srcDomain.getNumDimIds();
+  unsigned numSrcDims = srcDomain.getNumDimVars();
   // Constraint variables format:
   // [num-common-loops][num-src-dim-ids][num-dst-dim-ids][num-symbols][constant]
   for (unsigned j = 0; j < numCommonLoops; ++j) {
@@ -414,14 +441,12 @@ static void computeDirectionVector(
   dependenceComponents->resize(numCommonLoops);
   for (unsigned j = 0; j < numCommonLoops; ++j) {
     (*dependenceComponents)[j].op = commonLoops[j].getOperation();
-    auto lbConst =
-        dependenceDomain->getConstantBound(FlatAffineConstraints::LB, j);
+    auto lbConst = dependenceDomain->getConstantBound(IntegerPolyhedron::LB, j);
     (*dependenceComponents)[j].lb =
-        lbConst.getValueOr(std::numeric_limits<int64_t>::min());
-    auto ubConst =
-        dependenceDomain->getConstantBound(FlatAffineConstraints::UB, j);
+        lbConst.value_or(std::numeric_limits<int64_t>::min());
+    auto ubConst = dependenceDomain->getConstantBound(IntegerPolyhedron::UB, j);
     (*dependenceComponents)[j].ub =
-        ubConst.getValueOr(std::numeric_limits<int64_t>::max());
+        ubConst.value_or(std::numeric_limits<int64_t>::max());
   }
 }
 
@@ -443,20 +468,20 @@ LogicalResult MemRefAccess::getAccessRelation(FlatAffineRelation &rel) const {
   // Merge and align domain ids of `ret` and ids of `domain`. Since the domain
   // of the access map is a subset of the domain of access, the domain ids of
   // `ret` are guranteed to be a subset of ids of `domain`.
-  for (unsigned i = 0, e = domain.getNumDimIds(); i < e; ++i) {
+  for (unsigned i = 0, e = domain.getNumDimVars(); i < e; ++i) {
     unsigned loc;
-    if (rel.findId(domain.getValue(i), &loc)) {
-      rel.swapId(i, loc);
+    if (rel.findVar(domain.getValue(i), &loc)) {
+      rel.swapVar(i, loc);
     } else {
-      rel.insertDomainId(i);
+      rel.insertDomainVar(i);
       rel.setValue(i, domain.getValue(i));
     }
   }
 
-  // Append domain constraints to `ret`.
-  domainRel.appendRangeId(rel.getNumRangeDims());
-  domainRel.mergeSymbolIds(rel);
-  domainRel.mergeLocalIds(rel);
+  // Append domain constraints to `rel`.
+  domainRel.appendRangeVar(rel.getNumRangeDims());
+  domainRel.mergeSymbolVars(rel);
+  domainRel.mergeLocalVars(rel);
   rel.append(domainRel);
 
   return success();
@@ -503,7 +528,7 @@ void MemRefAccess::getAccessMap(AffineValueMap *accessMap) const {
 //
 // This method builds a constraint system with the following column format:
 //
-//  [src-dim-identifiers, dst-dim-identifiers, symbols, constant]
+//  [src-dim-variables, dst-dim-variables, symbols, constant]
 //
 // For example, given the following MLIR code with "source" and "destination"
 // accesses to the same memref label, and symbols %M, %N, %K:

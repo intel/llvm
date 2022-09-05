@@ -9,7 +9,7 @@
 // X64-LABEL: func @returncomplex4() -> !fir.vector<2:!fir.real<4>>
 // AARCH64-LABEL: func @returncomplex4() -> tuple<!fir.real<4>, !fir.real<4>>
 // PPC-LABEL: func @returncomplex4() -> tuple<!fir.real<4>, !fir.real<4>>
-func @returncomplex4() -> !fir.complex<4> {
+func.func @returncomplex4() -> !fir.complex<4> {
   // I32: fir.insert_value
   // I32: [[VAL:%[0-9A-Za-z]+]] = fir.insert_value
   // X64: fir.insert_value
@@ -22,10 +22,10 @@ func @returncomplex4() -> !fir.complex<4> {
   %2 = arith.constant 2.0 : f32
   %3 = fir.convert %2 : (f32) -> !fir.real<4>
   %c0 = arith.constant 0 : i32
-  %4 = fir.insert_value %1, %3, [0 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  %4 = fir.insert_value %1, %3, [0 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
   %c1 = arith.constant 1 : i32
   %5 = arith.constant -42.0 : f32
-  %6 = fir.insert_value %4, %5, [1 : index] : (!fir.complex<4>, f32) -> !fir.complex<4>
+  %6 = fir.insert_value %4, %5, [1 : i32] : (!fir.complex<4>, f32) -> !fir.complex<4>
 
   // I32: [[ADDRI64:%[0-9A-Za-z]+]] = fir.alloca i64
   // I32: [[ADDRC:%[0-9A-Za-z]+]] = fir.convert [[ADDRI64]] : (!fir.ref<i64>) -> !fir.ref<!fir.complex<4>>
@@ -53,11 +53,11 @@ func @returncomplex4() -> !fir.complex<4> {
 // Test that we rewrite the signature and body of a function that returns a
 // complex<8>.
 // I32-LABEL:func @returncomplex8
-// I32-SAME: ([[ARG0:%[0-9A-Za-z]+]]: !fir.ref<tuple<!fir.real<8>, !fir.real<8>>>  {llvm.sret})
+// I32-SAME: ([[ARG0:%[0-9A-Za-z]+]]: !fir.ref<tuple<!fir.real<8>, !fir.real<8>>>  {llvm.align = 4 : i32, llvm.sret})
 // X64-LABEL: func @returncomplex8() -> tuple<!fir.real<8>, !fir.real<8>>
 // AARCH64-LABEL: func @returncomplex8() -> tuple<!fir.real<8>, !fir.real<8>>
 // PPC-LABEL: func @returncomplex8() -> tuple<!fir.real<8>, !fir.real<8>>
-func @returncomplex8() -> !fir.complex<8> {
+func.func @returncomplex8() -> !fir.complex<8> {
   // I32: fir.insert_value
   // I32: [[VAL:%[0-9A-Za-z]+]] = fir.insert_value {{.*}}
   // X64: fir.insert_value
@@ -70,9 +70,9 @@ func @returncomplex8() -> !fir.complex<8> {
   %2 = arith.constant 1.0 : f64
   %3 = arith.constant -4.0 : f64
   %c0 = arith.constant 0 : i32
-  %4 = fir.insert_value %1, %3, [0 : index] : (!fir.complex<8>, f64) -> !fir.complex<8>
+  %4 = fir.insert_value %1, %3, [0 : i32] : (!fir.complex<8>, f64) -> !fir.complex<8>
   %c1 = arith.constant 1 : i32
-  %5 = fir.insert_value %4, %2, [1 : index] : (!fir.complex<8>, f64) -> !fir.complex<8>
+  %5 = fir.insert_value %4, %2, [1 : i32] : (!fir.complex<8>, f64) -> !fir.complex<8>
 
   // I32: [[ADDR:%[0-9A-Za-z]+]] = fir.convert [[ARG0]] : (!fir.ref<tuple<!fir.real<8>, !fir.real<8>>>) -> !fir.ref<!fir.complex<8>>
   // I32: fir.store [[VAL]] to [[ADDR]] : !fir.ref<!fir.complex<8>>
@@ -100,14 +100,14 @@ func @returncomplex8() -> !fir.complex<8> {
 // X64-LABEL: func private @paramcomplex4(!fir.vector<2:!fir.real<4>>)
 // AARCH64-LABEL: func private @paramcomplex4(!fir.array<2x!fir.real<4>>)
 // PPC-LABEL: func private @paramcomplex4(!fir.real<4>, !fir.real<4>)
-func private @paramcomplex4(!fir.complex<4>) -> ()
+func.func private @paramcomplex4(!fir.complex<4>) -> ()
 
 // Test that we rewrite calls to functions that return or accept complex<4>.
 // I32-LABEL: func @callcomplex4()
 // X64-LABEL: func @callcomplex4()
 // AARCH64-LABEL: func @callcomplex4()
 // PPC-LABEL: func @callcomplex4()
-func @callcomplex4() {
+func.func @callcomplex4() {
 
   // I32: [[RES:%[0-9A-Za-z]+]] = fir.call @returncomplex4() : () -> i64
   // X64: [[RES:%[0-9A-Za-z]+]] = fir.call @returncomplex4() : () -> !fir.vector<2:!fir.real<4>>
@@ -148,8 +148,8 @@ func @callcomplex4() {
   // PPC: fir.store [[RES]] to [[ADDRT]] : !fir.ref<tuple<!fir.real<4>, !fir.real<4>>>
   // PPC: [[ADDRC:%[0-9A-Za-z]+]] = fir.convert [[ADDRT]] : (!fir.ref<tuple<!fir.real<4>, !fir.real<4>>>) -> !fir.ref<!fir.complex<4>>
   // PPC: [[V:%[0-9A-Za-z]+]] = fir.load [[ADDRC]] : !fir.ref<!fir.complex<4>>
-  // PPC: [[A:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [0 : index] : (!fir.complex<4>) -> !fir.real<4>
-  // PPC: [[B:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [1 : index] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC: [[A:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [0 : i32] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC: [[B:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [1 : i32] : (!fir.complex<4>) -> !fir.real<4>
   // PPC: fir.call @paramcomplex4([[A]], [[B]]) : (!fir.real<4>, !fir.real<4>) -> ()
   fir.call @paramcomplex4(%1) : (!fir.complex<4>) -> ()
   return
@@ -160,14 +160,14 @@ func @callcomplex4() {
 // X64-LABEL: func private @paramcomplex8(!fir.real<8>, !fir.real<8>)
 // AARCH64-LABEL: func private @paramcomplex8(!fir.array<2x!fir.real<8>>)
 // PPC-LABEL: func private @paramcomplex8(!fir.real<8>, !fir.real<8>)
-func private @paramcomplex8(!fir.complex<8>) -> ()
+func.func private @paramcomplex8(!fir.complex<8>) -> ()
 
 // Test that we rewrite calls to functions that return or accept complex<8>.
 // I32-LABEL: func @callcomplex8()
 // X64-LABEL: func @callcomplex8()
 // AARCH64-LABEL: func @callcomplex8()
 // PPC-LABEL: func @callcomplex8()
-func @callcomplex8() {
+func.func @callcomplex8() {
   // I32: [[RES:%[0-9A-Za-z]+]] = fir.alloca tuple<!fir.real<8>, !fir.real<8>>
   // I32: fir.call @returncomplex8([[RES]]) : (!fir.ref<tuple<!fir.real<8>, !fir.real<8>>>) -> ()
   // X64: [[RES:%[0-9A-Za-z]+]] = fir.call @returncomplex8() : () -> tuple<!fir.real<8>, !fir.real<8>>
@@ -186,8 +186,8 @@ func @callcomplex8() {
   // X64: fir.store [[RES]] to [[ADDRT]] : !fir.ref<tuple<!fir.real<8>, !fir.real<8>>>
   // X64: [[ADDRC:%[0-9A-Za-z]+]] = fir.convert [[ADDRT]] : (!fir.ref<tuple<!fir.real<8>, !fir.real<8>>>) -> !fir.ref<!fir.complex<8>>
   // X64: [[V:%[0-9A-Za-z]+]] = fir.load [[ADDRC]] : !fir.ref<!fir.complex<8>>
-  // X64: [[A:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [0 : index] : (!fir.complex<8>) -> !fir.real<8>
-  // X64: [[B:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [1 : index] : (!fir.complex<8>) -> !fir.real<8>
+  // X64: [[A:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [0 : i32] : (!fir.complex<8>) -> !fir.real<8>
+  // X64: [[B:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [1 : i32] : (!fir.complex<8>) -> !fir.real<8>
   // X64: fir.call @paramcomplex8([[A]], [[B]]) : (!fir.real<8>, !fir.real<8>) -> ()
 
   // AARCH64: [[ADDRT:%[0-9A-Za-z]+]] = fir.alloca tuple<!fir.real<8>, !fir.real<8>>
@@ -204,8 +204,8 @@ func @callcomplex8() {
   // PPC: fir.store [[RES]] to [[ADDRT]] : !fir.ref<tuple<!fir.real<8>, !fir.real<8>>>
   // PPC: [[ADDRC:%[0-9A-Za-z]+]] = fir.convert [[ADDRT]] : (!fir.ref<tuple<!fir.real<8>, !fir.real<8>>>) -> !fir.ref<!fir.complex<8>>
   // PPC: [[V:%[0-9A-Za-z]+]] = fir.load [[ADDRC]] : !fir.ref<!fir.complex<8>>
-  // PPC: [[A:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [0 : index] : (!fir.complex<8>) -> !fir.real<8>
-  // PPC: [[B:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [1 : index] : (!fir.complex<8>) -> !fir.real<8>
+  // PPC: [[A:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [0 : i32] : (!fir.complex<8>) -> !fir.real<8>
+  // PPC: [[B:%[0-9A-Za-z]+]] = fir.extract_value [[V]], [1 : i32] : (!fir.complex<8>) -> !fir.real<8>
   // PPC: fir.call @paramcomplex8([[A]], [[B]]) : (!fir.real<8>, !fir.real<8>) -> ()
   fir.call @paramcomplex8(%1) : (!fir.complex<8>) -> ()
   return
@@ -216,7 +216,7 @@ func @callcomplex8() {
 // X64-LABEL: func private @calleemultipleparamscomplex4(!fir.vector<2:!fir.real<4>>, !fir.vector<2:!fir.real<4>>, !fir.vector<2:!fir.real<4>>)
 // AARCH64-LABEL: func private @calleemultipleparamscomplex4(!fir.array<2x!fir.real<4>>, !fir.array<2x!fir.real<4>>, !fir.array<2x!fir.real<4>>)
 // PPC-LABEL: func private @calleemultipleparamscomplex4(!fir.real<4>, !fir.real<4>, !fir.real<4>, !fir.real<4>, !fir.real<4>, !fir.real<4>)
-func private @calleemultipleparamscomplex4(!fir.complex<4>, !fir.complex<4>, !fir.complex<4>) -> ()
+func.func private @calleemultipleparamscomplex4(!fir.complex<4>, !fir.complex<4>, !fir.complex<4>) -> ()
 
 // I32-LABEL: func @multipleparamscomplex4
 // I32-SAME: ([[Z1:%[0-9A-Za-z]+]]: !fir.ref<tuple<!fir.real<4>, !fir.real<4>>> {llvm.align = 4 : i32, llvm.byval}, [[Z2:%[0-9A-Za-z]+]]: !fir.ref<tuple<!fir.real<4>, !fir.real<4>>> {llvm.align = 4 : i32, llvm.byval}, [[Z3:%[0-9A-Za-z]+]]: !fir.ref<tuple<!fir.real<4>, !fir.real<4>>> {llvm.align = 4 : i32, llvm.byval})
@@ -226,7 +226,7 @@ func private @calleemultipleparamscomplex4(!fir.complex<4>, !fir.complex<4>, !fi
 // AARCH64-SAME: ([[Z1:%[0-9A-Za-z]+]]: !fir.array<2x!fir.real<4>>, [[Z2:%[0-9A-Za-z]+]]: !fir.array<2x!fir.real<4>>, [[Z3:%[0-9A-Za-z]+]]: !fir.array<2x!fir.real<4>>)
 // PPC-LABEL: func @multipleparamscomplex4
 // PPC-SAME: ([[A1:%[0-9A-Za-z]+]]: !fir.real<4>, [[B1:%[0-9A-Za-z]+]]: !fir.real<4>, [[A2:%[0-9A-Za-z]+]]: !fir.real<4>, [[B2:%[0-9A-Za-z]+]]: !fir.real<4>, [[A3:%[0-9A-Za-z]+]]: !fir.real<4>, [[B3:%[0-9A-Za-z]+]]: !fir.real<4>)
-func @multipleparamscomplex4(%z1 : !fir.complex<4>, %z2 : !fir.complex<4>, %z3 : !fir.complex<4>) {
+func.func @multipleparamscomplex4(%z1 : !fir.complex<4>, %z2 : !fir.complex<4>, %z3 : !fir.complex<4>) {
   // I32-DAG: [[Z1_ADDR:%[0-9A-Za-z]+]] = fir.convert [[Z1]] : (!fir.ref<tuple<!fir.real<4>, !fir.real<4>>>) -> !fir.ref<!fir.complex<4>>
   // I32-DAG: [[Z1_VAL:%[0-9A-Za-z]+]] = fir.load [[Z1_ADDR]] : !fir.ref<!fir.complex<4>>
   // I32-DAG: [[Z2_ADDR:%[0-9A-Za-z]+]] = fir.convert [[Z2]] : (!fir.ref<tuple<!fir.real<4>, !fir.real<4>>>) -> !fir.ref<!fir.complex<4>>
@@ -303,21 +303,21 @@ func @multipleparamscomplex4(%z1 : !fir.complex<4>, %z2 : !fir.complex<4>, %z3 :
   // AARCH64: fir.call @calleemultipleparamscomplex4([[Z1_RELOADED]], [[Z2_RELOADED]], [[Z3_RELOADED]]) : (!fir.array<2x!fir.real<4>>, !fir.array<2x!fir.real<4>>, !fir.array<2x!fir.real<4>>) -> ()
 
   // PPC-DAG: [[Z3_EMPTY:%[0-9A-Za-z]+]] = fir.undefined !fir.complex<4>
-  // PPC-DAG: [[Z3_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z3_EMPTY]], [[A3]], [0 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
-  // PPC-DAG: [[Z3:%[0-9A-Za-z]+]] = fir.insert_value [[Z3_PARTIAL]], [[B3]], [1 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  // PPC-DAG: [[Z3_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z3_EMPTY]], [[A3]], [0 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  // PPC-DAG: [[Z3:%[0-9A-Za-z]+]] = fir.insert_value [[Z3_PARTIAL]], [[B3]], [1 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
   // PPC-DAG: [[Z2_EMPTY:%[0-9A-Za-z]+]] = fir.undefined !fir.complex<4>
-  // PPC-DAG: [[Z2_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_EMPTY]], [[A2]], [0 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
-  // PPC-DAG: [[Z2:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_PARTIAL]], [[B2]], [1 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  // PPC-DAG: [[Z2_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_EMPTY]], [[A2]], [0 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  // PPC-DAG: [[Z2:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_PARTIAL]], [[B2]], [1 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
   // PPC-DAG: [[Z1_EMPTY:%[0-9A-Za-z]+]] = fir.undefined !fir.complex<4>
-  // PPC-DAG: [[Z1_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_EMPTY]], [[A1]], [0 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
-  // PPC-DAG: [[Z1:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_PARTIAL]], [[B1]], [1 : index] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  // PPC-DAG: [[Z1_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_EMPTY]], [[A1]], [0 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
+  // PPC-DAG: [[Z1:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_PARTIAL]], [[B1]], [1 : i32] : (!fir.complex<4>, !fir.real<4>) -> !fir.complex<4>
 
-  // PPC-DAG: [[A1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [0 : index] : (!fir.complex<4>) -> !fir.real<4>
-  // PPC-DAG: [[B1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [1 : index] : (!fir.complex<4>) -> !fir.real<4>
-  // PPC-DAG: [[A2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [0 : index] : (!fir.complex<4>) -> !fir.real<4>
-  // PPC-DAG: [[B2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [1 : index] : (!fir.complex<4>) -> !fir.real<4>
-  // PPC-DAG: [[A3_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z3]], [0 : index] : (!fir.complex<4>) -> !fir.real<4>
-  // PPC-DAG: [[B3_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z3]], [1 : index] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC-DAG: [[A1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [0 : i32] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC-DAG: [[B1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [1 : i32] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC-DAG: [[A2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [0 : i32] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC-DAG: [[B2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [1 : i32] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC-DAG: [[A3_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z3]], [0 : i32] : (!fir.complex<4>) -> !fir.real<4>
+  // PPC-DAG: [[B3_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z3]], [1 : i32] : (!fir.complex<4>) -> !fir.real<4>
 
   // PPC: fir.call @calleemultipleparamscomplex4([[A1_EXTR]], [[B1_EXTR]], [[A2_EXTR]], [[B2_EXTR]], [[A3_EXTR]], [[B3_EXTR]]) : (!fir.real<4>, !fir.real<4>, !fir.real<4>, !fir.real<4>, !fir.real<4>, !fir.real<4>) -> ()
 
@@ -340,7 +340,7 @@ func @multipleparamscomplex4(%z1 : !fir.complex<4>, %z2 : !fir.complex<4>, %z3 :
 // PPC-LABEL: func private @mlircomplexf32
 // PPC-SAME: ([[A1:%[0-9A-Za-z]+]]: f32, [[B1:%[0-9A-Za-z]+]]: f32, [[A2:%[0-9A-Za-z]+]]: f32, [[B2:%[0-9A-Za-z]+]]: f32)
 // PPC-SAME: -> tuple<f32, f32>
-func private @mlircomplexf32(%z1: complex<f32>, %z2: complex<f32>) -> complex<f32> {
+func.func private @mlircomplexf32(%z1: complex<f32>, %z2: complex<f32>) -> complex<f32> {
 
   // I32-DAG: [[Z1_ADDR:%[0-9A-Za-z]+]] = fir.convert [[Z1]] : (!fir.ref<tuple<f32, f32>>) -> !fir.ref<complex<f32>>
   // I32-DAG: [[Z1_VAL:%[0-9A-Za-z]+]] = fir.load [[Z1_ADDR]] : !fir.ref<complex<f32>>
@@ -397,16 +397,16 @@ func private @mlircomplexf32(%z1: complex<f32>, %z2: complex<f32>) -> complex<f3
   // AARCH64: [[VAL:%[0-9A-Za-z]+]] = fir.call @mlircomplexf32([[Z1_RELOADED]], [[Z2_RELOADED]]) : (!fir.array<2xf32>, !fir.array<2xf32>) -> tuple<f32, f32>
 
   // PPC-DAG: [[Z2_EMPTY:%[0-9A-Za-z]+]] = fir.undefined complex<f32>
-  // PPC-DAG: [[Z2_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_EMPTY]], [[A2]], [0 : index] : (complex<f32>, f32) -> complex<f32>
-  // PPC-DAG: [[Z2:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_PARTIAL]], [[B2]], [1 : index] : (complex<f32>, f32) -> complex<f32>
+  // PPC-DAG: [[Z2_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_EMPTY]], [[A2]], [0 : i32] : (complex<f32>, f32) -> complex<f32>
+  // PPC-DAG: [[Z2:%[0-9A-Za-z]+]] = fir.insert_value [[Z2_PARTIAL]], [[B2]], [1 : i32] : (complex<f32>, f32) -> complex<f32>
   // PPC-DAG: [[Z1_EMPTY:%[0-9A-Za-z]+]] = fir.undefined complex<f32>
-  // PPC-DAG: [[Z1_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_EMPTY]], [[A1]], [0 : index] : (complex<f32>, f32) -> complex<f32>
-  // PPC-DAG: [[Z1:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_PARTIAL]], [[B1]], [1 : index] : (complex<f32>, f32) -> complex<f32>
+  // PPC-DAG: [[Z1_PARTIAL:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_EMPTY]], [[A1]], [0 : i32] : (complex<f32>, f32) -> complex<f32>
+  // PPC-DAG: [[Z1:%[0-9A-Za-z]+]] = fir.insert_value [[Z1_PARTIAL]], [[B1]], [1 : i32] : (complex<f32>, f32) -> complex<f32>
 
-  // PPC-DAG: [[A1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [0 : index] : (complex<f32>) -> f32
-  // PPC-DAG: [[B1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [1 : index] : (complex<f32>) -> f32
-  // PPC-DAG: [[A2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [0 : index] : (complex<f32>) -> f32
-  // PPC-DAG: [[B2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [1 : index] : (complex<f32>) -> f32
+  // PPC-DAG: [[A1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [0 : i32] : (complex<f32>) -> f32
+  // PPC-DAG: [[B1_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z1]], [1 : i32] : (complex<f32>) -> f32
+  // PPC-DAG: [[A2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [0 : i32] : (complex<f32>) -> f32
+  // PPC-DAG: [[B2_EXTR:%[0-9A-Za-z]+]] = fir.extract_value [[Z2]], [1 : i32] : (complex<f32>) -> f32
 
   // PPC: [[VAL:%[0-9A-Za-z]+]] = fir.call @mlircomplexf32([[A1_EXTR]], [[B1_EXTR]], [[A2_EXTR]], [[B2_EXTR]]) : (f32, f32, f32, f32) -> tuple<f32, f32>
   %0 = fir.call @mlircomplexf32(%z1, %z2) : (complex<f32>, complex<f32>) -> complex<f32>
@@ -459,7 +459,7 @@ func private @mlircomplexf32(%z1: complex<f32>, %z2: complex<f32>) -> complex<f3
 // X64-LABEL: func @addrof()
 // AARCH64-LABEL: func @addrof()
 // PPC-LABEL: func @addrof()
-func @addrof() {
+func.func @addrof() {
   // I32: {{%.*}} = fir.address_of(@returncomplex4) : () -> i64
   // X64: {{%.*}} = fir.address_of(@returncomplex4) : () -> !fir.vector<2:!fir.real<4>>
   // AARCH64: {{%.*}} = fir.address_of(@returncomplex4) : () -> tuple<!fir.real<4>, !fir.real<4>>

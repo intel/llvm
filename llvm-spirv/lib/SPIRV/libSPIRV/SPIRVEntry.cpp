@@ -275,8 +275,8 @@ void SPIRVEntry::addDecorate(Decoration Kind) {
 
 void SPIRVEntry::addDecorate(Decoration Kind, SPIRVWord Literal) {
   switch (static_cast<int>(Kind)) {
-  case internal::DecorationAliasScopeINTEL:
-  case internal::DecorationNoAliasINTEL:
+  case DecorationAliasScopeINTEL:
+  case DecorationNoAliasINTEL:
     addDecorate(new SPIRVDecorateId(Kind, this, Literal));
     return;
   default:
@@ -521,7 +521,8 @@ void SPIRVEntry::updateModuleVersion() const {
   if (!Module)
     return;
 
-  Module->setMinSPIRVVersion(getRequiredSPIRVVersion());
+  Module->setMinSPIRVVersion(
+      static_cast<VersionNumber>(getRequiredSPIRVVersion()));
 }
 
 spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E) {

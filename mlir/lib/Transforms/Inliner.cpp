@@ -16,8 +16,10 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/IR/Threading.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Support/DebugStringHelper.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -363,6 +365,31 @@ static void collectCallOps(iterator_range<Region::iterator> blocks,
 //===----------------------------------------------------------------------===//
 // Inliner
 //===----------------------------------------------------------------------===//
+
+#ifndef NDEBUG
+static std::string getNodeName(CallOpInterface op) {
+  if (auto sym = op.getCallableForCallee().dyn_cast<SymbolRefAttr>())
+    return debugString(op);
+  return "_unnamed_callee_";
+}
+#endif
+
+/// Return true if the specified `inlineHistoryID`  indicates an inline history
+/// that already includes `node`.
+static bool inlineHistoryIncludes(
+    CallGraphNode *node, Optional<size_t> inlineHistoryID,
+    MutableArrayRef<std::pair<CallGraphNode *, Optional<size_t>>>
+        inlineHistory) {
+  while (inlineHistoryID.has_value()) {
+    assert(inlineHistoryID.value() < inlineHistory.size() &&
+           "Invalid inline history ID");
+    if (inlineHistory[inlineHistoryID.value()].first == node)
+      return true;
+    inlineHistoryID = inlineHistory[inlineHistoryID.value()].second;
+  }
+  return false;
+}
+
 namespace {
 /// This class provides a specialization of the main inlining interface.
 struct Inliner : public InlinerInterface {
@@ -453,23 +480,43 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
     }
   }
 
+  // When inlining a callee produces new call sites, we want to keep track of
+  // the fact that they were inlined from the callee. This allows us to avoid
+  // infinite inlining.
+  using InlineHistoryT = Optional<size_t>;
+  SmallVector<std::pair<CallGraphNode *, InlineHistoryT>, 8> inlineHistory;
+  std::vector<InlineHistoryT> callHistory(calls.size(), InlineHistoryT{});
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "* Inliner: Initial calls in SCC are: {\n";
+    for (unsigned i = 0, e = calls.size(); i < e; ++i)
+      llvm::dbgs() << "  " << i << ". " << calls[i].call << ",\n";
+    llvm::dbgs() << "}\n";
+  });
+
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
   bool inlinedAnyCalls = false;
-  for (unsigned i = 0; i != calls.size(); ++i) {
+  for (unsigned i = 0; i < calls.size(); ++i) {
     if (deadNodes.contains(calls[i].sourceNode))
       continue;
     ResolvedCall it = calls[i];
-    bool doInline = shouldInline(it);
+
+    InlineHistoryT inlineHistoryID = callHistory[i];
+    bool inHistory =
+        inlineHistoryIncludes(it.targetNode, inlineHistoryID, inlineHistory);
+    bool doInline = !inHistory && shouldInline(it);
     CallOpInterface call = it.call;
     LLVM_DEBUG({
       if (doInline)
-        llvm::dbgs() << "* Inlining call: " << call << "\n";
+        llvm::dbgs() << "* Inlining call: " << i << ". " << call << "\n";
       else
-        llvm::dbgs() << "* Not inlining call: " << call << "\n";
+        llvm::dbgs() << "* Not inlining call: " << i << ". " << call << "\n";
     });
     if (!doInline)
       continue;
+
+    unsigned prevSize = calls.size();
     Region *targetRegion = it.targetNode->getCallableRegion();
 
     // If this is the last call to the target node and the node is discardable,
@@ -484,6 +531,29 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
       continue;
     }
     inlinedAnyCalls = true;
+
+    // Create a inline history entry for this inlined call, so that we remember
+    // that new callsites came about due to inlining Callee.
+    InlineHistoryT newInlineHistoryID{inlineHistory.size()};
+    inlineHistory.push_back(std::make_pair(it.targetNode, inlineHistoryID));
+
+    auto historyToString = [](InlineHistoryT h) {
+      return h.has_value() ? std::to_string(h.value()) : "root";
+    };
+    (void)historyToString;
+    LLVM_DEBUG(llvm::dbgs()
+               << "* new inlineHistory entry: " << newInlineHistoryID << ". ["
+               << getNodeName(call) << ", " << historyToString(inlineHistoryID)
+               << "]\n");
+
+    for (unsigned k = prevSize; k != calls.size(); ++k) {
+      callHistory.push_back(newInlineHistoryID);
+      LLVM_DEBUG(llvm::dbgs() << "* new call " << k << " {" << calls[i].call
+                              << "}\n   with historyID = " << newInlineHistoryID
+                              << ", added due to inlining of\n  call {" << call
+                              << "}\n with historyID = "
+                              << historyToString(inlineHistoryID) << "\n");
+    }
 
     // If the inlining was successful, Merge the new uses into the source node.
     useList.dropCallUses(it.sourceNode, call.getOperation(), cg);
@@ -584,14 +654,8 @@ InlinerPass::InlinerPass(std::function<void(OpPassManager &)> defaultPipeline,
     return;
 
   // Update the option for the op specific optimization pipelines.
-  for (auto &it : opPipelines) {
-    std::string pipeline;
-    llvm::raw_string_ostream pipelineOS(pipeline);
-    pipelineOS << it.getKey() << "(";
-    it.second.printAsTextualPipeline(pipelineOS);
-    pipelineOS << ")";
-    opPipelineStrs.addValue(pipeline);
-  }
+  for (auto &it : opPipelines)
+    opPipelineList.addValue(it.second);
   this->opPipelines.emplace_back(std::move(opPipelines));
 }
 
@@ -739,6 +803,7 @@ LogicalResult InlinerPass::initializeOptions(StringRef options) {
     return failure();
 
   // Initialize the default pipeline builder to use the option string.
+  // TODO: Use a generic pass manager for default pipelines, and remove this.
   if (!defaultPipelineStr.empty()) {
     std::string defaultPipelineCopy = defaultPipelineStr;
     defaultPipeline = [=](OpPassManager &pm) {
@@ -750,15 +815,9 @@ LogicalResult InlinerPass::initializeOptions(StringRef options) {
 
   // Initialize the op specific pass pipelines.
   llvm::StringMap<OpPassManager> pipelines;
-  for (StringRef pipeline : opPipelineStrs) {
-    // Skip empty pipelines.
-    if (pipeline.empty())
-      continue;
-    FailureOr<OpPassManager> pm = parsePassPipeline(pipeline);
-    if (failed(pm))
-      return failure();
-    pipelines.try_emplace(pm->getOpName(), std::move(*pm));
-  }
+  for (OpPassManager pipeline : opPipelineList)
+    if (!pipeline.empty())
+      pipelines.try_emplace(pipeline.getOpAnchorName(), pipeline);
   opPipelines.assign({std::move(pipelines)});
 
   return success();

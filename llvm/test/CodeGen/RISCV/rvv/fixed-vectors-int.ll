@@ -3,6 +3,8 @@
 ; RUN: llc -mtriple=riscv64 -mattr=+v -riscv-v-vector-bits-min=128 -riscv-v-fixed-length-vector-lmul-max=2 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,RV64,LMULMAX2,LMULMAX2-RV64
 ; RUN: llc -mtriple=riscv32 -mattr=+v -riscv-v-vector-bits-min=128 -riscv-v-fixed-length-vector-lmul-max=1 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,RV32,LMULMAX1,LMULMAX1-RV32
 ; RUN: llc -mtriple=riscv64 -mattr=+v -riscv-v-vector-bits-min=128 -riscv-v-fixed-length-vector-lmul-max=1 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,RV64,LMULMAX1,LMULMAX1-RV64
+; RUN: llc -mtriple=riscv32 -mattr=+v,+zvl128b -riscv-v-vector-bits-min=-1 -riscv-v-fixed-length-vector-lmul-max=1 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,RV32,LMULMAX1,LMULMAX1-RV32
+; RUN: llc -mtriple=riscv64 -mattr=+v,+zvl128b -riscv-v-vector-bits-min=-1 -riscv-v-fixed-length-vector-lmul-max=1 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,RV64,LMULMAX1,LMULMAX1-RV64
 
 define void @add_v16i8(<16 x i8>* %x, <16 x i8>* %y) {
 ; CHECK-LABEL: add_v16i8:
@@ -944,9 +946,7 @@ define void @mulhu_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    li a1, 1
 ; CHECK-NEXT:    vmv.s.x v9, a1
 ; CHECK-NEXT:    li a1, 33
-; CHECK-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; CHECK-NEXT:    vmv.s.x v0, a1
-; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; CHECK-NEXT:    vmv.v.i v10, 3
 ; CHECK-NEXT:    vmerge.vim v10, v10, 2, v0
 ; CHECK-NEXT:    vsetivli zero, 7, e16, m1, tu, mu
@@ -1032,15 +1032,15 @@ define void @mulhu_v2i64(<2 x i64>* %x) {
 ;
 ; RV64-LABEL: mulhu_v2i64:
 ; RV64:       # %bb.0:
-; RV64-NEXT:    lui a1, %hi(.LCPI55_0)
-; RV64-NEXT:    ld a1, %lo(.LCPI55_0)(a1)
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
-; RV64-NEXT:    lui a2, %hi(.LCPI55_1)
-; RV64-NEXT:    ld a2, %lo(.LCPI55_1)(a2)
-; RV64-NEXT:    vmv.v.x v8, a1
+; RV64-NEXT:    lui a1, %hi(.LCPI55_0)
+; RV64-NEXT:    addi a1, a1, %lo(.LCPI55_0)
+; RV64-NEXT:    vlse64.v v8, (a1), zero
+; RV64-NEXT:    lui a1, %hi(.LCPI55_1)
+; RV64-NEXT:    ld a1, %lo(.LCPI55_1)(a1)
 ; RV64-NEXT:    vle64.v v9, (a0)
 ; RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
-; RV64-NEXT:    vmv.s.x v8, a2
+; RV64-NEXT:    vmv.s.x v8, a1
 ; RV64-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; RV64-NEXT:    vmulhu.vv v8, v9, v8
 ; RV64-NEXT:    vid.v v9
@@ -1106,11 +1106,9 @@ define void @mulhs_v8i16(<8 x i16>* %x) {
 ; RV32-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; RV32-NEXT:    vle16.v v8, (a0)
 ; RV32-NEXT:    li a1, 105
-; RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; RV32-NEXT:    vmv.s.x v0, a1
 ; RV32-NEXT:    lui a1, 5
 ; RV32-NEXT:    addi a1, a1, -1755
-; RV32-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; RV32-NEXT:    vmv.v.x v9, a1
 ; RV32-NEXT:    lui a1, 1048571
 ; RV32-NEXT:    addi a1, a1, 1755
@@ -1127,11 +1125,9 @@ define void @mulhs_v8i16(<8 x i16>* %x) {
 ; RV64-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; RV64-NEXT:    vle16.v v8, (a0)
 ; RV64-NEXT:    li a1, 105
-; RV64-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; RV64-NEXT:    vmv.s.x v0, a1
 ; RV64-NEXT:    lui a1, 5
 ; RV64-NEXT:    addiw a1, a1, -1755
-; RV64-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; RV64-NEXT:    vmv.v.x v9, a1
 ; RV64-NEXT:    lui a1, 1048571
 ; RV64-NEXT:    addiw a1, a1, 1755
@@ -1154,11 +1150,9 @@ define void @mulhs_v4i32(<4 x i32>* %x) {
 ; RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; RV32-NEXT:    vle32.v v8, (a0)
 ; RV32-NEXT:    li a1, 5
-; RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; RV32-NEXT:    vmv.s.x v0, a1
 ; RV32-NEXT:    lui a1, 419430
 ; RV32-NEXT:    addi a1, a1, 1639
-; RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; RV32-NEXT:    vmv.v.x v9, a1
 ; RV32-NEXT:    lui a1, 629146
 ; RV32-NEXT:    addi a1, a1, -1639
@@ -1172,12 +1166,12 @@ define void @mulhs_v4i32(<4 x i32>* %x) {
 ;
 ; RV64-LABEL: mulhs_v4i32:
 ; RV64:       # %bb.0:
-; RV64-NEXT:    lui a1, %hi(.LCPI58_0)
-; RV64-NEXT:    ld a1, %lo(.LCPI58_0)(a1)
 ; RV64-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; RV64-NEXT:    vle32.v v8, (a0)
+; RV64-NEXT:    lui a1, %hi(.LCPI58_0)
+; RV64-NEXT:    addi a1, a1, %lo(.LCPI58_0)
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
-; RV64-NEXT:    vmv.v.x v9, a1
+; RV64-NEXT:    vlse64.v v9, (a1), zero
 ; RV64-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; RV64-NEXT:    vmulh.vv v8, v8, v9
 ; RV64-NEXT:    vsra.vi v8, v8, 1
@@ -1212,8 +1206,8 @@ define void @mulhs_v2i64(<2 x i64>* %x) {
 ; RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV32-NEXT:    vmadd.vv v10, v8, v9
 ; RV32-NEXT:    li a1, 1
-; RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; RV32-NEXT:    vmv.s.x v8, a1
+; RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; RV32-NEXT:    vmv.v.i v9, 0
 ; RV32-NEXT:    vsetivli zero, 3, e32, m1, tu, mu
 ; RV32-NEXT:    vslideup.vi v9, v8, 2
@@ -1227,15 +1221,15 @@ define void @mulhs_v2i64(<2 x i64>* %x) {
 ;
 ; RV64-LABEL: mulhs_v2i64:
 ; RV64:       # %bb.0:
-; RV64-NEXT:    lui a1, %hi(.LCPI59_0)
-; RV64-NEXT:    ld a1, %lo(.LCPI59_0)(a1)
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
-; RV64-NEXT:    lui a2, %hi(.LCPI59_1)
-; RV64-NEXT:    ld a2, %lo(.LCPI59_1)(a2)
-; RV64-NEXT:    vmv.v.x v8, a1
+; RV64-NEXT:    lui a1, %hi(.LCPI59_0)
+; RV64-NEXT:    addi a1, a1, %lo(.LCPI59_0)
+; RV64-NEXT:    vlse64.v v8, (a1), zero
+; RV64-NEXT:    lui a1, %hi(.LCPI59_1)
+; RV64-NEXT:    ld a1, %lo(.LCPI59_1)(a1)
 ; RV64-NEXT:    vle64.v v9, (a0)
 ; RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
-; RV64-NEXT:    vmv.s.x v8, a2
+; RV64-NEXT:    vmv.s.x v8, a1
 ; RV64-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; RV64-NEXT:    vmulh.vv v8, v9, v8
 ; RV64-NEXT:    vid.v v10
@@ -1321,6 +1315,105 @@ define void @smin_v2i64(<2 x i64>* %x, <2 x i64>* %y) {
   ret void
 }
 
+define void @smin_vx_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: smin_vx_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vmin.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.smin.v16i8(<16 x i8> %a, <16 x i8> %c)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+declare <16 x i8> @llvm.smin.v16i8(<16 x i8>, <16 x i8>)
+
+define void @smin_vx_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: smin_vx_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vmin.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.smin.v8i16(<8 x i16> %a, <8 x i16> %c)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+declare <8 x i16> @llvm.smin.v8i16(<8 x i16>, <8 x i16>)
+
+define void @smin_vx_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: smin_vx_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vmin.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.smin.v4i32(<4 x i32> %a, <4 x i32> %c)
+  store <4 x i32> %d, <4 x i32>* %x
+  ret void
+}
+declare <4 x i32> @llvm.smin.v4i32(<4 x i32>, <4 x i32>)
+
+define void @smin_xv_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: smin_xv_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vmin.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.smin.v16i8(<16 x i8> %c, <16 x i8> %a)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+
+define void @smin_xv_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: smin_xv_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vmin.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.smin.v8i16(<8 x i16> %c, <8 x i16> %a)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+
+define void @smin_xv_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: smin_xv_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vmin.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.smin.v4i32(<4 x i32> %c, <4 x i32> %a)
+  store <4 x i32> %d, <4 x i32>* %x
+  ret void
+}
+
 define void @smax_v16i8(<16 x i8>* %x, <16 x i8>* %y) {
 ; CHECK-LABEL: smax_v16i8:
 ; CHECK:       # %bb.0:
@@ -1386,6 +1479,105 @@ define void @smax_v2i64(<2 x i64>* %x, <2 x i64>* %y) {
   %cc = icmp sgt <2 x i64> %a, %b
   %c = select <2 x i1> %cc, <2 x i64> %a, <2 x i64> %b
   store <2 x i64> %c, <2 x i64>* %x
+  ret void
+}
+
+define void @smax_vx_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: smax_vx_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vmax.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.smax.v16i8(<16 x i8> %a, <16 x i8> %c)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+declare <16 x i8> @llvm.smax.v16i8(<16 x i8>, <16 x i8>)
+
+define void @smax_vx_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: smax_vx_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vmax.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.smax.v8i16(<8 x i16> %a, <8 x i16> %c)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+declare <8 x i16> @llvm.smax.v8i16(<8 x i16>, <8 x i16>)
+
+define void @smax_vx_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: smax_vx_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vmax.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.smax.v4i32(<4 x i32> %a, <4 x i32> %c)
+  store <4 x i32> %d, <4 x i32>* %x
+  ret void
+}
+declare <4 x i32> @llvm.smax.v4i32(<4 x i32>, <4 x i32>)
+
+define void @smax_xv_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: smax_xv_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vmax.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.smax.v16i8(<16 x i8> %c, <16 x i8> %a)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+
+define void @smax_xv_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: smax_xv_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vmax.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.smax.v8i16(<8 x i16> %c, <8 x i16> %a)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+
+define void @smax_xv_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: smax_xv_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vmax.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.smax.v4i32(<4 x i32> %c, <4 x i32> %a)
+  store <4 x i32> %d, <4 x i32>* %x
   ret void
 }
 
@@ -1457,6 +1649,105 @@ define void @umin_v2i64(<2 x i64>* %x, <2 x i64>* %y) {
   ret void
 }
 
+define void @umin_vx_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: umin_vx_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vminu.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.umin.v16i8(<16 x i8> %a, <16 x i8> %c)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+declare <16 x i8> @llvm.umin.v16i8(<16 x i8>, <16 x i8>)
+
+define void @umin_vx_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: umin_vx_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vminu.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.umin.v8i16(<8 x i16> %a, <8 x i16> %c)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+declare <8 x i16> @llvm.umin.v8i16(<8 x i16>, <8 x i16>)
+
+define void @umin_vx_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: umin_vx_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vminu.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.umin.v4i32(<4 x i32> %a, <4 x i32> %c)
+  store <4 x i32> %d, <4 x i32>* %x
+  ret void
+}
+declare <4 x i32> @llvm.umin.v4i32(<4 x i32>, <4 x i32>)
+
+define void @umin_xv_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: umin_xv_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vminu.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.umin.v16i8(<16 x i8> %c, <16 x i8> %a)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+
+define void @umin_xv_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: umin_xv_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vminu.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.umin.v8i16(<8 x i16> %c, <8 x i16> %a)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+
+define void @umin_xv_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: umin_xv_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vminu.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.umin.v4i32(<4 x i32> %c, <4 x i32> %a)
+  store <4 x i32> %d, <4 x i32>* %x
+  ret void
+}
+
 define void @umax_v16i8(<16 x i8>* %x, <16 x i8>* %y) {
 ; CHECK-LABEL: umax_v16i8:
 ; CHECK:       # %bb.0:
@@ -1522,6 +1813,105 @@ define void @umax_v2i64(<2 x i64>* %x, <2 x i64>* %y) {
   %cc = icmp ugt <2 x i64> %a, %b
   %c = select <2 x i1> %cc, <2 x i64> %a, <2 x i64> %b
   store <2 x i64> %c, <2 x i64>* %x
+  ret void
+}
+
+define void @umax_vx_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: umax_vx_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vmaxu.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.umax.v16i8(<16 x i8> %a, <16 x i8> %c)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+declare <16 x i8> @llvm.umax.v16i8(<16 x i8>, <16 x i8>)
+
+define void @umax_vx_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: umax_vx_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vmaxu.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.umax.v8i16(<8 x i16> %a, <8 x i16> %c)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+declare <8 x i16> @llvm.umax.v8i16(<8 x i16>, <8 x i16>)
+
+define void @umax_vx_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: umax_vx_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vmaxu.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.umax.v4i32(<4 x i32> %a, <4 x i32> %c)
+  store <4 x i32> %d, <4 x i32>* %x
+  ret void
+}
+declare <4 x i32> @llvm.umax.v4i32(<4 x i32>, <4 x i32>)
+
+define void @umax_xv_v16i8(<16 x i8>* %x, i8 %y) {
+; CHECK-LABEL: umax_xv_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vle8.v v8, (a0)
+; CHECK-NEXT:    vmaxu.vx v8, v8, a1
+; CHECK-NEXT:    vse8.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <16 x i8>, <16 x i8>* %x
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
+  %d = call <16 x i8> @llvm.umax.v16i8(<16 x i8> %c, <16 x i8> %a)
+  store <16 x i8> %d, <16 x i8>* %x
+  ret void
+}
+
+define void @umax_xv_v8i16(<8 x i16>* %x, i16 %y) {
+; CHECK-LABEL: umax_xv_v8i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
+; CHECK-NEXT:    vle16.v v8, (a0)
+; CHECK-NEXT:    vmaxu.vx v8, v8, a1
+; CHECK-NEXT:    vse16.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <8 x i16>, <8 x i16>* %x
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
+  %d = call <8 x i16> @llvm.umax.v8i16(<8 x i16> %c, <8 x i16> %a)
+  store <8 x i16> %d, <8 x i16>* %x
+  ret void
+}
+
+define void @umax_xv_v4i32(<4 x i32>* %x, i32 %y) {
+; CHECK-LABEL: umax_xv_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vle32.v v8, (a0)
+; CHECK-NEXT:    vmaxu.vx v8, v8, a1
+; CHECK-NEXT:    vse32.v v8, (a0)
+; CHECK-NEXT:    ret
+  %a = load <4 x i32>, <4 x i32>* %x
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
+  %d = call <4 x i32> @llvm.umax.v4i32(<4 x i32> %c, <4 x i32> %a)
+  store <4 x i32> %d, <4 x i32>* %x
   ret void
 }
 
@@ -3974,8 +4364,8 @@ define void @mulhu_v32i8(<32 x i8>* %x) {
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 1, e32, mf2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v0, a2
 ; LMULMAX2-RV32-NEXT:    vsetvli zero, a1, e8, m2, ta, mu
-; LMULMAX2-RV32-NEXT:    lui a2, %hi(.LCPI129_0)
-; LMULMAX2-RV32-NEXT:    addi a2, a2, %lo(.LCPI129_0)
+; LMULMAX2-RV32-NEXT:    lui a2, %hi(.LCPI153_0)
+; LMULMAX2-RV32-NEXT:    addi a2, a2, %lo(.LCPI153_0)
 ; LMULMAX2-RV32-NEXT:    vle8.v v10, (a2)
 ; LMULMAX2-RV32-NEXT:    vmv.v.i v12, 0
 ; LMULMAX2-RV32-NEXT:    vmerge.vim v14, v12, 1, v0
@@ -4024,8 +4414,8 @@ define void @mulhu_v32i8(<32 x i8>* %x) {
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 1, e32, mf2, ta, mu
 ; LMULMAX2-RV64-NEXT:    vmv.s.x v0, a2
 ; LMULMAX2-RV64-NEXT:    vsetvli zero, a1, e8, m2, ta, mu
-; LMULMAX2-RV64-NEXT:    lui a2, %hi(.LCPI129_0)
-; LMULMAX2-RV64-NEXT:    addi a2, a2, %lo(.LCPI129_0)
+; LMULMAX2-RV64-NEXT:    lui a2, %hi(.LCPI153_0)
+; LMULMAX2-RV64-NEXT:    addi a2, a2, %lo(.LCPI153_0)
 ; LMULMAX2-RV64-NEXT:    vle8.v v10, (a2)
 ; LMULMAX2-RV64-NEXT:    vmv.v.i v12, 0
 ; LMULMAX2-RV64-NEXT:    vmerge.vim v14, v12, 1, v0
@@ -4069,8 +4459,8 @@ define void @mulhu_v32i8(<32 x i8>* %x) {
 ; LMULMAX1-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
 ; LMULMAX1-NEXT:    addi a1, a0, 16
 ; LMULMAX1-NEXT:    vle8.v v8, (a1)
-; LMULMAX1-NEXT:    lui a2, %hi(.LCPI129_0)
-; LMULMAX1-NEXT:    addi a2, a2, %lo(.LCPI129_0)
+; LMULMAX1-NEXT:    lui a2, %hi(.LCPI153_0)
+; LMULMAX1-NEXT:    addi a2, a2, %lo(.LCPI153_0)
 ; LMULMAX1-NEXT:    vle8.v v9, (a2)
 ; LMULMAX1-NEXT:    vle8.v v10, (a0)
 ; LMULMAX1-NEXT:    vdivu.vv v8, v8, v9
@@ -4102,8 +4492,8 @@ define void @mulhu_v16i16(<16 x i16>* %x) {
 ; LMULMAX2-RV32-NEXT:    li a1, 257
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v0, a1
 ; LMULMAX2-RV32-NEXT:    vmv.v.i v14, 0
-; LMULMAX2-RV32-NEXT:    lui a1, %hi(.LCPI130_0)
-; LMULMAX2-RV32-NEXT:    addi a1, a1, %lo(.LCPI130_0)
+; LMULMAX2-RV32-NEXT:    lui a1, %hi(.LCPI154_0)
+; LMULMAX2-RV32-NEXT:    addi a1, a1, %lo(.LCPI154_0)
 ; LMULMAX2-RV32-NEXT:    vle16.v v16, (a1)
 ; LMULMAX2-RV32-NEXT:    lui a1, 1048568
 ; LMULMAX2-RV32-NEXT:    vmerge.vxm v18, v14, a1, v0
@@ -4135,8 +4525,8 @@ define void @mulhu_v16i16(<16 x i16>* %x) {
 ; LMULMAX2-RV64-NEXT:    li a1, 257
 ; LMULMAX2-RV64-NEXT:    vmv.s.x v0, a1
 ; LMULMAX2-RV64-NEXT:    vmv.v.i v14, 0
-; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI130_0)
-; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI130_0)
+; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI154_0)
+; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI154_0)
 ; LMULMAX2-RV64-NEXT:    vle16.v v16, (a1)
 ; LMULMAX2-RV64-NEXT:    lui a1, 1048568
 ; LMULMAX2-RV64-NEXT:    vmerge.vxm v18, v14, a1, v0
@@ -4156,8 +4546,8 @@ define void @mulhu_v16i16(<16 x i16>* %x) {
 ; LMULMAX1-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; LMULMAX1-NEXT:    addi a1, a0, 16
 ; LMULMAX1-NEXT:    vle16.v v8, (a1)
-; LMULMAX1-NEXT:    lui a2, %hi(.LCPI130_0)
-; LMULMAX1-NEXT:    addi a2, a2, %lo(.LCPI130_0)
+; LMULMAX1-NEXT:    lui a2, %hi(.LCPI154_0)
+; LMULMAX1-NEXT:    addi a2, a2, %lo(.LCPI154_0)
 ; LMULMAX1-NEXT:    vle16.v v9, (a2)
 ; LMULMAX1-NEXT:    vle16.v v10, (a0)
 ; LMULMAX1-NEXT:    vdivu.vv v8, v8, v9
@@ -4177,11 +4567,9 @@ define void @mulhu_v8i32(<8 x i32>* %x) {
 ; LMULMAX2-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-NEXT:    vle32.v v8, (a0)
 ; LMULMAX2-NEXT:    li a1, 68
-; LMULMAX2-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-NEXT:    vmv.s.x v0, a1
-; LMULMAX2-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
-; LMULMAX2-NEXT:    lui a1, %hi(.LCPI131_0)
-; LMULMAX2-NEXT:    addi a1, a1, %lo(.LCPI131_0)
+; LMULMAX2-NEXT:    lui a1, %hi(.LCPI155_0)
+; LMULMAX2-NEXT:    addi a1, a1, %lo(.LCPI155_0)
 ; LMULMAX2-NEXT:    vle32.v v10, (a1)
 ; LMULMAX2-NEXT:    vmv.v.i v12, 0
 ; LMULMAX2-NEXT:    lui a1, 524288
@@ -4191,9 +4579,7 @@ define void @mulhu_v8i32(<8 x i32>* %x) {
 ; LMULMAX2-NEXT:    vmulhu.vv v8, v8, v12
 ; LMULMAX2-NEXT:    vadd.vv v8, v8, v10
 ; LMULMAX2-NEXT:    li a1, 136
-; LMULMAX2-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-NEXT:    vmv.s.x v0, a1
-; LMULMAX2-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-NEXT:    vmv.v.i v10, 2
 ; LMULMAX2-NEXT:    vmerge.vim v10, v10, 1, v0
 ; LMULMAX2-NEXT:    vsrl.vv v8, v8, v10
@@ -4211,8 +4597,8 @@ define void @mulhu_v8i32(<8 x i32>* %x) {
 ; LMULMAX1-RV32-NEXT:    vmv.v.i v11, 0
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 3, e32, m1, tu, mu
 ; LMULMAX1-RV32-NEXT:    vslideup.vi v11, v10, 2
-; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI131_0)
-; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI131_0)
+; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI155_0)
+; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI155_0)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX1-RV32-NEXT:    vle32.v v10, (a2)
 ; LMULMAX1-RV32-NEXT:    vmulhu.vv v12, v9, v10
@@ -4240,8 +4626,8 @@ define void @mulhu_v8i32(<8 x i32>* %x) {
 ; LMULMAX1-RV64-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX1-RV64-NEXT:    addi a1, a0, 16
 ; LMULMAX1-RV64-NEXT:    vle32.v v8, (a1)
-; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI131_0)
-; LMULMAX1-RV64-NEXT:    addi a2, a2, %lo(.LCPI131_0)
+; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI155_0)
+; LMULMAX1-RV64-NEXT:    addi a2, a2, %lo(.LCPI155_0)
 ; LMULMAX1-RV64-NEXT:    vle32.v v9, (a2)
 ; LMULMAX1-RV64-NEXT:    vle32.v v10, (a0)
 ; LMULMAX1-RV64-NEXT:    vdivu.vv v8, v8, v9
@@ -4260,24 +4646,24 @@ define void @mulhu_v4i64(<4 x i64>* %x) {
 ; LMULMAX2-RV32:       # %bb.0:
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vle64.v v8, (a0)
-; LMULMAX2-RV32-NEXT:    lui a1, %hi(.LCPI132_0)
-; LMULMAX2-RV32-NEXT:    addi a1, a1, %lo(.LCPI132_0)
+; LMULMAX2-RV32-NEXT:    lui a1, %hi(.LCPI156_0)
+; LMULMAX2-RV32-NEXT:    addi a1, a1, %lo(.LCPI156_0)
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vle32.v v10, (a1)
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmulhu.vv v10, v8, v10
 ; LMULMAX2-RV32-NEXT:    vsub.vv v8, v8, v10
 ; LMULMAX2-RV32-NEXT:    lui a1, 524288
-; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v12, a1
+; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.v.i v14, 0
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 6, e32, m2, tu, mu
 ; LMULMAX2-RV32-NEXT:    vslideup.vi v14, v12, 5
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmulhu.vv v8, v8, v14
 ; LMULMAX2-RV32-NEXT:    vadd.vv v8, v8, v10
-; LMULMAX2-RV32-NEXT:    lui a1, %hi(.LCPI132_1)
-; LMULMAX2-RV32-NEXT:    addi a1, a1, %lo(.LCPI132_1)
+; LMULMAX2-RV32-NEXT:    lui a1, %hi(.LCPI156_1)
+; LMULMAX2-RV32-NEXT:    addi a1, a1, %lo(.LCPI156_1)
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vle32.v v10, (a1)
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
@@ -4295,13 +4681,13 @@ define void @mulhu_v4i64(<4 x i64>* %x) {
 ; LMULMAX2-RV64-NEXT:    vmv.v.i v12, 0
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 3, e64, m2, tu, mu
 ; LMULMAX2-RV64-NEXT:    vslideup.vi v12, v10, 2
-; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI132_0)
-; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI132_0)
+; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI156_0)
+; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI156_0)
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; LMULMAX2-RV64-NEXT:    vle64.v v10, (a1)
 ; LMULMAX2-RV64-NEXT:    vmulhu.vv v10, v8, v10
-; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI132_1)
-; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI132_1)
+; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI156_1)
+; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI156_1)
 ; LMULMAX2-RV64-NEXT:    vle64.v v14, (a1)
 ; LMULMAX2-RV64-NEXT:    vsub.vv v8, v8, v10
 ; LMULMAX2-RV64-NEXT:    vmulhu.vv v8, v8, v12
@@ -4316,14 +4702,14 @@ define void @mulhu_v4i64(<4 x i64>* %x) {
 ; LMULMAX1-RV32-NEXT:    vle64.v v8, (a0)
 ; LMULMAX1-RV32-NEXT:    addi a1, a0, 16
 ; LMULMAX1-RV32-NEXT:    vle64.v v9, (a1)
-; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI132_0)
-; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI132_0)
+; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI156_0)
+; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI156_0)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX1-RV32-NEXT:    vle32.v v10, (a2)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; LMULMAX1-RV32-NEXT:    vdivu.vv v9, v9, v10
-; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI132_1)
-; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI132_1)
+; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI156_1)
+; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI156_1)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX1-RV32-NEXT:    vle32.v v10, (a2)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
@@ -4343,25 +4729,25 @@ define void @mulhu_v4i64(<4 x i64>* %x) {
 ; LMULMAX1-RV64-NEXT:    slli a2, a2, 63
 ; LMULMAX1-RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
 ; LMULMAX1-RV64-NEXT:    vmv.s.x v10, a2
-; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI132_0)
-; LMULMAX1-RV64-NEXT:    ld a2, %lo(.LCPI132_0)(a2)
-; LMULMAX1-RV64-NEXT:    lui a3, %hi(.LCPI132_1)
-; LMULMAX1-RV64-NEXT:    ld a3, %lo(.LCPI132_1)(a3)
+; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI156_0)
+; LMULMAX1-RV64-NEXT:    addi a2, a2, %lo(.LCPI156_0)
 ; LMULMAX1-RV64-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
-; LMULMAX1-RV64-NEXT:    vmv.v.x v11, a2
+; LMULMAX1-RV64-NEXT:    vlse64.v v11, (a2), zero
+; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI156_1)
+; LMULMAX1-RV64-NEXT:    ld a2, %lo(.LCPI156_1)(a2)
 ; LMULMAX1-RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
-; LMULMAX1-RV64-NEXT:    vmv.s.x v11, a3
+; LMULMAX1-RV64-NEXT:    vmv.s.x v11, a2
 ; LMULMAX1-RV64-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; LMULMAX1-RV64-NEXT:    vmulhu.vv v11, v9, v11
 ; LMULMAX1-RV64-NEXT:    vsub.vv v9, v9, v11
-; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI132_2)
-; LMULMAX1-RV64-NEXT:    ld a2, %lo(.LCPI132_2)(a2)
 ; LMULMAX1-RV64-NEXT:    vmulhu.vv v9, v9, v10
 ; LMULMAX1-RV64-NEXT:    vadd.vv v9, v9, v11
 ; LMULMAX1-RV64-NEXT:    vid.v v10
-; LMULMAX1-RV64-NEXT:    vmv.v.x v11, a2
-; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI132_3)
-; LMULMAX1-RV64-NEXT:    ld a2, %lo(.LCPI132_3)(a2)
+; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI156_2)
+; LMULMAX1-RV64-NEXT:    addi a2, a2, %lo(.LCPI156_2)
+; LMULMAX1-RV64-NEXT:    vlse64.v v11, (a2), zero
+; LMULMAX1-RV64-NEXT:    lui a2, %hi(.LCPI156_3)
+; LMULMAX1-RV64-NEXT:    ld a2, %lo(.LCPI156_3)(a2)
 ; LMULMAX1-RV64-NEXT:    vadd.vi v12, v10, 2
 ; LMULMAX1-RV64-NEXT:    vsrl.vv v9, v9, v12
 ; LMULMAX1-RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
@@ -4513,9 +4899,7 @@ define void @mulhs_v16i16(<16 x i16>* %x) {
 ; LMULMAX1-NEXT:    addi a1, a0, 16
 ; LMULMAX1-NEXT:    vle16.v v9, (a1)
 ; LMULMAX1-NEXT:    li a2, 105
-; LMULMAX1-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX1-NEXT:    vmv.s.x v0, a2
-; LMULMAX1-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; LMULMAX1-NEXT:    vmv.v.i v10, 7
 ; LMULMAX1-NEXT:    vmerge.vim v10, v10, -7, v0
 ; LMULMAX1-NEXT:    vdiv.vv v9, v9, v10
@@ -4535,11 +4919,9 @@ define void @mulhs_v8i32(<8 x i32>* %x) {
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vle32.v v8, (a0)
 ; LMULMAX2-RV32-NEXT:    li a1, 85
-; LMULMAX2-RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v0, a1
 ; LMULMAX2-RV32-NEXT:    lui a1, 419430
 ; LMULMAX2-RV32-NEXT:    addi a1, a1, 1639
-; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.v.x v10, a1
 ; LMULMAX2-RV32-NEXT:    lui a1, 629146
 ; LMULMAX2-RV32-NEXT:    addi a1, a1, -1639
@@ -4553,12 +4935,12 @@ define void @mulhs_v8i32(<8 x i32>* %x) {
 ;
 ; LMULMAX2-RV64-LABEL: mulhs_v8i32:
 ; LMULMAX2-RV64:       # %bb.0:
-; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI135_0)
-; LMULMAX2-RV64-NEXT:    ld a1, %lo(.LCPI135_0)(a1)
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV64-NEXT:    vle32.v v8, (a0)
+; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI159_0)
+; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI159_0)
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
-; LMULMAX2-RV64-NEXT:    vmv.v.x v10, a1
+; LMULMAX2-RV64-NEXT:    vlse64.v v10, (a1), zero
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV64-NEXT:    vmulh.vv v8, v8, v10
 ; LMULMAX2-RV64-NEXT:    vsra.vi v8, v8, 1
@@ -4574,11 +4956,9 @@ define void @mulhs_v8i32(<8 x i32>* %x) {
 ; LMULMAX1-RV32-NEXT:    addi a1, a0, 16
 ; LMULMAX1-RV32-NEXT:    vle32.v v9, (a1)
 ; LMULMAX1-RV32-NEXT:    li a2, 5
-; LMULMAX1-RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX1-RV32-NEXT:    vmv.s.x v0, a2
 ; LMULMAX1-RV32-NEXT:    lui a2, 419430
 ; LMULMAX1-RV32-NEXT:    addi a2, a2, 1639
-; LMULMAX1-RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX1-RV32-NEXT:    vmv.v.x v10, a2
 ; LMULMAX1-RV32-NEXT:    lui a2, 629146
 ; LMULMAX1-RV32-NEXT:    addi a2, a2, -1639
@@ -4624,7 +5004,6 @@ define void @mulhs_v4i64(<4 x i64>* %x) {
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vle64.v v8, (a0)
 ; LMULMAX2-RV32-NEXT:    li a1, 17
-; LMULMAX2-RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v0, a1
 ; LMULMAX2-RV32-NEXT:    lui a1, 349525
 ; LMULMAX2-RV32-NEXT:    addi a2, a1, 1365
@@ -4635,7 +5014,6 @@ define void @mulhs_v4i64(<4 x i64>* %x) {
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmulh.vv v10, v8, v10
 ; LMULMAX2-RV32-NEXT:    li a1, 51
-; LMULMAX2-RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v0, a1
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.v.i v12, -1
@@ -4645,7 +5023,6 @@ define void @mulhs_v4i64(<4 x i64>* %x) {
 ; LMULMAX2-RV32-NEXT:    li a1, 63
 ; LMULMAX2-RV32-NEXT:    vsrl.vx v8, v12, a1
 ; LMULMAX2-RV32-NEXT:    li a1, 68
-; LMULMAX2-RV32-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.s.x v0, a1
 ; LMULMAX2-RV32-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
 ; LMULMAX2-RV32-NEXT:    vmv.v.i v10, 0
@@ -4659,27 +5036,25 @@ define void @mulhs_v4i64(<4 x i64>* %x) {
 ; LMULMAX2-RV64-LABEL: mulhs_v4i64:
 ; LMULMAX2-RV64:       # %bb.0:
 ; LMULMAX2-RV64-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
-; LMULMAX2-RV64-NEXT:    vle64.v v8, (a0)
 ; LMULMAX2-RV64-NEXT:    li a1, 5
-; LMULMAX2-RV64-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-RV64-NEXT:    vmv.s.x v0, a1
-; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI136_0)
-; LMULMAX2-RV64-NEXT:    ld a1, %lo(.LCPI136_0)(a1)
-; LMULMAX2-RV64-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
-; LMULMAX2-RV64-NEXT:    lui a2, %hi(.LCPI136_1)
-; LMULMAX2-RV64-NEXT:    ld a2, %lo(.LCPI136_1)(a2)
-; LMULMAX2-RV64-NEXT:    vmv.v.x v10, a1
+; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI160_0)
+; LMULMAX2-RV64-NEXT:    addi a1, a1, %lo(.LCPI160_0)
+; LMULMAX2-RV64-NEXT:    vlse64.v v8, (a1), zero
+; LMULMAX2-RV64-NEXT:    lui a1, %hi(.LCPI160_1)
+; LMULMAX2-RV64-NEXT:    ld a1, %lo(.LCPI160_1)(a1)
+; LMULMAX2-RV64-NEXT:    vle64.v v10, (a0)
 ; LMULMAX2-RV64-NEXT:    vmv.v.i v12, -1
 ; LMULMAX2-RV64-NEXT:    vmerge.vim v12, v12, 0, v0
-; LMULMAX2-RV64-NEXT:    vmerge.vxm v10, v10, a2, v0
-; LMULMAX2-RV64-NEXT:    vmulh.vv v10, v8, v10
-; LMULMAX2-RV64-NEXT:    vmacc.vv v10, v8, v12
+; LMULMAX2-RV64-NEXT:    vmerge.vxm v8, v8, a1, v0
+; LMULMAX2-RV64-NEXT:    vmulh.vv v8, v10, v8
+; LMULMAX2-RV64-NEXT:    vmacc.vv v8, v10, v12
 ; LMULMAX2-RV64-NEXT:    li a1, 63
-; LMULMAX2-RV64-NEXT:    vsrl.vx v8, v10, a1
+; LMULMAX2-RV64-NEXT:    vsrl.vx v10, v8, a1
 ; LMULMAX2-RV64-NEXT:    vmv.v.i v12, 1
 ; LMULMAX2-RV64-NEXT:    vmerge.vim v12, v12, 0, v0
-; LMULMAX2-RV64-NEXT:    vsra.vv v10, v10, v12
-; LMULMAX2-RV64-NEXT:    vadd.vv v8, v10, v8
+; LMULMAX2-RV64-NEXT:    vsra.vv v8, v8, v12
+; LMULMAX2-RV64-NEXT:    vadd.vv v8, v8, v10
 ; LMULMAX2-RV64-NEXT:    vse64.v v8, (a0)
 ; LMULMAX2-RV64-NEXT:    ret
 ;
@@ -4689,8 +5064,8 @@ define void @mulhs_v4i64(<4 x i64>* %x) {
 ; LMULMAX1-RV32-NEXT:    vle64.v v8, (a0)
 ; LMULMAX1-RV32-NEXT:    addi a1, a0, 16
 ; LMULMAX1-RV32-NEXT:    vle64.v v9, (a1)
-; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI136_0)
-; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI136_0)
+; LMULMAX1-RV32-NEXT:    lui a2, %hi(.LCPI160_0)
+; LMULMAX1-RV32-NEXT:    addi a2, a2, %lo(.LCPI160_0)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX1-RV32-NEXT:    vle32.v v10, (a2)
 ; LMULMAX1-RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
@@ -4702,13 +5077,13 @@ define void @mulhs_v4i64(<4 x i64>* %x) {
 ;
 ; LMULMAX1-RV64-LABEL: mulhs_v4i64:
 ; LMULMAX1-RV64:       # %bb.0:
-; LMULMAX1-RV64-NEXT:    lui a1, %hi(.LCPI136_0)
-; LMULMAX1-RV64-NEXT:    ld a1, %lo(.LCPI136_0)(a1)
 ; LMULMAX1-RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; LMULMAX1-RV64-NEXT:    vle64.v v8, (a0)
-; LMULMAX1-RV64-NEXT:    vmv.v.x v9, a1
-; LMULMAX1-RV64-NEXT:    lui a1, %hi(.LCPI136_1)
-; LMULMAX1-RV64-NEXT:    ld a1, %lo(.LCPI136_1)(a1)
+; LMULMAX1-RV64-NEXT:    lui a1, %hi(.LCPI160_0)
+; LMULMAX1-RV64-NEXT:    addi a1, a1, %lo(.LCPI160_0)
+; LMULMAX1-RV64-NEXT:    vlse64.v v9, (a1), zero
+; LMULMAX1-RV64-NEXT:    lui a1, %hi(.LCPI160_1)
+; LMULMAX1-RV64-NEXT:    ld a1, %lo(.LCPI160_1)(a1)
 ; LMULMAX1-RV64-NEXT:    addi a2, a0, 16
 ; LMULMAX1-RV64-NEXT:    vle64.v v10, (a2)
 ; LMULMAX1-RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
@@ -5501,8 +5876,8 @@ define void @add_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 -1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 -1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = add <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5517,8 +5892,8 @@ define void @add_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 -1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 -1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = add <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5533,8 +5908,8 @@ define void @add_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 -1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 -1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = add <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5549,8 +5924,8 @@ define void @add_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 -1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 -1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = add <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -5565,8 +5940,8 @@ define void @add_iv_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = add <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5581,8 +5956,8 @@ define void @add_iv_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = add <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5597,8 +5972,8 @@ define void @add_iv_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = add <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5613,8 +5988,8 @@ define void @add_iv_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = add <2 x i64> %c, %a
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -5629,8 +6004,8 @@ define void @add_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = add <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5645,8 +6020,8 @@ define void @add_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = add <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5661,8 +6036,8 @@ define void @add_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = add <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5677,8 +6052,8 @@ define void @add_xv_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = add <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5693,8 +6068,8 @@ define void @add_xv_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = add <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5709,8 +6084,8 @@ define void @add_xv_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = add <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5726,8 +6101,8 @@ define void @sub_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 -1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 -1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = sub <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5743,8 +6118,8 @@ define void @sub_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 -1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 -1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = sub <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5760,8 +6135,8 @@ define void @sub_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 -1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 -1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = sub <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5777,8 +6152,8 @@ define void @sub_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 -1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 -1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = sub <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -5793,8 +6168,8 @@ define void @sub_iv_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = sub <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5809,8 +6184,8 @@ define void @sub_iv_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = sub <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5825,8 +6200,8 @@ define void @sub_iv_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = sub <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5841,8 +6216,8 @@ define void @sub_iv_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = sub <2 x i64> %c, %a
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -5857,8 +6232,8 @@ define void @sub_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = sub <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5873,8 +6248,8 @@ define void @sub_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = sub <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5889,8 +6264,8 @@ define void @sub_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = sub <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5905,8 +6280,8 @@ define void @sub_xv_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = sub <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5921,8 +6296,8 @@ define void @sub_xv_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = sub <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5937,8 +6312,8 @@ define void @sub_xv_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = sub <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -5953,8 +6328,8 @@ define void @mul_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = mul <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -5969,8 +6344,8 @@ define void @mul_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = mul <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -5985,8 +6360,8 @@ define void @mul_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = mul <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6001,8 +6376,8 @@ define void @mul_xv_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = mul <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6017,8 +6392,8 @@ define void @mul_xv_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = mul <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6033,8 +6408,8 @@ define void @mul_xv_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = mul <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6049,8 +6424,8 @@ define void @and_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 -2, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 -2, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = and <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6065,8 +6440,8 @@ define void @and_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 -2, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 -2, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = and <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6081,8 +6456,8 @@ define void @and_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 -2, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 -2, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = and <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6097,8 +6472,8 @@ define void @and_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 -2, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 -2, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = and <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6113,8 +6488,8 @@ define void @and_iv_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = and <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6129,8 +6504,8 @@ define void @and_iv_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = and <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6145,8 +6520,8 @@ define void @and_iv_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = and <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6161,8 +6536,8 @@ define void @and_iv_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = and <2 x i64> %c, %a
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6177,8 +6552,8 @@ define void @and_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = and <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6193,8 +6568,8 @@ define void @and_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = and <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6209,8 +6584,8 @@ define void @and_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = and <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6225,8 +6600,8 @@ define void @and_xv_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = and <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6241,8 +6616,8 @@ define void @and_xv_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = and <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6257,8 +6632,8 @@ define void @and_xv_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = and <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6273,8 +6648,8 @@ define void @or_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 -2, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 -2, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = or <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6289,8 +6664,8 @@ define void @or_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 -2, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 -2, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = or <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6305,8 +6680,8 @@ define void @or_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 -2, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 -2, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = or <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6321,8 +6696,8 @@ define void @or_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 -2, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 -2, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = or <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6337,8 +6712,8 @@ define void @or_iv_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = or <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6353,8 +6728,8 @@ define void @or_iv_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = or <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6369,8 +6744,8 @@ define void @or_iv_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = or <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6385,8 +6760,8 @@ define void @or_iv_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = or <2 x i64> %c, %a
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6401,8 +6776,8 @@ define void @or_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = or <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6417,8 +6792,8 @@ define void @or_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = or <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6433,8 +6808,8 @@ define void @or_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = or <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6449,8 +6824,8 @@ define void @or_xv_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = or <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6465,8 +6840,8 @@ define void @or_xv_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = or <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6481,8 +6856,8 @@ define void @or_xv_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = or <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6493,12 +6868,12 @@ define void @xor_vi_v16i8(<16 x i8>* %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
 ; CHECK-NEXT:    vle8.v v8, (a0)
-; CHECK-NEXT:    vxor.vi v8, v8, -1
+; CHECK-NEXT:    vnot.v v8, v8
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 -1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 -1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = xor <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6509,12 +6884,12 @@ define void @xor_vi_v8i16(<8 x i16>* %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
 ; CHECK-NEXT:    vle16.v v8, (a0)
-; CHECK-NEXT:    vxor.vi v8, v8, -1
+; CHECK-NEXT:    vnot.v v8, v8
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 -1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 -1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = xor <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6525,12 +6900,12 @@ define void @xor_vi_v4i32(<4 x i32>* %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; CHECK-NEXT:    vle32.v v8, (a0)
-; CHECK-NEXT:    vxor.vi v8, v8, -1
+; CHECK-NEXT:    vnot.v v8, v8
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 -1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 -1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = xor <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6541,12 +6916,12 @@ define void @xor_vi_v2i64(<2 x i64>* %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; CHECK-NEXT:    vle64.v v8, (a0)
-; CHECK-NEXT:    vxor.vi v8, v8, -1
+; CHECK-NEXT:    vnot.v v8, v8
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 -1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 -1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = xor <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6561,8 +6936,8 @@ define void @xor_iv_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 1, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 1, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = xor <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6577,8 +6952,8 @@ define void @xor_iv_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 1, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 1, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = xor <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6593,8 +6968,8 @@ define void @xor_iv_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 1, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 1, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = xor <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6609,8 +6984,8 @@ define void @xor_iv_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 1, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 1, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = xor <2 x i64> %c, %a
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6625,8 +7000,8 @@ define void @xor_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = xor <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6641,8 +7016,8 @@ define void @xor_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = xor <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6657,8 +7032,8 @@ define void @xor_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = xor <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6673,8 +7048,8 @@ define void @xor_xv_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = xor <16 x i8> %c, %a
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6689,8 +7064,8 @@ define void @xor_xv_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = xor <8 x i16> %c, %a
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6705,8 +7080,8 @@ define void @xor_xv_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = xor <4 x i32> %c, %a
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6721,8 +7096,8 @@ define void @lshr_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 7, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 7, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = lshr <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6737,8 +7112,8 @@ define void @lshr_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 15, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 15, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = lshr <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6753,8 +7128,8 @@ define void @lshr_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 31, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 31, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = lshr <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6769,8 +7144,8 @@ define void @lshr_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 31, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 31, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = lshr <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6785,8 +7160,8 @@ define void @lshr_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = lshr <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6801,8 +7176,8 @@ define void @lshr_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = lshr <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6817,8 +7192,8 @@ define void @lshr_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = lshr <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6833,8 +7208,8 @@ define void @ashr_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 7, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 7, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = ashr <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6849,8 +7224,8 @@ define void @ashr_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 15, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 15, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = ashr <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6865,8 +7240,8 @@ define void @ashr_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 31, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 31, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = ashr <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6881,8 +7256,8 @@ define void @ashr_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 31, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 31, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = ashr <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -6897,8 +7272,8 @@ define void @ashr_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = ashr <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6913,8 +7288,8 @@ define void @ashr_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = ashr <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6929,8 +7304,8 @@ define void @ashr_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = ashr <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6945,8 +7320,8 @@ define void @shl_vi_v16i8(<16 x i8>* %x) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 7, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 7, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = shl <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -6961,8 +7336,8 @@ define void @shl_vi_v8i16(<8 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 15, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 15, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = shl <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -6977,8 +7352,8 @@ define void @shl_vi_v4i32(<4 x i32>* %x) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 31, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 31, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = shl <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -6993,8 +7368,8 @@ define void @shl_vi_v2i64(<2 x i64>* %x) {
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x i64>, <2 x i64>* %x
-  %b = insertelement <2 x i64> undef, i64 31, i32 0
-  %c = shufflevector <2 x i64> %b, <2 x i64> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i64> poison, i64 31, i32 0
+  %c = shufflevector <2 x i64> %b, <2 x i64> poison, <2 x i32> zeroinitializer
   %d = shl <2 x i64> %a, %c
   store <2 x i64> %d, <2 x i64>* %x
   ret void
@@ -7009,8 +7384,8 @@ define void @shl_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = shl <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -7025,8 +7400,8 @@ define void @shl_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = shl <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -7041,8 +7416,8 @@ define void @shl_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = shl <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -7057,8 +7432,8 @@ define void @sdiv_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = sdiv <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -7073,8 +7448,8 @@ define void @sdiv_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = sdiv <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -7089,8 +7464,8 @@ define void @sdiv_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = sdiv <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -7105,8 +7480,8 @@ define void @srem_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = srem <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -7121,8 +7496,8 @@ define void @srem_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = srem <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -7137,8 +7512,8 @@ define void @srem_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = srem <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -7153,8 +7528,8 @@ define void @udiv_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = udiv <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -7169,8 +7544,8 @@ define void @udiv_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = udiv <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -7185,8 +7560,8 @@ define void @udiv_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = udiv <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -7201,8 +7576,8 @@ define void @urem_vx_v16i8(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vse8.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = urem <16 x i8> %a, %c
   store <16 x i8> %d, <16 x i8>* %x
   ret void
@@ -7217,8 +7592,8 @@ define void @urem_vx_v8i16(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = urem <8 x i16> %a, %c
   store <8 x i16> %d, <8 x i16>* %x
   ret void
@@ -7233,8 +7608,8 @@ define void @urem_vx_v4i32(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i32 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i32 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = urem <4 x i32> %a, %c
   store <4 x i32> %d, <4 x i32>* %x
   ret void
@@ -7342,8 +7717,8 @@ define void @mulhu_vx_v2i64(<2 x i64>* %x) {
 ; RV64:       # %bb.0:
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV64-NEXT:    vle64.v v8, (a0)
-; RV64-NEXT:    lui a1, %hi(.LCPI265_0)
-; RV64-NEXT:    ld a1, %lo(.LCPI265_0)(a1)
+; RV64-NEXT:    lui a1, %hi(.LCPI289_0)
+; RV64-NEXT:    ld a1, %lo(.LCPI289_0)(a1)
 ; RV64-NEXT:    vmulhu.vx v8, v8, a1
 ; RV64-NEXT:    vsrl.vi v8, v8, 1
 ; RV64-NEXT:    vse64.v v8, (a0)
@@ -7460,8 +7835,8 @@ define void @mulhs_vx_v2i64(<2 x i64>* %x) {
 ; RV64:       # %bb.0:
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV64-NEXT:    vle64.v v8, (a0)
-; RV64-NEXT:    lui a1, %hi(.LCPI269_0)
-; RV64-NEXT:    ld a1, %lo(.LCPI269_0)(a1)
+; RV64-NEXT:    lui a1, %hi(.LCPI293_0)
+; RV64-NEXT:    ld a1, %lo(.LCPI293_0)(a1)
 ; RV64-NEXT:    vmulh.vx v8, v8, a1
 ; RV64-NEXT:    li a1, 63
 ; RV64-NEXT:    vsrl.vx v9, v8, a1

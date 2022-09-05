@@ -60,7 +60,7 @@ int main(int argc, const char **argv) {
       "input file.\n");
 
   // Input file has to exist.
-  if (!llvm::sys::fs::exists(Input))
+  if (Input != "-" && !llvm::sys::fs::exists(Input))
     error("input file not found");
 
   // Open the original source file stream.

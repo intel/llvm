@@ -16,8 +16,6 @@ from lldbsuite.test import lldbutil
 class NetBSDCoreCommonTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def check_memory_regions(self, process, region_count):
         region_list = process.GetMemoryRegions()
         self.assertEqual(region_list.GetSize(), region_count)
@@ -152,7 +150,7 @@ class NetBSD1LWPCoreTestCase(NetBSDCoreCommonTestCase):
         thread = process.GetSelectedThread()
         self.assertTrue(thread)
         self.assertEqual(thread.GetThreadID(), 1)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         self.assertEqual(thread.GetStopReasonDataCount(), 1)
         self.assertEqual(thread.GetStopReasonDataAtIndex(0), signal.SIGSEGV)
         backtrace = ["bar", "foo", "main"]
@@ -176,7 +174,7 @@ class NetBSD2LWPT2CoreTestCase(NetBSDCoreCommonTestCase):
         thread = process.GetSelectedThread()
         self.assertTrue(thread)
         self.assertEqual(thread.GetThreadID(), 2)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         self.assertEqual(thread.GetStopReasonDataCount(), 1)
         self.assertEqual(thread.GetStopReasonDataAtIndex(0), signal.SIGSEGV)
         backtrace = ["bar", "foo", "lwp_main"]
@@ -184,7 +182,7 @@ class NetBSD2LWPT2CoreTestCase(NetBSDCoreCommonTestCase):
 
         # thread 1 should have no signal
         thread = process.GetThreadByID(1)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         self.assertEqual(thread.GetStopReasonDataCount(), 1)
         self.assertEqual(thread.GetStopReasonDataAtIndex(0), 0)
 
@@ -206,7 +204,7 @@ class NetBSD2LWPProcessSigCoreTestCase(NetBSDCoreCommonTestCase):
         thread = process.GetSelectedThread()
         self.assertTrue(thread)
         self.assertEqual(thread.GetThreadID(), 2)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         self.assertEqual(thread.GetStopReasonDataCount(), 1)
         self.assertEqual(thread.GetStopReasonDataAtIndex(0), signal.SIGSEGV)
         backtrace = ["bar", "foo", "lwp_main"]
@@ -214,7 +212,7 @@ class NetBSD2LWPProcessSigCoreTestCase(NetBSDCoreCommonTestCase):
 
         # thread 1 should have the same signal
         thread = process.GetThreadByID(1)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         self.assertEqual(thread.GetStopReasonDataCount(), 1)
         self.assertEqual(thread.GetStopReasonDataAtIndex(0), signal.SIGSEGV)
 

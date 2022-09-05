@@ -23,11 +23,24 @@
 #include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
+#include "clang/Analysis/FlowSensitive/Transfer.h"
 #include "llvm/ADT/Any.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/Support/Error.h"
 
 namespace clang {
 namespace dataflow {
+
+struct DataflowAnalysisOptions {
+  /// Determines whether to apply the built-in transfer functions.
+  // FIXME: Remove this option once the framework supports composing analyses
+  // (at which point the built-in transfer functions can be simply a standalone
+  // analysis).
+  bool ApplyBuiltinTransfer = true;
+
+  /// Only has an effect if `ApplyBuiltinTransfer` is true.
+  TransferOptions BuiltinTransferOptions;
+};
 
 /// Type-erased lattice element container.
 ///
@@ -40,17 +53,14 @@ struct TypeErasedLattice {
 };
 
 /// Type-erased base class for dataflow analyses built on a single lattice type.
-class TypeErasedDataflowAnalysis : public Environment::Merger {
-  /// Determines whether to apply the built-in transfer functions.
-  // FIXME: Remove this option once the framework supports composing analyses
-  // (at which point the built-in transfer functions can be simply a standalone
-  // analysis).
-  bool ApplyBuiltinTransfer;
+class TypeErasedDataflowAnalysis : public Environment::ValueModel {
+  DataflowAnalysisOptions Options;
 
 public:
-  TypeErasedDataflowAnalysis() : ApplyBuiltinTransfer(true) {}
-  TypeErasedDataflowAnalysis(bool ApplyBuiltinTransfer)
-      : ApplyBuiltinTransfer(ApplyBuiltinTransfer) {}
+  TypeErasedDataflowAnalysis() : Options({}) {}
+
+  TypeErasedDataflowAnalysis(DataflowAnalysisOptions Options)
+      : Options(Options) {}
 
   virtual ~TypeErasedDataflowAnalysis() {}
 
@@ -79,7 +89,12 @@ public:
 
   /// Determines whether to apply the built-in transfer functions, which model
   /// the heap and stack in the `Environment`.
-  bool applyBuiltinTransfer() const { return ApplyBuiltinTransfer; }
+  bool applyBuiltinTransfer() const { return Options.ApplyBuiltinTransfer; }
+
+  /// Returns the options to be passed to the built-in transfer functions.
+  TransferOptions builtinTransferOptions() const {
+    return Options.BuiltinTransferOptions;
+  }
 };
 
 /// Type-erased model of the program at a given program point.
@@ -114,12 +129,18 @@ TypeErasedDataflowAnalysisState transferBlock(
         HandleTransferredStmt = nullptr);
 
 /// Performs dataflow analysis and returns a mapping from basic block IDs to
-/// dataflow analysis states that model the respective basic blocks. Indices
-/// of the returned vector correspond to basic block IDs.
-std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>
-runTypeErasedDataflowAnalysis(const ControlFlowContext &CFCtx,
-                              TypeErasedDataflowAnalysis &Analysis,
-                              const Environment &InitEnv);
+/// dataflow analysis states that model the respective basic blocks. Indices of
+/// the returned vector correspond to basic block IDs. Returns an error if the
+/// dataflow analysis cannot be performed successfully. Otherwise, calls
+/// `PostVisitStmt` on each statement with the final analysis results at that
+/// program point.
+llvm::Expected<std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>>
+runTypeErasedDataflowAnalysis(
+    const ControlFlowContext &CFCtx, TypeErasedDataflowAnalysis &Analysis,
+    const Environment &InitEnv,
+    std::function<void(const CFGStmt &,
+                       const TypeErasedDataflowAnalysisState &)>
+        PostVisitStmt = nullptr);
 
 } // namespace dataflow
 } // namespace clang

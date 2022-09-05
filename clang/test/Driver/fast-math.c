@@ -5,7 +5,6 @@
 // support.
 //
 // Both of them use gcc driver for as.
-// REQUIRES: clang-driver
 //
 // RUN: %clang -### -fno-honor-infinities -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-INFS %s
@@ -118,6 +117,8 @@
 // RUN: %clang -### -target x86_64-fuchsia -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
 // RUN: %clang -### -target x86_64-linux-android -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
+// RUN: %clang -### -target x86_64-linux-musl -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
 // RUN: %clang -### -target amdgcn-amd-amdhsa -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s

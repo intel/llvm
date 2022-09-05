@@ -16,6 +16,7 @@
 #define MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 
 include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
+include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -241,7 +242,7 @@ def SPV_ExecutionModeOp : SPV_Op<"ExecutionMode", [InModuleScope]> {
 
   let results = (outs);
 
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 
   let autogenSerialization = 0;
 
@@ -287,7 +288,7 @@ def SPV_FuncOp : SPV_Op<"func", [
   }];
 
   let arguments = (ins
-    TypeAttr:$type,
+    TypeAttrOf<FunctionType>:$function_type,
     StrAttr:$sym_name,
     SPV_FunctionControlAttr:$function_control
   );
@@ -296,7 +297,7 @@ def SPV_FuncOp : SPV_Op<"func", [
 
   let regions = (region AnyRegion:$body);
 
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 
   let builders = [
     OpBuilder<(ins "StringRef":$name, "FunctionType":$type,
@@ -309,16 +310,14 @@ def SPV_FuncOp : SPV_Op<"func", [
 
   let extraClassDeclaration = [{
     /// Returns the type of this function.
-    /// FIXME: We should drive this via the ODS `type` param.
-    FunctionType getType() { 
-      return getTypeAttr().getValue().cast<FunctionType>();
-    }
+    /// FIXME: Remove when SPIRV uses prefixed accessors.
+    FunctionType getFunctionType() { return function_type(); }
 
     /// Returns the argument types of this function.
-    ArrayRef<Type> getArgumentTypes() { return getType().getInputs(); }
+    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
 
     /// Returns the result types of this function.
-    ArrayRef<Type> getResultTypes() { return getType().getResults(); }
+    ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
 
     /// Hook for FunctionOpInterface, called after verifying that the 'type'
     /// attribute is present and checks if it holds a function type. Ensures
@@ -385,7 +384,7 @@ def SPV_GlobalVariableOp : SPV_Op<"GlobalVariable", [InModuleScope, Symbol]> {
     OptionalAttr<FlatSymbolRefAttr>:$initializer,
     OptionalAttr<I32Attr>:$location,
     OptionalAttr<I32Attr>:$binding,
-    OptionalAttr<I32Attr>:$descriptorSet,
+    OptionalAttr<I32Attr>:$descriptor_set,
     OptionalAttr<StrAttr>:$builtin
   );
 
@@ -516,6 +515,9 @@ def SPV_ModuleOp : SPV_Op<"module",
 
     static StringRef getVCETripleAttrName() { return "vce_triple"; }
   }];
+
+  let hasVerifier = 0;
+  let hasRegionVerifier = 1;
 }
 
 // -----
@@ -599,7 +601,7 @@ def SPV_SpecConstantOp : SPV_Op<"SpecConstant", [InModuleScope, Symbol]> {
 
   let arguments = (ins
     StrAttr:$sym_name,
-    AnyAttr:$default_value
+    TypedAttrInterface:$default_value
   );
 
   let results = (outs);
@@ -749,6 +751,9 @@ def SPV_SpecConstantOperationOp : SPV_Op<"SpecConstantOperation", [
   let hasOpcode = 0;
 
   let autogenSerialization = 0;
+
+  let hasVerifier = 0;
+  let hasRegionVerifier = 1;
 }
 
 // -----
@@ -788,7 +793,7 @@ def SPV_YieldOp : SPV_Op<"mlir.yield", [
 
   let assemblyFormat = "attr-dict $operand `:` type($operand)";
 
-  let verifier = [{ return success(); }];
+  let hasVerifier = 0;
 }
 
 // -----

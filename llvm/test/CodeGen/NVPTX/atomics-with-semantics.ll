@@ -506,6 +506,168 @@ entry:
   ; CHECK: atom.acq_rel.cta.shared.exch.b64
   %tmp161 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
+    ; CHECK: atom.acquire.exch.b32
+  %tmp708 = tail call float @llvm.nvvm.atomic.exch.gen.f.acquire.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.acquire.global.exch.b32
+  %tmp709 = tail call float @llvm.nvvm.atomic.exch.global.f.acquire.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.acquire.shared.exch.b32
+  %tmp710 = tail call float @llvm.nvvm.atomic.exch.shared.f.acquire.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.release.exch.b32
+  %tmp711 = tail call float @llvm.nvvm.atomic.exch.gen.f.release.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.release.global.exch.b32
+  %tmp712 = tail call float @llvm.nvvm.atomic.exch.global.f.release.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.release.shared.exch.b32
+  %tmp713 = tail call float @llvm.nvvm.atomic.exch.shared.f.release.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.acq_rel.exch.b32
+  %tmp714 = tail call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.acq_rel.global.exch.b32
+  %tmp715 = tail call float @llvm.nvvm.atomic.exch.global.f.acq.rel.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.acq_rel.shared.exch.b32
+  %tmp716 = tail call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.acquire.sys.exch.b32
+  %tmp717 = tail call float @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.acquire.sys.global.exch.b32
+  %tmp718 = tail call float @llvm.nvvm.atomic.exch.global.f.acquire.sys.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.acquire.sys.shared.exch.b32
+  %tmp719 = tail call float @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.release.sys.exch.b32
+  %tmp720 = tail call float @llvm.nvvm.atomic.exch.gen.f.release.sys.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.release.sys.global.exch.b32
+  %tmp721 = tail call float @llvm.nvvm.atomic.exch.global.f.release.sys.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.release.sys.shared.exch.b32
+  %tmp722 = tail call float @llvm.nvvm.atomic.exch.shared.f.release.sys.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.acq_rel.sys.exch.b32
+  %tmp723 = tail call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.acq_rel.sys.global.exch.b32
+  %tmp724 = tail call float @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.acq_rel.sys.shared.exch.b32
+  %tmp725 = tail call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.acquire.cta.exch.b32
+  %tmp726 = tail call float @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.acquire.cta.global.exch.b32
+  %tmp727 = tail call float @llvm.nvvm.atomic.exch.global.f.acquire.cta.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.acquire.cta.shared.exch.b32
+  %tmp728 = tail call float @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.release.cta.exch.b32
+  %tmp729 = tail call float @llvm.nvvm.atomic.exch.gen.f.release.cta.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.release.cta.global.exch.b32
+  %tmp730 = tail call float @llvm.nvvm.atomic.exch.global.f.release.cta.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.release.cta.shared.exch.b32
+  %tmp731 = tail call float @llvm.nvvm.atomic.exch.shared.f.release.cta.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.acq_rel.cta.exch.b32
+  %tmp732 = tail call float @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f32.p0f32(float* %fp, float %f);
+
+  ; CHECK: atom.acq_rel.cta.global.exch.b32
+  %tmp733 = tail call float @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f32.p1f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: atom.acq_rel.cta.shared.exch.b32
+  %tmp734 = tail call float @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f32.p3f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: atom.acquire.exch.b64
+  %tmp808 = tail call double @llvm.nvvm.atomic.exch.gen.f.acquire.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.acquire.global.exch.b64
+  %tmp809 = tail call double @llvm.nvvm.atomic.exch.global.f.acquire.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.acquire.shared.exch.b64
+  %tmp810 = tail call double @llvm.nvvm.atomic.exch.shared.f.acquire.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.release.exch.b64
+  %tmp811 = tail call double @llvm.nvvm.atomic.exch.gen.f.release.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.release.global.exch.b64
+  %tmp812 = tail call double @llvm.nvvm.atomic.exch.global.f.release.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.release.shared.exch.b64
+  %tmp813 = tail call double @llvm.nvvm.atomic.exch.shared.f.release.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.acq_rel.exch.b64
+  %tmp814 = tail call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.acq_rel.global.exch.b64
+  %tmp815 = tail call double @llvm.nvvm.atomic.exch.global.f.acq.rel.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.acq_rel.shared.exch.b64
+  %tmp816 = tail call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.acquire.sys.exch.b64
+  %tmp817 = tail call double @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.acquire.sys.global.exch.b64
+  %tmp818 = tail call double @llvm.nvvm.atomic.exch.global.f.acquire.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.acquire.sys.shared.exch.b64
+  %tmp819 = tail call double @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.release.sys.exch.b64
+  %tmp820 = tail call double @llvm.nvvm.atomic.exch.gen.f.release.sys.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.release.sys.global.exch.b64
+  %tmp821 = tail call double @llvm.nvvm.atomic.exch.global.f.release.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.release.sys.shared.exch.b64
+  %tmp822 = tail call double @llvm.nvvm.atomic.exch.shared.f.release.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.acq_rel.sys.exch.b64
+  %tmp823 = tail call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.acq_rel.sys.global.exch.b64
+  %tmp824 = tail call double @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.acq_rel.sys.shared.exch.b64
+  %tmp825 = tail call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.acquire.cta.exch.b64
+  %tmp826 = tail call double @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.acquire.cta.global.exch.b64
+  %tmp827 = tail call double @llvm.nvvm.atomic.exch.global.f.acquire.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.acquire.cta.shared.exch.b64
+  %tmp828 = tail call double @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.release.cta.exch.b64
+  %tmp829 = tail call double @llvm.nvvm.atomic.exch.gen.f.release.cta.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.release.cta.global.exch.b64
+  %tmp830 = tail call double @llvm.nvvm.atomic.exch.global.f.release.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.release.cta.shared.exch.b64
+  %tmp831 = tail call double @llvm.nvvm.atomic.exch.shared.f.release.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: atom.acq_rel.cta.exch.b64
+  %tmp832 = tail call double @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f64.p0f64(double* %dfp, double %df);
+
+  ; CHECK: atom.acq_rel.cta.global.exch.b64
+  %tmp833 = tail call double @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: atom.acq_rel.cta.shared.exch.b64
+  %tmp834 = tail call double @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+
   ; CHECK: atom.acquire.max.s32
   %tmp162 = tail call i32 @llvm.nvvm.atomic.max.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
 
@@ -2126,6 +2288,168 @@ entry:
   ; CHECK: atom.acq_rel.cta.shared.cas.b64
   %tmp701 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
+  ; CHECK: atom.acquire.cas.b32
+  %tmp748 = tail call float @llvm.nvvm.atomic.cas.gen.f.acquire.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.acquire.global.cas.b32
+  %tmp749 = tail call float @llvm.nvvm.atomic.cas.global.f.acquire.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.acquire.shared.cas.b32
+  %tmp750 = tail call float @llvm.nvvm.atomic.cas.shared.f.acquire.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.release.cas.b32
+  %tmp751 = tail call float @llvm.nvvm.atomic.cas.gen.f.release.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.release.global.cas.b32
+  %tmp752 = tail call float @llvm.nvvm.atomic.cas.global.f.release.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.release.shared.cas.b32
+  %tmp753 = tail call float @llvm.nvvm.atomic.cas.shared.f.release.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.cas.b32
+  %tmp754 = tail call float @llvm.nvvm.atomic.cas.gen.f.acq.rel.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.global.cas.b32
+  %tmp755 = tail call float @llvm.nvvm.atomic.cas.global.f.acq.rel.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.shared.cas.b32
+  %tmp756 = tail call float @llvm.nvvm.atomic.cas.shared.f.acq.rel.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.acquire.sys.cas.b32
+  %tmp757 = tail call float @llvm.nvvm.atomic.cas.gen.f.acquire.sys.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.acquire.sys.global.cas.b32
+  %tmp758 = tail call float @llvm.nvvm.atomic.cas.global.f.acquire.sys.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.acquire.sys.shared.cas.b32
+  %tmp759 = tail call float @llvm.nvvm.atomic.cas.shared.f.acquire.sys.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.release.sys.cas.b32
+  %tmp760 = tail call float @llvm.nvvm.atomic.cas.gen.f.release.sys.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.release.sys.global.cas.b32
+  %tmp761 = tail call float @llvm.nvvm.atomic.cas.global.f.release.sys.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.release.sys.shared.cas.b32
+  %tmp762 = tail call float @llvm.nvvm.atomic.cas.shared.f.release.sys.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.sys.cas.b32
+  %tmp763 = tail call float @llvm.nvvm.atomic.cas.gen.f.acq.rel.sys.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.sys.global.cas.b32
+  %tmp764 = tail call float @llvm.nvvm.atomic.cas.global.f.acq.rel.sys.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.sys.shared.cas.b32
+  %tmp765 = tail call float @llvm.nvvm.atomic.cas.shared.f.acq.rel.sys.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.acquire.cta.cas.b32
+  %tmp766 = tail call float @llvm.nvvm.atomic.cas.gen.f.acquire.cta.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.acquire.cta.global.cas.b32
+  %tmp767 = tail call float @llvm.nvvm.atomic.cas.global.f.acquire.cta.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.acquire.cta.shared.cas.b32
+  %tmp768 = tail call float @llvm.nvvm.atomic.cas.shared.f.acquire.cta.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.release.cta.cas.b32
+  %tmp769 = tail call float @llvm.nvvm.atomic.cas.gen.f.release.cta.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.release.cta.global.cas.b32
+  %tmp770 = tail call float @llvm.nvvm.atomic.cas.global.f.release.cta.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.release.cta.shared.cas.b32
+  %tmp771 = tail call float @llvm.nvvm.atomic.cas.shared.f.release.cta.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.cta.cas.b32
+  %tmp772 = tail call float @llvm.nvvm.atomic.cas.gen.f.acq.rel.cta.f32.p0f32(float* %fp, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.cta.global.cas.b32
+  %tmp773 = tail call float @llvm.nvvm.atomic.cas.global.f.acq.rel.cta.f32.p1f32(float addrspace(1)* %fp1, float %f, float %f);
+
+  ; CHECK: atom.acq_rel.cta.shared.cas.b32
+  %tmp774 = tail call float @llvm.nvvm.atomic.cas.shared.f.acq.rel.cta.f32.p3f32(float addrspace(3)* %fp3, float %f, float %f);
+
+  ; CHECK: atom.acquire.cas.b64
+  %tmp848 = tail call double @llvm.nvvm.atomic.cas.gen.f.acquire.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.acquire.global.cas.b64
+  %tmp849 = tail call double @llvm.nvvm.atomic.cas.global.f.acquire.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.acquire.shared.cas.b64
+  %tmp850 = tail call double @llvm.nvvm.atomic.cas.shared.f.acquire.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.release.cas.b64
+  %tmp851 = tail call double @llvm.nvvm.atomic.cas.gen.f.release.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.release.global.cas.b64
+  %tmp852 = tail call double @llvm.nvvm.atomic.cas.global.f.release.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.release.shared.cas.b64
+  %tmp853 = tail call double @llvm.nvvm.atomic.cas.shared.f.release.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.cas.b64
+  %tmp854 = tail call double @llvm.nvvm.atomic.cas.gen.f.acq.rel.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.global.cas.b64
+  %tmp855 = tail call double @llvm.nvvm.atomic.cas.global.f.acq.rel.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.shared.cas.b64
+  %tmp856 = tail call double @llvm.nvvm.atomic.cas.shared.f.acq.rel.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.acquire.sys.cas.b64
+  %tmp857 = tail call double @llvm.nvvm.atomic.cas.gen.f.acquire.sys.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.acquire.sys.global.cas.b64
+  %tmp858 = tail call double @llvm.nvvm.atomic.cas.global.f.acquire.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.acquire.sys.shared.cas.b64
+  %tmp859 = tail call double @llvm.nvvm.atomic.cas.shared.f.acquire.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.release.sys.cas.b64
+  %tmp860 = tail call double @llvm.nvvm.atomic.cas.gen.f.release.sys.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.release.sys.global.cas.b64
+  %tmp861 = tail call double @llvm.nvvm.atomic.cas.global.f.release.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.release.sys.shared.cas.b64
+  %tmp862 = tail call double @llvm.nvvm.atomic.cas.shared.f.release.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.sys.cas.b64
+  %tmp863 = tail call double @llvm.nvvm.atomic.cas.gen.f.acq.rel.sys.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.sys.global.cas.b64
+  %tmp864 = tail call double @llvm.nvvm.atomic.cas.global.f.acq.rel.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.sys.shared.cas.b64
+  %tmp865 = tail call double @llvm.nvvm.atomic.cas.shared.f.acq.rel.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.acquire.cta.cas.b64
+  %tmp866 = tail call double @llvm.nvvm.atomic.cas.gen.f.acquire.cta.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.acquire.cta.global.cas.b64
+  %tmp867 = tail call double @llvm.nvvm.atomic.cas.global.f.acquire.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.acquire.cta.shared.cas.b64
+  %tmp868 = tail call double @llvm.nvvm.atomic.cas.shared.f.acquire.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.release.cta.cas.b64
+  %tmp869 = tail call double @llvm.nvvm.atomic.cas.gen.f.release.cta.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.release.cta.global.cas.b64
+  %tmp870 = tail call double @llvm.nvvm.atomic.cas.global.f.release.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.release.cta.shared.cas.b64
+  %tmp871 = tail call double @llvm.nvvm.atomic.cas.shared.f.release.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.cta.cas.b64
+  %tmp872 = tail call double @llvm.nvvm.atomic.cas.gen.f.acq.rel.cta.f64.p0f64(double* %dfp, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.cta.global.cas.b64
+  %tmp873 = tail call double @llvm.nvvm.atomic.cas.global.f.acq.rel.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df, double %df);
+
+  ; CHECK: atom.acq_rel.cta.shared.cas.b64
+  %tmp874 = tail call double @llvm.nvvm.atomic.cas.shared.f.acq.rel.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df, double %df);
+
   ; CHECK: ld.relaxed.gpu.s32
   %tmpldst0 = tail call i32 @llvm.nvvm.ld.gen.i.i32.p0(i32* %ip);
 
@@ -2979,6 +3303,60 @@ declare i64 @llvm.nvvm.atomic.exch.shared.i.release.cta.i64.p3i64(i64 addrspace(
 declare i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.acquire.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.acquire.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.acquire.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.release.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.release.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.release.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.acq.rel.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.acq.rel.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.acq.rel.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.acquire.sys.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.release.sys.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.release.sys.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.release.sys.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.acquire.cta.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.release.cta.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.release.cta.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.release.cta.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.acquire.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.acquire.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.acquire.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.release.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.release.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.release.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.acq.rel.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.acq.rel.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.acq.rel.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.acquire.sys.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.acquire.sys.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.acquire.sys.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.release.sys.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.release.sys.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.release.sys.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.acq.rel.sys.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.acq.rel.sys.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.acq.rel.sys.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.acquire.cta.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.acquire.cta.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.acquire.cta.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.release.cta.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.release.cta.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.release.cta.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.gen.f.acq.rel.cta.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.global.f.acq.rel.cta.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.exch.shared.f.acq.rel.cta.f64.p3f64(double addrspace(3)* nocapture, double) #1
 declare i32 @llvm.nvvm.atomic.max.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -3519,5 +3897,59 @@ declare i64 @llvm.nvvm.atomic.cas.shared.i.release.cta.i64.p3i64(i64 addrspace(3
 declare i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64, i64) #1
 declare i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
 declare i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.acquire.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.acquire.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.acquire.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.release.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.release.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.release.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.acq.rel.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.acq.rel.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.acq.rel.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.acquire.sys.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.acquire.sys.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.acquire.sys.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.release.sys.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.release.sys.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.release.sys.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.acq.rel.sys.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.acq.rel.sys.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.acq.rel.sys.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.acquire.cta.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.acquire.cta.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.acquire.cta.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.release.cta.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.release.cta.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.release.cta.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.gen.f.acq.rel.cta.f32.p0f32(float* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.global.f.acq.rel.cta.f32.p1f32(float addrspace(1)* nocapture, float, float) #1
+declare float @llvm.nvvm.atomic.cas.shared.f.acq.rel.cta.f32.p3f32(float addrspace(3)* nocapture, float, float) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.acquire.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.acquire.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.acquire.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.release.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.release.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.release.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.acq.rel.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.acq.rel.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.acq.rel.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.acquire.sys.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.acquire.sys.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.acquire.sys.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.release.sys.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.release.sys.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.release.sys.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.acq.rel.sys.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.acq.rel.sys.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.acq.rel.sys.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.acquire.cta.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.acquire.cta.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.acquire.cta.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.release.cta.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.release.cta.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.release.cta.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.gen.f.acq.rel.cta.f64.p0f64(double* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.global.f.acq.rel.cta.f64.p1f64(double addrspace(1)* nocapture, double, double) #1
+declare double @llvm.nvvm.atomic.cas.shared.f.acq.rel.cta.f64.p3f64(double addrspace(3)* nocapture, double, double) #1
 
 attributes #1 = { argmemonly nounwind }

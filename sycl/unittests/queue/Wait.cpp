@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <memory>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   bool SupportOOO = true;
@@ -31,7 +31,7 @@ pi_result redefinedQueueCreate(pi_context context, pi_device device,
                                pi_queue *queue) {
   if (!TestContext.SupportOOO &&
       properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    return PI_INVALID_QUEUE_PROPERTIES;
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;
 }
@@ -86,11 +86,12 @@ pi_result redefinedEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-bool preparePiMock(platform &Plt) {
+TEST(QueueWait, QueueWaitTest) {
+  platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI events created in that case"
               << std::endl;
-    return false;
+    return;
   }
 
   unittest::PiMock Mock{Plt};
@@ -105,13 +106,6 @@ bool preparePiMock(platform &Plt) {
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-  return true;
-}
-
-TEST(QueueWait, QueueWaitTest) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};
 
@@ -177,35 +171,10 @@ TEST(QueueWait, QueueWaitTest) {
     ASSERT_TRUE(TestContext.PiQueueFinishCalled);
   }
 
-  // Test for event::get_wait_list
-  {
-    sycl::event eA =
-        Q.submit([&](sycl::handler &cgh) { cgh.host_task([]() {}); });
-    sycl::event eB = Q.submit([&](sycl::handler &cgh) {
-      cgh.depends_on(eA);
-      cgh.host_task([]() {});
-    });
-
-    auto res = eB.get_wait_list();
-    assert(res.size() == 1);
-    ASSERT_EQ(res[0], eA);
-
-    sycl::event eC = Q.submit([&](sycl::handler &cgh) {
-      cgh.depends_on({eA, eB});
-      cgh.host_task([]() {});
-    });
-
-    res = eC.get_wait_list();
-    assert(res.size() == 2);
-    ASSERT_EQ(res[0], eA);
-    ASSERT_EQ(res[1], eB);
-
-    eC.wait();
-  }
   // Test behaviour for emulating an OOO queue with multiple in-order ones.
   TestContext = {};
   TestContext.SupportOOO = false;
-  Q = {Ctx, default_selector()};
+  Q = queue{Ctx, default_selector()};
   Q.memset(HostAlloc, 42, 1);
   // The event is kept alive in this case to call wait.
   ASSERT_EQ(TestContext.EventReferenceCount, 1);

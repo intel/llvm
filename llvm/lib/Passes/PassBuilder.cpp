@@ -27,6 +27,7 @@
 #include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/CallPrinter.h"
 #include "llvm/Analysis/CostModel.h"
 #include "llvm/Analysis/CycleAnalysis.h"
 #include "llvm/Analysis/DDG.h"
@@ -79,6 +80,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/LowerWGScope.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
@@ -191,7 +193,7 @@
 #include "llvm/Transforms/Scalar/LoopUnrollAndJamPass.h"
 #include "llvm/Transforms/Scalar/LoopUnrollPass.h"
 #include "llvm/Transforms/Scalar/LoopVersioningLICM.h"
-#include "llvm/Transforms/Scalar/LowerAtomic.h"
+#include "llvm/Transforms/Scalar/LowerAtomicPass.h"
 #include "llvm/Transforms/Scalar/LowerConstantIntrinsics.h"
 #include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
 #include "llvm/Transforms/Scalar/LowerGuardIntrinsic.h"
@@ -218,6 +220,7 @@
 #include "llvm/Transforms/Scalar/SpeculativeExecution.h"
 #include "llvm/Transforms/Scalar/StraightLineStrengthReduce.h"
 #include "llvm/Transforms/Scalar/StructurizeCFG.h"
+#include "llvm/Transforms/Scalar/TLSVariableHoist.h"
 #include "llvm/Transforms/Scalar/TailRecursionElimination.h"
 #include "llvm/Transforms/Scalar/WarnMissedTransforms.h"
 #include "llvm/Transforms/Utils/AddDiscriminators.h"
@@ -225,6 +228,7 @@
 #include "llvm/Transforms/Utils/BreakCriticalEdges.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/CanonicalizeFreezeInLoops.h"
+#include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/FixIrreducible.h"
 #include "llvm/Transforms/Utils/HelloWorld.h"
@@ -234,11 +238,13 @@
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopVersioning.h"
+#include "llvm/Transforms/Utils/LowerGlobalDtors.h"
 #include "llvm/Transforms/Utils/LowerInvoke.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include "llvm/Transforms/Utils/MetaRenamer.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
+#include "llvm/Transforms/Utils/PredicateInfo.h"
 #include "llvm/Transforms/Utils/RelLookupTableConverter.h"
 #include "llvm/Transforms/Utils/StripGCRelocates.h"
 #include "llvm/Transforms/Utils/StripNonLineTableDebugInfo.h"
@@ -375,6 +381,17 @@ bool shouldPopulateClassToPassNames() {
   return PrintPipelinePasses || !printBeforePasses().empty() ||
          !printAfterPasses().empty();
 }
+
+// A pass for testing -print-on-crash.
+// DO NOT USE THIS EXCEPT FOR TESTING!
+class TriggerCrashPass : public PassInfoMixin<TriggerCrashPass> {
+public:
+  PreservedAnalyses run(Module &, ModuleAnalysisManager &) {
+    abort();
+    return PreservedAnalyses::all();
+  }
+  static StringRef name() { return "TriggerCrashPass"; }
+};
 
 } // namespace
 
@@ -590,6 +607,10 @@ Expected<bool> parseInlinerPassOptions(StringRef Params) {
   return parseSinglePassOption(Params, "only-mandatory", "InlinerPass");
 }
 
+Expected<bool> parseCoroSplitPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "reuse-storage", "CoroSplitPass");
+}
+
 Expected<bool> parseEarlyCSEPassOptions(StringRef Params) {
   return parseSinglePassOption(Params, "memssa", "EarlyCSE");
 }
@@ -684,6 +705,8 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
     bool Enable = !ParamName.consume_front("no-");
     if (ParamName == "forward-switch-cond") {
       Result.forwardSwitchCondToPhi(Enable);
+    } else if (ParamName == "switch-range-to-icmp") {
+      Result.convertSwitchRangeToICmp(Enable);
     } else if (ParamName == "switch-to-lookup") {
       Result.convertSwitchToLookupTable(Enable);
     } else if (ParamName == "keep-loops") {
@@ -752,6 +775,24 @@ Expected<std::pair<bool, bool>> parseLoopUnswitchOptions(StringRef Params) {
   return Result;
 }
 
+Expected<LICMOptions> parseLICMOptions(StringRef Params) {
+  LICMOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    bool Enable = !ParamName.consume_front("no-");
+    if (ParamName == "allowspeculation") {
+      Result.AllowSpeculation = Enable;
+    } else {
+      return make_error<StringError>(
+          formatv("invalid LICM pass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
+}
+
 Expected<bool> parseMergedLoadStoreMotionOptions(StringRef Params) {
   bool Result = false;
   while (!Params.empty()) {
@@ -814,6 +855,11 @@ parseStackLifetimeOptions(StringRef Params) {
     }
   }
   return Result;
+}
+
+Expected<bool> parseDependenceAnalysisPrinterOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "normalized-results",
+                               "DependenceAnalysisPrinter");
 }
 
 } // namespace

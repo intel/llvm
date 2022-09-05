@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/buffer_impl.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
+#include <detail/buffer_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
@@ -28,8 +28,9 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
-      BaseT::MInteropEvent, BaseT::MInteropContext, MProps, OutEventToWait);
+      std::move(Context), this, HostPtr, HostPtrReadOnly,
+      BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,
+      MProps, OutEventToWait);
 }
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,
@@ -38,16 +39,57 @@ void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
   XPTIRegistry::bufferConstructorNotification(UserObj, CodeLoc, HostObj, Type,
                                               Dim, ElemSize, Range);
 }
-// TODO: remove once ABI break is allowed
-void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
-                                          void *UserObj) {
-  size_t r[3] = {0, 0, 0};
-  constructorNotification(CodeLoc, UserObj, nullptr, "", 0, 0, r);
-}
 
 void buffer_impl::destructorNotification(void *UserObj) {
   XPTIRegistry::bufferDestructorNotification(UserObj);
 }
+
+void buffer_impl::addInteropObject(
+    std::vector<pi_native_handle> &Handles) const {
+  if (MOpenCLInterop) {
+    if (std::find(Handles.begin(), Handles.end(),
+                  pi::cast<pi_native_handle>(MInteropMemObject)) ==
+        Handles.end()) {
+      const plugin &Plugin = getPlugin();
+      Plugin.call<PiApiKind::piMemRetain>(
+          pi::cast<RT::PiMem>(MInteropMemObject));
+      Handles.push_back(pi::cast<pi_native_handle>(MInteropMemObject));
+    }
+  }
+}
+
+std::vector<pi_native_handle>
+buffer_impl::getNativeVector(backend BackendName) const {
+  std::vector<pi_native_handle> Handles{};
+  if (!MRecord) {
+    addInteropObject(Handles);
+    return Handles;
+  }
+
+  for (auto &Cmd : MRecord->MAllocaCommands) {
+    RT::PiMem NativeMem = pi::cast<RT::PiMem>(Cmd->getMemAllocation());
+    auto Ctx = Cmd->getWorkerContext();
+    auto Platform = Ctx->getPlatformImpl();
+    // If Host Shared Memory is not supported then there is alloca for host that
+    // doesn't have platform
+    if (!Platform)
+      continue;
+    auto Plugin = Platform->getPlugin();
+
+    if (Plugin.getBackend() != BackendName)
+      continue;
+    if (Plugin.getBackend() == backend::opencl) {
+      Plugin.call<PiApiKind::piMemRetain>(NativeMem);
+    }
+
+    pi_native_handle Handle;
+    Plugin.call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    Handles.push_back(Handle);
+  }
+
+  addInteropObject(Handles);
+  return Handles;
+}
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

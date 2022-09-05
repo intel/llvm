@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/exception.hpp>
 #include <detail/platform_util.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/exception.hpp>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <errno.h>
@@ -20,8 +20,8 @@
 #include <intrin.h>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -38,7 +38,7 @@ static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
 uint32_t PlatformUtil::getMaxClockFrequency() {
   throw runtime_error(
       "max_clock_frequency parameter is not supported for host device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 #if defined(__x86_64__) || defined(__i386__)
   uint32_t CPUInfo[4];
   std::string Buff(sizeof(CPUInfo) * 3 + 1, 0);
@@ -167,8 +167,8 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   const char *PtrEnd = Ptr + NumBytes;
 
   // Set the pointer to the beginning of the current cache line.
-  Ptr = reinterpret_cast<const char *>(
-            reinterpret_cast<size_t>(Ptr) & CacheLineMask);
+  Ptr = reinterpret_cast<const char *>(reinterpret_cast<size_t>(Ptr) &
+                                       CacheLineMask);
   for (; Ptr < PtrEnd; Ptr += CacheLineSize) {
 #if defined(__SYCL_RT_OS_LINUX)
     __builtin_prefetch(Ptr);
@@ -179,5 +179,5 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

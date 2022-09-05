@@ -7,7 +7,7 @@
 ; RUN: llc < %s -mcpu=generic -mtriple=x86_64-linux-gnux32 -filetype=obj
 
 ; Just to prevent the alloca from being optimized away
-declare void @dummy_use(i32*, i32)
+declare void @dummy_use(ptr, i32)
 
 define i32 @test_basic(i32 %l) #0 {
 ; X86-LABEL: test_basic:
@@ -47,7 +47,7 @@ define i32 @test_basic(i32 %l) #0 {
 ; X86-NEXT:    testl %esi, %esi
 ; X86-NEXT:    je .LBB0_6
 ; X86-NEXT:  # %bb.8: # %false
-; X86-NEXT:    addl $-1, %esi
+; X86-NEXT:    decl %esi
 ; X86-NEXT:    subl $12, %esp
 ; X86-NEXT:    pushl %esi
 ; X86-NEXT:    calll test_basic@PLT
@@ -103,7 +103,7 @@ define i32 @test_basic(i32 %l) #0 {
 ; X64-NEXT:    testl %ebx, %ebx
 ; X64-NEXT:    je .LBB0_6
 ; X64-NEXT:  # %bb.8: # %false
-; X64-NEXT:    addl $-1, %ebx
+; X64-NEXT:    decl %ebx
 ; X64-NEXT:    movl %ebx, %edi
 ; X64-NEXT:    callq test_basic@PLT
 ; X64-NEXT:    jmp .LBB0_7
@@ -157,7 +157,7 @@ define i32 @test_basic(i32 %l) #0 {
 ; X32ABI-NEXT:    testl %ebx, %ebx
 ; X32ABI-NEXT:    je .LBB0_6
 ; X32ABI-NEXT:  # %bb.8: # %false
-; X32ABI-NEXT:    addl $-1, %ebx
+; X32ABI-NEXT:    decl %ebx
 ; X32ABI-NEXT:    movl %ebx, %edi
 ; X32ABI-NEXT:    callq test_basic@PLT
 ; X32ABI-NEXT:    jmp .LBB0_7
@@ -179,7 +179,7 @@ define i32 @test_basic(i32 %l) #0 {
 ; X32ABI-NEXT:    retq
 ; X32ABI-NEXT:    jmp .LBB0_2
         %mem = alloca i32, i32 %l
-        call void @dummy_use (i32* %mem, i32 %l)
+        call void @dummy_use (ptr %mem, i32 %l)
         %terminate = icmp eq i32 %l, 0
         br i1 %terminate, label %true, label %false
 

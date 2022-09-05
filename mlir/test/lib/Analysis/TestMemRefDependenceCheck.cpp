@@ -27,7 +27,9 @@ namespace {
 // TODO: Add common surrounding loop depth-wise dependence checks.
 /// Checks dependences between all pairs of memref accesses in a Function.
 struct TestMemRefDependenceCheck
-    : public PassWrapper<TestMemRefDependenceCheck, OperationPass<FuncOp>> {
+    : public PassWrapper<TestMemRefDependenceCheck, OperationPass<>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestMemRefDependenceCheck)
+
   StringRef getArgument() const final { return "test-memref-dependence-check"; }
   StringRef getDescription() const final {
     return "Checks dependences between all pairs of memref accesses.";
@@ -50,16 +52,14 @@ getDirectionVectorStr(bool ret, unsigned numCommonLoops, unsigned loopNestDepth,
   std::string result;
   for (const auto &dependenceComponent : dependenceComponents) {
     std::string lbStr = "-inf";
-    if (dependenceComponent.lb.hasValue() &&
-        dependenceComponent.lb.getValue() !=
-            std::numeric_limits<int64_t>::min())
-      lbStr = std::to_string(dependenceComponent.lb.getValue());
+    if (dependenceComponent.lb.has_value() &&
+        dependenceComponent.lb.value() != std::numeric_limits<int64_t>::min())
+      lbStr = std::to_string(dependenceComponent.lb.value());
 
     std::string ubStr = "+inf";
-    if (dependenceComponent.ub.hasValue() &&
-        dependenceComponent.ub.getValue() !=
-            std::numeric_limits<int64_t>::max())
-      ubStr = std::to_string(dependenceComponent.ub.getValue());
+    if (dependenceComponent.ub.has_value() &&
+        dependenceComponent.ub.value() != std::numeric_limits<int64_t>::max())
+      ubStr = std::to_string(dependenceComponent.ub.value());
 
     result += "[" + lbStr + ", " + ubStr + "]";
   }
@@ -100,12 +100,12 @@ static void checkDependences(ArrayRef<Operation *> loadsAndStores) {
   }
 }
 
-// Walks the Function 'f' adding load and store ops to 'loadsAndStores'.
-// Runs pair-wise dependence checks.
+/// Walks the operation adding load and store ops to 'loadsAndStores'. Runs
+/// pair-wise dependence checks.
 void TestMemRefDependenceCheck::runOnOperation() {
   // Collect the loads and stores within the function.
   loadsAndStores.clear();
-  getOperation().walk([&](Operation *op) {
+  getOperation()->walk([&](Operation *op) {
     if (isa<AffineLoadOp, AffineStoreOp>(op))
       loadsAndStores.push_back(op);
   });

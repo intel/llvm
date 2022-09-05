@@ -1076,15 +1076,15 @@ define <4 x i64> @reassociate_umax_v4i64(<4 x i64> %x0, <4 x i64> %x1, <4 x i64>
 ;
 ; AVX2-LABEL: reassociate_umax_v4i64:
 ; AVX2:       # %bb.0:
+; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm4 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
 ; AVX2-NEXT:    vpaddq %ymm1, %ymm0, %ymm0
-; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm1 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
-; AVX2-NEXT:    vpxor %ymm1, %ymm2, %ymm4
-; AVX2-NEXT:    vpxor %ymm1, %ymm0, %ymm5
-; AVX2-NEXT:    vpcmpgtq %ymm5, %ymm4, %ymm4
-; AVX2-NEXT:    vblendvpd %ymm4, %ymm2, %ymm0, %ymm0
-; AVX2-NEXT:    vxorpd %ymm1, %ymm0, %ymm2
-; AVX2-NEXT:    vpxor %ymm1, %ymm3, %ymm1
-; AVX2-NEXT:    vpcmpgtq %ymm2, %ymm1, %ymm1
+; AVX2-NEXT:    vpxor %ymm4, %ymm2, %ymm1
+; AVX2-NEXT:    vpxor %ymm4, %ymm0, %ymm5
+; AVX2-NEXT:    vpcmpgtq %ymm5, %ymm1, %ymm1
+; AVX2-NEXT:    vblendvpd %ymm1, %ymm2, %ymm0, %ymm0
+; AVX2-NEXT:    vxorpd %ymm4, %ymm0, %ymm1
+; AVX2-NEXT:    vpxor %ymm4, %ymm3, %ymm2
+; AVX2-NEXT:    vpcmpgtq %ymm1, %ymm2, %ymm1
 ; AVX2-NEXT:    vblendvpd %ymm1, %ymm3, %ymm0, %ymm0
 ; AVX2-NEXT:    retq
 ;
@@ -1489,15 +1489,15 @@ define <4 x i64> @reassociate_umin_v4i64(<4 x i64> %x0, <4 x i64> %x1, <4 x i64>
 ;
 ; AVX2-LABEL: reassociate_umin_v4i64:
 ; AVX2:       # %bb.0:
+; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm4 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
 ; AVX2-NEXT:    vpaddq %ymm1, %ymm0, %ymm0
-; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm1 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
-; AVX2-NEXT:    vpxor %ymm1, %ymm2, %ymm4
-; AVX2-NEXT:    vpxor %ymm1, %ymm0, %ymm5
-; AVX2-NEXT:    vpcmpgtq %ymm4, %ymm5, %ymm4
-; AVX2-NEXT:    vblendvpd %ymm4, %ymm2, %ymm0, %ymm0
-; AVX2-NEXT:    vxorpd %ymm1, %ymm0, %ymm2
-; AVX2-NEXT:    vpxor %ymm1, %ymm3, %ymm1
-; AVX2-NEXT:    vpcmpgtq %ymm1, %ymm2, %ymm1
+; AVX2-NEXT:    vpxor %ymm4, %ymm2, %ymm1
+; AVX2-NEXT:    vpxor %ymm4, %ymm0, %ymm5
+; AVX2-NEXT:    vpcmpgtq %ymm1, %ymm5, %ymm1
+; AVX2-NEXT:    vblendvpd %ymm1, %ymm2, %ymm0, %ymm0
+; AVX2-NEXT:    vxorpd %ymm4, %ymm0, %ymm1
+; AVX2-NEXT:    vpxor %ymm4, %ymm3, %ymm2
+; AVX2-NEXT:    vpcmpgtq %ymm2, %ymm1, %ymm1
 ; AVX2-NEXT:    vblendvpd %ymm1, %ymm3, %ymm0, %ymm0
 ; AVX2-NEXT:    retq
 ;
@@ -2067,24 +2067,24 @@ define <8 x i64> @reassociate_umax_v8i64(<8 x i64> %x0, <8 x i64> %x1, <8 x i64>
 ;
 ; AVX2-LABEL: reassociate_umax_v8i64:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpaddq %ymm3, %ymm1, %ymm1
-; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm3 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
-; AVX2-NEXT:    vpxor %ymm3, %ymm5, %ymm8
-; AVX2-NEXT:    vpxor %ymm3, %ymm1, %ymm9
-; AVX2-NEXT:    vpcmpgtq %ymm9, %ymm8, %ymm8
-; AVX2-NEXT:    vblendvpd %ymm8, %ymm5, %ymm1, %ymm1
 ; AVX2-NEXT:    vpaddq %ymm2, %ymm0, %ymm0
-; AVX2-NEXT:    vpxor %ymm3, %ymm4, %ymm2
-; AVX2-NEXT:    vpxor %ymm3, %ymm0, %ymm5
-; AVX2-NEXT:    vpcmpgtq %ymm5, %ymm2, %ymm2
-; AVX2-NEXT:    vblendvpd %ymm2, %ymm4, %ymm0, %ymm0
-; AVX2-NEXT:    vxorpd %ymm3, %ymm0, %ymm2
-; AVX2-NEXT:    vpxor %ymm3, %ymm6, %ymm4
-; AVX2-NEXT:    vpcmpgtq %ymm2, %ymm4, %ymm2
-; AVX2-NEXT:    vblendvpd %ymm2, %ymm6, %ymm0, %ymm0
-; AVX2-NEXT:    vxorpd %ymm3, %ymm1, %ymm2
-; AVX2-NEXT:    vpxor %ymm3, %ymm7, %ymm3
-; AVX2-NEXT:    vpcmpgtq %ymm2, %ymm3, %ymm2
+; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm2 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
+; AVX2-NEXT:    vpaddq %ymm3, %ymm1, %ymm1
+; AVX2-NEXT:    vpxor %ymm2, %ymm5, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm1, %ymm8
+; AVX2-NEXT:    vpcmpgtq %ymm8, %ymm3, %ymm3
+; AVX2-NEXT:    vblendvpd %ymm3, %ymm5, %ymm1, %ymm1
+; AVX2-NEXT:    vpxor %ymm2, %ymm4, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm0, %ymm5
+; AVX2-NEXT:    vpcmpgtq %ymm5, %ymm3, %ymm3
+; AVX2-NEXT:    vblendvpd %ymm3, %ymm4, %ymm0, %ymm0
+; AVX2-NEXT:    vxorpd %ymm2, %ymm0, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm6, %ymm4
+; AVX2-NEXT:    vpcmpgtq %ymm3, %ymm4, %ymm3
+; AVX2-NEXT:    vblendvpd %ymm3, %ymm6, %ymm0, %ymm0
+; AVX2-NEXT:    vxorpd %ymm2, %ymm1, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm7, %ymm2
+; AVX2-NEXT:    vpcmpgtq %ymm3, %ymm2, %ymm2
 ; AVX2-NEXT:    vblendvpd %ymm2, %ymm7, %ymm1, %ymm1
 ; AVX2-NEXT:    retq
 ;
@@ -2832,24 +2832,24 @@ define <8 x i64> @reassociate_umin_v8i64(<8 x i64> %x0, <8 x i64> %x1, <8 x i64>
 ;
 ; AVX2-LABEL: reassociate_umin_v8i64:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpaddq %ymm3, %ymm1, %ymm1
-; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm3 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
-; AVX2-NEXT:    vpxor %ymm3, %ymm5, %ymm8
-; AVX2-NEXT:    vpxor %ymm3, %ymm1, %ymm9
-; AVX2-NEXT:    vpcmpgtq %ymm8, %ymm9, %ymm8
-; AVX2-NEXT:    vblendvpd %ymm8, %ymm5, %ymm1, %ymm1
 ; AVX2-NEXT:    vpaddq %ymm2, %ymm0, %ymm0
-; AVX2-NEXT:    vpxor %ymm3, %ymm4, %ymm2
-; AVX2-NEXT:    vpxor %ymm3, %ymm0, %ymm5
-; AVX2-NEXT:    vpcmpgtq %ymm2, %ymm5, %ymm2
-; AVX2-NEXT:    vblendvpd %ymm2, %ymm4, %ymm0, %ymm0
-; AVX2-NEXT:    vxorpd %ymm3, %ymm0, %ymm2
-; AVX2-NEXT:    vpxor %ymm3, %ymm6, %ymm4
-; AVX2-NEXT:    vpcmpgtq %ymm4, %ymm2, %ymm2
-; AVX2-NEXT:    vblendvpd %ymm2, %ymm6, %ymm0, %ymm0
-; AVX2-NEXT:    vxorpd %ymm3, %ymm1, %ymm2
-; AVX2-NEXT:    vpxor %ymm3, %ymm7, %ymm3
-; AVX2-NEXT:    vpcmpgtq %ymm3, %ymm2, %ymm2
+; AVX2-NEXT:    vpbroadcastq {{.*#+}} ymm2 = [9223372036854775808,9223372036854775808,9223372036854775808,9223372036854775808]
+; AVX2-NEXT:    vpaddq %ymm3, %ymm1, %ymm1
+; AVX2-NEXT:    vpxor %ymm2, %ymm5, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm1, %ymm8
+; AVX2-NEXT:    vpcmpgtq %ymm3, %ymm8, %ymm3
+; AVX2-NEXT:    vblendvpd %ymm3, %ymm5, %ymm1, %ymm1
+; AVX2-NEXT:    vpxor %ymm2, %ymm4, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm0, %ymm5
+; AVX2-NEXT:    vpcmpgtq %ymm3, %ymm5, %ymm3
+; AVX2-NEXT:    vblendvpd %ymm3, %ymm4, %ymm0, %ymm0
+; AVX2-NEXT:    vxorpd %ymm2, %ymm0, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm6, %ymm4
+; AVX2-NEXT:    vpcmpgtq %ymm4, %ymm3, %ymm3
+; AVX2-NEXT:    vblendvpd %ymm3, %ymm6, %ymm0, %ymm0
+; AVX2-NEXT:    vxorpd %ymm2, %ymm1, %ymm3
+; AVX2-NEXT:    vpxor %ymm2, %ymm7, %ymm2
+; AVX2-NEXT:    vpcmpgtq %ymm2, %ymm3, %ymm2
 ; AVX2-NEXT:    vblendvpd %ymm2, %ymm7, %ymm1, %ymm1
 ; AVX2-NEXT:    retq
 ;

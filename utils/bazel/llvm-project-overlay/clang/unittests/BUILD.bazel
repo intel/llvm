@@ -117,6 +117,31 @@ cc_test(
 )
 
 cc_test(
+    name = "analysis_flow_sensitive_tests",
+    srcs = glob(
+        [
+            "Analysis/FlowSensitive/*.cpp",
+            "Analysis/FlowSensitive/*.h",
+        ],
+        allow_empty = False,
+    ),
+    deps = [
+        "//clang:analysis",
+        "//clang:ast",
+        "//clang:ast_matchers",
+        "//clang:basic",
+        "//clang:lex",
+        "//clang:serialization",
+        "//clang:tooling",
+        "//llvm:Support",
+        "//llvm:TestingSupport",
+        "//llvm:gmock",
+        "//llvm:gtest",
+        "//llvm:gtest_main",
+    ],
+)
+
+cc_test(
     name = "basic_tests",
     size = "small",
     srcs = glob(
@@ -180,6 +205,7 @@ cc_test(
         "//clang:frontend",
         "//clang:tooling_core",
         "//llvm:Support",
+        "//llvm:gmock",
         "//llvm:gtest",
         "//llvm:gtest_main",
     ],
@@ -383,6 +409,7 @@ cc_test(
         "//clang:frontend",
         "//clang:lex",
         "//clang:rewrite",
+        "//clang:testing",
         "//clang:tooling",
         "//clang:tooling_core",
         "//clang:tooling_dependency_scanning",

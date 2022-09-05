@@ -17,8 +17,8 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/DenseMap.h"
@@ -41,7 +41,8 @@ struct PipelineDataTransfer
 
 /// Creates a pass to pipeline explicit movement of data across levels of the
 /// memory hierarchy.
-std::unique_ptr<OperationPass<FuncOp>> mlir::createPipelineDataTransferPass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createPipelineDataTransferPass() {
   return std::make_unique<PipelineDataTransfer>();
 }
 
@@ -233,7 +234,7 @@ static void findMatchingStartFinishInsts(
 /// inserted right before where it was.
 void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
   auto mayBeConstTripCount = getConstantTripCount(forOp);
-  if (!mayBeConstTripCount.hasValue()) {
+  if (!mayBeConstTripCount) {
     LLVM_DEBUG(forOp.emitRemark("won't pipeline due to unknown trip count"));
     return;
   }

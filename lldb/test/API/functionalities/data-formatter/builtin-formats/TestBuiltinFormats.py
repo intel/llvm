@@ -9,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def getFormatted(self, format, expr):
         """
         Evaluates the expression and formats the result with the given format.
@@ -24,7 +22,7 @@ class TestCase(TestBase):
     @no_debug_info_test
     @skipIfWindows
     # uint128_t not available on arm.
-    @skipIf(archs=['arm', 'aarch64'])
+    @skipIf(archs=['arm'])
     def test(self):
         self.build()
         lldbutil.run_to_source_breakpoint(self, "// break here", lldb.SBFileSpec("main.cpp"))
@@ -90,8 +88,8 @@ class TestCase(TestBase):
 
         # Different character arrays.
         # FIXME: Passing a 'const char *' will ignore any given format,
-        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09\0"', self.getFormatted("character array", "cstring"))
-        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09\0"', self.getFormatted("c-string", "cstring"))
+        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09"', self.getFormatted("character array", "cstring"))
+        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09"', self.getFormatted("c-string", "cstring"))
         self.assertIn(' = " \\e\\a\\b\\f\\n\\r\\t\\vaA09" " \\U0000001b\\a\\b\\f\\n\\r\\t\\vaA09"\n',
                       self.getFormatted("c-string", "(char *)cstring"))
         self.assertIn('=\n', self.getFormatted("c-string", "(__UINT64_TYPE__)0"))
@@ -131,10 +129,10 @@ class TestCase(TestBase):
         self.assertIn('= 0x2007080c0a0d090b415a617a30391b00\n', self.getFormatted("OSType", string_expr))
 
         # bytes
-        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09\0"', self.getFormatted("bytes", "cstring"))
+        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09"', self.getFormatted("bytes", "cstring"))
 
         # bytes with ASCII
-        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09\0"', self.getFormatted("bytes with ASCII", "cstring"))
+        self.assertIn(r'= " \U0000001b\a\b\f\n\r\t\vaA09"', self.getFormatted("bytes with ASCII", "cstring"))
 
         # unicode8
         self.assertIn('= 0x78 0x56 0x34 0x12\n', self.getFormatted("unicode8", "0x12345678"))

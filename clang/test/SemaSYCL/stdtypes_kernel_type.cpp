@@ -22,7 +22,7 @@ struct Templated_kernel_name2;
 
 template <typename T, typename... Args> class TemplParamPack;
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 int main() {

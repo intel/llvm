@@ -539,9 +539,12 @@ public:
   /// This function is designed to be used by commands where the
   /// process is publicly stopped.
   ///
+  /// \param[in] frame_idx
+  ///     The frame index to step out of.
+  ///
   /// \return
   ///     An error that describes anything that went wrong
-  virtual Status StepOut();
+  virtual Status StepOut(uint32_t frame_idx = 0);
 
   /// Retrieves the per-thread data area.
   /// Most OSs maintain a per-thread pointer (e.g. the FS register on
@@ -836,7 +839,7 @@ public:
   ///    See standard meanings for the stop & run votes in ThreadPlan.h.
   ///
   /// \param[in] frame_idx
-  ///     The fame index.
+  ///     The frame index.
   ///
   /// \param[out] status
   ///     A status with an error if queuing failed.
@@ -1185,10 +1188,7 @@ public:
 
   lldb::ThreadSP GetCurrentExceptionBacktrace();
 
-  virtual llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
-  GetSiginfo(size_t max_size) const {
-    return llvm::make_error<UnimplementedError>();
-  }
+  lldb::ValueObjectSP GetSiginfoValue();
 
 protected:
   friend class ThreadPlan;
@@ -1238,6 +1238,11 @@ protected:
   }
 
   void FrameSelectedCallback(lldb_private::StackFrame *frame);
+
+  virtual llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  GetSiginfo(size_t max_size) const {
+    return llvm::make_error<UnimplementedError>();
+  }
 
   // Classes that inherit from Process can see and modify these
   lldb::ProcessWP m_process_wp;    ///< The process that owns this thread.

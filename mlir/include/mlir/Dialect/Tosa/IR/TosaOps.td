@@ -82,8 +82,7 @@ def Tosa_AvgPool2dOp : Tosa_Op<"avg_pool2d", [
   );
 
   let builders = [Tosa_AvgPool2dOpQuantInfoBuilder];
-
-  let verifier = [{ return verifyAveragePoolOp(*this); }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -116,8 +115,7 @@ def Tosa_Conv2DOp : Tosa_Op<"conv2d", [
   );
 
   let builders = [Tosa_ConvOpQuantInfoBuilder];
-
-  let verifier = [{ return verifyConvOp(*this); }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -149,8 +147,7 @@ def Tosa_Conv3DOp : Tosa_Op<"conv3d", [
   );
 
   let builders = [Tosa_ConvOpQuantInfoBuilder];
-
-  let verifier = [{ return verifyConvOp(*this); }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -183,8 +180,7 @@ def Tosa_DepthwiseConv2DOp : Tosa_Op<"depthwise_conv2d", [
   );
 
   let builders = [Tosa_ConvOpQuantInfoBuilder];
-
-  let verifier = [{ return verifyConvOp(*this); }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -212,8 +208,7 @@ def Tosa_FullyConnectedOp : Tosa_Op<"fully_connected", [
   );
 
   let builders = [Tosa_FCOpQuantInfoBuilder];
-
-  let verifier = [{ return verifyConvOp(*this); }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -294,9 +289,8 @@ def Tosa_TransposeConv2DOp : Tosa_Op<"transpose_conv2d", [
     Tosa_Tensor4D:$filter,
     Tosa_Tensor1D:$bias,
 
-    Tosa_IntArrayAttr2:$out_pad,
+    Tosa_IntArrayAttr4:$out_pad,
     Tosa_IntArrayAttr2:$stride,
-    Tosa_IntArrayAttr2:$dilation,
     Tosa_IntArrayAttrUpto4:$out_shape,
     OptionalAttr<Tosa_ConvOpQuantizationAttr>:$quantization_info
   );
@@ -1125,14 +1119,16 @@ def Tosa_SelectOp : Tosa_Op<"select", [
   }];
 
   let arguments = (ins
-    I1Tensor:$input1,
-    Tosa_Tensor:$input2,
-    Tosa_Tensor:$input3
+    I1Tensor:$pred,
+    Tosa_Tensor:$on_true,
+    Tosa_Tensor:$on_false
   );
 
   let results = (outs
     Tosa_Tensor:$output
   );
+  let hasCanonicalizeMethod = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//

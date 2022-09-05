@@ -43,6 +43,7 @@ static std::string wrapSnippet(StringRef ExtraPreface,
       T& operator*() const;
     };
     }
+    template<class T> T desugar() { return T(); };
   )cc";
   return (Preface + ExtraPreface + "auto stencil_test_snippet = []{" +
           StatementCode + "};")
@@ -545,7 +546,7 @@ TEST_F(StencilTest, DescribeQualifiedType) {
 
 TEST_F(StencilTest, DescribeUnqualifiedType) {
   std::string Snippet = "using N::C; C c; c;";
-  std::string Expected = "N::C";
+  std::string Expected = "C";
   auto StmtMatch =
       matchStmt(Snippet, declRefExpr(hasType(qualType().bind("type"))));
   ASSERT_TRUE(StmtMatch);
@@ -554,7 +555,7 @@ TEST_F(StencilTest, DescribeUnqualifiedType) {
 }
 
 TEST_F(StencilTest, DescribeAnonNamespaceType) {
-  std::string Snippet = "AnonC c; c;";
+  std::string Snippet = "auto c = desugar<AnonC>(); c;";
   std::string Expected = "(anonymous namespace)::AnonC";
   auto StmtMatch =
       matchStmt(Snippet, declRefExpr(hasType(qualType().bind("type"))));
@@ -627,7 +628,7 @@ TEST_F(StencilTest, CatOfInvalidRangeFails) {
   ASSERT_TRUE(StmtMatch);
   Stencil S = cat(node("arg"));
   Expected<std::string> Result = S->eval(StmtMatch->Result);
-  ASSERT_THAT_EXPECTED(Result, Failed<StringError>());
+  ASSERT_FALSE(Result);
   llvm::handleAllErrors(Result.takeError(), [](const llvm::StringError &E) {
     EXPECT_THAT(E.getMessage(), AllOf(HasSubstr("selected range"),
                                       HasSubstr("macro expansion")));

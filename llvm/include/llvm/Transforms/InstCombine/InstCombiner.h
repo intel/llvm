@@ -93,7 +93,7 @@ public:
         MinimizeSize(MinimizeSize), AA(AA), AC(AC), TLI(TLI), DT(DT), DL(DL),
         SQ(DL, &TLI, &DT, &AC), ORE(ORE), BFI(BFI), PSI(PSI), LI(LI) {}
 
-  virtual ~InstCombiner() {}
+  virtual ~InstCombiner() = default;
 
   /// Return the source operand of a potentially bitcasted value while
   /// optionally checking if it has one use. If there is no bitcast or the one
@@ -425,7 +425,7 @@ public:
     // If we are replacing the instruction with itself, this must be in a
     // segment of unreachable code, so just clobber the instruction.
     if (&I == V)
-      V = UndefValue::get(I.getType());
+      V = PoisonValue::get(I.getType());
 
     LLVM_DEBUG(dbgs() << "IC: Replacing " << I << "\n"
                       << "    with " << *V << '\n');

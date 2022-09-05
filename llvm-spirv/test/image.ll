@@ -8,9 +8,10 @@
 ; RUN: llvm-spirv %t.rev.bc -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
 
-; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} 6 1 0 0 0 0 0 0
-; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} 6 1 0 0 0 0 0 1
-; CHECK-SPIRV-NOT: 10 TypeImage {{[0-9]*}} 6 1 0 0 0 0 0 0
+; CHECK-SPIRV: 2 TypeVoid [[VOID_TY:[0-9]+]]
+; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 0
+; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 1
+; CHECK-SPIRV-NOT: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 0
 ; CHECK-SPIRV: ImageSampleExplicitLod
 ; CHECK-SPIRV: ImageWrite
 

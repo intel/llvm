@@ -17,6 +17,7 @@
 #include "bolt/Utils/Utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Errc.h"
 #include <map>
 
 #undef  DEBUG_TYPE
@@ -46,6 +47,8 @@ Optional<StringRef> getLTOCommonName(const StringRef Name) {
     return Name.substr(0, LTOSuffixPos + 10);
   if ((LTOSuffixPos = Name.find(".constprop.")) != StringRef::npos)
     return Name.substr(0, LTOSuffixPos + 11);
+  if ((LTOSuffixPos = Name.find(".llvm.")) != StringRef::npos)
+    return Name.substr(0, LTOSuffixPos + 6);
   return NoneType();
 }
 
@@ -53,7 +56,7 @@ namespace {
 
 /// Return true if the function name can change across compilations.
 bool hasVolatileName(const BinaryFunction &BF) {
-  for (const StringRef Name : BF.getNames())
+  for (const StringRef &Name : BF.getNames())
     if (getLTOCommonName(Name))
       return true;
 
@@ -92,7 +95,7 @@ void FuncBranchData::appendFrom(const FuncBranchData &FBD, uint64_t Offset) {
       I->To.Offset += Offset;
     }
   }
-  std::stable_sort(Data.begin(), Data.end());
+  llvm::stable_sort(Data);
   ExecutionCount += FBD.ExecutionCount;
   for (auto I = FBD.EntryData.begin(), E = FBD.EntryData.end(); I != E; ++I) {
     assert(I->To.Name == FBD.Name);
@@ -120,7 +123,7 @@ void SampleInfo::print(raw_ostream &OS) const {
 }
 
 uint64_t FuncSampleData::getSamples(uint64_t Start, uint64_t End) const {
-  assert(std::is_sorted(Data.begin(), Data.end()));
+  assert(llvm::is_sorted(Data));
   struct Compare {
     bool operator()(const SampleInfo &SI, const uint64_t Val) const {
       return SI.Loc.Offset < Val;
@@ -130,8 +133,8 @@ uint64_t FuncSampleData::getSamples(uint64_t Start, uint64_t End) const {
     }
   };
   uint64_t Result = 0;
-  for (auto I = std::lower_bound(Data.begin(), Data.end(), Start, Compare()),
-            E = std::lower_bound(Data.begin(), Data.end(), End, Compare());
+  for (auto I = llvm::lower_bound(Data, Start, Compare()),
+            E = llvm::lower_bound(Data, End, Compare());
        I != E; ++I)
     Result += I->Hits;
   return Result;
@@ -389,7 +392,6 @@ void DataReader::readProfile(BinaryFunction &BF) {
     }
   }
 
-  uint64_t MismatchedBranches = 0;
   for (const BranchInfo &BI : FBD->Data) {
     if (BI.From.Name != BI.To.Name)
       continue;
@@ -398,7 +400,6 @@ void DataReader::readProfile(BinaryFunction &BF) {
                       BI.Mispreds)) {
       LLVM_DEBUG(dbgs() << "bad branch : " << BI.From.Offset << " -> "
                         << BI.To.Offset << '\n');
-      ++MismatchedBranches;
     }
   }
 
@@ -736,9 +737,9 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
     }
 
     // The real destination is the layout successor of the detected ToBB.
-    if (ToBB == BF.BasicBlocksLayout.back())
+    if (ToBB == BF.getLayout().block_back())
       return false;
-    BinaryBasicBlock *NextBB = BF.BasicBlocksLayout[ToBB->getIndex() + 1];
+    BinaryBasicBlock *NextBB = BF.getLayout().getBlock(ToBB->getIndex() + 1);
     assert((NextBB && NextBB->getOffset() > ToBB->getOffset()) && "bad layout");
     ToBB = NextBB;
   }
@@ -865,7 +866,7 @@ ErrorOr<StringRef> DataReader::parseString(char EndChar, bool EndNl) {
       break;
 
     StringEnd += 2;
-  } while (1);
+  } while (true);
 
   StringRef Str = ParsingBuf.substr(0, StringEnd);
 
@@ -1145,12 +1146,10 @@ std::error_code DataReader::parseInNoLBRMode() {
   }
 
   for (StringMapEntry<FuncSampleData> &FuncSamples : NamesToSamples)
-    std::stable_sort(FuncSamples.second.Data.begin(),
-                     FuncSamples.second.Data.end());
+    llvm::stable_sort(FuncSamples.second.Data);
 
   for (StringMapEntry<FuncMemData> &MemEvents : NamesToMemEvents)
-    std::stable_sort(MemEvents.second.Data.begin(),
-                     MemEvents.second.Data.end());
+    llvm::stable_sort(MemEvents.second.Data);
 
   return std::error_code();
 }
@@ -1246,12 +1245,10 @@ std::error_code DataReader::parse() {
   }
 
   for (StringMapEntry<FuncBranchData> &FuncBranches : NamesToBranches)
-    std::stable_sort(FuncBranches.second.Data.begin(),
-                     FuncBranches.second.Data.end());
+    llvm::stable_sort(FuncBranches.second.Data);
 
   for (StringMapEntry<FuncMemData> &MemEvents : NamesToMemEvents)
-    std::stable_sort(MemEvents.second.Data.begin(),
-                     MemEvents.second.Data.end());
+    llvm::stable_sort(MemEvents.second.Data);
 
   return std::error_code();
 }

@@ -1,0 +1,134 @@
+= sycl_intel_kernel_restrict_all
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+== Overview
+
+This extension adds a kernel function attribute that has similar effect as
+the C99 `restrict` type qualifier. When a kernel is decorated with this
+attribute, all pointers and accessors (treated as if each accessor was a
+pointer) that are captured as kernel arguments
+are assumed to point to disjoint objects in memory.  This provides the
+compiler with additional information for optimization.
+
+A new attribute is added by this extension because there is no clear location
+on which to manually annotate C99 `restrict` on lambda captures, function
+object members, or accessors.
+
+=== Example uses
+
+[source,c++,Restrict on lambda,linenums]
+----
+Q.submit([&](handler &cgh) {
+  auto acc1 = out_buf_1.get_access<access::mode::write>(cgh);
+  auto acc2 = out_buf_2.get_access<access::mode::write>(cgh);
+  cgh.parallel_for<class lambda_foo>(
+    range<1>(N), [=](id<1> wiid) [[intel::kernel_args_restrict]]  {
+      int id = wiid[0];
+      acc1[id]=id;
+      acc2[id]=id*2;
+    });
+});
+----
+
+[source,c++,Restrict on function object,linenums]
+----
+class functor_foo {
+  ...
+  [[intel::kernel_args_restrict]]
+  void operator()(item<1> item)
+  {
+    int id = item[0];
+    buf1_m[id]=id;
+    buf2_m[id]=id*2;
+  }
+};
+----
+
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_KERNEL_ARGS_RESTRICT` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== Add new entry to Table 180 in section 5.8.1 (Kernel attributes)
+
+[width="100%",options="header",separator="@",cols="65%,35%"]
+|====
+@ SYCL attribute @ Description
+a@
+[source]
+----
+intel::kernel_args_restrict
+----
+   a@ Hint to the compiler equivalent to specifying the C99 `restrict`
+   attribute on all pointers and accessors (treated as if each accessor was a
+   pointer) that are captured as kernel arguments.
+
+The attribute forms an unchecked assertion, in that implementations do not need
+to check/confirm the pre-condition in any way.  If a user applies `intel::kernel_args_restrict`
+to a kernel, but there is in fact aliasing between accessors and/or pointers at runtime,
+the behavior is undefined.
+
+|====
+
