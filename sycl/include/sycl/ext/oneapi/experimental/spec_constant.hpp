@@ -21,7 +21,6 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-class program;
 
 namespace ext {
 namespace oneapi {
@@ -47,7 +46,6 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class sycl::program;
 
 public:
   template <typename V = T>
