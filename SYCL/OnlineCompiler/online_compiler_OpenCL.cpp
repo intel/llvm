@@ -3,8 +3,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s %opencl_lib -o %th.out
-// RUN: %HOST_RUN_PLACEHOLDER %th.out
 
 // This test checks ext::intel feature class online_compiler for OpenCL.
 // All OpenCL specific code is kept here and the common part that can be
