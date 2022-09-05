@@ -20,7 +20,7 @@ template <typename T> int runTests(sycl::aspect ExtAspect) {
   queue Q;
   printDeviceInfo(Q);
   device D = Q.get_device();
-  if (!D.is_host() && !D.has(ExtAspect)) {
+  if (!D.has(ExtAspect)) {
     std::cout << "Test skipped\n";
     return 0;
   }

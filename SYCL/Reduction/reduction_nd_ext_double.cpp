@@ -9,9 +9,6 @@
 
 // XFAIL: hip_nvidia
 
-// TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
-// RUNx: %HOST_RUN_PLACEHOLDER %t.out
-
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // used with 'double' type.
 
