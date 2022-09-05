@@ -111,6 +111,6 @@ TEST(KernelReleaseTest, DISABLED_GetKernelRelease) {
 
   // { kernel Krnl = Prg.get_kernel(""); }
 
-ASSERT_EQ(TestContext->KernelReferenceCount, 0)
+  ASSERT_EQ(TestContext->KernelReferenceCount, 0)
       << "Reference count not equal to 0 after kernel destruction";
 }
