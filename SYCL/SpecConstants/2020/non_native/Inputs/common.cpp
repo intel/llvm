@@ -18,10 +18,6 @@ const static sycl::specialization_id<short> SpecConst4{42};
 int main() {
   sycl::queue Q;
 
-  // No support for host device so far
-  if (Q.is_host())
-    return 0;
-
   {
     sycl::buffer<int, 1> Buf{sycl::range{1}};
     Q.submit([&](sycl::handler &CGH) {

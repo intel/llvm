@@ -31,10 +31,6 @@ const static sycl::specialization_id<TestStruct2> SpecConst5{
 int main() {
   sycl::queue Q;
 
-  // No support for host device so far
-  if (Q.is_host())
-    return 0;
-
   // The code is needed to just have device images in the executable
   if (0) {
     Q.submit([](sycl::handler &CGH) { CGH.single_task<Kernel1Name>([] {}); });
