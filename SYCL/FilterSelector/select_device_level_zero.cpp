@@ -1,12 +1,12 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero:gpu,host %t.out
+// RUN: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when SYCL_DEVICE_FILTER is set
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: level_zero,gpu,host
+// REQUIRES: level_zero,gpu
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -46,12 +46,6 @@ int main() {
     } catch (...) {
       cout << "Expectedly, cpu device is not found." << std::endl;
     }
-  }
-  // HOST device is always available regardless of SYCL_DEVICE_FILTER
-  {
-    host_selector hs;
-    device d = hs.select_device();
-    cout << "HOST device is found: " << d.is_host() << std::endl;
   }
   {
     accelerator_selector as;

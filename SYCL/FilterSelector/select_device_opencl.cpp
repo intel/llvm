@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl,host %t.out
+// RUN: env SYCL_DEVICE_FILTER=opencl %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when SYCL_DEVICE_FILTER is set
@@ -41,11 +41,6 @@ int main() {
     cpu_selector cs;
     device d = cs.select_device();
     cout << "CPU device is found : " << d.is_cpu() << std::endl;
-  }
-  {
-    host_selector hs;
-    device d = hs.select_device();
-    cout << "HOST device is found: " << d.is_host() << std::endl;
   }
   {
     accelerator_selector as;

@@ -45,19 +45,6 @@ int main() {
     device d = cs.select_device();
     std::cout << "CPU device is found: " << d.is_cpu() << std::endl;
   }
-  /*
-  // TODO: enable this once SYCL_DEVICE_FILTER PR is merged.
-  {
-    host_selector hs;
-    try {
-      device d = hs.select_device();
-      std::cerr << "HOST device is found: " << d.is_host() << std::endl;
-      return -1;
-    } catch (...) {
-      std::cout << "Expectedly, HOST device is not found";
-    }
-  }
-  */
   {
     accelerator_selector as;
     try {
