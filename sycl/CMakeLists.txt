@@ -383,6 +383,12 @@ if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS OpenCL-ICD)
 endif()
 
+# On Windows or for HIP AMD lld is also needed
+if(WIN32 OR ("hip" IN_LIST SYCL_ENABLE_PLUGINS AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD"))
+  add_dependencies(sycl-toolchain lld)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
+endif()
+
 if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
@@ -405,12 +411,6 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
-
-  # On AMD platform lld is also needed
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    add_dependencies(sycl-toolchain lld)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
-  endif()
 endif()
 
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
