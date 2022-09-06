@@ -16,8 +16,8 @@
 
 #include <gtest/gtest.h>
 
-#include <unordered_map>
 #include <atomic>
+#include <unordered_map>
 
 #include <sycl/sycl.hpp>
 
