@@ -4106,6 +4106,8 @@ def warn_attribute_type_not_supported : Warning<
 def warn_attribute_type_not_supported_global : Warning<
   "%0 attribute argument '%1' not supported on a global variable">,
   InGroup<IgnoredAttributes>;
+def err_attribute_argument_not_supported : Error<
+  "%0 attribute argument %1 is not supported">;
 def warn_attribute_unknown_visibility : Warning<"unknown visibility %0">,
   InGroup<IgnoredAttributes>;
 def warn_attribute_protected_visibility :

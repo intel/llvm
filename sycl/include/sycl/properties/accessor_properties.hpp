@@ -48,7 +48,7 @@ constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
 namespace ext {
 namespace intel {
 namespace property {
-struct buffer_location {
+struct __SYCL_TYPE(buffer_location) buffer_location {
   template <int A = 0> struct instance {
     template <int B>
     constexpr bool operator==(const buffer_location::instance<B> &) const {
@@ -82,7 +82,7 @@ struct no_offset {
     }
   };
 };
-struct no_alias {
+struct __SYCL_TYPE(no_alias) no_alias {
   template <bool B = true> struct instance {
     constexpr bool operator==(const no_alias::instance<B> &) const {
       return true;
