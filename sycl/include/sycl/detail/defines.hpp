@@ -26,3 +26,9 @@
 #else
 #define __SYCL_SPECIAL_CLASS
 #endif
+
+#if __has_cpp_attribute(__sycl_detail__::sycl_type)
+#define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
+#else
+#define __SYCL_TYPE(x)
+#endif

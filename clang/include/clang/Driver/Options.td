@@ -956,6 +956,12 @@ def cuda_include_ptx_EQ : Joined<["--"], "cuda-include-ptx=">, Flags<[NoXarchOpt
   HelpText<"Include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
 def no_cuda_include_ptx_EQ : Joined<["--"], "no-cuda-include-ptx=">, Flags<[NoXarchOption]>,
   HelpText<"Do not include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
+def fno_bundle_offload_arch : Flag<["-"], "fno-bundle-offload-arch">, 
+  HelpText<"Specify that the offload bundler should not identify a bundle with "
+            "specific arch. For example, the bundle for `nvptx64-nvidia-cuda-sm_80` "
+            "uses the bundle tag `nvptx64-nvidia-cuda` when used. "
+            "This allows .o files to contain .bc bundles that are unspecific "
+            "to a particular arch version.">;
 def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[NoXarchOption]>,
   HelpText<"CUDA offloading device architecture (e.g. sm_35), or HIP offloading target ID in the form of a "
            "device architecture followed by target ID features delimited by a colon. Each target ID feature "

@@ -173,7 +173,6 @@ public:
       llvm::opt::ArgStringList &CC1Args) const override;
 
   const ToolChain &HostTC;
-  const SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildBackendCompiler() const override;

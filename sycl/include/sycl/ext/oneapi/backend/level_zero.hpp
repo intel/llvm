@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/backend.hpp>
-#include <sycl/program.hpp>
 
 #include <vector>
 
@@ -27,10 +26,6 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool keep_ownership = false);
-#ifdef __SYCL_INTERNAL_API
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle);
-#endif
 __SYCL_DEPRECATED("Use make_queue with device parameter")
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle,
@@ -81,18 +76,6 @@ T make(const std::vector<device> &DeviceList,
                       sycl::detail::pi::cast<pi_native_handle>(Interop),
                       Ownership == ownership::keep);
 }
-
-// Construction of SYCL program.
-#ifdef __SYCL_INTERNAL_API
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, program>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
-T make(const context &Context,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop) {
-  return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
-}
-#endif
 
 // Construction of SYCL queue.
 template <typename T, typename sycl::detail::enable_if_t<
