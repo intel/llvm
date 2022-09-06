@@ -281,6 +281,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
                                        pi::cast<RT::PiDeviceType>(DeviceType),
                                        NumDevices, PiDevices.data(), nullptr);
 
+  // Some elements of PiDevices vector might be filtered out, so make a copy of
+  // handles to do a cleaup later
+  std::vector<RT::PiDevice> PiDevicesToCleanUp = PiDevices;
+
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
@@ -295,6 +299,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
+
+  // The reference counter for handles, that we used to create sycl objects, is
+  // incremented, so we need to call release here.
+  for (RT::PiDevice &PiDev : PiDevicesToCleanUp)
+    Plugin.call<PiApiKind::piDeviceRelease>(PiDev);
 
   return Res;
 }
