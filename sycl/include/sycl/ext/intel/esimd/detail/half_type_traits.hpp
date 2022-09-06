@@ -96,10 +96,7 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
 };
 
 // Proxy class to access bit representation of a wrapper type both on host and
-// device. Declared as friend to the wrapper types (e.g. sycl::half).
-// Specific type traits implementations (scalar_conversion_traits) can use
-// concrete wrapper type specializations of the static functions in this class
-// to access private fields in the wrapper type (e.g. sycl::half).
+// device. Declared as friend to the sycl::half.
 // TODO add this functionality to sycl type implementation? With C++20,
 // std::bit_cast should be a good replacement.
 class WrapperElementTypeProxy {
