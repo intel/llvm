@@ -153,8 +153,7 @@ public:
         new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                              (detail::SYCLMemObjI *)SYCLMemObject, Dims,
                              ElemSize, OffsetInBytes, IsSubBuffer,
-                             /* IsESIMDAcc = */ false,
-                             PropertyList));
+                             /* IsESIMDAcc = */ false, PropertyList));
   }
 
 protected:

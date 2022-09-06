@@ -182,9 +182,16 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
                                           PiCode)                              \
-  namespace Namespace::info::DescType {                                        \
-  template <> struct Desc { using return_type = ReturnT; };                    \
-  }
+  namespace Namespace {                                                        \
+  namespace info {                                                             \
+  namespace DescType {                                                         \
+  template <> struct Desc {                                                    \
+    using return_type = ReturnT;                                               \
+  };                                                                           \
+  } /*namespace DescType */                                                    \
+  } /*namespace info */                                                        \
+  } /*namespace Namespace */
+
 namespace ext {
 namespace oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;

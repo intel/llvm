@@ -172,7 +172,6 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
-
   const ToolChain &HostTC;
   const SYCLInstallationDetector SYCLInstallation;
 
