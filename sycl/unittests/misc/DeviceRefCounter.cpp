@@ -28,7 +28,7 @@ static pi_result redefinedDevicesGet(pi_platform platform,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices) {
   if (devices && num_entries > 0) {
-    *devices = (pi_device)new int;
+    *devices = (pi_device) new int;
     DevRefCounter[*devices] = 1;
   }
   if (num_devices)
@@ -78,6 +78,6 @@ TEST(DevRefCounter, DevRefCounter) {
 
     Plt.get_devices();
   }
-  for(auto &El: DevRefCounter)
+  for (auto &El : DevRefCounter)
     EXPECT_EQ(El.second, 0);
 }
