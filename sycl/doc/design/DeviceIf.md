@@ -88,10 +88,11 @@ device headers.
 
 ### Compiler driver macro predefines
 
-Most of the changes to the compiler driver are described above, but there is
-one additional change specific to phase 1.  The compiler driver must predefine
-one of the following macros when invoking the device compiler, according to the
-device name passed to `-fsycl-targets`:
+Most of the changes to the compiler driver are described above, but there are
+a few small additional changes that are specific to phase 1.  If the user
+invokes the compiler driver with `-fsycl-targets=<device>` where `<device>` is
+one of the GPU device names listed above, the compiler driver must predefine
+one of the following corresponding C++ macro names:
 
 * `__SYCL_TARGET_INTEL_GPU_BDW__`
 * `__SYCL_TARGET_INTEL_GPU_SKL__`
@@ -116,6 +117,11 @@ device name passed to `-fsycl-targets`:
 * `__SYCL_TARGET_INTEL_GPU_ACM_G12__`
 * `__SYCL_TARGET_INTEL_GPU_PVC__`
 
+If the user invokes the compiler driver with `-fsycl-targets=spir64_x86_64`,
+the compiler driver must predefine the following C++ macro name:
+
+* `__SYCL_TARGET_INTEL_X86_64__`
+
 These macros are an internal implementation detail, so they should not be
 documented to users, and user code should not make use of them.
 
@@ -130,6 +136,9 @@ The following code snippet illustrates the technique:
 namespace sycl {
 namespace detail {
 
+#ifndef __SYCL_TARGET_INTEL_X86_64__
+#define __SYCL_TARGET_INTEL_X86_64__ 0
+#endif
 #ifndef __SYCL_TARGET_INTEL_GPU_BDW__
 #define __SYCL_TARGET_INTEL_GPU_BDW__ 0
 #endif
@@ -141,10 +150,13 @@ namespace detail {
 #endif
 // ...
 
-// This is true when the translation unit is compiled in AOT mode with one of
-// the new "-fsycl-targets" device names.  The "if_device_has" feature is only
-// supported when compiled in this way.
-static constexpr bool is_new_aot_mode =
+// This is true when the translation unit is compiled in AOT mode with device
+// names that supports the "if_device_has" features.  If an unsupported device
+// name is specified via "-fsycl-targets", the associated invocation of the
+// device compiler will set this variable to false, and that will trigger an
+// error for code that uses "if_device_has".
+static constexpr bool is_allowable_aot_mode =
+  (__SYCL_TARGET_INTEL_X86_64__ == 1) ||
   (__SYCL_TARGET_INTEL_GPU_BDW__ == 1) ||
   (__SYCL_TARGET_INTEL_GPU_SKL__ == 1) ||
   (__SYCL_TARGET_INTEL_GPU_KBL__ == 1)
@@ -156,6 +168,7 @@ static constexpr bool is_new_aot_mode =
 static constexpr bool valid_aspect[] = {
   false,
   // ...
+  true, // ext_intel_x86_64
   true, // ext_intel_gpu_bdw
   true, // ext_intel_gpu_skl
   true  // ext_intel_gpu_kbl
@@ -167,17 +180,18 @@ static constexpr bool valid_aspect[] = {
 static constexpr bool device_capabilities[] = {
   false,
   // ...
+  (__SYCL_TARGET_INTEL_X86_64__ == 1),
   (__SYCL_TARGET_INTEL_GPU_BDW__ == 1),
   (__SYCL_TARGET_INTEL_GPU_SKL__ == 1),
   (__SYCL_TARGET_INTEL_GPU_KBL__ == 1)
   // ...
 };
 
-// Read the value of "is_new_aot_mode" via a template to defer triggering
+// Read the value of "is_allowable_aot_mode" via a template to defer triggering
 // static_assert() until template instantiation time.
 template<aspect... Aspects>
-constexpr static bool new_aot_mode() {
-  return is_new_aot_mode;
+constexpr static bool allowable_aot_mode() {
+  return is_allowable_aot_mode;
 }
 
 // Tells if all of the aspects in the parameter pack are valid for use in
@@ -227,9 +241,9 @@ namespace ext::oneapi::experimental {
 
 template<aspect ...Aspects, typename T, typename ...Args>
 constexpr static auto if_device_has(T fnTrue, Args ...args) {
-  static_assert(detail::new_aot_mode<Aspects...>(),
-    "The if-device-has function may only be used when AOT compiling with one "
-    "of the new 'intel_gpu_*' target names.");
+  static_assert(detail::allowable_aot_mode<Aspects...>(),
+    "The if-device-has function may only be used when AOT compiling with "
+    "'-fsycl-targets=spir64_x86_64' or '-fsycl-targets=intel_gpu_*'");
   static_assert(detail::aspects_valid<Aspects...>(),
     "Invalid aspect used in if_device_has.");
   if constexpr (detail::device_has<Aspects...>()) {
@@ -243,6 +257,19 @@ constexpr static auto if_device_has(T fnTrue, Args ...args) {
 } // namespace ext::oneapi::experimental
 } // namespace sycl
 ```
+
+### Analysis of error checking for unsupported AOT modes
+
+The header file code presented above triggers a `static_assert` if the
+`if_device_has` function is used in a translation unit that is compiled for an
+unsupported target.  The only supported targets are `spir64_x86_64` and the new
+`intel_gpu_*` GPU device names.
+
+The error checking relies on the fact that the device compiler is invoked
+separately for each target listed in `-fsycl-target`.  If any target is
+unsupported, the associated device compilation will compute
+`is_allowable_aot_mode` as `false`, and this will trigger the `static_assert`
+in that compilation phase.
 
 
 ## Phase 2: Both JIT and AOT modes

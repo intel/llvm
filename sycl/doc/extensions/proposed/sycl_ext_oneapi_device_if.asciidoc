@@ -261,6 +261,7 @@ translation unit (source file) that is compiled in AOT mode with
 `-fsycl-targets=<device>`, where `<device>` is one of the following target
 names:
 
+* `spir64_x86_64`
 * `intel_gpu_bdw`
 * `intel_gpu_skl`
 * `intel_gpu_kbl`
