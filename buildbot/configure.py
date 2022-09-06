@@ -44,6 +44,9 @@ def do_configure(args):
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
 
+    if sys.platform != "darwin":
+        sycl_enabled_plugins.append("level_zero")
+
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
@@ -107,10 +110,10 @@ def do_configure(args):
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
         # libclc is required for CI validation
-        if 'libclc' not in llvm_enable_projects:
+        if 'libclc' not in llvm_enable_projects and sys.platform != "darwin":
             llvm_enable_projects += ';libclc'
         # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
-        if 'NVPTX' not in llvm_targets_to_build:
+        if 'NVPTX' not in llvm_targets_to_build and sys.platform != "darwin":
             llvm_targets_to_build += ';NVPTX'
         # Add both NVIDIA and AMD libclc targets
         if libclc_amd_target_names not in libclc_targets_to_build:

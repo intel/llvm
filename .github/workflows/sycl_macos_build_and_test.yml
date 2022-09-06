@@ -58,22 +58,10 @@ jobs:
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build
+      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
     - name: Install
-      # TODO replace utility installation with a single CMake target
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
-        cmake --build $GITHUB_WORKSPACE/build --target utils/FileCheck/install
-        cmake --build $GITHUB_WORKSPACE/build --target utils/count/install
-        cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
-        cmake --build $GITHUB_WORKSPACE/build --target utils/lit/install
-        cmake --build $GITHUB_WORKSPACE/build --target utils/llvm-lit/install
-        cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
-        cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
-        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
-        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
-        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
-        cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
