@@ -408,8 +408,6 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
 
 #endif
 
-
-
 template <int Dims> class LocalAccessorBaseDevice {
 public:
   LocalAccessorBaseDevice(sycl::range<Dims> Size)
@@ -1105,16 +1103,9 @@ public:
 
 #else
   id<3> &getOffset() { return AccessorBaseHost::getOffset(); }
-  range<3> &getAccessRange() {
-    return AccessorBaseHost::getAccessRange();
-  }
-  range<3> &getMemoryRange() {
-    return AccessorBaseHost::getMemoryRange();
-  }
-
-  void *getPtr() {
-    return AccessorBaseHost::getPtr();
-  }
+  range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
+  range<3> &getMemoryRange() { return AccessorBaseHost::getMemoryRange(); }
+  void *getPtr() { return AccessorBaseHost::getPtr(); }
 
   const id<3> &getOffset() const { return AccessorBaseHost::getOffset(); }
   const range<3> &getAccessRange() const {
@@ -1124,9 +1115,7 @@ public:
     return AccessorBaseHost::getMemoryRange();
   }
 
-  void *getPtr() const {
-    return AccessorBaseHost::getPtr();
-  }
+  void *getPtr() const { return AccessorBaseHost::getPtr(); }
 
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {

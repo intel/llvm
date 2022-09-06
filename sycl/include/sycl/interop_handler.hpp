@@ -59,7 +59,8 @@ private:
   template <backend BackendName, typename DataT, int Dims,
             access::mode AccessMode, access::target AccessTarget,
             access::placeholder IsPlaceholder>
-  auto getMemImpl(detail::AccessorImplHost *Req) const -> typename detail::interop<
+  auto
+  getMemImpl(detail::AccessorImplHost *Req) const -> typename detail::interop<
       BackendName,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder>>::type {
     return (typename detail::interop<
@@ -67,7 +68,8 @@ private:
                                   IsPlaceholder>>::type)GetNativeMem(Req);
   }
 
-  __SYCL_EXPORT pi_native_handle GetNativeMem(detail::AccessorImplHost *Req) const;
+  __SYCL_EXPORT pi_native_handle
+  GetNativeMem(detail::AccessorImplHost *Req) const;
   __SYCL_EXPORT pi_native_handle GetNativeQueue() const;
 };
 

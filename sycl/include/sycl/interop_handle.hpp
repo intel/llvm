@@ -162,7 +162,8 @@ private:
         NativeHandles);
   }
 
-  __SYCL_EXPORT pi_native_handle getNativeMem(detail::AccessorImplHost *Req) const;
+  __SYCL_EXPORT pi_native_handle
+  getNativeMem(detail::AccessorImplHost *Req) const;
   __SYCL_EXPORT pi_native_handle getNativeQueue() const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
