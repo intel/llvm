@@ -49,6 +49,15 @@ or may be in a preliminary state.  The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
 
+[comment]
+--
+_Add the following paragraph when this specification becomes "experimental"._
+
+There are important limitations with the DPC++ implementation of this
+experimental extension.  See the section below titled "Limitations with the
+experimental version" for a description of these limitations.
+--
+
 
 == Overview
 
@@ -289,3 +298,16 @@ of these aspects, and it provides a brief description of their meanings.
 An "alias" aspect is generally added for new hardware platforms only after
 hardware has finalized and the exact version is known.
 ====
+
+
+== Limitations with the experimental version
+
+This experimental extension has limited support for the new aspects listed
+above.  These aspects may only be used with the `if_device_has` and
+`else_if_device_has` functions that are defined in
+link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if].
+Notably, they may _not_ be used to test the device type from host code via
+`device::has()`.
+
+This limitation is expected to be lifted in a future version of this extension
+specification.
