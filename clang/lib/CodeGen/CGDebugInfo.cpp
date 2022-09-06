@@ -541,8 +541,7 @@ void CGDebugInfo::CreateCompileUnit() {
           SM.getFileEntryRefForID(SM.getMainFileID())) {
     MainFileDir = std::string(MainFile->getDir().getName());
     FileID MainFileID = SM.getMainFileID();
-    if (!llvm::sys::path::is_absolute(MainFileName) &&
-        !CGM.getLangOpts().isSYCL()) {
+    if (!llvm::sys::path::is_absolute(MainFileName)) {
       llvm::SmallString<1024> MainFileDirSS(MainFileDir);
       llvm::sys::path::append(MainFileDirSS, MainFileName);
       MainFileName =

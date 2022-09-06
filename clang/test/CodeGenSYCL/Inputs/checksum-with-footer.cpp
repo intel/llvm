@@ -1,6 +1,6 @@
 #line 1 "checksum.cpp"
 int main() {
-  int x;
+  int x = 0;
   return x + 1;
 }
 
