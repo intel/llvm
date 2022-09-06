@@ -175,6 +175,18 @@ def : PatFPSetcc<SETUNE, FCMP_CUNE_D, FPR64>;
 def : PatFPSetcc<SETUO,  FCMP_CUN_D,  FPR64>;
 def : PatFPSetcc<SETLT,  FCMP_CLT_D,  FPR64>;
 
+defm : PatFPBrcond<SETOEQ, FCMP_CEQ_D, FPR64>;
+defm : PatFPBrcond<SETOLT, FCMP_CLT_D, FPR64>;
+defm : PatFPBrcond<SETOLE, FCMP_CLE_D, FPR64>;
+defm : PatFPBrcond<SETONE, FCMP_CNE_D, FPR64>;
+defm : PatFPBrcond<SETO,   FCMP_COR_D, FPR64>;
+defm : PatFPBrcond<SETUEQ, FCMP_CUEQ_D, FPR64>;
+defm : PatFPBrcond<SETULT, FCMP_CULT_D, FPR64>;
+defm : PatFPBrcond<SETULE, FCMP_CULE_D, FPR64>;
+defm : PatFPBrcond<SETUNE, FCMP_CUNE_D, FPR64>;
+defm : PatFPBrcond<SETUO,  FCMP_CUN_D, FPR64>;
+defm : PatFPBrcond<SETLT,  FCMP_CLT_D, FPR64>;
+
 // TODO: Match signaling comparison strict_fsetccs with FCMP_S*_D instructions.
 
 /// Select
@@ -215,6 +227,9 @@ def : Pat<(loongarch_ftint FPR32:$src), (FTINTRZ_L_S FPR32:$src)>;
 def : Pat<(f32 (fpround FPR64:$src)), (FCVT_S_D FPR64:$src)>;
 // f32 -> f64
 def : Pat<(f64 (fpextend FPR32:$src)), (FCVT_D_S FPR32:$src)>;
+
+// FP reciprocal operation
+def : Pat<(fdiv fpimm1, FPR64:$src), (FRECIP_D $src)>;
 } // Predicates = [HasBasicD]
 
 /// Floating point constants

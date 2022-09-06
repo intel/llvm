@@ -17685,6 +17685,11 @@ static void RemoveNestedImmediateInvocation(
       DRSet.erase(E);
       return E;
     }
+    ExprResult TransformLambdaExpr(LambdaExpr *E) {
+      // Do not rebuild lambdas to avoid creating a new type.
+      // Lambdas have already been processed inside their eval context.
+      return E;
+    }
     bool AlwaysRebuild() { return false; }
     bool ReplacingOriginal() { return true; }
     bool AllowSkippingCXXConstructExpr() {

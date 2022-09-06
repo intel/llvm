@@ -7000,7 +7000,8 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
     // Define defaulted constexpr virtual functions that override a base class
     // function right away.
     // FIXME: We can defer doing this until the vtable is marked as used.
-    if (M->isDefaulted() && M->isConstexpr() && M->size_overridden_methods())
+    if (CSM != CXXInvalid && M->isDefaulted() && M->isConstexpr() &&
+        M->size_overridden_methods())
       DefineDefaultedFunction(*this, M, M->getLocation());
 
     if (!Incomplete)
@@ -18228,8 +18229,8 @@ void Sema::CheckDelegatingCtorCycles() {
   llvm::SmallPtrSet<CXXConstructorDecl*, 4> Valid, Invalid, Current;
 
   for (DelegatingCtorDeclsType::iterator
-         I = DelegatingCtorDecls.begin(ExternalSource),
-         E = DelegatingCtorDecls.end();
+           I = DelegatingCtorDecls.begin(ExternalSource.get()),
+           E = DelegatingCtorDecls.end();
        I != E; ++I)
     DelegatingCycleHelper(*I, Valid, Invalid, Current, *this);
 
