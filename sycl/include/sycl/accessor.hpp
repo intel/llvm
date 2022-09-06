@@ -789,7 +789,7 @@ private:
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
-class __SYCL_SPECIAL_CLASS accessor :
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
 #endif
@@ -2315,7 +2315,7 @@ public:
 };
 
 template <typename DataT, int Dimensions = 1>
-class __SYCL_SPECIAL_CLASS local_accessor
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
     : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
                                  access::placeholder::false_t> {
 
@@ -2354,8 +2354,9 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image, IsPlaceholder>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
+                               access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder> {
 public:
@@ -2442,8 +2443,9 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image_array, IsPlaceholder>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
+                               access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder> {
 #ifdef __SYCL_DEVICE_ONLY__
