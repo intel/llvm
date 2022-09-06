@@ -4098,6 +4098,8 @@ def warn_transparent_union_attribute_zero_fields : Warning<
 def warn_attribute_type_not_supported : Warning<
   "%0 attribute argument not supported: %1">,
   InGroup<IgnoredAttributes>;
+def err_attribute_argument_not_supported : Error<
+  "%0 attribute argument %1 is not supported">;
 def warn_attribute_unknown_visibility : Warning<"unknown visibility %0">,
   InGroup<IgnoredAttributes>;
 def warn_attribute_protected_visibility :
@@ -7219,9 +7221,11 @@ def warn_format_nonliteral : Warning<
   InGroup<FormatNonLiteral>, DefaultIgnore;
 
 def err_sycl_device_global_incorrect_scope : Error<
-  "'device_global' variables must be static or declared at namespace scope">;
+  "'device_global' variable must be a static data member or declared in global or namespace scope">;
 def err_sycl_device_global_not_publicly_accessible: Error<
-  "'device_global' member variable %0 is not publicly accessible from namespace scope">;
+  "'device_global' member variable %0 should be publicly accessible from namespace scope">;
+def err_sycl_device_global_array : Error<
+  "'device_global' array is not allowed">;
 
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;

@@ -101,6 +101,7 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
   }
 };
 
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 template <backend BackendName, typename DataT, int Dimensions,
           typename AllocatorT>
 auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
@@ -115,6 +116,7 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
         PI_ERROR_INVALID_OPERATION);
   return Obj.template getNative<BackendName>();
 }
+#endif
 } // namespace detail
 
 template <backend BackendName, class SyclObjectT>
@@ -147,6 +149,7 @@ auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
   return detail::get_native_buffer<BackendName>(Obj);
 }
 
+#if SYCL_BACKEND_OPENCL
 template <>
 inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
@@ -164,6 +167,23 @@ get_native<backend::opencl, event>(const event &Obj) {
   }
   return ReturnValue;
 }
+#endif
+
+#if SYCL_EXT_ONEAPI_BACKEND_CUDA
+template <>
+inline backend_return_t<backend::ext_oneapi_cuda, device>
+get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::ext_oneapi_cuda) {
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_ERROR_INVALID_OPERATION);
+  }
+  // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
+  // so we need a specialization with static_cast instead of reinterpret_cast.
+  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
+      Obj.getNative());
+}
+#endif
 
 // Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,

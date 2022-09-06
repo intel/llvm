@@ -166,6 +166,14 @@ template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
   return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
 }
 
+template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
+  return ZES_STRUCTURE_TYPE_MEM_STATE;
+}
+
+template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
+  return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
+}
+
 // The helpers to properly default initialize Level-Zero descriptor and
 // properties structures.
 template <class T> struct ZeStruct : public T {
@@ -456,11 +464,27 @@ public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
 };
 
+enum EventsScope {
+  // All events are created host-visible.
+  AllHostVisible,
+  // All events are created with device-scope and only when
+  // host waits them or queries their status that a proxy
+  // host-visible event is created and set to signal after
+  // original event signals.
+  OnDemandHostVisibleProxy,
+  // All events are created with device-scope and only
+  // when a batch of commands is submitted for execution a
+  // last command in that batch is added to signal host-visible
+  // completion of each command in this batch (the default mode).
+  LastCommandInBatchHostVisible
+};
+
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              pi_device ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
+        ImmCommandListsPreferred{false}, ZeDeviceProperties{},
+        ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -535,6 +559,16 @@ struct _pi_device : _pi_object {
   // This field is only set at _pi_device creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_device.
   const pi_device RootDevice;
+
+  // Whether to use immediate commandlists for queues on this device.
+  // For some devices (e.g. PVC) immediate commandlists are preferred.
+  bool ImmCommandListsPreferred;
+
+  // Return the Events scope to be used in for this device.
+  enum EventsScope eventsScope();
+
+  // Return whether to use immediate commandlists for this device.
+  bool useImmediateCommandLists();
 
   bool isSubDevice() { return RootDevice != nullptr; }
 

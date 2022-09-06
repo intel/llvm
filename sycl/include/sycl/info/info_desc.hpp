@@ -15,9 +15,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-#ifdef __SYCL_INTERNAL_API
-class program;
-#endif
 class device;
 class platform;
 class kernel_id;
@@ -179,15 +176,6 @@ namespace event_profiling {
 } // namespace event_profiling
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-// Deprecated program class information desctiptors
-#ifdef __SYCL_INTERNAL_API
-enum class program : pi_uint32 {
-  context = PI_PROGRAM_INFO_CONTEXT,
-  devices = PI_PROGRAM_INFO_DEVICES,
-  reference_count = PI_PROGRAM_INFO_REFERENCE_COUNT
-};
-#endif
-
 // Provide an alias to the return type for each of the info parameters
 template <typename T, T param> class param_traits {};
 
@@ -198,11 +186,6 @@ template <typename T, T param> struct compatibility_param_traits {};
   public:                                                                      \
     using return_type = ret_type;                                              \
   };
-
-#ifdef __SYCL_INTERNAL_API
-#include <sycl/info/program_traits.def>
-#endif
-
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace info
