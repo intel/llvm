@@ -45,7 +45,6 @@
 #include <sycl/pipes.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/pointers.hpp>
-#include <sycl/program.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/range.hpp>
@@ -69,6 +68,5 @@
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
-#include <sycl/ext/oneapi/reduction.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>

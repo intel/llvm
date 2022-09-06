@@ -58,9 +58,6 @@ int main() {
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
 
-  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
-  sycl::program Prog{Ctx};
-
   sycl::buffer<int, 1> Buffer(4);
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
   size_t BufferGetCount = Buffer.get_count();
@@ -196,6 +193,12 @@ int main() {
   group.get_id(1);
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
+
+  // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
+        LocalAcc(sycl::range<1>(1), CGH);
+  });
 
   return 0;
 }

@@ -209,3 +209,65 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*Dims*/ 0,
           /*ElementSize*/ 0};
 }
+
+class MockHandler : public sycl::handler {
+public:
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
+      : sycl::handler(Queue, IsHost) {}
+  // Methods
+  using sycl::handler::getType;
+  using sycl::handler::MImpl;
+
+  sycl::detail::NDRDescT &getNDRDesc() { return MNDRDesc; }
+  sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
+  sycl::detail::CG::CGTYPE &getCGType() { return MCGType; }
+  std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
+    return MStreamStorage;
+  }
+  std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
+    return MHostKernel;
+  }
+  std::vector<std::vector<char>> &getArgsStorage() { return MArgsStorage; }
+  std::vector<sycl::detail::AccessorImplPtr> &getAccStorage() {
+    return MAccStorage;
+  }
+  std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
+    return MSharedPtrStorage;
+  }
+  std::vector<sycl::detail::Requirement *> &getRequirements() {
+    return MRequirements;
+  }
+  std::vector<sycl::detail::EventImplPtr> &getEvents() { return MEvents; }
+  std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
+  std::string &getKernelName() { return MKernelName; }
+  sycl::detail::OSModuleHandle &getOSModuleHandle() { return MOSModuleHandle; }
+  std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
+  std::unique_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
+  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
+
+  void setType(sycl::detail::CG::CGTYPE Type) {
+    static_cast<sycl::handler *>(this)->MCGType = Type;
+  }
+
+  template <typename KernelType, typename ArgType, int Dims,
+            typename KernelName>
+  void setHostKernel(KernelType Kernel) {
+    static_cast<sycl::handler *>(this)->MHostKernel.reset(
+        new sycl::detail::HostKernel<KernelType, ArgType, Dims>(Kernel));
+  }
+
+  template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
+    static_cast<sycl::handler *>(this)->MNDRDesc.set(std::move(Range));
+  }
+
+  void addStream(const sycl::detail::StreamImplPtr &Stream) {
+    sycl::handler::addStream(Stream);
+  }
+
+  std::unique_ptr<sycl::detail::CG> finalize() {
+    throw sycl::runtime_error("Unhandled type of command group",
+                              PI_ERROR_INVALID_OPERATION);
+
+    return nullptr;
+  }
+};

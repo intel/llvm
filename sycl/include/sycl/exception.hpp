@@ -89,7 +89,7 @@ public:
 
   const char *what() const noexcept final;
 
-  bool has_context() const;
+  bool has_context() const noexcept;
 
   context get_context() const;
 
@@ -102,6 +102,7 @@ private:
   std::shared_ptr<std::string> MMsg;
   pi_int32 MPIErr;
   std::shared_ptr<context> MContext;
+  std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
 protected:
   // these two constructors are no longer used. Kept for ABI compatability.

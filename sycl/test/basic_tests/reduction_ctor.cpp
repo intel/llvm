@@ -54,30 +54,18 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
         ReduRWAcc(ReduBuf, CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::device>
         ReduDWAcc(ReduBuf, CGH);
-    auto ReduRW = ext::oneapi::reduction(ReduRWAcc, BOp);
-    auto ReduDW = ext::oneapi::reduction(ReduDWAcc, BOp);
-    auto ReduRWUSM = ext::oneapi::reduction(ReduUSMPtr, BOp);
-    auto ReduRW2020 = sycl::reduction(ReduBuf, CGH, BOp);
-    auto ReduRWUSM2020 = sycl::reduction(ReduUSMPtr, BOp);
+    auto Redu = sycl::reduction(ReduBuf, CGH, BOp);
+    auto ReduUSM = sycl::reduction(ReduUSMPtr, BOp);
 
-    assert(toBool(ReduRW.getIdentity() == Identity) &&
-           toBool(ReduDW.getIdentity() == Identity) &&
-           toBool(ReduRWUSM.getIdentity() == Identity) &&
-           toBool(ReduRW2020.getIdentity() == Identity) &&
-           toBool(ReduRWUSM2020.getIdentity() == Identity) &&
+    assert(toBool(Redu.getIdentity() == Identity) &&
+           toBool(ReduUSM.getIdentity() == Identity) &&
            toBool(known_identity<BinaryOperation, T>::value == Identity) &&
            "Failed getIdentity() check().");
-    test_reducer(ReduRW, A, B);
-    test_reducer(ReduDW, A, B);
-    test_reducer(ReduRWUSM, A, B);
-    test_reducer(ReduRW2020, A, B);
-    test_reducer(ReduRWUSM2020, A, B);
+    test_reducer(Redu, A, B);
+    test_reducer(ReduUSM, A, B);
 
-    test_reducer(ReduRW, Identity, BOp, A, B);
-    test_reducer(ReduDW, Identity, BOp, A, B);
-    test_reducer(ReduRWUSM, Identity, BOp, A, B);
-    test_reducer(ReduRW2020, Identity, BOp, A, B);
-    test_reducer(ReduRWUSM2020, Identity, BOp, A, B);
+    test_reducer(Redu, Identity, BOp, A, B);
+    test_reducer(ReduUSM, Identity, BOp, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
     CGH.single_task<SpecializationKernelName>([=]() {});
@@ -98,22 +86,13 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
         ReduRWAcc(ReduBuf, CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::device>
         ReduDWAcc(ReduBuf, CGH);
-    auto ReduRW = ext::oneapi::reduction(ReduRWAcc, Identity, BOp);
-    auto ReduDW = ext::oneapi::reduction(ReduDWAcc, Identity, BOp);
-    auto ReduRWUSM = ext::oneapi::reduction(ReduUSMPtr, Identity, BOp);
-    auto ReduRW2020 = sycl::reduction(ReduBuf, CGH, Identity, BOp);
-    auto ReduRWUSM2020 = sycl::reduction(ReduUSMPtr, Identity, BOp);
-    assert(toBool(ReduRW.getIdentity() == Identity) &&
-           toBool(ReduDW.getIdentity() == Identity) &&
-           toBool(ReduRWUSM.getIdentity() == Identity) &&
-           toBool(ReduRW2020.getIdentity() == Identity) &&
-           toBool(ReduRWUSM2020.getIdentity() == Identity) &&
+    auto Redu = sycl::reduction(ReduBuf, CGH, Identity, BOp);
+    auto ReduUSM = sycl::reduction(ReduUSMPtr, Identity, BOp);
+    assert(toBool(Redu.getIdentity() == Identity) &&
+           toBool(ReduUSM.getIdentity() == Identity) &&
            "Failed getIdentity() check().");
-    test_reducer(ReduRW, Identity, BOp, A, B);
-    test_reducer(ReduDW, Identity, BOp, A, B);
-    test_reducer(ReduRWUSM, Identity, BOp, A, B);
-    test_reducer(ReduRW2020, Identity, BOp, A, B);
-    test_reducer(ReduRWUSM2020, Identity, BOp, A, B);
+    test_reducer(Redu, Identity, BOp, A, B);
+    test_reducer(ReduUSM, Identity, BOp, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
     CGH.single_task<SpecializationKernelName>([=]() {});

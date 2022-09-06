@@ -3014,6 +3014,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       RoundingMathPresent = false;
       break;
 
+    case options::OPT_fcuda_flush_denormals_to_zero:
+    case options::OPT_fgpu_flush_denormals_to_zero:
+      DenormalFP32Math = llvm::DenormalMode::getPreserveSign();
+      break;
+
     case options::OPT_fdenormal_fp_math_EQ:
       DenormalFPMath = llvm::parseDenormalFPAttribute(A->getValue());
       DenormalFP32Math = DenormalFPMath;
@@ -8736,7 +8741,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
-        !StringRef(CurDep->getOffloadingArch()).empty()) {
+        !StringRef(CurDep->getOffloadingArch()).empty() &&
+        !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
     }
@@ -8911,12 +8917,22 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += ',';
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';
-    Triples += Dep.DependentToolChain->getTriple().normalize();
+    // When -fsycl-force-target is used, this value overrides the expected
+    // output type we are unbundling.
+    if (Dep.DependentOffloadKind == Action::OFK_SYCL &&
+        TCArgs.hasArg(options::OPT_fsycl_force_target_EQ)) {
+      StringRef Val(
+          TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      Triples += TT.normalize();
+    } else
+      Triples += Dep.DependentToolChain->getTriple().normalize();
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
-        !Dep.DependentBoundArch.empty()) {
+        !Dep.DependentBoundArch.empty() &&
+        !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
     }
