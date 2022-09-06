@@ -27,7 +27,10 @@ template <typename Ty> Ty atomic_load(Ty *ptr) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  return __atomic_load_n((CmpxchgTy<Ty> *)ptr, __ATOMIC_SEQ_CST);
+  __ESIMD_UNSUPPORTED_ON_HOST;
+  // TODO : Enable with unit test
+  /* return sycl::bit_cast<Ty>(__atomic_load_n((CmpxchgTy<Ty> *)ptr,
+                                               __ATOMIC_SEQ_CST)); */
 #endif
 }
 
