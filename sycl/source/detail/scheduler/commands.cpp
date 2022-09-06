@@ -409,8 +409,8 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MWorkerQueue(MEvent->getWorkerQueue()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MBlockingExplicitDeps(MEvent->getBlockingExplicitDeps()), MType(Type) {
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MBlockingExplicitDeps(MEvent->getBlockingExplicitDeps()) {
   MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
   MEvent->setCommand(this);
