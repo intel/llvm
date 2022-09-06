@@ -13,10 +13,9 @@ int* add (int* in) {
 
 // CHECK:   func @sub() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-DAG:     %c4_i64 = arith.constant 4 : i64
-// CHECK-DAG:     %c7_i64 = arith.constant 7 : i64
 // CHECK-NEXT:     %0 = memref.alloca() : memref<10xi32>
 // CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%0) : (memref<10xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %2 = llvm.getelementptr %1[%c7_i64] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %2 = llvm.getelementptr %1[7] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
 // CHECK-DAG:     %[[i3:.+]] = llvm.ptrtoint %1 : !llvm.ptr<i32> to i64
 // CHECK-DAG:     %[[i4:.+]] = llvm.ptrtoint %2 : !llvm.ptr<i32> to i64
 // CHECK-NEXT:     %5 = arith.subi %[[i4]], %[[i3]] : i64

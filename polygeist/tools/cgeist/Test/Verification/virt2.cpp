@@ -36,27 +36,24 @@ void make() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN3SubC1Eid(%arg0: !llvm.ptr<struct<(struct<(i8)>, struct<(i8)>)>>, %arg1: i32, %arg2: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<struct<(struct<(i8)>, struct<(i8)>)>>, i32) -> !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i8)>, struct<(i8)>)>>) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     call @_ZN4RootC1Ei(%0, %arg1) : (!llvm.ptr<struct<(i8)>>, i32) -> ()
-// CHECK-NEXT:     %1 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr<struct<(struct<(i8)>, struct<(i8)>)>>, i32) -> !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     %1 = llvm.getelementptr %arg0[0, 1] : (!llvm.ptr<struct<(struct<(i8)>, struct<(i8)>)>>) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     call @_ZN5FRootC1Ev(%1) : (!llvm.ptr<struct<(i8)>>) -> ()
 // CHECK-NEXT:     %2 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
-// CHECK-NEXT:     %3 = llvm.getelementptr %2[%c0_i32, %c0_i32] : (!llvm.ptr<array<12 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %3 = llvm.getelementptr %2[0, 0] : (!llvm.ptr<array<12 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     call @_Z5printPc(%3) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN4RootC1Ei(%arg0: !llvm.ptr<struct<(i8)>>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str1 : !llvm.ptr<array<13 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[%c0_i32, %c0_i32] : (!llvm.ptr<array<13 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<13 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     call @_Z5printPc(%1) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN5FRootC1Ev(%arg0: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[%c0_i32, %c0_i32] : (!llvm.ptr<array<14 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<14 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     call @_Z5printPc(%1) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

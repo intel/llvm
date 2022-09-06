@@ -22,10 +22,10 @@
 // CHECK-NOT: SYCLKernel =
 
 class kernel_1 {
- sycl::accessor<cl::sycl::cl_int, 1, sycl::access::mode::read_write> A;
+ sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
 
 public:
-	kernel_1(sycl::accessor<cl::sycl::cl_int, 1, sycl::access::mode::read_write> A) : A(A) {}
+	kernel_1(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A) : A(A) {}
 
   void operator()(sycl::id<1> id) const {
    A[id] = 42;
@@ -46,7 +46,7 @@ void host_1() {
   }
 }
 
-// CHECK: func.func @_ZTSZZ6host_2vENKUlRN2cl4sycl7handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_) attributes {SYCLKernel = "_ZTSZZ6host_2vENKUlRN2cl4sycl7handlerEE_clES2_E8kernel_2", llvm.linkage = #llvm.linkage<weak_odr>}
+// CHECK: func.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_) attributes {SYCLKernel = "_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2", llvm.linkage = #llvm.linkage<weak_odr>}
 // CHECK-NOT: SYCLKernel =
 
 void host_2() {
