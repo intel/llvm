@@ -29,7 +29,7 @@ jobs:
     runs-on: macos-12
     steps:
     - name: Install dependencies
-      run: brew install ccache
+      run: brew install ccache ninja
     - uses: actions/checkout@v3
       with:
         ref: ${{ inputs.build_ref }}
