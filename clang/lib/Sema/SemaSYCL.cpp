@@ -409,9 +409,8 @@ bool Sema::isDeclAllowedInKernel(const Decl *D) {
 
     // Allow __builtin_assume_aligned to be called from within device code.
     if (FD->getBuiltinID() &&
-        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned) {
+        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned)
       return true;
-    }
 
     // Allow to use `::printf` only for CUDA.
     if (Context.getTargetInfo().getTriple().isNVPTX()) {
