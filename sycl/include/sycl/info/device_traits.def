@@ -3,7 +3,6 @@
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
 #endif
 
-#define __SYCL_TRAIT_DEPRECATED_MESSAGE
 
 // SYCL 2020 spec
 __SYCL_PARAM_TRAITS_SPEC(device, device_type, info::device_type,
@@ -197,99 +196,33 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16, bool,
                          PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16)
 
-//Deprecated oneapi/intel extensions
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
+//Deprecated oneapi/intel extension
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,
                          PI_DEVICE_INFO_PCI_ADDRESS)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count, pi_uint32,
                          PI_DEVICE_INFO_GPU_EU_COUNT)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_simd_width, pi_uint32,
                          PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_slices, pi_uint32,
                          PI_DEVICE_INFO_GPU_SLICES)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_subslices_per_slice, pi_uint32,
                          PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count_per_subslice, pi_uint32,
                          PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_hw_threads_per_eu, pi_uint32,
                          PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
                          PI_DEVICE_INFO_UUID)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::intel::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, pi_uint64,
                          PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::oneapi::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::oneapi::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::oneapi::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
-
-#ifdef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-#define __SYCL_TRAITS_DEPRECATED_MESSAGE  [[deprecated("This information decriptor has been moved to ext::oneapi::info::device::pci_address")]]
-#endif
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
-#undef __SYCL_TRAITS_DEPRECATED_MESSAGE
-
 
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC

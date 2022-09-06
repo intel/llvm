@@ -149,13 +149,9 @@ device::get_info() const {
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT __SYCL_TRAIT_DEPRECATED_MESSAGE ReturnT               \
-  device::get_info<info::device::Desc>() const;
+  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
-#define __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
 #include <sycl/info/device_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_ENABLE_DEPRECATION
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \

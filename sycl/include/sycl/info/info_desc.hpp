@@ -95,44 +95,11 @@ namespace device {
 // TODO implement the following SYCL 2020 device info descriptors:
 // atomic_fence_order_capabilities, atomic_fence_scope_capabilities, aspects,
 // il_version.
-// Marked deprecated in SYCL 2020 spec
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use device::has(aspect::image) instead")
-    image_support;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020")
-    max_constant_buffer_size;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") max_constant_args;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::has() with "
-                             "one of the aspect::usm_* aspects instead")
-    host_unified_memory;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, check the byte order of "
-                             "the host system instead, the host and the device "
-                             "are required to have the same byte order")
-    is_endian_little;
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use device::has(aspect::online_compiler) instead")
-    is_compiler_available;
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use device::has(aspect::online_linker) instead")
-    is_linker_available;
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead")
-    queue_profiling;
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead")
-    built_in_kernels;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") profile;
-// TODO Despite giving this deprecation warning, we're still yet to implement
-// info::device::aspects.
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use info::device::aspects instead") extensions;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") printf_buffer_size;
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020")
-    preferred_interop_user_sync;
 
-// Deprecated and not part of SYCL 2020 spec
-struct __SYCL2020_DEPRECATED("use info::device::usm_system_allocations instead")
-    usm_system_allocator;
+#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
+  struct __SYCL2020_DEPRECATED(Message) Desc;
+#include <sycl/info/device_traits_deprecated.def>
+#undef __SYCL_PARAM_TRAITS_DEPRECATED
 
 template <int Dimensions> struct max_work_item_sizes;
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, PiCode)     \
