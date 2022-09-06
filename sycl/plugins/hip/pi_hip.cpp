@@ -1785,7 +1785,6 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     sycl::detail::pi::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
                                     hipSuccess,
                                 "failed hipMemGetInfo() API.");
-    hipMemGetInfo(&FreeMemory, &TotalMemory);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
   }
