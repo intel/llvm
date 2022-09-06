@@ -2,7 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // Temporarily disable test on Windows due to regressions in GPU driver.
-// UNSUPPORTED: cuda || hip, windows
+// UNSUPPORTED: hip, windows
 
 #include <sycl/sycl.hpp>
 
