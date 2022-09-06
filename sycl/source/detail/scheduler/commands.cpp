@@ -214,11 +214,9 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
     const QueueImplPtr &WorkerQueue = getWorkerQueue();
-    const QueueImplPtr &DepWorkerQueue = EventImpl->getWorkerQueue();
-    // DepWorkerQueue == nullptr -> piQueueRelease was called for that queue and
-    // all previously submitted commands were issued. Then no need in extra
-    // dependency at all.
-    if (DepWorkerQueue && (DepWorkerQueue == WorkerQueue) &&
+    // MWorkerQueue in command is always not null. So check if
+    // EventImpl->getWorkerQueue != nullptr is implicit.
+    if (EventImpl->getWorkerQueue() == WorkerQueue &&
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
 
