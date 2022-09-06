@@ -20,11 +20,8 @@ on:
         default: ""
       build_artifact_suffix:
         type: string
-        required: true
-      max_parallel:
-        type: number
         required: false
-        default: 4
+        default: "default"
 
 jobs:
   build:
