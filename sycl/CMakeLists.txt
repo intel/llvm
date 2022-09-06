@@ -384,7 +384,7 @@ if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
 endif()
 
 # Build and install lld as part of the sycl-toolchain if available
-if(TARGET lld)
+if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   add_dependencies(sycl-toolchain lld)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
