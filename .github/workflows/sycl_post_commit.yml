@@ -4,7 +4,6 @@ on:
   push:
     branches:
     - sycl
-    - macos
   pull_request:
     branches:
     - sycl
@@ -115,5 +114,5 @@ jobs:
 
   macos_default:
     name: macOS
-    # if: github.repository == 'intel/llvm'
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_macos_build_and_test.yml
