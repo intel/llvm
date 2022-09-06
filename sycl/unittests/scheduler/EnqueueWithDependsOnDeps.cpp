@@ -190,7 +190,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
   platform Plt{Selector};
 
   if (!CheckTestExecutionRequirements(Plt))
-    return;
+    GTEST_SKIP();
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -252,7 +252,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
   platform Plt{Selector};
 
   if (!CheckTestExecutionRequirements(Plt))
-    return;
+    GTEST_SKIP();
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -301,7 +301,7 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   platform Plt{Selector};
 
   if (!CheckTestExecutionRequirements(Plt))
-    return;
+    GTEST_SKIP();
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -441,7 +441,7 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
   platform Plt{Selector};
 
   if (!CheckTestExecutionRequirements(Plt))
-    return;
+    GTEST_SKIP();
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
