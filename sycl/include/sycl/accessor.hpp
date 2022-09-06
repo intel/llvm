@@ -326,11 +326,11 @@ protected:
       MIDs[0] = Index;
     }
 
-    template <int CurDims = SubDims>
-    typename detail::enable_if_t<(CurDims > 1), AccessorSubscript<CurDims - 1>>
-    operator[](size_t Index) {
+    template <int CurDims = SubDims,
+              typename = detail::enable_if_t<(CurDims > 1)>>
+    auto operator[](size_t Index) {
       MIDs[Dims - CurDims] = Index;
-      return AccessorSubscript<CurDims - 1>(MAccessor, MIDs);
+      return AccessorSubscript<CurDims - 1, AccType>(MAccessor, MIDs);
     }
 
     template <int CurDims = SubDims,
