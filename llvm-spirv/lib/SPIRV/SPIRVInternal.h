@@ -704,20 +704,6 @@ Instruction *mutateCallInst(
     BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
     bool TakeName = false);
 
-/// Mutate call instruction to call SPIR-V builtin function.
-CallInst *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs = nullptr);
-
-/// Mutate call instruction to call SPIR-V builtin function.
-Instruction *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr);
-
 /// Mutate function by change the arguments.
 /// \param ArgMutate mutates the function arguments.
 /// \param TakeName Take the original function's name if a new function with
@@ -882,11 +868,6 @@ std::string getSPIRVTypeName(StringRef BaseTyName, StringRef Postfixes = "");
 
 /// Checks if given type name is either ConstantSampler or ConsantPipeStorage.
 bool isSPIRVConstantName(StringRef TyName);
-
-/// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
-/// to spirv.NewName.Postfixes.
-Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
-                                       StringRef NewName);
 
 /// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
 /// to spirv.NewName.Postfixes.

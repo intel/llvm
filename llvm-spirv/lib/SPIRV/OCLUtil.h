@@ -487,20 +487,6 @@ inline OCLMemOrderKind mapSPIRVMemOrderToOCL(unsigned Sema) {
   return OCLMemOrderMap::rmap(extractSPIRVMemOrderSemantic(Sema));
 }
 
-/// Mutate call instruction to call OpenCL builtin function.
-CallInst *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs = nullptr);
-
-/// Mutate call instruction to call OpenCL builtin function.
-Instruction *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr, bool TakeFuncName = false);
-
 /// If the value is a special type initializer (something that bitcasts from
 /// spirv.ConstantSampler to spirv.Sampler or likewise for PipeStorage), get the
 /// original type initializer, unwrap the bitcast. Otherwise, return nullptr.
