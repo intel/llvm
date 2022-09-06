@@ -1,6 +1,5 @@
 // UNSUPPORTED: windows
 // RUN: %clangxx -fsycl %s -o %t.out -fno-builtin
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 #include <iostream>
 #include <math.h>
 #include <sycl/sycl.hpp>
