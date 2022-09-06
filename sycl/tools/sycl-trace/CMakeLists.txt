@@ -39,7 +39,7 @@ if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl_pi_trace_collector pi_level_zero)
 
   target_link_libraries(sycl_pi_trace_collector PRIVATE LevelZeroLoader::Headers)
-  target_compile_definitions(sycl_pi_trace_collector SYCL_HAS_LEVEL_ZERO)
+  target_compile_definitions(sycl_pi_trace_collector PRIVATE SYCL_HAS_LEVEL_ZERO)
 
   add_custom_target(ze-pretty-printers
     COMMAND ${Python3_EXECUTABLE}
