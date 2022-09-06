@@ -74,6 +74,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
 
   let arguments = (ins
     FlatSymbolRefAttr:$Type,
+    FlatSymbolRefAttr:$MangledName,
     Variadic<ConstructorArgs>:$Args
   );
   let results = (outs);
@@ -122,6 +123,7 @@ def SYCLCallOp : SYCL_Op<"call", []> {
   let arguments = (ins
     OptionalAttr<FlatSymbolRefAttr>:$Type,
     FlatSymbolRefAttr:$Function,
+    FlatSymbolRefAttr:$MangledName,
     Variadic<AnyType>:$Args
   );
   let results = (outs Optional<AnyType>:$Result);
@@ -132,12 +134,14 @@ def SYCLCallOp : SYCL_Op<"call", []> {
     "::llvm::Optional<::mlir::Type>":$Result,
     "::llvm::Optional<::llvm::StringRef>":$Type,
     "::llvm::StringRef":$Function,
+    "::llvm::StringRef":$MangledName,
     "::mlir::ValueRange":$Args), [{
       odsState.addOperands(Args);
       if (Type.hasValue()) {
         odsState.addAttribute(TypeAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Type.getValue()));
       }
       odsState.addAttribute(FunctionAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Function));
+      odsState.addAttribute(MangledNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), MangledName));
       if (Result.hasValue()) {
         odsState.addTypes(Result.getValue());
       }
