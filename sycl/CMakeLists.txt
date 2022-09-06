@@ -383,8 +383,8 @@ if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS OpenCL-ICD)
 endif()
 
-# On Windows or for HIP AMD lld is also needed
-if(WIN32 OR ("hip" IN_LIST SYCL_ENABLE_PLUGINS AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD"))
+# Build and install lld as part of the sycl-toolchain if available
+if(TARGET lld)
   add_dependencies(sycl-toolchain lld)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
@@ -407,6 +407,11 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+
+  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    message(FATAL_ERROR
+      "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
