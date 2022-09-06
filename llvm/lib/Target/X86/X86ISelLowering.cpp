@@ -36255,7 +36255,7 @@ X86TargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
     SmallVector<MachineBasicBlock *, 8> Successors(MBB->succ_rbegin(),
                                                    MBB->succ_rend());
     // FIXME: Avoid quadratic complexity.
-    for (auto MBBS : Successors) {
+    for (auto *MBBS : Successors) {
       if (MBBS->isEHPad()) {
         MBB->removeSuccessor(MBBS);
         MBBLPads.push_back(MBBS);
@@ -49087,10 +49087,10 @@ static SDValue detectAVGPattern(SDValue In, EVT VT, SelectionDAG &DAG,
 
   // Now we have three operands of two additions. Check that one of them is a
   // constant vector with ones, and the other two can be promoted from i8/i16.
-  for (int i = 0; i < 3; ++i) {
-    if (!IsConstVectorInRange(Operands[i], 1, 1))
+  for (SDValue &Op : Operands) {
+    if (!IsConstVectorInRange(Op, 1, 1))
       continue;
-    std::swap(Operands[i], Operands[2]);
+    std::swap(Op, Operands[2]);
 
     // Check if Operands[0] and Operands[1] are results of type promotion.
     for (int j = 0; j < 2; ++j)
@@ -53986,7 +53986,7 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
     return getZeroVector(VT, Subtarget, DAG, DL);
 
   SDValue Op0 = Ops[0];
-  bool IsSplat = llvm::all_of(Ops, [&Op0](SDValue Op) { return Op == Op0; });
+  bool IsSplat = llvm::all_equal(Ops);
 
   // Repeated subvectors.
   if (IsSplat &&

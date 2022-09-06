@@ -277,6 +277,10 @@ public:
     return EffectiveTriple;
   }
 
+  bool hasEffectiveTriple() const {
+    return !EffectiveTriple.getTriple().empty();
+  }
+
   path_list &getLibraryPaths() { return LibraryPaths; }
   const path_list &getLibraryPaths() const { return LibraryPaths; }
 

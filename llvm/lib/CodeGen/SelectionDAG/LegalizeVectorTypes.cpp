@@ -27,6 +27,8 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TypeSize.h"
 #include "llvm/Support/raw_ostream.h"
+#include <numeric>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "legalize-types"
@@ -1016,7 +1018,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTLZ_ZERO_UNDEF:
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::CTPOP:
-  case ISD::FABS:
+  case ISD::FABS: case ISD::VP_FABS:
   case ISD::FCEIL:
   case ISD::FCOS:
   case ISD::FEXP:
@@ -3879,6 +3881,9 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::VP_GATHER:
     Res = WidenVecRes_VP_GATHER(cast<VPGatherSDNode>(N));
     break;
+  case ISD::VECTOR_REVERSE:
+    Res = WidenVecRes_VECTOR_REVERSE(N);
+    break;
 
   case ISD::ADD: case ISD::VP_ADD:
   case ISD::AND: case ISD::VP_AND:
@@ -4049,6 +4054,7 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTTZ:
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::FNEG: case ISD::VP_FNEG:
+  case ISD::VP_FABS:
   case ISD::FREEZE:
   case ISD::ARITH_FENCE:
   case ISD::FCANONICALIZE:
@@ -4955,7 +4961,7 @@ SDValue DAGTypeLegalizer::WidenVecRes_EXTRACT_SUBVECTOR(SDNode *N) {
     //    nxv2i64 extract_subvector(nxv16i64, 8)
     //    nxv2i64 extract_subvector(nxv16i64, 10)
     //    undef)
-    unsigned GCD = greatestCommonDivisor(VTNumElts, WidenNumElts);
+    unsigned GCD = std::gcd(VTNumElts, WidenNumElts);
     assert((IdxVal % GCD) == 0 && "Expected Idx to be a multiple of the broken "
                                   "down type's element count");
     EVT PartVT = EVT::getVectorVT(*DAG.getContext(), EltVT,
@@ -5528,6 +5534,61 @@ SDValue DAGTypeLegalizer::WidenVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N) {
   for (unsigned i = NumElts; i != WidenNumElts; ++i)
     NewMask.push_back(-1);
   return DAG.getVectorShuffle(WidenVT, dl, InOp1, InOp2, NewMask);
+}
+
+SDValue DAGTypeLegalizer::WidenVecRes_VECTOR_REVERSE(SDNode *N) {
+  EVT VT = N->getValueType(0);
+  EVT EltVT = VT.getVectorElementType();
+  SDLoc dl(N);
+
+  EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
+  SDValue OpValue = GetWidenedVector(N->getOperand(0));
+  assert(WidenVT == OpValue.getValueType() && "Unexpected widened vector type");
+
+  SDValue ReverseVal = DAG.getNode(ISD::VECTOR_REVERSE, dl, WidenVT, OpValue);
+  unsigned WidenNumElts = WidenVT.getVectorMinNumElements();
+  unsigned VTNumElts = VT.getVectorMinNumElements();
+  unsigned IdxVal = WidenNumElts - VTNumElts;
+
+  if (VT.isScalableVector()) {
+    // Try to split the 'Widen ReverseVal' into smaller extracts and concat the
+    // results together, e.g.(nxv6i64 -> nxv8i64)
+    //    nxv8i64 vector_reverse
+    // <->
+    //  nxv8i64 concat(
+    //    nxv2i64 extract_subvector(nxv8i64, 2)
+    //    nxv2i64 extract_subvector(nxv8i64, 4)
+    //    nxv2i64 extract_subvector(nxv8i64, 6)
+    //    nxv2i64 undef)
+
+    unsigned GCD = std::gcd(VTNumElts, WidenNumElts);
+    EVT PartVT = EVT::getVectorVT(*DAG.getContext(), EltVT,
+                                  ElementCount::getScalable(GCD));
+    assert((IdxVal % GCD) == 0 && "Expected Idx to be a multiple of the broken "
+                                  "down type's element count");
+    SmallVector<SDValue> Parts;
+    unsigned i = 0;
+    for (; i < VTNumElts / GCD; ++i)
+      Parts.push_back(
+          DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, PartVT, ReverseVal,
+                      DAG.getVectorIdxConstant(IdxVal + i * GCD, dl)));
+    for (; i < WidenNumElts / GCD; ++i)
+      Parts.push_back(DAG.getUNDEF(PartVT));
+
+    return DAG.getNode(ISD::CONCAT_VECTORS, dl, WidenVT, Parts);
+  }
+
+  // Use VECTOR_SHUFFLE to combine new vector from 'ReverseVal' for
+  // fixed-vectors.
+  SmallVector<int, 16> Mask;
+  for (unsigned i = 0; i != VTNumElts; ++i) {
+    Mask.push_back(IdxVal + i);
+  }
+  for (unsigned i = VTNumElts; i != WidenNumElts; ++i)
+    Mask.push_back(-1);
+
+  return DAG.getVectorShuffle(WidenVT, dl, ReverseVal, DAG.getUNDEF(WidenVT),
+                              Mask);
 }
 
 SDValue DAGTypeLegalizer::WidenVecRes_SETCC(SDNode *N) {
@@ -6376,7 +6437,7 @@ SDValue DAGTypeLegalizer::WidenVecOp_VECREDUCE(SDNode *N) {
   unsigned WideElts = WideVT.getVectorMinNumElements();
 
   if (WideVT.isScalableVector()) {
-    unsigned GCD = greatestCommonDivisor(OrigElts, WideElts);
+    unsigned GCD = std::gcd(OrigElts, WideElts);
     EVT SplatVT = EVT::getVectorVT(*DAG.getContext(), ElemVT,
                                    ElementCount::getScalable(GCD));
     SDValue SplatNeutral = DAG.getSplatVector(SplatVT, dl, NeutralElem);
@@ -6413,7 +6474,7 @@ SDValue DAGTypeLegalizer::WidenVecOp_VECREDUCE_SEQ(SDNode *N) {
   unsigned WideElts = WideVT.getVectorMinNumElements();
 
   if (WideVT.isScalableVector()) {
-    unsigned GCD = greatestCommonDivisor(OrigElts, WideElts);
+    unsigned GCD = std::gcd(OrigElts, WideElts);
     EVT SplatVT = EVT::getVectorVT(*DAG.getContext(), ElemVT,
                                    ElementCount::getScalable(GCD));
     SDValue SplatNeutral = DAG.getSplatVector(SplatVT, dl, NeutralElem);

@@ -8780,6 +8780,7 @@ cc_library(
         ":AffineUtils",
         ":ArithmeticDialect",
         ":ArithmeticTransforms",
+        ":DialectUtils",
         ":FuncDialect",
         ":IR",
         ":InferTypeOpInterface",
@@ -9130,6 +9131,7 @@ cc_library(
         ":Pass",
         ":TensorDialect",
         ":Transforms",
+        ":ViewLikeInterface",
         "//llvm:Support",
     ],
 )

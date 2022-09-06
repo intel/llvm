@@ -47,7 +47,7 @@ public:
         : TagMask(TagValue << TagOffset) {}
 
     template <typename T> constexpr T *operator()(T *P) {
-      return reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(P) | TagMask);
+      return reinterpret_cast<T *>(reinterpret_cast<uintptr_t>(P) | TagMask);
     }
 
   private:
@@ -59,7 +59,7 @@ public:
   class Untag {
   public:
     constexpr Untag(uintptr_t TagLen, uintptr_t TagOffset)
-        : UntagMask(~(((1 << TagLen) - 1) << TagOffset)) {}
+        : UntagMask(~(((uintptr_t(1) << TagLen) - 1) << TagOffset)) {}
 
     template <typename T> constexpr T *operator()(T *P) {
       return reinterpret_cast<T *>(reinterpret_cast<uintptr_t>(P) & UntagMask);

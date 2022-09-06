@@ -1134,20 +1134,12 @@ public:
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPRecipeBase *B) {
-    return B->getVPDefID() == VPRecipeBase::VPCanonicalIVPHISC ||
-           B->getVPDefID() == VPRecipeBase::VPActiveLaneMaskPHISC ||
-           B->getVPDefID() == VPRecipeBase::VPFirstOrderRecurrencePHISC ||
-           B->getVPDefID() == VPRecipeBase::VPReductionPHISC ||
-           B->getVPDefID() == VPRecipeBase::VPWidenIntOrFpInductionSC ||
-           B->getVPDefID() == VPRecipeBase::VPWidenPHISC;
+    return B->getVPDefID() >= VPRecipeBase::VPFirstHeaderPHISC &&
+           B->getVPDefID() <= VPRecipeBase::VPLastPHISC;
   }
   static inline bool classof(const VPValue *V) {
-    return V->getVPValueID() == VPValue::VPVCanonicalIVPHISC ||
-           V->getVPValueID() == VPValue::VPVActiveLaneMaskPHISC ||
-           V->getVPValueID() == VPValue::VPVFirstOrderRecurrencePHISC ||
-           V->getVPValueID() == VPValue::VPVReductionPHISC ||
-           V->getVPValueID() == VPValue::VPVWidenIntOrFpInductionSC ||
-           V->getVPValueID() == VPValue::VPVWidenPHISC;
+    return V->getVPValueID() >= VPValue::VPVFirstHeaderPHISC &&
+           V->getVPValueID() <= VPValue::VPVLastPHISC;
   }
 
   /// Generate the phi nodes.
@@ -1489,9 +1481,7 @@ public:
   bool onlyFirstLaneUsed(const VPValue *Op) const override {
     assert(is_contained(operands(), Op) &&
            "Op must be an operand of the recipe");
-    return Op == getAddr() && all_of(getStoredValues(), [Op](VPValue *StoredV) {
-             return Op != StoredV;
-           });
+    return Op == getAddr() && !llvm::is_contained(getStoredValues(), Op);
   }
 };
 
@@ -3058,8 +3048,13 @@ VPValue *getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
 
 /// Returns true if \p VPV is uniform after vectorization.
 inline bool isUniformAfterVectorization(VPValue *VPV) {
-  auto RepR = dyn_cast_or_null<VPReplicateRecipe>(VPV->getDef());
-  return !VPV->getDef() || (RepR && RepR->isUniform());
+  if (auto *Def = VPV->getDef()) {
+    if (auto Rep = dyn_cast<VPReplicateRecipe>(Def))
+      return Rep->isUniform();
+    return false;
+  }
+  // A value without a def is external to vplan and thus uniform.
+  return true;
 }
 } // end namespace vputils
 

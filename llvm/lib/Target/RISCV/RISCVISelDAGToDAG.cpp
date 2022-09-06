@@ -730,15 +730,14 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     if (!N1C)
       break;
     SDValue N0 = Node->getOperand(0);
-    if (N0.getOpcode() != ISD::AND || !N0.hasOneUse() ||
-        !isa<ConstantSDNode>(N0.getOperand(1)))
+    if (N0.getOpcode() != ISD::AND || !isa<ConstantSDNode>(N0.getOperand(1)))
       break;
     unsigned ShAmt = N1C->getZExtValue();
     uint64_t Mask = N0.getConstantOperandVal(1);
 
     // Optimize (srl (and X, C2), C) -> (slli (srliw X, C3), C3-C) where C2 has
     // 32 leading zeros and C3 trailing zeros.
-    if (isShiftedMask_64(Mask)) {
+    if (isShiftedMask_64(Mask) && N0.hasOneUse()) {
       unsigned XLen = Subtarget->getXLen();
       unsigned LeadingZeros = XLen - (64 - countLeadingZeros(Mask));
       unsigned TrailingZeros = countTrailingZeros(Mask);
@@ -765,9 +764,21 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     if (!isMask_64(Mask))
       break;
     unsigned TrailingOnes = countTrailingOnes(Mask);
-    // 32 trailing ones should use srliw via tablegen pattern.
-    if (TrailingOnes == 32 || ShAmt >= TrailingOnes)
+    if (ShAmt >= TrailingOnes)
       break;
+    // If the mask has 32 trailing ones, use SRLIW.
+    if (TrailingOnes == 32) {
+      SDNode *SRLIW =
+          CurDAG->getMachineNode(RISCV::SRLIW, DL, VT, N0->getOperand(0),
+                                 CurDAG->getTargetConstant(ShAmt, DL, VT));
+      ReplaceNode(Node, SRLIW);
+      return;
+    }
+
+    // Only do the remaining transforms if the shift has one use.
+    if (!N0.hasOneUse())
+      break;
+
     // If C2 is (1 << ShAmt) use bexti if possible.
     if (Subtarget->hasStdExtZbs() && ShAmt + 1 == TrailingOnes) {
       SDNode *BEXTI =
@@ -1919,7 +1930,7 @@ static bool selectConstantAddr(SelectionDAG *CurDAG, const SDLoc &DL,
 // Is this ADD instruction only used as the base pointer of scalar loads and
 // stores?
 static bool isWorthFoldingAdd(SDValue Add) {
-  for (auto Use : Add->uses()) {
+  for (auto *Use : Add->uses()) {
     if (Use->getOpcode() != ISD::LOAD && Use->getOpcode() != ISD::STORE &&
         Use->getOpcode() != ISD::ATOMIC_LOAD &&
         Use->getOpcode() != ISD::ATOMIC_STORE)
@@ -2218,7 +2229,7 @@ bool RISCVDAGToDAGISel::selectSHXADDOp(SDValue N, unsigned ShAmt,
 bool RISCVDAGToDAGISel::hasAllNBitUsers(SDNode *Node, unsigned Bits) const {
   assert((Node->getOpcode() == ISD::ADD || Node->getOpcode() == ISD::SUB ||
           Node->getOpcode() == ISD::MUL || Node->getOpcode() == ISD::SHL ||
-          Node->getOpcode() == ISD::SRL ||
+          Node->getOpcode() == ISD::SRL || Node->getOpcode() == ISD::AND ||
           Node->getOpcode() == ISD::SIGN_EXTEND_INREG ||
           Node->getOpcode() == RISCVISD::GREV ||
           Node->getOpcode() == RISCVISD::GORC ||
@@ -2672,7 +2683,16 @@ bool RISCVDAGToDAGISel::doPeepholeMergeVVMFold() {
     // Need True has same VL with N.
     unsigned TrueVLIndex = True.getNumOperands() - HasChainOp - 2;
     SDValue TrueVL = True.getOperand(TrueVLIndex);
-    if (TrueVL != VL)
+
+    auto IsNoFPExcept = [this](SDValue N) {
+      return !this->mayRaiseFPException(N.getNode()) ||
+             N->getFlags().hasNoFPExcept();
+    };
+
+    // Allow the peephole for non-exception True with VLMAX vector length, since
+    // all the values after VL of N are dependent on Merge. VLMAX should be
+    // lowered to (XLenVT -1).
+    if (TrueVL != VL && !(IsNoFPExcept(True) && isAllOnesConstant(TrueVL)))
       continue;
 
     SDLoc DL(N);

@@ -33,7 +33,7 @@ namespace clang {
 SARIFDiagnostic::SARIFDiagnostic(raw_ostream &OS, const LangOptions &LangOpts,
                                  DiagnosticOptions *DiagOpts,
                                  SarifDocumentWriter *Writer)
-    : DiagnosticRenderer(LangOpts, DiagOpts), OS(OS), Writer(Writer) {}
+    : DiagnosticRenderer(LangOpts, DiagOpts), Writer(Writer) {}
 
 // FIXME(llvm-project/issues/57323): Refactor Diagnostic classes.
 void SARIFDiagnostic::emitDiagnosticMessage(
