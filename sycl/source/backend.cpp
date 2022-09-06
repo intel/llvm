@@ -102,10 +102,10 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   if (Device) {
     const auto &DeviceImpl = getSyclObjImpl(*Device);
     return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
-                          KeepOwnership, Handler, Backend);
+                           KeepOwnership, Handler, Backend);
   } else {
-    return make_queue_impl(NativeHandle, Context, nullptr,
-                          KeepOwnership, Handler, Backend);
+    return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership,
+                           Handler, Backend);
   }
 }
 
