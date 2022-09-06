@@ -592,7 +592,7 @@ struct get_device_info_impl<
   }
 };
 
-// Remove with deprecated feature
+// TODO:Remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_global_work_groups>
 template <>
 struct get_device_info_impl<size_t,
@@ -604,7 +604,7 @@ struct get_device_info_impl<size_t,
   }
 };
 
-// Remove with deprecated feature
+// TODO:Remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_work_groups_1d>
 template <>
 struct get_device_info_impl<id<1>,
@@ -616,7 +616,7 @@ struct get_device_info_impl<id<1>,
   }
 };
 
-// Remove with deprecated feature
+// TODO:Remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_work_groups_2d>
 template <>
 struct get_device_info_impl<id<2>,
@@ -628,7 +628,7 @@ struct get_device_info_impl<id<2>,
   }
 };
 
-// Remove with deprecated feature
+// TODO:Remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_work_groups_3d>
 template <>
 struct get_device_info_impl<id<3>,
@@ -827,7 +827,7 @@ inline id<3> get_device_info_host<
   return {Limit, Limit, Limit};
 }
 
-// remove with deprecated feature
+// TODO:remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_global_work_groups>
 template <>
 inline constexpr size_t
@@ -836,7 +836,7 @@ get_device_info_host<info::device::ext_oneapi_max_global_work_groups>() {
       ext::oneapi::experimental::info::device::max_global_work_groups>();
 }
 
-// remove with deprecated feature
+// TODO:remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_work_groups_1d>
 template <>
 inline id<1>
@@ -846,7 +846,7 @@ get_device_info_host<info::device::ext_oneapi_max_work_groups_1d>() {
       ext::oneapi::experimental::info::device::max_work_groups<1>>();
 }
 
-// remove with deprecated feature
+// TODO:remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_work_groups_2d>
 template <>
 inline id<2>
@@ -855,7 +855,7 @@ get_device_info_host<info::device::ext_oneapi_max_work_groups_2d>() {
       ext::oneapi::experimental::info::device::max_work_groups<2>>();
 }
 
-// remove with deprecated feature
+// TODO:remove with deprecated feature
 // device::get_info<info::device::ext_oneapi_max_work_groups_3d>
 template <>
 inline id<3>
@@ -1477,17 +1477,23 @@ get_device_info_host<ext::intel::info::device::uuid>() {
       PI_ERROR_INVALID_DEVICE);
 }
 
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_pci_address>()
 template <>
 inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_gpu_eu_count>()
 template <>
 inline uint32_t get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_gpu_eu_simd_width>()
 template <>
 inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
@@ -1495,12 +1501,16 @@ get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
       "Obtaining the EU SIMD width is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_gpu_slices>()
 template <>
 inline uint32_t get_device_info_host<info::device::ext_intel_gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_gpu_subslices_per_slice>()
 template <>
 inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
@@ -1508,6 +1518,8 @@ get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
                       "supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_gpu_eu_count_per_subslices>()
 template <>
 inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
@@ -1515,6 +1527,8 @@ get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
       "Obtaining the EU count per subslice is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_gpu_hw_threads_per_eu>()
 template <>
 inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
@@ -1522,6 +1536,8 @@ get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
       "Obtaining the HW threads count per EU is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_max_mem_bandwidth>()
 template <>
 inline uint64_t
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
@@ -1529,10 +1545,13 @@ get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
+// TODO:Move to namespace ext::intel::info::device
 template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
   return false;
 }
 
+// TODO: Remove with deprecated feature
+// device::get_info<info::device::ext_intel_device_info_uuid>()
 template <>
 inline detail::uuid_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {

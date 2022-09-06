@@ -197,6 +197,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16, bool,
                          PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16)
 
 //Deprecated oneapi/intel extension
+//TODO:Remove when possible
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,
                          PI_DEVICE_INFO_PCI_ADDRESS)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count, pi_uint32,
