@@ -4811,7 +4811,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // for this call, because there is no support for type corresponding to
     // OpTypeSampledImage. So, in this case, we create the required type here.
     Value *Image = CI->getArgOperand(0);
-    SmallVector<StructType *, 4> ParamTys;
+    SmallVector<Type *, 4> ParamTys;
     getParameterTypes(CI, ParamTys);
     Type *ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
     Type *SampledImgTy = getSPIRVStructTypeByChangeBaseTypeName(

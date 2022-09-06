@@ -1010,7 +1010,7 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   Function *Func = CI->getCalledFunction();
   AttributeList Attrs = Func->getAttributes();
   bool IsRetScalar = !CI->getType()->isVectorTy();
-  SmallVector<StructType *, 3> ArgStructTys;
+  SmallVector<Type *, 3> ArgStructTys;
   getParameterTypes(CI, ArgStructTys);
   mutateCallInstSPIRV(
       M, CI,
@@ -1073,7 +1073,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   StringRef TyName;
   SmallVector<StringRef, 4> SubStrs;
-  SmallVector<StructType *, 4> ParamTys;
+  SmallVector<Type *, 4> ParamTys;
   getParameterTypes(CI, ParamTys);
   auto IsImg = isOCLImageStructType(ParamTys[0], &TyName);
   (void)IsImg;
@@ -1632,7 +1632,7 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
 // reads and vector block reads.
 void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  SmallVector<StructType *, 2> ParamTys;
+  SmallVector<Type *, 2> ParamTys;
   getParameterTypes(CI, ParamTys);
   if (isOCLImageStructType(ParamTys[0]))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockReadINTEL);
@@ -1647,7 +1647,7 @@ void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
 // instructions.
 void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  SmallVector<StructType *, 3> ParamTys;
+  SmallVector<Type *, 3> ParamTys;
   getParameterTypes(CI, ParamTys);
   if (isOCLImageStructType(ParamTys[0]))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockWriteINTEL);
@@ -1768,7 +1768,7 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(ToMCEFName, &ToMCEOC);
   assert(ToMCEOC != OpNop && "Invalid Subgroup AVC Intel built-in call");
 
-  SmallVector<StructType *, 2> ParamTys;
+  SmallVector<Type *, 2> ParamTys;
   getParameterTypes(CI, ParamTys);
 
   if (std::strcmp(TyKind, "payload") == 0) {
@@ -1837,7 +1837,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   mutateCallInstSPIRV(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        SmallVector<StructType *, 4> ParamTys;
+        SmallVector<Type *, 4> ParamTys;
         getParameterTypes(CI, ParamTys);
         auto *TyIt =
             std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerStructTy);

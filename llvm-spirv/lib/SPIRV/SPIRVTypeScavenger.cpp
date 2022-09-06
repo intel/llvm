@@ -229,7 +229,7 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
   // If the function is a mangled name, try to recover types from the Itanium
   // name mangling.
   if (F.getName().startswith("_Z")) {
-    SmallVector<StructType *, 8> ParameterTypes;
+    SmallVector<Type *, 8> ParameterTypes;
     getParameterTypes(&F, ParameterTypes);
     for (Argument *Arg : PointerArgs) {
       if (auto *Ty = ParameterTypes[Arg->getArgNo()]) {

@@ -50,6 +50,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/TypedPointerType.h"
 
 #include <functional>
 #include <utility>
@@ -969,11 +970,15 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 /// Extract the pointee types of arguments from a mangled function name. If the
 /// corresponding type is not a pointer to a struct type, its value will be a
 /// nullptr instead.
-void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys);
-inline void getParameterTypes(CallInst *CI,
-                              SmallVectorImpl<StructType *> &ArgTys) {
+void getParameterTypes(
+    Function *F, SmallVectorImpl<Type *> &ArgTys,
+    std::function<std::string(StringRef)> StructNameMapFn = nullptr);
+inline void getParameterTypes(CallInst *CI, SmallVectorImpl<Type *> &ArgTys) {
   return getParameterTypes(CI->getCalledFunction(), ArgTys);
 }
+void getParameterTypes(
+    Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
+    std::function<std::string(StringRef)> StructNameMapFn = nullptr);
 
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner

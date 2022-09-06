@@ -1356,7 +1356,8 @@ Value *unwrapSpecialTypeInitializer(Value *V) {
   return nullptr;
 }
 
-bool isSamplerStructTy(StructType *STy) {
+bool isSamplerStructTy(Type *Ty) {
+  auto *STy = dyn_cast_or_null<StructType>(Ty);
   return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
 }
 
