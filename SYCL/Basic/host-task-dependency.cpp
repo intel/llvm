@@ -5,7 +5,7 @@
 //
 // TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
 // TODO: The test is sporadically fails on CUDA. Enable when fixed.
-// UNSUPPORTED: (windows && level_zero) || cuda || hip_nvidia
+// UNSUPPORTED: (windows && level_zero) || hip_nvidia
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
@@ -39,7 +39,7 @@ S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
         CopierDstAcc(Ctx->Buf2, CGH);
 
     auto CopierHostTask = [=] {
-      for (size_t Idx = 0; Idx < CopierDstAcc.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < CopierDstAcc.size(); ++Idx)
         CopierDstAcc[Idx] = CopierSrcAcc[Idx];
 
       bool Expected = false;
@@ -63,7 +63,7 @@ void Thread1Fn(Context *Ctx) {
     S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
         Acc(Ctx->Buf1);
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -1;
   }
 
@@ -71,7 +71,7 @@ void Thread1Fn(Context *Ctx) {
     S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
         Acc(Ctx->Buf2);
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -2;
   }
 
@@ -79,7 +79,7 @@ void Thread1Fn(Context *Ctx) {
     S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
         Acc(Ctx->Buf3);
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx)
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -3;
   }
 
@@ -89,7 +89,7 @@ void Thread1Fn(Context *Ctx) {
         GeneratorAcc(Ctx->Buf1, CGH);
 
     auto GeneratorKernel = [GeneratorAcc] {
-      for (size_t Idx = 0; Idx < GeneratorAcc.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < GeneratorAcc.size(); ++Idx)
         GeneratorAcc[Idx] = Idx;
     };
 
@@ -109,7 +109,7 @@ void Thread1Fn(Context *Ctx) {
     CGH.depends_on(HostTaskEvent);
 
     auto CopierKernel = [SrcAcc, DstAcc] {
-      for (size_t Idx = 0; Idx < DstAcc.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < DstAcc.size(); ++Idx)
         DstAcc[Idx] = SrcAcc[Idx];
     };
 
@@ -123,7 +123,7 @@ void Thread1Fn(Context *Ctx) {
 
     bool Failure = false;
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
       fprintf(stderr, "Third buffer [%3zu] = %i\n", Idx, Acc[Idx]);
 
       Failure |= (Acc[Idx] != Idx);
@@ -168,7 +168,7 @@ void test() {
         ResultAcc(Ctx.Buf2);
 
     bool Failure = false;
-    for (size_t Idx = 0; Idx < ResultAcc.get_count(); ++Idx) {
+    for (size_t Idx = 0; Idx < ResultAcc.size(); ++Idx) {
       fprintf(stderr, "Second buffer [%3zu] = %i\n", Idx, ResultAcc[Idx]);
 
       Failure |= (ResultAcc[Idx] != Idx);
@@ -194,6 +194,27 @@ int main() {
 // CHECK:---> piKernelCreate(
 // CHECK: Copier
 // CHECK:---> piEnqueueKernelLaunch(
+
+// CHECK:Third buffer [  0] = 0
+// CHECK:Third buffer [  1] = 1
+// CHECK:Third buffer [  2] = 2
+// CHECK:Third buffer [  3] = 3
+// CHECK:Third buffer [  4] = 4
+// CHECK:Third buffer [  5] = 5
+// CHECK:Third buffer [  6] = 6
+// CHECK:Third buffer [  7] = 7
+// CHECK:Third buffer [  8] = 8
+// CHECK:Third buffer [  9] = 9
+// CHECK:Second buffer [  0] = 0
+// CHECK:Second buffer [  1] = 1
+// CHECK:Second buffer [  2] = 2
+// CHECK:Second buffer [  3] = 3
+// CHECK:Second buffer [  4] = 4
+// CHECK:Second buffer [  5] = 5
+// CHECK:Second buffer [  6] = 6
+// CHECK:Second buffer [  7] = 7
+// CHECK:Second buffer [  8] = 8
+// CHECK:Second buffer [  9] = 9
 
 // TODO need to check for piEventsWait as "wait on dependencies of host task".
 // At the same time this piEventsWait may occur anywhere after
