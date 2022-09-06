@@ -157,11 +157,15 @@ template <typename T, T param> struct compatibility_param_traits {};
 } // namespace info
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  namespace Namespace::info::DescType {                                        \
+  namespace Namespace {                                                        \
+  namespace info {                                                             \
+  namespace DescType {                                                         \
   struct Desc {                                                                \
     using return_type = ReturnT;                                               \
   };                                                                           \
-  }
+  } /*DescType*/                                                               \
+  } /*info*/                                                                   \
+  } /*Namespace*/
 
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
                                           PiCode)                              \
