@@ -28,20 +28,20 @@ using namespace mlir::sycl;
 // SYCLFuncDescriptor::Id
 //===----------------------------------------------------------------------===//
 
-std::map<SYCLFuncDescriptor::FuncKind, std::string>
-    SYCLFuncDescriptor::Id::funcKindToName = {
-        {FuncKind::Accessor, "accessor"},
-        {FuncKind::Id, "id"},
-        {FuncKind::Range, "range"},
-        {FuncKind::Unknown, "unknown"},
+std::map<SYCLFuncDescriptor::Kind, std::string>
+    SYCLFuncDescriptor::Id::kindToName = {
+        {Kind::Accessor, "accessor"},
+        {Kind::Id, "id"},
+        {Kind::Range, "range"},
+        {Kind::Unknown, "unknown"},
 };
 
-std::map<std::string, SYCLFuncDescriptor::FuncKind>
-    SYCLFuncDescriptor::Id::nameToFuncKind = {
-        {"accessor", FuncKind::Accessor},
-        {"id", FuncKind::Id},
-        {"range", FuncKind::Range},
-        {"unknown", FuncKind::Unknown},
+std::map<std::string, SYCLFuncDescriptor::Kind>
+    SYCLFuncDescriptor::Id::nameToKind = {
+        {"accessor", Kind::Accessor},
+        {"id", Kind::Id},
+        {"range", Kind::Range},
+        {"unknown", Kind::Unknown},
 };
 
 //===----------------------------------------------------------------------===//
@@ -157,20 +157,19 @@ const SYCLFuncRegistry SYCLFuncRegistry::create(ModuleOp &module,
 }
 
 SYCLFuncDescriptor::FuncId
-SYCLFuncRegistry::getFuncId(SYCLFuncDescriptor::FuncKind funcKind, Type retType,
+SYCLFuncRegistry::getFuncId(SYCLFuncDescriptor::Kind kind, Type retType,
                             TypeRange argTypes) const {
-  assert(funcKind != SYCLFuncDescriptor::FuncKind::Unknown &&
-         "Invalid funcKind");
+  assert(kind != Kind::Unknown && "Invalid descriptor kind");
   LLVM_DEBUG(llvm::dbgs() << "Looking up function of kind: "
-                          << SYCLFuncDescriptor::Id::funcKindToName[funcKind]
+                          << SYCLFuncDescriptor::Id::kindToName.at(kind)
                           << "\n";);
 
   for (const auto &entry : registry) {
     const SYCLFuncDescriptor &desc = entry.second;
     LLVM_DEBUG(llvm::dbgs() << desc << "\n");
 
-    // Skip through entries that do not match the requested funcIdKind.
-    if (desc.descId.funcKind != funcKind) {
+    // Skip through entries that do not match the requested kind.
+    if (desc.descId.kind != kind) {
       LLVM_DEBUG(llvm::dbgs() << "\tskip, kind does not match\n");
       continue;
     }
@@ -186,7 +185,12 @@ SYCLFuncRegistry::getFuncId(SYCLFuncDescriptor::FuncKind funcKind, Type retType,
       continue;
     }
     if (!std::equal(argTypes.begin(), argTypes.end(), desc.argTys.begin())) {
-      LLVM_DEBUG(llvm::dbgs() << "\tskip, arguments types do not match\n");
+      LLVM_DEBUG({
+        auto pair = std::mismatch(argTypes.begin(), argTypes.end(),
+                                  desc.argTys.begin());
+        llvm::dbgs() << "\tskip, arguments " << *pair.first << " and "
+                     << *pair.second << " do not match\n";
+      });
       continue;
     }
 
@@ -268,14 +272,8 @@ void SYCLFuncRegistry::declareIdFuncDescriptors(LLVMTypeConverter &converter,
       converter.convertType(MemRefType::get(-1, IDType::get(context, 2)));
   Type id3PtrTy =
       converter.convertType(MemRefType::get(-1, IDType::get(context, 3)));
-
   auto voidTy = LLVM::LLVMVoidType::get(context);
   auto i64Ty = IntegerType::get(context, 64);
-  auto indexTy = IndexType::get(context);
-
-  auto arrayMemref = mlir::MemRefType::get(1, indexTy);
-  Type arr1PtrTy =
-      converter.convertType(mlir::MemRefType::get(-1, arrayMemref));
 
   // Construct the SYCL functions descriptors for the sycl::id<n> type.
   // Descriptor format: (enum, function name, signature).
@@ -329,6 +327,7 @@ void SYCLFuncRegistry::declareIdFuncDescriptors(LLVMTypeConverter &converter,
       SYCLIdFuncDescriptor(FuncId::Id3Ctor3SizeT,
           "_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm",
           voidTy, {id3PtrTy, i64Ty, i64Ty, i64Ty}),
+      
       // sycl::id<1>::id(sycl::id<1> const&)
       SYCLIdFuncDescriptor(FuncId::Id1CopyCtor,
           "_ZN2cl4sycl2idILi1EEC1ERKS2_", voidTy, {id1PtrTy, id1PtrTy}),

@@ -207,6 +207,64 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
 }
 
 //===----------------------------------------------------------------------===//
+// CallPattern - Converts `sycl.call` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class CallPattern final : public SYCLToLLVMConversion<sycl::SYCLCallOp> {
+public:
+  using SYCLToLLVMConversion<sycl::SYCLCallOp>::SYCLToLLVMConversion;
+  using FuncId = SYCLFuncDescriptor::FuncId;
+  using Kind = SYCLFuncDescriptor::Kind;
+
+  LogicalResult
+  matchAndRewrite(sycl::SYCLCallOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    assert(op.Type().has_value() &&
+           "Expecting op.Type() to have a valid value");
+    StringRef typeName = op.Type().value();
+    Kind kind = SYCLFuncDescriptor::Id::nameToKind.at(typeName.str());
+    assert((kind != Kind::Unknown) && "unknown descriptor kind");
+    return rewriteCall(kind, op, opAdaptor, rewriter);
+  }
+
+private:
+  /// Rewrite sycl.call() {Function = *, Type = *} to a LLVM call to the
+  /// appropriate member function.
+  LogicalResult rewriteCall(Kind kind, SYCLCallOp op, OpAdaptor opAdaptor,
+                            ConversionPatternRewriter &rewriter) const {
+    assert((kind != Kind::Unknown) && "Unexpected descriptor kind");
+    LLVM_DEBUG(llvm::dbgs() << "CallPattern: Rewriting op: "; op.dump();
+               llvm::dbgs() << "\n");
+
+    ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
+    const auto &registry = SYCLFuncRegistry::create(module, rewriter);
+
+    /// Lookup the FuncId corresponding to the member function to use.
+    Type retType = op.getODSResults(0).empty()
+                       ? LLVM::LLVMVoidType::get(module.getContext())
+                       : op.Result().getType();
+
+    FuncId funcId =
+        registry.getFuncId(kind, retType, opAdaptor.Args().getTypes());
+    SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
+                             rewriter, op.getLoc());
+
+    LLVM_DEBUG({
+      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      if (!func)
+        func = op->getParentOfType<func::FuncOp>();
+
+      assert(func && "Could not find parent function");
+      llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
+                   << *func << "\n";
+    });
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConstructorPattern - Converts `sycl.constructor` to LLVM.
 //===----------------------------------------------------------------------===//
 
@@ -214,36 +272,34 @@ class ConstructorPattern final
     : public SYCLToLLVMConversion<sycl::SYCLConstructorOp> {
 public:
   using SYCLToLLVMConversion<sycl::SYCLConstructorOp>::SYCLToLLVMConversion;
+  using FuncId = SYCLFuncDescriptor::FuncId;
+  using Kind = SYCLFuncDescriptor::Kind;
 
   LogicalResult
-  matchAndRewrite(sycl::SYCLConstructorOp op, OpAdaptor opAdaptor,
+  matchAndRewrite(SYCLConstructorOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
     return rewriteConstructor(
-        SYCLFuncDescriptor::Id::nameToFuncKind.at(op.Type().str()), op,
-        opAdaptor, rewriter);
+        SYCLFuncDescriptor::Id::nameToKind.at(op.Type().str()), op, opAdaptor,
+        rewriter);
   }
 
 private:
   /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
   /// constructor function.
-  LogicalResult rewriteConstructor(SYCLFuncDescriptor::FuncKind ctorKind,
-                                   SYCLConstructorOp op, OpAdaptor opAdaptor,
+  LogicalResult rewriteConstructor(Kind kind, SYCLConstructorOp op,
+                                   OpAdaptor opAdaptor,
                                    ConversionPatternRewriter &rewriter) const {
-    assert((ctorKind != SYCLFuncDescriptor::FuncKind::Unknown) &&
-           "Unexpected ctorKind");
+    assert((kind != Kind::Unknown) && "Unexpected descriptor kind");
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
     const auto &registry = SYCLFuncRegistry::create(module, rewriter);
 
-    /// Lookup the FuncId corresponding to the ctor function to use, which is
-    /// determined based on 'ctorKind) the kind of constructor to search for, and
-    /// the LLVM types of the sycl.constructor arguments.
-    SYCLFuncDescriptor::FuncId funcId = registry.getFuncId(
-        ctorKind, LLVM::LLVMVoidType::get(module.getContext()),
-        opAdaptor.Args().getTypes());
-
+    /// Lookup the FuncId corresponding to the ctor function to use.
+    auto retType = LLVM::LLVMVoidType::get(module.getContext());
+    FuncId funcId =
+        registry.getFuncId(kind, retType, opAdaptor.Args().getTypes());
     SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
                              rewriter, op.getLoc());
 
@@ -300,5 +356,6 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
   populateSYCLToLLVMTypeConversion(typeConverter);
 
+  patterns.add<CallPattern>(patterns.getContext(), typeConverter);
   patterns.add<ConstructorPattern>(patterns.getContext(), typeConverter);
 }

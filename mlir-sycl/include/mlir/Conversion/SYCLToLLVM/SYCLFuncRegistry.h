@@ -21,6 +21,7 @@
 
 namespace mlir {
 class LLVMTypeConverter;
+
 namespace sycl {
 class SYCLFuncRegistry;
 
@@ -79,39 +80,37 @@ public:
     Range1CopyCtor,    // sycl::range<1>::range(sycl::range<1> const&)
     Range2CopyCtor,    // sycl::range<2>::range(sycl::range<2> const&)
     Range3CopyCtor,    // sycl::range<3>::range(sycl::range<3> const&)
-
-    Arr1CtorSizeT,  // sycl::detail::array<1>::array<1>(std::enable_if<(1)==(1), unsigned long>::type)
   };
   // clang-format on
 
-  /// Enumerates the kind of FuncId.
-  enum class FuncKind {
+  /// Enumerates the descriptor kind.
+  enum class Kind {
     Unknown,
     Accessor, // sycl::accessor class
     Id,       // sycl::id<n> class
     Range,    // sycl::range<n> class
   };
 
-  /// Each descriptor is uniquely identified by the pair {FuncId, FuncKind}.
+  /// Each descriptor is uniquely identified by the pair {FuncId, Kind}.
   class Id {
   public:
     friend class SYCLFuncRegistry;
     friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Id &);
 
-    Id(FuncId id, FuncKind kind) : funcId(id), funcKind(kind) {
+    Id(FuncId id, Kind kind) : funcId(id), kind(kind) {
       assert(funcId != FuncId::Unknown && "Illegal function id");
-      assert(funcKind != FuncKind::Unknown && "Illegal function id kind");
+      assert(kind != Kind::Unknown && "Illegal descriptor kind");
     }
 
-    /// Maps a FuncKind to a descriptive name.
-    static std::map<SYCLFuncDescriptor::FuncKind, std::string> funcKindToName;
+    /// Maps a Kind to a descriptive name.
+    static std::map<SYCLFuncDescriptor::Kind, std::string> kindToName;
 
-    /// Maps a descriptive name to a FuncKind.
-    static std::map<std::string, SYCLFuncDescriptor::FuncKind> nameToFuncKind;
+    /// Maps a descriptive name to a Kind.
+    static std::map<std::string, SYCLFuncDescriptor::Kind> nameToKind;
 
   private:
     FuncId funcId = FuncId::Unknown;
-    FuncKind funcKind = FuncKind::Unknown;
+    Kind kind = Kind::Unknown;
   };
 
   /// Returns true if the given \p funcId is valid.
@@ -123,7 +122,7 @@ public:
                     Location loc);
 
 protected:
-  SYCLFuncDescriptor(FuncId funcId, FuncKind kind, StringRef name,
+  SYCLFuncDescriptor(FuncId funcId, Kind kind, StringRef name,
                      Type outputTy, ArrayRef<Type> argTys)
       : descId(funcId, kind), name(name), outputTy(outputTy),
         argTys(argTys.begin(), argTys.end()) {}
@@ -142,7 +141,7 @@ private:
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SYCLFuncDescriptor::Id &id) {
   os << "funcId=" << (int)id.funcId
-     << ", funcKind=" << SYCLFuncDescriptor::Id::funcKindToName[id.funcKind];
+     << ", kind=" << SYCLFuncDescriptor::Id::kindToName[id.kind];
   return os;
 }
 
@@ -161,7 +160,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   public:                                                                      \
     friend class SYCLFuncRegistry;                                             \
     using FuncId = SYCLFuncDescriptor::FuncId;                                 \
-    using FuncKind = SYCLFuncDescriptor::FuncKind;                             \
+    using Kind = SYCLFuncDescriptor::Kind;                                     \
                                                                                \
   private:                                                                     \
     ClassName(FuncId funcId, StringRef name, Type outputTy,                    \
@@ -171,9 +170,9 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
     }                                                                          \
     bool isValid(FuncId) const override;                                       \
   };
-DEFINE_CLASS(SYCLAccessorFuncDescriptor, FuncKind::Accessor)
-DEFINE_CLASS(SYCLIdFuncDescriptor, FuncKind::Id)
-DEFINE_CLASS(SYCLRangeFuncDescriptor, FuncKind::Range)
+DEFINE_CLASS(SYCLAccessorFuncDescriptor, Kind::Accessor)
+DEFINE_CLASS(SYCLIdFuncDescriptor, Kind::Id)
+DEFINE_CLASS(SYCLRangeFuncDescriptor, Kind::Range)
 #undef DEFINE_CLASS
 
 /// \class SYCLFuncRegistry
@@ -181,7 +180,7 @@ DEFINE_CLASS(SYCLRangeFuncDescriptor, FuncKind::Range)
 /// compiler.
 class SYCLFuncRegistry {
   using FuncId = SYCLFuncDescriptor::FuncId;
-  using FuncKind = SYCLFuncDescriptor::FuncKind;
+  using Kind = SYCLFuncDescriptor::Kind;
   using Registry = std::map<FuncId, SYCLFuncDescriptor>;
 
 public:
@@ -199,8 +198,8 @@ public:
   }
 
   /// Returns the SYCLFuncDescriptor::Id::FuncId corresponding to the function
-  /// descriptor that matches the given \p funcKind and signature.
-  FuncId getFuncId(FuncKind funcKind, Type retType, TypeRange argTypes) const;
+  /// descriptor that matches the given \p kind and signature.
+  FuncId getFuncId(Kind kind, Type retType, TypeRange argTypes) const;
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);
