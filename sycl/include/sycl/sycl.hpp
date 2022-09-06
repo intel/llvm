@@ -45,7 +45,6 @@
 #include <sycl/pipes.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/pointers.hpp>
-#include <sycl/program.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/range.hpp>

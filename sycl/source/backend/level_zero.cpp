@@ -62,17 +62,6 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 }
 
 //----------------------------------------------------------------------------
-// Implementation of level_zero::make<program>
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle) {
-  // Construct the SYCL program from native program.
-  // TODO: move here the code that creates PI program, and remove the
-  // native interop constructor.
-  return detail::createSyclObjFromImpl<program>(
-      std::make_shared<program_impl>(getSyclObjImpl(Context), NativeHandle));
-}
-
-//----------------------------------------------------------------------------
 // Implementation of level_zero::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle,
