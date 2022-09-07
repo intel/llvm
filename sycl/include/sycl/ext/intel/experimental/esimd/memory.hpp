@@ -539,23 +539,31 @@ template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_block_load(const T *p) {
-  detail::check_lsc_vector_size<NElts>();
+
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-                "Transposed load is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  return __esimd_lsc_load_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                    _VS, _Transposed, N>(pred.data(),
-                                                         addrs.data());
+  if constexpr (_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64) {
+    detail::check_lsc_vector_size<NElts>();
+    static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                  "Transposed load is supported only for data size u32 or u64");
+    constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+    constexpr detail::lsc_data_order _Transposed =
+        detail::lsc_data_order::transpose;
+    constexpr int N = 1;
+    __ESIMD_NS::simd_mask<N> pred = 1;
+    __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
+    return __esimd_lsc_load_stateless<T, L1H, L3H, _AddressScale, _ImmOffset,
+                                      _DS, _VS, _Transposed, N>(pred.data(),
+                                                                addrs.data());
+  } else if constexpr (_DS == lsc_data_size::u16) {
+    static_assert(NElts % 2 == 0,
+                  "Transposed load is supported only for data size u32 or u64");
+    detail::check_lsc_vector_size<NElts / 2>();
+  } else if constexpr (_DS == lsc_data_size::u8) {
+  }
 }
 
 /// Accessor-based prefetch gather.
