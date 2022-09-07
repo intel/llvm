@@ -28,7 +28,6 @@
 // CHECK: !sycl_range_2_ = !sycl.range<2>
 
 // CHECK: func.func @_Z4id_1N4sycl3_V12idILi1EEE(%arg0: !sycl_id_1_) attributes {llvm.linkage = #llvm.linkage<external>}
-                    
 SYCL_EXTERNAL void id_1(sycl::id<1> id) {}
 
 // CHECK: func.func @_Z4id_2N4sycl3_V12idILi2EEE(%arg0: !sycl_id_2_) attributes {llvm.linkage = #llvm.linkage<external>}
