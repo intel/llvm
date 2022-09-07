@@ -218,29 +218,29 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 
 static pi_result redefinedEventsWaitPositive(pi_uint32 num_events,
                                              const pi_event *event_list) {
-    // there should be two events: one is for memory map and the other is for
-    // copier kernel
-    assert(num_events == 2);
+  // there should be two events: one is for memory map and the other is for
+  // copier kernel
+  assert(num_events == 2);
 
-    int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
-    int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
-    // This output here is to reduce amount of time requried to debug/reproduce
-    // a failing test upon feature break
-    printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
-    return PI_SUCCESS;
+  int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
+  int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
+  // This output here is to reduce amount of time requried to debug/reproduce
+  // a failing test upon feature break
+  printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
+  return PI_SUCCESS;
 }
 
 static pi_result redefinedEventsWaitNegative(pi_uint32 num_events,
                                              const pi_event *event_list) {
-    // For negative tests we do not expect the copier kernel to be used, so
-    // instead we accept whatever amount we get.
-    // This output here is to reduce amount of time requried to debug/reproduce
-    // a failing test upon feature break
-    printf("Waiting for %i events ", num_events);
-    for (size_t I = 0; I < num_events; ++I)
-      printf("%i, ", reinterpret_cast<int *>(event_list[I])[0]);
-    printf("\n");
-    return PI_SUCCESS;
+  // For negative tests we do not expect the copier kernel to be used, so
+  // instead we accept whatever amount we get.
+  // This output here is to reduce amount of time requried to debug/reproduce
+  // a failing test upon feature break
+  printf("Waiting for %i events ", num_events);
+  for (size_t I = 0; I < num_events; ++I)
+    printf("%i, ", reinterpret_cast<int *>(event_list[I])[0]);
+  printf("\n");
+  return PI_SUCCESS;
 }
 
 static pi_result
@@ -576,7 +576,7 @@ TEST(Assert, TestInteropKernelNegative) {
   sycl::context Ctx{Dev};
 
   setupMockForInterop(Mock, Ctx, Dev);
-  
+
   sycl::queue Queue{Ctx, Dev};
 
   cl_kernel CLKernel = (cl_kernel)(0x01);
@@ -598,7 +598,7 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::context Ctx{Dev};
 
   setupMockForInterop(Mock, Ctx, Dev);
-  
+
   sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle Bundle =

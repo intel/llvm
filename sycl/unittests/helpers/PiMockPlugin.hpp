@@ -1,5 +1,5 @@
-#include <sycl/detail/pi.hpp>
 #include <cstring>
+#include <sycl/detail/pi.hpp>
 
 //
 // Platform
@@ -22,8 +22,8 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
   constexpr char MockSupportedExtensions[] =
-    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
-    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
+      "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
+      "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
   switch (param_name) {
   case PI_PLATFORM_INFO_EXTENSIONS: {
     if (param_value) {
@@ -77,23 +77,23 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
                                       pi_device_info param_name,
                                       size_t param_value_size,
                                       void *param_value,
-                                      size_t *param_value_size_ret) {               
+                                      size_t *param_value_size_ret) {
   constexpr char MockSupportedExtensions[] = "cl_khr_fp64 cl_khr_fp16";
   switch (param_name) {
   case PI_DEVICE_INFO_TYPE: {
     // Act like any device is a GPU.
     // TODO: Should we mock more device types?
     if (param_value)
-      *static_cast<_pi_device_type*>(param_value) = PI_DEVICE_TYPE_GPU;
+      *static_cast<_pi_device_type *>(param_value) = PI_DEVICE_TYPE_GPU;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_DEVICE_TYPE_GPU);
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
     if (param_value)
-      *static_cast<pi_device**>(param_value) = nullptr;
+      *static_cast<pi_device **>(param_value) = nullptr;
     if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_device*);
+      *param_value_size_ret = sizeof(pi_device *);
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
@@ -113,7 +113,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     if (param_value)
-      *static_cast<pi_bool*>(param_value) = PI_TRUE;
+      *static_cast<pi_bool *>(param_value) = PI_TRUE;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_TRUE);
     return PI_SUCCESS;
@@ -180,15 +180,15 @@ inline pi_result mock_piContextGetInfo(pi_context context,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
   switch (param_name) {
-    case PI_CONTEXT_INFO_NUM_DEVICES: {
-      if (param_value)
-        *static_cast<pi_uint32*>(param_value) = 1;
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(pi_uint32);
-      return PI_SUCCESS;
-    }
-    default:
-      return PI_SUCCESS;
+  case PI_CONTEXT_INFO_NUM_DEVICES: {
+    if (param_value)
+      *static_cast<pi_uint32 *>(param_value) = 1;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_uint32);
+    return PI_SUCCESS;
+  }
+  default:
+    return PI_SUCCESS;
   }
 }
 
@@ -233,15 +233,15 @@ inline pi_result mock_piQueueGetInfo(pi_queue command_queue,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
   switch (param_name) {
-    case PI_QUEUE_INFO_DEVICE: {
-      if (param_value)
-        *static_cast<pi_device*>(param_value) = reinterpret_cast<pi_device>(1);
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(pi_device);
-      return PI_SUCCESS;
-    }
-    default:
-      return PI_SUCCESS;
+  case PI_QUEUE_INFO_DEVICE: {
+    if (param_value)
+      *static_cast<pi_device *>(param_value) = reinterpret_cast<pi_device>(1);
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_device);
+    return PI_SUCCESS;
+  }
+  default:
+    return PI_SUCCESS;
   }
 }
 
@@ -369,34 +369,34 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
                                        size_t *param_value_size_ret) {
 
   switch (param_name) {
-    case PI_PROGRAM_INFO_NUM_DEVICES: {
-      if (param_value)
-        *static_cast<size_t *>(param_value) = 1;
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(size_t);
-      return PI_SUCCESS;
-    }
-    case PI_PROGRAM_INFO_BINARY_SIZES: {
-      if (param_value)
-        *static_cast<size_t *>(param_value) = 1;
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(size_t);
-      return PI_SUCCESS;
-    }
-    case PI_PROGRAM_INFO_BINARIES: {
-      if (param_value)
-        *static_cast<unsigned char *>(param_value) = 1;
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(unsigned char);
-      return PI_SUCCESS;
-    }
-    default: {
-      // TODO: Buildlog requires this but not any actual data afterwards.
-      //       This should be investigated. Should this be moved to that test?
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(size_t);
-      return PI_SUCCESS;
-    }
+  case PI_PROGRAM_INFO_NUM_DEVICES: {
+    if (param_value)
+      *static_cast<size_t *>(param_value) = 1;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(size_t);
+    return PI_SUCCESS;
+  }
+  case PI_PROGRAM_INFO_BINARY_SIZES: {
+    if (param_value)
+      *static_cast<size_t *>(param_value) = 1;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(size_t);
+    return PI_SUCCESS;
+  }
+  case PI_PROGRAM_INFO_BINARIES: {
+    if (param_value)
+      *static_cast<unsigned char *>(param_value) = 1;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(unsigned char);
+    return PI_SUCCESS;
+  }
+  default: {
+    // TODO: Buildlog requires this but not any actual data afterwards.
+    //       This should be investigated. Should this be moved to that test?
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(size_t);
+    return PI_SUCCESS;
+  }
   }
 }
 
@@ -491,20 +491,20 @@ inline pi_result mock_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                            void *param_value,
                                            size_t *param_value_size_ret) {
   switch (param_name) {
-    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-      if (param_value) {
-        auto RealVal = reinterpret_cast<size_t *>(param_value);
-        RealVal[0] = 0;
-        RealVal[1] = 0;
-        RealVal[2] = 0;
-      }
-      if (param_value_size_ret)
-        *param_value_size_ret = 3 * sizeof(size_t);
-      return PI_SUCCESS;
+  case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+    if (param_value) {
+      auto RealVal = reinterpret_cast<size_t *>(param_value);
+      RealVal[0] = 0;
+      RealVal[1] = 0;
+      RealVal[2] = 0;
     }
-    default: {
-      return PI_SUCCESS;
-    }
+    if (param_value_size_ret)
+      *param_value_size_ret = 3 * sizeof(size_t);
+    return PI_SUCCESS;
+  }
+  default: {
+    return PI_SUCCESS;
+  }
   }
 }
 
@@ -559,16 +559,16 @@ inline pi_result mock_piEventGetInfo(pi_event event, pi_event_info param_name,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
   switch (param_name) {
-    case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-      if (param_value)
-        *static_cast<pi_event_status *>(param_value) = PI_EVENT_SUBMITTED;
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(pi_event_status);
-      return PI_SUCCESS;
-    }
-    default: {
-      return PI_SUCCESS;
-    }
+  case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+    if (param_value)
+      *static_cast<pi_event_status *>(param_value) = PI_EVENT_SUBMITTED;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_event_status);
+    return PI_SUCCESS;
+  }
+  default: {
+    return PI_SUCCESS;
+  }
   }
 }
 

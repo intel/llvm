@@ -50,7 +50,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class DeviceInfoTest : public ::testing::Test {
 public:
-  DeviceInfoTest() :  Mock{}, Plt{Mock.getPlatform()} {}
+  DeviceInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
@@ -97,8 +97,7 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
     return;
   }
 
-  auto FreeMemory =
-      Dev.get_info<info::device::ext_intel_free_memory>();
+  auto FreeMemory = Dev.get_info<info::device::ext_intel_free_memory>();
 
   EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
       << "Expect piDeviceGetInfo to be "

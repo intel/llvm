@@ -96,7 +96,6 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       EnableDefaultContextsName, "1",
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 
