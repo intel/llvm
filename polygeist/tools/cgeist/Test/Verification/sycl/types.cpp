@@ -36,7 +36,6 @@ SYCL_EXTERNAL void id_1(sycl::id<1> id) {}
 SYCL_EXTERNAL void id_2(sycl::id<2> id) {}
 
 // CHECK: func.func @_Z5acc_1N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_read_write_global_buffer) attributes {llvm.linkage = #llvm.linkage<external>}
-                    
 SYCL_EXTERNAL void acc_1(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write>) {}
 
 // CHECK: func.func @_Z5acc_2N4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_read_write_global_buffer) attributes {llvm.linkage = #llvm.linkage<external>}
