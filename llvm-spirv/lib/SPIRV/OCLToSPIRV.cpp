@@ -622,9 +622,9 @@ void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
     PostOps.push_back(OCLLegacyAtomicMemOrder);
   PostOps.push_back(OCLLegacyAtomicMemScope);
 
-  Info.PostProc = [=](std::vector<Value *> &Ops) {
+  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
     for (auto &I : PostOps) {
-      Ops.push_back(addInt32(I));
+      Mutator.appendArg(addInt32(I));
     }
   };
   transAtomicBuiltin(CI, Info);
@@ -666,9 +666,9 @@ void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
 
   OCLBuiltinTransInfo Info;
   Info.UniqName = std::string("atomic_") + NewStem;
-  Info.PostProc = [=](std::vector<Value *> &Ops) {
+  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
     for (auto &I : PostOps) {
-      Ops.push_back(addInt32(I));
+      Mutator.appendArg(addInt32(I));
     }
   };
 
@@ -677,72 +677,65 @@ void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
 
 void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
                                         OCLBuiltinTransInfo &Info) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *CI, std::vector<Value *> &Args) -> std::string {
-        Info.PostProc(Args);
-        // Order of args in OCL20:
-        // object, 0-2 other args, 1-2 order, scope
-        const size_t NumOrder =
-            getAtomicBuiltinNumMemoryOrderArgs(Info.UniqName);
-        const size_t ArgsCount = Args.size();
-        const size_t ScopeIdx = ArgsCount - 1;
-        const size_t OrderIdx = ScopeIdx - NumOrder;
+  llvm::Type *AtomicBuiltinsReturnType = CI->getType();
+  auto SPIRVFunctionName =
+      getSPIRVFuncName(OCLSPIRVBuiltinMap::map(Info.UniqName));
+  bool NeedsNegate = false;
+  if (AtomicBuiltinsReturnType->isFloatingPointTy()) {
+    // Translate FP-typed atomic builtins. Currently we only need to
+    // translate atomic_fetch_[add, sub, max, min] and atomic_fetch_[add,
+    // sub, max, min]_explicit to related float instructions.
+    // Translate atomic_fetch_sub to OpAtomicFAddEXT with negative value
+    // operand
+    auto SPIRFunctionNameForFloatAtomics =
+        llvm::StringSwitch<std::string>(SPIRVFunctionName)
+            .Case("__spirv_AtomicIAdd", "__spirv_AtomicFAddEXT")
+            .Case("__spirv_AtomicISub", "__spirv_AtomicFAddEXT")
+            .Case("__spirv_AtomicSMax", "__spirv_AtomicFMaxEXT")
+            .Case("__spirv_AtomicSMin", "__spirv_AtomicFMinEXT")
+            .Default("others");
+    if (SPIRVFunctionName == "__spirv_AtomicISub") {
+      NeedsNegate = true;
+    }
+    if (SPIRFunctionNameForFloatAtomics != "others")
+      SPIRVFunctionName = SPIRFunctionNameForFloatAtomics;
+  }
 
-        Args[ScopeIdx] =
-            transOCLMemScopeIntoSPIRVScope(Args[ScopeIdx], OCLMS_device, CI);
+  auto Mutator = mutateCallInst(CI, SPIRVFunctionName);
+  Info.PostProc(Mutator);
+  // Order of args in OCL20:
+  // object, 0-2 other args, 1-2 order, scope
+  const size_t NumOrder = getAtomicBuiltinNumMemoryOrderArgs(Info.UniqName);
+  const size_t ArgsCount = Mutator.arg_size();
+  const size_t ScopeIdx = ArgsCount - 1;
+  const size_t OrderIdx = ScopeIdx - NumOrder;
 
-        for (size_t I = 0; I < NumOrder; ++I) {
-          Args[OrderIdx + I] = transOCLMemOrderIntoSPIRVMemorySemantics(
-              Args[OrderIdx + I], OCLMO_seq_cst, CI);
-        }
-        // Order of args in SPIR-V:
-        // object, scope, 1-2 order, 0-2 other args
-        std::swap(Args[1], Args[ScopeIdx]);
-        if (OrderIdx > 2) {
-          // For atomic_compare_exchange the swap above puts Comparator/Expected
-          // argument just where it should be, so don't move the last argument
-          // then.
-          int Offset =
-              Info.UniqName.find("atomic_compare_exchange") == 0 ? 1 : 0;
-          std::rotate(Args.begin() + 2, Args.begin() + OrderIdx,
-                      Args.end() - Offset);
-        }
-        llvm::Type *AtomicBuiltinsReturnType =
-            CI->getCalledFunction()->getReturnType();
-        auto IsFPType = [](llvm::Type *ReturnType) {
-          return ReturnType->isHalfTy() || ReturnType->isFloatTy() ||
-                 ReturnType->isDoubleTy();
-        };
-        auto SPIRVFunctionName =
-            getSPIRVFuncName(OCLSPIRVBuiltinMap::map(Info.UniqName));
-        if (!IsFPType(AtomicBuiltinsReturnType))
-          return SPIRVFunctionName;
-        // Translate FP-typed atomic builtins. Currently we only need to
-        // translate atomic_fetch_[add, sub, max, min] and atomic_fetch_[add,
-        // sub, max, min]_explicit to related float instructions.
-        // Translate atomic_fetch_sub to OpAtomicFAddEXT with negative value
-        // operand
-        auto SPIRFunctionNameForFloatAtomics =
-            llvm::StringSwitch<std::string>(SPIRVFunctionName)
-                .Case("__spirv_AtomicIAdd", "__spirv_AtomicFAddEXT")
-                .Case("__spirv_AtomicISub", "__spirv_AtomicFAddEXT")
-                .Case("__spirv_AtomicSMax", "__spirv_AtomicFMaxEXT")
-                .Case("__spirv_AtomicSMin", "__spirv_AtomicFMinEXT")
-                .Default("others");
-        if (SPIRVFunctionName == "__spirv_AtomicISub") {
-          IRBuilder<> IRB(CI);
-          // Set float operand to its negation
-          CI->setOperand(1, IRB.CreateFNeg(CI->getArgOperand(1)));
-          // Update Args which is used to generate new call
-          Args.back() = CI->getArgOperand(1);
-        }
-        return SPIRFunctionNameForFloatAtomics == "others"
-                   ? SPIRVFunctionName
-                   : SPIRFunctionNameForFloatAtomics;
-      },
-      &Attrs);
+  if (NeedsNegate) {
+    Mutator.mapArg(1, [=](Value *V) {
+      IRBuilder<> IRB(CI);
+      return IRB.CreateFNeg(V);
+    });
+  }
+  Mutator.mapArg(ScopeIdx, [=](Value *V) {
+    return transOCLMemScopeIntoSPIRVScope(V, OCLMS_device, CI);
+  });
+  for (size_t I = 0; I < NumOrder; ++I) {
+    Mutator.mapArg(OrderIdx + I, [=](Value *V) {
+      return transOCLMemOrderIntoSPIRVMemorySemantics(V, OCLMO_seq_cst, CI);
+    });
+  }
+
+  // Order of args in SPIR-V:
+  // object, scope, 1-2 order, 0-2 other args
+  for (size_t I = 0; I < NumOrder; ++I) {
+    Mutator.moveArg(OrderIdx + I, I + 1);
+  }
+  Mutator.moveArg(ScopeIdx, 1);
+  if (Info.UniqName.find("atomic_compare_exchange") == 0) {
+    // For atomic_compare_exchange, the two "other args" are in the opposite
+    // order from the SPIR-V order. Swap these two arguments.
+    Mutator.moveArg(Mutator.arg_size() - 1, Mutator.arg_size() - 2);
+  }
 }
 
 void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
@@ -913,24 +906,29 @@ void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
   if (HasBoolReturnType)
     Info.RetTy = Type::getInt1Ty(*Ctx);
   Info.UniqName = DemangledName;
-  Info.PostProc = [=](std::vector<Value *> &Ops) {
+  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
     if (HasBoolArg) {
-      IRBuilder<> IRB(CI);
-      Ops[0] =
-          IRB.CreateICmpNE(Ops[0], ConstantInt::get(Type::getInt32Ty(*Ctx), 0));
+      Mutator.mapArg(0, [&](Value *V) {
+        IRBuilder<> IRB(CI);
+        return IRB.CreateICmpNE(V, IRB.getInt32(0));
+      });
     }
-    size_t E = Ops.size();
+    size_t E = Mutator.arg_size();
     if (DemangledName == "group_broadcast" && E > 2) {
       assert(E == 3 || E == 4);
+      std::vector<Value *> Ops = getArguments(CI);
       makeVector(CI, Ops, std::make_pair(Ops.begin() + 1, Ops.end()));
+      while (Mutator.arg_size() > 1)
+        Mutator.removeArg(1);
+      Mutator.appendArg(Ops.back());
     }
-    Ops.insert(Ops.begin(), Consts.begin(), Consts.end());
+    for (unsigned I = 0; I < Consts.size(); I++)
+      Mutator.insertArg(I, Consts[I]);
   };
   transBuiltin(CI, Info);
 }
 
 void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   unsigned ExtOp = ~0U;
   SPIRVBuiltinVariableKind BVKind = BuiltInMax;
@@ -960,31 +958,18 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Info.UniqName = getSPIRVFuncName(BVKind);
   } else
     return;
-  if (!Info.RetTy)
-    mutateCallInstSPIRV(
-        M, CI,
-        [=](CallInst *, std::vector<Value *> &Args) {
-          Info.PostProc(Args);
-          return Info.UniqName + Info.Postfix;
-        },
-        &Attrs);
-  else
-    mutateCallInstSPIRV(
-        M, CI,
-        [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
-          Info.PostProc(Args);
-          RetTy = Info.RetTy;
-          return Info.UniqName + Info.Postfix;
-        },
-        [=](CallInst *NewCI) -> Instruction * {
-          if (NewCI->getType()->isIntegerTy() && CI->getType()->isIntegerTy())
-            return CastInst::CreateIntegerCast(NewCI, CI->getType(),
-                                               Info.IsRetSigned, "", CI);
+  auto Mutator = mutateCallInst(CI, Info.UniqName + Info.Postfix);
+  Info.PostProc(Mutator);
+  if (Info.RetTy) {
+    Type *OldRetTy = CI->getType();
+    Mutator.changeReturnType(
+        Info.RetTy, [&](IRBuilder<> &Builder, CallInst *NewCI) {
+          if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy())
+            return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
           else
-            return CastInst::CreatePointerBitCastOrAddrSpaceCast(
-                NewCI, CI->getType(), "", CI);
-        },
-        &Attrs);
+            return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
+        });
+  }
 }
 
 void OCLToSPIRVBase::visitCallReadImageMSAA(CallInst *CI,
@@ -1170,27 +1155,25 @@ void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
     Info.UniqName = kOCLBuiltinName::ReadImage;
     unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
     if (ImgOpMask) {
-      Info.PostProc = [&](std::vector<Value *> &Args) {
-        Args.push_back(getInt32(M, ImgOpMask));
+      Info.PostProc = [&](BuiltinCallMutator &Mutator) {
+        Mutator.appendArg(getInt32(M, ImgOpMask));
       };
     }
   }
 
   if (DemangledName.find(kOCLBuiltinName::WriteImage) == 0) {
     Info.UniqName = kOCLBuiltinName::WriteImage;
-    Info.PostProc = [&](std::vector<Value *> &Args) {
+    Info.PostProc = [&](BuiltinCallMutator &Mutator) {
       unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
-      unsigned ImgOpMaskInsIndex = Args.size();
-      if (Args.size() == 4) // write with lod
+      unsigned ImgOpMaskInsIndex = Mutator.arg_size();
+      if (Mutator.arg_size() == 4) // write with lod
       {
-        auto Lod = Args[2];
-        Args.erase(Args.begin() + 2);
         ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
-        ImgOpMaskInsIndex = Args.size();
-        Args.push_back(Lod);
+        ImgOpMaskInsIndex = Mutator.arg_size() - 1;
+        Mutator.moveArg(2, Mutator.arg_size() - 1);
       }
       if (ImgOpMask) {
-        Args.insert(Args.begin() + ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
+        Mutator.insertArg(ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
       }
     };
   }
@@ -1207,11 +1190,14 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
                  SPIRAddrSpaceCapitalizedNameMap::map(AddrSpace);
   auto StorageClass = addInt32(SPIRSPIRVAddrSpaceMap::map(AddrSpace));
   Info.RetTy = getInt8PtrTy(cast<PointerType>(CI->getType()));
-  Info.PostProc = [=](std::vector<Value *> &Ops) {
-    auto P = Ops.back();
-    Ops.pop_back();
-    Ops.push_back(castToInt8Ptr(P, CI));
-    Ops.push_back(StorageClass);
+  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
+    Mutator
+        .mapArg(Mutator.arg_size() - 1,
+                [&](Value *V) {
+                  return std::pair<Value *, Type *>(
+                      castToInt8Ptr(V, CI), Type::getInt8Ty(V->getContext()));
+                })
+        .appendArg(StorageClass);
   };
   transBuiltin(CI, Info);
 }
@@ -1293,8 +1279,9 @@ void OCLToSPIRVBase::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
   if (DemangledName.find(kOCLBuiltinName::VLoadPrefix) == 0)
     Info.Postfix =
         std::string(kSPIRVPostfix::ExtDivider) + getPostfixForReturnType(CI);
-  Info.PostProc = [=](std::vector<Value *> &Ops) {
-    Ops.insert(Ops.end(), Consts.begin(), Consts.end());
+  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
+    for (auto *Value : Consts)
+      Mutator.appendArg(Value);
   };
   transBuiltin(CI, Info);
 }
@@ -1605,9 +1592,8 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
 
 // Add postfix to overloaded intel subgroup block read/write builtins
 // so new functions can be distinguished.
-static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
-                                               OCLBuiltinTransInfo &Info,
-                                               const Type *DataTy, Module *M) {
+void OCLToSPIRVBase::processSubgroupBlockReadWriteINTEL(
+    CallInst *CI, OCLBuiltinTransInfo &Info, const Type *DataTy) {
   unsigned VectorNumElements = 1;
   if (auto *VecTy = dyn_cast<FixedVectorType>(DataTy))
     VectorNumElements = VecTy->getNumElements();
@@ -1616,14 +1602,7 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
   Info.Postfix +=
       getIntelSubgroupBlockDataPostfix(ElementBitSize, VectorNumElements);
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [&Info](CallInst *, std::vector<Value *> &Args) {
-        Info.PostProc(Args);
-        return Info.UniqName + Info.Postfix;
-      },
-      &Attrs);
+  mutateCallInst(CI, Info.UniqName + Info.Postfix);
 }
 
 // The intel_sub_group_block_read built-ins are overloaded to support both
@@ -1639,7 +1618,7 @@ void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockReadINTEL);
   Type *DataTy = CI->getType();
-  processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
+  processSubgroupBlockReadWriteINTEL(CI, Info, DataTy);
 }
 
 // The intel_sub_group_block_write built-ins are similarly overloaded to support
@@ -1657,7 +1636,7 @@ void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
          "Intel subgroup block write should have arguments");
   unsigned DataArg = CI->arg_size() - 1;
   Type *DataTy = CI->getArgOperand(DataArg)->getType();
-  processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
+  processSubgroupBlockReadWriteINTEL(CI, Info, DataTy);
 }
 
 void OCLToSPIRVBase::visitSubgroupImageMediaBlockINTEL(
