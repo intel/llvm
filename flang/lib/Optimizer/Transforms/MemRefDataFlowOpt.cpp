@@ -97,7 +97,7 @@ private:
 class MemDataFlowOpt : public fir::MemRefDataFlowOptBase<MemDataFlowOpt> {
 public:
   void runOnOperation() override {
-    mlir::FuncOp f = getOperation();
+    mlir::func::FuncOp f = getOperation();
 
     auto *domInfo = &getAnalysis<mlir::DominanceInfo>();
     LoadStoreForwarding<fir::LoadOp, fir::StoreOp> lsf(domInfo);
@@ -105,7 +105,7 @@ public:
       auto maybeStore = lsf.findStoreToForward(
           loadOp, getSpecificUsers<fir::StoreOp>(loadOp.getMemref()));
       if (maybeStore) {
-        auto storeOp = maybeStore.getValue();
+        auto storeOp = *maybeStore;
         LLVM_DEBUG(llvm::dbgs() << "FlangMemDataFlowOpt: In " << f.getName()
                                 << " erasing load " << loadOp
                                 << " with value from " << storeOp << '\n');

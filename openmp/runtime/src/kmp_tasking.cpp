@@ -711,6 +711,8 @@ static inline void __ompt_task_init(kmp_taskdata_t *task, int tid) {
       ompt_frame_runtime | ompt_frame_framepointer;
   task->ompt_task_info.frame.enter_frame_flags =
       ompt_frame_runtime | ompt_frame_framepointer;
+  task->ompt_task_info.dispatch_chunk.start = 0;
+  task->ompt_task_info.dispatch_chunk.iterations = 0;
 }
 
 // __ompt_task_start:
@@ -1747,6 +1749,18 @@ static void __kmp_invoke_task(kmp_int32 gtid, kmp_task_t *task,
     if (UNLIKELY(ompt_enabled.enabled))
       __ompt_task_start(task, current_task, gtid);
 #endif
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+    if (UNLIKELY(ompt_enabled.ompt_callback_dispatch &&
+                 taskdata->ompt_task_info.dispatch_chunk.iterations > 0)) {
+      ompt_data_t instance = ompt_data_none;
+      instance.ptr = &(taskdata->ompt_task_info.dispatch_chunk);
+      ompt_team_info_t *team_info = __ompt_get_teaminfo(0, NULL);
+      ompt_callbacks.ompt_callback(ompt_callback_dispatch)(
+          &(team_info->parallel_data), &(taskdata->ompt_task_info.task_data),
+          ompt_dispatch_taskloop_chunk, instance);
+      taskdata->ompt_task_info.dispatch_chunk = {0, 0};
+    }
+#endif // OMPT_SUPPORT && OMPT_OPTIONAL
 
 #if OMPD_SUPPORT
     if (ompd_state & OMPD_ENABLE_BP)
@@ -1895,8 +1909,21 @@ kmp_int32 __kmp_omp_task(kmp_int32 gtid, kmp_task_t *new_task,
     if (serialize_immediate)
       new_taskdata->td_flags.task_serial = 1;
     __kmp_invoke_task(gtid, new_task, current_task);
+  } else if (__kmp_dflt_blocktime != KMP_MAX_BLOCKTIME &&
+             __kmp_wpolicy_passive) {
+    kmp_info_t *this_thr = __kmp_threads[gtid];
+    kmp_team_t *team = this_thr->th.th_team;
+    kmp_int32 nthreads = this_thr->th.th_team_nproc;
+    for (int i = 0; i < nthreads; ++i) {
+      kmp_info_t *thread = team->t.t_threads[i];
+      if (thread == this_thr)
+        continue;
+      if (thread->th.th_sleep_loc != NULL) {
+        __kmp_null_resume_wrapper(thread);
+        break; // awake one thread at a time
+      }
+    }
   }
-
   return TASK_CURRENT_NOT_QUEUED;
 }
 
@@ -2237,7 +2264,7 @@ kmp_int32 __kmpc_omp_taskyield(ident_t *loc_ref, kmp_int32 gtid, int end_part) {
 Flags for special info per task reduction item.
 */
 typedef struct kmp_taskred_flags {
-  /*! 1 - use lazy alloc/init (e.g. big objects, #tasks < #threads) */
+  /*! 1 - use lazy alloc/init (e.g. big objects, num tasks < num threads) */
   unsigned lazy_priv : 1;
   unsigned reserved31 : 31;
 } kmp_taskred_flags_t;
@@ -4268,6 +4295,17 @@ void __kmpc_give_task(kmp_task_t *ptask, kmp_int32 start = 0) {
       pass = pass << 1;
 
   } while (!__kmp_give_task(thread, k, ptask, pass));
+
+  if (__kmp_dflt_blocktime != KMP_MAX_BLOCKTIME && __kmp_wpolicy_passive) {
+    // awake at least one thread to execute given task
+    for (int i = 0; i < nthreads; ++i) {
+      thread = team->t.t_threads[i];
+      if (thread->th.th_sleep_loc != NULL) {
+        __kmp_null_resume_wrapper(thread);
+        break;
+      }
+    }
+  }
 }
 
 /*!
@@ -4643,6 +4681,12 @@ void __kmp_taskloop_linear(ident_t *loc, int gtid, kmp_task_t *task,
 #if OMPT_SUPPORT
     __kmp_omp_taskloop_task(NULL, gtid, next_task,
                             codeptr_ra); // schedule new task
+#if OMPT_OPTIONAL
+    if (ompt_enabled.ompt_callback_dispatch) {
+      OMPT_GET_DISPATCH_CHUNK(next_taskdata->ompt_task_info.dispatch_chunk,
+                              lower, upper, st);
+    }
+#endif // OMPT_OPTIONAL
 #else
     __kmp_omp_task(gtid, next_task, true); // schedule new task
 #endif
@@ -5072,7 +5116,7 @@ void __kmpc_taskloop(ident_t *loc, int gtid, kmp_task_t *task, int if_val,
 @param nogroup   Flag, 1 if nogroup clause specified, 0 otherwise
 @param sched     Schedule specified 0/1/2 for none/grainsize/num_tasks
 @param grainsize Schedule value if specified
-@param modifer   Modifier 'strict' for sched, 1 if present, 0 otherwise
+@param modifier  Modifier 'strict' for sched, 1 if present, 0 otherwise
 @param task_dup  Tasks duplication routine
 
 Execute the taskloop construct.

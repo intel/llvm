@@ -62,6 +62,9 @@ public:
 
   /// Emit the .debug_line_str section if appropriate.
   void emitSection(MCStreamer *MCOS);
+
+  /// Returns finalized section.
+  SmallString<0> getFinalizedData();
 };
 
 /// Instances of this class represent the name of the dwarf .file directive and
@@ -293,8 +296,8 @@ public:
     RootFile.DirIndex = 0;
     RootFile.Checksum = Checksum;
     RootFile.Source = Source;
-    trackMD5Usage(Checksum.hasValue());
-    HasSource = Source.hasValue();
+    trackMD5Usage(Checksum.has_value());
+    HasSource = Source.has_value();
   }
 
   void resetFileTable() {
@@ -371,8 +374,8 @@ public:
     Header.RootFile.DirIndex = 0;
     Header.RootFile.Checksum = Checksum;
     Header.RootFile.Source = Source;
-    Header.trackMD5Usage(Checksum.hasValue());
-    Header.HasSource = Source.hasValue();
+    Header.trackMD5Usage(Checksum.has_value());
+    Header.HasSource = Source.has_value();
   }
 
   void resetFileTable() { Header.resetFileTable(); }
@@ -685,6 +688,7 @@ struct MCDwarfFrameInfo {
   bool IsSimple = false;
   unsigned RAReg = static_cast<unsigned>(INT_MAX);
   bool IsBKeyFrame = false;
+  bool IsMTETaggedFrame = false;
 };
 
 class MCDwarfFrameEmitter {

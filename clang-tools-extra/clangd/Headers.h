@@ -134,7 +134,7 @@ public:
   enum class HeaderID : unsigned {};
 
   llvm::Optional<HeaderID> getID(const FileEntry *Entry) const;
-  HeaderID getOrCreateID(const FileEntry *Entry);
+  HeaderID getOrCreateID(FileEntryRef Entry);
 
   StringRef getRealPath(HeaderID ID) const {
     assert(static_cast<unsigned>(ID) <= RealPathNames.size());
@@ -143,6 +143,10 @@ public:
 
   bool isSelfContained(HeaderID ID) const {
     return !NonSelfContained.contains(ID);
+  }
+
+  bool hasIWYUExport(HeaderID ID) const {
+    return HasIWYUExport.contains(ID);
   }
 
   // Return all transitively reachable files.
@@ -185,6 +189,9 @@ private:
   // Contains HeaderIDs of all non self-contained entries in the
   // IncludeStructure.
   llvm::DenseSet<HeaderID> NonSelfContained;
+  // Contains a set of headers that have either "IWYU pragma: export" or "IWYU
+  // pragma: begin_exports".
+  llvm::DenseSet<HeaderID> HasIWYUExport;
 };
 
 // Calculates insertion edit for including a new header in a file.

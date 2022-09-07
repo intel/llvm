@@ -2,13 +2,13 @@
 
 // This test checks compilation of ESIMD atomic APIs.
 
-#include <CL/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 void kernel0(uint32_t *ptr) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);

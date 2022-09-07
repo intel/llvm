@@ -13,9 +13,9 @@
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/StatementContext.h"
 #include "flang/Lower/Support/Utils.h"
-#include "flang/Lower/Todo.h"
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Support/InternalNames.h"
@@ -27,8 +27,14 @@
 //===----------------------------------------------------------------------===//
 
 // Return the binding label (from BIND(C...)) or the mangled name of a symbol.
-static std::string getMangledName(const Fortran::semantics::Symbol &symbol) {
+static std::string getMangledName(mlir::Location loc,
+                                  const Fortran::semantics::Symbol &symbol) {
   const std::string *bindName = symbol.GetBindName();
+  // TODO: update GetBindName so that it does not return a label for internal
+  // procedures.
+  if (bindName && Fortran::semantics::ClassifyProcedure(symbol) ==
+                      Fortran::semantics::ProcedureDefinitionClass::Internal)
+    TODO(loc, "BIND(C) internal procedures");
   return bindName ? *bindName : Fortran::lower::mangle::mangleName(symbol);
 }
 
@@ -63,7 +69,8 @@ bool Fortran::lower::CallerInterface::hasAlternateReturns() const {
 std::string Fortran::lower::CallerInterface::getMangledName() const {
   const Fortran::evaluate::ProcedureDesignator &proc = procRef.proc();
   if (const Fortran::semantics::Symbol *symbol = proc.GetSymbol())
-    return ::getMangledName(symbol->GetUltimate());
+    return ::getMangledName(converter.getCurrentLocation(),
+                            symbol->GetUltimate());
   assert(proc.GetSpecificIntrinsic() &&
          "expected intrinsic procedure in designator");
   return proc.GetName();
@@ -329,7 +336,8 @@ bool Fortran::lower::CalleeInterface::hasAlternateReturns() const {
 std::string Fortran::lower::CalleeInterface::getMangledName() const {
   if (funit.isMainProgram())
     return fir::NameUniquer::doProgramEntry().str();
-  return ::getMangledName(funit.getSubprogramSymbol());
+  return ::getMangledName(converter.getCurrentLocation(),
+                          funit.getSubprogramSymbol());
 }
 
 const Fortran::semantics::Symbol *
@@ -360,9 +368,16 @@ bool Fortran::lower::CalleeInterface::isMainProgram() const {
   return funit.isMainProgram();
 }
 
-mlir::FuncOp Fortran::lower::CalleeInterface::addEntryBlockAndMapArguments() {
-  // On the callee side, directly map the mlir::value argument of
-  // the function block to the Fortran symbols.
+mlir::func::FuncOp
+Fortran::lower::CalleeInterface::addEntryBlockAndMapArguments() {
+  // Check for bugs in the front end. The front end must not present multiple
+  // definitions of the same procedure.
+  if (!func.getBlocks().empty())
+    fir::emitFatalError(func.getLoc(),
+                        "cannot process subprogram that was already processed");
+
+  // On the callee side, directly map the mlir::value argument of the function
+  // block to the Fortran symbols.
   func.addEntryBlock();
   mapPassedEntities();
   return func;
@@ -387,7 +402,7 @@ mlir::Value Fortran::lower::CalleeInterface::getHostAssociatedTuple() const {
 // sides.
 //===----------------------------------------------------------------------===//
 
-static void addSymbolAttribute(mlir::FuncOp func,
+static void addSymbolAttribute(mlir::func::FuncOp func,
                                const Fortran::semantics::Symbol &sym,
                                mlir::MLIRContext &mlirContext) {
   // Only add this on bind(C) functions for which the symbol is not reflected in
@@ -401,7 +416,7 @@ static void addSymbolAttribute(mlir::FuncOp func,
 }
 
 /// Declare drives the different actions to be performed while analyzing the
-/// signature and building/finding the mlir::FuncOp.
+/// signature and building/finding the mlir::func::FuncOp.
 template <typename T>
 void Fortran::lower::CallInterface<T>::declare() {
   if (!side().isMainProgram()) {
@@ -431,8 +446,9 @@ void Fortran::lower::CallInterface<T>::declare() {
   }
 }
 
-/// Once the signature has been analyzed and the mlir::FuncOp was built/found,
-/// map the fir inputs to Fortran entities (the symbols or expressions).
+/// Once the signature has been analyzed and the mlir::func::FuncOp was
+/// built/found, map the fir inputs to Fortran entities (the symbols or
+/// expressions).
 template <typename T>
 void Fortran::lower::CallInterface<T>::mapPassedEntities() {
   // map back fir inputs to passed entities
@@ -763,8 +779,9 @@ private:
       return true;
     if (const Fortran::semantics::DerivedTypeSpec *derived =
             Fortran::evaluate::GetDerivedTypeSpec(obj.type.type()))
-      // Need to pass type parameters in fir.box if any.
-      return derived->parameters().empty();
+      if (const Fortran::semantics::Scope *scope = derived->scope())
+        // Need to pass length type parameters in fir.box if any.
+        return scope->IsDerivedTypeWithLengthParameter();
     return false;
   }
 
@@ -775,7 +792,7 @@ private:
     if (cat == Fortran::common::TypeCategory::Derived) {
       if (dynamicType.IsPolymorphic())
         TODO(interface.converter.getCurrentLocation(),
-             "[translateDynamicType] polymorphic types");
+             "support for polymorphic types");
       return getConverter().genType(dynamicType.GetDerivedTypeSpec());
     }
     // CHARACTER with compile time constant length.
@@ -804,13 +821,13 @@ private:
     if (obj.attrs.test(Attrs::Optional))
       addMLIRAttr(fir::getOptionalAttrName());
     if (obj.attrs.test(Attrs::Asynchronous))
-      TODO(loc, "Asynchronous in procedure interface");
+      TODO(loc, "ASYNCHRONOUS in procedure interface");
     if (obj.attrs.test(Attrs::Contiguous))
       addMLIRAttr(fir::getContiguousAttrName());
     if (obj.attrs.test(Attrs::Value))
       isValueAttr = true; // TODO: do we want an mlir::Attribute as well?
     if (obj.attrs.test(Attrs::Volatile))
-      TODO(loc, "Volatile in procedure interface");
+      TODO(loc, "VOLATILE in procedure interface");
     if (obj.attrs.test(Attrs::Target))
       addMLIRAttr(fir::getTargetAttrName());
 
@@ -820,9 +837,9 @@ private:
     const Fortran::evaluate::characteristics::TypeAndShape::Attrs &shapeAttrs =
         obj.type.attrs();
     if (shapeAttrs.test(ShapeAttr::AssumedRank))
-      TODO(loc, "Assumed Rank in procedure interface");
+      TODO(loc, "assumed rank in procedure interface");
     if (shapeAttrs.test(ShapeAttr::Coarray))
-      TODO(loc, "Coarray in procedure interface");
+      TODO(loc, "coarray in procedure interface");
 
     // So far assume that if the argument cannot be passed by implicit interface
     // it must be by box. That may no be always true (e.g for simple optionals)
@@ -1165,11 +1182,11 @@ mlir::FunctionType Fortran::lower::translateSignature(
       .getFunctionType();
 }
 
-mlir::FuncOp Fortran::lower::getOrDeclareFunction(
+mlir::func::FuncOp Fortran::lower::getOrDeclareFunction(
     llvm::StringRef name, const Fortran::evaluate::ProcedureDesignator &proc,
     Fortran::lower::AbstractConverter &converter) {
   mlir::ModuleOp module = converter.getModuleOp();
-  mlir::FuncOp func = fir::FirOpBuilder::getNamedFunction(module, name);
+  mlir::func::FuncOp func = fir::FirOpBuilder::getNamedFunction(module, name);
   if (func)
     return func;
 
@@ -1185,7 +1202,7 @@ mlir::FuncOp Fortran::lower::getOrDeclareFunction(
   mlir::FunctionType ty = SignatureBuilder{characteristics.value(), converter,
                                            /*forceImplicit=*/false}
                               .getFunctionType();
-  mlir::FuncOp newFunc =
+  mlir::func::FuncOp newFunc =
       fir::FirOpBuilder::createFunction(loc, module, name, ty);
   addSymbolAttribute(newFunc, *symbol, converter.getMLIRContext());
   return newFunc;

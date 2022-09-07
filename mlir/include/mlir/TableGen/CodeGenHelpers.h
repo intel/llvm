@@ -187,19 +187,9 @@ private:
   /// ensure that the static functions have a unique name.
   std::string uniqueOutputLabel;
 
-  /// Unique constraints by their predicate and summary. Constraints that share
-  /// the same predicate may have different descriptions; ensure that the
-  /// correct error message is reported when verification fails.
-  struct ConstraintUniquer {
-    static Constraint getEmptyKey();
-    static Constraint getTombstoneKey();
-    static unsigned getHashValue(Constraint constraint);
-    static bool isEqual(Constraint lhs, Constraint rhs);
-  };
   /// Use a MapVector to ensure that functions are generated deterministically.
-  using ConstraintMap =
-      llvm::MapVector<Constraint, std::string,
-                      llvm::DenseMap<Constraint, unsigned, ConstraintUniquer>>;
+  using ConstraintMap = llvm::MapVector<Constraint, std::string,
+                                        llvm::DenseMap<Constraint, unsigned>>;
 
   /// A generic function to emit constraints
   void emitConstraints(const ConstraintMap &constraints, StringRef selfName,
@@ -226,27 +216,28 @@ private:
 std::string escapeString(StringRef value);
 
 namespace detail {
-template <typename> struct stringifier {
-  template <typename T> static std::string apply(T &&t) {
+template <typename>
+struct stringifier {
+  template <typename T>
+  static std::string apply(T &&t) {
     return std::string(std::forward<T>(t));
   }
 };
-template <> struct stringifier<Twine> {
-  static std::string apply(const Twine &twine) {
-    return twine.str();
-  }
+template <>
+struct stringifier<Twine> {
+  static std::string apply(const Twine &twine) { return twine.str(); }
 };
 template <typename OptionalT>
 struct stringifier<Optional<OptionalT>> {
   static std::string apply(Optional<OptionalT> optional) {
-    return optional.hasValue() ? stringifier<OptionalT>::apply(*optional)
-                               : std::string();
+    return optional ? stringifier<OptionalT>::apply(*optional) : std::string();
   }
 };
 } // namespace detail
 
 /// Generically convert a value to a std::string.
-template <typename T> std::string stringify(T &&t) {
+template <typename T>
+std::string stringify(T &&t) {
   return detail::stringifier<std::remove_reference_t<std::remove_const_t<T>>>::
       apply(std::forward<T>(t));
 }

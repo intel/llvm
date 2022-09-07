@@ -305,7 +305,17 @@ public:
   /// the negation is present, and \p Default if none of the options are
   /// given. If multiple options are present, the last one wins.
   bool hasFlag(OptSpecifier Pos, OptSpecifier PosAlias, OptSpecifier Neg,
-               bool Default = true) const;
+               bool Default) const;
+
+  /// Given an option Pos and its negative form Neg, render the option if Pos is
+  /// present.
+  void addOptInFlag(ArgStringList &Output, OptSpecifier Pos,
+                    OptSpecifier Neg) const;
+  /// Render the option if Neg is present.
+  void addOptOutFlag(ArgStringList &Output, OptSpecifier Pos,
+                     OptSpecifier Neg) const {
+    addOptInFlag(Output, Neg, Pos);
+  }
 
   /// Render only the last argument match \p Id0, if present.
   template<typename ...OptSpecifiers>

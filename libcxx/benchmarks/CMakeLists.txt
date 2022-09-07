@@ -3,12 +3,6 @@ if (CMAKE_VERSION VERSION_LESS 3.17)
   return()
 endif()
 
-if (LIBCXX_STANDALONE_BUILD)
-  message(WARNING "The libc++ benchmarks are not available in a standalone build. Please migrate to an official build "
-                  "as documented in https://libcxx.llvm.org/BuildingLibcxx.html.")
-  return()
-endif()
-
 include(ExternalProject)
 include(CheckCXXCompilerFlag)
 
@@ -88,7 +82,7 @@ set(BENCHMARK_NATIVE_INSTALL ${CMAKE_CURRENT_BINARY_DIR}/benchmark-native)
 
 add_library(               cxx-benchmarks-flags INTERFACE)
 target_compile_features(   cxx-benchmarks-flags INTERFACE cxx_std_20)
-target_compile_options(    cxx-benchmarks-flags INTERFACE -O2 -fsized-deallocation -nostdinc++)
+target_compile_options(    cxx-benchmarks-flags INTERFACE -fsized-deallocation -nostdinc++)
 target_include_directories(cxx-benchmarks-flags INTERFACE "${LIBCXX_GENERATED_INCLUDE_DIR}"
                                                 INTERFACE "${BENCHMARK_LIBCXX_INSTALL}/include"
                                                 INTERFACE "${LIBCXX_SOURCE_DIR}/test/support")
@@ -129,10 +123,7 @@ function(add_benchmark_test name source_file)
   else()
     target_link_libraries(${libcxx_target} PRIVATE cxx_static)
   endif()
-  if (TARGET cxx_experimental)
-    target_link_libraries(${libcxx_target} PRIVATE cxx_experimental)
-  endif()
-  target_link_libraries(${libcxx_target} PRIVATE -lbenchmark)
+  target_link_libraries(${libcxx_target} PRIVATE cxx_experimental benchmark)
   if (LLVM_USE_SANITIZER)
     target_link_libraries(${libcxx_target} PRIVATE -ldl)
   endif()
@@ -165,11 +156,47 @@ endfunction()
 #==============================================================================
 # Register Benchmark tests
 #==============================================================================
-file(GLOB BENCHMARK_TESTS "*.bench.cpp")
-
-if (NOT LIBCXX_ENABLE_INCOMPLETE_FEATURES)
-  list(FILTER BENCHMARK_TESTS EXCLUDE REGEX "(format_to_n|format_to|format|formatted_size|formatter_float|std_format_spec_string_unicode).bench.cpp")
-endif()
+set(BENCHMARK_TESTS
+    algorithms.partition_point.bench.cpp
+    algorithms/lower_bound.bench.cpp
+    algorithms/make_heap.bench.cpp
+    algorithms/make_heap_then_sort_heap.bench.cpp
+    algorithms/min_max_element.bench.cpp
+    algorithms/pop_heap.bench.cpp
+    algorithms/push_heap.bench.cpp
+    algorithms/ranges_make_heap.bench.cpp
+    algorithms/ranges_make_heap_then_sort_heap.bench.cpp
+    algorithms/ranges_pop_heap.bench.cpp
+    algorithms/ranges_push_heap.bench.cpp
+    algorithms/ranges_sort.bench.cpp
+    algorithms/ranges_sort_heap.bench.cpp
+    algorithms/ranges_stable_sort.bench.cpp
+    algorithms/sort.bench.cpp
+    algorithms/sort_heap.bench.cpp
+    algorithms/stable_sort.bench.cpp
+    allocation.bench.cpp
+    deque.bench.cpp
+    filesystem.bench.cpp
+    format_to_n.bench.cpp
+    format_to.bench.cpp
+    format.bench.cpp
+    formatted_size.bench.cpp
+    formatter_float.bench.cpp
+    formatter_int.bench.cpp
+    function.bench.cpp
+    map.bench.cpp
+    ordered_set.bench.cpp
+    std_format_spec_string_unicode.bench.cpp
+    string.bench.cpp
+    stringstream.bench.cpp
+    to_chars.bench.cpp
+    unordered_set_operations.bench.cpp
+    util_smartptr.bench.cpp
+    variant_visit_1.bench.cpp
+    variant_visit_2.bench.cpp
+    variant_visit_3.bench.cpp
+    vector_operations.bench.cpp
+    )
 
 foreach(test_path ${BENCHMARK_TESTS})
   get_filename_component(test_file "${test_path}" NAME)
@@ -179,7 +206,7 @@ foreach(test_path ${BENCHMARK_TESTS})
     # Only report the adding of the benchmark once.
     set(${test_name}_REPORTED ON CACHE INTERNAL "")
   endif()
-  add_benchmark_test(${test_name} ${test_file})
+  add_benchmark_test(${test_name} ${test_path})
 endforeach()
 
 if (LIBCXX_INCLUDE_TESTS)

@@ -6,23 +6,23 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/platform.hpp>
+#include <sycl/properties/context_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -33,7 +33,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
+context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
@@ -97,7 +97,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+  if (getPlugin().getBackend() == sycl::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -107,7 +107,7 @@ cl_context context_impl::get() const {
   if (MHostContext) {
     throw invalid_object_error(
         "This instance of context doesn't support OpenCL interoperability.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piContextRetain>(MContext);
@@ -132,54 +132,52 @@ const async_handler &context_impl::get_async_handler() const {
 }
 
 template <>
-cl_uint context_impl::get_info<info::context::reference_count>() const {
+uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
-  return get_context_info<info::context::reference_count>::get(
-      this->getHandleRef(), this->getPlugin());
+  return get_context_info<info::context::reference_count>(this->getHandleRef(),
+                                                          this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   if (is_host())
-    return platform();
+    return createSyclObjFromImpl<platform>(
+        platform_impl::getHostPlatformImpl());
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
-std::vector<cl::sycl::device>
+std::vector<sycl::device>
 context_impl::get_info<info::context::devices>() const {
   return MDevices;
 }
 template <>
-std::vector<cl::sycl::memory_order>
+std::vector<sycl::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
   if (is_host())
-    return {cl::sycl::memory_order::relaxed, cl::sycl::memory_order::acquire,
-            cl::sycl::memory_order::release, cl::sycl::memory_order::acq_rel,
-            cl::sycl::memory_order::seq_cst};
+    return {sycl::memory_order::relaxed, sycl::memory_order::acquire,
+            sycl::memory_order::release, sycl::memory_order::acq_rel,
+            sycl::memory_order::seq_cst};
 
   pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,
-      pi::cast<pi_context_info>(
-          info::context::atomic_memory_order_capabilities),
+      PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
       sizeof(Result), &Result, nullptr);
   return readMemoryOrderBitfield(Result);
 }
 template <>
-std::vector<cl::sycl::memory_scope>
+std::vector<sycl::memory_scope>
 context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
     const {
   if (is_host())
-    return {cl::sycl::memory_scope::work_item,
-            cl::sycl::memory_scope::sub_group,
-            cl::sycl::memory_scope::work_group, cl::sycl::memory_scope::device,
-            cl::sycl::memory_scope::system};
+    return {sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+            sycl::memory_scope::work_group, sycl::memory_scope::device,
+            sycl::memory_scope::system};
 
   pi_memory_scope_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,
-      pi::cast<pi_context_info>(
-          info::context::atomic_memory_scope_capabilities),
+      PiInfoCode<info::context::atomic_memory_scope_capabilities>::value,
       sizeof(Result), &Result, nullptr);
   return readMemoryScopeBitfield(Result);
 }
@@ -197,6 +195,15 @@ bool context_impl::hasDevice(
     if (getSyclObjImpl(D) == Device)
       return true;
   return false;
+}
+
+DeviceImplPtr
+context_impl::findMatchingDeviceImpl(RT::PiDevice &DevicePI) const {
+  for (device D : MDevices)
+    if (getSyclObjImpl(D)->getHandleRef() == DevicePI)
+      return getSyclObjImpl(D);
+
+  return nullptr;
 }
 
 pi_native_handle context_impl::getNative() const {
@@ -223,5 +230,5 @@ bool context_impl::isBufferLocationSupported() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

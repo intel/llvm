@@ -21,6 +21,8 @@ def MemRef_Dialect : Dialect {
   }];
   let dependentDialects = ["arith::ArithmeticDialect"];
   let hasConstantMaterializer = 1;
+
+  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
 }
 
 #endif // MEMREF_BASE

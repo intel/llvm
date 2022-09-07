@@ -8,21 +8,20 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/program.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_info.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <cassert>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // Forward declaration
 class program_impl;
@@ -100,7 +99,7 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of kernel doesn't support OpenCL interoperability.",
-          PI_INVALID_KERNEL);
+          PI_ERROR_INVALID_KERNEL);
     }
     getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
@@ -117,60 +116,26 @@ public:
   /// descriptor.
   ///
   /// \return depends on information being queried.
-  template <info::kernel param>
-  typename info::param_traits<info::kernel, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Query device-specific information from a kernel object using the
   /// info::kernel_device_specific descriptor.
   ///
   /// \param Device is a valid SYCL device to query info for.
   /// \return depends on information being queried.
-  template <info::kernel_device_specific param>
-  typename info::param_traits<info::kernel_device_specific, param>::return_type
-  get_info(const device &Device) const;
+  template <typename Param>
+  typename Param::return_type get_info(const device &Device) const;
 
   /// Query device-specific information from a kernel using the
   /// info::kernel_device_specific descriptor for a specific device and value.
+  /// max_sub_group_size is the only valid descriptor for this function.
   ///
   /// \param Device is a valid SYCL device.
-  /// \param Value depends on information being queried.
+  /// \param WGSize is the work-group size the sub-group size is requested for.
   /// \return depends on information being queried.
-  template <info::kernel_device_specific param>
-  typename info::param_traits<info::kernel_device_specific, param>::return_type
-  get_info(const device &Device,
-           typename info::param_traits<info::kernel_device_specific,
-                                       param>::input_type Value) const;
-
-  /// Query work-group information from a kernel using the
-  /// info::kernel_work_group descriptor for a specific device.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \return depends on information being queried.
-  template <info::kernel_work_group param>
-  typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &Device) const;
-
-  /// Query sub-group information from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device.
-  ///
-  /// \param Device is a valid SYCL device
-  template <info::kernel_sub_group param>
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device) const;
-
-  /// Query sub-group information from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device and value.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \param Value depends on information being queried.
-  /// \return depends on information being queried.
-  template <info::kernel_sub_group param>
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(
-      const device &Device,
-      typename info::param_traits<info::kernel_sub_group, param>::input_type
-          Value) const;
+  template <typename Param>
+  typename Param::return_type get_info(const device &Device,
+                                       const range<3> &WGSize) const;
 
   /// Get a reference to a raw kernel object.
   ///
@@ -206,6 +171,8 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
+  ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -216,16 +183,15 @@ private:
   bool MIsInterop = false;
 };
 
-template <info::kernel param>
-inline typename info::param_traits<info::kernel, param>::return_type
-kernel_impl::get_info() const {
+template <typename Param>
+inline typename Param::return_type kernel_impl::get_info() const {
+  static_assert(is_kernel_info_desc<Param>::value,
+                "Invalid kernel information descriptor");
   if (is_host()) {
     // TODO implement
     assert(0 && "Not implemented");
   }
-  return get_kernel_info<
-      typename info::param_traits<info::kernel, param>::return_type,
-      param>::get(this->getHandleRef(), getPlugin());
+  return get_kernel_info<Param>(this->getHandleRef(), getPlugin());
 }
 
 template <>
@@ -233,70 +199,30 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
-#ifdef __SYCL_INTERNAL_API
-template <>
-inline program kernel_impl::get_info<info::kernel::program>() const {
-  return createSyclObjFromImpl<program>(MProgramImpl);
-}
-#endif
-
-template <info::kernel_device_specific param>
-inline typename info::param_traits<info::kernel_device_specific,
-                                   param>::return_type
+template <typename Param>
+inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {
   if (is_host()) {
-    return get_kernel_device_specific_info_host<param>(Device);
+    return get_kernel_device_specific_info_host<Param>(Device);
   }
-  return get_kernel_device_specific_info<
-      typename info::param_traits<info::kernel_device_specific,
-                                  param>::return_type,
-      param>::get(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
-                  getPlugin());
-}
-
-template <info::kernel_device_specific param>
-inline typename info::param_traits<info::kernel_device_specific,
-                                   param>::return_type
-kernel_impl::get_info(
-    const device &Device,
-    typename info::param_traits<info::kernel_device_specific, param>::input_type
-        Value) const {
-  if (is_host()) {
-    throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
-  }
-  return get_kernel_device_specific_info_with_input<param>::get(
-      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value,
+  return get_kernel_device_specific_info<Param>(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
       getPlugin());
 }
 
-template <info::kernel_work_group param>
-inline typename info::param_traits<info::kernel_work_group, param>::return_type
-kernel_impl::get_work_group_info(const device &Device) const {
-  return get_info<
-      info::compatibility_param_traits<info::kernel_work_group, param>::value>(
-      Device);
-}
-
-template <info::kernel_sub_group param>
-inline typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel_impl::get_sub_group_info(const device &Device) const {
-  return get_info<
-      info::compatibility_param_traits<info::kernel_sub_group, param>::value>(
-      Device);
-}
-
-template <info::kernel_sub_group param>
-inline typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel_impl::get_sub_group_info(
-    const device &Device,
-    typename info::param_traits<info::kernel_sub_group, param>::input_type
-        Value) const {
-  return get_info<
-      info::compatibility_param_traits<info::kernel_sub_group, param>::value>(
-      Device, Value);
+template <typename Param>
+inline typename Param::return_type
+kernel_impl::get_info(const device &Device,
+                      const sycl::range<3> &WGSize) const {
+  if (is_host()) {
+    throw runtime_error("Sub-group feature is not supported on HOST device.",
+                        PI_ERROR_INVALID_DEVICE);
+  }
+  return get_kernel_device_specific_info_with_input<Param>(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
+      getPlugin());
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

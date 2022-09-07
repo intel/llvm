@@ -82,9 +82,9 @@ def CC_AArch64_AAPCS : CallingConv<[
             nxv2bf16, nxv4bf16, nxv8bf16, nxv2f32, nxv4f32, nxv2f64],
            CCPassIndirect<i64>>,
 
-  CCIfType<[nxv2i1, nxv4i1, nxv8i1, nxv16i1],
+  CCIfType<[nxv1i1, nxv2i1, nxv4i1, nxv8i1, nxv16i1],
            CCAssignToReg<[P0, P1, P2, P3]>>,
-  CCIfType<[nxv2i1, nxv4i1, nxv8i1, nxv16i1],
+  CCIfType<[nxv1i1, nxv2i1, nxv4i1, nxv8i1, nxv16i1],
            CCPassIndirect<i64>>,
 
   // Handle i1, i8, i16, i32, i64, f32, f64 and v2f64 by passing in registers,
@@ -149,7 +149,7 @@ def RetCC_AArch64_AAPCS : CallingConv<[
             nxv2bf16, nxv4bf16, nxv8bf16, nxv2f32, nxv4f32, nxv2f64],
            CCAssignToReg<[Z0, Z1, Z2, Z3, Z4, Z5, Z6, Z7]>>,
 
-  CCIfType<[nxv2i1, nxv4i1, nxv8i1, nxv16i1],
+  CCIfType<[nxv1i1, nxv2i1, nxv4i1, nxv8i1, nxv16i1],
            CCAssignToReg<[P0, P1, P2, P3]>>
 ]>;
 
@@ -444,6 +444,15 @@ def CSR_Darwin_AArch64_AAPCS : CalleeSavedRegs<(add LR, FP, X19, X20, X21, X22,
 def CSR_Darwin_AArch64_AAVPCS : CalleeSavedRegs<(add LR, FP, X19, X20, X21,
                                                  X22, X23, X24, X25, X26, X27,
                                                  X28, (sequence "Q%u", 8, 23))>;
+
+// For Windows calling convention on a non-windows OS, where X18 is treated
+// as reserved, back up X18 when entering non-windows code (marked with the
+// Windows calling convention) and restore when returning regardless of
+// whether the individual function uses it - it might call other functions
+// that clobber it.
+def CSR_Darwin_AArch64_AAPCS_Win64
+    : CalleeSavedRegs<(add CSR_Darwin_AArch64_AAPCS, X18)>;
+
 def CSR_Darwin_AArch64_AAPCS_ThisReturn
     : CalleeSavedRegs<(add CSR_Darwin_AArch64_AAPCS, X0)>;
 

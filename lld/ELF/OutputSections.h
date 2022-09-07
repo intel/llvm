@@ -100,6 +100,10 @@ public:
   // that wasn't needed). This is needed for orphan placement.
   bool hasInputSections = false;
 
+  // The output section description is specified between DATA_SEGMENT_ALIGN and
+  // DATA_RELRO_END.
+  bool relro = false;
+
   void finalize();
   template <class ELFT> void writeTo(uint8_t *buf);
   // Check that the addends for dynamic relocations were written correctly.
@@ -130,7 +134,9 @@ struct OutputDesc final : SectionCommand {
 int getPriority(StringRef s);
 
 InputSection *getFirstInputSection(const OutputSection *os);
-SmallVector<InputSection *, 0> getInputSections(const OutputSection &os);
+llvm::ArrayRef<InputSection *>
+getInputSections(const OutputSection &os,
+                 SmallVector<InputSection *, 0> &storage);
 
 // All output sections that are handled by the linker specially are
 // globally accessible. Writer initializes them, so don't use them

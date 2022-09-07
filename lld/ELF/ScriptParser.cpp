@@ -32,6 +32,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/TimeProfiler.h"
 #include <cassert>
 #include <limits>
@@ -134,6 +135,9 @@ private:
 
   // True if a script being read is in the --sysroot directory.
   bool isUnderSysroot = false;
+
+  bool seenDataAlign = false;
+  bool seenRelroEnd = false;
 
   // A set to detect an INCLUDE() cycle.
   StringSet<> seen;
@@ -348,7 +352,7 @@ void ScriptParser::readEntry() {
   expect("(");
   StringRef tok = next();
   if (config->entry.empty())
-    config->entry = tok;
+    config->entry = unquote(tok);
   expect(")");
 }
 
@@ -412,6 +416,7 @@ void ScriptParser::readOutputArch() {
 static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
   return StringSwitch<std::pair<ELFKind, uint16_t>>(s)
       .Case("elf32-i386", {ELF32LEKind, EM_386})
+      .Case("elf32-avr", {ELF32LEKind, EM_AVR})
       .Case("elf32-iamcu", {ELF32LEKind, EM_IAMCU})
       .Case("elf32-littlearm", {ELF32LEKind, EM_ARM})
       .Case("elf32-x86-64", {ELF32LEKind, EM_X86_64})
@@ -583,6 +588,14 @@ void ScriptParser::readSections() {
     else
       v.push_back(readOutputSectionDescription(tok));
   }
+
+  // If DATA_SEGMENT_RELRO_END is absent, for sections after DATA_SEGMENT_ALIGN,
+  // the relro fields should be cleared.
+  if (!seenRelroEnd)
+    for (SectionCommand *cmd : v)
+      if (auto *osd = dyn_cast<OutputDesc>(cmd))
+        osd->osec.relro = false;
+
   script->sectionCommands.insert(script->sectionCommands.end(), v.begin(),
                                  v.end());
 
@@ -611,7 +624,7 @@ void ScriptParser::readTarget() {
   // for --format. We recognize only /^elf/ and "binary" in the linker
   // script as well.
   expect("(");
-  StringRef tok = next();
+  StringRef tok = unquote(next());
   expect(")");
 
   if (tok.startswith("elf"))
@@ -624,14 +637,16 @@ void ScriptParser::readTarget() {
 
 static int precedence(StringRef op) {
   return StringSwitch<int>(op)
-      .Cases("*", "/", "%", 8)
-      .Cases("+", "-", 7)
-      .Cases("<<", ">>", 6)
-      .Cases("<", "<=", ">", ">=", "==", "!=", 5)
-      .Case("&", 4)
-      .Case("|", 3)
-      .Case("&&", 2)
-      .Case("||", 1)
+      .Cases("*", "/", "%", 10)
+      .Cases("+", "-", 9)
+      .Cases("<<", ">>", 8)
+      .Cases("<", "<=", ">", ">=", 7)
+      .Cases("==", "!=", 6)
+      .Case("&", 5)
+      .Case("|", 4)
+      .Case("&&", 3)
+      .Case("||", 2)
+      .Case("?", 1)
       .Default(-1);
 }
 
@@ -887,6 +902,8 @@ OutputDesc *ScriptParser::readOverlaySectionDescription() {
 OutputDesc *ScriptParser::readOutputSectionDescription(StringRef outSec) {
   OutputDesc *cmd = script->createOutputSection(outSec, getCurrentLocation());
   OutputSection *osec = &cmd->osec;
+  // Maybe relro. Will reset to false if DATA_SEGMENT_RELRO_END is absent.
+  osec->relro = seenDataAlign && !seenRelroEnd;
 
   size_t symbolsReferenced = script->referencedSymbols.size();
 
@@ -932,6 +949,8 @@ OutputDesc *ScriptParser::readOutputSectionDescription(StringRef outSec) {
       readSort();
     } else if (tok == "INCLUDE") {
       readInclude();
+    } else if (tok == "(" || tok == ")") {
+      setError("expected filename pattern");
     } else if (peek() == "(") {
       osec->commands.push_back(readInputSectionDescription(tok));
     } else {
@@ -998,7 +1017,14 @@ std::array<uint8_t, 4> ScriptParser::readFill() {
 
 SymbolAssignment *ScriptParser::readProvideHidden(bool provide, bool hidden) {
   expect("(");
-  SymbolAssignment *cmd = readSymbolAssignment(next());
+  StringRef name = next(), eq = peek();
+  if (eq != "=") {
+    setError("= expected, but got " + next());
+    while (!atEOF() && next() != ")")
+      ;
+    return nullptr;
+  }
+  SymbolAssignment *cmd = readSymbolAssignment(name);
   cmd->provide = provide;
   cmd->hidden = hidden;
   expect(")");
@@ -1012,14 +1038,24 @@ SymbolAssignment *ScriptParser::readAssignment(StringRef tok) {
 
   size_t oldPos = pos;
   SymbolAssignment *cmd = nullptr;
-  if (peek() == "=" || peek() == "+=")
+  const StringRef op = peek();
+  if (op.startswith("=")) {
+    // Support = followed by an expression without whitespace.
+    SaveAndRestore<bool> saved(inExpr, true);
     cmd = readSymbolAssignment(tok);
-  else if (tok == "PROVIDE")
+  } else if ((op.size() == 2 && op[1] == '=' && strchr("*/+-&|", op[0])) ||
+             op == "<<=" || op == ">>=") {
+    cmd = readSymbolAssignment(tok);
+  } else if (tok == "PROVIDE") {
+    SaveAndRestore<bool> saved(inExpr, true);
     cmd = readProvideHidden(true, false);
-  else if (tok == "HIDDEN")
+  } else if (tok == "HIDDEN") {
+    SaveAndRestore<bool> saved(inExpr, true);
     cmd = readProvideHidden(false, true);
-  else if (tok == "PROVIDE_HIDDEN")
+  } else if (tok == "PROVIDE_HIDDEN") {
+    SaveAndRestore<bool> saved(inExpr, true);
     cmd = readProvideHidden(true, true);
+  }
 
   if (cmd) {
     cmd->commandString =
@@ -1033,11 +1069,38 @@ SymbolAssignment *ScriptParser::readAssignment(StringRef tok) {
 SymbolAssignment *ScriptParser::readSymbolAssignment(StringRef name) {
   name = unquote(name);
   StringRef op = next();
-  assert(op == "=" || op == "+=");
+  assert(op == "=" || op == "*=" || op == "/=" || op == "+=" || op == "-=" ||
+         op == "&=" || op == "|=" || op == "<<=" || op == ">>=");
+  // Note: GNU ld does not support %= or ^=.
   Expr e = readExpr();
-  if (op == "+=") {
+  if (op != "=") {
     std::string loc = getCurrentLocation();
-    e = [=] { return add(script->getSymbolValue(name, loc), e()); };
+    e = [=, c = op[0]]() -> ExprValue {
+      ExprValue lhs = script->getSymbolValue(name, loc);
+      switch (c) {
+      case '*':
+        return lhs.getValue() * e().getValue();
+      case '/':
+        if (uint64_t rv = e().getValue())
+          return lhs.getValue() / rv;
+        error(loc + ": division by zero");
+        return 0;
+      case '+':
+        return add(lhs, e());
+      case '-':
+        return sub(lhs, e());
+      case '<':
+        return lhs.getValue() << e().getValue();
+      case '>':
+        return lhs.getValue() >> e().getValue();
+      case '&':
+        return lhs.getValue() & e().getValue();
+      case '|':
+        return lhs.getValue() | e().getValue();
+      default:
+        llvm_unreachable("");
+      }
+    };
   }
   return make<SymbolAssignment>(name, e, getCurrentLocation());
 }
@@ -1111,11 +1174,11 @@ Expr ScriptParser::combine(StringRef op, Expr l, Expr r) {
 Expr ScriptParser::readExpr1(Expr lhs, int minPrec) {
   while (!atEOF() && !errorCount()) {
     // Read an operator and an expression.
-    if (consume("?"))
-      return readTernary(lhs);
     StringRef op1 = peek();
     if (precedence(op1) < minPrec)
       break;
+    if (consume("?"))
+      return readTernary(lhs);
     skip();
     Expr rhs = readPrimary();
 
@@ -1329,7 +1392,7 @@ Expr ScriptParser::readPrimary() {
     Expr e = readExpr();
     if (consume(")")) {
       e = checkAlignment(e, location);
-      return [=] { return alignTo(script->getDot(), e().getValue()); };
+      return [=] { return alignToPowerOf2(script->getDot(), e().getValue()); };
     }
     expect(",");
     Expr e2 = checkAlignment(readExpr(), location);
@@ -1358,8 +1421,10 @@ Expr ScriptParser::readPrimary() {
     expect(",");
     readExpr();
     expect(")");
+    seenDataAlign = true;
     return [=] {
-      return alignTo(script->getDot(), std::max((uint64_t)1, e().getValue()));
+      uint64_t align = std::max(uint64_t(1), e().getValue());
+      return (script->getDot() + align - 1) & -align;
     };
   }
   if (tok == "DATA_SEGMENT_END") {
@@ -1377,8 +1442,9 @@ Expr ScriptParser::readPrimary() {
     expect(",");
     readExpr();
     expect(")");
+    seenRelroEnd = true;
     Expr e = getPageSize();
-    return [=] { return alignTo(script->getDot(), e().getValue()); };
+    return [=] { return alignToPowerOf2(script->getDot(), e().getValue()); };
   }
   if (tok == "DEFINED") {
     StringRef name = unquote(readParenLiteral());

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/program.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
@@ -145,11 +144,11 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   sycl::detail::ProgramManager::getInstance().getBuiltPIProgram(
       sycl::detail::OSUtil::getOSModuleHandle(&devBin),
       sycl::detail::getSyclObjImpl(Ctx), subDev1,
-      sycl::detail::KernelInfo<TestKernel>::getName());
+      sycl::detail::KernelInfo<TestKernel<>>::getName());
   // This call should re-use built binary from the cache. If piProgramBuild is
   // called again, the test will fail as second call of redefinedProgramBuild
   sycl::detail::ProgramManager::getInstance().getBuiltPIProgram(
       sycl::detail::OSUtil::getOSModuleHandle(&devBin),
       sycl::detail::getSyclObjImpl(Ctx), subDev2,
-      sycl::detail::KernelInfo<TestKernel>::getName());
+      sycl::detail::KernelInfo<TestKernel<>>::getName());
 }

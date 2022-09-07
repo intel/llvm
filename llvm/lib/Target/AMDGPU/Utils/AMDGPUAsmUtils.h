@@ -22,12 +22,43 @@ namespace AMDGPU {
 
 const int OPR_ID_UNKNOWN = -1;
 const int OPR_ID_UNSUPPORTED = -2;
+const int OPR_ID_DUPLICATE = -3;
+const int OPR_VAL_INVALID = -4;
 
 template <class T> struct CustomOperand {
   StringLiteral Name;
   int Encoding = 0;
   bool (*Cond)(T Context) = nullptr;
 };
+
+struct CustomOperandVal {
+  StringLiteral Name;
+  unsigned Max;
+  unsigned Default;
+  unsigned Shift;
+  unsigned Width;
+  bool (*Cond)(const MCSubtargetInfo &STI) = nullptr;
+  unsigned Mask = (1 << Width) - 1;
+
+  unsigned decode(unsigned Code) const { return (Code >> Shift) & Mask; }
+
+  unsigned encode(unsigned Val) const { return (Val & Mask) << Shift; }
+
+  unsigned getMask() const { return Mask << Shift; }
+
+  bool isValid(unsigned Val) const { return Val <= Max; }
+
+  bool isSupported(const MCSubtargetInfo &STI) const {
+    return !Cond || Cond(STI);
+  }
+};
+
+namespace DepCtr {
+
+extern const CustomOperandVal DepCtrInfo[];
+extern const int DEP_CTR_SIZE;
+
+} // namespace DepCtr
 
 namespace SendMsg { // Symbolic names for the sendmsg(...) syntax.
 
@@ -52,8 +83,10 @@ extern StringLiteral const DfmtSymbolic[];
 extern StringLiteral const NfmtSymbolicGFX10[];
 extern StringLiteral const NfmtSymbolicSICI[];
 extern StringLiteral const NfmtSymbolicVI[];
-extern StringLiteral const UfmtSymbolic[];
-extern unsigned const DfmtNfmt2UFmt[];
+extern StringLiteral const UfmtSymbolicGFX10[];
+extern StringLiteral const UfmtSymbolicGFX11[];
+extern unsigned const DfmtNfmt2UFmtGFX10[];
+extern unsigned const DfmtNfmt2UFmtGFX11[];
 
 } // namespace MTBUFFormat
 

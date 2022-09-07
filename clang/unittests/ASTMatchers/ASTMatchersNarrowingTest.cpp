@@ -1348,15 +1348,14 @@ TEST_P(ASTMatchersTest, HasType_MatchesAsString) {
 
   EXPECT_TRUE(
       matches("class Y { public: void x(); }; void z() {Y* y; y->x(); }",
-              cxxMemberCallExpr(on(hasType(asString("class Y *"))))));
+              cxxMemberCallExpr(on(hasType(asString("Y *"))))));
   EXPECT_TRUE(
       matches("class X { void x(int x) {} };",
               cxxMethodDecl(hasParameter(0, hasType(asString("int"))))));
   EXPECT_TRUE(matches("namespace ns { struct A {}; }  struct B { ns::A a; };",
                       fieldDecl(hasType(asString("ns::A")))));
-  EXPECT_TRUE(
-      matches("namespace { struct A {}; }  struct B { A a; };",
-              fieldDecl(hasType(asString("struct (anonymous namespace)::A")))));
+  EXPECT_TRUE(matches("namespace { struct A {}; }  struct B { A a; };",
+                      fieldDecl(hasType(asString("A")))));
 }
 
 TEST_P(ASTMatchersTest, HasOverloadedOperatorName) {
@@ -2142,9 +2141,10 @@ TEST(ASTMatchersTest, NamesMember_CXXDependentScopeMemberExpr) {
     EXPECT_TRUE(matches(
         Code,
         cxxDependentScopeMemberExpr(
-            hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
-                hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
-                    has(cxxMethodDecl(hasName("mem")).bind("templMem")))))))))),
+            hasObjectExpression(declRefExpr(hasType(elaboratedType(namesType(
+                templateSpecializationType(hasDeclaration(classTemplateDecl(
+                    has(cxxRecordDecl(has(cxxMethodDecl(hasName("mem"))
+                                              .bind("templMem")))))))))))),
             memberHasSameNameAsBoundNode("templMem"))));
 
     EXPECT_TRUE(
@@ -2162,9 +2162,10 @@ TEST(ASTMatchersTest, NamesMember_CXXDependentScopeMemberExpr) {
     EXPECT_TRUE(matches(
         Code,
         cxxDependentScopeMemberExpr(
-            hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
-                hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
-                    has(fieldDecl(hasName("mem")).bind("templMem")))))))))),
+            hasObjectExpression(declRefExpr(
+                hasType(elaboratedType(namesType(templateSpecializationType(
+                    hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
+                        fieldDecl(hasName("mem")).bind("templMem")))))))))))),
             memberHasSameNameAsBoundNode("templMem"))));
   }
 
@@ -2179,9 +2180,10 @@ TEST(ASTMatchersTest, NamesMember_CXXDependentScopeMemberExpr) {
     EXPECT_TRUE(matches(
         Code,
         cxxDependentScopeMemberExpr(
-            hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
-                hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
-                    has(varDecl(hasName("mem")).bind("templMem")))))))))),
+            hasObjectExpression(declRefExpr(
+                hasType(elaboratedType(namesType(templateSpecializationType(
+                    hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
+                        has(varDecl(hasName("mem")).bind("templMem")))))))))))),
             memberHasSameNameAsBoundNode("templMem"))));
   }
   {
@@ -4122,12 +4124,19 @@ void x(int x) {
 })";
   EXPECT_TRUE(notMatchesWithOpenMP51(Source4, Matcher));
 
-  const std::string Source5 = R"(
+  StringRef Source5 = R"(
+void x(int x) {
+#pragma omp parallel default(private)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP51(Source5, Matcher));
+
+  const std::string Source6 = R"(
 void x(int x) {
 #pragma omp parallel num_threads(x)
 ;
 })";
-  EXPECT_TRUE(notMatchesWithOpenMP(Source5, Matcher));
+  EXPECT_TRUE(notMatchesWithOpenMP(Source6, Matcher));
 }
 
 TEST_P(ASTMatchersTest, OMPDefaultClause_IsSharedKind) {
@@ -4168,12 +4177,19 @@ void x(int x) {
 })";
   EXPECT_TRUE(notMatchesWithOpenMP51(Source4, Matcher));
 
-  const std::string Source5 = R"(
+  StringRef Source5 = R"(
+void x(int x) {
+#pragma omp parallel default(private)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP51(Source5, Matcher));
+
+  const std::string Source6 = R"(
 void x(int x) {
 #pragma omp parallel num_threads(x)
 ;
 })";
-  EXPECT_TRUE(notMatchesWithOpenMP(Source5, Matcher));
+  EXPECT_TRUE(notMatchesWithOpenMP(Source6, Matcher));
 }
 
 TEST(OMPDefaultClause, isFirstPrivateKind) {
@@ -4216,10 +4232,70 @@ void x(int x) {
 
   const std::string Source5 = R"(
 void x(int x) {
+#pragma omp parallel default(private)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP51(Source5, Matcher));
+
+  const std::string Source6 = R"(
+void x(int x) {
 #pragma omp parallel num_threads(x)
 ;
 })";
-  EXPECT_TRUE(notMatchesWithOpenMP(Source5, Matcher));
+  EXPECT_TRUE(notMatchesWithOpenMP(Source6, Matcher));
+}
+
+TEST(OMPDefaultClause, istPrivateKind) {
+  auto Matcher =
+      ompExecutableDirective(hasAnyClause(ompDefaultClause(isPrivateKind())));
+
+  const std::string Source0 = R"(
+void x() {
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP(Source0, Matcher));
+
+  const std::string Source1 = R"(
+void x() {
+#pragma omp parallel
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP(Source1, Matcher));
+
+  const std::string Source2 = R"(
+void x() {
+#pragma omp parallel default(shared)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP(Source2, Matcher));
+
+  const std::string Source3 = R"(
+void x() {
+#pragma omp parallel default(none)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP(Source3, Matcher));
+
+  const std::string Source4 = R"(
+void x(int x) {
+#pragma omp parallel default(firstprivate)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP51(Source4, Matcher));
+
+  const std::string Source5 = R"(
+void x(int x) {
+#pragma omp parallel default(private)
+;
+})";
+  EXPECT_TRUE(matchesWithOpenMP51(Source5, Matcher));
+
+  const std::string Source6 = R"(
+void x(int x) {
+#pragma omp parallel num_threads(x)
+;
+})";
+  EXPECT_TRUE(notMatchesWithOpenMP(Source6, Matcher));
 }
 
 TEST_P(ASTMatchersTest, OMPExecutableDirective_IsAllowedToContainClauseKind) {
@@ -4261,24 +4337,31 @@ void x() {
   EXPECT_TRUE(matchesWithOpenMP51(Source4, Matcher));
 
   StringRef Source5 = R"(
+void x() {
+#pragma omp parallel default(private)
+;
+})";
+  EXPECT_TRUE(matchesWithOpenMP51(Source5, Matcher));
+
+  StringRef Source6 = R"(
 void x(int x) {
 #pragma omp parallel num_threads(x)
 ;
 })";
-  EXPECT_TRUE(matchesWithOpenMP(Source5, Matcher));
+  EXPECT_TRUE(matchesWithOpenMP(Source6, Matcher));
 
-  StringRef Source6 = R"(
+  StringRef Source7 = R"(
 void x() {
 #pragma omp taskyield
 })";
-  EXPECT_TRUE(notMatchesWithOpenMP(Source6, Matcher));
+  EXPECT_TRUE(notMatchesWithOpenMP(Source7, Matcher));
 
-  StringRef Source7 = R"(
+  StringRef Source8 = R"(
 void x() {
 #pragma omp task
 ;
 })";
-  EXPECT_TRUE(matchesWithOpenMP(Source7, Matcher));
+  EXPECT_TRUE(matchesWithOpenMP(Source8, Matcher));
 }
 
 TEST_P(ASTMatchersTest, HasAnyBase_DirectBase) {

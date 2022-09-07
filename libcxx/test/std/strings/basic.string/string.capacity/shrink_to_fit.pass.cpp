@@ -8,7 +8,7 @@
 
 // <string>
 
-// void shrink_to_fit();
+// void shrink_to_fit(); // constexpr since C++20
 
 #include <string>
 #include <cassert>
@@ -29,7 +29,7 @@ test(S s)
     assert(s.capacity() >= s.size());
 }
 
-bool test() {
+TEST_CONSTEXPR_CXX20 bool test() {
   {
     typedef std::string S;
     S s;
@@ -66,7 +66,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

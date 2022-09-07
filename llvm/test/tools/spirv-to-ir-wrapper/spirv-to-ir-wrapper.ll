@@ -1,14 +1,16 @@
+; TODO: switch to opaque pointers once llvm-spirv tool is able to handle them.
+
 ; Check for passthrough abilities
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: spirv-to-ir-wrapper %t.bc -o %t_1.bc -skip-unknown-input
-; RUN: llvm-dis %t_1.bc -o %t_1.ll
+; RUN: llvm-dis -opaque-pointers=0 %t_1.bc -o %t_1.ll
 ; RUN: FileCheck %s --input-file %t_1.ll
 
 ; Check for SPIR-V conversion
-; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: spirv-to-ir-wrapper %t.spv -o %t_2.bc
-; RUN: llvm-dis %t_2.bc -o %t_2.ll
-; RUN: FileCheck %s --input-file %t_2.ll
+; RUN: llvm-spirv -opaque-pointers=0 %t.bc -o %t.spv
+; RUN: spirv-to-ir-wrapper -llvm-spirv-opts "-emit-opaque-pointers=false" %t.spv -o %t_2.bc
+; RUN: llvm-dis -opaque-pointers=0 %t_2.bc -o %t_2.ll
+; RUNx: FileCheck %s --input-file %t_2.ll
 
 ; CHECK: target datalayout
 ; CHECK-NEXT: target triple = "spir-unknown-unknown"

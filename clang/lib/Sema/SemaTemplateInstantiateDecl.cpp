@@ -470,8 +470,8 @@ static void instantiateOMPDeclareVariantAttr(
   if (!DeclVarData)
     return;
 
-  E = DeclVarData.getValue().second;
-  FD = DeclVarData.getValue().first;
+  E = DeclVarData.value().second;
+  FD = DeclVarData.value().first;
 
   if (auto *VariantDRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
     if (auto *VariantFD = dyn_cast<FunctionDecl>(VariantDRE->getDecl())) {
@@ -827,6 +827,18 @@ static void instantiateSYCLAddIRAttributesGlobalVariableAttr(
   S.AddSYCLAddIRAttributesGlobalVariableAttr(New, *A, Args);
 }
 
+static void instantiateSYCLAddIRAnnotationsMemberAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRAnnotationsMemberAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext ConstantEvaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 4> Args;
+  if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+  S.AddSYCLAddIRAnnotationsMemberAttr(New, *A, Args);
+}
+
 static void instantiateWorkGroupSizeHintAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const WorkGroupSizeHintAttr *A, Decl *New) {
@@ -910,6 +922,31 @@ static bool isRelevantAttr(Sema &S, const Decl *D, const Attr *A) {
                                 PNA->getTypedefType()))
         return false;
     return true;
+  }
+
+  if (const auto *BA = dyn_cast<BuiltinAttr>(A)) {
+    const FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+    switch (BA->getID()) {
+    case Builtin::BIforward:
+      // Do not treat 'std::forward' as a builtin if it takes an rvalue reference
+      // type and returns an lvalue reference type. The library implementation
+      // will produce an error in this case; don't get in its way.
+      if (FD && FD->getNumParams() >= 1 &&
+          FD->getParamDecl(0)->getType()->isRValueReferenceType() &&
+          FD->getReturnType()->isLValueReferenceType()) {
+        return false;
+      }
+      LLVM_FALLTHROUGH;
+    case Builtin::BImove:
+    case Builtin::BImove_if_noexcept:
+      // HACK: Super-old versions of libc++ (3.1 and earlier) provide
+      // std::forward and std::move overloads that sometimes return by value
+      // instead of by reference when building in C++98 mode. Don't treat such
+      // cases as builtins.
+      if (FD && !FD->getReturnType()->isReferenceType())
+        return false;
+      break;
+    }
   }
 
   return true;
@@ -1154,6 +1191,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLAddIRAttributesGlobalVariable, New);
       continue;
     }
+    if (const auto *SYCLAddIRAnnotationsMember =
+            dyn_cast<SYCLAddIRAnnotationsMemberAttr>(TmplAttr)) {
+      instantiateSYCLAddIRAnnotationsMemberAttr(
+          *this, TemplateArgs, SYCLAddIRAnnotationsMember, New);
+      continue;
+    }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
       instantiateWorkGroupSizeHintAttr(*this, TemplateArgs, A, New);
       continue;
@@ -1242,7 +1285,7 @@ void Sema::InstantiateDefaultCtorDefaultArgs(CXXConstructorDecl *Ctor) {
   for (unsigned I = 0; I != NumParams; ++I) {
     (void)CheckCXXDefaultArgExpr(Attr->getLocation(), Ctor,
                                    Ctor->getParamDecl(I));
-    DiscardCleanupsInEvaluationContext();
+    CleanupVarDeclMarking();
   }
 }
 
@@ -1286,6 +1329,11 @@ TemplateDeclInstantiator::VisitExternCContextDecl(ExternCContextDecl *D) {
 
 Decl *TemplateDeclInstantiator::VisitMSGuidDecl(MSGuidDecl *D) {
   llvm_unreachable("GUID declaration cannot be instantiated");
+}
+
+Decl *TemplateDeclInstantiator::VisitUnnamedGlobalConstantDecl(
+    UnnamedGlobalConstantDecl *D) {
+  llvm_unreachable("UnnamedGlobalConstantDecl cannot be instantiated");
 }
 
 Decl *TemplateDeclInstantiator::VisitTemplateParamObjectDecl(
@@ -1565,8 +1613,40 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
 
   // Only add this if we aren't instantiating a variable template.  We'll end up
   // adding the VarTemplateSpecializationDecl later.
-  if (!InstantiatingVarTemplate)
+  if (!InstantiatingVarTemplate) {
+    if (SemaRef.getLangOpts().SYCLIsDevice &&
+        SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Var->getType())) {
+      if (!Var->hasGlobalStorage())
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_incorrect_scope);
+
+      if (Var->getAccess() == AS_private || Var->getAccess() == AS_protected)
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_not_publicly_accessible)
+            << Var;
+
+      if (Var->isStaticLocal()) {
+        const DeclContext *DC = Var->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            SemaRef.Diag(D->getLocation(),
+                         diag::err_sycl_device_global_incorrect_scope);
+            break;
+          }
+          DC = DC->getParent();
+        }
+      }
+    }
+    if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
+      if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              Var->getType()))
+        SemaRef.Diag(SYCLDevice->getLoc(),
+                     diag::err_sycl_attribute_not_device_global)
+            << SYCLDevice;
+    }
     SemaRef.addSyclVarDecl(Var);
+  }
   return Var;
 }
 
@@ -1655,6 +1735,17 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
 
   Field->setImplicit(D->isImplicit());
   Field->setAccess(D->getAccess());
+  // Static members are not processed here, so error out if we have a device
+  // global without checking access modifier.
+  if (SemaRef.getLangOpts().SYCLIsDevice) {
+    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Field->getType())) {
+      SemaRef.Diag(D->getLocation(),
+                   diag::err_sycl_device_global_incorrect_scope);
+      Field->setInvalidDecl();
+      return nullptr;
+    }
+  }
   Owner->addDecl(Field);
 
   return Field;
@@ -2577,6 +2668,11 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     // definition. We don't want non-template functions to be marked as being
     // template instantiations.
     Function->setInstantiationOfMemberFunction(D, TSK_ImplicitInstantiation);
+  } else if (!isFriend) {
+    // If this is not a function template, and this is not a friend (that is,
+    // this is a locally declared function), save the instantiation relationship
+    // for the purposes of constraint instantiation.
+    Function->setInstantiatedFromDecl(D);
   }
 
   if (isFriend) {
@@ -2664,7 +2760,8 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
   }
 
   SemaRef.CheckFunctionDeclaration(/*Scope*/ nullptr, Function, Previous,
-                                   IsExplicitSpecialization);
+                                   IsExplicitSpecialization,
+                                   Function->isThisDeclarationADefinition());
 
   // Check the template parameter list against the previous declaration. The
   // goal here is to pick up default arguments added since the friend was
@@ -2872,6 +2969,7 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
         Destructor->UsesFPIntrin(), Destructor->isInlineSpecified(), false,
         Destructor->getConstexprKind(), TrailingRequiresClause);
+    Method->setIneligibleOrNotSelected(true);
     Method->setRangeEnd(Destructor->getEndLoc());
     Method->setDeclName(SemaRef.Context.DeclarationNames.getCXXDestructorName(
         SemaRef.Context.getCanonicalType(
@@ -2989,7 +3087,7 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
 
     IsExplicitSpecialization = true;
   } else if (const ASTTemplateArgumentListInfo *Info =
-                 ClassScopeSpecializationArgs.getValueOr(
+                 ClassScopeSpecializationArgs.value_or(
                      D->getTemplateSpecializationArgsAsWritten())) {
     SemaRef.LookupQualifiedName(Previous, DC);
 
@@ -3025,7 +3123,8 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
   }
 
   SemaRef.CheckFunctionDeclaration(nullptr, Method, Previous,
-                                   IsExplicitSpecialization);
+                                   IsExplicitSpecialization,
+                                   Method->isThisDeclarationADefinition());
 
   if (D->isPure())
     SemaRef.CheckPureMethod(Method, SourceRange());
@@ -4195,13 +4294,15 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
     return nullptr;
 
   // Substitute the current template arguments.
-  const TemplateArgumentListInfo &TemplateArgsInfo = D->getTemplateArgsInfo();
-  VarTemplateArgsInfo.setLAngleLoc(TemplateArgsInfo.getLAngleLoc());
-  VarTemplateArgsInfo.setRAngleLoc(TemplateArgsInfo.getRAngleLoc());
+  if (const ASTTemplateArgumentListInfo *TemplateArgsInfo =
+          D->getTemplateArgsInfo()) {
+    VarTemplateArgsInfo.setLAngleLoc(TemplateArgsInfo->getLAngleLoc());
+    VarTemplateArgsInfo.setRAngleLoc(TemplateArgsInfo->getRAngleLoc());
 
-  if (SemaRef.SubstTemplateArguments(TemplateArgsInfo.arguments(), TemplateArgs,
-                                     VarTemplateArgsInfo))
-    return nullptr;
+    if (SemaRef.SubstTemplateArguments(TemplateArgsInfo->arguments(),
+                                       TemplateArgs, VarTemplateArgsInfo))
+      return nullptr;
+  }
 
   // Check that the template argument list is well-formed for this template.
   SmallVector<TemplateArgument, 4> Converted;
@@ -5190,6 +5291,12 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   if (TSK == TSK_ExplicitSpecialization)
     return;
 
+  // Never implicitly instantiate a builtin; we don't actually need a function
+  // body.
+  if (Function->getBuiltinID() && TSK == TSK_ImplicitInstantiation &&
+      !DefinitionRequired)
+    return;
+
   // Don't instantiate a definition if we already have one.
   const FunctionDecl *ExistingDefn = nullptr;
   if (Function->isDefined(ExistingDefn,
@@ -5225,7 +5332,8 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
                                      /*Complain*/DefinitionRequired)) {
     if (DefinitionRequired)
       Function->setInvalidDecl();
-    else if (TSK == TSK_ExplicitInstantiationDefinition) {
+    else if (TSK == TSK_ExplicitInstantiationDefinition ||
+             (Function->isConstexpr() && !Recursive)) {
       // Try again at the end of the translation unit (at which point a
       // definition will be required).
       assert(!Recursive);
@@ -5240,7 +5348,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
         Diag(PatternDecl->getLocation(), diag::note_forward_template_decl);
         if (getLangOpts().CPlusPlus11)
           Diag(PointOfInstantiation, diag::note_inst_declaration_hint)
-            << Function;
+              << Function;
       }
     }
 
@@ -5954,8 +6062,18 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
     // declaration of the definition.
     TemplateDeclInstantiator Instantiator(*this, Var->getDeclContext(),
                                           TemplateArgs);
+
+    TemplateArgumentListInfo TemplateArgInfo;
+    if (const ASTTemplateArgumentListInfo *ArgInfo =
+            VarSpec->getTemplateArgsInfo()) {
+      TemplateArgInfo.setLAngleLoc(ArgInfo->getLAngleLoc());
+      TemplateArgInfo.setRAngleLoc(ArgInfo->getRAngleLoc());
+      for (const TemplateArgumentLoc &Arg : ArgInfo->arguments())
+        TemplateArgInfo.addArgument(Arg);
+    }
+
     Var = cast_or_null<VarDecl>(Instantiator.VisitVarTemplateSpecializationDecl(
-        VarSpec->getSpecializedTemplate(), Def, VarSpec->getTemplateArgsInfo(),
+        VarSpec->getSpecializedTemplate(), Def, TemplateArgInfo,
         VarSpec->getTemplateArgs().asArray(), VarSpec));
     if (Var) {
       llvm::PointerUnion<VarTemplateDecl *,

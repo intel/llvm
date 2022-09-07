@@ -12,6 +12,7 @@
 
 #include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Builder/Todo.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/Debug.h"
 
@@ -42,7 +43,8 @@ fir::ExtendedValue fir::substBase(const fir::ExtendedValue &exv,
       [=](const auto &x) { return fir::ExtendedValue(x.clone(base)); });
 }
 
-llvm::SmallVector<mlir::Value> fir::getTypeParams(const ExtendedValue &exv) {
+llvm::SmallVector<mlir::Value>
+fir::getTypeParams(const fir::ExtendedValue &exv) {
   using RT = llvm::SmallVector<mlir::Value>;
   auto baseTy = fir::getBase(exv).getType();
   if (auto t = fir::dyn_cast_ptrEleTy(baseTy))
@@ -55,15 +57,13 @@ llvm::SmallVector<mlir::Value> fir::getTypeParams(const ExtendedValue &exv) {
       [](const fir::CharBoxValue &x) -> RT { return {x.getLen()}; },
       [](const fir::CharArrayBoxValue &x) -> RT { return {x.getLen()}; },
       [&](const fir::BoxValue &) -> RT {
-        LLVM_DEBUG(mlir::emitWarning(
-            loc, "TODO: box value is missing type parameters"));
+        TODO(loc, "box value is missing type parameters");
         return {};
       },
       [&](const fir::MutableBoxValue &) -> RT {
         // In this case, the type params may be bound to the variable in an
         // ALLOCATE statement as part of a type-spec.
-        LLVM_DEBUG(mlir::emitWarning(
-            loc, "TODO: mutable box value is missing type parameters"));
+        TODO(loc, "mutable box value is missing type parameters");
         return {};
       },
       [](const auto &) -> RT { return {}; });
@@ -222,10 +222,11 @@ bool fir::BoxValue::verify() const {
 
 /// Get exactly one extent for any array-like extended value, \p exv. If \p exv
 /// is not an array or has rank less then \p dim, the result will be a nullptr.
-mlir::Value fir::getExtentAtDimension(const fir::ExtendedValue &exv,
-                                      fir::FirOpBuilder &builder,
-                                      mlir::Location loc, unsigned dim) {
-  auto extents = fir::factory::getExtents(builder, loc, exv);
+mlir::Value fir::factory::getExtentAtDimension(mlir::Location loc,
+                                               fir::FirOpBuilder &builder,
+                                               const fir::ExtendedValue &exv,
+                                               unsigned dim) {
+  auto extents = fir::factory::getExtents(loc, builder, exv);
   if (dim < extents.size())
     return extents[dim];
   return {};

@@ -14,6 +14,7 @@
 #ifndef LLVM_LIB_TARGET_LOONGARCH_LOONGARCH_H
 #define LLVM_LIB_TARGET_LOONGARCH_LOONGARCH_H
 
+#include "MCTargetDesc/LoongArchBaseInfo.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
@@ -32,6 +33,6 @@ bool lowerLoongArchMachineOperandToMCOperand(const MachineOperand &MO,
                                              const AsmPrinter &AP);
 
 FunctionPass *createLoongArchISelDag(LoongArchTargetMachine &TM);
-} // namespace llvm
+} // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_LOONGARCH_LOONGARCH_H

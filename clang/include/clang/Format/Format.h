@@ -398,7 +398,7 @@ struct FormatStyle {
   /// This option is **deprecated**. See ``NextLine`` of
   /// ``PackConstructorInitializers``.
   /// \version 9
-  bool AllowAllConstructorInitializersOnNextLine;
+  // bool AllowAllConstructorInitializersOnNextLine;
 
   /// If the function declaration doesn't fit on a line,
   /// allow putting all parameters of a function declaration onto
@@ -462,7 +462,7 @@ struct FormatStyle {
 
   /// Dependent on the value, ``while (true) { continue; }`` can be put on a
   /// single line.
-  /// \version 11
+  /// \version 3.5
   ShortBlockStyle AllowShortBlocksOnASingleLine;
 
   /// If ``true``, short case labels will be contracted to a single line.
@@ -600,7 +600,7 @@ struct FormatStyle {
   };
 
   /// Dependent on the value, ``if (a) return;`` can be put on a single line.
-  /// \version 9
+  /// \version 3.3
   ShortIfStyle AllowShortIfStatementsOnASingleLine;
 
   /// Different styles for merging short lambdas containing at most one
@@ -786,7 +786,7 @@ struct FormatStyle {
   };
 
   /// The template declaration breaking style to use.
-  /// \version 7
+  /// \version 3.4
   BreakTemplateDeclarationsStyle AlwaysBreakTemplateDeclarations;
 
   /// A vector of strings that should be interpreted as attributes/qualifiers
@@ -1886,7 +1886,7 @@ struct FormatStyle {
   /// This option is **deprecated**. See ``CurrentLine`` of
   /// ``PackConstructorInitializers``.
   /// \version 3.7
-  bool ConstructorInitializerAllOnOneLineOrOnePerLine;
+  // bool ConstructorInitializerAllOnOneLineOrOnePerLine;
 
   /// The number of characters to use for indentation of constructor
   /// initializer lists as well as inheritance lists.
@@ -1929,7 +1929,7 @@ struct FormatStyle {
 
   /// \brief Analyze the formatted file for the most used line ending (``\r\n``
   /// or ``\n``). ``UseCRLF`` is only used as a fallback if none can be derived.
-  /// \version 11
+  /// \version 10
   bool DeriveLineEnding;
 
   /// If ``true``, analyze the formatted file for the most common
@@ -2589,12 +2589,17 @@ struct FormatStyle {
     LK_TableGen,
     /// Should be used for Protocol Buffer messages in text format
     /// (https://developers.google.com/protocol-buffers/).
-    LK_TextProto
+    LK_TextProto,
+    /// Should be used for Verilog and SystemVerilog.
+    /// https://standards.ieee.org/ieee/1800/6700/
+    /// https://sci-hub.st/10.1109/IEEESTD.2018.8299595
+    LK_Verilog
   };
   bool isCpp() const { return Language == LK_Cpp || Language == LK_ObjC; }
   bool isCSharp() const { return Language == LK_CSharp; }
   bool isJson() const { return Language == LK_Json; }
   bool isJavaScript() const { return Language == LK_JavaScript; }
+  bool isVerilog() const { return Language == LK_Verilog; }
 
   /// Language, this format style is targeted at.
   /// \version 3.5
@@ -3577,7 +3582,7 @@ struct FormatStyle {
   ///    void f() { }                   vs.   void f() {}
   ///    while (true) { }                     while (true) {}
   /// \endcode
-  /// \version 11
+  /// \version 10
   bool SpaceInEmptyBlock;
 
   /// If ``true``, spaces may be inserted into ``()``.
@@ -3640,7 +3645,7 @@ struct FormatStyle {
   ///    if ( a )  { ... }              vs.     if (a) { ... }
   ///    while ( i < 5 )  { ... }               while (i < 5) { ... }
   /// \endcode
-  /// \version 11
+  /// \version 10
   bool SpacesInConditionalStatement;
 
   /// If ``true``, spaces are inserted inside container literals (e.g.
@@ -3727,7 +3732,7 @@ struct FormatStyle {
   ///    int a [5];                    vs.      int a[5];
   ///    int a [5][5];                 vs.      int a[5][5];
   /// \endcode
-  /// \version 11
+  /// \version 10
   bool SpaceBeforeSquareBrackets;
 
   /// Styles for adding spacing around ``:`` in bitfield definitions.
@@ -3834,7 +3839,7 @@ struct FormatStyle {
 
   /// \brief Use ``\r\n`` instead of ``\n`` for line breaks.
   /// Also used as fallback if ``DeriveLineEnding`` is true.
-  /// \version 11
+  /// \version 10
   bool UseCRLF;
 
   /// The way to use tab characters in the resulting file.
@@ -4285,6 +4290,8 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
     return "TableGen";
   case FormatStyle::LK_TextProto:
     return "TextProto";
+  case FormatStyle::LK_Verilog:
+    return "Verilog";
   default:
     return "Unknown";
   }

@@ -11,12 +11,11 @@ from lldbsuite.test import lldbutil
 
 class TestCorefileExceptionReason(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIfOutOfTreeDebugserver  # newer debugserver required for these qMemoryRegionInfo types
     @no_debug_info_test
     @skipUnlessDarwin
     @skipIf(archs=no_match(['arm64','arm64e']))
+    @skipIfRemote
     def test(self):
 
         corefile = self.getBuildArtifact("process.core")

@@ -66,6 +66,7 @@ define void @foo(<vscale x 4 x i64> %dst, i1 %cond) {
 ; CHECK-NEXT:    st1d { z1.d }, p0, [x0, #1, mul vl]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    bl bar
+; CHECK-NEXT:    addvl sp, x29, #-18
 ; CHECK-NEXT:    ldr p15, [sp, #4, mul vl] // 2-byte Folded Reload
 ; CHECK-NEXT:    ldr p14, [sp, #5, mul vl] // 2-byte Folded Reload
 ; CHECK-NEXT:    ldr p13, [sp, #6, mul vl] // 2-byte Folded Reload
@@ -94,11 +95,23 @@ define void @foo(<vscale x 4 x i64> %dst, i1 %cond) {
 ; CHECK-NEXT:    ldr z10, [sp, #15, mul vl] // 16-byte Folded Reload
 ; CHECK-NEXT:    ldr z9, [sp, #16, mul vl] // 16-byte Folded Reload
 ; CHECK-NEXT:    ldr z8, [sp, #17, mul vl] // 16-byte Folded Reload
-; CHECK-NEXT:    addvl sp, sp, #18
 ; CHECK-NEXT:    mov sp, x29
 ; CHECK-NEXT:    ldp x28, x19, [sp, #16] // 16-byte Folded Reload
 ; CHECK-NEXT:    ldp x29, x30, [sp], #32 // 16-byte Folded Reload
 ; CHECK-NEXT:  .LBB0_2: // %if.end
+; CHECK-NEXT:    .cfi_def_cfa wsp, 0
+; CHECK-NEXT:    .cfi_same_value b8
+; CHECK-NEXT:    .cfi_same_value b9
+; CHECK-NEXT:    .cfi_same_value b10
+; CHECK-NEXT:    .cfi_same_value b11
+; CHECK-NEXT:    .cfi_same_value b12
+; CHECK-NEXT:    .cfi_same_value b13
+; CHECK-NEXT:    .cfi_same_value b14
+; CHECK-NEXT:    .cfi_same_value b15
+; CHECK-NEXT:    .cfi_same_value w19
+; CHECK-NEXT:    .cfi_same_value w28
+; CHECK-NEXT:    .cfi_same_value w30
+; CHECK-NEXT:    .cfi_same_value w29
 ; CHECK-NEXT:    ret
 entry:
   br i1 %cond, label %if.then, label %if.end

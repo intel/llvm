@@ -12,14 +12,13 @@
 // The test checks that no additional host allocation is performed by the SYCL
 // RT if host ptr is used
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <vector>
 
 #include "../helpers.hpp"
 
-using namespace cl;
-using sycl_access_mode = cl::sycl::access::mode;
+using sycl_access_mode = sycl::access::mode;
 
 template <typename T> class CustomAllocator {
 public:

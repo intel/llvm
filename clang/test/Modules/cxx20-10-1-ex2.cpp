@@ -53,10 +53,18 @@ int &c = n; // OK
 //--- std10-1-ex2-tu6.cpp
 import B;
 // error, n is module-local and this is not a module.
-int &c = n; // expected-error {{use of undeclared identifier}}
+int &c = n; // expected-error {{declaration of 'n' must be imported}}
+            // expected-note@* {{declaration here is not visible}}
 
 //--- std10-1-ex2-tu7.cpp
+// expected-no-diagnostics
 module B:X3; // does not implicitly import B
-import :X2;  // X2 is an implementation so exports nothing.
-             // error: n not visible here.
-int &c = n;  // expected-error {{use of undeclared identifier }}
+import :X2; // X2 is an implementation unit import B.
+// According to [module.import]p7:
+//   Additionally, when a module-import-declaration in a module unit of some
+//   module M imports another module unit U of M, it also imports all
+//   translation units imported by non-exported module-import-declarations in
+//   the module unit purview of U.
+//
+// So B is imported in B:X3 due to B:X2 imported B. So n is visible here.
+int &c = n;

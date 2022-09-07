@@ -29,6 +29,7 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -69,12 +70,12 @@ bool X86AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
 
   if (Subtarget->isTargetCOFF()) {
     bool Local = MF.getFunction().hasLocalLinkage();
-    OutStreamer->BeginCOFFSymbolDef(CurrentFnSym);
-    OutStreamer->EmitCOFFSymbolStorageClass(
+    OutStreamer->beginCOFFSymbolDef(CurrentFnSym);
+    OutStreamer->emitCOFFSymbolStorageClass(
         Local ? COFF::IMAGE_SYM_CLASS_STATIC : COFF::IMAGE_SYM_CLASS_EXTERNAL);
-    OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
-                                               << COFF::SCT_COMPLEX_TYPE_SHIFT);
-    OutStreamer->EndCOFFSymbolDef();
+    OutStreamer->emitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
+                                    << COFF::SCT_COMPLEX_TYPE_SHIFT);
+    OutStreamer->endCOFFSymbolDef();
   }
 
   // Emit the rest of the function body.
@@ -248,7 +249,7 @@ void X86AsmPrinter::PrintOperand(const MachineInstr *MI, unsigned OpNo,
 void X86AsmPrinter::PrintModifiedOperand(const MachineInstr *MI, unsigned OpNo,
                                          raw_ostream &O, const char *Modifier) {
   const MachineOperand &MO = MI->getOperand(OpNo);
-  if (!Modifier || MO.getType() != MachineOperand::MO_Register)
+  if (!Modifier || !MO.isReg())
     return PrintOperand(MI, OpNo, O);
   if (MI->getInlineAsmDialect() == InlineAsm::AD_ATT)
     O << '%';
@@ -333,6 +334,37 @@ void X86AsmPrinter::PrintLeaMemReference(const MachineInstr *MI, unsigned OpNo,
     }
     O << ')';
   }
+}
+
+static bool isSimpleReturn(const MachineInstr &MI) {
+  // We exclude all tail calls here which set both isReturn and isCall.
+  return MI.getDesc().isReturn() && !MI.getDesc().isCall();
+}
+
+static bool isIndirectBranchOrTailCall(const MachineInstr &MI) {
+  unsigned Opc = MI.getOpcode();
+  return MI.getDesc().isIndirectBranch() /*Make below code in a good shape*/ ||
+         Opc == X86::TAILJMPr || Opc == X86::TAILJMPm ||
+         Opc == X86::TAILJMPr64 || Opc == X86::TAILJMPm64 ||
+         Opc == X86::TCRETURNri || Opc == X86::TCRETURNmi ||
+         Opc == X86::TCRETURNri64 || Opc == X86::TCRETURNmi64 ||
+         Opc == X86::TAILJMPr64_REX || Opc == X86::TAILJMPm64_REX;
+}
+
+void X86AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {
+  if (Subtarget->hardenSlsRet() || Subtarget->hardenSlsIJmp()) {
+    auto I = MBB.getLastNonDebugInstr();
+    if (I != MBB.end()) {
+      if ((Subtarget->hardenSlsRet() && isSimpleReturn(*I)) ||
+          (Subtarget->hardenSlsIJmp() && isIndirectBranchOrTailCall(*I))) {
+        MCInst TmpInst;
+        TmpInst.setOpcode(X86::INT3);
+        EmitToStreamer(*OutStreamer, TmpInst);
+      }
+    }
+  }
+  AsmPrinter::emitBasicBlockEnd(MBB);
+  SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
 }
 
 void X86AsmPrinter::PrintMemReference(const MachineInstr *MI, unsigned OpNo,
@@ -649,7 +681,7 @@ void X86AsmPrinter::emitStartOfAsmFile(Module &M) {
       MCSection *Cur = OutStreamer->getCurrentSectionOnly();
       MCSection *Nt = MMI->getContext().getELFSection(
           ".note.gnu.property", ELF::SHT_NOTE, ELF::SHF_ALLOC);
-      OutStreamer->SwitchSection(Nt);
+      OutStreamer->switchSection(Nt);
 
       // Emitting note header.
       const int WordSize = TT.isArch64Bit() && !TT.isX32() ? 8 : 4;
@@ -666,21 +698,21 @@ void X86AsmPrinter::emitStartOfAsmFile(Module &M) {
       emitAlignment(WordSize == 4 ? Align(4) : Align(8)); // padding
 
       OutStreamer->endSection(Nt);
-      OutStreamer->SwitchSection(Cur);
+      OutStreamer->switchSection(Cur);
     }
   }
 
   if (TT.isOSBinFormatMachO())
-    OutStreamer->SwitchSection(getObjFileLowering().getTextSection());
+    OutStreamer->switchSection(getObjFileLowering().getTextSection());
 
   if (TT.isOSBinFormatCOFF()) {
     // Emit an absolute @feat.00 symbol.  This appears to be some kind of
     // compiler features bitfield read by link.exe.
     MCSymbol *S = MMI->getContext().getOrCreateSymbol(StringRef("@feat.00"));
-    OutStreamer->BeginCOFFSymbolDef(S);
-    OutStreamer->EmitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_STATIC);
-    OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
-    OutStreamer->EndCOFFSymbolDef();
+    OutStreamer->beginCOFFSymbolDef(S);
+    OutStreamer->emitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_STATIC);
+    OutStreamer->emitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
+    OutStreamer->endCOFFSymbolDef();
     int64_t Feat00Flags = 0;
 
     if (TT.getArch() == Triple::x86) {
@@ -747,7 +779,7 @@ static void emitNonLazyStubs(MachineModuleInfo *MMI, MCStreamer &OutStreamer) {
   // Output stubs for external and common global variables.
   Stubs = MMIMacho.GetGVStubList();
   if (!Stubs.empty()) {
-    OutStreamer.SwitchSection(MMI->getContext().getMachOSection(
+    OutStreamer.switchSection(MMI->getContext().getMachOSection(
         "__IMPORT", "__pointers", MachO::S_NON_LAZY_SYMBOL_POINTERS,
         SectionKind::getMetadata()));
 
@@ -755,7 +787,7 @@ static void emitNonLazyStubs(MachineModuleInfo *MMI, MCStreamer &OutStreamer) {
       emitNonLazySymbolPointer(OutStreamer, Stub.first, Stub.second);
 
     Stubs.clear();
-    OutStreamer.AddBlankLine();
+    OutStreamer.addBlankLine();
   }
 }
 
@@ -802,6 +834,22 @@ void X86AsmPrinter::emitEndOfAsmFile(Module &M) {
   } else if (TT.isOSBinFormatELF()) {
     emitStackMaps(SM);
     FM.serializeToFaultMapSection();
+  }
+
+  // Emit __morestack address if needed for indirect calls.
+  if (TT.getArch() == Triple::x86_64 && TM.getCodeModel() == CodeModel::Large) {
+    if (MCSymbol *AddrSymbol = OutContext.lookupSymbol("__morestack_addr")) {
+      Align Alignment(1);
+      MCSection *ReadOnlySection = getObjFileLowering().getSectionForConstant(
+          getDataLayout(), SectionKind::getReadOnly(),
+          /*C=*/nullptr, Alignment);
+      OutStreamer->switchSection(ReadOnlySection);
+      OutStreamer->emitLabel(AddrSymbol);
+
+      unsigned PtrSize = MAI->getCodePointerSize();
+      OutStreamer->emitSymbolValue(GetExternalSymbolSymbol("__morestack"),
+                                   PtrSize);
+    }
   }
 }
 

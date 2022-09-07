@@ -14,6 +14,7 @@
 #ifndef MLIR_DIALECTS_CONTROLFLOW_IR_CONTROLFLOWOPS_TD
 #define MLIR_DIALECTS_CONTROLFLOW_IR_CONTROLFLOWOPS_TD
 
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -132,7 +133,7 @@ def CondBranchOp : CF_Op<"cond_br",
     Example:
 
     ```mlir
-    func @select(%a: i32, %b: i32, %flag: i1) -> i32 {
+    func.func @select(%a: i32, %b: i32, %flag: i1) -> i32 {
       // Both targets are the same, operands differ
       cond_br %flag, ^bb1(%a : i32), ^bb1(%b : i32)
 

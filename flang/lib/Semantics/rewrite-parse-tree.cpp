@@ -21,7 +21,8 @@ namespace Fortran::semantics {
 
 using namespace parser::literals;
 
-/// Convert misidentified statement functions to array element assignments.
+/// Convert misidentified statement functions to array element assignments
+/// or pointer-valued function result assignments.
 /// Convert misidentified format expressions to namelist group names.
 /// Convert misidentified character variables in I/O units to integer
 /// unit number expressions.
@@ -78,20 +79,40 @@ void RewriteMutator::Post(parser::Name &name) {
   }
 }
 
+static bool ReturnsDataPointer(const Symbol &symbol) {
+  if (const Symbol * funcRes{FindFunctionResult(symbol)}) {
+    return IsPointer(*funcRes) && !IsProcedure(*funcRes);
+  } else if (const auto *generic{symbol.detailsIf<GenericDetails>()}) {
+    for (auto ref : generic->specificProcs()) {
+      if (ReturnsDataPointer(*ref)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Find mis-parsed statement functions and move to stmtFuncsToConvert_ list.
 void RewriteMutator::Post(parser::SpecificationPart &x) {
   auto &list{std::get<std::list<parser::DeclarationConstruct>>(x.t)};
   for (auto it{list.begin()}; it != list.end();) {
-    if (auto stmt{std::get_if<stmtFuncType>(&it->u)}) {
-      Symbol *symbol{std::get<parser::Name>(stmt->statement.value().t).symbol};
-      if (symbol && symbol->has<ObjectEntityDetails>()) {
-        // not a stmt func: remove it here and add to ones to convert
-        stmtFuncsToConvert_.push_back(std::move(*stmt));
-        it = list.erase(it);
-        continue;
+    bool isAssignment{false};
+    if (auto *stmt{std::get_if<stmtFuncType>(&it->u)}) {
+      if (const Symbol *
+          symbol{std::get<parser::Name>(stmt->statement.value().t).symbol}) {
+        const Symbol &ultimate{symbol->GetUltimate()};
+        isAssignment =
+            ultimate.has<ObjectEntityDetails>() || ReturnsDataPointer(ultimate);
+        if (isAssignment) {
+          stmtFuncsToConvert_.emplace_back(std::move(*stmt));
+        }
       }
     }
-    ++it;
+    if (isAssignment) {
+      it = list.erase(it);
+    } else {
+      ++it;
+    }
   }
 }
 

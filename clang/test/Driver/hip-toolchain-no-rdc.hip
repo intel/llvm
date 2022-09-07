@@ -1,4 +1,3 @@
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 
@@ -18,6 +17,16 @@
 // RUN:   --hip-device-lib-path=%S/Inputs/hip_multiple_inputs/lib1 \
 // RUN:   --hip-device-lib-path=%S/Inputs/hip_multiple_inputs/lib2 \
 // RUN:   -fuse-ld=lld -nogpuinc -c \
+// RUN:   %S/Inputs/hip_multiple_inputs/a.cu \
+// RUN:   %S/Inputs/hip_multiple_inputs/b.hip \
+// RUN: 2>&1 | FileCheck -check-prefixes=CHECK %s
+
+// RUN: %clang -### -target x86_64-linux-gnu -fno-gpu-rdc \
+// RUN:   -x hip --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 \
+// RUN:   --hip-device-lib=lib1.bc --hip-device-lib=lib2.bc \
+// RUN:   --hip-device-lib-path=%S/Inputs/hip_multiple_inputs/lib1 \
+// RUN:   --hip-device-lib-path=%S/Inputs/hip_multiple_inputs/lib2 \
+// RUN:   -fuse-ld=lld -nogpuinc --offload-new-driver -c \
 // RUN:   %S/Inputs/hip_multiple_inputs/a.cu \
 // RUN:   %S/Inputs/hip_multiple_inputs/b.hip \
 // RUN: 2>&1 | FileCheck -check-prefixes=CHECK %s
@@ -83,7 +92,7 @@
 // CHECK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // CHECK-SAME: "-bundle-align=4096"
 // CHECK-SAME: "-targets={{.*}},hipv4-amdgcn-amd-amdhsa--gfx803,hipv4-amdgcn-amd-amdhsa--gfx900"
-// CHECK-SAME: "-inputs={{.*}},[[IMG_DEV_A_803]],[[IMG_DEV_A_900]]" "-outputs=[[BUNDLE_A:.*hipfb]]"
+// CHECK-SAME: "-input={{.*}}" "-input=[[IMG_DEV_A_803]]" "-input=[[IMG_DEV_A_900]]" "-output=[[BUNDLE_A:.*hipfb]]"
 
 // CHECK: [[CLANG]] "-cc1" "-triple" "x86_64-unknown-linux-gnu"
 // CHECK-SAME: "-aux-triple" "amdgcn-amd-amdhsa"
@@ -146,7 +155,7 @@
 // CHECK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // CHECK-SAME: "-bundle-align=4096"
 // CHECK-SAME: "-targets={{.*}},hipv4-amdgcn-amd-amdhsa--gfx803,hipv4-amdgcn-amd-amdhsa--gfx900"
-// CHECK-SAME: "-inputs={{.*}},[[IMG_DEV_B_803]],[[IMG_DEV_B_900]]" "-outputs=[[BUNDLE_A:.*hipfb]]"
+// CHECK-SAME: "-input={{.*}}" "-input=[[IMG_DEV_B_803]]" "-input=[[IMG_DEV_B_900]]" "-output=[[BUNDLE_A:.*hipfb]]"
 
 // CHECK: [[CLANG]] "-cc1" "-triple" "x86_64-unknown-linux-gnu"
 // CHECK-SAME: "-aux-triple" "amdgcn-amd-amdhsa"

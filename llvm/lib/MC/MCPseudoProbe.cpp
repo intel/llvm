@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCPseudoProbe.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -183,7 +184,7 @@ void MCPseudoProbeSection::emit(MCObjectStreamer *MCOS) {
     if (auto *S =
             Ctx.getObjectFileInfo()->getPseudoProbeSection(ProbeSec.first)) {
       // Switch to the .pseudoprobe section or a comdat group.
-      MCOS->SwitchSection(S);
+      MCOS->switchSection(S);
       // Emit probes grouped by GUID.
       ProbeSec.second.emit(MCOS, LastProbe);
     }
@@ -230,8 +231,7 @@ void MCDecodedPseudoProbe::getInlineContext(
   // It will add the string of each node's inline site during iteration.
   // Note that it won't include the probe's belonging function(leaf location)
   while (Cur->hasInlineSite()) {
-    StringRef FuncName =
-        getProbeFNameForGUID(GUID2FuncMAP, std::get<0>(Cur->ISite));
+    StringRef FuncName = getProbeFNameForGUID(GUID2FuncMAP, Cur->Parent->Guid);
     ContextStack.emplace_back(
         MCPseduoProbeFrameLocation(FuncName, std::get<1>(Cur->ISite)));
     Cur = static_cast<MCDecodedPseudoProbeInlineTree *>(Cur->Parent);
@@ -417,7 +417,7 @@ bool MCPseudoProbeDecoder::buildAddress2ProbeMap(
   // If the incoming node is null, all its children nodes should be disgarded.
   if (Cur) {
     // Switch/add to a new tree node(inlinee)
-    Cur = Cur->getOrAddNode(std::make_tuple(Cur->Guid, Index));
+    Cur = Cur->getOrAddNode(std::make_tuple(Guid, Index));
     Cur->Guid = Guid;
   }
 
@@ -520,7 +520,7 @@ void MCPseudoProbeDecoder::printProbesForAllAddresses(raw_ostream &OS) {
   std::vector<uint64_t> Addresses;
   for (auto Entry : Address2ProbesMap)
     Addresses.push_back(Entry.first);
-  std::sort(Addresses.begin(), Addresses.end());
+  llvm::sort(Addresses);
   for (auto K : Addresses) {
     OS << "Address:\t";
     OS << K;
@@ -574,5 +574,5 @@ const MCPseudoProbeFuncDesc *MCPseudoProbeDecoder::getInlinerDescForProbe(
   MCDecodedPseudoProbeInlineTree *InlinerNode = Probe->getInlineTreeNode();
   if (!InlinerNode->hasInlineSite())
     return nullptr;
-  return getFuncDescForGUID(std::get<0>(InlinerNode->ISite));
+  return getFuncDescForGUID(InlinerNode->Parent->Guid);
 }

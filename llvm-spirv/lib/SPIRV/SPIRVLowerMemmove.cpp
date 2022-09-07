@@ -37,14 +37,11 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spvmemmove"
 
+#include "SPIRVLowerMemmove.h"
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 
 using namespace llvm;
@@ -52,113 +49,100 @@ using namespace SPIRV;
 
 namespace SPIRV {
 
-class SPIRVLowerMemmoveBase {
-public:
-  SPIRVLowerMemmoveBase() : Context(nullptr) {}
+void SPIRVLowerMemmoveBase::LowerMemMoveInst(MemMoveInst &I) {
+  // There is no direct equivalent of @llvm.memmove in SPIR-V and the closest
+  // instructions are 'OpCopyMemory' and 'OpCopyMemorySized'.
+  //
+  // 'OpCopyMemory' does not accept amount of bytes to copy and infers that
+  // from type which is being copied; also it only allows to copy value of a
+  // particular type to pointer pointing to the same type.
+  //
+  // 'OpCopyMemorySized' is closer to @llvm.memmove, because it actually
+  // copies bytes, but unlike memove it is not explicitly specified whether it
+  // supports overlapping source and destination. Therefore, we replace
+  // memmove with two 'OpCopyMemorySized' instructions: the first one copies
+  // bytes from source to a temporary location, the second one copies bytes
+  // from that temporary location to the destination.
+  IRBuilder<> Builder(I.getParent());
+  Builder.SetInsertPoint(&I);
 
-  void LowerMemMoveInst(MemMoveInst &I) {
-    // There is no direct equivalent of @llvm.memmove in SPIR-V and the closest
-    // instructions are 'OpCopyMemory' and 'OpCopyMemorySized'.
-    //
-    // 'OpCopyMemory' does not accept amount of bytes to copy and infers that
-    // from type which is being copied; also it only allows to copy value of a
-    // particular type to pointer pointing to the same type.
-    //
-    // 'OpCopyMemorySized' is closer to @llvm.memmove, because it actually
-    // copies bytes, but unlike memove it is not explicitly specified whether it
-    // supports overlapping source and destination. Therefore, we replace
-    // memmove with two 'OpCopyMemorySized' instructions: the first one copies
-    // bytes from source to a temporary location, the second one copies bytes
-    // from that temporary location to the destination.
-    IRBuilder<> Builder(I.getParent());
-    Builder.SetInsertPoint(&I);
+  auto *Length = cast<ConstantInt>(I.getLength());
+  auto *AllocaTy =
+      ArrayType::get(IntegerType::getInt8Ty(*Context), Length->getZExtValue());
+  MaybeAlign SrcAlign = I.getSourceAlign();
 
-    auto *Length = cast<ConstantInt>(I.getLength());
-    auto *AllocaTy = ArrayType::get(IntegerType::getInt8Ty(*Context),
-                                    Length->getZExtValue());
-    MaybeAlign SrcAlign = I.getSourceAlign();
+  auto *Alloca = Builder.CreateAlloca(AllocaTy);
+  if (SrcAlign.hasValue())
+    Alloca->setAlignment(SrcAlign.getValue());
 
-    auto *Alloca = Builder.CreateAlloca(AllocaTy);
-    if (SrcAlign.hasValue())
-      Alloca->setAlignment(SrcAlign.getValue());
+  // FIXME: Do we need to pass the size of alloca here? From LangRef:
+  // > The first argument is a constant integer representing the size of the
+  // > object, or -1 if it is variable sized.
+  //
+  // https://llvm.org/docs/LangRef.html#llvm-lifetime-start-intrinsic
+  Builder.CreateLifetimeStart(Alloca);
+  Builder.CreateMemCpy(Alloca, SrcAlign, I.getRawSource(), SrcAlign, Length,
+                       I.isVolatile());
 
-    // FIXME: Do we need to pass the size of alloca here? From LangRef:
-    // > The first argument is a constant integer representing the size of the
-    // > object, or -1 if it is variable sized.
-    //
-    // https://llvm.org/docs/LangRef.html#llvm-lifetime-start-intrinsic
-    Builder.CreateLifetimeStart(Alloca);
-    Builder.CreateMemCpy(Alloca, SrcAlign, I.getRawSource(), SrcAlign, Length,
-                         I.isVolatile());
+  auto *SecondCpy =
+      Builder.CreateMemCpy(I.getRawDest(), I.getDestAlign(), Alloca, SrcAlign,
+                           Length, I.isVolatile());
+  Builder.CreateLifetimeEnd(Alloca);
 
-    auto *SecondCpy =
-        Builder.CreateMemCpy(I.getRawDest(), I.getDestAlign(), Alloca, SrcAlign,
-                             Length, I.isVolatile());
-    Builder.CreateLifetimeEnd(Alloca);
+  SecondCpy->takeName(&I);
+  I.replaceAllUsesWith(SecondCpy);
+  I.dropAllReferences();
+  I.eraseFromParent();
+}
 
-    SecondCpy->takeName(&I);
-    I.replaceAllUsesWith(SecondCpy);
-    I.dropAllReferences();
-    I.eraseFromParent();
-  }
+bool SPIRVLowerMemmoveBase::expandMemMoveIntrinsicUses(Function &F) {
+  bool Changed = false;
 
-  bool expandMemMoveIntrinsicUses(Function &F) {
-    bool Changed = false;
-
-    for (User *U : make_early_inc_range(F.users())) {
-      MemMoveInst *Inst = cast<MemMoveInst>(U);
-      if (!isa<ConstantInt>(Inst->getLength())) {
-        expandMemMoveAsLoop(Inst);
-        Inst->eraseFromParent();
-      } else {
-        LowerMemMoveInst(*Inst);
-      }
-      Changed = true;
+  for (User *U : make_early_inc_range(F.users())) {
+    MemMoveInst *Inst = cast<MemMoveInst>(U);
+    if (!isa<ConstantInt>(Inst->getLength())) {
+      expandMemMoveAsLoop(Inst);
+      Inst->eraseFromParent();
+    } else {
+      LowerMemMoveInst(*Inst);
     }
-    return Changed;
+    Changed = true;
   }
-  bool runLowerMemmove(Module &M) {
-    Context = &M.getContext();
-    bool Changed = false;
+  return Changed;
+}
 
-    for (Function &F : M) {
-      if (!F.isDeclaration())
-        continue;
+bool SPIRVLowerMemmoveBase::runLowerMemmove(Module &M) {
+  Context = &M.getContext();
+  bool Changed = false;
 
-      if (F.getIntrinsicID() == Intrinsic::memmove)
-        Changed |= expandMemMoveIntrinsicUses(F);
-    }
+  for (Function &F : M) {
+    if (!F.isDeclaration())
+      continue;
 
-    verifyRegularizationPass(M, "SPIRVLowerMemmove");
-    return Changed;
+    if (F.getIntrinsicID() == Intrinsic::memmove)
+      Changed |= expandMemMoveIntrinsicUses(F);
   }
 
-private:
-  LLVMContext *Context;
-};
+  verifyRegularizationPass(M, "SPIRVLowerMemmove");
+  return Changed;
+}
 
-class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,
-                              public SPIRVLowerMemmoveBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runLowerMemmove(M) ? llvm::PreservedAnalyses::none()
-                              : llvm::PreservedAnalyses::all();
-  }
-};
+llvm::PreservedAnalyses
+SPIRVLowerMemmovePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  return runLowerMemmove(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}
 
-class SPIRVLowerMemmoveLegacy : public ModulePass,
-                                public SPIRVLowerMemmoveBase {
-public:
-  SPIRVLowerMemmoveLegacy() : ModulePass(ID) {
-    initializeSPIRVLowerMemmoveLegacyPass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnModule(Module &M) override { return runLowerMemmove(M); }
+SPIRVLowerMemmoveLegacy::SPIRVLowerMemmoveLegacy() : ModulePass(ID) {
+  initializeSPIRVLowerMemmoveLegacyPass(*PassRegistry::getPassRegistry());
+}
 
-  static char ID;
-};
+bool SPIRVLowerMemmoveLegacy::runOnModule(Module &M) {
+  return runLowerMemmove(M);
+}
 
 char SPIRVLowerMemmoveLegacy::ID = 0;
+
 } // namespace SPIRV
 
 INITIALIZE_PASS(SPIRVLowerMemmoveLegacy, "spvmemmove",

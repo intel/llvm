@@ -1,5 +1,8 @@
 // REQUIRES: x86-registered-target
 
+// FIXME: enable opaque pointers support
+// UNSUPPORTED: enable-opaque-pointers
+
 //
 // Check help message.
 //
@@ -83,7 +86,7 @@
 // CHECK-HELP:     =hip                  -   HIP
 // CHECK-HELP:     =sycl                 -   SYCL
 // CHECK-HELP:   --link-opts=<string>    - link options passed to the offload runtime
-// CHECK-HELP:   -o=<filename>           - Output filename
+// CHECK-HELP:   -o <filename>           - Output filename
 // CHECK-HELP:   --properties=<filename> - File listing device binary image properties, SYCL offload only
 // CHECK-HELP:   --target=<string>       - offload target triple
 // CHECK-HELP:   -v                      - verbose output
@@ -211,7 +214,7 @@
 //
 // RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux %t1.tgt
 // RUN: %clang -target x86_64-pc-linux-gnu -c %t.wrapper.bc -o %t.wrapper.o
-// RUN: clang-offload-bundler --type=o --inputs=%t.wrapper.o --targets=sycl-spir64-unknown-linux --outputs=%t1.out --unbundle
+// RUN: clang-offload-bundler --type=o -input=%t.wrapper.o --targets=sycl-spir64-unknown-linux -output=%t1.out --unbundle
 // RUN: diff %t1.out %t1.tgt
 
 // Check that clang-offload-wrapper adds LLVMOMPOFFLOAD notes

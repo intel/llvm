@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <CL/sycl/feature_test.hpp>
+#include <sycl/feature_test.hpp>
 
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #if defined(__AMXTILE__) && defined(__AMXINT8__) && defined(__AMXBF16__)

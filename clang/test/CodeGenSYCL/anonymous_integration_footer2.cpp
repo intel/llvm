@@ -6,85 +6,83 @@
 
 #include "Inputs/sycl.hpp"
 int main() {
-  cl::sycl::kernel_single_task<class first_kernel>([]() {});
+  sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
-
-using namespace cl;
+// CHECK: #include <sycl/detail/defines_elementary.hpp>
 
 struct S1 {
   static constexpr sycl::specialization_id a{1};
 };
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::S1::a>() {
 // CHECK-NEXT: return "_ZN2S11aE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
 constexpr sycl::specialization_id b{202};
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::b>() {
 // CHECK-NEXT: return "____ZL1b";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 inline constexpr sycl::specialization_id c{3};
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::c>() {
 // CHECK-NEXT: return "_Z1c";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 static constexpr sycl::specialization_id d{205};
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::d>() {
 // CHECK-NEXT: return "____ZL1d";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace inner {
 constexpr sycl::specialization_id same_name{5};
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::inner::same_name>() {
 // CHECK-NEXT: return "____ZN5innerL9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 constexpr sycl::specialization_id same_name{6};
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::same_name>() {
 // CHECK-NEXT: return "____ZL9same_name";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 namespace {
 constexpr sycl::specialization_id same_name{207};
 // CHECK: namespace {
@@ -94,16 +92,16 @@ constexpr sycl::specialization_id same_name{207};
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 namespace {
 namespace inner {
@@ -115,16 +113,16 @@ constexpr sycl::specialization_id same_name{208};
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
 // CHECK-NEXT: } // namespace
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_15inner9same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 } // namespace
 
@@ -142,17 +140,17 @@ constexpr sycl::specialization_id same_name{209};
 // CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // inline namespace inner
 // CHECK-NEXT: } // namespace outer
-// CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
 // CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::outer::inner::__sycl_detail::__shim_[[SHIM_ID]]()>() {
 // CHECK-NEXT: return "____ZN5outer5inner12_GLOBAL__N_19same_nameE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-NEXT: } // namespace sycl
-// CHECK-NEXT: } // __SYCL_INLINE_NAMESPACE(cl)
 }
 }
 
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
+// CHECK: #include <sycl/detail/spec_const_integration.hpp>

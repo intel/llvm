@@ -17,15 +17,18 @@
 
 namespace mlir {
 class AffineMap;
+class AsmResourceBlob;
 class BoolAttr;
+class BuiltinDialect;
 class DenseIntElementsAttr;
+template <typename T>
+struct DialectResourceBlobHandle;
 class FlatSymbolRefAttr;
 class FunctionType;
 class IntegerSet;
 class IntegerType;
 class Location;
 class Operation;
-class ShapedType;
 
 //===----------------------------------------------------------------------===//
 // Elements Attributes
@@ -61,13 +64,14 @@ protected:
 };
 
 /// Type trait detector that checks if a given type T is a complex type.
-template <typename T> struct is_complex_t : public std::false_type {};
+template <typename T>
+struct is_complex_t : public std::false_type {};
 template <typename T>
 struct is_complex_t<std::complex<T>> : public std::true_type {};
 } // namespace detail
 
-/// An attribute that represents a reference to a dense vector or tensor object.
-///
+/// An attribute that represents a reference to a dense vector or tensor
+/// object.
 class DenseElementsAttr : public Attribute {
 public:
   using Attribute::Attribute;
@@ -81,7 +85,8 @@ public:
   /// floating point type that can be used to access the underlying element
   /// types of a DenseElementsAttr.
   // TODO: Use std::disjunction when C++17 is supported.
-  template <typename T> struct is_valid_cpp_fp_type {
+  template <typename T>
+  struct is_valid_cpp_fp_type {
     /// The type is a valid floating point type if it is a builtin floating
     /// point type, or is a potentially user defined floating point type. The
     /// latter allows for supporting users that have custom types defined for
@@ -193,13 +198,8 @@ public:
   ///   - For bitwidth = 1: Packed into 8bit bytes with bits corresponding to
   ///     the linear order of the shape type from MSB to LSB, padded to on the
   ///     right.
-  ///
-  /// If `isSplatBuffer` is true, then the raw buffer should contain a
-  /// single element (or for the case of 1-bit, a single byte of 0 or 255),
-  /// which will be used to construct a splat.
   static DenseElementsAttr getFromRawBuffer(ShapedType type,
-                                            ArrayRef<char> rawBuffer,
-                                            bool isSplatBuffer);
+                                            ArrayRef<char> rawBuffer);
 
   /// Returns true if the given buffer is a valid raw buffer for the given type.
   /// `detectedSplat` is set if the buffer is valid and represents a splat
@@ -405,7 +405,7 @@ public:
                              std::numeric_limits<T>::is_signed));
     const char *rawData = getRawData().data();
     bool splat = isSplat();
-    return {Attribute::getType(), ElementIterator<T>(rawData, splat, 0),
+    return {getType(), ElementIterator<T>(rawData, splat, 0),
             ElementIterator<T>(rawData, splat, getNumElements())};
   }
   template <typename T, typename = IntFloatValueTemplateCheckT<T>>
@@ -434,7 +434,7 @@ public:
                           std::numeric_limits<ElementT>::is_signed));
     const char *rawData = getRawData().data();
     bool splat = isSplat();
-    return {Attribute::getType(), ElementIterator<T>(rawData, splat, 0),
+    return {getType(), ElementIterator<T>(rawData, splat, 0),
             ElementIterator<T>(rawData, splat, getNumElements())};
   }
   template <typename T, typename ElementT = typename T::value_type,
@@ -461,7 +461,7 @@ public:
     auto stringRefs = getRawStringData();
     const char *ptr = reinterpret_cast<const char *>(stringRefs.data());
     bool splat = isSplat();
-    return {Attribute::getType(), ElementIterator<StringRef>(ptr, splat, 0),
+    return {getType(), ElementIterator<StringRef>(ptr, splat, 0),
             ElementIterator<StringRef>(ptr, splat, getNumElements())};
   }
   template <typename T, typename = StringRefValueTemplateCheckT<T>>
@@ -481,8 +481,7 @@ public:
       typename std::enable_if<std::is_same<T, Attribute>::value>::type;
   template <typename T, typename = AttributeValueTemplateCheckT<T>>
   iterator_range_impl<AttributeElementIterator> getValues() const {
-    return {Attribute::getType(), value_begin<Attribute>(),
-            value_end<Attribute>()};
+    return {getType(), value_begin<Attribute>(), value_end<Attribute>()};
   }
   template <typename T, typename = AttributeValueTemplateCheckT<T>>
   AttributeElementIterator value_begin() const {
@@ -513,7 +512,7 @@ public:
   template <typename T, typename = DerivedAttrValueTemplateCheckT<T>>
   iterator_range_impl<DerivedAttributeElementIterator<T>> getValues() const {
     using DerivedIterT = DerivedAttributeElementIterator<T>;
-    return {Attribute::getType(), DerivedIterT(value_begin<Attribute>()),
+    return {getType(), DerivedIterT(value_begin<Attribute>()),
             DerivedIterT(value_end<Attribute>())};
   }
   template <typename T, typename = DerivedAttrValueTemplateCheckT<T>>
@@ -533,7 +532,7 @@ public:
   template <typename T, typename = BoolValueTemplateCheckT<T>>
   iterator_range_impl<BoolElementIterator> getValues() const {
     assert(isValidBool() && "bool is not the value of this elements attribute");
-    return {Attribute::getType(), BoolElementIterator(*this, 0),
+    return {getType(), BoolElementIterator(*this, 0),
             BoolElementIterator(*this, getNumElements())};
   }
   template <typename T, typename = BoolValueTemplateCheckT<T>>
@@ -555,7 +554,7 @@ public:
   template <typename T, typename = APIntValueTemplateCheckT<T>>
   iterator_range_impl<IntElementIterator> getValues() const {
     assert(getElementType().isIntOrIndex() && "expected integral type");
-    return {Attribute::getType(), raw_int_begin(), raw_int_end()};
+    return {getType(), raw_int_begin(), raw_int_end()};
   }
   template <typename T, typename = APIntValueTemplateCheckT<T>>
   IntElementIterator value_begin() const {
@@ -734,6 +733,13 @@ public:
     return denseAttr && denseAttr.isSplat();
   }
 };
+
+//===----------------------------------------------------------------------===//
+// DenseResourceElementsAttr
+//===----------------------------------------------------------------------===//
+
+using DenseResourceElementsHandle = DialectResourceBlobHandle<BuiltinDialect>;
+
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -748,6 +754,130 @@ public:
 //===----------------------------------------------------------------------===//
 
 namespace mlir {
+//===----------------------------------------------------------------------===//
+// DenseArrayAttr
+
+namespace detail {
+/// Base class for DenseArrayAttr that is instantiated and specialized for each
+/// supported element type below.
+template <typename T>
+class DenseArrayAttr : public DenseArrayBaseAttr {
+public:
+  using DenseArrayBaseAttr::DenseArrayBaseAttr;
+
+  /// Implicit conversion to ArrayRef<T>.
+  operator ArrayRef<T>() const;
+  ArrayRef<T> asArrayRef() const { return ArrayRef<T>{*this}; }
+
+  /// Random access to elements.
+  T operator[](std::size_t index) const { return asArrayRef()[index]; }
+
+  /// Builder from ArrayRef<T>.
+  static DenseArrayAttr get(MLIRContext *context, ArrayRef<T> content);
+
+  /// Print the short form `[42, 100, -1]` without any type prefix.
+  void print(AsmPrinter &printer) const;
+  void print(raw_ostream &os) const;
+  /// Print the short form `42, 100, -1` without any braces or type prefix.
+  void printWithoutBraces(raw_ostream &os) const;
+
+  /// Parse the short form `[42, 100, -1]` without any type prefix.
+  static Attribute parse(AsmParser &parser, Type odsType);
+
+  /// Parse the short form `42, 100, -1` without any type prefix or braces.
+  static Attribute parseWithoutBraces(AsmParser &parser, Type odsType);
+
+  /// Support for isa<>/cast<>.
+  static bool classof(Attribute attr);
+};
+template <>
+void DenseArrayAttr<bool>::printWithoutBraces(raw_ostream &os) const;
+template <>
+void DenseArrayAttr<int8_t>::printWithoutBraces(raw_ostream &os) const;
+
+extern template class DenseArrayAttr<bool>;
+extern template class DenseArrayAttr<int8_t>;
+extern template class DenseArrayAttr<int16_t>;
+extern template class DenseArrayAttr<int32_t>;
+extern template class DenseArrayAttr<int64_t>;
+extern template class DenseArrayAttr<float>;
+extern template class DenseArrayAttr<double>;
+} // namespace detail
+
+// Public name for all the supported DenseArrayAttr
+using DenseBoolArrayAttr = detail::DenseArrayAttr<bool>;
+using DenseI8ArrayAttr = detail::DenseArrayAttr<int8_t>;
+using DenseI16ArrayAttr = detail::DenseArrayAttr<int16_t>;
+using DenseI32ArrayAttr = detail::DenseArrayAttr<int32_t>;
+using DenseI64ArrayAttr = detail::DenseArrayAttr<int64_t>;
+using DenseF32ArrayAttr = detail::DenseArrayAttr<float>;
+using DenseF64ArrayAttr = detail::DenseArrayAttr<double>;
+
+//===----------------------------------------------------------------------===//
+// DenseResourceElementsAttr
+
+namespace detail {
+/// Base class for DenseResourceElementsAttr that is instantiated and
+/// specialized for each supported element type below.
+template <typename T>
+class DenseResourceElementsAttrBase : public DenseResourceElementsAttr {
+public:
+  using DenseResourceElementsAttr::DenseResourceElementsAttr;
+
+  /// A builder that inserts a new resource using the provided blob. The handle
+  /// of the inserted blob is used when building the attribute. The provided
+  /// `blobName` is used as a hint for the key of the new handle for the `blob`
+  /// resource, but may be changed if necessary to ensure uniqueness during
+  /// insertion.
+  static DenseResourceElementsAttrBase<T>
+  get(ShapedType type, StringRef blobName, AsmResourceBlob blob);
+
+  /// Return the data of this attribute as an ArrayRef<T> if it is present,
+  /// returns None otherwise.
+  Optional<ArrayRef<T>> tryGetAsArrayRef() const;
+
+  /// Support for isa<>/cast<>.
+  static bool classof(Attribute attr);
+};
+
+extern template class DenseResourceElementsAttrBase<bool>;
+extern template class DenseResourceElementsAttrBase<int8_t>;
+extern template class DenseResourceElementsAttrBase<int16_t>;
+extern template class DenseResourceElementsAttrBase<int32_t>;
+extern template class DenseResourceElementsAttrBase<int64_t>;
+extern template class DenseResourceElementsAttrBase<uint8_t>;
+extern template class DenseResourceElementsAttrBase<uint16_t>;
+extern template class DenseResourceElementsAttrBase<uint32_t>;
+extern template class DenseResourceElementsAttrBase<uint64_t>;
+extern template class DenseResourceElementsAttrBase<float>;
+extern template class DenseResourceElementsAttrBase<double>;
+} // namespace detail
+
+// Public names for all the supported DenseResourceElementsAttr.
+
+using DenseBoolResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<bool>;
+using DenseI8ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<int8_t>;
+using DenseI16ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<int16_t>;
+using DenseI32ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<int32_t>;
+using DenseI64ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<int64_t>;
+using DenseUI8ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<uint8_t>;
+using DenseUI16ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<uint16_t>;
+using DenseUI32ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<uint32_t>;
+using DenseUI64ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<uint64_t>;
+using DenseF32ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<float>;
+using DenseF64ResourceElementsAttr =
+    detail::DenseResourceElementsAttrBase<double>;
+
 //===----------------------------------------------------------------------===//
 // BoolAttr
 //===----------------------------------------------------------------------===//
@@ -942,8 +1072,6 @@ inline bool operator==(StringRef lhs, StringAttr rhs) {
 }
 inline bool operator!=(StringRef lhs, StringAttr rhs) { return !(lhs == rhs); }
 
-inline Type StringAttr::getType() const { return Attribute::getType(); }
-
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -968,6 +1096,14 @@ struct PointerLikeTypeTraits<mlir::StringAttr>
     : public PointerLikeTypeTraits<mlir::Attribute> {
   static inline mlir::StringAttr getFromVoidPointer(void *p) {
     return mlir::StringAttr::getFromOpaquePointer(p);
+  }
+};
+
+template <>
+struct PointerLikeTypeTraits<mlir::IntegerAttr>
+    : public PointerLikeTypeTraits<mlir::Attribute> {
+  static inline mlir::IntegerAttr getFromVoidPointer(void *p) {
+    return mlir::IntegerAttr::getFromOpaquePointer(p);
   }
 };
 

@@ -23,6 +23,21 @@ define i55 @test6a(i55 %A) {
   ret i55 %C
 }
 
+declare void @use(i55 %0)
+
+define i55 @test6a_negative_oneuse(i55 %A) {
+; CHECK-LABEL: @test6a_negative_oneuse(
+; CHECK-NEXT:    [[B:%.*]] = mul i55 [[A:%.*]], 3
+; CHECK-NEXT:    [[C:%.*]] = mul i55 [[A]], 6
+; CHECK-NEXT:    call void @use(i55 [[B]])
+; CHECK-NEXT:    ret i55 [[C]]
+;
+  %B = mul i55 %A, 3
+  %C = shl i55 %B, 1
+  call void @use(i55 %B)
+  ret i55 %C
+}
+
 ; (X * C2) << C1 --> X * (C2 << C1)
 
 define <2 x i55> @test6a_vec(<2 x i55> %A) {
@@ -184,9 +199,9 @@ define <2 x i19> @eq_lshr_shl_splat_vec(<2 x i19> %X) {
 
 define <2 x i7> @lshr_shl_splat_vec(<2 x i7> %X) {
 ; CHECK-LABEL: @lshr_shl_splat_vec(
-; CHECK-NEXT:    [[MUL:%.*]] = mul <2 x i7> [[X:%.*]], <i7 -8, i7 -8>
-; CHECK-NEXT:    [[SH1:%.*]] = lshr exact <2 x i7> [[MUL]], <i7 1, i7 1>
-; CHECK-NEXT:    ret <2 x i7> [[SH1]]
+; CHECK-NEXT:    [[DOTNEG:%.*]] = mul <2 x i7> [[X:%.*]], <i7 60, i7 60>
+; CHECK-NEXT:    [[SH2:%.*]] = and <2 x i7> [[DOTNEG]], <i7 60, i7 60>
+; CHECK-NEXT:    ret <2 x i7> [[SH2]]
 ;
   %mul = mul <2 x i7> %X, <i7 -8, i7 -8>
   %sh1 = lshr exact <2 x i7> %mul, <i7 3, i7 3>

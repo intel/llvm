@@ -378,13 +378,13 @@ def FeaturePref32BitThumb : SubtargetFeature<"32bit", "Prefers32BitThumb", "true
 def FeaturePrefLoopAlign32 : SubtargetFeature<"loop-align", "PrefLoopLogAlignment","2",
                                               "Prefer 32-bit alignment for loops">;
 
-def FeatureMVEVectorCostFactor1 : SubtargetFeature<"mve1beat", "MVEVectorCostFactor", "1",
+def FeatureMVEVectorCostFactor1 : SubtargetFeature<"mve1beat", "MVEVectorCostFactor", "4",
                         "Model MVE instructions as a 1 beat per tick architecture">;
 
 def FeatureMVEVectorCostFactor2 : SubtargetFeature<"mve2beat", "MVEVectorCostFactor", "2",
                         "Model MVE instructions as a 2 beats per tick architecture">;
 
-def FeatureMVEVectorCostFactor4 : SubtargetFeature<"mve4beat", "MVEVectorCostFactor", "4",
+def FeatureMVEVectorCostFactor4 : SubtargetFeature<"mve4beat", "MVEVectorCostFactor", "1",
                         "Model MVE instructions as a 4 beats per tick architecture">;
 
 /// Some instructions update CPSR partially, which can add false dependency for
@@ -494,6 +494,10 @@ def FeatureNoNegativeImmediates
 def FeatureUseMISched: SubtargetFeature<"use-misched", "UseMISched", "true",
                                         "Use the MachineScheduler">;
 
+// Use the MachinePipeliner for instruction scheduling for the subtarget.
+def FeatureUseMIPipeliner: SubtargetFeature<"use-mipipeliner", "UseMIPipeliner", "true",
+                                            "Use the MachinePipeliner">;
+
 // False if scheduling should happen again after register allocation.
 def FeatureNoPostRASched : SubtargetFeature<"disable-postra-scheduler",
     "DisablePostRAScheduler", "true",
@@ -537,6 +541,29 @@ def FeatureNoBTIAtReturnTwice : SubtargetFeature<"no-bti-at-return-twice",
                                                  "NoBTIAtReturnTwice", "true",
                                                  "Don't place a BTI instruction "
                                                  "after a return-twice">;
+
+def FeatureFixCortexA57AES1742098 : SubtargetFeature<"fix-cortex-a57-aes-1742098",
+  "FixCortexA57AES1742098", "true",
+  "Work around Cortex-A57 Erratum 1742098 / Cortex-A72 Erratum 1655431 (AES)">;
+
+def FeatureAAPCSFrameChain : SubtargetFeature<"aapcs-frame-chain",
+                                              "CreateAAPCSFrameChain", "true",
+                                              "Create an AAPCS compliant frame chain">;
+
+def FeatureAAPCSFrameChainLeaf : SubtargetFeature<"aapcs-frame-chain-leaf",
+                                                  "CreateAAPCSFrameChainLeaf", "true",
+                                                  "Create an AAPCS compliant frame chain "
+                                                  "for leaf functions",
+                                                  [FeatureAAPCSFrameChain]>;
+
+// Assume that lock-free 32-bit atomics are available, even if the target
+// and operating system combination would not usually provide them. The user
+// is responsible for providing any necessary __sync implementations. Code
+// built with this feature is not ABI-compatible with code built without this
+// feature, if atomic variables are exposed across the ABI boundary.
+def FeatureAtomics32 : SubtargetFeature<
+    "atomics-32", "HasForced32BitAtomics", "true",
+    "Assume that lock-free 32-bit atomics are available">;
 
 //===----------------------------------------------------------------------===//
 // ARM architecture class
@@ -1395,6 +1422,7 @@ def : ProcessorModel<"cortex-m4", CortexM4Model,        [ARMv7em,
 def : ProcessorModel<"cortex-m7", CortexM7Model,        [ARMv7em,
                                                          ProcM7,
                                                          FeatureFPARMv8_D16,
+                                                         FeatureUseMIPipeliner,
                                                          FeatureUseMISched]>;
 
 def : ProcNoItin<"cortex-m23",                          [ARMv8mBaseline,
@@ -1431,6 +1459,13 @@ def : ProcessorModel<"cortex-m55", CortexM4Model,      [ARMv81mMainline,
                                                          HasMVEFloatOps,
                                                          FeatureFixCMSE_CVE_2021_35465]>;
 
+def : ProcessorModel<"cortex-m85", CortexM7Model,       [ARMv81mMainline,
+                                                         FeatureDSP,
+                                                         FeatureFPARMv8_D16,
+                                                         FeaturePACBTI,
+                                                         FeatureUseMISched,
+                                                         HasMVEFloatOps]>;
+
 def : ProcNoItin<"cortex-a32",                           [ARMv8a,
                                                          FeatureHWDivThumb,
                                                          FeatureHWDivARM,
@@ -1462,13 +1497,15 @@ def : ProcessorModel<"cortex-a57",  CortexA57Model,     [ARMv8a, ProcA57,
                                                          FeatureCRC,
                                                          FeatureFPAO,
                                                          FeatureAvoidPartialCPSR,
-                                                         FeatureCheapPredicableCPSR]>;
+                                                         FeatureCheapPredicableCPSR,
+                                                         FeatureFixCortexA57AES1742098]>;
 
 def : ProcessorModel<"cortex-a72",  CortexA57Model,     [ARMv8a, ProcA72,
                                                          FeatureHWDivThumb,
                                                          FeatureHWDivARM,
                                                          FeatureCrypto,
-                                                         FeatureCRC]>;
+                                                         FeatureCRC,
+                                                         FeatureFixCortexA57AES1742098]>;
 
 def : ProcNoItin<"cortex-a73",                          [ARMv8a, ProcA73,
                                                          FeatureHWDivThumb,

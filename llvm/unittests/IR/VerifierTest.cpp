@@ -111,6 +111,7 @@ TEST(VerifierTest, InvalidRetAttribute) {
 
 TEST(VerifierTest, CrossModuleRef) {
   LLVMContext C;
+  C.setOpaquePointers(true);
   Module M1("M1", C);
   Module M2("M2", C);
   Module M3("M3", C);
@@ -138,15 +139,15 @@ TEST(VerifierTest, CrossModuleRef) {
   EXPECT_TRUE(verifyModule(M2, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str())
                   .equals("Global is referenced in a different module!\n"
-                          "i32 ()* @foo2\n"
+                          "ptr @foo2\n"
                           "; ModuleID = 'M2'\n"
                           "  %call = call i32 @foo2()\n"
-                          "i32 ()* @foo1\n"
+                          "ptr @foo1\n"
                           "; ModuleID = 'M1'\n"
                           "Global is used by function in a different module\n"
-                          "i32 ()* @foo2\n"
+                          "ptr @foo2\n"
                           "; ModuleID = 'M2'\n"
-                          "i32 ()* @foo3\n"
+                          "ptr @foo3\n"
                           "; ModuleID = 'M3'\n"));
 
   Error.clear();
@@ -155,7 +156,7 @@ TEST(VerifierTest, CrossModuleRef) {
       "Referencing function in another module!\n"
       "  %call = call i32 @foo2()\n"
       "; ModuleID = 'M1'\n"
-      "i32 ()* @foo2\n"
+      "ptr @foo2\n"
       "; ModuleID = 'M2'\n"));
 
   Error.clear();

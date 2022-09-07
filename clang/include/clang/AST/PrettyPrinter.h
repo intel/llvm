@@ -77,7 +77,8 @@ struct PrintingPolicy {
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
-        CleanUglifiedParameters(false), EntireContentsOfLargeArray(true) {}
+        CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
+        UseEnumerators(true) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -348,6 +349,10 @@ struct PrintingPolicy {
   /// Whether to print the entire array initializers, especially on non-type
   /// template parameters, no matter how many elements there are.
   unsigned EntireContentsOfLargeArray : 1;
+
+  /// Whether to print enumerator non-type template parameters with a matching
+  /// enumerator name or via cast of an integer.
+  unsigned UseEnumerators : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;

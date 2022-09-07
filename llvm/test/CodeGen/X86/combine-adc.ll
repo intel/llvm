@@ -2,7 +2,7 @@
 ; RUN: llc < %s -mtriple=i686-unknown-unknown | FileCheck %s --check-prefixes=X86
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown | FileCheck %s --check-prefixes=X64
 
-define i32 @PR40483_add1(i32*, i32) nounwind {
+define i32 @PR40483_add1(ptr, i32) nounwind {
 ; X86-LABEL: PR40483_add1:
 ; X86:       # %bb.0:
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
@@ -22,10 +22,10 @@ define i32 @PR40483_add1(i32*, i32) nounwind {
 ; X64-NEXT:    movl %esi, (%rdi)
 ; X64-NEXT:    cmovael %esi, %eax
 ; X64-NEXT:    retq
-  %3 = load i32, i32* %0, align 8
+  %3 = load i32, ptr %0, align 8
   %4 = tail call { i8, i32 } @llvm.x86.addcarry.32(i8 0, i32 %3, i32 %1)
   %5 = extractvalue { i8, i32 } %4, 1
-  store i32 %5, i32* %0, align 8
+  store i32 %5, ptr %0, align 8
   %6 = extractvalue { i8, i32 } %4, 0
   %7 = icmp eq i8 %6, 0
   %8 = add i32 %1, %3
@@ -34,7 +34,7 @@ define i32 @PR40483_add1(i32*, i32) nounwind {
   ret i32 %10
 }
 
-define i32 @PR40483_add2(i32*, i32) nounwind {
+define i32 @PR40483_add2(ptr, i32) nounwind {
 ; X86-LABEL: PR40483_add2:
 ; X86:       # %bb.0:
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
@@ -55,10 +55,10 @@ define i32 @PR40483_add2(i32*, i32) nounwind {
 ; X64-NEXT:    movl %esi, (%rdi)
 ; X64-NEXT:    cmovbl %esi, %eax
 ; X64-NEXT:    retq
-  %3 = load i32, i32* %0, align 8
+  %3 = load i32, ptr %0, align 8
   %4 = tail call { i8, i32 } @llvm.x86.addcarry.32(i8 0, i32 %3, i32 %1)
   %5 = extractvalue { i8, i32 } %4, 1
-  store i32 %5, i32* %0, align 8
+  store i32 %5, ptr %0, align 8
   %6 = extractvalue { i8, i32 } %4, 0
   %7 = icmp eq i8 %6, 0
   %8 = add i32 %3, %1
@@ -67,26 +67,19 @@ define i32 @PR40483_add2(i32*, i32) nounwind {
   ret i32 %10
 }
 
-; FIXME: Fail to add (non-overflowing) constants together
-; FIXME: Fail to convert add+lshr+and to BT
 define i32 @adc_merge_constants(i32 %a0) nounwind {
 ; X86-LABEL: adc_merge_constants:
 ; X86:       # %bb.0:
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    shrl $11, %eax
-; X86-NEXT:    andb $1, %al
-; X86-NEXT:    addb $-1, %al
-; X86-NEXT:    movl $55, %eax
-; X86-NEXT:    adcl $-1, %eax
+; X86-NEXT:    xorl %eax, %eax
+; X86-NEXT:    btl $11, {{[0-9]+}}(%esp)
+; X86-NEXT:    adcl $54, %eax
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: adc_merge_constants:
 ; X64:       # %bb.0:
-; X64-NEXT:    shrl $11, %edi
-; X64-NEXT:    andb $1, %dil
-; X64-NEXT:    addb $-1, %dil
-; X64-NEXT:    movl $55, %eax
-; X64-NEXT:    adcl $-1, %eax
+; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    btl $11, %edi
+; X64-NEXT:    adcl $54, %eax
 ; X64-NEXT:    retq
   %bit = lshr i32 %a0, 11
   %mask = and i32 %bit, 1

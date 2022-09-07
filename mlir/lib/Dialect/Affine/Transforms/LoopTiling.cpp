@@ -53,11 +53,11 @@ struct LoopTiling : public AffineLoopTilingBase<LoopTiling> {
 
 /// Creates a pass to perform loop tiling on all suitable loop nests of a
 /// Function.
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createLoopTilingPass(uint64_t cacheSizeBytes) {
   return std::make_unique<LoopTiling>(cacheSizeBytes);
 }
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLoopTilingPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLoopTilingPass() {
   return std::make_unique<LoopTiling>();
 }
 
@@ -73,7 +73,7 @@ static void adjustToDivisorsOfTripCounts(ArrayRef<AffineForOp> band,
       continue;
     // Adjust the tile size to largest factor of the trip count less than
     // tSize.
-    uint64_t constTripCount = mayConst.getValue();
+    uint64_t constTripCount = *mayConst;
     if (constTripCount > 1 && tSizeAdjusted > constTripCount / 2)
       tSizeAdjusted = constTripCount / 2;
     while (constTripCount % tSizeAdjusted != 0)
@@ -129,7 +129,7 @@ void LoopTiling::getTileSizes(ArrayRef<AffineForOp> band,
 
   // Check how many times larger the cache size is when compared to footprint.
   uint64_t cacheSizeBytes = cacheSizeInKiB * 1024;
-  uint64_t excessFactor = llvm::divideCeil(fp.getValue(), cacheSizeBytes);
+  uint64_t excessFactor = llvm::divideCeil(*fp, cacheSizeBytes);
   if (excessFactor <= 1) {
     // No need of any tiling - set tile size to 1.
     std::fill(tileSizes->begin(), tileSizes->end(), 1);

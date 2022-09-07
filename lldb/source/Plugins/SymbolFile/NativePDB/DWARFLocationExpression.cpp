@@ -122,7 +122,7 @@ static DWARFExpression MakeLocationExpressionInternal(lldb::ModuleSP module,
   DataBufferSP buffer =
       std::make_shared<DataBufferHeap>(stream.GetData(), stream.GetSize());
   DataExtractor extractor(buffer, byte_order, address_size, byte_size);
-  DWARFExpression result(module, extractor, nullptr);
+  DWARFExpression result(extractor);
   result.SetRegisterKind(register_kind);
 
   return result;
@@ -247,16 +247,17 @@ DWARFExpression lldb_private::npdb::MakeConstantLocationExpression(
               .take_front(size);
   buffer->CopyData(bytes.data(), size);
   DataExtractor extractor(buffer, lldb::eByteOrderLittle, address_size);
-  DWARFExpression result(nullptr, extractor, nullptr);
+  DWARFExpression result(extractor);
   return result;
 }
 
 DWARFExpression lldb_private::npdb::MakeEnregisteredLocationExpressionForClass(
-    llvm::ArrayRef<std::pair<RegisterId, uint32_t>> &members_info,
+    std::map<uint64_t, std::pair<RegisterId, uint32_t>> &members_info,
     lldb::ModuleSP module) {
   return MakeLocationExpressionInternal(
       module, [&](Stream &stream, RegisterKind &register_kind) -> bool {
-        for (auto member_info : members_info) {
+        for (auto pair : members_info) {
+          std::pair<RegisterId, uint32_t> member_info = pair.second;
           if (member_info.first != llvm::codeview::RegisterId::NONE) {
             uint32_t reg_num =
                 GetRegisterNumber(module->GetArchitecture().GetMachine(),

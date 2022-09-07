@@ -42,11 +42,11 @@ static Measurements measure() {
   return Measurements{TID, PID, TS};
 }
 
-XPTI_CALLBACK_API void piBeginEndCallback(uint16_t TraceType,
-                                          xpti::trace_event_data_t *,
-                                          xpti::trace_event_data_t *,
-                                          uint64_t /*Instance*/,
-                                          const void *UserData);
+XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
+                                           xpti::trace_event_data_t *,
+                                           xpti::trace_event_data_t *,
+                                           uint64_t /*Instance*/,
+                                           const void *UserData);
 XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
                                             xpti::trace_event_data_t *,
                                             xpti::trace_event_data_t *,
@@ -71,13 +71,14 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     GWriter->init();
   }
 
-  if (std::string_view(StreamName) == "sycl.pi") {
+  std::string_view NameView{StreamName};
+  if (NameView == "sycl.pi") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_begin,
-                         piBeginEndCallback);
+                         apiBeginEndCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_end,
-                         piBeginEndCallback);
-  } else if (std::string_view(StreamName) == "sycl") {
+                         apiBeginEndCallback);
+  } else if (NameView == "sycl") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_task_begin,
                          taskBeginEndCallback);
@@ -89,23 +90,28 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          waitBeginEndCallback);
     xptiRegisterCallback(StreamID, xpti::trace_barrier_end,
                          waitBeginEndCallback);
+  } else if (NameView == "sycl.experimental.level_zero.call") {
+    uint8_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(StreamID, xpti::trace_function_begin,
+                         apiBeginEndCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_end,
+                         apiBeginEndCallback);
   }
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char *) { GWriter->finalize(); }
 
-XPTI_CALLBACK_API void piBeginEndCallback(uint16_t TraceType,
-                                          xpti::trace_event_data_t *,
-                                          xpti::trace_event_data_t *,
-                                          uint64_t /*Instance*/,
-                                          const void *UserData) {
+XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
+                                           xpti::trace_event_data_t *,
+                                           xpti::trace_event_data_t *,
+                                           uint64_t /*Instance*/,
+                                           const void *UserData) {
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_function_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "Plugin", PID, TID,
+    GWriter->writeBegin(static_cast<const char *>(UserData), "API", PID, TID,
                         TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "Plugin", PID, TID,
-                      TS);
+    GWriter->writeEnd(static_cast<const char *>(UserData), "API", PID, TID, TS);
   }
 }
 

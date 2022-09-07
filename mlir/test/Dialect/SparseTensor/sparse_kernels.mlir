@@ -20,9 +20,7 @@
 // CHECK-DAG:       %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_4]] : tensor<10x20xf32, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK-DAG:       %[[VAL_10:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<10x20xf32, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK-DAG:       %[[VAL_11:.*]] = bufferization.to_memref %[[VAL_1]] : memref<20x30xf32>
-// CHECK-DAG:       %[[VAL_12:.*]] = bufferization.to_memref %[[VAL_2]] : memref<10x30xf32>
-// CHECK-DAG:       %[[VAL_13:.*]] = memref.alloc() : memref<10x30xf32>
-// CHECK:           memref.copy %[[VAL_12]], %[[VAL_13]] : memref<10x30xf32> to memref<10x30xf32>
+// CHECK-DAG:       %[[VAL_13:.*]] = bufferization.to_memref %[[VAL_2]] : memref<10x30xf32>
 // CHECK:           %[[VAL_14:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_3]]] : memref<?xindex>
 // CHECK:           %[[VAL_15:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_16:.*]] = %[[VAL_14]] to %[[VAL_15]] step %[[VAL_4]] {
@@ -45,7 +43,7 @@
 // CHECK:           %[[VAL_29:.*]] = bufferization.to_tensor %[[VAL_13]] : memref<10x30xf32>
 // CHECK:           return %[[VAL_29]] : tensor<10x30xf32>
 // CHECK:         }
-func @matmul1(%a: tensor<10x20xf32, #DCSR>,
+func.func @matmul1(%a: tensor<10x20xf32, #DCSR>,
               %b: tensor<20x30xf32>,
               %c: tensor<10x30xf32>) -> tensor<10x30xf32> {
   %0 = linalg.matmul
@@ -60,13 +58,12 @@ func @matmul1(%a: tensor<10x20xf32, #DCSR>,
 // CHECK-LABEL:   func @matmul2(
 // CHECK-SAME:      %[[VAL_0:.*]]: tensor<4x8xf64, #sparse_tensor.encoding<{{{.*}}}>>,
 // CHECK-SAME:      %[[VAL_1:.*]]: tensor<8x4xf64, #sparse_tensor.encoding<{{{.*}}}>> {
-// CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 4 : index
 // CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 0 : index
 // CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 1 : index
 // CHECK-DAG:       %[[VAL_5:.*]] = arith.constant 2 : index
 // CHECK-DAG:       %[[VAL_6:.*]] = arith.constant false
 // CHECK-DAG:       %[[VAL_7:.*]] = arith.constant true
-// CHECK:           %[[VAL_8:.*]] = sparse_tensor.init{{\[}}%[[VAL_2]], %[[VAL_2]]] : tensor<4x4xf64, #sparse_tensor.encoding<{{{.*}}}>>
+// CHECK:           %[[VAL_8:.*]] = bufferization.alloc_tensor() : tensor<4x4xf64, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_3]] : tensor<4x8xf64, #sparse_tensor.encoding<{{{.*}}}>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_3]] : tensor<4x8xf64, #sparse_tensor.encoding<{{{.*}}}>> to memref<?xindex>
 // CHECK:           %[[VAL_11:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_4]] : tensor<4x8xf64, #sparse_tensor.encoding<{{{.*}}}>> to memref<?xindex>
@@ -144,10 +141,10 @@ func @matmul1(%a: tensor<10x20xf32, #DCSR>,
 // CHECK:           %[[VAL_77:.*]] = sparse_tensor.load %[[VAL_8]] hasInserts : tensor<4x4xf64, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK:           return %[[VAL_77]] : tensor<4x4xf64, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK:         }
-func @matmul2(%A: tensor<4x8xf64, #DCSR>,
+func.func @matmul2(%A: tensor<4x8xf64, #DCSR>,
               %B: tensor<8x4xf64, #DCSR>) -> tensor<4x4xf64, #DCSR> {
   %c4 = arith.constant 4 : index
-  %C = sparse_tensor.init [%c4, %c4] : tensor<4x4xf64, #DCSR>
+  %C = bufferization.alloc_tensor() : tensor<4x4xf64, #DCSR>
   %D = linalg.matmul
     ins(%A, %B: tensor<4x8xf64, #DCSR>, tensor<8x4xf64, #DCSR>)
        outs(%C: tensor<4x4xf64, #DCSR>) -> tensor<4x4xf64, #DCSR>
@@ -167,9 +164,7 @@ func @matmul2(%A: tensor<4x8xf64, #DCSR>,
 // CHECK-DAG:       %[[VAL_9:.*]] = sparse_tensor.pointers %[[VAL_1]], %[[VAL_4]] : tensor<3x3xi32, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK-DAG:       %[[VAL_10:.*]] = sparse_tensor.indices %[[VAL_1]], %[[VAL_4]] : tensor<3x3xi32, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK-DAG:       %[[VAL_11:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<3x3xi32, #sparse_tensor.encoding<{{{.*}}}>>
-// CHECK-DAG:       %[[VAL_12:.*]] = bufferization.to_memref %[[VAL_2]] : memref<6x6xi32>
-// CHECK-DAG:       %[[VAL_13:.*]] = memref.alloc() : memref<6x6xi32>
-// CHECK:           memref.copy %[[VAL_12]], %[[VAL_13]] : memref<6x6xi32> to memref<6x6xi32>
+// CHECK-DAG:       %[[VAL_13:.*]] = bufferization.to_memref %[[VAL_2]] : memref<6x6xi32>
 // CHECK:           %[[VAL_14:.*]] = memref.load %[[VAL_7]]{{\[}}%[[VAL_3]]] : memref<?xindex>
 // CHECK:           %[[VAL_15:.*]] = memref.load %[[VAL_7]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_16:.*]] = %[[VAL_14]] to %[[VAL_15]] step %[[VAL_4]] {
@@ -196,7 +191,7 @@ func @matmul2(%A: tensor<4x8xf64, #DCSR>,
 // CHECK:           %[[VAL_32:.*]] = bufferization.to_tensor %[[VAL_13]] : memref<6x6xi32>
 // CHECK:           return %[[VAL_32]] : tensor<6x6xi32>
 // CHECK:         }
-func @conv2d(%input:  tensor<8x8xi32>,
+func.func @conv2d(%input:  tensor<8x8xi32>,
              %filter: tensor<3x3xi32, #DCSR>,
              %output: tensor<6x6xi32>) -> tensor<6x6xi32> {
   %0 = linalg.conv_2d
@@ -219,9 +214,7 @@ func @conv2d(%input:  tensor<8x8xi32>,
 // CHECK-DAG:       %[[VAL_10:.*]] = sparse_tensor.pointers %[[VAL_1]], %[[VAL_5]] : tensor<3x6xi8, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK-DAG:       %[[VAL_11:.*]] = sparse_tensor.indices %[[VAL_1]], %[[VAL_5]] : tensor<3x6xi8, #sparse_tensor.encoding<{{{.*}}}>>
 // CHECK-DAG:       %[[VAL_12:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<3x6xi8, #sparse_tensor.encoding<{{{.*}}}>>
-// CHECK-DAG:       %[[VAL_13:.*]] = bufferization.to_memref %[[VAL_2]] : memref<5x6xi64>
-// CHECK-DAG:       %[[VAL_14:.*]] = memref.alloc() : memref<5x6xi64>
-// CHECK:           memref.copy %[[VAL_13]], %[[VAL_14]] : memref<5x6xi64> to memref<5x6xi64>
+// CHECK-DAG:       %[[VAL_14:.*]] = bufferization.to_memref %[[VAL_2]] : memref<5x6xi64>
 // CHECK:           %[[VAL_15:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           %[[VAL_16:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_5]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_17:.*]] = %[[VAL_15]] to %[[VAL_16]] step %[[VAL_5]] {
@@ -247,7 +240,7 @@ func @conv2d(%input:  tensor<8x8xi32>,
 // CHECK:           %[[VAL_33:.*]] = bufferization.to_tensor %[[VAL_14]] : memref<5x6xi64>
 // CHECK:           return %[[VAL_33]] : tensor<5x6xi64>
 // CHECK:         }
-func @quantized_matmul(%input1: tensor<5x3xi8>,
+func.func @quantized_matmul(%input1: tensor<5x3xi8>,
                        %input2: tensor<3x6xi8, #DCSR>,
                        %output: tensor<5x6xi64>) -> tensor<5x6xi64> {
   %c0 = arith.constant 0 : i32
@@ -267,9 +260,7 @@ func @quantized_matmul(%input1: tensor<5x3xi8>,
 // CHECK-DAG:       %[[VAL_8:.*]] = sparse_tensor.pointers %[[VAL_1:.*]], %[[VAL_3]] : tensor<1024xf32, #sparse_tensor.encoding<{{{.*}}}>> to memref<?xindex>
 // CHECK-DAG:       %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_1]], %[[VAL_3]] : tensor<1024xf32, #sparse_tensor.encoding<{{{.*}}}>> to memref<?xindex>
 // CHECK-DAG:       %[[VAL_10:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<1024xf32, #sparse_tensor.encoding<{{{.*}}}>> to memref<?xf32>
-// CHECK-DAG:       %[[VAL_11:.*]] = memref.alloc() : memref<f32>
-// CHECK-DAG:       %[[VAL_12:.*]] = bufferization.to_memref %[[VAL_2:.*]] : memref<f32>
-// CHECK-DAG:       memref.copy %[[VAL_12]], %[[VAL_11]] : memref<f32> to memref<f32>
+// CHECK-DAG:       %[[VAL_11:.*]] = bufferization.to_memref %[[VAL_2:.*]] : memref<f32>
 // CHECK-DAG:       %[[VAL_13:.*]] = memref.load %[[VAL_11]][] : memref<f32>
 // CHECK-DAG:       %[[VAL_14:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_3]]] : memref<?xindex>
 // CHECK-DAG:       %[[VAL_15:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_4]]] : memref<?xindex>
@@ -310,7 +301,7 @@ func @quantized_matmul(%input1: tensor<5x3xi8>,
 // CHECK:           %[[VAL_48:.*]] = bufferization.to_tensor %[[VAL_11]] : memref<f32>
 // CHECK:           return %[[VAL_48]] : tensor<f32>
 // CHECK:         }
-func @sparse_dot(%a: tensor<1024xf32, #SparseVector>,
+func.func @sparse_dot(%a: tensor<1024xf32, #SparseVector>,
                  %b: tensor<1024xf32, #SparseVector>,
 		 %x: tensor<f32>) -> tensor<f32> {
   %dot = linalg.dot ins(%a, %b: tensor<1024xf32, #SparseVector>,

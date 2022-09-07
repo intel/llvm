@@ -13,9 +13,9 @@ Requirements
       static constexpr unsigned id = ID;
     };
     using ethernet_read_pipe =
-        cl::sycl::intel::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
+        sycl::intel::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
     using ethernet_write_pipe =
-        cl::sycl::intel::kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
+        sycl::intel::kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
   }
 
   Thus, the user interacts only with vendor-defined pipe objects.

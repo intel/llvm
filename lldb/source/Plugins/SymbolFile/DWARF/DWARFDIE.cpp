@@ -320,6 +320,18 @@ void DWARFDIE::AppendTypeName(Stream &s) const {
   case DW_TAG_volatile_type:
     s.PutCString("volatile ");
     break;
+  case DW_TAG_LLVM_ptrauth_type: {
+    unsigned key = GetAttributeValueAsUnsigned(DW_AT_LLVM_ptrauth_key, 0);
+    bool isAddressDiscriminated = GetAttributeValueAsUnsigned(
+        DW_AT_LLVM_ptrauth_address_discriminated, 0);
+    unsigned extraDiscriminator =
+        GetAttributeValueAsUnsigned(DW_AT_LLVM_ptrauth_extra_discriminator, 0);
+    bool isaPointer =
+        GetAttributeValueAsUnsigned(DW_AT_LLVM_ptrauth_isa_pointer, 0);
+    s.Printf("__ptrauth(%d, %d, 0x0%x, %d)", key, isAddressDiscriminated,
+             extraDiscriminator, isaPointer);
+    break;
+  }
   default:
     return;
   }
@@ -441,7 +453,7 @@ bool DWARFDIE::GetDIENamesAndRanges(
     const char *&name, const char *&mangled, DWARFRangeList &ranges,
     int &decl_file, int &decl_line, int &decl_column, int &call_file,
     int &call_line, int &call_column,
-    lldb_private::DWARFExpression *frame_base) const {
+    lldb_private::DWARFExpressionList *frame_base) const {
   if (IsValid()) {
     return m_die->GetDIENamesAndRanges(
         GetCU(), name, mangled, ranges, decl_file, decl_line, decl_column,

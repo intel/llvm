@@ -11,13 +11,13 @@
 //
 // Uses -fsycl-host-compiler=<compiler> on a simple test, requires 'g++'
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #ifndef DEFINE_CHECK
 #error predefined macro not set
 #endif // DEFINE_CHECK
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int data[] = {0, 0, 0};
@@ -37,6 +37,17 @@ int main() {
 
   for (int i = 0; i < 3; i++)
     if (data[i] != 1) isSuccess = false;
+
+  {
+    buffer<int, 1> b(1);
+    queue q;
+    q.submit([&](handler &cgh) {
+       accessor a{b, cgh};
+       cgh.single_task<class test2>([=] { a[0] = 42; });
+     }).wait();
+    host_accessor a{b};
+    isSuccess &= (a[0] == 42);
+  }
 
   if (!isSuccess)
     return -1;

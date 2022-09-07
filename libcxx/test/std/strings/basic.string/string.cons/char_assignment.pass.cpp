@@ -8,7 +8,7 @@
 
 // <string>
 
-// basic_string<charT,traits,Allocator>& operator=(charT c);
+// basic_string<charT,traits,Allocator>& operator=(charT c); // constexpr since C++20
 
 #include <string>
 #include <cassert>
@@ -28,7 +28,7 @@ test(S s1, typename S::value_type s2)
     assert(s1.capacity() >= s1.size());
 }
 
-bool test() {
+TEST_CONSTEXPR_CXX20 bool test() {
   {
     typedef std::string S;
     test(S(), 'a');
@@ -53,7 +53,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

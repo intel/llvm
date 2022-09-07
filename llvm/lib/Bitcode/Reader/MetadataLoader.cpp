@@ -1226,9 +1226,12 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       break;
     }
 
-    MetadataList.assignValue(
-        LocalAsMetadata::get(ValueList.getValueFwdRef(Record[1], Ty, TyID)),
-        NextMetadataNo);
+    Value *V = ValueList.getValueFwdRef(Record[1], Ty, TyID,
+                                        /*ConstExprInsertBB*/ nullptr);
+    if (!V)
+      return error("Invalid value reference from old fn metadata");
+
+    MetadataList.assignValue(LocalAsMetadata::get(V), NextMetadataNo);
     NextMetadataNo++;
     break;
   }
@@ -1247,8 +1250,11 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       if (Ty->isMetadataTy())
         Elts.push_back(getMD(Record[i + 1]));
       else if (!Ty->isVoidTy()) {
-        auto *MD = ValueAsMetadata::get(
-            ValueList.getValueFwdRef(Record[i + 1], Ty, TyID));
+        Value *V = ValueList.getValueFwdRef(Record[i + 1], Ty, TyID,
+                                            /*ConstExprInsertBB*/ nullptr);
+        if (!V)
+          return error("Invalid value reference from old metadata");
+        auto *MD = ValueAsMetadata::get(V);
         assert(isa<ConstantAsMetadata>(MD) &&
                "Expected non-function-local metadata");
         Elts.push_back(MD);
@@ -1268,9 +1274,12 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     if (Ty->isMetadataTy() || Ty->isVoidTy())
       return error("Invalid record");
 
-    MetadataList.assignValue(
-        ValueAsMetadata::get(ValueList.getValueFwdRef(Record[1], Ty, TyID)),
-        NextMetadataNo);
+    Value *V = ValueList.getValueFwdRef(Record[1], Ty, TyID,
+                                        /*ConstExprInsertBB*/ nullptr);
+    if (!V)
+      return error("Invalid value reference from metadata");
+
+    MetadataList.assignValue(ValueAsMetadata::get(V), NextMetadataNo);
     NextMetadataNo++;
     break;
   }
@@ -1503,6 +1512,15 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
          Tag == dwarf::DW_TAG_structure_type ||
          Tag == dwarf::DW_TAG_union_type)) {
       Flags = Flags | DINode::FlagFwdDecl;
+      if (Name) {
+        // This is a hack around preserving template parameters for simplified
+        // template names - it should probably be replaced with a
+        // DICompositeType flag specifying whether template parameters are
+        // required on declarations of this type.
+        StringRef NameStr = Name->getString();
+        if (!NameStr.contains('<') || NameStr.startswith("_STN|"))
+          TemplateParams = getMDOrNull(Record[14]);
+      }
     } else {
       BaseType = getDITypeRefOrNull(Record[6]);
       OffsetInBits = Record[9];
@@ -1689,6 +1707,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     bool HasThisAdj = true;
     bool HasThrownTypes = true;
     bool HasAnnotations = false;
+    bool HasTargetFuncName = false;
     unsigned OffsetA = 0;
     unsigned OffsetB = 0;
     if (!HasSPFlags) {
@@ -1702,6 +1721,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       HasThrownTypes = Record.size() >= 21;
     } else {
       HasAnnotations = Record.size() >= 19;
+      HasTargetFuncName = Record.size() >= 20;
     }
     Metadata *CUorFn = getMDOrNull(Record[12 + OffsetB]);
     DISubprogram *SP = GET_OR_DISTINCT(
@@ -1726,7 +1746,9 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
          HasThrownTypes ? getMDOrNull(Record[17 + OffsetB])
                         : nullptr, // thrownTypes
          HasAnnotations ? getMDOrNull(Record[18 + OffsetB])
-                        : nullptr // annotations
+                        : nullptr, // annotations
+         HasTargetFuncName ? getMDString(Record[19 + OffsetB])
+                           : nullptr // targetFuncName
          ));
     MetadataList.assignValue(SP, NextMetadataNo);
     NextMetadataNo++;

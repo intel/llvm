@@ -8,9 +8,11 @@
 
 // <locale>
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // wbuffer_convert<Codecvt, Elem, Tr>
 
-// XFAIL: libcpp-has-no-wide-characters
+// XFAIL: no-wide-characters
 
 #include <fstream>
 #include <locale>

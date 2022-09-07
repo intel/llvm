@@ -8,11 +8,14 @@
 
 #include "ICF.h"
 #include "ConcatOutputSection.h"
+#include "Config.h"
 #include "InputSection.h"
+#include "SymbolTable.h"
 #include "Symbols.h"
 #include "UnwindInfoSection.h"
 
 #include "lld/Common/CommonLinkerContext.h"
+#include "llvm/Support/LEB128.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
@@ -152,8 +155,17 @@ bool ICF::equalsConstant(const ConcatInputSection *ia,
       return ra.addend == rb.addend;
     // Else we have two literal sections. References to them are equal iff their
     // offsets in the output section are equal.
-    return isecA->getOffset(valueA + ra.addend) ==
-           isecB->getOffset(valueB + rb.addend);
+    if (ra.referent.is<Symbol *>())
+      // For symbol relocs, we compare the contents at the symbol address. We
+      // don't do `getOffset(value + addend)` because value + addend may not be
+      // a valid offset in the literal section.
+      return isecA->getOffset(valueA) == isecB->getOffset(valueB) &&
+             ra.addend == rb.addend;
+    else {
+      assert(valueA == 0 && valueB == 0);
+      // For section relocs, we compare the content at the section offset.
+      return isecA->getOffset(ra.addend) == isecB->getOffset(rb.addend);
+    }
   };
   return std::equal(ia->relocs.begin(), ia->relocs.end(), ib->relocs.begin(),
                     f);
@@ -200,9 +212,9 @@ bool ICF::equalsVariable(const ConcatInputSection *ia,
   // info matches. For simplicity, we only handle the case where there are only
   // symbols at offset zero within the section (which is typically the case with
   // .subsections_via_symbols.)
-  auto hasCU = [](Defined *d) { return d->unwindEntry != nullptr; };
-  auto itA = std::find_if(ia->symbols.begin(), ia->symbols.end(), hasCU);
-  auto itB = std::find_if(ib->symbols.begin(), ib->symbols.end(), hasCU);
+  auto hasUnwind = [](Defined *d) { return d->unwindEntry != nullptr; };
+  auto itA = std::find_if(ia->symbols.begin(), ia->symbols.end(), hasUnwind);
+  auto itB = std::find_if(ib->symbols.begin(), ib->symbols.end(), hasUnwind);
   if (itA == ia->symbols.end())
     return itB == ib->symbols.end();
   if (itB == ib->symbols.end())
@@ -258,10 +270,10 @@ void ICF::forEachClass(llvm::function_ref<void(size_t, size_t)> func) {
   size_t boundaries[shards + 1];
   boundaries[0] = 0;
   boundaries[shards] = icfInputs.size();
-  parallelForEachN(1, shards, [&](size_t i) {
+  parallelFor(1, shards, [&](size_t i) {
     boundaries[i] = findBoundary((i - 1) * step, icfInputs.size());
   });
-  parallelForEachN(1, shards + 1, [&](size_t i) {
+  parallelFor(1, shards + 1, [&](size_t i) {
     if (boundaries[i - 1] < boundaries[i]) {
       forEachClassRange(boundaries[i - 1], boundaries[i], func);
     }
@@ -354,7 +366,36 @@ void ICF::segregate(size_t begin, size_t end, EqualsFn equals) {
   }
 }
 
-void macho::foldIdenticalSections() {
+void macho::markSymAsAddrSig(Symbol *s) {
+  if (auto *d = dyn_cast_or_null<Defined>(s))
+    if (d->isec)
+      d->isec->keepUnique = true;
+}
+
+void macho::markAddrSigSymbols() {
+  TimeTraceScope timeScope("Mark addrsig symbols");
+  for (InputFile *file : inputFiles) {
+    ObjFile *obj = dyn_cast<ObjFile>(file);
+    if (!obj)
+      continue;
+
+    Section *addrSigSection = obj->addrSigSection;
+    if (!addrSigSection)
+      continue;
+    assert(addrSigSection->subsections.size() == 1);
+
+    const InputSection *isec = addrSigSection->subsections[0].isec;
+
+    for (const Reloc &r : isec->relocs) {
+      if (auto *sym = r.referent.dyn_cast<Symbol *>())
+        markSymAsAddrSig(sym);
+      else
+        error(toString(isec) + ": unexpected section relocation");
+    }
+  }
+}
+
+void macho::foldIdenticalSections(bool onlyCfStrings) {
   TimeTraceScope timeScope("Fold Identical Code Sections");
   // The ICF equivalence-class segregation algorithm relies on pre-computed
   // hashes of InputSection::data for the ConcatOutputSection::inputs and all
@@ -374,10 +415,12 @@ void macho::foldIdenticalSections() {
   uint64_t icfUniqueID = inputSections.size();
   for (ConcatInputSection *isec : inputSections) {
     // FIXME: consider non-code __text sections as hashable?
-    bool isHashable = (isCodeSection(isec) || isCfStringSection(isec) ||
-                       isClassRefsSection(isec)) &&
-                      !isec->shouldOmitFromOutput() &&
-                      sectionType(isec->getFlags()) == MachO::S_REGULAR;
+    bool isHashable =
+        (!onlyCfStrings || isCfStringSection(isec)) &&
+        (isCodeSection(isec) || isCfStringSection(isec) ||
+         isClassRefsSection(isec) || isGccExceptTabSection(isec)) &&
+        !isec->keepUnique && !isec->shouldOmitFromOutput() &&
+        sectionType(isec->getFlags()) == MachO::S_REGULAR;
     if (isHashable) {
       hashable.push_back(isec);
       for (Defined *d : isec->symbols)
@@ -398,7 +441,9 @@ void macho::foldIdenticalSections() {
                               /*relocVA=*/0);
         isec->data = copy;
       }
-    } else {
+    } else if (!isEhFrameSection(isec)) {
+      // EH frames are gathered as hashables from unwindEntry above; give a
+      // unique ID to everything else.
       isec->icfEqClass[0] = ++icfUniqueID;
     }
   }

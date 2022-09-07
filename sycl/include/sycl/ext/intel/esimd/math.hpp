@@ -21,8 +21,9 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_math
 /// @{
@@ -93,41 +94,38 @@ saturate(simd<T1, SZ> src) {
 // abs
 namespace detail {
 
-template <typename T0, typename T1, int SZ>
-ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ>
-__esimd_abs_common_internal(simd<T1, SZ> src0) {
-  simd<T1, SZ> Result = simd<T0, SZ>(__esimd_abs<T1, SZ>(src0.data()));
-  return Result;
+template <typename TRes, typename TArg, int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<TRes, SZ>
+__esimd_abs_common_internal(simd<TArg, SZ> src0) {
+  simd<TArg, SZ> Result = simd<TArg, SZ>(__esimd_abs<TArg, SZ>(src0.data()));
+  return convert<TRes>(Result);
 }
 
-template <typename T0, typename T1>
+template <typename TRes, typename TArg>
 ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<T0>::value &&
-                                      detail::is_esimd_scalar<T1>::value,
-                                  std::remove_const_t<T0>>
-    __esimd_abs_common_internal(T1 src0) {
-  using TT0 = std::remove_const_t<T0>;
-  using TT1 = std::remove_const_t<T1>;
-
-  simd<TT1, 1> Src0 = src0;
-  simd<TT0, 1> Result = __esimd_abs_common_internal<TT0>(Src0);
-  return Result[0];
+    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
+                                      detail::is_esimd_scalar<TArg>::value,
+                                  TRes>
+    __esimd_abs_common_internal(TArg src0) {
+  simd<TArg, 1> Src0 = src0;
+  simd<TArg, 1> Result = __esimd_abs_common_internal<TArg>(Src0);
+  return convert<TRes>(Result)[0];
 }
 } // namespace detail
 /// @endcond ESIMD_DETAIL
 
 /// Get absolute value (vector version)
-/// @tparam T0 element type of the returned vector.
-/// @tparam T1 element type of the input vector.
+/// @tparam TRes element type of the returned vector.
+/// @tparam TArg element type of the input vector.
 /// @tparam SZ size of the input and returned vector.
 /// @param src0 the input vector.
 /// @return vector of absolute values.
-template <typename T0, typename T1, int SZ>
+template <typename TRes, typename TArg, int SZ>
 __ESIMD_API std::enable_if_t<
-    !std::is_same<std::remove_const_t<T0>, std::remove_const_t<T1>>::value,
-    simd<T0, SZ>>
-abs(simd<T1, SZ> src0) {
-  return detail::__esimd_abs_common_internal<T0, T1, SZ>(src0.data());
+    !std::is_same<std::remove_const_t<TRes>, std::remove_const_t<TArg>>::value,
+    simd<TRes, SZ>>
+abs(simd<TArg, SZ> src0) {
+  return detail::__esimd_abs_common_internal<TRes, TArg, SZ>(src0.data());
 }
 
 /// Get absolute value (scalar version)
@@ -135,14 +133,14 @@ abs(simd<T1, SZ> src0) {
 /// @tparam T1 element type of the input value.
 /// @param src0 the source operand.
 /// @return absolute value.
-template <typename T0, typename T1>
-__ESIMD_API std::enable_if_t<
-    !std::is_same<std::remove_const_t<T0>, std::remove_const_t<T1>>::value &&
-        detail::is_esimd_scalar<T0>::value &&
-        detail::is_esimd_scalar<T1>::value,
-    std::remove_const_t<T0>>
-abs(T1 src0) {
-  return detail::__esimd_abs_common_internal<T0, T1>(src0);
+template <typename TRes, typename TArg>
+__ESIMD_API std::enable_if_t<!std::is_same<std::remove_const_t<TRes>,
+                                           std::remove_const_t<TArg>>::value &&
+                                 detail::is_esimd_scalar<TRes>::value &&
+                                 detail::is_esimd_scalar<TArg>::value,
+                             std::remove_const_t<TRes>>
+abs(TArg src0) {
+  return detail::__esimd_abs_common_internal<TRes, TArg>(src0);
 }
 
 /// Get absolute value (vector version). This is a specialization of a version
@@ -681,10 +679,10 @@ pack_mask(simd_mask<N> src0) {
 /// @return an \c uint, where each bit is set if the corresponding element of
 /// the source operand is non-zero and unset otherwise.
 template <typename T, int N>
-__ESIMD_API
-    std::enable_if_t<detail::is_type<T, ushort, uint>() && (N > 0 && N <= 32),
-                     uint>
-    ballot(simd<T, N> mask) {
+__ESIMD_API std::enable_if_t<(std::is_same_v<T, ushort> ||
+                              std::is_same_v<T, uint>)&&(N > 0 && N <= 32),
+                             uint>
+ballot(simd<T, N> mask) {
   simd_mask<N> cmp = (mask != 0);
   if constexpr (N == 8 || N == 16 || N == 32) {
     return __esimd_pack_mask<N>(cmp.data());
@@ -1088,5 +1086,6 @@ ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
 
 /// @} sycl_esimd_math
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

@@ -8,6 +8,7 @@
 ; RUN: opt -module-summary %p/Inputs/funcimport-debug.ll -o %t2.bc
 
 ; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN:     -opaque-pointers \
 ; RUN:     -r=%t1.bc,_main,plx \
 ; RUN:     -r=%t1.bc,_foo,l \
 ; RUN:     -r=%t1.bc,_baz,l \
@@ -27,7 +28,7 @@ target triple = "x86_64-apple-macosx10.11.0"
 define i32 @main() #0 {
 entry:
   call void (...) @foo()
-  %0 = load i32, i32* @baz, align 4
+  %0 = load i32, ptr @baz, align 4
   ret i32 %0
 }
 

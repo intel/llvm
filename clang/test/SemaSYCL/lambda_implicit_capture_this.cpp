@@ -4,7 +4,7 @@
 // "this" pointer by lambdas passed to the device code (directly and indirectly)
 
 #include "Inputs/sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 class Class {

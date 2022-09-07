@@ -7,15 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/opencl.h>
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <detail/queue_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 static int QueueRetainCalled = 0;
 pi_result redefinedQueueRetain(pi_queue Queue) {

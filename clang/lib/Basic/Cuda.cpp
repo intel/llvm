@@ -125,6 +125,10 @@ static const CudaArchToStringMap arch_names[] = {
     GFX(1034), // gfx1034
     GFX(1035), // gfx1035
     GFX(1036), // gfx1036
+    GFX(1100), // gfx1100
+    GFX(1101), // gfx1101
+    GFX(1102), // gfx1102
+    GFX(1103), // gfx1103
     {CudaArch::Generic, "generic", ""},
     // clang-format on
 };
@@ -216,8 +220,7 @@ CudaVersion MaxVersionForCudaArch(CudaArch A) {
 }
 
 CudaVersion ToCudaVersion(llvm::VersionTuple Version) {
-  int IVer =
-      Version.getMajor() * 10 + Version.getMinor().getValueOr(0);
+  int IVer = Version.getMajor() * 10 + Version.getMinor().value_or(0);
   switch(IVer) {
   case 70:
     return CudaVersion::CUDA_70;

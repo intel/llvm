@@ -131,11 +131,11 @@ static LogicalResult lowerEntryPointABIAttr(spirv::FuncOp funcOp,
     return funcOp.emitRemark("lower entry point failure: could not select "
                              "execution model based on 'spv.target_env'");
 
-  builder.create<spirv::EntryPointOp>(
-      funcOp.getLoc(), executionModel.getValue(), funcOp, interfaceVars);
+  builder.create<spirv::EntryPointOp>(funcOp.getLoc(), executionModel.value(),
+                                      funcOp, interfaceVars);
 
   // Specifies the spv.ExecutionModeOp.
-  auto localSizeAttr = entryPointAttr.local_size();
+  auto localSizeAttr = entryPointAttr.getLocalSize();
   if (localSizeAttr) {
     auto values = localSizeAttr.getValues<int32_t>();
     SmallVector<int32_t, 3> localSize(values);

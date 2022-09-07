@@ -131,6 +131,7 @@ public:
 
   void finalizeCGProfileEntry(const MCSymbolRefExpr *&SRE);
   void finalizeCGProfile();
+  void createAddrSigSection();
 };
 
 } // end anonymous namespace.
@@ -358,6 +359,7 @@ bool MCMachOStreamer::emitSymbolAttribute(MCSymbol *Sym,
   case MCSA_Weak:
   case MCSA_Local:
   case MCSA_LGlobal:
+  case MCSA_Exported:
     return false;
 
   case MCSA_Global:
@@ -460,8 +462,8 @@ void MCMachOStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
             // section.
   }
 
-  PushSection();
-  SwitchSection(Section);
+  pushSection();
+  switchSection(Section);
 
   // The symbol may not be present, which only creates the section.
   if (Symbol) {
@@ -469,7 +471,7 @@ void MCMachOStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
     emitLabel(Symbol);
     emitZeros(Size);
   }
-  PopSection();
+  popSection();
 }
 
 // This should always be called with the thread local bss section.  Like the
@@ -529,6 +531,7 @@ void MCMachOStreamer::finishImpl() {
 
   finalizeCGProfile();
 
+  createAddrSigSection();
   this->MCObjectStreamer::finishImpl();
 }
 
@@ -578,4 +581,29 @@ MCStreamer *llvm::createMachOStreamer(MCContext &Context,
   if (RelaxAll)
     S->getAssembler().setRelaxAll(true);
   return S;
+}
+
+// The AddrSig section uses a series of relocations to refer to the symbols that
+// should be considered address-significant. The only interesting content of
+// these relocations is their symbol; the type, length etc will be ignored by
+// the linker. The reason we are not referring to the symbol indices directly is
+// that those indices will be invalidated by tools that update the symbol table.
+// Symbol relocations OTOH will have their indices updated by e.g. llvm-strip.
+void MCMachOStreamer::createAddrSigSection() {
+  MCAssembler &Asm = getAssembler();
+  MCObjectWriter &writer = Asm.getWriter();
+  if (!writer.getEmitAddrsigSection())
+    return;
+  // Create the AddrSig section and first data fragment here as its layout needs
+  // to be computed immediately after in order for it to be exported correctly.
+  MCSection *AddrSigSection =
+      Asm.getContext().getObjectFileInfo()->getAddrSigSection();
+  Asm.registerSection(*AddrSigSection);
+  auto *Frag = new MCDataFragment(AddrSigSection);
+  // We will generate a series of pointer-sized symbol relocations at offset
+  // 0x0. Set the section size to be large enough to contain a single pointer
+  // (instead of emitting a zero-sized section) so these relocations are
+  // technically valid, even though we don't expect these relocations to
+  // actually be applied by the linker.
+  Frag->getContents().resize(8);
 }

@@ -21,11 +21,12 @@
 #include <memory>
 #include <mutex>
 #include <set>
-#include <vector>
+#include <thread>
 
 #include "ExclusiveAccess.h"
 #include "omptarget.h"
 #include "rtl.h"
+#include "llvm/ADT/SmallVector.h"
 
 // Forward declarations.
 struct RTLInfoTy;
@@ -60,7 +61,8 @@ private:
   struct StatesTy {
     StatesTy(uint64_t DRC, uint64_t HRC)
         : DynRefCount(DRC), HoldRefCount(HRC),
-          MayContainAttachedPointers(false) {}
+          MayContainAttachedPointers(false), DeleteThreadId(std::thread::id()) {
+    }
     /// The dynamic reference count is the standard reference count as of OpenMP
     /// 4.5.  The hold reference count is an OpenMP extension for the sake of
     /// OpenACC support.
@@ -98,6 +100,14 @@ private:
     /// mechanism for D2H, and if the event cannot be shared between them, Event
     /// should be written as <tt>void *Event[2]</tt>.
     void *Event = nullptr;
+
+    /// The id of the thread responsible for deleting this entry. This thread
+    /// set the reference count to zero *last*. Other threads might reuse the
+    /// entry while it is marked for deletion but not yet deleted (e.g., the
+    /// data is still being moved back). If another thread reuses the entry we
+    /// will have a non-zero reference count *or* the thread will have changed
+    /// this id, effectively taking over deletion responsibility.
+    std::thread::id DeleteThreadId;
   };
   // When HostDataToTargetTy is used by std::set, std::set::iterator is const
   // use unique_ptr to make States mutable.
@@ -138,6 +148,14 @@ public:
   /// Returns OFFLOAD_FAIL if something went wrong, OFFLOAD_SUCCESS otherwise.
   int addEventIfNecessary(DeviceTy &Device, AsyncInfoTy &AsyncInfo) const;
 
+  /// Indicate that the current thread expected to delete this entry.
+  void setDeleteThreadId() const {
+    States->DeleteThreadId = std::this_thread::get_id();
+  }
+
+  /// Return the thread id of the thread expected to delete this entry.
+  std::thread::id getDeleteThreadId() const { return States->DeleteThreadId; }
+
   /// Set the event bound to this data map.
   void setEvent(void *Event) const { States->Event = Event; }
 
@@ -172,7 +190,7 @@ public:
       if (ThisRefCount > 0)
         --ThisRefCount;
       else
-        assert(OtherRefCount > 0 && "total refcount underflow");
+        assert(OtherRefCount >= 0 && "total refcount underflow");
     }
     return getTotalRefCount();
   }
@@ -229,17 +247,17 @@ struct HostDataToTargetMapKeyTy {
       : KeyValue(HDTT->HstPtrBegin), HDTT(HDTT) {}
   HostDataToTargetTy *HDTT;
 };
-inline bool operator<(const HostDataToTargetMapKeyTy &lhs,
-                      const uintptr_t &rhs) {
-  return lhs.KeyValue < rhs;
+inline bool operator<(const HostDataToTargetMapKeyTy &LHS,
+                      const uintptr_t &RHS) {
+  return LHS.KeyValue < RHS;
 }
-inline bool operator<(const uintptr_t &lhs,
-                      const HostDataToTargetMapKeyTy &rhs) {
-  return lhs < rhs.KeyValue;
+inline bool operator<(const uintptr_t &LHS,
+                      const HostDataToTargetMapKeyTy &RHS) {
+  return LHS < RHS.KeyValue;
 }
-inline bool operator<(const HostDataToTargetMapKeyTy &lhs,
-                      const HostDataToTargetMapKeyTy &rhs) {
-  return lhs.KeyValue < rhs.KeyValue;
+inline bool operator<(const HostDataToTargetMapKeyTy &LHS,
+                      const HostDataToTargetMapKeyTy &RHS) {
+  return LHS.KeyValue < RHS.KeyValue;
 }
 
 struct LookupResult {
@@ -362,20 +380,22 @@ struct DeviceTy {
                                        bool UseHoldRefCount, bool &IsHostPtr,
                                        bool MustContain = false,
                                        bool ForceDelete = false);
-  /// For the map entry for \p HstPtrBegin, decrement the reference count
-  /// specified by \p HasHoldModifier and, if the the total reference count is
-  /// then zero, deallocate the corresponding device storage and remove the map
-  /// entry.  Return \c OFFLOAD_SUCCESS if the map entry existed, and return
-  /// \c OFFLOAD_FAIL if not.  It is the caller's responsibility to skip calling
-  /// this function if the map entry is not expected to exist because
-  /// \p HstPtrBegin uses shared memory.
-  int deallocTgtPtr(void *HstPtrBegin, int64_t Size, bool HasHoldModifier);
+
+  /// Deallocate \p LR and remove the entry. Assume the total reference count is
+  /// zero and the calling thread is the deleting thread for \p LR. \p HDTTMap
+  /// ensure the caller holds exclusive access and can modify the map. Return \c
+  /// OFFLOAD_SUCCESS if the map entry existed, and return \c OFFLOAD_FAIL if
+  /// not. It is the caller's responsibility to skip calling this function if
+  /// the map entry is not expected to exist because \p HstPtrBegin uses shared
+  /// memory.
+  int deallocTgtPtr(HDTTMapAccessorTy &HDTTMap, LookupResult LR, int64_t Size);
+
   int associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size);
   int disassociatePtr(void *HstPtrBegin);
 
   // calls to RTL
   int32_t initOnce();
-  __tgt_target_table *load_binary(void *Img);
+  __tgt_target_table *loadBinary(void *Img);
 
   // device memory allocation/deallocation routines
   /// Allocates \p Size bytes on the device, host or shared memory space
@@ -449,7 +469,7 @@ private:
   void deinit();
 };
 
-extern bool device_is_ready(int device_num);
+extern bool deviceIsReady(int DeviceNum);
 
 /// Struct for the data required to handle plugins
 struct PluginManager {
@@ -459,15 +479,19 @@ struct PluginManager {
   /// RTLs identified on the host
   RTLsTy RTLs;
 
+  /// Executable images and information extracted from the input images passed
+  /// to the runtime.
+  std::list<std::pair<__tgt_device_image, __tgt_image_info>> Images;
+
   /// Devices associated with RTLs
-  std::vector<std::unique_ptr<DeviceTy>> Devices;
+  llvm::SmallVector<std::unique_ptr<DeviceTy>> Devices;
   std::mutex RTLsMtx; ///< For RTLs and Devices
 
   /// Translation table retreived from the binary
   HostEntriesBeginToTransTableTy HostEntriesBeginToTransTable;
   std::mutex TrlTblMtx; ///< For Translation Table
   /// Host offload entries in order of image registration
-  std::vector<__tgt_offload_entry *> HostEntriesBeginRegistrationOrder;
+  llvm::SmallVector<__tgt_offload_entry *> HostEntriesBeginRegistrationOrder;
 
   /// Map from ptrs on the host to an entry in the Translation Table
   HostPtrToTableMapTy HostPtrToTableMap;

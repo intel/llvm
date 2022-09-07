@@ -21,7 +21,7 @@ static std::string runCheck(StringRef Code, const Twine &Filename,
   std::string Result = test::runCheckOnCode<T>(
       Code, &Errors, Filename, std::string("-xc++-header"), ClangTidyOptions{},
       std::move(PathsToContent));
-  if (Errors.size() != (size_t)ExpectedWarning.hasValue())
+  if (Errors.size() != (size_t)ExpectedWarning.has_value())
     return "invalid error count";
   if (ExpectedWarning && *ExpectedWarning != Errors.back().Message.Message)
     return "expected: '" + ExpectedWarning->str() + "', saw: '" +
@@ -203,6 +203,14 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
                 "#endif // LLVM\n",
                 "include/llvm/ADT/foo.h",
                 StringRef("header guard does not follow preferred style")));
+
+  // An extra space inside the comment is OK.
+  llvm::StringRef WithExtraSpace = "#ifndef LLVM_ADT_FOO_H\n"
+                                   "#define LLVM_ADT_FOO_H\n"
+                                   "#endif //  LLVM_ADT_FOO_H\n";
+  EXPECT_EQ(WithExtraSpace,
+            runHeaderGuardCheckWithEndif(WithExtraSpace,
+                                         "include/llvm/ADT/foo.h", None));
 
   EXPECT_EQ("#ifndef LLVM_ADT_FOO_H\n"
             "#define LLVM_ADT_FOO_H\n"

@@ -7,14 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cfloat>
 #include <cstdint>
 #include <type_traits>
 
 using namespace std;
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;

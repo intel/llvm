@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -152,6 +153,8 @@ namespace {
 /// This pass exercises the different configurations of the IR visitors.
 struct TestIRVisitorsPass
     : public PassWrapper<TestIRVisitorsPass, OperationPass<>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestIRVisitorsPass)
+
   StringRef getArgument() const final { return "test-ir-visitors"; }
   StringRef getDescription() const final { return "Test various visitors."; }
   void runOnOperation() override {

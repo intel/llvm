@@ -90,7 +90,14 @@ Sema::ActOnGlobalModuleFragmentDecl(SourceLocation ModuleLoc) {
 
   // All declarations created from now on are owned by the global module.
   auto *TU = Context.getTranslationUnitDecl();
-  TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::Visible);
+  // [module.global.frag]p2
+  // A global-module-fragment specifies the contents of the global module
+  // fragment for a module unit. The global module fragment can be used to
+  // provide declarations that are attached to the global module and usable
+  // within the module unit.
+  //
+  // So the declations in the global module shouldn't be visible by default.
+  TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::ReachableWhenImported);
   TU->setLocalOwningModule(GlobalModule);
 
   // FIXME: Consider creating an explicit representation of this declaration.
@@ -109,10 +116,18 @@ void Sema::HandleStartOfHeaderUnit() {
     const_cast<LangOptions &>(getLangOpts()).CurrentModule = HUName.str();
   }
 
-  auto &Map = PP.getHeaderSearchInfo().getModuleMap();
   // TODO: Make the C++20 header lookup independent.
-  Module::Header H{getLangOpts().CurrentModule, getLangOpts().CurrentModule,
-                   SourceMgr.getFileEntryForID(SourceMgr.getMainFileID())};
+  // When the input is pre-processed source, we need a file ref to the original
+  // file for the header map.
+  auto F = SourceMgr.getFileManager().getFile(HUName);
+  // For the sake of error recovery (if someone has moved the original header
+  // after creating the pre-processed output) fall back to obtaining the file
+  // ref for the input file, which must be present.
+  if (!F)
+    F = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
+  assert(F && "failed to find the header unit source?");
+  Module::Header H{HUName.str(), HUName.str(), *F};
+  auto &Map = PP.getHeaderSearchInfo().getModuleMap();
   Module *Mod = Map.createHeaderUnit(StartOfTU, HUName, H);
   assert(Mod && "module creation should not fail");
   ModuleScopes.push_back({}); // No GMF
@@ -192,8 +207,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   // here, in order to support macro import.
 
   // Only one module-declaration is permitted per source file.
-  if (!ModuleScopes.empty() &&
-      ModuleScopes.back().Module->isModulePurview()) {
+  if (isCurrentModulePurview()) {
     Diag(ModuleLoc, diag::err_module_redeclaration);
     Diag(VisibleModules.getImportLoc(ModuleScopes.back().Module),
          diag::note_prev_module_declaration);
@@ -317,15 +331,27 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   VisibleModules.setVisible(Mod, ModuleLoc);
 
   // From now on, we have an owning module for all declarations we see.
-  // However, those declarations are module-private unless explicitly
+  // In C++20 modules, those declaration would be reachable when imported
+  // unless explicitily exported.
+  // Otherwise, those declarations are module-private unless explicitly
   // exported.
   auto *TU = Context.getTranslationUnitDecl();
-  TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::ModulePrivate);
+  TU->setModuleOwnershipKind(Decl::ModuleOwnershipKind::ReachableWhenImported);
   TU->setLocalOwningModule(Mod);
 
   // We are in the module purview, but before any other (non import)
   // statements, so imports are allowed.
   ImportState = ModuleImportState::ImportAllowed;
+
+  // For an implementation, We already made an implicit import (its interface).
+  // Make and return the import decl to be added to the current TU.
+  if (MDK == ModuleDeclKind::Implementation) {
+    // Make the import decl for the interface.
+    ImportDecl *Import =
+        ImportDecl::Create(Context, CurContext, ModuleLoc, Mod, Path[0].second);
+    // and return it to be added.
+    return ConvertDeclToDeclGroup(Import);
+  }
 
   // FIXME: Create a ModuleDecl.
   return nullptr;
@@ -690,7 +716,7 @@ Decl *Sema::ActOnStartExportDecl(Scope *S, SourceLocation ExportLoc,
   //   An export-declaration shall appear only [...] in the purview of a module
   //   interface unit. An export-declaration shall not appear directly or
   //   indirectly within [...] a private-module-fragment.
-  if (ModuleScopes.empty() || !ModuleScopes.back().Module->isModulePurview()) {
+  if (!isCurrentModulePurview()) {
     Diag(ExportLoc, diag::err_export_not_in_module_interface) << 0;
     D->setInvalidDecl();
     return D;
@@ -754,6 +780,7 @@ enum class UnnamedDeclKind {
   StaticAssert,
   Asm,
   UsingDirective,
+  Namespace,
   Context
 };
 }
@@ -783,6 +810,10 @@ unsigned getUnnamedDeclDiag(UnnamedDeclKind UDK, bool InBlock) {
     // Allow exporting using-directives as an extension.
     return diag::ext_export_using_directive;
 
+  case UnnamedDeclKind::Namespace:
+    // Anonymous namespace with no content.
+    return diag::introduces_no_names;
+
   case UnnamedDeclKind::Context:
     // Allow exporting DeclContexts that transitively contain no declarations
     // as an extension.
@@ -810,10 +841,12 @@ static bool checkExportedDecl(Sema &S, Decl *D, SourceLocation BlockStart) {
     diagExportedUnnamedDecl(S, *UDK, D, BlockStart);
 
   //   [...] shall not declare a name with internal linkage.
+  bool HasName = false;
   if (auto *ND = dyn_cast<NamedDecl>(D)) {
     // Don't diagnose anonymous union objects; we'll diagnose their members
     // instead.
-    if (ND->getDeclName() && ND->getFormalLinkage() == InternalLinkage) {
+    HasName = (bool)ND->getDeclName();
+    if (HasName && ND->getFormalLinkage() == InternalLinkage) {
       S.Diag(ND->getLocation(), diag::err_export_internal) << ND;
       if (BlockStart.isValid())
         S.Diag(BlockStart, diag::note_export);
@@ -825,8 +858,10 @@ static bool checkExportedDecl(Sema &S, Decl *D, SourceLocation BlockStart) {
   //   shall have been introduced with a name having external linkage
   if (auto *USD = dyn_cast<UsingShadowDecl>(D)) {
     NamedDecl *Target = USD->getUnderlyingDecl();
-    if (Target->getFormalLinkage() == InternalLinkage) {
-      S.Diag(USD->getLocation(), diag::err_export_using_internal) << Target;
+    Linkage Lk = Target->getFormalLinkage();
+    if (Lk == InternalLinkage || Lk == ModuleLinkage) {
+      S.Diag(USD->getLocation(), diag::err_export_using_internal)
+          << (Lk == InternalLinkage ? 0 : 1) << Target;
       S.Diag(Target->getLocation(), diag::note_using_decl_target);
       if (BlockStart.isValid())
         S.Diag(BlockStart, diag::note_export);
@@ -834,10 +869,17 @@ static bool checkExportedDecl(Sema &S, Decl *D, SourceLocation BlockStart) {
   }
 
   // Recurse into namespace-scope DeclContexts. (Only namespace-scope
-  // declarations are exported.)
-  if (auto *DC = dyn_cast<DeclContext>(D))
-    if (DC->getRedeclContext()->isFileContext() && !isa<EnumDecl>(D))
+  // declarations are exported.).
+  if (auto *DC = dyn_cast<DeclContext>(D)) {
+    if (isa<NamespaceDecl>(D) && DC->decls().empty()) {
+      if (!HasName)
+        // We don't allow an empty anonymous namespace (we don't allow decls
+        // in them either, but that's handled in the recursion).
+        diagExportedUnnamedDecl(S, UnnamedDeclKind::Namespace, D, BlockStart);
+      // We allow an empty named namespace decl.
+    } else if (DC->getRedeclContext()->isFileContext() && !isa<EnumDecl>(D))
       return checkExportedDeclContext(S, DC, BlockStart);
+  }
   return false;
 }
 
@@ -901,4 +943,17 @@ void Sema::PopGlobalModuleFragment() {
   assert(!ModuleScopes.empty() && getCurrentModule()->isGlobalModule() &&
          "left the wrong module scope, which is not global module fragment");
   ModuleScopes.pop_back();
+}
+
+bool Sema::isModuleUnitOfCurrentTU(const Module *M) const {
+  assert(M);
+
+  Module *CurrentModuleUnit = getCurrentModule();
+
+  // If we are not in a module currently, M must not be the module unit of
+  // current TU.
+  if (!CurrentModuleUnit)
+    return false;
+
+  return M->isSubModuleOf(CurrentModuleUnit->getTopLevelModule());
 }

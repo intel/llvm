@@ -193,6 +193,13 @@ void FunctionType::walkImmediateSubElements(
     walkTypesFn(type);
 }
 
+Type FunctionType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                               ArrayRef<Type> replTypes) const {
+  unsigned numInputs = getNumInputs();
+  return get(getContext(), replTypes.take_front(numInputs),
+             replTypes.drop_front(numInputs));
+}
+
 //===----------------------------------------------------------------------===//
 // OpaqueType
 //===----------------------------------------------------------------------===//
@@ -256,9 +263,14 @@ void VectorType::walkImmediateSubElements(
   walkTypesFn(getElementType());
 }
 
+Type VectorType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                             ArrayRef<Type> replTypes) const {
+  return get(getShape(), replTypes.front(), getNumScalableDims());
+}
+
 VectorType VectorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
-  return VectorType::get(shape.getValueOr(getShape()), elementType,
+  return VectorType::get(shape.value_or(getShape()), elementType,
                          getNumScalableDims());
 }
 
@@ -290,8 +302,8 @@ TensorType TensorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
   if (!shape)
     return RankedTensorType::get(rankedTy.getShape(), elementType,
                                  rankedTy.getEncoding());
-  return RankedTensorType::get(shape.getValueOr(rankedTy.getShape()),
-                               elementType, rankedTy.getEncoding());
+  return RankedTensorType::get(shape.value_or(rankedTy.getShape()), elementType,
+                               rankedTy.getEncoding());
 }
 
 // Check if "elementType" can be an element type of a tensor.
@@ -338,6 +350,12 @@ void RankedTensorType::walkImmediateSubElements(
     walkAttrsFn(encoding);
 }
 
+Type RankedTensorType::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  return get(getShape(), replTypes.front(),
+             replAttrs.empty() ? Attribute() : replAttrs.back());
+}
+
 //===----------------------------------------------------------------------===//
 // UnrankedTensorType
 //===----------------------------------------------------------------------===//
@@ -352,6 +370,11 @@ void UnrankedTensorType::walkImmediateSubElements(
     function_ref<void(Attribute)> walkAttrsFn,
     function_ref<void(Type)> walkTypesFn) const {
   walkTypesFn(getElementType());
+}
+
+Type UnrankedTensorType::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  return get(replTypes.front());
 }
 
 //===----------------------------------------------------------------------===//
@@ -460,7 +483,7 @@ mlir::isRankReducedType(ShapedType originalType,
       computeRankReductionMask(originalShape, candidateReducedShape);
 
   // Sizes cannot be matched in case empty vector is returned.
-  if (!optionalUnusedDimsMask.hasValue())
+  if (!optionalUnusedDimsMask)
     return SliceVerificationResult::SizeMismatch;
 
   if (originalShapedType.getElementType() !=
@@ -663,6 +686,15 @@ void MemRefType::walkImmediateSubElements(
   walkAttrsFn(getMemorySpace());
 }
 
+Type MemRefType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                             ArrayRef<Type> replTypes) const {
+  bool hasLayout = replAttrs.size() > 1;
+  return get(getShape(), replTypes[0],
+             hasLayout ? replAttrs[0].dyn_cast<MemRefLayoutAttrInterface>()
+                       : MemRefLayoutAttrInterface(),
+             hasLayout ? replAttrs[1] : replAttrs[0]);
+}
+
 //===----------------------------------------------------------------------===//
 // UnrankedMemRefType
 //===----------------------------------------------------------------------===//
@@ -829,6 +861,11 @@ void UnrankedMemRefType::walkImmediateSubElements(
   walkAttrsFn(getMemorySpace());
 }
 
+Type UnrankedMemRefType::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  return get(replTypes.front(), replAttrs.front());
+}
+
 //===----------------------------------------------------------------------===//
 /// TupleType
 //===----------------------------------------------------------------------===//
@@ -857,6 +894,11 @@ void TupleType::walkImmediateSubElements(
     function_ref<void(Type)> walkTypesFn) const {
   for (Type type : getTypes())
     walkTypesFn(type);
+}
+
+Type TupleType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                            ArrayRef<Type> replTypes) const {
+  return get(getContext(), replTypes);
 }
 
 //===----------------------------------------------------------------------===//
@@ -945,13 +987,11 @@ MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
                                                 ArrayRef<AffineExpr> exprs,
                                                 MLIRContext *context) {
-  assert(!sizes.empty() && !exprs.empty() &&
-         "expected non-empty sizes and exprs");
-
   // Size 0 corner case is useful for canonicalizations.
-  if (llvm::is_contained(sizes, 0))
+  if (sizes.empty())
     return getAffineConstantExpr(0, context);
 
+  assert(!exprs.empty() && "expected exprs");
   auto maps = AffineMap::inferFromExprList(exprs);
   assert(!maps.empty() && "Expected one non-empty map");
   unsigned numDims = maps[0].getNumDims(), nSymbols = maps[0].getNumSymbols();
@@ -961,9 +1001,6 @@ AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
   int64_t runningSize = 1;
   for (auto en : llvm::zip(llvm::reverse(exprs), llvm::reverse(sizes))) {
     int64_t size = std::get<1>(en);
-    // Degenerate case, no size =-> no stride
-    if (size == 0)
-      continue;
     AffineExpr dimExpr = std::get<0>(en);
     AffineExpr stride = dynamicPoisonBit
                             ? getAffineSymbolExpr(nSymbols++, context)

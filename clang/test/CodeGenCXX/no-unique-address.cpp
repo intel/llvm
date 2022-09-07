@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++2a %s -emit-llvm -o - -triple x86_64-linux-gnu | FileCheck %s
-// RUN: %clang_cc1 -std=c++2a %s -emit-llvm -o - -triple x86_64-linux-gnu -O2 -disable-llvm-passes | FileCheck %s --check-prefix=CHECK-OPT
+// RUN: %clang_cc1 -no-opaque-pointers -std=c++2a %s -emit-llvm -o - -triple x86_64-linux-gnu | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -std=c++2a %s -emit-llvm -o - -triple x86_64-linux-gnu -O2 -disable-llvm-passes | FileCheck %s --check-prefix=CHECK-OPT
 
 struct A { ~A(); int n; char c[3]; };
 struct B { [[no_unique_address]] A a; char k; };
@@ -93,3 +93,14 @@ int loadWhereLaterDeclaredFieldHasLowerOffset(LaterDeclaredFieldHasLowerOffset &
 // Note, never emit TBAA for zero-size fields.
 // CHECK-OPT: ![[TBAA_AB]] = !{![[TBAA_A:[0-9]*]], ![[TBAA_INT:[0-9]*]], i64 4}
 // CHECK-OPT: ![[TBAA_A]] = !{!"_ZTS32LaterDeclaredFieldHasLowerOffset", ![[TBAA_INT]], i64 0, ![[TBAA_INT]], i64 4}
+
+struct NonTrivialInit {
+  NonTrivialInit();
+};
+struct HasZeroSizedFieldWithNonTrivialInit {
+  int a;
+  [[no_unique_address]] NonTrivialInit b;
+};
+HasZeroSizedFieldWithNonTrivialInit testHasZeroSizedFieldWithNonTrivialInit = {.a = 1};
+// CHECK-LABEL: define {{.*}}cxx_global_var_init
+// CHECK: call {{.*}}@_ZN14NonTrivialInitC1Ev({{.*}}@testHasZeroSizedFieldWithNonTrivialInit

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -53,8 +53,8 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       redefinedMemBufferCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
@@ -73,7 +73,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       FAIL() << "Unexpected exception was thrown.";
     }
 
-    CGH.single_task<TestKernel>([=]() {});
+    CGH.single_task<TestKernel<>>([=]() {});
   });
 
   ASSERT_EQ(GBufferCreateCounter, 0u) << "Buffers were unexpectedly created.";

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -44,7 +45,7 @@ extern "C" LLVM_ATTRIBUTE_USED int LLVMFuzzerTestOneInput(const uint8_t *data,
   return 0;
 }
 
-extern "C" LLVM_ATTRIBUTE_USED int LLVMFuzzerInitialize(int *argc,
+extern "C" LLVM_ATTRIBUTE_USED int llvmFuzzerInitialize(int *argc,
                                                         char ***argv) {
   return 0;
 }

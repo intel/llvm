@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstddef>
 #include <type_traits>
@@ -16,7 +16,7 @@
 template <typename KernelName, typename ExpectedType, typename Range>
 void test_parallel_for(Range r) {
   sycl::queue q;
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for<KernelName>(r, [=](auto item) {
       static_assert(std::is_same<decltype(item), ExpectedType>::value,
                     "Argument type is unexpected");
@@ -27,7 +27,7 @@ void test_parallel_for(Range r) {
 template <typename KernelName, typename ExpectedType, typename Range>
 void test_parallel_for_work_group(Range r) {
   sycl::queue q;
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for_work_group<KernelName>(r, [=](auto item) {
       static_assert(std::is_same<decltype(item), ExpectedType>::value,
                     "Argument type is unexpected");

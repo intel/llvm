@@ -32,6 +32,39 @@
 
 using namespace llvm;
 
+bool IntrinsicInst::mayLowerToFunctionCall(Intrinsic::ID IID) {
+  switch (IID) {
+  case Intrinsic::objc_autorelease:
+  case Intrinsic::objc_autoreleasePoolPop:
+  case Intrinsic::objc_autoreleasePoolPush:
+  case Intrinsic::objc_autoreleaseReturnValue:
+  case Intrinsic::objc_copyWeak:
+  case Intrinsic::objc_destroyWeak:
+  case Intrinsic::objc_initWeak:
+  case Intrinsic::objc_loadWeak:
+  case Intrinsic::objc_loadWeakRetained:
+  case Intrinsic::objc_moveWeak:
+  case Intrinsic::objc_release:
+  case Intrinsic::objc_retain:
+  case Intrinsic::objc_retainAutorelease:
+  case Intrinsic::objc_retainAutoreleaseReturnValue:
+  case Intrinsic::objc_retainAutoreleasedReturnValue:
+  case Intrinsic::objc_retainBlock:
+  case Intrinsic::objc_storeStrong:
+  case Intrinsic::objc_storeWeak:
+  case Intrinsic::objc_unsafeClaimAutoreleasedReturnValue:
+  case Intrinsic::objc_retainedObject:
+  case Intrinsic::objc_unretainedObject:
+  case Intrinsic::objc_unretainedPointer:
+  case Intrinsic::objc_retain_autorelease:
+  case Intrinsic::objc_sync_enter:
+  case Intrinsic::objc_sync_exit:
+    return true;
+  default:
+    return false;
+  }
+}
+
 //===----------------------------------------------------------------------===//
 /// DbgVariableIntrinsic - This is the common base class for debug info
 /// intrinsics for variables.
@@ -223,21 +256,21 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
 bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
   Optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
   if (Except) {
-    if (Except.getValue() != fp::ebIgnore)
+    if (Except.value() != fp::ebIgnore)
       return false;
   }
 
   Optional<RoundingMode> Rounding = getRoundingMode();
   if (Rounding) {
-    if (Rounding.getValue() != RoundingMode::NearestTiesToEven)
+    if (Rounding.value() != RoundingMode::NearestTiesToEven)
       return false;
   }
 
   return true;
 }
 
-FCmpInst::Predicate ConstrainedFPCmpIntrinsic::getPredicate() const {
-  Metadata *MD = cast<MetadataAsValue>(getArgOperand(2))->getMetadata();
+static FCmpInst::Predicate getFPPredicateFromMD(const Value *Op) {
+  Metadata *MD = cast<MetadataAsValue>(Op)->getMetadata();
   if (!MD || !isa<MDString>(MD))
     return FCmpInst::BAD_FCMP_PREDICATE;
   return StringSwitch<FCmpInst::Predicate>(cast<MDString>(MD)->getString())
@@ -256,6 +289,10 @@ FCmpInst::Predicate ConstrainedFPCmpIntrinsic::getPredicate() const {
       .Case("ule", FCmpInst::FCMP_ULE)
       .Case("une", FCmpInst::FCMP_UNE)
       .Default(FCmpInst::BAD_FCMP_PREDICATE);
+}
+
+FCmpInst::Predicate ConstrainedFPCmpIntrinsic::getPredicate() const {
+  return getFPPredicateFromMD(getArgOperand(2));
 }
 
 bool ConstrainedFPIntrinsic::isUnaryOp() const {
@@ -310,7 +347,7 @@ ElementCount VPIntrinsic::getStaticVectorLength() const {
 
 Value *VPIntrinsic::getMaskParam() const {
   if (auto MaskPos = getMaskParamPos(getIntrinsicID()))
-    return getArgOperand(MaskPos.getValue());
+    return getArgOperand(*MaskPos);
   return nullptr;
 }
 
@@ -321,7 +358,7 @@ void VPIntrinsic::setMaskParam(Value *NewMask) {
 
 Value *VPIntrinsic::getVectorLengthParam() const {
   if (auto EVLPos = getVectorLengthParamPos(getIntrinsicID()))
-    return getArgOperand(EVLPos.getValue());
+    return getArgOperand(*EVLPos);
   return nullptr;
 }
 
@@ -359,14 +396,14 @@ VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
 /// scatter.
 MaybeAlign VPIntrinsic::getPointerAlignment() const {
   Optional<unsigned> PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID());
-  assert(PtrParamOpt.hasValue() && "no pointer argument!");
-  return getParamAlign(PtrParamOpt.getValue());
+  assert(PtrParamOpt && "no pointer argument!");
+  return getParamAlign(PtrParamOpt.value());
 }
 
 /// \return The pointer operand of this load,store, gather or scatter.
 Value *VPIntrinsic::getMemoryPointerParam() const {
   if (auto PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID()))
-    return getArgOperand(PtrParamOpt.getValue());
+    return getArgOperand(PtrParamOpt.value());
   return nullptr;
 }
 
@@ -385,9 +422,9 @@ Optional<unsigned> VPIntrinsic::getMemoryPointerParamPos(Intrinsic::ID VPID) {
 /// \return The data (payload) operand of this store or scatter.
 Value *VPIntrinsic::getMemoryDataParam() const {
   auto DataParamOpt = getMemoryDataParamPos(getIntrinsicID());
-  if (!DataParamOpt.hasValue())
+  if (!DataParamOpt)
     return nullptr;
-  return getArgOperand(DataParamOpt.getValue());
+  return getArgOperand(DataParamOpt.value());
 }
 
 Optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
@@ -497,8 +534,17 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
     VPFunc = Intrinsic::getDeclaration(M, VPID, OverloadTy);
     break;
   }
+  case Intrinsic::vp_trunc:
+  case Intrinsic::vp_sext:
+  case Intrinsic::vp_zext:
+  case Intrinsic::vp_fptoui:
   case Intrinsic::vp_fptosi:
+  case Intrinsic::vp_uitofp:
   case Intrinsic::vp_sitofp:
+  case Intrinsic::vp_fptrunc:
+  case Intrinsic::vp_fpext:
+  case Intrinsic::vp_ptrtoint:
+  case Intrinsic::vp_inttoptr:
     VPFunc =
         Intrinsic::getDeclaration(M, VPID, {ReturnType, Params[0]->getType()});
     break;
@@ -558,6 +604,55 @@ bool VPCastIntrinsic::isVPCast(Intrinsic::ID ID) {
 #include "llvm/IR/VPIntrinsics.def"
   }
   return false;
+}
+
+bool VPCmpIntrinsic::isVPCmp(Intrinsic::ID ID) {
+  switch (ID) {
+  default:
+    break;
+#define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) case Intrinsic::VPID:
+#define VP_PROPERTY_CMP(CCPOS, ...) return true;
+#define END_REGISTER_VP_INTRINSIC(VPID) break;
+#include "llvm/IR/VPIntrinsics.def"
+  }
+  return false;
+}
+
+static ICmpInst::Predicate getIntPredicateFromMD(const Value *Op) {
+  Metadata *MD = cast<MetadataAsValue>(Op)->getMetadata();
+  if (!MD || !isa<MDString>(MD))
+    return ICmpInst::BAD_ICMP_PREDICATE;
+  return StringSwitch<ICmpInst::Predicate>(cast<MDString>(MD)->getString())
+      .Case("eq", ICmpInst::ICMP_EQ)
+      .Case("ne", ICmpInst::ICMP_NE)
+      .Case("ugt", ICmpInst::ICMP_UGT)
+      .Case("uge", ICmpInst::ICMP_UGE)
+      .Case("ult", ICmpInst::ICMP_ULT)
+      .Case("ule", ICmpInst::ICMP_ULE)
+      .Case("sgt", ICmpInst::ICMP_SGT)
+      .Case("sge", ICmpInst::ICMP_SGE)
+      .Case("slt", ICmpInst::ICMP_SLT)
+      .Case("sle", ICmpInst::ICMP_SLE)
+      .Default(ICmpInst::BAD_ICMP_PREDICATE);
+}
+
+CmpInst::Predicate VPCmpIntrinsic::getPredicate() const {
+  bool IsFP = true;
+  Optional<unsigned> CCArgIdx;
+  switch (getIntrinsicID()) {
+  default:
+    break;
+#define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) case Intrinsic::VPID:
+#define VP_PROPERTY_CMP(CCPOS, ISFP)                                           \
+  CCArgIdx = CCPOS;                                                            \
+  IsFP = ISFP;                                                                 \
+  break;
+#define END_REGISTER_VP_INTRINSIC(VPID) break;
+#include "llvm/IR/VPIntrinsics.def"
+  }
+  assert(CCArgIdx && "Unexpected vector-predicated comparison");
+  return IsFP ? getFPPredicateFromMD(getArgOperand(*CCArgIdx))
+              : getIntPredicateFromMD(getArgOperand(*CCArgIdx));
 }
 
 unsigned VPReductionIntrinsic::getVectorParamPos() const {
@@ -632,8 +727,10 @@ unsigned BinaryOpIntrinsic::getNoWrapKind() const {
     return OverflowingBinaryOperator::NoUnsignedWrap;
 }
 
-const GCStatepointInst *GCProjectionInst::getStatepoint() const {
+const Value *GCProjectionInst::getStatepoint() const {
   const Value *Token = getArgOperand(0);
+  if (isa<UndefValue>(Token))
+    return Token;
 
   // This takes care both of relocates for call statepoints and relocates
   // on normal path of invoke statepoint.
@@ -652,13 +749,23 @@ const GCStatepointInst *GCProjectionInst::getStatepoint() const {
 }
 
 Value *GCRelocateInst::getBasePtr() const {
-  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+  auto Statepoint = getStatepoint();
+  if (isa<UndefValue>(Statepoint))
+    return UndefValue::get(Statepoint->getType());
+
+  auto *GCInst = cast<GCStatepointInst>(Statepoint);
+  if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getBasePtrIndex());
-  return *(getStatepoint()->arg_begin() + getBasePtrIndex());
+  return *(GCInst->arg_begin() + getBasePtrIndex());
 }
 
 Value *GCRelocateInst::getDerivedPtr() const {
-  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+  auto *Statepoint = getStatepoint();
+  if (isa<UndefValue>(Statepoint))
+    return UndefValue::get(Statepoint->getType());
+
+  auto *GCInst = cast<GCStatepointInst>(Statepoint);
+  if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getDerivedPtrIndex());
-  return *(getStatepoint()->arg_begin() + getDerivedPtrIndex());
+  return *(GCInst->arg_begin() + getDerivedPtrIndex());
 }

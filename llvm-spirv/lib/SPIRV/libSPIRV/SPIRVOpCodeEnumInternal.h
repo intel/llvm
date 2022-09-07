@@ -11,3 +11,5 @@ _SPIRV_OP_INTERNAL(JointMatrixStoreINTEL, internal::OpJointMatrixStoreINTEL)
 _SPIRV_OP_INTERNAL(JointMatrixMadINTEL, internal::OpJointMatrixMadINTEL)
 _SPIRV_OP_INTERNAL(JointMatrixWorkItemLengthINTEL,
                    internal::OpJointMatrixWorkItemLengthINTEL)
+_SPIRV_OP_INTERNAL(ComplexFMulINTEL, internal::ComplexFMulINTEL)
+_SPIRV_OP_INTERNAL(ComplexFDivINTEL, internal::ComplexFDivINTEL)

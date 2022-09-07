@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class device_selector;
@@ -68,9 +69,7 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
@@ -80,7 +79,7 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of platform doesn't support OpenCL interoperability.",
-          PI_INVALID_PLATFORM);
+          PI_ERROR_INVALID_PLATFORM);
     }
     return pi::cast<cl_platform_id>(MPlatform);
   }
@@ -95,7 +94,7 @@ public:
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
       throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_INVALID_PLATFORM);
+                                 PI_ERROR_INVALID_PLATFORM);
 
     return MPlatform;
   }
@@ -190,5 +189,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -464,7 +464,11 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
   }
 
   if (ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-    APInt Val = CI->getValue().zextOrSelf(BitWidth);
+    APInt Val;
+    if (TLI->signExtendConstant(CI))
+      Val = CI->getValue().sext(BitWidth);
+    else
+      Val = CI->getValue().zext(BitWidth);
     DestLOI.NumSignBits = Val.getNumSignBits();
     DestLOI.Known = KnownBits::makeConstant(Val);
   } else {
@@ -496,7 +500,11 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
     }
 
     if (ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-      APInt Val = CI->getValue().zextOrSelf(BitWidth);
+      APInt Val;
+      if (TLI->signExtendConstant(CI))
+        Val = CI->getValue().sext(BitWidth);
+      else
+        Val = CI->getValue().zext(BitWidth);
       DestLOI.NumSignBits = std::min(DestLOI.NumSignBits, Val.getNumSignBits());
       DestLOI.Known.Zero &= ~Val;
       DestLOI.Known.One &= Val;

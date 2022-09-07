@@ -13,6 +13,8 @@ This extension provides a feature-test macro as described in the core SYCL speci
 |Value|Description|
 |---|:---|
 |1|Initial extension version.
+|2|Added support for the make_buffer() API.
+|3|Added device member to backend_input_t<backend::ext_oneapi_level_zero, queue>.
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
@@ -46,7 +48,6 @@ For further details see here: <https://github.com/intel/llvm/blob/sycl/sycl/doc/
         
 There is an extension that introduces a filtering device selection to SYCL described in
 [sycl\_ext\_oneapi\_filter\_selector](../supported/sycl_ext_oneapi_filter_selector.asciidoc).
-
 Similar to how SYCL_DEVICE_FILTER applies filtering to the entire process this device selector can be used to
 programmatically select the Level-Zero backend.
                 
@@ -108,8 +109,8 @@ struct {
 ```
 </td>
 </tr><tr>
-<td>queue</td>
-<td><pre>ze_command_queue_handle_t</pre></td>
+<td rowspan="2">queue</td>
+<td rowspan="2"><pre>ze_command_queue_handle_t</pre></td>
 <td>
 
 ``` C++
@@ -119,6 +120,22 @@ struct {
       ext::oneapi::level_zero::ownership::transfer};
 }
 ```
+
+Deprecated as of version 3 of this specification.[^1]
+</td>
+</tr><tr>
+<td>
+
+``` C++
+struct {
+  ze_command_queue_handle_t NativeHandle;
+  device Device;
+  ext::oneapi::level_zero::ownership Ownership{
+      ext::oneapi::level_zero::ownership::transfer};
+}
+```
+
+Supported since version 3 of this specification.[^1]
 </td>
 </tr><tr>
 <td>event</td>
@@ -170,8 +187,28 @@ struct {
 }
 ```
 </td>
+</tr><tr>
+<td>buffer</td>
+<td>
+
+``` C++
+void *
+```
+</td>
+<td>
+
+``` C++
+struct {
+  void *NativeHandle;
+  ext::oneapi::level_zero::ownership Ownership{
+      ext::oneapi::level_zero::ownership::transfer};
+}
+```
+</td>
 </tr>
 </table>
+
+[^1]: The SYCL implementation is responsible for distinguishing between the variants of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code>.
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
@@ -183,8 +220,31 @@ auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>
 ```
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
-```kernel_bundle```, and ```kernel``` classes.
+```kernel_bundle```, and ```kernel``` classes. 
 
+The ```sycl::get_native<backend::ext_oneapi_level_zero>```
+free-function is not supported for SYCL ```buffer``` class. The native backend object associated with the
+buffer can be obtained using interop_hande class as described in the core SYCL specification section
+4.10.2, "Class interop_handle". 
+The pointer returned by ```get_native_mem<backend::ext_oneapi_level_zero>``` method of the ```interop_handle```
+class is the value returned from a call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>,
+or <code>zeMemAllocHost()</code> and not necessarily directly accessible from the host.  Users may need to copy
+data to the host to access the data. Users can get type of the allocation using ```type``` data member of the 
+```ze_memory_allocation_properties_t``` struct returned by ```zeMemGetAllocProperties```.
+
+``` C++
+    Queue.submit([&](handler &CGH) {
+        auto BufferAcc = Buffer.get_access<access::mode::write>(CGH);
+        CGH.host_task([=](const interop_handle &IH) {
+            void *DevicePtr =
+                IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);
+            ze_memory_allocation_properties_t MemAllocProperties{};
+            ze_result_t Res = zeMemGetAllocProperties(
+                ZeContext, DevicePtr, &MemAllocProperties, nullptr);
+            ze_memory_type_t ZeMemType = MemAllocProperties.type;
+        });
+    }).wait();
+```
 ### 4.3 Construct a SYCL object from a Level-Zero handle
         
 The following free functions defined in the ```sycl``` namespace are specialized for Level-Zero backend to allow
@@ -234,7 +294,10 @@ make_queue<backend::ext_oneapi_level_zero>(
     const context &Context)
 ```
 </td>
-<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
+<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The <code>Device</code> input structure member specifies the device to create the <code>queue</code> against and must be in <code>Context</code>. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.
+
+If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code> is passed to <code>make_queue</code> the queue is attached to the first device in <code>Context</code>.
+</td>
 </tr><tr>
 <td>
 
@@ -294,6 +357,37 @@ should take ownership of the passed native handle. The default behavior is to
 transfer the ownership to the SYCL runtime. See section 4.4 for details. If
 the behavior is "transfer" then the runtime is going to destroy the input
 Level-Zero kernel</td>
+</tr><tr>
+<td>
+
+``` C++
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &,
+    const context &Context)
+```
+</td>
+<td>This API is available starting with revision 2 of this specification.
+
+Construct a SYCL buffer instance from a pointer to a Level Zero memory allocation. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. The input SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer can be accessed in another contexts, not only in the provided input context.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory allocation. 
+Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
+</tr><tr>
+<td>
+
+``` C++
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &,
+    const context &Context, event AvailableEvent)
+```
+</td>
+<td>This API is available starting with revision 2 of this specification.
+
+Construct a SYCL buffer instance from a pointer to a Level Zero memory allocation. Please refer to <code>make_buffer</code>
+description above for semantics and restrictions.
+The additional <code>AvailableEvent</code> argument must be a valid SYCL event. The instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter to signal that the memory native handle is ready to be used.
 </tr>
 </table>
 
@@ -349,49 +443,14 @@ Applications must make sure that the Level-Zero handles themselves aren't used s
 Practically speaking, and taking into account that SYCL runtime takes ownership of the Level-Zero handles,
 the application should not attempt further direct use of those handles.
 
-## 5 Level-Zero additional functionality
+### 4.5 Interoperability buffer synchronization rules
 
-### 5.1 Device Information Descriptors
-The Level Zero backend provides the following device information descriptors
-that an application can use to query information about a Level Zero device.
-Applications use these queries via the `device::get_backend_info<>()` member
-function as shown in the example below (which illustrates the `free_memory`
-query):
+A SYCL buffer that is constructed with this interop API uses the Level Zero memory allocation for its full lifetime, and the contents of the Level Zero memory allocation are unspecified for the lifetime of the SYCL buffer. If the application modifies the contents of that Level Zero memory allocation during the lifetime of the SYCL buffer, the behavior is undefined. The initial contents of the SYCL buffer will be the initial contents of the Level Zero memory allocation at the time of the SYCL buffer's construction.
 
-``` C++
-sycl::queue Queue;
-auto Device = Queue.get_device();
+The behavior of the SYCL buffer destructor depends on the Ownership flag. As with other SYCL buffers, this behavior is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules".
 
-size_t freeMemory =
-  Device.get_backend_info<sycl::ext::oneapi::level_zero::info::device::free_memory>();
-```
-
-New descriptors added as part of this specification are described in the table below and in the subsequent synopsis.
-
-| Descriptor | Description |
-| ---------- | ----------- |
-| `sycl::ext::oneapi::level_zero::info::device::free_memory` | Returns the number of bytes of free memory for the device. |
-
-
-``` C++
-namespace sycl{
-namespace ext {
-namespace oneapi {
-namespace level_zero {
-namespace info {
-namespace device {
-
-struct free_memory {
-    using return_type = size_t;
-};
-
-} // namespace device;
-} // namespace info
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-```
+* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents is not copied back to the Level Zero memory allocation.
+* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
 ## Revision History
 |Rev|Date|Author|Changes|
@@ -403,3 +462,6 @@ struct free_memory {
 |5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
 |6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard
+|8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
+|9|2022-05-12|Steffen Larsen|Added device member to queue input type
+|10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension

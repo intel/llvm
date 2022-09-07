@@ -6,7 +6,7 @@
 // clang-format off
 
 // TODO fix individual headers and include them instead of sycl.hpp
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 
 SYCL_EXTERNAL void id(sycl::id<2>) {}

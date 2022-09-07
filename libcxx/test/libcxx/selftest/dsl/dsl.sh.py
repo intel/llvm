@@ -60,9 +60,11 @@ class SetupConfigs(unittest.TestCase):
             noExecute=False,
             debug=False,
             isWindows=platform.system() == 'Windows',
+            order='smart',
             params={})
 
         self.config = lit.TestingConfig.TestingConfig.fromdefaults(self.litConfig)
+        self.config.environment = dict(os.environ)
         self.config.test_source_root = SOURCE_ROOT
         self.config.test_exec_root = EXEC_PATH
         self.config.recursiveExpansionLimit = 10

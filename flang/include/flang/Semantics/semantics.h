@@ -14,6 +14,7 @@
 #include "flang/Common/Fortran-features.h"
 #include "flang/Evaluate/common.h"
 #include "flang/Evaluate/intrinsics.h"
+#include "flang/Evaluate/target.h"
 #include "flang/Parser/message.h"
 #include <iosfwd>
 #include <set>
@@ -49,6 +50,8 @@ struct WhereConstruct;
 namespace Fortran::semantics {
 
 class Symbol;
+class CommonBlockMap;
+using CommonBlockList = std::vector<std::pair<SymbolRef, std::size_t>>;
 
 using ConstructNode = std::variant<const parser::AssociateConstruct *,
     const parser::BlockConstruct *, const parser::CaseConstruct *,
@@ -94,6 +97,12 @@ public:
   bool warningsAreErrors() const { return warningsAreErrors_; }
   bool debugModuleWriter() const { return debugModuleWriter_; }
   const evaluate::IntrinsicProcTable &intrinsics() const { return intrinsics_; }
+  const evaluate::TargetCharacteristics &targetCharacteristics() const {
+    return targetCharacteristics_;
+  }
+  evaluate::TargetCharacteristics &targetCharacteristics() {
+    return targetCharacteristics_;
+  }
   Scope &globalScope() { return globalScope_; }
   Scope &intrinsicModulesScope() { return intrinsicModulesScope_; }
   parser::Messages &messages() { return messages_; }
@@ -168,6 +177,8 @@ public:
   const Scope &FindScope(parser::CharBlock) const;
   Scope &FindScope(parser::CharBlock);
 
+  bool IsInModuleFile(parser::CharBlock) const;
+
   const ConstructStack &constructStack() const { return constructStack_; }
   template <typename N> void PushConstruct(const N &node) {
     constructStack_.emplace_back(&node);
@@ -195,6 +206,34 @@ public:
   void UseFortranBuiltinsModule();
   const Scope *GetBuiltinsScope() const { return builtinsScope_; }
 
+  // Saves a module file's parse tree so that it remains available
+  // during semantics.
+  parser::Program &SaveParseTree(parser::Program &&);
+
+  // Ensures a common block definition does not conflict with previous
+  // appearances in the program and consolidate information about
+  // common blocks at the program level for later checks and lowering.
+  // This can obviously not check any conflicts between different compilation
+  // units (in case such conflicts exist, the behavior will depend on the
+  // linker).
+  void MapCommonBlockAndCheckConflicts(const Symbol &);
+
+  // Get the list of common blocks appearing in the program. If a common block
+  // appears in several subprograms, only one of its appearance is returned in
+  // the list alongside the biggest byte size of all its appearances.
+  // If a common block is initialized in any of its appearances, the list will
+  // contain the appearance with the initialization, otherwise the appearance
+  // with the biggest size is returned. The extra byte size information allows
+  // handling the case where the common block initialization is not the
+  // appearance with the biggest size: the common block will have the biggest
+  // size with the first bytes initialized with the initial value. This is not
+  // standard, if the initialization and biggest size appearances are in
+  // different compilation units, the behavior will depend on the linker. The
+  // linker may have the behavior described before, but it may also keep the
+  // initialized common symbol without extending its size, or have some other
+  // behavior.
+  CommonBlockList GetCommonBlocks() const;
+
 private:
   void CheckIndexVarRedefine(
       const parser::CharBlock &, const Symbol &, parser::MessageFixedText &&);
@@ -212,6 +251,7 @@ private:
   bool warningsAreErrors_{false};
   bool debugModuleWriter_{false};
   const evaluate::IntrinsicProcTable intrinsics_;
+  evaluate::TargetCharacteristics targetCharacteristics_;
   Scope globalScope_;
   Scope &intrinsicModulesScope_;
   parser::Messages messages_;
@@ -226,6 +266,8 @@ private:
   UnorderedSymbolSet errorSymbols_;
   std::set<std::string> tempNames_;
   const Scope *builtinsScope_{nullptr}; // module __Fortran_builtins
+  std::list<parser::Program> modFileParseTrees_;
+  std::unique_ptr<CommonBlockMap> commonBlockMap_;
 };
 
 class Semantics {

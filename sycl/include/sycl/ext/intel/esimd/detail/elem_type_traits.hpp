@@ -45,8 +45,6 @@
 //   "_Float16" natively supported by the device compiler and hardware, then
 //   using standard C++, operations such as '+', on _Float16 values. For other
 //   types like bfloat16 this will require mapping to appropriate intrinsics.
-// 5) The type must be marked as wrapper type explicitly, for the API to behave
-//   correctly.
 // Important note: some of these components might have different definition for
 // the same wrapper type depending on host vs device compilation. E.g. for SYCL
 // half the raw type is uint16_t on host and _Float16 on device.
@@ -54,41 +52,46 @@
 // - The mechanism to define components 1) and 2) for a new wrapper type is to
 //   provide a specialization of the `element_type_traits` structure for this
 //   type.
-// - Component 3) is provided via implementing specializations of the following
-//   intrinsics:
-//   * __esimd_wrapper_type_bitcast_to/__esimd_wrapper_type_bitcast_from (should
-//     not be necessary with C++ 20 where there is a standard bitcast operation)
-//     to bitcast between the raw and the wrapper types.
-//   * __esimd_convertvector_to/__esimd_convertvector_from to type-convert
-//     between clang vectors of the wrapper type (bit-represented with the raw
-//     type) and clang vectors the the enclosing std type values.
+// - Component 3) is provided via implementing specializations of the
+//   conversion traits:
+//   * scalar_conversion_traits: functions to bitcast between the raw and the
+//     wrapper types (should not be necessary with C++ 20 where there is a
+//     standard bitcast operation)
+//   * vector_conversion_traits: functions to type-convert between clang
+//     vectors of the wrapper type (bit-represented with the raw type) and clang
+//     vectors the the enclosing std type values.
 // - Component 4) is provided via:
 //   * (primitive operations) Specializations of the
-//       __esimd_binary_op
-//       __esimd_unary_op
-//       __esimd_cmp_op
-//       __esimd_vector_binary_op
-//       __esimd_vector_unary_op
-//       __esimd_vector_cmp_op
-//     intrinsics. If the `use_native_cpp_ops` element type trait is true, then
-//     implementing those intrinsics is not necessary and std C++ operations
-//     will be used.
+//     - scalar_binary_op_traits
+//     - vector_binary_op_traits
+//     - scalar_unary_op_traits
+//     - vector_unary_op_traits
+//     - scalar_comparison_op_traits
+//     - vector_comparison_op_traits
+//     structs. If the `use_native_cpp_ops` element type trait is true, then
+//     implementing those specializations is not necessary and std C++
+//     operations will be used.
 //   * (math operations) Overloading std math functions for the new wrapper
 //     type.
-// - Component 5) is provided via adding the new type to the list of types in
-//   `is_wrapper_elem_type_v` meta function.
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
-#include <sycl/ext/intel/esimd/detail/types.hpp>
+#include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types_elementary.hpp>
 
-#include <CL/sycl/half_type.hpp>
+#include <utility>
 
 /// @cond ESIMD_DETAIL
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_DNS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail {
+
+// -----------------------------------------------------------------------------
+// General declarations
+// -----------------------------------------------------------------------------
 
 // Primitive C++ operations supported by simd objects and templated upon by some
 // of the functions/classes.
@@ -112,19 +115,17 @@ enum class CmpOp { lt, lte, gte, gt, eq, ne };
 
 enum class UnaryOp { minus, plus, bit_not, log_not };
 
-// If given type is a special "wrapper" element type.
-template <class T>
-static inline constexpr bool is_wrapper_elem_type_v =
-    std::is_same_v<T, sycl::half>;
-
-template <class T>
-static inline constexpr bool is_valid_simd_elem_type_v =
-    (is_vectorizable_v<T> || is_wrapper_elem_type_v<T>);
-
 struct invalid_raw_element_type;
 
+// -----------------------------------------------------------------------------
+// Traits to be implemented for wrapper types (interleaving with some useful
+// meta-functions and declarations).
+// -----------------------------------------------------------------------------
+
+// ------------------- Basic type traits
+
 // Default (unusable) definition of the element type traits.
-template <class T, class SFINAE> struct element_type_traits {
+template <class T, class SFINAE = void> struct element_type_traits {
   // The raw element type of the underlying clang vector used as a
   // storage.
   using RawT = invalid_raw_element_type;
@@ -150,66 +151,121 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
 
-// --- Type conversions
+// ------------------- Useful meta-functions and declarations
 
-// Low-level conversion functions to and from a wrapper element type.
-// Must be implemented for each supported
-// <wrapper element type, C++ std type pair>.
+template <class T> using __raw_t = typename element_type_traits<T>::RawT;
+template <class T>
+using __cpp_t = typename element_type_traits<T>::EnclosingCppT;
 
-// These are default implementations for wrapper types with native cpp
-// operations support for their corresponding raw type.
-template <class WrapperTy, class StdTy, int N>
-ESIMD_INLINE vector_type_t<__raw_t<WrapperTy>, N>
-__esimd_convertvector_to(vector_type_t<StdTy, N> Val)
-#ifdef __SYCL_DEVICE_ONLY__
-    ; // needs to be implemented for WrapperTy's for which
-      // element_type_traits<WrapperTy>::use_native_cpp_ops is false.
-#else
-{
-  // TODO implement for host
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+template <class T, int N>
+using __raw_vec_t = vector_type_t<typename element_type_traits<T>::RawT, N>;
 
-template <class WrapperTy, class StdTy, int N>
-ESIMD_INLINE vector_type_t<StdTy, N>
-__esimd_convertvector_from(vector_type_t<__raw_t<WrapperTy>, N> Val)
-#ifdef __SYCL_DEVICE_ONLY__
-    ; // needs to be implemented for WrapperTy's for which
-      // element_type_traits<WrapperTy>::use_native_cpp_ops is false.
-#else
-{
-  // TODO implement for host
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+// Note: using RawVecT in comparison result type calculation does *not* mean
+// the comparison is actually performed on the raw types.
+template <class T, int N>
+using __cmp_t = decltype(std::declval<__raw_vec_t<T, N>>() <
+                         std::declval<__raw_vec_t<T, N>>());
 
-// TODO should be replaced by std::bit_cast once C++20 is supported.
-template <class WrapperTy>
-WrapperTy __esimd_wrapper_type_bitcast_to(__raw_t<WrapperTy> Val);
-template <class WrapperTy>
-__raw_t<WrapperTy> __esimd_wrapper_type_bitcast_from(WrapperTy Val);
+// Is given type is a special "wrapper" element type?
+template <class T>
+static inline constexpr bool is_wrapper_elem_type_v =
+    !std::is_same_v<__raw_t<T>, invalid_raw_element_type> &&
+    !std::is_same_v<__raw_t<T>, T>;
 
-template <class WrapperTy, class StdTy> struct wrapper_type_converter {
-  using RawTy = __raw_t<WrapperTy>;
+template <class T>
+static inline constexpr bool is_valid_simd_elem_type_v =
+    (is_vectorizable_v<T> || is_wrapper_elem_type_v<T>);
+
+// ------------------- Type conversion traits
+
+template <class WrapperT, int N> struct vector_conversion_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+  using StdT = __cpp_t<WrapperT>;
+  using RawT = __raw_t<WrapperT>;
+
+  static vector_type_t<RawT, N> convert_to_raw(vector_type_t<StdT, N>);
+  static vector_type_t<StdT, N> convert_to_cpp(vector_type_t<RawT, N>);
+};
+
+template <class WrapperT> struct scalar_conversion_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+  using RawT = __raw_t<WrapperT>;
+
+  static RawT bitcast_to_raw(WrapperT);
+  static WrapperT bitcast_to_wrapper(RawT);
+};
+
+// ------------------- Binary operation traits
+
+template <BinOp Op, class WrapperT> struct scalar_binary_op_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+
+  static WrapperT impl(WrapperT X, WrapperT Y);
+};
+
+template <BinOp Op, class WrapperT, int N> struct vector_binary_op_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+  using RawVecT = __raw_vec_t<WrapperT, N>;
+
+  static RawVecT impl(RawVecT X, RawVecT Y);
+};
+
+// ------------------- Comparison operation traits
+
+template <CmpOp Op, class WrapperT> struct scalar_comparison_op_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+
+  static bool impl(WrapperT X, WrapperT Y);
+};
+
+template <CmpOp Op, class WrapperT, int N> struct vector_comparison_op_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+  using RawVecT = __raw_vec_t<WrapperT, N>;
+
+  static __cmp_t<WrapperT, N> impl(RawVecT X, RawVecT Y);
+};
+
+// ------------------- Unary operation traits
+
+template <UnaryOp Op, class WrapperT> struct scalar_unary_op_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+
+  static WrapperT impl(WrapperT X);
+};
+
+template <UnaryOp Op, class WrapperT, int N> struct vector_unary_op_traits {
+  static_assert(is_wrapper_elem_type_v<WrapperT>, "");
+  using RawVecT = __raw_vec_t<WrapperT, N>;
+
+  static RawVecT impl(RawVecT X);
+};
+
+// -----------------------------------------------------------------------------
+// Main type conversion meta-functions used in traits implementations and other
+// ESIMD components.
+// -----------------------------------------------------------------------------
+
+template <class WrapperT> struct wrapper_type_converter {
+  using StdT = __cpp_t<WrapperT>;
+  using RawT = __raw_t<WrapperT>;
 
   template <int N>
-  ESIMD_INLINE static vector_type_t<RawTy, N>
-  to_vector(vector_type_t<StdTy, N> Val) {
-    if constexpr (element_type_traits<WrapperTy>::use_native_cpp_ops) {
-      return __builtin_convertvector(Val, vector_type_t<RawTy, N>);
+  ESIMD_INLINE static vector_type_t<RawT, N>
+  to_vector(vector_type_t<StdT, N> Val) {
+    if constexpr (element_type_traits<WrapperT>::use_native_cpp_ops) {
+      return __builtin_convertvector(Val, vector_type_t<RawT, N>);
     } else {
-      return __esimd_convertvector_to<WrapperTy, StdTy, N>(Val);
+      return vector_conversion_traits<WrapperT, N>::convert_to_raw(Val);
     }
   }
 
   template <int N>
-  ESIMD_INLINE static vector_type_t<StdTy, N>
-  from_vector(vector_type_t<RawTy, N> Val) {
-    if constexpr (element_type_traits<WrapperTy>::use_native_cpp_ops) {
-      return __builtin_convertvector(Val, vector_type_t<StdTy, N>);
+  ESIMD_INLINE static vector_type_t<StdT, N>
+  from_vector(vector_type_t<RawT, N> Val) {
+    if constexpr (element_type_traits<WrapperT>::use_native_cpp_ops) {
+      return __builtin_convertvector(Val, vector_type_t<StdT, N>);
     } else {
-      return __esimd_convertvector_from<WrapperTy, StdTy, N>(Val);
+      return vector_conversion_traits<WrapperT, N>::convert_to_cpp(Val);
     }
   }
 };
@@ -229,20 +285,20 @@ ESIMD_INLINE DstRawVecTy convert_vector(SrcRawVecTy Val) {
   } else {
     // The chain of conversions (some can be no-op if types match):
     // SrcRawVecTy (of SrcWrapperTy)
-    //     | step A [wrapper_type_converter<SrcWrapperTy, SrcStdT>]::from_vector
+    //     | step A [wrapper_type_converter<SrcWrapperTy>]::from_vector
     //     v
     //  SrcStdT
     //     | step B [__builtin_convertvector]
     //     v
     //  DstStdT
-    //     | step C [wrapper_type_converter<DstWrapperTy, DstStdT>]::to_vector
+    //     | step C [wrapper_type_converter<DstWrapperTy>]::to_vector
     //     v
     // DstRawVecTy (of DstWrapperTy)
     //
-    using DstStdT = typename element_type_traits<DstWrapperTy>::EnclosingCppT;
-    using SrcStdT = typename element_type_traits<SrcWrapperTy>::EnclosingCppT;
-    using SrcConv = wrapper_type_converter<SrcWrapperTy, SrcStdT>;
-    using DstConv = wrapper_type_converter<DstWrapperTy, DstStdT>;
+    using SrcConv = wrapper_type_converter<SrcWrapperTy>;
+    using DstConv = wrapper_type_converter<DstWrapperTy>;
+    using SrcStdT = typename SrcConv::StdT;
+    using DstStdT = typename DstConv::StdT;
     using DstStdVecT = vector_type_t<DstStdT, N>;
     using SrcStdVecT = vector_type_t<SrcStdT, N>;
     SrcStdVecT TmpSrcVal;
@@ -271,11 +327,16 @@ ESIMD_INLINE DstRawVecTy convert_vector(SrcRawVecTy Val) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// Implementations of standard C++ operations - (comparison, binary and unary)
+// for the vectors and scalars of wrapper types based the traits declared above.
+// -----------------------------------------------------------------------------
+
 template <class Ty> ESIMD_INLINE __raw_t<Ty> bitcast_to_raw_type(Ty Val) {
   if constexpr (!is_wrapper_elem_type_v<Ty>) {
     return Val;
   } else {
-    return __esimd_wrapper_type_bitcast_from<Ty>(Val);
+    return scalar_conversion_traits<Ty>::bitcast_to_raw(Val);
   }
 }
 
@@ -283,7 +344,7 @@ template <class Ty> ESIMD_INLINE Ty bitcast_to_wrapper_type(__raw_t<Ty> Val) {
   if constexpr (!is_wrapper_elem_type_v<Ty>) {
     return Val;
   } else {
-    return __esimd_wrapper_type_bitcast_to<Ty>(Val);
+    return scalar_conversion_traits<Ty>::bitcast_to_wrapper(Val);
   }
 }
 
@@ -309,6 +370,8 @@ ESIMD_INLINE DstWrapperTy convert_scalar(SrcWrapperTy Val) {
   }
 }
 
+// Default implementation of a binary arithmetic operation. Works for both
+// scalar and vector types.
 template <BinOp Op, class T> T binary_op_default_impl(T X, T Y) {
   T Res{};
   if constexpr (Op == BinOp::add)
@@ -338,6 +401,8 @@ template <BinOp Op, class T> T binary_op_default_impl(T X, T Y) {
   return Res;
 }
 
+// Default implementation of a comparison operation. Works for both scalar and
+// vector types.
 template <CmpOp Op, class T> auto comparison_op_default_impl(T X, T Y) {
   decltype(X < Y) Res{};
   if constexpr (Op == CmpOp::lt)
@@ -355,6 +420,8 @@ template <CmpOp Op, class T> auto comparison_op_default_impl(T X, T Y) {
   return Res;
 }
 
+// Default implementation of an unary operation. Works for both scalar and
+// vector types.
 template <UnaryOp Op, class T> auto unary_op_default_impl(T X) {
   if constexpr (Op == UnaryOp::minus)
     return -X;
@@ -366,20 +433,7 @@ template <UnaryOp Op, class T> auto unary_op_default_impl(T X) {
     return !X;
 }
 
-template <class ElemT, int N> struct __hlp {
-  using RawElemT = __raw_t<ElemT>;
-  using RawVecT = vector_type_t<RawElemT, N>;
-  using BinopT = decltype(std::declval<RawVecT>() + std::declval<RawVecT>());
-  using CmpT = decltype(std::declval<RawVecT>() < std::declval<RawVecT>());
-};
-
-template <class Hlp> using __re_t = typename Hlp::RawElemT;
-template <class Hlp> using __rv_t = typename Hlp::RawVecT;
-template <class Hlp> using __cmp_t = typename Hlp::CmpT;
-
 // --- Scalar versions of binary operations
-
-template <BinOp Op, class T> ESIMD_INLINE T __esimd_binary_op(T X, T Y);
 
 template <BinOp Op, class T,
           class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
@@ -392,59 +446,34 @@ ESIMD_INLINE T binary_op_default(T X, T Y) {
   return bitcast_to_wrapper_type<T>(Res);
 }
 
-// Default (inefficient) implementation of a scalar binary operation, which
-// involves conversion to an std C++ type, performing the op and converting
-// back.
-template <BinOp Op, class T> ESIMD_INLINE T __esimd_binary_op(T X, T Y) {
-  using T1 = typename element_type_traits<T>::EnclosingCppT;
-  T1 X1 = convert_scalar<T1, T>(X);
-  T1 Y1 = convert_scalar<T1, T>(Y);
-  return convert_scalar<T>(binary_op_default<Op, T1>(X1, Y1));
-}
-
 template <BinOp Op, class T,
           class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
 ESIMD_INLINE T binary_op(T X, T Y) {
   if constexpr (element_type_traits<T>::use_native_cpp_ops) {
     return binary_op_default<Op>(X, Y);
   } else {
-    return __esimd_binary_op<Op>(X, Y);
+    return scalar_binary_op_traits<Op, T>::impl(X, Y);
   }
 }
 
 // --- Vector versions of binary operations
 
-template <BinOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <BinOp Op, class ElemT, int N, class RawVecT = __raw_vec_t<ElemT, N>>
 ESIMD_INLINE RawVecT vector_binary_op_default(RawVecT X, RawVecT Y) {
   static_assert(element_type_traits<ElemT>::use_native_cpp_ops);
   return binary_op_default_impl<Op, RawVecT>(X, Y);
 }
 
-// Default (inefficient) implementation of a vector binary operation, which
-// involves conversion to an std C++ type, performing the op and converting
-// back.
-template <BinOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
-ESIMD_INLINE RawVecT __esimd_vector_binary_op(RawVecT X, RawVecT Y) {
-  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
-  using VecT1 = vector_type_t<T1, N>;
-  VecT1 X1 = convert_vector<T1, ElemT, N>(X);
-  VecT1 Y1 = convert_vector<T1, ElemT, N>(Y);
-  return convert_vector<ElemT, T1, N>(
-      vector_binary_op_default<Op, T1, N>(X1, Y1));
-}
-
-template <BinOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <BinOp Op, class ElemT, int N, class RawVecT = __raw_vec_t<ElemT, N>>
 ESIMD_INLINE RawVecT vector_binary_op(RawVecT X, RawVecT Y) {
   if constexpr (element_type_traits<ElemT>::use_native_cpp_ops) {
     return vector_binary_op_default<Op, ElemT, N>(X, Y);
   } else {
-    return __esimd_vector_binary_op<Op, ElemT, N>(X, Y);
+    return vector_binary_op_traits<Op, ElemT, N>::impl(X, Y);
   }
 }
 
 // --- Scalar versions of unary operations
-
-template <UnaryOp Op, class T> ESIMD_INLINE T __esimd_unary_op(T X);
 
 template <UnaryOp Op, class T,
           class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
@@ -456,115 +485,120 @@ ESIMD_INLINE T unary_op_default(T X) {
   return bitcast_to_wrapper_type<T>(Res);
 }
 
-// Default (inefficient) implementation of a scalar unary operation, which
-// involves conversion to an std C++ type, performing the op and converting
-// back.
-template <UnaryOp Op, class T> ESIMD_INLINE T __esimd_unary_op(T X) {
-  using T1 = typename element_type_traits<T>::EnclosingCppT;
-  T1 X1 = convert_scalar<T1, T>(X);
-  return convert_scalar<T>(unary_op_default<Op, T1>(X1));
-}
-
 template <UnaryOp Op, class T,
           class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
 ESIMD_INLINE T unary_op(T X) {
   if constexpr (element_type_traits<T>::use_native_cpp_ops) {
     return unary_op_default<Op>(X);
   } else {
-    return __esimd_unary_op<Op>(X);
+    return scalar_unary_op_traits<Op, T>::impl(X);
   }
 }
 
 // --- Vector versions of unary operations
 
-template <UnaryOp Op, class ElemT, int N,
-          class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <UnaryOp Op, class ElemT, int N, class RawVecT = __raw_vec_t<ElemT, N>>
 ESIMD_INLINE RawVecT vector_unary_op_default(RawVecT X) {
   static_assert(element_type_traits<ElemT>::use_native_cpp_ops);
   return unary_op_default_impl<Op, RawVecT>(X);
 }
 
-// Default (inefficient) implementation of a vector unary operation, which
-// involves conversion to an std C++ type, performing the op and converting
-// back.
-template <UnaryOp Op, class ElemT, int N,
-          class RawVecT = __rv_t<__hlp<ElemT, N>>>
-ESIMD_INLINE RawVecT __esimd_vector_unary_op(RawVecT X) {
-  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
-  using VecT1 = vector_type_t<T1, N>;
-  VecT1 X1 = convert_vector<T1, ElemT, N>(X);
-  return convert_vector<ElemT, T1, N>(vector_unary_op_default<Op, T1, N>(X1));
-}
-
-template <UnaryOp Op, class ElemT, int N,
-          class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <UnaryOp Op, class ElemT, int N, class RawVecT = __raw_vec_t<ElemT, N>>
 ESIMD_INLINE RawVecT vector_unary_op(RawVecT X) {
   if constexpr (element_type_traits<ElemT>::use_native_cpp_ops) {
     return vector_unary_op_default<Op, ElemT, N>(X);
   } else {
-    return __esimd_vector_unary_op<Op, ElemT, N>(X);
+    return vector_unary_op_traits<Op, ElemT, N>::impl(X);
   }
 }
 
 // --- Vector versions of comparison operations
 
-template <CmpOp Op, class ElemT, int N, class H = __hlp<ElemT, N>,
-          class RetT = __cmp_t<H>, class RawVecT = __rv_t<H>>
+template <CmpOp Op, class ElemT, int N, class RetT = __cmp_t<ElemT, N>,
+          class RawVecT = __raw_vec_t<ElemT, N>>
 ESIMD_INLINE RetT vector_comparison_op_default(RawVecT X, RawVecT Y) {
   static_assert(element_type_traits<ElemT>::use_native_cpp_ops);
   return comparison_op_default_impl<Op, RawVecT>(X, Y);
 }
 
-// Default (inefficient) implementation of a vector comparison operation, which
-// involves conversion to an std C++ type, performing the op and converting
-// back.
-template <CmpOp Op, class ElemT, int N, class H = __hlp<ElemT, N>,
-          class RetT = __cmp_t<H>, class RawVecT = __rv_t<H>>
-ESIMD_INLINE RetT __esimd_vector_comparison_op(RawVecT X, RawVecT Y) {
-  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
-  using VecT1 = vector_type_t<T1, N>;
-  VecT1 X1 = convert_vector<T1, ElemT, N>(X);
-  VecT1 Y1 = convert_vector<T1, ElemT, N>(Y);
-  return convert_vector<element_type_t<RetT>, T1, N>(
-      vector_comparison_op_default<Op, T1, N>(X1, Y1));
-}
-
-template <CmpOp Op, class ElemT, int N, class H = __hlp<ElemT, N>,
-          class RetT = __cmp_t<H>, class RawVecT = __rv_t<H>>
+template <CmpOp Op, class ElemT, int N, class RetT = __cmp_t<ElemT, N>,
+          class RawVecT = __raw_vec_t<ElemT, N>>
 ESIMD_INLINE RetT vector_comparison_op(RawVecT X, RawVecT Y) {
   if constexpr (element_type_traits<ElemT>::use_native_cpp_ops) {
     return vector_comparison_op_default<Op, ElemT, N>(X, Y);
   } else {
-    return __esimd_vector_comparison_op<Op, ElemT, N>(X, Y);
+    return vector_comparison_op_traits<Op, ElemT, N>::impl(X, Y);
   }
 }
 
-// Proxy class to access bit representation of a wrapper type both on host and
-// device.
-// TODO add this functionality to sycl type implementation? With C++20,
-// std::bit_cast should be a good replacement.
-class WrapperElementTypeProxy {
-public:
-  template <class T = sycl::half>
-  static inline __raw_t<T> bitcast_from_half(T Val) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return Val.Data;
-#else
-    return Val.Data.Buf;
-#endif // __SYCL_DEVICE_ONLY__
-  }
+// -----------------------------------------------------------------------------
+// Default implementations of the traits (used in the operations above).
+// -----------------------------------------------------------------------------
 
-  template <class T = sycl::half>
-  static inline T bitcast_to_half(__raw_t<T> Bits) {
-#ifndef __SYCL_DEVICE_ONLY__
-    return sycl::half{Bits};
-#else
-    sycl::half Res;
-    Res.Data = Bits;
-    return Res;
-#endif // __SYCL_DEVICE_ONLY__
-  }
-};
+// Default (inefficient) implementation of a scalar binary operation, which
+// involves conversion to an std C++ type, performing the op and converting
+// back.
+template <BinOp Op, class WrapperT>
+ESIMD_INLINE WrapperT scalar_binary_op_traits<Op, WrapperT>::impl(WrapperT X,
+                                                                  WrapperT Y) {
+  using T1 = __cpp_t<WrapperT>;
+  T1 X1 = convert_scalar<T1, WrapperT>(X);
+  T1 Y1 = convert_scalar<T1, WrapperT>(Y);
+  return convert_scalar<WrapperT>(binary_op_default<Op, T1>(X1, Y1));
+}
+
+// Default (inefficient) implementation of a vector binary operation, which
+// involves conversion to an std C++ type, performing the op and converting
+// back.
+template <BinOp Op, class WrapperT, int N>
+ESIMD_INLINE __raw_vec_t<WrapperT, N>
+vector_binary_op_traits<Op, WrapperT, N>::impl(__raw_vec_t<WrapperT, N> X,
+                                               __raw_vec_t<WrapperT, N> Y) {
+  using T1 = __cpp_t<WrapperT>;
+  using VecT1 = vector_type_t<T1, N>;
+  VecT1 X1 = convert_vector<T1, WrapperT, N>(X);
+  VecT1 Y1 = convert_vector<T1, WrapperT, N>(Y);
+  return convert_vector<WrapperT, T1, N>(
+      vector_binary_op_default<Op, T1, N>(X1, Y1));
+}
+
+// Default (inefficient) implementation of a scalar unary operation, which
+// involves conversion to an std C++ type, performing the op and converting
+// back.
+template <UnaryOp Op, class WrapperT>
+ESIMD_INLINE WrapperT scalar_unary_op_traits<Op, WrapperT>::impl(WrapperT X) {
+  using T1 = __cpp_t<WrapperT>;
+  T1 X1 = convert_scalar<T1, WrapperT>(X);
+  return convert_scalar<WrapperT>(unary_op_default<Op, T1>(X1));
+}
+
+// Default (inefficient) implementation of a vector unary operation, which
+// involves conversion to an std C++ type, performing the op and converting
+// back.
+template <UnaryOp Op, class WrapperT, int N>
+ESIMD_INLINE __raw_vec_t<WrapperT, N>
+vector_unary_op_traits<Op, WrapperT, N>::impl(__raw_vec_t<WrapperT, N> X) {
+  using T1 = __cpp_t<WrapperT>;
+  using VecT1 = vector_type_t<T1, N>;
+  VecT1 X1 = convert_vector<T1, WrapperT, N>(X);
+  return convert_vector<WrapperT, T1, N>(
+      vector_unary_op_default<Op, T1, N>(X1));
+}
+
+// Default (inefficient) implementation of a vector comparison operation, which
+// involves conversion to an std C++ type, performing the op and converting
+// back.
+template <CmpOp Op, class WrapperT, int N>
+ESIMD_INLINE __cmp_t<WrapperT, N>
+vector_comparison_op_traits<Op, WrapperT, N>::impl(__raw_vec_t<WrapperT, N> X,
+                                                   __raw_vec_t<WrapperT, N> Y) {
+  using T1 = __cpp_t<WrapperT>;
+  using VecT1 = vector_type_t<T1, N>;
+  VecT1 X1 = convert_vector<T1, WrapperT, N>(X);
+  VecT1 Y1 = convert_vector<T1, WrapperT, N>(Y);
+  return convert_vector<vector_element_type_t<__cmp_t<WrapperT, N>>, T1, N>(
+      vector_comparison_op_default<Op, T1, N>(X1, Y1));
+}
 
 // "Generic" version of std::is_floating_point_v which returns "true" also for
 // the wrapper floating-point types such as sycl::half.
@@ -572,145 +606,8 @@ template <typename T>
 static inline constexpr bool is_generic_floating_point_v =
     element_type_traits<T>::is_floating_point;
 
-// Get computation type of a binary operator given its operand types:
-// - if both types are arithmetic - return CPP's "common real type" of the
-//   computation (matches C++)
-// - if both types are simd types, they must be of the same length N,
-//   and the returned type is simd<T, N>, where N is the "common real type" of
-//   the element type of the operands (diverges from clang)
-// - otherwise, one type is simd and another is arithmetic - the simd type is
-//   returned (matches clang)
-
-struct invalid_computation_type;
-
-template <class T1, class T2, class SFINAE = void> struct computation_type {
-  using type = invalid_computation_type;
-};
-
-template <class T1, class T2>
-struct computation_type<T1, T2,
-                        std::enable_if_t<is_valid_simd_elem_type_v<T1> &&
-                                         is_valid_simd_elem_type_v<T2>>> {
-private:
-  template <class T> using tr = element_type_traits<T>;
-  template <class T>
-  using native_t =
-      std::conditional_t<tr<T>::use_native_cpp_ops, typename tr<T>::RawT,
-                         typename tr<T>::EnclosingCppT>;
-  static inline constexpr bool is_wr1 = is_wrapper_elem_type_v<T1>;
-  static inline constexpr bool is_wr2 = is_wrapper_elem_type_v<T2>;
-  static inline constexpr bool is_fp1 = is_generic_floating_point_v<T1>;
-  static inline constexpr bool is_fp2 = is_generic_floating_point_v<T2>;
-
-public:
-  using type = std::conditional_t<
-      !is_wr1 && !is_wr2,
-      // T1 and T2 are both std C++ types - use std C++ type promotion
-      decltype(std::declval<T1>() + std::declval<T2>()),
-      std::conditional_t<
-          std::is_same_v<T1, T2>,
-          // Types are the same wrapper type - return any
-          T1,
-          std::conditional_t<is_fp1 != is_fp2,
-                             // One of the types is floating-point - return it
-                             // (e.g. computation_type<int, sycl::half> will
-                             // yield sycl::half)
-                             std::conditional_t<is_fp1, T1, T2>,
-                             // both are either floating point or integral -
-                             // return result of C++ promotion of the native
-                             // types
-                             decltype(std::declval<native_t<T1>>() +
-                                      std::declval<native_t<T2>>())>>>;
-};
-
-template <class T1, class T2>
-struct computation_type<
-    T1, T2,
-    std::enable_if_t<is_simd_like_type_v<T1> || is_simd_like_type_v<T2>>> {
-private:
-  using Ty1 = element_type_t<T1>;
-  using Ty2 = element_type_t<T2>;
-  using EltTy = typename computation_type<Ty1, Ty2>::type;
-  static constexpr int N1 = is_simd_like_type_v<T1> ? T1::length : 0;
-  static constexpr int N2 = is_simd_like_type_v<T2> ? T2::length : 0;
-  static_assert((N1 == N2) || ((N1 & N2) == 0), "size mismatch");
-  static constexpr int N = N1 ? N1 : N2;
-
-public:
-  using type = simd<EltTy, N1>;
-};
-
-template <class T1, class T2 = T1>
-using computation_type_t =
-    typename computation_type<remove_cvref_t<T1>, remove_cvref_t<T2>>::type;
-
-////////////////////////////////////////////////////////////////////////////////
-// sycl::half traits
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
-  // Can't use sycl::detail::half_impl::StorageT as RawT for both host and
-  // device as it still maps to struct on/ host (even though the struct is a
-  // trivial wrapper around uint16_t), and for ESIMD we need a type which can be
-  // an element of clang vector.
-#ifdef __SYCL_DEVICE_ONLY__
-  using RawT = sycl::detail::half_impl::StorageT;
-  // On device, _Float16 is native Cpp type, so it is the enclosing C++ type
-  using EnclosingCppT = RawT;
-  // On device, operations on half are translated to operations on _Float16,
-  // which is natively supported by the device compiler
-  static inline constexpr bool use_native_cpp_ops = true;
-#else
-  using RawT = uint16_t;
-  using EnclosingCppT = float;
-  // On host, we can't use native Cpp '+', '-' etc. over uint16_t to emulate the
-  // operations on half type.
-  static inline constexpr bool use_native_cpp_ops = false;
-#endif // __SYCL_DEVICE_ONLY__
-
-  static inline constexpr bool is_floating_point = true;
-};
-
-using half_raw = __raw_t<sycl::half>;
-
-template <>
-ESIMD_INLINE sycl::half
-__esimd_wrapper_type_bitcast_to<sycl::half>(half_raw Val) {
-  return WrapperElementTypeProxy::bitcast_to_half(Val);
-}
-
-template <>
-ESIMD_INLINE half_raw
-__esimd_wrapper_type_bitcast_from<sycl::half>(sycl::half Val) {
-  return WrapperElementTypeProxy::bitcast_from_half(Val);
-}
-
-template <>
-struct is_esimd_arithmetic_type<__raw_t<sycl::half>, void> : std::true_type {};
-
-// Misc
-inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
-
-inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
-  float ValFloat = 0.0f;
-  I >> ValFloat;
-  rhs = ValFloat;
-  return I;
-}
-
-// The only other place which needs to be updated to support a new type is
-// the is_wrapper_elem_type_v meta function.
-
-////////////////////////////////////////////////////////////////////////////////
-// sycl::bfloat16 traits
-////////////////////////////////////////////////////////////////////////////////
-// TODO
-
-} // namespace __ESIMD_DNS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @endcond ESIMD_DETAIL

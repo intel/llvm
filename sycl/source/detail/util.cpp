@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/util.hpp>
 #include <detail/global_handler.hpp>
+#include <sycl/detail/util.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 Sync &Sync::getInstance() { return GlobalHandler::instance().getSync(); }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

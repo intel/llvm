@@ -1,17 +1,17 @@
-// RUN: %clang_cc1 -fsyntax-only -verify -Wall -std=c++11 %s
+// RUN: %clang_cc1 -fsyntax-only -verify -Wall -std=c++11 %s -Wno-unused-value
 
 namespace std {
 
 template <typename T>
 void dummy(T &&) {}
 template <typename T>
-void move(T &&) {}
+T &&move(T &&x) { return x; }
 template <typename T, typename U>
 void move(T &&, U &&) {}
 
 inline namespace __1 {
 template <typename T>
-void forward(T &) {}
+T &forward(T &x) { return x; }
 } // namespace __1
 
 struct foo {};
@@ -25,23 +25,23 @@ using namespace std;
 void f() {
   int i = 0;
   std::move(i);
-  move(i);   // expected-warning{{unqualified call to std::move}}
-  (move)(i); // expected-warning{{unqualified call to std::move}}
+  move(i);   // expected-warning{{unqualified call to 'std::move'}}
+  (move)(i); // expected-warning{{unqualified call to 'std::move'}}
   std::dummy(1);
   dummy(1);
   std::move(1, 2);
   move(1, 2);
-  forward<int>(i); // expected-warning{{unqualified call to std::forward}}
+  forward<int>(i); // expected-warning{{unqualified call to 'std::forward'}}
   std::forward<int>(i);
 }
 
 template <typename T>
 void g(T &&foo) {
   std::move(foo);
-  move(foo); // expected-warning{{unqualified call to std::move}}
+  move(foo); // expected-warning{{unqualified call to 'std::move}}
 
   std::forward<decltype(foo)>(foo);
-  forward<decltype(foo)>(foo); // expected-warning{{unqualified call to std::forward}}
+  forward<decltype(foo)>(foo); // expected-warning{{unqualified call to 'std::forward}}
   move(1, 2);
   dummy(foo);
 }
@@ -59,16 +59,16 @@ using std::move;
 
 void f() {
   int i = 0;
-  move(i); // expected-warning{{unqualified call to std::move}}
+  move(i); // expected-warning{{unqualified call to 'std::move}}
   move(1, 2);
-  forward<int>(i); // expected-warning{{unqualified call to std::forward}}
+  forward<int>(i); // expected-warning{{unqualified call to 'std::forward}}
 }
 
 template <typename T>
 void g(T &&foo) {
-  move(foo);                     // expected-warning{{unqualified call to std::move}}
-  forward<decltype(foo)>(foo);   // expected-warning{{unqualified call to std::forward}}
-  (forward<decltype(foo)>)(foo); // expected-warning{{unqualified call to std::forward}}
+  move(foo);                     // expected-warning{{unqualified call to 'std::move}}
+  forward<decltype(foo)>(foo);   // expected-warning{{unqualified call to 'std::forward}}
+  (forward<decltype(foo)>)(foo); // expected-warning{{unqualified call to 'std::forward}}
   move(1, 2);
 }
 
@@ -90,7 +90,7 @@ void f() {
 
 namespace adl {
 void f() {
-  move(std::foo{}); // expected-warning{{unqualified call to std::move}}
+  move(std::foo{}); // expected-warning{{unqualified call to 'std::move}}
 }
 
 } // namespace adl
@@ -99,8 +99,8 @@ namespace std {
 
 void f() {
   int i = 0;
-  move(i);         // expected-warning{{unqualified call to std::move}}
-  forward<int>(i); // expected-warning{{unqualified call to std::forward}}
+  move(i);         // expected-warning{{unqualified call to 'std::move}}
+  forward<int>(i); // expected-warning{{unqualified call to 'std::forward}}
 }
 
 } // namespace std
@@ -110,9 +110,9 @@ namespace alias = std;
 using namespace alias;
 void f() {
   int i = 0;
-  move(i); // expected-warning{{unqualified call to std::move}}
+  move(i); // expected-warning{{unqualified call to 'std::move}}
   move(1, 2);
-  forward<int>(i); // expected-warning{{unqualified call to std::forward}}
+  forward<int>(i); // expected-warning{{unqualified call to 'std::forward}}
 }
 
 } // namespace test_alias

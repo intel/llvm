@@ -9,19 +9,26 @@
 
 /* RUN: mlir-capi-execution-engine-test 2>&1 | FileCheck %s
  */
-/* REQUIRES: llvm_has_native_target
-*/
+/* REQUIRES: native
+ */
 
 #include "mlir-c/Conversion.h"
 #include "mlir-c/ExecutionEngine.h"
 #include "mlir-c/IR.h"
-#include "mlir-c/Registration.h"
+#include "mlir-c/RegisterEverything.h"
 
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void registerAllUpstreamDialects(MlirContext ctx) {
+  MlirDialectRegistry registry = mlirDialectRegistryCreate();
+  mlirRegisterAllDialects(registry);
+  mlirContextAppendDialectRegistry(ctx, registry);
+  mlirDialectRegistryDestroy(registry);
+}
 
 void lowerModuleToLLVM(MlirContext ctx, MlirModule module) {
   MlirPassManager pm = mlirPassManagerCreate(ctx);
@@ -41,15 +48,16 @@ void lowerModuleToLLVM(MlirContext ctx, MlirModule module) {
 // CHECK-LABEL: Running test 'testSimpleExecution'
 void testSimpleExecution() {
   MlirContext ctx = mlirContextCreate();
-  mlirRegisterAllDialects(ctx);
+  registerAllUpstreamDialects(ctx);
+
   MlirModule module = mlirModuleCreateParse(
       ctx, mlirStringRefCreateFromCString(
                // clang-format off
-"module {                                                                   \n"
-"  func @add(%arg0 : i32) -> i32 attributes { llvm.emit_c_interface } {     \n"
-"    %res = arith.addi %arg0, %arg0 : i32                                   \n"
-"    return %res : i32                                                      \n"
-"  }                                                                        \n"
+"module {                                                                    \n"
+"  func.func @add(%arg0 : i32) -> i32 attributes { llvm.emit_c_interface } {     \n"
+"    %res = arith.addi %arg0, %arg0 : i32                                        \n"
+"    return %res : i32                                                           \n"
+"  }                                                                             \n"
 "}"));
   // clang-format on
   lowerModuleToLLVM(ctx, module);

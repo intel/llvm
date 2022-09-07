@@ -47,7 +47,11 @@ public:
       : CGCXXABI(CGM), BaseClassDescriptorType(nullptr),
         ClassHierarchyDescriptorType(nullptr),
         CompleteObjectLocatorType(nullptr), CatchableTypeType(nullptr),
-        ThrowInfoType(nullptr) {}
+        ThrowInfoType(nullptr) {
+    assert(!(CGM.getLangOpts().isExplicitDefaultVisibilityExportMapping() ||
+             CGM.getLangOpts().isAllDefaultVisibilityExportMapping()) &&
+           "visibility export mapping option unimplemented in this ABI");
+  }
 
   bool HasThisReturn(GlobalDecl GD) const override;
   bool hasMostDerivedReturn(GlobalDecl GD) const override;
@@ -778,7 +782,7 @@ public:
   LoadVTablePtr(CodeGenFunction &CGF, Address This,
                 const CXXRecordDecl *RD) override;
 
-  virtual bool
+  bool
   isPermittedToBeHomogeneousAggregate(const CXXRecordDecl *RD) const override;
 
 private:

@@ -107,7 +107,7 @@ Compiler     Versions        Restrictions               Support policy
 Clang        13, 14                                     latest two stable releases per `LLVM's release page <https://releases.llvm.org>`_
 AppleClang   13                                         latest stable release per `Xcode's release page <https://developer.apple.com/documentation/xcode-release-notes>`_
 Open XL      17.1 (AIX)                                 latest stable release per `Open XL's documentation page <https://www.ibm.com/docs/en/openxl-c-and-cpp-aix>`_
-GCC          11              In C++11 or later only     latest stable release per `GCC's release page <https://gcc.gnu.org/releases.html>`_
+GCC          12              In C++11 or later only     latest stable release per `GCC's release page <https://gcc.gnu.org/releases.html>`_
 ============ =============== ========================== =====================
 
 Libc++ also supports common platforms and architectures:
@@ -118,7 +118,7 @@ Target platform Target architecture       Notes
 macOS 10.9+     i386, x86_64, arm64       Building the shared library itself requires targetting macOS 10.11+
 FreeBSD 10+     i386, x86_64, arm
 Linux           i386, x86_64, arm, arm64
-Windows         x86_64                    Both MSVC and MinGW style environments
+Windows         i386, x86_64              Both MSVC and MinGW style environments
 AIX             powerpc, powerpc64
 =============== ========================= ============================
 

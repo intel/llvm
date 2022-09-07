@@ -115,13 +115,13 @@ public:
   Error visit(const OwnedDataSection &Sec) override;
   Error visit(const StringTableSection &Sec) override;
   Error visit(const DynamicRelocationSection &Sec) override;
-  virtual Error visit(const SymbolTableSection &Sec) override = 0;
-  virtual Error visit(const RelocationSection &Sec) override = 0;
-  virtual Error visit(const GnuDebugLinkSection &Sec) override = 0;
-  virtual Error visit(const GroupSection &Sec) override = 0;
-  virtual Error visit(const SectionIndexSection &Sec) override = 0;
-  virtual Error visit(const CompressedSection &Sec) override = 0;
-  virtual Error visit(const DecompressedSection &Sec) override = 0;
+  Error visit(const SymbolTableSection &Sec) override = 0;
+  Error visit(const RelocationSection &Sec) override = 0;
+  Error visit(const GnuDebugLinkSection &Sec) override = 0;
+  Error visit(const GroupSection &Sec) override = 0;
+  Error visit(const SectionIndexSection &Sec) override = 0;
+  Error visit(const CompressedSection &Sec) override = 0;
+  Error visit(const DecompressedSection &Sec) override = 0;
 
   explicit SectionWriter(WritableMemoryBuffer &Buf) : Out(Buf) {}
 };
@@ -539,7 +539,7 @@ class CompressedSection : public SectionBase {
   DebugCompressionType CompressionType;
   uint64_t DecompressedSize;
   uint64_t DecompressedAlign;
-  SmallVector<char, 128> CompressedData;
+  SmallVector<uint8_t, 128> CompressedData;
 
 public:
   CompressedSection(const SectionBase &Sec,
@@ -554,8 +554,7 @@ public:
   Error accept(MutableSectionVisitor &Visitor) override;
 
   static bool classof(const SectionBase *S) {
-    return (S->OriginalFlags & ELF::SHF_COMPRESSED) ||
-           (StringRef(S->Name).startswith(".zdebug"));
+    return S->OriginalFlags & ELF::SHF_COMPRESSED;
   }
 };
 
@@ -568,8 +567,6 @@ public:
     Size = Sec.getDecompressedSize();
     Align = Sec.getDecompressedAlign();
     Flags = OriginalFlags = (Flags & ~ELF::SHF_COMPRESSED);
-    if (StringRef(Name).startswith(".zdebug"))
-      Name = "." + Name.substr(2);
   }
 
   Error accept(SectionVisitor &Visitor) const override;
@@ -621,6 +618,11 @@ enum SymbolShndxType {
   SYMBOL_HEXAGON_SCOMMON_2 = ELF::SHN_HEXAGON_SCOMMON_2,
   SYMBOL_HEXAGON_SCOMMON_4 = ELF::SHN_HEXAGON_SCOMMON_4,
   SYMBOL_HEXAGON_SCOMMON_8 = ELF::SHN_HEXAGON_SCOMMON_8,
+  SYMBOL_MIPS_ACOMMON = ELF::SHN_MIPS_ACOMMON,
+  SYMBOL_MIPS_TEXT = ELF::SHN_MIPS_TEXT,
+  SYMBOL_MIPS_DATA = ELF::SHN_MIPS_DATA,
+  SYMBOL_MIPS_SCOMMON = ELF::SHN_MIPS_SCOMMON,
+  SYMBOL_MIPS_SUNDEFINED = ELF::SHN_MIPS_SUNDEFINED,
   SYMBOL_HIPROC = ELF::SHN_HIPROC,
   SYMBOL_LOOS = ELF::SHN_LOOS,
   SYMBOL_HIOS = ELF::SHN_HIOS,

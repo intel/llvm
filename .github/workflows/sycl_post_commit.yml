@@ -11,15 +11,26 @@ on:
     - .github/workflows/sycl_post_commit.yml
 
 jobs:
+  # This job generates matrix of tests for LLVM Test Suite
+  test_matrix:
+    name: Generate Test Matrix
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      lts_config: "l0_gen9"
   linux_default:
     name: Linux Default
+    needs: test_matrix
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
       build_cache_root: "/__w/llvm"
-      build_artifact_suffix: default
+      build_artifact_suffix: "post_commit"
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
     name: Linux (no assert)
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: gcc_no_assertions
@@ -98,4 +109,5 @@ jobs:
 
   windows_default:
     name: Windows
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml

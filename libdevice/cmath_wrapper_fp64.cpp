@@ -1,4 +1,5 @@
-//==--- cmath_wrapper.cpp - wrappers for C math library functions ----------==//
+//==--- cmath_wrapper_fp64.cpp - wrappers for double precision C math library
+// functions ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,132 +9,132 @@
 
 #include "device_math.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__NVPTX__)
 
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
 // the prototype), functions in device libraries will be ignored and
 // overrided by users' version.
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double log(double x) { return __devicelib_log(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double exp(double x) { return __devicelib_exp(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double frexp(double x, int *exp) { return __devicelib_frexp(x, exp); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double ldexp(double x, int exp) { return __devicelib_ldexp(x, exp); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double log10(double x) { return __devicelib_log10(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double modf(double x, double *intpart) { return __devicelib_modf(x, intpart); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double exp2(double x) { return __devicelib_exp2(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double expm1(double x) { return __devicelib_expm1(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 int ilogb(double x) { return __devicelib_ilogb(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double log1p(double x) { return __devicelib_log1p(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double log2(double x) { return __devicelib_log2(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double logb(double x) { return __devicelib_logb(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double sqrt(double x) { return __devicelib_sqrt(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double cbrt(double x) { return __devicelib_cbrt(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double hypot(double x, double y) { return __devicelib_hypot(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double erf(double x) { return __devicelib_erf(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double erfc(double x) { return __devicelib_erfc(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double tgamma(double x) { return __devicelib_tgamma(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double lgamma(double x) { return __devicelib_lgamma(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double fmod(double x, double y) { return __devicelib_fmod(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double remainder(double x, double y) { return __devicelib_remainder(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double remquo(double x, double y, int *q) {
   return __devicelib_remquo(x, y, q);
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double nextafter(double x, double y) { return __devicelib_nextafter(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double fdim(double x, double y) { return __devicelib_fdim(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double fma(double x, double y, double z) { return __devicelib_fma(x, y, z); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double sin(double x) { return __devicelib_sin(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double cos(double x) { return __devicelib_cos(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double tan(double x) { return __devicelib_tan(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double pow(double x, double y) { return __devicelib_pow(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double acos(double x) { return __devicelib_acos(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double asin(double x) { return __devicelib_asin(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double atan(double x) { return __devicelib_atan(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double atan2(double x, double y) { return __devicelib_atan2(x, y); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double cosh(double x) { return __devicelib_cosh(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double sinh(double x) { return __devicelib_sinh(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double tanh(double x) { return __devicelib_tanh(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double acosh(double x) { return __devicelib_acosh(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double asinh(double x) { return __devicelib_asinh(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double atanh(double x) { return __devicelib_atanh(x); }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
 #if defined(_WIN32)
@@ -166,7 +167,7 @@ union _Dconst {            // pun float types as integer array
 
 #define _Xbig (double)((NBITS + 1) * 347L / 1000)
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 short _Dtest(double *px) { // categorize *px
   _Dval *ps = (_Dval *)(char *)px;
 
@@ -185,7 +186,7 @@ short _Dtest(double *px) { // categorize *px
 
 // Returns _FP_LT, _FP_GT or _FP_EQ based on the ordering
 // relationship between x and y.
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 int _dpcomp(double x, double y) {
   int res = 0;
   if (_Dtest(&x) == _NANCODE || _Dtest(&y) == _NANCODE) {
@@ -204,11 +205,11 @@ int _dpcomp(double x, double y) {
 }
 
 // Returns 0, if the sign bit is not set, and non-zero otherwise.
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 int _dsign(double x) { return DSIGN(x); }
 
 // fpclassify() equivalent with a pointer argument.
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 short _dtest(double *px) {
   switch (_Dtest(px)) {
   case _DENORM:
@@ -224,7 +225,7 @@ short _dtest(double *px) {
   return FP_ZERO;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 short _Dnorm(_Dval *ps) { // normalize double fraction
   short xchar;
   unsigned short sign = (unsigned short)(ps->_Sh[_D0] & _DSIGN);
@@ -256,7 +257,7 @@ short _Dnorm(_Dval *ps) { // normalize double fraction
   return xchar;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 short _Dscale(double *px, long lexp) { // scale *px by 2^xexp with checking
   _Dval *ps = (_Dval *)(char *)px;
   _Dconst _Inf = {INIT(_DMAX << _DOFF)};
@@ -326,7 +327,7 @@ short _Dscale(double *px, long lexp) { // scale *px by 2^xexp with checking
   return ret;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 short _Exp(double *px, double y,
            short eoff) { // compute y * e^(*px), (*px) finite, |y| not huge
   static const double invln2 = 1.4426950408889634073599246810018921;
@@ -365,7 +366,7 @@ short _Exp(double *px, double y,
   return ret;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double _Cosh(double x, double y) { // compute y * cosh(x), |y| <= 1
   switch (_Dtest(&x)) {            // test for special codes
   case _NANCODE:
@@ -389,7 +390,7 @@ double _Cosh(double x, double y) { // compute y * cosh(x), |y| <= 1
   }
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double _Poly(double x, const double *tab, int n) { // compute polynomial
   double y;
 
@@ -399,7 +400,7 @@ double _Poly(double x, const double *tab, int n) { // compute polynomial
   return y;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
 
   short neg;
@@ -443,4 +444,4 @@ double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR__
+#endif // __SPIR__ || __NVPTX__

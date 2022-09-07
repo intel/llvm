@@ -1,4 +1,4 @@
-# RUN: llc -run-pass=aarch64-branch-targets %s -o - | FileCheck %s
+# RUN: llc -run-pass=aarch64-branch-targets -mattr=+pauth %s -o - | FileCheck %s
 --- |
   target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
   target triple = "aarch64-arm-none-eabi"
@@ -272,6 +272,8 @@ body:             |
 
   bb.1.return (address-taken):
     ; CHECK: bb.1.return (address-taken):
+    ; CHECK-NEXT: liveins:
+    ; CHECK-NEXT: {{  $}}
     ; CHECK-NEXT: HINT 36
     liveins: $x8
 
@@ -283,6 +285,8 @@ body:             |
 
   bb.2.lab2 (address-taken):
     ; CHECK: bb.2.lab2 (address-taken):
+    ; CHECK-NEXT: liveins:
+    ; CHECK-NEXT: {{  $}}
     ; CHECK-NEXT: HINT 36
     liveins: $x8
 
@@ -315,6 +319,8 @@ body:             |
 
   bb.1.return (address-taken):
     ; CHECK: bb.1.return (address-taken):
+    ; CHECK-NEXT: liveins:
+    ; CHECK-NEXT: {{  $}}
     ; CHECK-NEXT: HINT 36
     liveins: $x8
     frame-setup PACIASP implicit-def $lr, implicit killed $lr, implicit $sp

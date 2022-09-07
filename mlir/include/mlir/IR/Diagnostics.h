@@ -201,9 +201,7 @@ public:
 
   /// Stream in an Operation.
   Diagnostic &operator<<(Operation &val);
-  Diagnostic &operator<<(Operation *val) {
-    return *this << *val;
-  }
+  Diagnostic &operator<<(Operation *val) { return *this << *val; }
   /// Append an operation with the given printing flags.
   Diagnostic &appendOp(Operation &val, const OpPrintingFlags &flags);
 
@@ -229,12 +227,13 @@ public:
 
   /// Append arguments to the diagnostic.
   template <typename Arg1, typename Arg2, typename... Args>
-  Diagnostic &append(Arg1 &&arg1, Arg2 &&arg2, Args &&... args) {
+  Diagnostic &append(Arg1 &&arg1, Arg2 &&arg2, Args &&...args) {
     append(std::forward<Arg1>(arg1));
     return append(std::forward<Arg2>(arg2), std::forward<Args>(args)...);
   }
   /// Append one argument to the diagnostic.
-  template <typename Arg> Diagnostic &append(Arg &&arg) {
+  template <typename Arg>
+  Diagnostic &append(Arg &&arg) {
     *this << std::forward<Arg>(arg);
     return *this;
   }
@@ -264,6 +263,16 @@ public:
 
   /// Allow a diagnostic to be converted to 'failure'.
   operator LogicalResult() const;
+
+  /// Allow a diagnostic to be converted to 'failure'.
+  operator ParseResult() const { return ParseResult(LogicalResult(*this)); }
+
+  /// Allow a diagnostic to be converted to FailureOr<T>. Always results in
+  /// 'failure' because this cast cannot possibly return an object of 'T'.
+  template <typename T>
+  operator FailureOr<T>() const {
+    return failure();
+  }
 
 private:
   Diagnostic(const Diagnostic &rhs) = delete;
@@ -313,21 +322,25 @@ public:
   }
 
   /// Stream operator for new diagnostic arguments.
-  template <typename Arg> InFlightDiagnostic &operator<<(Arg &&arg) & {
+  template <typename Arg>
+  InFlightDiagnostic &operator<<(Arg &&arg) & {
     return append(std::forward<Arg>(arg));
   }
-  template <typename Arg> InFlightDiagnostic &&operator<<(Arg &&arg) && {
+  template <typename Arg>
+  InFlightDiagnostic &&operator<<(Arg &&arg) && {
     return std::move(append(std::forward<Arg>(arg)));
   }
 
   /// Append arguments to the diagnostic.
-  template <typename... Args> InFlightDiagnostic &append(Args &&... args) & {
+  template <typename... Args>
+  InFlightDiagnostic &append(Args &&...args) & {
     assert(isActive() && "diagnostic not active");
     if (isInFlight())
       impl->append(std::forward<Args>(args)...);
     return *this;
   }
-  template <typename... Args> InFlightDiagnostic &&append(Args &&... args) && {
+  template <typename... Args>
+  InFlightDiagnostic &&append(Args &&...args) && {
     return std::move(append(std::forward<Args>(args)...));
   }
 
@@ -347,6 +360,18 @@ public:
   /// 'success' if this is an empty diagnostic.
   operator LogicalResult() const;
 
+  /// Allow an inflight diagnostic to be converted to 'failure', otherwise
+  /// 'success' if this is an empty diagnostic.
+  operator ParseResult() const { return ParseResult(LogicalResult(*this)); }
+
+  /// Allow an inflight diagnostic to be converted to FailureOr<T>. Always
+  /// results in 'failure' because this cast cannot possibly return an object of
+  /// 'T'.
+  template <typename T>
+  operator FailureOr<T>() const {
+    return failure();
+  }
+
 private:
   InFlightDiagnostic &operator=(const InFlightDiagnostic &) = delete;
   InFlightDiagnostic &operator=(InFlightDiagnostic &&) = delete;
@@ -355,7 +380,7 @@ private:
 
   /// Returns true if the diagnostic is still active, i.e. it has a live
   /// diagnostic.
-  bool isActive() const { return impl.hasValue(); }
+  bool isActive() const { return impl.has_value(); }
 
   /// Returns true if the diagnostic is still in flight to be reported.
   bool isInFlight() const { return owner; }
@@ -395,7 +420,7 @@ public:
   /// The handler type for MLIR diagnostics. This function takes a diagnostic as
   /// input, and returns success if the handler has fully processed this
   /// diagnostic. Returns failure otherwise.
-  using HandlerTy = std::function<LogicalResult(Diagnostic &)>;
+  using HandlerTy = llvm::unique_function<LogicalResult(Diagnostic &)>;
 
   /// A handle to a specific registered handler object.
   using HandlerID = uint64_t;
@@ -405,7 +430,7 @@ public:
   /// handlers will process diagnostics first. This function returns a unique
   /// identifier for the registered handler, which can be used to unregister
   /// this handler at a later time.
-  HandlerID registerHandler(const HandlerTy &handler);
+  HandlerID registerHandler(HandlerTy handler);
 
   /// Set the diagnostic handler with a function that returns void. This is a
   /// convenient wrapper for handlers that always completely process the given
@@ -461,19 +486,19 @@ InFlightDiagnostic emitRemark(Location loc, const Twine &message);
 /// the diagnostic arguments directly instead of relying on the returned
 /// InFlightDiagnostic.
 template <typename... Args>
-LogicalResult emitOptionalError(Optional<Location> loc, Args &&... args) {
+LogicalResult emitOptionalError(Optional<Location> loc, Args &&...args) {
   if (loc)
     return emitError(*loc).append(std::forward<Args>(args)...);
   return failure();
 }
 template <typename... Args>
-LogicalResult emitOptionalWarning(Optional<Location> loc, Args &&... args) {
+LogicalResult emitOptionalWarning(Optional<Location> loc, Args &&...args) {
   if (loc)
     return emitWarning(*loc).append(std::forward<Args>(args)...);
   return failure();
 }
 template <typename... Args>
-LogicalResult emitOptionalRemark(Optional<Location> loc, Args &&... args) {
+LogicalResult emitOptionalRemark(Optional<Location> loc, Args &&...args) {
   if (loc)
     return emitRemark(*loc).append(std::forward<Args>(args)...);
   return failure();
@@ -498,7 +523,8 @@ public:
 
 protected:
   /// Set the handler to manage via RAII.
-  template <typename FuncTy> void setHandler(FuncTy &&handler) {
+  template <typename FuncTy>
+  void setHandler(FuncTy &&handler) {
     auto &diagEngine = ctx->getDiagEngine();
     if (handlerID)
       diagEngine.eraseHandler(handlerID);

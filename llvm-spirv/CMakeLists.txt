@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 15.0.0)
+  set (BASE_LLVM_VERSION 16.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -18,6 +18,11 @@ if (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
     set(LLVM_SPIRV_BUILD_EXTERNAL YES)
   endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
+
+if(LLVM_SPIRV_BUILD_EXTERNAL)
+  # Make sure llvm-spirv gets built when building outside the llvm tree.
+  set(LLVM_BUILD_TOOLS ON)
+endif(LLVM_SPIRV_BUILD_EXTERNAL)
 
 # Download spirv.hpp from the official SPIRV-Headers repository.
 # One can skip this step by manually setting
@@ -81,6 +86,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       BitWriter
       CodeGen
       Core
+      Passes
       Support
       TransformUtils
       ${LLVM_TEST_COMPONENTS}

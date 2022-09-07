@@ -17,3 +17,24 @@ if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.mutex)
       .${LIBC_TARGET_OS}.mutex
   )
 endif()
+
+add_header_library(
+  thread_common
+  HDRS
+    thread.h
+  DEPENDS
+    libc.src.__support.common
+    libc.src.__support.CPP.atomic
+    libc.src.__support.CPP.string_view
+    libc.src.__support.CPP.stringstream
+)
+
+if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.thread)
+  add_object_library(
+    thread
+    SRCS
+      thread.cpp
+    DEPENDS
+      .${LIBC_TARGET_OS}.thread
+  )
+endif()

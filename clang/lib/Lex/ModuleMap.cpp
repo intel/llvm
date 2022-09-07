@@ -456,10 +456,8 @@ static bool violatesPrivateInclude(Module *RequestingModule,
         &Header.getModule()->Headers[Module::HK_Private],
         &Header.getModule()->Headers[Module::HK_PrivateTextual]};
     for (auto *Hs : HeaderList)
-      IsPrivate |=
-          std::find_if(Hs->begin(), Hs->end(), [&](const Module::Header &H) {
-            return H.Entry == IncFileEnt;
-          }) != Hs->end();
+      IsPrivate |= llvm::any_of(
+          *Hs, [&](const Module::Header &H) { return H.Entry == IncFileEnt; });
     assert(IsPrivate && "inconsistent headers and roles");
   }
 #endif
@@ -473,8 +471,7 @@ static Module *getTopLevelOrNull(Module *M) {
 void ModuleMap::diagnoseHeaderInclusion(Module *RequestingModule,
                                         bool RequestingModuleIsModuleInterface,
                                         SourceLocation FilenameLoc,
-                                        StringRef Filename,
-                                        const FileEntry *File) {
+                                        StringRef Filename, FileEntryRef File) {
   // No errors for indirect modules. This may be a bit of a problem for modules
   // with no source files.
   if (getTopLevelOrNull(RequestingModule) != getTopLevelOrNull(SourceModule))
@@ -542,7 +539,7 @@ void ModuleMap::diagnoseHeaderInclusion(Module *RequestingModule,
         diag::warn_non_modular_include_in_framework_module :
         diag::warn_non_modular_include_in_module;
     Diags.Report(FilenameLoc, DiagID) << RequestingModule->getFullModuleName()
-        << File->getName();
+        << File.getName();
   }
 }
 
@@ -1220,8 +1217,8 @@ void ModuleMap::resolveHeaderDirectives(
     Module *Mod, llvm::Optional<const FileEntry *> File) const {
   bool NeedsFramework = false;
   SmallVector<Module::UnresolvedHeaderDirective, 1> NewHeaders;
-  const auto Size = File ? File.getValue()->getSize() : 0;
-  const auto ModTime = File ? File.getValue()->getModificationTime() : 0;
+  const auto Size = File ? File.value()->getSize() : 0;
+  const auto ModTime = File ? File.value()->getModificationTime() : 0;
 
   for (auto &Header : Mod->UnresolvedHeaders) {
     if (File && ((Header.ModTime && Header.ModTime != ModTime) ||

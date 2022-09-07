@@ -50,6 +50,7 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/PrintPasses.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
@@ -964,7 +965,7 @@ bool MachineBlockPlacement::isTrellis(
 
   for (MachineBasicBlock *Succ : ViableSuccs) {
     int PredCount = 0;
-    for (auto SuccPred : Succ->predecessors()) {
+    for (auto *SuccPred : Succ->predecessors()) {
       // Allow triangle successors, but don't count them.
       if (Successors.count(SuccPred)) {
         // Make sure that it is actually a triangle.
@@ -1062,7 +1063,7 @@ MachineBlockPlacement::getBestTrellisSuccessor(
   // Collect the edge frequencies of all edges that form the trellis.
   SmallVector<WeightedEdge, 8> Edges[2];
   int SuccIndex = 0;
-  for (auto Succ : ViableSuccs) {
+  for (auto *Succ : ViableSuccs) {
     for (MachineBasicBlock *SuccPred : Succ->predecessors()) {
       // Skip any placed predecessors that are not BB
       if (SuccPred != BB)
@@ -2450,7 +2451,7 @@ void MachineBlockPlacement::rotateLoopWithProfile(
   // as the sum of frequencies of exit edges we collect here, excluding the exit
   // edge from the tail of the loop chain.
   SmallVector<std::pair<MachineBasicBlock *, BlockFrequency>, 4> ExitsWithFreq;
-  for (auto BB : LoopChain) {
+  for (auto *BB : LoopChain) {
     auto LargestExitEdgeProb = BranchProbability::getZero();
     for (auto *Succ : BB->successors()) {
       BlockChain *SuccChain = BlockToChain[Succ];
@@ -2560,7 +2561,7 @@ MachineBlockPlacement::collectLoopBlockSet(const MachineLoop &L) {
   // profile data is available.
   if (F->getFunction().hasProfileData() || ForceLoopColdBlock) {
     BlockFrequency LoopFreq(0);
-    for (auto LoopPred : L.getHeader()->predecessors())
+    for (auto *LoopPred : L.getHeader()->predecessors())
       if (!L.contains(LoopPred))
         LoopFreq += MBFI->getBlockFreq(LoopPred) *
                     MBPI->getEdgeProbability(LoopPred, L.getHeader());
@@ -3657,6 +3658,9 @@ INITIALIZE_PASS_END(MachineBlockPlacementStats, "block-placement-stats",
 bool MachineBlockPlacementStats::runOnMachineFunction(MachineFunction &F) {
   // Check for single-block functions and skip them.
   if (std::next(F.begin()) == F.end())
+    return false;
+
+  if (!isFunctionInPrintList(F.getName()))
     return false;
 
   MBPI = &getAnalysis<MachineBranchProbabilityInfo>();

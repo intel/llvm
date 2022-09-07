@@ -25,8 +25,9 @@ public:
     // Set up a Module with a dummy function operation inside.
     // Set the insertion point in the function entry block.
     mlir::ModuleOp mod = builder.create<mlir::ModuleOp>(loc);
-    mlir::FuncOp func = mlir::FuncOp::create(loc, "runtime_unit_tests_func",
-        builder.getFunctionType(llvm::None, llvm::None));
+    mlir::func::FuncOp func =
+        mlir::func::FuncOp::create(loc, "runtime_unit_tests_func",
+            builder.getFunctionType(llvm::None, llvm::None));
     auto *entryBlock = func.addEntryBlock();
     mod.push_back(mod);
     builder.setInsertionPointToStart(entryBlock);
@@ -86,7 +87,7 @@ static inline void checkCallOp(mlir::Operation *op, llvm::StringRef fctName,
     unsigned nbArgs, bool addLocArgs = true) {
   EXPECT_TRUE(mlir::isa<fir::CallOp>(*op));
   auto callOp = mlir::dyn_cast<fir::CallOp>(*op);
-  EXPECT_TRUE(callOp.getCallee().hasValue());
+  EXPECT_TRUE(callOp.getCallee().has_value());
   mlir::SymbolRefAttr callee = *callOp.getCallee();
   EXPECT_EQ(fctName, callee.getRootReference().getValue());
   // sourceFile and sourceLine are added arguments.

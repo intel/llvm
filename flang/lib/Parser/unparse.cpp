@@ -758,6 +758,10 @@ public:
     Walk(std::get<CharLiteralConstant>(x.t));
     Put('('), Walk(std::get<SubstringRange>(x.t)), Put(')');
   }
+  void Unparse(const SubstringInquiry &x) {
+    Walk(x.v);
+    Put(x.source.end()[-1] == 'n' ? "%LEN" : "%KIND");
+  }
   void Unparse(const SubstringRange &x) { // R910
     Walk(x.t, ":");
   }
@@ -2025,6 +2029,11 @@ public:
     Put(":");
     Walk(std::get<OmpObjectList>(x.t));
   }
+  void Unparse(const OmpInReductionClause &x) {
+    Walk(std::get<OmpReductionOperator>(x.t));
+    Put(":");
+    Walk(std::get<OmpObjectList>(x.t));
+  }
   void Unparse(const OmpAllocateClause &x) {
     Walk(std::get<std::optional<OmpAllocateClause::Allocator>>(x.t));
     Put(":");
@@ -2741,12 +2750,18 @@ void UnparseVisitor::Word(const char *str) {
 
 void UnparseVisitor::Word(const std::string &str) { Word(str.c_str()); }
 
-void Unparse(llvm::raw_ostream &out, const Program &program, Encoding encoding,
+template <typename A>
+void Unparse(llvm::raw_ostream &out, const A &root, Encoding encoding,
     bool capitalizeKeywords, bool backslashEscapes,
     preStatementType *preStatement, AnalyzedObjectsAsFortran *asFortran) {
   UnparseVisitor visitor{out, 1, encoding, capitalizeKeywords, backslashEscapes,
       preStatement, asFortran};
-  Walk(program, visitor);
+  Walk(root, visitor);
   visitor.Done();
 }
+
+template void Unparse<Program>(llvm::raw_ostream &, const Program &, Encoding,
+    bool, bool, preStatementType *, AnalyzedObjectsAsFortran *);
+template void Unparse<Expr>(llvm::raw_ostream &, const Expr &, Encoding, bool,
+    bool, preStatementType *, AnalyzedObjectsAsFortran *);
 } // namespace Fortran::parser

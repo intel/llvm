@@ -37,112 +37,110 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spvbool"
 
+#include "SPIRVLowerBool.h"
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstVisitor.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
 
-class SPIRVLowerBoolBase : public InstVisitor<SPIRVLowerBoolBase> {
-public:
-  SPIRVLowerBoolBase() : Context(nullptr) {}
-  virtual ~SPIRVLowerBoolBase() {}
-  void replace(Instruction *I, Instruction *NewI) {
-    NewI->takeName(I);
-    NewI->setDebugLoc(I->getDebugLoc());
-    I->replaceAllUsesWith(NewI);
-    I->dropAllReferences();
-    I->eraseFromParent();
-  }
-  bool isBoolType(Type *Ty) {
-    if (Ty->isIntegerTy(1))
-      return true;
-    if (auto VT = dyn_cast<VectorType>(Ty))
-      return isBoolType(VT->getElementType());
-    return false;
-  }
-  virtual void visitTruncInst(TruncInst &I) {
-    if (isBoolType(I.getType())) {
-      auto Op = I.getOperand(0);
-      auto And = BinaryOperator::CreateAnd(
-          Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "", &I);
-      And->setDebugLoc(I.getDebugLoc());
-      auto Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
-      auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
-      replace(&I, Cmp);
-    }
-  }
-  void handleExtInstructions(Instruction &I) {
-    auto Op = I.getOperand(0);
-    if (isBoolType(Op->getType())) {
-      auto Opcode = I.getOpcode();
-      auto Ty = I.getType();
-      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(
-          Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
-      assert(Zero && One && "Couldn't create constant int");
-      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      replace(&I, Sel);
-    }
-  }
-  void handleCastInstructions(Instruction &I) {
-    auto Op = I.getOperand(0);
-    auto *OpTy = Op->getType();
-    if (isBoolType(OpTy)) {
-      Type *Ty = Type::getInt32Ty(*Context);
-      if (auto VT = dyn_cast<FixedVectorType>(OpTy))
-        Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
-      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
-      assert(Zero && One && "Couldn't create constant int");
-      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      Sel->setDebugLoc(I.getDebugLoc());
-      I.setOperand(0, Sel);
-    }
-  }
-  virtual void visitZExtInst(ZExtInst &I) { handleExtInstructions(I); }
-  virtual void visitSExtInst(SExtInst &I) { handleExtInstructions(I); }
-  virtual void visitUIToFPInst(UIToFPInst &I) { handleCastInstructions(I); }
-  virtual void visitSIToFPInst(SIToFPInst &I) { handleCastInstructions(I); }
-  bool runLowerBool(Module &M) {
-    Context = &M.getContext();
-    visit(M);
+void SPIRVLowerBoolBase::replace(Instruction *I, Instruction *NewI) {
+  NewI->takeName(I);
+  NewI->setDebugLoc(I->getDebugLoc());
+  I->replaceAllUsesWith(NewI);
+  I->dropAllReferences();
+  I->eraseFromParent();
+}
 
-    verifyRegularizationPass(M, "SPIRVLowerBool");
+bool SPIRVLowerBoolBase::isBoolType(Type *Ty) {
+  if (Ty->isIntegerTy(1))
     return true;
+  if (auto VT = dyn_cast<VectorType>(Ty))
+    return isBoolType(VT->getElementType());
+  return false;
+}
+
+void SPIRVLowerBoolBase::visitTruncInst(TruncInst &I) {
+  if (isBoolType(I.getType())) {
+    auto Op = I.getOperand(0);
+    auto And = BinaryOperator::CreateAnd(
+        Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "", &I);
+    And->setDebugLoc(I.getDebugLoc());
+    auto Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
+    auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
+    replace(&I, Cmp);
   }
+}
 
-private:
-  LLVMContext *Context;
-};
-
-class SPIRVLowerBoolPass : public llvm::PassInfoMixin<SPIRVLowerBoolPass>,
-                           public SPIRVLowerBoolBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runLowerBool(M) ? llvm::PreservedAnalyses::none()
-                           : llvm::PreservedAnalyses::all();
+void SPIRVLowerBoolBase::handleExtInstructions(Instruction &I) {
+  auto Op = I.getOperand(0);
+  if (isBoolType(Op->getType())) {
+    auto Opcode = I.getOpcode();
+    auto Ty = I.getType();
+    auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+    auto One = getScalarOrVectorConstantInt(
+        Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
+    assert(Zero && One && "Couldn't create constant int");
+    auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+    replace(&I, Sel);
   }
-};
+}
 
-class SPIRVLowerBoolLegacy : public ModulePass, public SPIRVLowerBoolBase {
-public:
-  SPIRVLowerBoolLegacy() : ModulePass(ID) {
-    initializeSPIRVLowerBoolLegacyPass(*PassRegistry::getPassRegistry());
+void SPIRVLowerBoolBase::handleCastInstructions(Instruction &I) {
+  auto Op = I.getOperand(0);
+  auto *OpTy = Op->getType();
+  if (isBoolType(OpTy)) {
+    Type *Ty = Type::getInt32Ty(*Context);
+    if (auto VT = dyn_cast<FixedVectorType>(OpTy))
+      Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
+    auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+    auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+    assert(Zero && One && "Couldn't create constant int");
+    auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+    Sel->setDebugLoc(I.getDebugLoc());
+    I.setOperand(0, Sel);
   }
-  bool runOnModule(Module &M) override { return runLowerBool(M); }
+}
 
-  static char ID;
-};
+void SPIRVLowerBoolBase::visitZExtInst(ZExtInst &I) {
+  handleExtInstructions(I);
+}
+
+void SPIRVLowerBoolBase::visitSExtInst(SExtInst &I) {
+  handleExtInstructions(I);
+}
+
+void SPIRVLowerBoolBase::visitUIToFPInst(UIToFPInst &I) {
+  handleCastInstructions(I);
+}
+
+void SPIRVLowerBoolBase::visitSIToFPInst(SIToFPInst &I) {
+  handleCastInstructions(I);
+}
+
+bool SPIRVLowerBoolBase::runLowerBool(Module &M) {
+  Context = &M.getContext();
+  visit(M);
+
+  verifyRegularizationPass(M, "SPIRVLowerBool");
+  return true;
+}
+
+llvm::PreservedAnalyses
+SPIRVLowerBoolPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  return runLowerBool(M) ? llvm::PreservedAnalyses::none()
+                         : llvm::PreservedAnalyses::all();
+}
+
+SPIRVLowerBoolLegacy::SPIRVLowerBoolLegacy() : ModulePass(ID) {
+  initializeSPIRVLowerBoolLegacyPass(*PassRegistry::getPassRegistry());
+}
+
+bool SPIRVLowerBoolLegacy::runOnModule(Module &M) { return runLowerBool(M); }
 
 char SPIRVLowerBoolLegacy::ID = 0;
 } // namespace SPIRV

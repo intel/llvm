@@ -57,6 +57,13 @@ subroutine size_test(x, n, m)
 end subroutine
 
 subroutine shape_test(x, n, m)
+  abstract interface
+    function foo(n)
+      integer, intent(in) :: n
+      real, pointer :: foo(:,:)
+    end function
+  end interface
+  procedure(foo), pointer :: pf
   integer :: x(n, m)
   !CHECK: PRINT *, [INTEGER(4)::int(size(x,dim=1,kind=8),kind=4),int(size(x,dim=2,kind=8),kind=4)]
   print *, shape(x)
@@ -66,6 +73,8 @@ subroutine shape_test(x, n, m)
   print *, shape(returns_array_2(m))
   !CHECK: PRINT *, [INTEGER(8)::42_8]
   print *, shape(returns_array_3(), kind=8)
+  !CHECK: PRINT *, 2_4
+  print *, rank(pf(1))
 end subroutine
 
 subroutine lbound_test(x, n, m)
@@ -103,9 +112,21 @@ subroutine len_test(a,b, c, d, e, n, m)
   external d
   integer, intent(in) :: n, m
   character(n), intent(in) :: e
+  interface
+     function fun1(L)
+       character(L) :: fun1
+       integer :: L
+     end function fun1
+  end interface
+  interface
+     function mofun(L)
+       character(L) :: mofun
+       integer, intent(in) :: L
+     end function mofun
+  end interface
 
-  !CHECK: PRINT *, int(a%len,kind=8)
-  print *, len(a, kind=8)
+  !CHECK: PRINT *, int(int(a%len,kind=8),kind=4)
+  print *, len(a)
   !CHECK: PRINT *, 5_4
   print *, len(a(1:5))
   !CHECK: PRINT *, len(b(a))
@@ -130,6 +151,10 @@ subroutine len_test(a,b, c, d, e, n, m)
   print *, len(b(a(n:m)))
   !CHECK: PRINT *, int(max(0_8,max(0_8,int(n,kind=8))-4_8+1_8),kind=4)
   print *, len(e(4:))
+  !CHECK: PRINT *, len(fun1(n-m))
+  print *, len(fun1(n-m))
+  !CHECK: PRINT *, len(mofun(m+1_4))
+  print *, len(mofun(m+1))
 end subroutine len_test
 
 end module

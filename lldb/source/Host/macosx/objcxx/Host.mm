@@ -32,6 +32,8 @@
 #define LauncherXPCServiceErrorTypeKey "errorType"
 #define LauncherXPCServiceCodeTypeKey "errorCode"
 
+#include <bsm/audit.h>
+#include <bsm/audit_session.h>
 #endif
 
 #include "llvm/Support/Host.h"
@@ -80,6 +82,7 @@
 #include "../cfcpp/CFCString.h"
 
 #include <objc/objc-auto.h>
+#include <os/log.h>
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <Foundation/Foundation.h>
@@ -95,6 +98,20 @@ int __pthread_fchdir(int fildes);
 
 using namespace lldb;
 using namespace lldb_private;
+
+static os_log_t g_os_log;
+static std::once_flag g_os_log_once;
+
+void Host::SystemLog(llvm::StringRef message) {
+  if (__builtin_available(macos 10.12, iOS 10, tvOS 10, watchOS 3, *)) {
+    std::call_once(g_os_log_once, []() {
+      g_os_log = os_log_create("com.apple.dt.lldb", "lldb");
+    });
+    os_log(g_os_log, "%{public}s", message.str().c_str());
+  } else {
+    llvm::errs() << message;
+  }
+}
 
 bool Host::GetBundleDirectory(const FileSpec &file,
                               FileSpec &bundle_directory) {
@@ -194,7 +211,7 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
     return error;
   }
 
-  darwin_debug_file_spec.GetFilename().SetCString("darwin-debug");
+  darwin_debug_file_spec.SetFilename("darwin-debug");
 
   if (!FileSystem::Instance().Exists(darwin_debug_file_spec)) {
     error.SetErrorStringWithFormat(
@@ -212,18 +229,18 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
       arch_spec.GetCore() != ArchSpec::eCore_x86_64_x86_64h)
     command.Printf("arch -arch %s ", arch_spec.GetArchitectureName());
 
-  command.Printf("'%s' --unix-socket=%s", launcher_path, unix_socket_name);
+  command.Printf(R"(\"%s\" --unix-socket=%s)", launcher_path, unix_socket_name);
 
   if (arch_spec.IsValid())
     command.Printf(" --arch=%s", arch_spec.GetArchitectureName());
 
   FileSpec working_dir{launch_info.GetWorkingDirectory()};
   if (working_dir)
-    command.Printf(" --working-dir '%s'", working_dir.GetCString());
+    command.Printf(R"( --working-dir \"%s\")", working_dir.GetPath().c_str());
   else {
     char cwd[PATH_MAX];
     if (getcwd(cwd, PATH_MAX))
-      command.Printf(" --working-dir '%s'", cwd);
+      command.Printf(R"( --working-dir \"%s\")", cwd);
   }
 
   if (launch_info.GetFlags().Test(eLaunchFlagDisableASLR))
@@ -239,7 +256,7 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
   for (const auto &KV : launch_info.GetEnvironment()) {
     auto host_entry = host_env.find(KV.first());
     if (host_entry == host_env.end() || host_entry->second != KV.second)
-      command.Format(" --env='{0}'", Environment::compose(KV));
+      command.Format(R"( --env=\"{0}\")", Environment::compose(KV));
   }
 
   command.PutCString(" -- ");
@@ -248,12 +265,12 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
   if (argv) {
     for (size_t i = 0; argv[i] != NULL; ++i) {
       if (i == 0)
-        command.Printf(" '%s'", exe_path);
+        command.Printf(R"( \"%s\")", exe_path);
       else
-        command.Printf(" '%s'", argv[i]);
+        command.Printf(R"( \"%s\")", argv[i]);
     }
   } else {
-    command.Printf(" '%s'", exe_path);
+    command.Printf(R"( \"%s\")", exe_path);
   }
   command.PutCString(" ; echo Process exited with status $?");
   if (launch_info.GetFlags().Test(lldb::eLaunchFlagCloseTTYOnExit))
@@ -263,6 +280,7 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
 
   applescript_source.Printf(applscript_in_new_tty,
                             command.GetString().str().c_str());
+
   NSAppleScript *applescript = [[NSAppleScript alloc]
       initWithSource:[NSString stringWithCString:applescript_source.GetString()
                                                      .str()
@@ -403,6 +421,16 @@ bool Host::OpenFileInExternalEditor(const FileSpec &file_spec,
 
   return true;
 #endif // TARGET_OS_OSX
+}
+
+bool Host::IsInteractiveGraphicSession() {
+#if !TARGET_OS_OSX
+  return false;
+#else
+  auditinfo_addr_t info;
+  getaudit_addr(&info, sizeof(info));
+  return info.ai_flags & AU_SESSION_FLAG_HAS_GRAPHIC_ACCESS;
+#endif
 }
 
 Environment Host::GetEnvironment() { return Environment(*_NSGetEnviron()); }
@@ -1172,13 +1200,14 @@ static Status LaunchProcessPosixSpawn(const char *exe_path,
   FileSpec working_dir{launch_info.GetWorkingDirectory()};
   if (working_dir) {
     // Set the working directory on this thread only
-    if (__pthread_chdir(working_dir.GetCString()) < 0) {
+    std::string working_dir_path = working_dir.GetPath();
+    if (__pthread_chdir(working_dir_path.c_str()) < 0) {
       if (errno == ENOENT) {
         error.SetErrorStringWithFormat("No such file or directory: %s",
-                                       working_dir.GetCString());
+                                       working_dir_path.c_str());
       } else if (errno == ENOTDIR) {
         error.SetErrorStringWithFormat("Path doesn't name a directory: %s",
-                                       working_dir.GetCString());
+                                       working_dir_path.c_str());
       } else {
         error.SetErrorStringWithFormat("An unknown error occurred when "
                                        "changing directory for process "
@@ -1477,41 +1506,4 @@ llvm::Expected<HostThread> Host::StartMonitoringChildProcess(
     ::dispatch_resume(source);
   }
   return HostThread();
-}
-
-//----------------------------------------------------------------------
-// Log to both stderr and to ASL Logging when running on MacOSX.
-//----------------------------------------------------------------------
-void Host::SystemLog(SystemLogType type, const char *format, va_list args) {
-  if (format && format[0]) {
-    static aslmsg g_aslmsg = NULL;
-    if (g_aslmsg == NULL) {
-      g_aslmsg = ::asl_new(ASL_TYPE_MSG);
-      char asl_key_sender[PATH_MAX];
-      snprintf(asl_key_sender, sizeof(asl_key_sender),
-               "com.apple.LLDB.framework");
-      ::asl_set(g_aslmsg, ASL_KEY_SENDER, asl_key_sender);
-    }
-
-    // Copy the va_list so we can log this message twice
-    va_list copy_args;
-    va_copy(copy_args, args);
-    // Log to stderr
-    ::vfprintf(stderr, format, copy_args);
-    va_end(copy_args);
-
-    int asl_level;
-    switch (type) {
-    case eSystemLogError:
-      asl_level = ASL_LEVEL_ERR;
-      break;
-
-    case eSystemLogWarning:
-      asl_level = ASL_LEVEL_WARNING;
-      break;
-    }
-
-    // Log to ASL
-    ::asl_vlog(NULL, g_aslmsg, asl_level, format, args);
-  }
 }

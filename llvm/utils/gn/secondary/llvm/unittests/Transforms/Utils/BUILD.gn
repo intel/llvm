@@ -6,8 +6,10 @@ unittest("UtilsTests") {
     "//llvm/lib/AsmParser",
     "//llvm/lib/Bitcode/Writer",
     "//llvm/lib/IR",
+    "//llvm/lib/Passes",
     "//llvm/lib/Support",
     "//llvm/lib/Transforms/Utils",
+    "//llvm/lib/Transforms/Vectorize",
   ]
   sources = [
     "ASanStackFrameLayoutTest.cpp",
@@ -22,7 +24,9 @@ unittest("UtilsTests") {
     "LocalTest.cpp",
     "LoopRotationUtilsTest.cpp",
     "LoopUtilsTest.cpp",
+    "MemTransferLowering.cpp",
     "ModuleUtilsTest.cpp",
+    "ProfDataUtilTest.cpp",
     "SSAUpdaterBulkTest.cpp",
     "ScalarEvolutionExpanderTest.cpp",
     "SizeOptsTest.cpp",
