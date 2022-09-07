@@ -21,15 +21,10 @@ int main() {
   std::size_t Size = 64;
   range<1> Range{Size};
   buffer<int, 1> BufA{Range};
-  buffer<int, 1> BufB{Range};
 
   Q.submit([&](handler &Cgh) {
     auto AccA = BufA.get_access<access::mode::read_write>(Cgh);
-    auto AccB = BufB.get_access<access::mode::read_write>(Cgh);
-    Cgh.parallel_for<Foo>(Range, [=](id<1> Idx) {
-      AccA[Idx] = Idx[0];
-      AccB[Idx] = Idx[0];
-    });
+    Cgh.parallel_for<Foo>(Range, [=](id<1> Idx) { AccA[Idx] = Idx[0]; });
   });
 
   {
@@ -39,16 +34,9 @@ int main() {
     // CHECK-NEXT: :
     // CHECK-NEXT: :
     // CHECK-NEXT: : 1
-    // CHECK: piEnqueueMemBufferMap
-    // CHECK-NEXT: :
-    // CHECK-NEXT: :
-    // CHECK-NEXT: :
-    // CHECK-NEXT: : 1
     auto AccA = BufA.get_access<access::mode::read>();
-    auto AccB = BufB.get_access<access::mode::read>();
     for (std::size_t I = 0; I < Size; ++I) {
       assert(AccA[I] == I);
-      assert(AccB[I] == I);
     }
   }
   {
@@ -63,23 +51,9 @@ int main() {
       AccA[I] = 2 * I;
   }
 
-  queue HostQ{host_selector()};
-  // CHECK: piEnqueueMemUnmap
-  // CHECK: piEnqueueMemBufferMap
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: : 3
-  HostQ.submit([&](handler &Cgh) {
-    auto AccB = BufB.get_access<access::mode::write>(Cgh);
-    Cgh.parallel_for<Bar>(Range, [=](id<1> Idx) { AccB[Idx] = 2 * Idx[0]; });
-  });
-
   // CHECK-NOT: piEnqueueMemBufferMap
   auto AccA = BufA.get_access<access::mode::read>();
-  auto AccB = BufB.get_access<access::mode::read>();
   for (std::size_t I = 0; I < Size; ++I) {
     assert(AccA[I] == 2 * I);
-    assert(AccB[I] == 2 * I);
   }
 }

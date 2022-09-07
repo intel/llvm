@@ -93,27 +93,10 @@ int multidevice_test(queue MyQueue1, queue MyQueue2) {
 }
 
 int main() {
-  host_selector hostSelector;
   cpu_selector CPUSelector;
   gpu_selector GPUSelector;
 
   int Result = -1;
-  try {
-    queue MyQueue1(hostSelector);
-    queue MyQueue2(hostSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
-    std::cout << "Skipping host and host" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(hostSelector);
-    queue MyQueue2(CPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
-    std::cout << "Skipping host and CPU" << std::endl;
-  }
-
   try {
     queue MyQueue1(CPUSelector);
     queue MyQueue2(CPUSelector);
@@ -128,16 +111,6 @@ int main() {
     Result &= multidevice_test(MyQueue1, MyQueue2);
   } catch (sycl::runtime_error &) {
     std::cout << "Skipping CPU and GPU" << std::endl;
-  } catch (sycl::compile_program_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
-  }
-
-  try {
-    queue MyQueue1(hostSelector);
-    queue MyQueue2(GPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
-    std::cout << "Skipping host and GPU" << std::endl;
   } catch (sycl::compile_program_error &) {
     std::cout << "Skipping CPU and GPU" << std::endl;
   }

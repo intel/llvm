@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %debug_option
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
@@ -58,7 +57,6 @@ public:
 int main() {
   TestQueue Queue1(sycl::default_selector{});
   TestQueue Queue2(sycl::default_selector{});
-  TestQueue Queue3(sycl::host_selector{});
 
   std::vector<int> Data(1);
 
@@ -80,15 +78,6 @@ int main() {
   });
 
   Queue2.wait_and_throw();
-
-  { auto HostAcc = Buf.get_access<sycl_access_mode::read>(); }
-
-  Queue3.submit([&](sycl::handler &CGH) {
-    auto BufAcc = Buf.get_access<sycl_access_mode::read_write>(CGH);
-    CGH.single_task<class third_kernel>([=]() { BufAcc[0] = 43; });
-  });
-
-  Queue3.wait_and_throw();
 
   { auto HostAcc = Buf.get_access<sycl_access_mode::read>(); }
 
