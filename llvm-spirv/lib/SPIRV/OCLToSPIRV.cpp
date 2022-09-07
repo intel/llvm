@@ -485,28 +485,23 @@ void OCLToSPIRVBase::visitCallAsyncWorkGroupCopy(CallInst *CI,
 }
 
 CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Value *Expected = nullptr;
   CallInst *NewCI = nullptr;
-  mutateCallInstOCL(
-      M, CI,
-      [&](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
-        Expected = Args[1]; // temporary save second argument.
-        RetTy = Args[2]->getType();
-        Args[1] = new LoadInst(RetTy, Args[1], "exp", false, CI);
-        assert(Args[1]->getType()->isIntegerTy() &&
-               Args[2]->getType()->isIntegerTy() &&
-               "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
-               "an integer type scalars");
-        return kOCLBuiltinName::AtomicCmpXchgStrong;
-      },
-      [&](CallInst *NCI) -> Instruction * {
-        NewCI = NCI;
-        Instruction *Store = new StoreInst(NCI, Expected, NCI->getNextNode());
-        return new ICmpInst(Store->getNextNode(), CmpInst::ICMP_EQ, NCI,
-                            NCI->getArgOperand(1));
-      },
-      &Attrs);
+  {
+    auto Mutator = mutateCallInst(CI, kOCLBuiltinName::AtomicCmpXchgStrong);
+    Value *Expected = Mutator.getArg(1);
+    Type *MemTy = Mutator.getArg(2)->getType();
+    assert(MemTy->isIntegerTy() &&
+           "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
+           "an integer type scalars");
+    Mutator.mapArg(1, [=](IRBuilder<> &Builder, Value *V) {
+      return Builder.CreateLoad(MemTy, V, "exp");
+    });
+    Mutator.changeReturnType(MemTy, [&](IRBuilder<> &Builder, CallInst *NCI) {
+      NewCI = NCI;
+      Builder.CreateStore(NCI, Expected);
+      return Builder.CreateICmpEQ(NCI, NCI->getArgOperand(1));
+    });
+  }
   return NewCI;
 }
 
@@ -570,17 +565,10 @@ void OCLToSPIRVBase::visitCallMemFence(CallInst *CI, StringRef DemangledName) {
 void OCLToSPIRVBase::transMemoryBarrier(CallInst *CI,
                                         AtomicWorkItemFenceLiterals Lit) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.resize(2);
-        Args[0] = addInt32(map<Scope>(std::get<2>(Lit)));
-        Args[1] = addInt32(
-            mapOCLMemSemanticToSPIRV(std::get<0>(Lit), std::get<1>(Lit)));
-        return getSPIRVFuncName(OpMemoryBarrier);
-      },
-      &Attrs);
+  mutateCallInst(CI, OpMemoryBarrier)
+      .setArgs({addInt32(map<Scope>(std::get<2>(Lit))),
+                addInt32(mapOCLMemSemanticToSPIRV(std::get<0>(Lit),
+                                                  std::get<1>(Lit)))});
 }
 
 void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
@@ -740,25 +728,18 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
 
 void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
   auto Lit = getBarrierLiterals(CI);
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.resize(3);
-        // Execution scope
-        Args[0] = addInt32(map<Scope>(std::get<2>(Lit)));
-        // Memory scope
-        Args[1] = addInt32(map<Scope>(std::get<1>(Lit)));
-        // Use sequential consistent memory order by default.
-        // But if the flags argument is set to 0, we use
-        // None(Relaxed) memory order.
-        unsigned MemFenceFlag = std::get<0>(Lit);
-        OCLMemOrderKind MemOrder = MemFenceFlag ? OCLMO_seq_cst : OCLMO_relaxed;
-        Args[2] = addInt32(mapOCLMemSemanticToSPIRV(
-            MemFenceFlag, MemOrder)); // Memory semantics
-        return getSPIRVFuncName(OpControlBarrier);
-      },
-      &Attrs);
+  // Use sequential consistent memory order by default.
+  // But if the flags argument is set to 0, we use
+  // None(Relaxed) memory order.
+  unsigned MemFenceFlag = std::get<0>(Lit);
+  OCLMemOrderKind MemOrder = MemFenceFlag ? OCLMO_seq_cst : OCLMO_relaxed;
+  mutateCallInst(CI, OpControlBarrier)
+      .setArgs({// Execution scope
+                addInt32(map<Scope>(std::get<2>(Lit))),
+                // Memory scope
+                addInt32(map<Scope>(std::get<1>(Lit))),
+                // Memory semantics
+                addInt32(mapOCLMemSemanticToSPIRV(MemFenceFlag, MemOrder))});
 }
 
 void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
@@ -1287,19 +1268,12 @@ void OCLToSPIRVBase::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
 }
 
 void OCLToSPIRVBase::visitCallGetFence(CallInst *CI, StringRef DemangledName) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
-  std::string SPIRVName = getSPIRVFuncName(OC);
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        return SPIRVName;
-      },
-      [=](CallInst *NewCI) -> Instruction * {
-        return BinaryOperator::CreateLShr(NewCI, getInt32(M, 8), "", CI);
-      },
-      &Attrs);
+  mutateCallInst(CI, OC).changeReturnType(
+      CI->getType(), [](IRBuilder<> &Builder, CallInst *NewCI) {
+        return Builder.CreateLShr(NewCI, Builder.getInt32(8));
+      });
 }
 
 void OCLToSPIRVBase::visitCallDot(CallInst *CI) {
@@ -1856,32 +1830,27 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
 void OCLToSPIRVBase::visitCallSplitBarrierINTEL(CallInst *CI,
                                                 StringRef DemangledName) {
   auto Lit = getBarrierLiterals(CI);
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OpCode =
       StringSwitch<Op>(DemangledName)
           .Case("intel_work_group_barrier_arrive", OpControlBarrierArriveINTEL)
           .Case("intel_work_group_barrier_wait", OpControlBarrierWaitINTEL)
           .Default(OpNop);
 
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.resize(3);
-        // Execution scope
-        Args[0] = addInt32(map<Scope>(std::get<2>(Lit)));
-        // Memory scope
-        Args[1] = addInt32(map<Scope>(std::get<1>(Lit)));
-        // Memory semantics
-        // OpControlBarrierArriveINTEL -> Release,
-        // OpControlBarrierWaitINTEL -> Acquire
-        unsigned MemFenceFlag = std::get<0>(Lit);
-        OCLMemOrderKind MemOrder = OpCode == OpControlBarrierArriveINTEL
-                                       ? OCLMO_release
-                                       : OCLMO_acquire;
-        Args[2] = addInt32(mapOCLMemSemanticToSPIRV(MemFenceFlag, MemOrder));
-        return getSPIRVFuncName(OpCode);
-      },
-      &Attrs);
+  // Map memory semantics as follows:
+  // OpControlBarrierArriveINTEL -> Release,
+  // OpControlBarrierWaitINTEL -> Acquire
+  unsigned MemFenceFlag = std::get<0>(Lit);
+  OCLMemOrderKind MemOrder = OpCode == OpControlBarrierArriveINTEL
+    ? OCLMO_release
+    : OCLMO_acquire;
+  mutateCallInst(CI, OpCode)
+    .removeArgs(0, CI->arg_size())
+    // Execution scope
+    .appendArg(addInt32(map<Scope>(std::get<2>(Lit))))
+    // Memory scope
+    .appendArg(addInt32(map<Scope>(std::get<1>(Lit))))
+    // Memory semantics
+    .appendArg(addInt32(mapOCLMemSemanticToSPIRV(MemFenceFlag, MemOrder)));
 }
 
 void OCLToSPIRVBase::visitCallLdexp(CallInst *CI, StringRef MangledName,
