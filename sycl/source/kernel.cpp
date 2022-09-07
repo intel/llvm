@@ -12,7 +12,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/kernel.hpp>
-#include <sycl/program.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -36,10 +35,6 @@ kernel_bundle<sycl::bundle_state::executable>
 kernel::get_kernel_bundle() const {
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::executable>>(impl->get_kernel_bundle());
-}
-
-program kernel::get_program() const {
-  return impl->get_info<info::kernel::program>();
 }
 
 template <typename Param>
