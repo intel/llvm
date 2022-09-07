@@ -64,8 +64,7 @@ private:
   std::string device_name;
 
 public:
-  device_name_selector(const std::string &dev_name)
-      : device_name(dev_name) {}
+  device_name_selector(const std::string &dev_name) : device_name(dev_name) {}
 
   int operator()(const device &device) const override {
     if (device.get_info<sycl::info::device::name>() == device_name)
@@ -79,8 +78,7 @@ static constexpr auto SIMULATOR_DEVICE_NAME =
 
 class fpga_simulator_selector : public device_name_selector {
 public:
-  fpga_simulator_selector()
-    : device_name_selector(SIMULATOR_DEVICE_NAME) {
+  fpga_simulator_selector() : device_name_selector(SIMULATOR_DEVICE_NAME) {
     // Tell the runtime to start a simulator device
 #ifdef _WIN32
     SetEnvironmentVariable("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
