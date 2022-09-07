@@ -51,17 +51,14 @@ template <class SimdElemT>
 }
 
 class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
+  // Require GPU device
   virtual int operator()(const device &device) const {
     if (const char *dev_filter = getenv("SYCL_DEVICE_FILTER")) {
       std::string filter_string(dev_filter);
       if (filter_string.find("gpu") != std::string::npos)
         return device.is_gpu() ? 1000 : -1;
-      if (filter_string.find("host") != std::string::npos)
-        return device.is_host() ? 1000 : -1;
       std::cerr
-          << "Supported 'SYCL_DEVICE_FILTER' env var values are 'gpu' and "
-             "'host', '"
+          << "Supported 'SYCL_DEVICE_FILTER' env var values is 'gpu' and  '"
           << filter_string << "' does not contain such substrings.\n";
       return -1;
     }
