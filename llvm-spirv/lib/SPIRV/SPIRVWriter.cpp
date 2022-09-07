@@ -1695,7 +1695,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
           }
         }
       }
-      BVarInit = transValue(Init, nullptr);
+      // As global variables define a pointer to their "content" type, we should
+      // translate here only pointer without declaration even if it is a
+      // function pointer.
+      BVarInit = transValue(Init, nullptr, true, FuncTransMode::Pointer);
     }
 
     SPIRVStorageClassKind StorageClass;
