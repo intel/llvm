@@ -485,8 +485,9 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
-/// @param pred is predicate to enable the operation
-/// (optional - default to on).
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed. The default is '1' - perform
+/// the operation.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
@@ -527,8 +528,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
-/// @param pred is predicate to enable the operation
-/// (optional - default to on).
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed. The default is '1' - perform
+/// the operation.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
@@ -907,8 +909,9 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param vals is values to store.
-/// @param pred is predicate to enable the operation
-/// (optional - default to on).
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed. The default is '1' - perform
+/// the operation.
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
@@ -948,8 +951,9 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param vals is values to store.
-/// @param pred is predicate to enable the operation
-/// (optional - default to on).
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed. The default is '1' - perform
+/// the operation.
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
