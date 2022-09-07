@@ -1676,6 +1676,8 @@ public:
 #endif
   }
 
+  void swap(accessor &other) { std::swap(impl, other.impl); }
+
   constexpr bool is_placeholder() const { return IsPlaceH; }
 
   size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
@@ -1683,6 +1685,12 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getAccessRange().size(); }
+
+  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+
+  size_t max_size() const noexcept { return std::vector<DataT>().max_size(); }
+
+  bool empty() const noexcept { return size() == 0; }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dimensions> get_range() const {
@@ -2343,6 +2351,15 @@ public:
   }
 
 #endif
+
+public:
+  void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
+
+  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+
+  size_t max_size() const noexcept { return std::vector<DataT>().max_size(); }
+
+  bool empty() const noexcept { return this->size() == 0; }
 };
 
 /// Image accessors.
