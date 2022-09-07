@@ -11,7 +11,6 @@
 #include <detail/device_image_impl.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -77,7 +76,6 @@ static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 TEST(SpecializationConstant, DefaultValuesAreSet) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -107,7 +105,6 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
 TEST(SpecializationConstant, DefaultValuesAreOverriden) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -144,7 +141,6 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
 TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -188,7 +184,6 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
 TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -233,7 +228,6 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
 TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};

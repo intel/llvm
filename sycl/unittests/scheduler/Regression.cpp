@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 
 using namespace sycl;
@@ -58,7 +57,6 @@ static pi_result redefinedEnqueueNativeKernel(
 TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEnqueueNativeKernel>(
       redefinedEnqueueNativeKernel);
 

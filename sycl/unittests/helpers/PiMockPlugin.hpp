@@ -367,7 +367,37 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+
+  switch (param_name) {
+    case PI_PROGRAM_INFO_NUM_DEVICES: {
+      if (param_value)
+        *static_cast<size_t *>(param_value) = 1;
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(size_t);
+      return PI_SUCCESS;
+    }
+    case PI_PROGRAM_INFO_BINARY_SIZES: {
+      if (param_value)
+        *static_cast<size_t *>(param_value) = 1;
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(size_t);
+      return PI_SUCCESS;
+    }
+    case PI_PROGRAM_INFO_BINARIES: {
+      if (param_value)
+        *static_cast<unsigned char *>(param_value) = 1;
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(unsigned char);
+      return PI_SUCCESS;
+    }
+    default: {
+      // TODO: Buildlog requires this but not any actual data afterwards.
+      //       This should be investigated. Should this be moved to that test?
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(size_t);
+      return PI_SUCCESS;
+    }
+  }
 }
 
 inline pi_result
@@ -377,6 +407,8 @@ mock_piProgramLink(pi_context context, pi_uint32 num_devices,
                    const pi_program *input_programs,
                    void (*pfn_notify)(pi_program program, void *user_data),
                    void *user_data, pi_program *ret_program) {
+  static uintptr_t NextProgram = 300;
+  *ret_program = reinterpret_cast<pi_program>(++NextProgram);
   return PI_SUCCESS;
 }
 
@@ -458,7 +490,22 @@ inline pi_result mock_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                            size_t param_value_size,
                                            void *param_value,
                                            size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+  switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+      if (param_value) {
+        auto RealVal = reinterpret_cast<size_t *>(param_value);
+        RealVal[0] = 0;
+        RealVal[1] = 0;
+        RealVal[2] = 0;
+      }
+      if (param_value_size_ret)
+        *param_value_size_ret = 3 * sizeof(size_t);
+      return PI_SUCCESS;
+    }
+    default: {
+      return PI_SUCCESS;
+    }
+  }
 }
 
 inline pi_result mock_piKernelGetSubGroupInfo(
@@ -511,7 +558,18 @@ inline pi_result mock_piEventCreate(pi_context context, pi_event *ret_event) {
 inline pi_result mock_piEventGetInfo(pi_event event, pi_event_info param_name,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+  switch (param_name) {
+    case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+      if (param_value)
+        *static_cast<pi_event_status *>(param_value) = PI_EVENT_SUBMITTED;
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(pi_event_status);
+      return PI_SUCCESS;
+    }
+    default: {
+      return PI_SUCCESS;
+    }
+  }
 }
 
 inline pi_result mock_piEventGetProfilingInfo(pi_event event,
@@ -591,6 +649,8 @@ inline pi_result mock_piEnqueueKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  static uintptr_t NextEvent = 1000;
+  *event = reinterpret_cast<pi_event>(++NextEvent);
   return PI_SUCCESS;
 }
 

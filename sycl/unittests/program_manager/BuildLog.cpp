@@ -12,7 +12,6 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -89,7 +88,6 @@ TEST(BuildLog, OutputNothingOnLevel1) {
 
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -116,7 +114,6 @@ TEST(BuildLog, OutputLogOnLevel2) {
 
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];

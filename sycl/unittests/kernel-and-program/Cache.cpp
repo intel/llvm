@@ -12,7 +12,6 @@
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
 #include "sycl/detail/pi.h"
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
@@ -125,7 +124,6 @@ public:
 
 protected:
   void SetUp() override {
-    setupDefaultMockAPIs(Mock);
     Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
     Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);

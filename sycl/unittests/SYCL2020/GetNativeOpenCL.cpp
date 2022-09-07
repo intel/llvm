@@ -13,7 +13,6 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -86,7 +85,6 @@ static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 TEST(GetNative, GetNativeHandle) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piContextRetain>(redefinedContextRetain);

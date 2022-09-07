@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -30,11 +29,10 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
 
 class EventDestructionTest : public ::testing::Test {
 public:
-  EventDestructionTest() :  Mock{}, Plt{Mock.getPlatform()} {}
+  EventDestructionTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    setupDefaultMockAPIs(Mock);
     Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
     Mock.redefine<detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);

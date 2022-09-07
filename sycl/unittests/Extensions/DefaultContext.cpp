@@ -9,7 +9,6 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/config.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
@@ -27,11 +26,9 @@ TEST(DefaultContextTest, DefaultContextTest) {
 
   sycl::unittest::PiMock Mock1;
   sycl::platform Plt1 = Mock1.getPlatform();
-  setupDefaultMockAPIs(Mock1);
 
   sycl::unittest::PiMock Mock2;
   sycl::platform Plt2 = Mock2.getPlatform();
-  setupDefaultMockAPIs(Mock2);
 
   const sycl::device Dev1 = Plt1.get_devices()[0];
   const sycl::device Dev2 = Plt2.get_devices()[0];
@@ -53,7 +50,6 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
 
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   bool catchException = false;
   try {

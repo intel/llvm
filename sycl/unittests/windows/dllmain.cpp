@@ -12,7 +12,6 @@
  * distinct binary executable.
  */
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
@@ -39,7 +38,6 @@ TEST(Windows, DllMainCall) {
 #ifdef _WIN32
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
   // Teardown calls are only expected on sycl.dll library unload, not when

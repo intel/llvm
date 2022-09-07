@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -35,7 +34,6 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   context Ctx{Plt};

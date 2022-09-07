@@ -11,7 +11,6 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
@@ -111,7 +110,6 @@ public:
 
 protected:
   void SetUp() override {
-    setupDefaultMockAPIs(Mock);
     Mock.redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
     Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
     Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);

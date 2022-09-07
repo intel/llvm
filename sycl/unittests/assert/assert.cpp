@@ -27,7 +27,6 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -285,8 +284,6 @@ static pi_result redefinedExtKernelSetArgMemObj(pi_kernel kernel,
 
 static void setupMock(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-  setupDefaultMockAPIs(Mock);
-
   Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
   Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
@@ -424,7 +421,6 @@ static void setupMockForInterop(sycl::unittest::PiMock &Mock,
                                 const sycl::context &Ctx,
                                 const sycl::device &Dev) {
   using namespace sycl::detail;
-  setupDefaultMockAPIs(Mock);
 
   TestInteropKernel::KernelLaunchCounter = ::KernelLaunchCounterBase;
   TestInteropKernel::Device = &Dev;

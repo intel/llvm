@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -152,7 +151,6 @@ inline pi_result redefinedProgramBuild(
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -179,7 +177,6 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -214,7 +211,6 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 TEST(Link_Compile_Options, check_sycl_build) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);

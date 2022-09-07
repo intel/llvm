@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 
 using namespace sycl;
@@ -128,7 +127,6 @@ static void testEventStatusCheck(detail::Command *Cmd,
 TEST_F(SchedulerTest, QueueFlushing) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(

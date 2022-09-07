@@ -12,7 +12,6 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -195,7 +194,6 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateEAM);
 

@@ -8,7 +8,6 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -143,7 +142,6 @@ TEST(KernelID, NoServiceKernelIds) {
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -169,7 +167,6 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -191,7 +188,6 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
 TEST(KernelID, KernelIDHasKernel) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -271,7 +267,6 @@ TEST(KernelID, KernelIDHasKernel) {
 TEST(KernelID, InvalidKernelName) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
 
   try {
     sycl::get_kernel_id<class NotAKernel>();

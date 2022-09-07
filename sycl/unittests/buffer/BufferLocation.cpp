@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -75,7 +74,6 @@ public:
 
 protected:
   void SetUp() override {
-    setupDefaultMockAPIs(Mock);
     Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
     Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(

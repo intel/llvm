@@ -15,7 +15,6 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -72,7 +71,6 @@ redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
 TEST(GetProfilingInfo, normal_pass_without_exception) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
@@ -111,7 +109,6 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
 TEST(GetProfilingInfo, command_exception_check) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
 
@@ -215,7 +212,6 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
@@ -257,7 +253,6 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];

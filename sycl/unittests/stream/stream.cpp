@@ -8,7 +8,6 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -32,7 +31,6 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
 
