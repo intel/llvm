@@ -584,8 +584,10 @@ template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N>
-__ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
-                              __ESIMD_NS::simd_mask<N> pred = 1) {
+__ESIMD_API void lsc_prefetch(
+    const T *p,
+    __ESIMD_NS::simd<uint32_t, N> offsets = __ESIMD_NS::simd<uint32_t, N>(0),
+    __ESIMD_NS::simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
@@ -602,43 +604,6 @@ __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __esimd_lsc_prefetch_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
                                  _DS, _VS, _Transposed, N>(pred.data(),
                                                            addrs.data());
-}
-
-/// USM pointer prefetch transposed gather with 1 channel.
-/// Supported platforms: DG2, PVC
-/// VISA instruction: lsc_load.ugm
-///
-/// Prefetches elements located at specified address.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @param p is the base pointer.
-///
-template <typename T, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API void lsc_prefetch(const T *p) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(
-      _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-      "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  __esimd_lsc_prefetch_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                 _VS, _Transposed, N>(pred.data(),
-                                                      addrs.data());
 }
 
 /// Accessor-based prefetch gather.
@@ -707,29 +672,7 @@ template <typename T, uint8_t NElts = 1,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, uint32_t offset) {
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  lsc_prefetch<T, NElts, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
-#else
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(
-      _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-      "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_prefetch_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(), si);
-#endif
+  lsc_prefetch(acc, __ESIMD_NS::simd<uint32_t, N>(offset));
 }
 
 /// SLM scatter.
