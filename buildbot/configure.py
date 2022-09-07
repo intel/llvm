@@ -47,6 +47,10 @@ def do_configure(args):
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
 
+    build_compiler_c = '/usr/bin/gcc'
+    build_compiler_cpp = '/usr/bin/g++'
+    verbose = 'OFF'
+
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
@@ -124,6 +128,16 @@ def do_configure(args):
     if args.enable_plugin:
         sycl_enabled_plugins += args.enable_plugin
 
+    if args.build_compiler_c:
+        build_compiler_c = args.build_compiler_c
+
+    if args.build_compiler_cpp:
+        build_compiler_cpp = args.build_compiler_cpp
+
+    if args.verbose:
+        verbose = args.verbose
+        
+
     install_dir = os.path.join(abs_obj_dir, "install")
 
     cmake_cmd = [
@@ -157,7 +171,10 @@ def do_configure(args):
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
-        "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins)))
+        "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
+        "-DCMAKE_C_COMPILER={}".format(build_compiler_c),
+        "-DCMAKE_CXX_COMPILER={}".format(build_compiler_cpp),
+        "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -235,6 +252,10 @@ def main():
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
+    parser.add_argument("--build-compiler-c", metavar="BUILD_COMPILER_C", help="C compiler to use to build the project")
+    parser.add_argument("--build-compiler-cpp", metavar="BUILD_COMPILER_CPP", help="C++ compiler to use to build the project"),
+    parser.add_argument("--verbose", default='OFF', help="Verbose build"),
+
     args = parser.parse_args()
 
     print("args:{}".format(args))

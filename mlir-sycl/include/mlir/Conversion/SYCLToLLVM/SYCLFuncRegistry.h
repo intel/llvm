@@ -36,6 +36,8 @@ class SYCLFuncDescriptor {
                                        const SYCLFuncDescriptor &);
 
 public:
+  virtual ~SYCLFuncDescriptor() {}
+
   /// Enumerates SYCL functions.
   // clang-format off
   enum class FuncId {
@@ -102,7 +104,6 @@ public:
       assert(kind != Kind::Unknown && "Illegal descriptor kind");
     }
 
-    /// Maps a Kind to a descriptive name.
     static std::map<SYCLFuncDescriptor::Kind, std::string> kindToName;
 
     /// Maps a descriptive name to a Kind.
@@ -141,7 +142,7 @@ private:
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SYCLFuncDescriptor::Id &id) {
   os << "funcId=" << (int)id.funcId
-     << ", kind=" << SYCLFuncDescriptor::Id::kindToName[id.kind];
+     << ", kind=" << SYCLFuncDescriptor::Id::kindToName.at(id.kind);
   return os;
 }
 
@@ -168,6 +169,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
         : SYCLFuncDescriptor(funcId, ClassKind, name, outputTy, argTys) {      \
       assert(isValid(funcId) && "Invalid function id");                        \
     }                                                                          \
+    virtual ~ClassName() {}                                                    \
     bool isValid(FuncId) const override;                                       \
   };
 DEFINE_CLASS(SYCLAccessorFuncDescriptor, Kind::Accessor)
