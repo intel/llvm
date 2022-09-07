@@ -1901,7 +1901,6 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
       MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
 }
 
-#include "llvm/Support/Debug.h"
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
   /// Simplify pointer2memref(cast(x)) to pointer2memref(x)
   if (auto mc = source().getDefiningOp<LLVM::BitcastOp>()) {
