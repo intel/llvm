@@ -83,7 +83,7 @@ public:
     : device_name_selector(SIMULATOR_DEVICE_NAME) {
     // Tell the runtime to start a simulator device
 #ifdef _WIN32
-    SetEnvironmentVariable("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
+    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
 #else
     setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1", 0);
 #endif
