@@ -2781,8 +2781,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_assume_aligned: {
     const Expr *Ptr = E->getArg(0);
     Value *PtrValue = EmitScalarExpr(Ptr);
-    if (PtrValue->getType() != VoidPtrTy)
-      PtrValue = EmitCastToVoidPtr(PtrValue);
     Value *OffsetValue =
       (E->getNumArgs() > 2) ? EmitScalarExpr(E->getArg(2)) : nullptr;
 
@@ -20931,8 +20929,7 @@ getIntrinsicForHexagonNonClangBuiltin(unsigned BuiltinID) {
   static const bool SortOnce = (llvm::sort(Infos, CmpInfo), true);
   (void)SortOnce;
 
-  const Info *F = std::lower_bound(std::begin(Infos), std::end(Infos),
-                                   Info{BuiltinID, 0, 0}, CmpInfo);
+  const Info *F = llvm::lower_bound(Infos, Info{BuiltinID, 0, 0}, CmpInfo);
   if (F == std::end(Infos) || F->BuiltinID != BuiltinID)
     return {Intrinsic::not_intrinsic, 0};
 
