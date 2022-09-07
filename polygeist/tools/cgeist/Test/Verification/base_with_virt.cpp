@@ -40,15 +40,13 @@ void a() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN16mbasic_stringbufC1Ev(%arg0: !llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(struct<(i8)>, ptr<i8>)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(struct<(i8)>, ptr<i8>)>)>>, i32) -> !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(struct<(i8)>, ptr<i8>)>)>>) -> !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>
 // CHECK-NEXT:     call @_ZN1AC1Ev(%0) : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN1AC1Ev(%arg0: !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
-// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 1] : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %c3_i32, %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

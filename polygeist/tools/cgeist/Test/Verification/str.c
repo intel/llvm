@@ -9,12 +9,11 @@ int meta() {
 // CHECK:   llvm.mlir.global internal constant @str1("int meta()\00")
 // CHECK:   llvm.mlir.global internal constant @str0("bar\00")
 // CHECK:   func @meta() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str0 : !llvm.ptr<array<4 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[%c0_i32, %c0_i32] : (!llvm.ptr<array<4 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     %2 = call @foo(%1) : (!llvm.ptr<i8>) -> i32
 // CHECK-NEXT:     %3 = llvm.mlir.addressof @str1 : !llvm.ptr<array<11 x i8>>
-// CHECK-NEXT:     %4 = llvm.getelementptr %3[%c0_i32, %c0_i32] : (!llvm.ptr<array<11 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %4 = llvm.getelementptr %3[0, 0] : (!llvm.ptr<array<11 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     %5 = call @foo(%4) : (!llvm.ptr<i8>) -> i32
 // CHECK-NEXT:     %6 = arith.addi %2, %5 : i32
 // CHECK-NEXT:     return %6 : i32

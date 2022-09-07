@@ -18,16 +18,15 @@ module  {
 }
 
 // CHECK:   func.func private @_ZN11ACUDAStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(i32, i32)>)>>, %arg1: !llvm.ptr<struct<(struct<(i32, i32)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %[[i0:.+]] = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(i32, i32)>)>> to !llvm.ptr<i32>
 // CHECK-NEXT:     %[[i2:.+]] = llvm.load %[[i0]] : !llvm.ptr<i32>
 // CHECK-NEXT:     %[[i3:.+]] = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32, i32)>)>> to !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %[[i2]], %[[i3]] : !llvm.ptr<i32>
 // CHECK-NEXT:     %[[i5:.+]] = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(i32, i32)>)>> to !llvm.ptr<i32>
-// CHECK-NEXT:     %[[i6:.+]] = llvm.getelementptr %[[i5]][%c1_i32] : (!llvm.ptr<i32>, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %[[i6:.+]] = llvm.getelementptr %[[i5]][1] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     %[[i7:.+]] = llvm.load %[[i6]] : !llvm.ptr<i32>
 // CHECK-NEXT:     %[[i8:.+]] = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32, i32)>)>> to !llvm.ptr<i32>
-// CHECK-NEXT:     %[[i9:.+]] = llvm.getelementptr %[[i8]][%c1_i32] : (!llvm.ptr<i32>, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %[[i9:.+]] = llvm.getelementptr %[[i8]][1] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %[[i7]], %[[i9]] : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

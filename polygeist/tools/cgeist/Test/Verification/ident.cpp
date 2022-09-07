@@ -42,7 +42,6 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 }
 
 // CHECK:   func @lt_kernel_cuda(%arg0: !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
 // CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)> : (i64) -> !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
@@ -50,7 +49,7 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     %2 = call @_ZNK15MTensorIterator11input_dtypeEv(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
 // CHECK-NEXT:     %3 = arith.cmpi ne, %2, %c0_i8 : i8
 // CHECK-NEXT:     scf.if %3 {
-// CHECK-NEXT:       %4 = llvm.getelementptr %1[%c0_i32, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK-NEXT:       %4 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:       llvm.store %arg0, %4 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:       %5 = llvm.load %1 : !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
 // CHECK-NEXT:       llvm.store %5, %0 : !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
@@ -66,8 +65,7 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     return %2 : i8
 // CHECK-NEXT:   }
 // CHECK:   func private @_ZZ14lt_kernel_cudaENK3$_0clEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:     %2 = call @_ZNK15MTensorIterator6deviceEv(%1) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
 // CHECK-NEXT:     return

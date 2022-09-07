@@ -6,7 +6,7 @@
 // RUN: rm -f %s.out1 %s.out2
 // RUN: cgeist %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
-// RUN: rm -f %s.exec2 %s.execm
+// RUN: rm -f %s.exec2 %s.execm %s.mlir.time %s.clang.time 
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
 // RUN: cgeist %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2

@@ -37,8 +37,7 @@ func.func @main(%arg0 : index) -> memref<1000xi32> {
   }
 
 // CHECK: @nofold2ref(%arg0: !llvm.ptr<struct<(i32, i32)>>) -> memref<?xi32> {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr<struct<(i32, i32)>>, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 1] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<i32>) -> memref<?xi32>
 // CHECK-NEXT:     return %1 : memref<?xi32>
 // CHECK-NEXT:   }
@@ -50,8 +49,7 @@ func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
      return %1 : !llvm.ptr<i8>
 }
 // CHECK: func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
-// CHECK-NEXT: %c8_i64 = arith.constant 8 : i64
 // CHECK-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<10xi32>) -> !llvm.ptr<i8>
-// CHECK-NEXT: %1 = llvm.getelementptr %0[%c8_i64] : (!llvm.ptr<i8>, i64) -> !llvm.ptr<i8>
+// CHECK-NEXT: %1 = llvm.getelementptr %0[8] : (!llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK-NEXT: return %1 : !llvm.ptr<i8>
 // CHECK-NEXT: }
