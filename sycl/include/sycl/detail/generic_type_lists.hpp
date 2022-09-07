@@ -533,6 +533,11 @@ using basic_list =
 // nan builtin types
 using nan_list = type_list<gtl::unsigned_short_list, gtl::unsigned_int_list,
                            gtl::unsigned_long_integer_list>;
+
+using any_builtin_type_list =
+    type_list<double_list, float_list, half_list, longlong_list,
+              long_integer_list, integer_list, short_list, char_list>;
+
 } // namespace gtl
 namespace gvl {
 // address spaces

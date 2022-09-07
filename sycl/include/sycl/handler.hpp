@@ -15,6 +15,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/event.hpp>
@@ -2402,11 +2403,12 @@ public:
            Dst,
        const T &Pattern) {
     throwIfActionIsCreated();
-    // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    if (!MIsHost && (((Dims == 1) && isConstOrGlobal(AccessTarget)) ||
-                     isImageOrImageArray(AccessTarget))) {
+    if (!MIsHost &&
+        (((Dims == 1) && isConstOrGlobal(AccessTarget)) ||
+         isImageOrImageArray(AccessTarget)) &&
+        detail::is_any_builtin_type<T>::value) {
       setType(detail::CG::Fill);
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;

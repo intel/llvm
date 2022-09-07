@@ -130,6 +130,9 @@ template <typename T>
 using is_ulonglongn = is_contained<T, gtl::vector_unsigned_longlong_list>;
 
 template <typename T>
+using is_any_builtin_type = is_contained<T, gtl::any_builtin_type_list>;
+
+template <typename T>
 using is_ugenlonglong = is_contained<T, gtl::unsigned_longlong_list>;
 
 template <typename T>
