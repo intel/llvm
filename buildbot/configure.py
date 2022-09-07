@@ -209,7 +209,8 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
-    parser.add_argument("--host-target", default='X86', help="host LLVM target architecture, defaults to X86")
+    parser.add_argument("--host-target", default='X86',
+                        help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
