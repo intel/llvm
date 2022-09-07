@@ -187,33 +187,12 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
 }
 
 static void performChecks() {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
-  if (!Dev.has(sycl::aspect::online_compiler)) {
-    std::cerr << "aspect::online_compiler is required for this test.";
-    return;
-  }
-
   sycl::queue Queue{Dev};
-
   const sycl::context Ctx = Queue.get_context();
 
   sycl::kernel_bundle KernelBundle =

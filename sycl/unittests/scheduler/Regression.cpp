@@ -56,13 +56,7 @@ static pi_result redefinedEnqueueNativeKernel(
 }
 
 TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
+  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEnqueueNativeKernel>(
@@ -91,7 +85,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*Type*/ detail::CG::RunOnHostIntel)};
 
   context Ctx{Plt};
-  queue Queue{Ctx, Selector};
+  queue Queue{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
 
   detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImpl};

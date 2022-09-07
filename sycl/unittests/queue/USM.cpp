@@ -61,13 +61,7 @@ pi_result redefinedEventsWait(pi_uint32 /* num_events */,
 
 // Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
 TEST(USM, NoOpPreservesDependencyChain) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return;
-  }
-
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piEnqueueEventsWait>(
       redefinedEnqueueEventsWait);

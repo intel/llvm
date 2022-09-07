@@ -30,23 +30,7 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 }
 
 TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI buffers created in that case"
-              << std::endl;
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(

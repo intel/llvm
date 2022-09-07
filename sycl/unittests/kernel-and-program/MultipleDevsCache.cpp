@@ -107,14 +107,11 @@ static pi_result redefinedKernelRelease(pi_kernel kernel) {
 
 class MultipleDeviceCacheTest : public ::testing::Test {
 public:
-  MultipleDeviceCacheTest() : Plt{default_selector()} {}
+  MultipleDeviceCacheTest()
+      : Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      return;
-    }
-
     Mock = std::make_unique<unittest::PiMock>(Plt);
 
     setupDefaultMockAPIs(*Mock);
@@ -140,17 +137,16 @@ protected:
 // Test that program is retained for each device and each kernel is released
 // once
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
   {
     std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
     sycl::context Context(Devices);
     sycl::queue Queue(Context, Devices[0]);
-    assert(Devices.size() == 2);
+    assert(Devices.size() == 2 && Context.get_devices().size() == 2);
 
     auto Bundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Queue.get_context());
+    assert(Bundle.get_devices().size() == 2);
+
     Queue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 

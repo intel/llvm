@@ -9,6 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <helpers/PiMock.hpp>
+
 using namespace sycl;
 
 class MemObjMock : public sycl::detail::SYCLMemObjI {
@@ -36,8 +38,9 @@ public:
 };
 
 static sycl::device getDeviceWithHostUnifiedMemory() {
-  for (sycl::device &D : sycl::device::get_devices()) {
-    if (!D.is_host() && D.get_info<sycl::info::device::host_unified_memory>())
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
+  for (sycl::device &D : Plt.get_devices()) {
+    if (D.get_info<sycl::info::device::host_unified_memory>())
       return D;
   }
   return {};
@@ -45,11 +48,6 @@ static sycl::device getDeviceWithHostUnifiedMemory() {
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::device Dev = getDeviceWithHostUnifiedMemory();
-  if (Dev.is_host()) {
-    std::cerr << "Not run: no non-host devices with host unified memory support"
-              << std::endl;
-    return;
-  }
 
   // 1. create two commands: alloca + alloca and link them
   // 2. call Scheduler::GraphBuilder::getOrCreateAllocaForReq

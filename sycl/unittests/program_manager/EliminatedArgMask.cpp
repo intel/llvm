@@ -193,14 +193,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on "
-              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
-    GTEST_SKIP(); // test is not supported on selected platform.
-  }
-
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(

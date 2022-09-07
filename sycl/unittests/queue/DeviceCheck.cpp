@@ -69,7 +69,7 @@ pi_result redefinedDevicePartition(
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
   if (out_devices) {
     for (pi_uint32 I = 0; I < num_devices; ++I) {
-      out_devices[I] = reinterpret_cast<pi_device>(1);
+      out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
     }
   }
   if (out_num_devices)
@@ -96,11 +96,7 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       EnableDefaultContextsName, "1",
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "The test is not supported on host, skipping" << std::endl;
-    GTEST_SKIP();
-  }
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
   // Create default context normally to avoid issues during its release, which
   // takes plase after Mock is destroyed.

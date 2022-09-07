@@ -200,17 +200,11 @@ static void checkCleanupOnLeafUpdate(
 }
 
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   // Enforce creation of linked commands to test all sites of calling cleanup.
   unittest::ScopedEnvVar HostUnifiedMemoryVar{
       HostUnifiedMemoryName, "1",
       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
+  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
@@ -220,6 +214,7 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
+  default_selector Selector;
   queue Queue{Ctx, Selector};
   detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
   MockScheduler MS;

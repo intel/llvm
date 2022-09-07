@@ -1,4 +1,5 @@
 #include <sycl/detail/pi.hpp>
+#include <cstring>
 
 //
 // Platform
@@ -20,18 +21,36 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
                                         size_t param_value_size,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
-  if (param_value_size_ret)
-    *param_value_size_ret = 3;
+  constexpr char MockSupportedExtensions[] =
+    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
+    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
+  switch (param_name) {
+  case PI_PLATFORM_INFO_EXTENSIONS: {
+    if (param_value) {
+      assert(param_value_size == sizeof(MockSupportedExtensions));
+      std::memcpy(param_value, MockSupportedExtensions,
+                  sizeof(MockSupportedExtensions));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockSupportedExtensions);
+    return PI_SUCCESS;
+  }
+  default: {
+    if (param_value_size_ret)
+      *param_value_size_ret = 3;
 
-  if (param_value && param_value_size >= 3)
-    *static_cast<const char **>(param_value) = "str";
+    if (param_value && param_value_size >= 3)
+      *static_cast<const char **>(param_value) = "str";
 
-  return PI_SUCCESS;
+    return PI_SUCCESS;
+  }
+  }
 }
 
 inline pi_result
 mock_piextPlatformGetNativeHandle(pi_platform platform,
                                   pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(platform);
   return PI_SUCCESS;
 }
 
@@ -58,8 +77,50 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
                                       pi_device_info param_name,
                                       size_t param_value_size,
                                       void *param_value,
-                                      size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+                                      size_t *param_value_size_ret) {               
+  constexpr char MockSupportedExtensions[] = "cl_khr_fp64 cl_khr_fp16";
+  switch (param_name) {
+  case PI_DEVICE_INFO_TYPE: {
+    // Act like any device is a GPU.
+    // TODO: Should we mock more device types?
+    if (param_value)
+      *static_cast<_pi_device_type*>(param_value) = PI_DEVICE_TYPE_GPU;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(PI_DEVICE_TYPE_GPU);
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_PARENT_DEVICE: {
+    if (param_value)
+      *static_cast<pi_device**>(param_value) = nullptr;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_device*);
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_EXTENSIONS: {
+    if (param_value) {
+      assert(param_value_size == sizeof(MockSupportedExtensions));
+      std::memcpy(param_value, MockSupportedExtensions,
+                  sizeof(MockSupportedExtensions));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockSupportedExtensions);
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_USM_HOST_SUPPORT:
+  case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
+  case PI_DEVICE_INFO_AVAILABLE:
+  case PI_DEVICE_INFO_LINKER_AVAILABLE:
+  case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
+    if (param_value)
+      *static_cast<pi_bool*>(param_value) = PI_TRUE;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(PI_TRUE);
+    return PI_SUCCESS;
+  }
+  default:
+    return PI_SUCCESS;
+  }
 }
 
 inline pi_result mock_piDeviceRetain(pi_device device) { return PI_SUCCESS; }
@@ -75,6 +136,7 @@ inline pi_result mock_piDevicePartition(
 inline pi_result
 mock_piextDeviceGetNativeHandle(pi_device device,
                                 pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(device);
   return PI_SUCCESS;
 }
 
@@ -87,6 +149,7 @@ inline pi_result mock_piextDeviceSelectBinary(pi_device device,
                                               pi_device_binary *binaries,
                                               pi_uint32 num_binaries,
                                               pi_uint32 *selected_binary_ind) {
+  *selected_binary_ind = 0;
   return PI_SUCCESS;
 }
 
@@ -106,6 +169,8 @@ inline pi_result mock_piContextCreate(
     void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
                        void *user_data),
     void *user_data, pi_context *ret_context) {
+  static uintptr_t NextContext = 0;
+  *ret_context = reinterpret_cast<pi_context>(++NextContext);
   return PI_SUCCESS;
 }
 
@@ -114,7 +179,17 @@ inline pi_result mock_piContextGetInfo(pi_context context,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+  switch (param_name) {
+    case PI_CONTEXT_INFO_NUM_DEVICES: {
+      if (param_value)
+        *static_cast<pi_uint32*>(param_value) = 1;
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(pi_uint32);
+      return PI_SUCCESS;
+    }
+    default:
+      return PI_SUCCESS;
+  }
 }
 
 inline pi_result mock_piContextRetain(pi_context context) { return PI_SUCCESS; }
@@ -131,6 +206,7 @@ inline pi_result mock_piextContextSetExtendedDeleter(
 inline pi_result
 mock_piextContextGetNativeHandle(pi_context context,
                                  pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(context);
   return PI_SUCCESS;
 }
 
@@ -147,6 +223,8 @@ inline pi_result mock_piextContextCreateWithNativeHandle(
 inline pi_result mock_piQueueCreate(pi_context context, pi_device device,
                                     pi_queue_properties properties,
                                     pi_queue *queue) {
+  static uintptr_t NextQueue = 0;
+  *queue = reinterpret_cast<pi_queue>(++NextQueue);
   return PI_SUCCESS;
 }
 
@@ -154,7 +232,17 @@ inline pi_result mock_piQueueGetInfo(pi_queue command_queue,
                                      pi_queue_info param_name,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+  switch (param_name) {
+    case PI_QUEUE_INFO_DEVICE: {
+      if (param_value)
+        *static_cast<pi_device*>(param_value) = reinterpret_cast<pi_device>(1);
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(pi_device);
+      return PI_SUCCESS;
+    }
+    default:
+      return PI_SUCCESS;
+  }
 }
 
 inline pi_result mock_piQueueRetain(pi_queue command_queue) {
@@ -175,6 +263,7 @@ inline pi_result mock_piQueueFlush(pi_queue command_queue) {
 
 inline pi_result
 mock_piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(queue);
   return PI_SUCCESS;
 }
 
@@ -191,6 +280,8 @@ inline pi_result
 mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                        void *host_ptr, pi_mem *ret_mem,
                        const pi_mem_properties *properties = nullptr) {
+  static uintptr_t NextMem = 0;
+  *ret_mem = reinterpret_cast<pi_mem>(++NextMem);
   return PI_SUCCESS;
 }
 
@@ -198,6 +289,8 @@ inline pi_result mock_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                        const pi_image_format *image_format,
                                        const pi_image_desc *image_desc,
                                        void *host_ptr, pi_mem *ret_mem) {
+  static uintptr_t NextMem = 0;
+  *ret_mem = reinterpret_cast<pi_mem>(++NextMem);
   return PI_SUCCESS;
 }
 
@@ -227,6 +320,7 @@ mock_piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 
 inline pi_result mock_piextMemGetNativeHandle(pi_mem mem,
                                               pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(mem);
   return PI_SUCCESS;
 }
 
@@ -243,6 +337,8 @@ mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 inline pi_result mock_piProgramCreate(pi_context context, const void *il,
                                       size_t length, pi_program *res_program) {
+  static uintptr_t NextProgram = 0;
+  *res_program = reinterpret_cast<pi_program>(++NextProgram);
   return PI_SUCCESS;
 }
 
@@ -251,6 +347,8 @@ inline pi_result mock_piclProgramCreateWithSource(pi_context context,
                                                   const char **strings,
                                                   const size_t *lengths,
                                                   pi_program *ret_program) {
+  static uintptr_t NextProgram = 100;
+  *ret_program = reinterpret_cast<pi_program>(++NextProgram);
   return PI_SUCCESS;
 }
 
@@ -259,6 +357,8 @@ inline pi_result mock_piProgramCreateWithBinary(
     const size_t *lengths, const unsigned char **binaries,
     size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *ret_program) {
+  static uintptr_t NextProgram = 200;
+  *ret_program = reinterpret_cast<pi_program>(++NextProgram);
   return PI_SUCCESS;
 }
 
@@ -318,6 +418,7 @@ mock_piextProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
 inline pi_result
 mock_piextProgramGetNativeHandle(pi_program program,
                                  pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(program);
   return PI_SUCCESS;
 }
 
@@ -334,6 +435,8 @@ inline pi_result mock_piextProgramCreateWithNativeHandle(
 inline pi_result mock_piKernelCreate(pi_program program,
                                      const char *kernel_name,
                                      pi_kernel *ret_kernel) {
+  static uintptr_t NextKernel = 0;
+  *ret_kernel = reinterpret_cast<pi_kernel>(++NextKernel);
   return PI_SUCCESS;
 }
 
@@ -392,6 +495,7 @@ inline pi_result mock_piextKernelCreateWithNativeHandle(
 inline pi_result
 mock_piextKernelGetNativeHandle(pi_kernel kernel,
                                 pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(kernel);
   return PI_SUCCESS;
 }
 
@@ -399,6 +503,8 @@ mock_piextKernelGetNativeHandle(pi_kernel kernel,
 // Events
 //
 inline pi_result mock_piEventCreate(pi_context context, pi_event *ret_event) {
+  static uintptr_t NextEvent = 0;
+  *ret_event = reinterpret_cast<pi_event>(++NextEvent);
   return PI_SUCCESS;
 }
 
@@ -440,6 +546,7 @@ inline pi_result mock_piEventRelease(pi_event event) { return PI_SUCCESS; }
 
 inline pi_result
 mock_piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(event);
   return PI_SUCCESS;
 }
 
@@ -457,6 +564,8 @@ inline pi_result
 mock_piSamplerCreate(pi_context context,
                      const pi_sampler_properties *sampler_properties,
                      pi_sampler *result_sampler) {
+  static uintptr_t NextSampler = 0;
+  *result_sampler = reinterpret_cast<pi_sampler>(++NextSampler);
   return PI_SUCCESS;
 }
 
@@ -643,6 +752,7 @@ inline pi_result mock_piextKernelSetArgSampler(pi_kernel kernel,
 inline pi_result mock_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                         pi_usm_mem_properties *properties,
                                         size_t size, pi_uint32 alignment) {
+  *result_ptr = (void *)0x1;
   return PI_SUCCESS;
 }
 
@@ -650,6 +760,7 @@ inline pi_result mock_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
                                           pi_device device,
                                           pi_usm_mem_properties *properties,
                                           size_t size, pi_uint32 alignment) {
+  *result_ptr = (void *)0x1;
   return PI_SUCCESS;
 }
 
@@ -657,6 +768,7 @@ inline pi_result mock_piextUSMSharedAlloc(void **result_ptr, pi_context context,
                                           pi_device device,
                                           pi_usm_mem_properties *properties,
                                           size_t size, pi_uint32 alignment) {
+  *result_ptr = (void *)0x1;
   return PI_SUCCESS;
 }
 

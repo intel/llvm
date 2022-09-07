@@ -84,15 +84,7 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
 }
 
 TEST(KernelReleaseTest, GetKernelRelease) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "The program/kernel methods are mostly no-op on the host "
-                 "device, the test is not run."
-              << std::endl;
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
+  unittest::PiMock Mock{unittest::PiMockPlugin::GetMockPlatform()};
   Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
   Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
@@ -103,7 +95,7 @@ TEST(KernelReleaseTest, GetKernelRelease) {
   Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfo);
 
-  context Ctx{Plt.get_devices()[0]};
+  context Ctx{Mock.getPlatform().get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
   program Prg{Ctx};

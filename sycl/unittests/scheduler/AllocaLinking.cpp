@@ -42,11 +42,7 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, AllocaLinking) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
+  platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
 
   // This host device constructor should be placed before Mock.redefine
   // because it overrides the real implementation of get_device_info

@@ -87,18 +87,11 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
 
 class KernelInfoTest : public ::testing::Test {
 public:
-  KernelInfoTest() : Plt{default_selector()} {}
+  KernelInfoTest() : Plt{unittest::PiMockPlugin::GetMockPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host()) {
-      std::clog << "This test is only supported on non-host platforms.\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
+    Mock = std::make_unique<unittest::PiMock>();
 
     Mock->redefine<detail::PiApiKind::piKernelGetGroupInfo>(
         redefinedKernelGetGroupInfo);
@@ -114,15 +107,11 @@ protected:
   }
 
 protected:
-  platform Plt;
+  sycl::platform Plt;
   std::unique_ptr<unittest::PiMock> Mock;
 };
 
 TEST_F(KernelInfoTest, GetPrivateMemUsage) {
-  if (Plt.is_host()) {
-    return;
-  }
-
   context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
   TestContext.reset(new TestCtx(Ctx));

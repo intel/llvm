@@ -20,7 +20,7 @@ public:
 
 protected:
   void SetUp() override {
-    Plugin = std::make_unique<unittest::PiMockPlugin>();
+    unittest::PiMockPlugin::EnsureInitialized();
 
     auto devices = device::get_devices();
     deviceA = devices[0];
@@ -28,7 +28,6 @@ protected:
   }
 
 protected:
-  std::unique_ptr<unittest::PiMockPlugin> Plugin;
   device deviceA, deviceB;
 };
 

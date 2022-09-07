@@ -23,24 +23,8 @@ pi_result redefinedQueueRetain(pi_queue Queue) {
   return PI_SUCCESS;
 }
 
-bool preparePiMock(platform &Plt) {
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return false;
-  }
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() !=
-      backend::opencl) {
-    std::cout << "Not run on non-OpenCL backend" << std::endl;
-    return false;
-  }
-  return true;
-}
-
 TEST(PiInteropTest, CheckRetain) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
+  platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   context Ctx{Plt.get_devices()[0]};
 
   unittest::PiMock Mock{Plt};

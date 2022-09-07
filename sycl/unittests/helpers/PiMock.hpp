@@ -67,19 +67,43 @@ namespace RT = detail::pi;
 
 class PiMockPlugin {
 public:
-  PiMockPlugin() {
+  static void EnsureInitialized() {
+    // Only initialize the plugin once.
+    if (MPluginPtr)
+      return;
+
     auto RTPlugin = std::make_shared<RT::PiPlugin>(
         RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
                      getMockedFunctionPointers()});
 
     // FIXME: which backend to pass here? does it affect anything?
-    plugin_ptr = std::make_shared<detail::plugin>(RTPlugin, backend::opencl,
+    MPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,
                                                   /*Library=*/nullptr);
-    detail::GlobalHandler::instance().getPlugins().push_back(*plugin_ptr);
+    detail::GlobalHandler::instance().getPlugins().push_back(*MPluginPtr);
   }
 
+  static platform GetMockPlatform() {
+    EnsureInitialized();
+
+    pi_uint32 NumPlatforms = 0;
+    MPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(0, nullptr,
+                                                                &NumPlatforms);
+    assert(NumPlatforms > 0 && "No platforms returned by mock plugin.");
+    pi_platform PiPlatform;
+    MPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(1, &PiPlatform,
+                                                                nullptr);
+    return detail::createSyclObjFromImpl<platform>(
+        detail::platform_impl::getOrMakePlatformImpl(PiPlatform, *MPluginPtr));
+  }
+
+  static queue GetMockQueue() {
+    return queue{GetMockPlatform().get_devices()[0]};
+  }
+
+  PiMockPlugin() = delete;
+
 private:
-  std::shared_ptr<detail::plugin> plugin_ptr;
+  static inline std::unique_ptr<detail::plugin> MPluginPtr = nullptr;
 };
 
 /// The PiMock class wraps an instance of a SYCL platform class,

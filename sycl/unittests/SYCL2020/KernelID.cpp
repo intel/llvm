@@ -141,22 +141,7 @@ TEST(KernelID, NoServiceKernelIds) {
 }
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
+  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -182,22 +167,7 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 }
 
 TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
+  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -219,22 +189,7 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
 }
 
 TEST(KernelID, KernelIDHasKernel) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
+  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -314,17 +269,7 @@ TEST(KernelID, KernelIDHasKernel) {
 }
 
 TEST(KernelID, InvalidKernelName) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
+  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 

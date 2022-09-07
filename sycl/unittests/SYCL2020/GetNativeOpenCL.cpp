@@ -84,18 +84,7 @@ static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 }
 
 TEST(GetNative, GetNativeHandle) {
-  platform Plt{default_selector()};
-  if (Plt.get_backend() != backend::opencl) {
-    std::cout << "Test is created for opencl only" << std::endl;
-    return;
-  }
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return;
-  }
-  TestCounter = 0;
-
+  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 

@@ -136,9 +136,6 @@ public:
   }
 
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl)
-      GTEST_SKIP();
-
     if (RootSYCLCacheDir == "")
       FAIL() << "Please set SYCL_CACHE_DIR environment variable pointing to "
                 "cache location.";
@@ -161,13 +158,8 @@ public:
     ResetSYCLCacheDirEnv();
   }
 
-  PersistentDeviceCodeCache() : Plt{default_selector()} {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      std::clog << "This test is only supported on OpenCL devices\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
-      return;
-    }
+  PersistentDeviceCodeCache()
+      : Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()} {
 
     char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
     if (!SYCLCacheDir) {

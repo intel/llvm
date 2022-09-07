@@ -37,11 +37,7 @@ pi_result redefinedTearDown(void *PluginParameter) {
 
 TEST(Windows, DllMainCall) {
 #ifdef _WIN32
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    return;
-  }
+  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);

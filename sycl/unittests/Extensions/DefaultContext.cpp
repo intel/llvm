@@ -25,15 +25,11 @@ TEST(DefaultContextTest, DefaultContextTest) {
   ScopedEnvVar var(EnableDefaultContextsName, "1",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt1{sycl::default_selector()};
-  if (Plt1.is_host()) {
-    std::cout << "Host platform does not support PI mock.\n";
-    return;
-  }
+  sycl::platform Plt1{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock1{Plt1};
   setupDefaultMockAPIs(Mock1);
 
-  sycl::platform Plt2{sycl::default_selector()};
+  sycl::platform Plt2{sycl::unittest::PiMockPlugin::GetMockPlatform()};
   sycl::unittest::PiMock Mock2{Plt2};
   setupDefaultMockAPIs(Mock2);
 
@@ -55,11 +51,7 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   ScopedEnvVar var(EnableDefaultContextsName, "0",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Host platform does not support PI mock.\n";
-    return;
-  }
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 

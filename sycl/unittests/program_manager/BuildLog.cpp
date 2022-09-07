@@ -87,23 +87,12 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   ScopedEnvVar var(WarningLevelEnvVar, "1",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
-  }
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  if (!Dev.has(sycl::aspect::online_compiler)) {
-    GTEST_SKIP_("Test is not supported on this device due to missing support "
-                "for sycl::aspect::online_compiler");
-  }
-
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
+  const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
@@ -125,23 +114,12 @@ TEST(BuildLog, OutputLogOnLevel2) {
   ScopedEnvVar var(WarningLevelEnvVar, "2",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
-  }
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  if (!Dev.has(sycl::aspect::online_compiler)) {
-    GTEST_SKIP_("Test is not supported on this device due to missing support "
-                "for sycl::aspect::online_compiler");
-  }
-
+  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
+  const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
