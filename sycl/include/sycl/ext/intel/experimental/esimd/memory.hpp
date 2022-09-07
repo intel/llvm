@@ -442,7 +442,8 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
-/// @param pred is predicate.
+/// @param pred is predicate to enable the operation
+/// (optional - default to on).
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
@@ -455,7 +456,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
                __ESIMD_NS::simd_mask<1> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset, pred));
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -534,7 +535,8 @@ lsc_gather(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
-/// @param pred is predicate
+/// @param pred is predicate to enable the operation
+/// (optional - default to on).
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
@@ -863,7 +865,8 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param vals is values to store.
-/// @param pred is predicate.
+/// @param pred is predicate to enable the operation
+/// (optional - default to on).
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
@@ -954,7 +957,8 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param vals is values to store.
-/// @param pred is predicate
+/// @param pred is predicate to enable the operation
+/// (optional - default to on).
 ///
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
