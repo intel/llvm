@@ -53,8 +53,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2022-04-01
-| Revision           | 5
+| Last Modified Date | 2022-09-07
+| Revision           | 6
 |========================================
 
 == Dependencies
@@ -145,9 +145,7 @@ Add section 3.XX, Matrix layout.
 2+^| Layout ^| Enabling capability 
 | 0 | *ColumnMajor*            |  *{capability_name}*
 | 1 | *RowMajor*               |  *{capability_name}*
-| 2 | *PackedA* +
-Suitable for VNNI instructions | *{capability_name}*
-| 3 | *PackedB* +
+| 2 | *Packed* +
 Suitable for VNNI instructions | *{capability_name}*
 |====
 
@@ -161,6 +159,7 @@ Add section 3.XX, Matrix Use.
 | 0 | *MatrixA*     | *{capability_name}*
 | 1 | *MatrixB*     | *{capability_name}*
 | 2 | *Accumulator* | *{capability_name}*
+| 3 | *Unused*      | *{capability_name}*
 |====
 
 === Capabilities
@@ -182,9 +181,9 @@ See also extension: *{extension_name}*
 
 ==== 3.37.6 Type-Declaration Instructions
 
-[cols="1,1,7*3",width="100%"]
+[cols="1,1,8*3",width="100%"]
 |=====
-7+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
+8 |[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
  +
 Declare a matrix type. +
  +
@@ -200,14 +199,22 @@ constant unsigned 32-bit integer. Behavior is undefined when 'Column Count' is
 0 or <<OpConstantNull,*OpConstantNull*>>. +
  +
 'Layout' indicates how the values are arranged internally in the matrix type. 
-It must be the result of a constant instruction. +
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one of
+the values in the table 3.XX, Matrix Layout. If validation rules or the client API
+require a constant '<id>', it is invalid for it to not be one of these values.
+If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
+these values. +
  +
 'Scope' is memory scope for operations on the matrix. It must be the
 result of a constant instruction with scalar 'integer type'. +
  +
-'Use' is an optional parameter that shows where in a math operation the matrix
-is used. It must be the result of a constant instruction with scalar
-'integer type' in a range specified in 3.XX, Matrix Use table. +
+'Use' parameter shows where in a math operation the matrix is used.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one of
+the values in the table 3.XX, Matrix Use. If validation rules or the client API
+require a constant '<id>', it is invalid for it to not be one of these values.
+If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
+these values. +
+ +
 
 
 1+|Capability: +
@@ -246,7 +253,11 @@ where elements of the matrix are stored and arranged according to 'Layout'. +
 rows, columns (or words) in the result. It must be a scalar integer type. +
  +
 'Layout' indicates how the values loaded from memory are arranged. 
-It must be the result of a constant instruction. +
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one of
+the values in the table 3.XX, Matrix Layout. If validation rules or the client API
+require a constant '<id>', it is invalid for it to not be one of these values.
+If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
+these values. +
  +
 'Scope' is syncronization scope for operation on the matrix. It must be the
 result of a constant instruction with scalar 'integer type'. +
@@ -288,8 +299,12 @@ where elements of the matrix must be stored and arranged according to 'Layout'. 
 'Stride' is the number of elements in memory between beginnings of successive
 rows, columns (or words) of the 'Object'. It must be a scalar integer type. +
  +
-'Layout' indicates how the values stored to memory are arranged. It must be the
-result of a constant instruction. +
+'Layout' indicates how the values stored to memory are arranged.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one of
+the values in the table 3.XX, Matrix Layout. If validation rules or the client API
+require a constant '<id>', it is invalid for it to not be one of these values.
+If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
+these values. +
  +
 'Scope' is syncronization scope for operation on the matrix. It must be the
 result of a constant instruction with scalar 'integer type'. +
@@ -544,4 +559,5 @@ Revision History
 |3|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
 |4|2022-03-10|Dmitry Sidorov|Add OpJointMatrixWorkItemLengthINTEL instruction
 |5|2022-04-01|Dmitry Sidorov|Add Use parameter to TypeJointMatrixINTEL
+|6|2022-09-07|Dmitry Sidorov|Make Use parameter to be mandatory
 |========================================
