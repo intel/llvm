@@ -28,6 +28,7 @@ on:
         description: "Commit to use for checkout or github.sha by default"
         type: string
         required: false
+        default: ${{ github.sha }}
     outputs:
       lts_matrix:
         description: "Generated Matrix"
@@ -46,11 +47,11 @@ jobs:
     - name: Download scripts and configs
       shell: bash
       run: |
-        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref || github.sha }}/devops/scripts/generate_test_matrix.js
-        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref || github.sha }}/devops/test_configs.json
+        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref }}/devops/scripts/generate_test_matrix.js
+        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref }}/devops/test_configs.json
         wget raw.githubusercontent.com/intel/llvm/sycl/devops/dependencies.json
         mv dependencies.json dependencies.sycl.json
-        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref || github.sha }}/devops/dependencies.json
+        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref }}/devops/dependencies.json
     - id: work
       uses: actions/github-script@v6
       name: Generate matrix
