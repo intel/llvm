@@ -2006,8 +2006,10 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
 
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
+        std::string name;
+        getMangledFuncName(name, Func, Glob.CGM);
         Op = builder.create<mlir::sycl::SYCLConstructorOp>(loc, RD->getName(),
-                                                           Args);
+                                                           name, Args);
       }
     }
   } else if (const auto *CallExpr = dyn_cast<clang::CallExpr>(Expr)) {
@@ -2032,8 +2034,10 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
         OptRetType = RetType;
       }
 
+      std::string name;
+      getMangledFuncName(name, Func, Glob.CGM);
       Op = builder.create<mlir::sycl::SYCLCallOp>(
-          loc, OptRetType, OptFuncType, Func->getNameAsString(), Args);
+          loc, OptRetType, OptFuncType, Func->getNameAsString(), name, Args);
     }
   }
 

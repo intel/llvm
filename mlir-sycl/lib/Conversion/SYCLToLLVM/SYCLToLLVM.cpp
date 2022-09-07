@@ -237,17 +237,17 @@ private:
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    const auto &registry = SYCLFuncRegistry::create(module, rewriter);
 
     /// Lookup the FuncId corresponding to the member function to use.
     Type retType = op.getODSResults(0).empty()
                        ? LLVM::LLVMVoidType::get(module.getContext())
                        : op.Result().getType();
 
-    FuncId funcId =
-        registry.getFuncId(kind, retType, opAdaptor.Args().getTypes());
-    SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
-                             rewriter, op.getLoc());
+    LLVMBuilder builder(rewriter, op.getLoc());
+    SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
+    FlatSymbolRefAttr funcRef = builder.getOrInsertFuncDecl(
+        opAdaptor.MangledName(), retType, operandTypes, module);
+    builder.genCall(funcRef, {}, opAdaptor.getOperands());
 
     LLVM_DEBUG({
       Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
@@ -294,14 +294,13 @@ private:
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    const auto &registry = SYCLFuncRegistry::create(module, rewriter);
 
-    /// Lookup the FuncId corresponding to the ctor function to use.
-    auto retType = LLVM::LLVMVoidType::get(module.getContext());
-    FuncId funcId =
-        registry.getFuncId(kind, retType, opAdaptor.Args().getTypes());
-    SYCLFuncDescriptor::call(funcId, opAdaptor.getOperands(), registry,
-                             rewriter, op.getLoc());
+    LLVMBuilder builder(rewriter, op.getLoc());
+    SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
+    FlatSymbolRefAttr funcRef = builder.getOrInsertFuncDecl(
+        opAdaptor.MangledName(), LLVM::LLVMVoidType::get(module.getContext()),
+        operandTypes, module);
+    builder.genCall(funcRef, {}, opAdaptor.getOperands());
 
     LLVM_DEBUG({
       Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
