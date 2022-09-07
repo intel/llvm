@@ -58,9 +58,6 @@ int main() {
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
 
-  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
-  sycl::program Prog{Ctx};
-
   sycl::buffer<int, 1> Buffer(4);
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
   size_t BufferGetCount = Buffer.get_count();

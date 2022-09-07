@@ -130,22 +130,3 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-link-img");
 }
-
-TEST(KernelBuildOptions, Program) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  setupCommonMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
-  sycl::program Prg1(Ctx);
-  sycl::program Prg2(Ctx);
-
-  Prg1.build_with_source("");
-  EXPECT_TRUE(BuildOpts.size() == 0) << "Expect empty build options";
-  Prg2.build_with_source("", "-api-opts");
-  EXPECT_EQ(BuildOpts, "-api-opts");
-}
