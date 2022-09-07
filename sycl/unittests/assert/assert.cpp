@@ -438,7 +438,7 @@ void ChildProcess(int StdErrFD) {
     exit(1);
   }
 
-  sycl::platform Plt{sycl::default_selector_v};
+  sycl::platform Plt;
 
   sycl::unittest::PiMock Mock{Plt};
 
@@ -516,7 +516,7 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 TEST(Assert, TestPositive) {
   // Preliminary checks
   {
-    sycl::platform Plt{sycl::default_selector_v};
+    sycl::platform Plt;
     if (Plt.is_host()) {
       printf("Test is not supported on host, skipping\n");
       return;
@@ -572,7 +572,7 @@ TEST(Assert, TestAssertServiceKernelHidden) {
 }
 
 TEST(Assert, TestInteropKernelNegative) {
-  sycl::platform Plt{sycl::default_selector_v};
+  sycl::platform Plt;
 
   if (Plt.is_host()) {
     printf("Test is not supported on host, skipping\n");
@@ -610,7 +610,7 @@ TEST(Assert, TestInteropKernelNegative) {
 }
 
 TEST(Assert, TestInteropKernelFromProgramNegative) {
-  sycl::platform Plt{sycl::default_selector_v};
+  sycl::platform Plt;
 
   if (Plt.is_host()) {
     printf("Test is not supported on host, skipping\n");

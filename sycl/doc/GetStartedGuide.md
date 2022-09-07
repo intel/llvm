@@ -740,12 +740,20 @@ the CMake.
 
 ### Code the program for a specific GPU
 
-To assist in finding a specific SYCL compatible device out of all that may be available, a "device selector" may be used. A "device selector" is a ranking function that will give an integer ranking value to all the
-devices on the system. It can be passed to `sycl::queue`, `sycl::device` and `sycl::platform` constructors. The highest ranking device is then selected. SYCL has built-in device selectors for selecting a generic GPU, CPU, or accelerator device, as well as one for a default device. Additionally, 
-a user can define their own as function, lambda, or functor class. Device selectors returning negative values will "reject" a device ensuring it is not selected, but values 0 or higher will be selected by the highest score with ties resolved by an internal algorithm (see Section 4.6.1 of the SYCL 2020 specification)
+To assist in finding a specific SYCL compatible device out of all that may be
+available, a "device selector" may be used. A "device selector" is a ranking
+function (C++ Callable) that will give an integer ranking value to all the
+devices on the system. It can be passed to `sycl::queue`, `sycl::device` and
+`sycl::platform` constructors. The highest ranking device is then selected. SYCL
+has built-in device selectors for selecting a generic GPU, CPU, or accelerator
+device, as well as one for a default device. Additionally, a user can define
+their own as function, lambda, or functor class. Device selectors returning
+negative values will "reject" a device ensuring it is not selected, but values 0
+or higher will be selected by the highest score with ties resolved by an
+internal algorithm (see Section 4.6.1 of the SYCL 2020 specification)
 
-The example below illustrates how to use a device selector to create
-device and queue objects bound to Intel GPU device:
+The example below illustrates how to use a device selector to create device and
+queue objects bound to Intel GPU device:
 
 ```c++
 #include <sycl/sycl.hpp>

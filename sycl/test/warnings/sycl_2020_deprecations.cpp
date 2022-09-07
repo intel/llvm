@@ -195,15 +195,15 @@ int main() {
   group.get_linear_id();
 
   // expected-warning@+1{{'default_selector' is deprecated: Use the callable sycl::default_selector_v instead.}}
-  sycl::default_selector ds{};
+  sycl::default_selector ds;
   // expected-warning@+1{{'cpu_selector' is deprecated: Use the callable sycl::cpu_selector_v instead.}}
-  sycl::cpu_selector cs{};
+  sycl::cpu_selector cs;
   // expected-warning@+1{{'gpu_selector' is deprecated: Use the callable sycl::gpu_selector_v instead.}}
-  sycl::gpu_selector gs{};
+  sycl::gpu_selector gs;
   // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
-  sycl::accelerator_selector as{};
+  sycl::accelerator_selector as;
   // expected-warning@+1{{'host_selector' is deprecated: Use a callable function instead.}}
-  sycl::host_selector hs{};
+  sycl::host_selector hs;
 
   // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
   Queue.submit([&](sycl::handler &CGH) {
