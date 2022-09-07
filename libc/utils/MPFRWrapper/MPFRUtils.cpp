@@ -8,7 +8,7 @@
 
 #include "MPFRUtils.h"
 
-#include "src/__support/CPP/StringView.h"
+#include "src/__support/CPP/string_view.h"
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/FPUtil/PlatformDefs.h"
 #include "utils/UnitTest/FPMatcher.h"
@@ -179,6 +179,18 @@ public:
   MPFRNumber abs() const {
     MPFRNumber result(*this);
     mpfr_abs(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber atan() const {
+    MPFRNumber result(*this);
+    mpfr_atan(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber atanh() const {
+    MPFRNumber result(*this);
+    mpfr_atanh(result.value, value, mpfr_rounding);
     return result;
   }
 
@@ -379,8 +391,13 @@ public:
     constexpr size_t printBufSize = 200;
     char buffer[printBufSize];
     mpfr_snprintf(buffer, printBufSize, "%100.50Rf", value);
-    cpp::StringView view(buffer);
-    view = view.trim(' ');
+    cpp::string_view view(buffer);
+    // Trim whitespaces
+    const char whitespace = ' ';
+    while (!view.empty() && view.front() == whitespace)
+      view.remove_prefix(1);
+    while (!view.empty() && view.back() == whitespace)
+      view.remove_suffix(1);
     return std::string(view.data());
   }
 
@@ -495,6 +512,10 @@ unary_operation(Operation op, InputType input, unsigned int precision,
   switch (op) {
   case Operation::Abs:
     return mpfrInput.abs();
+  case Operation::Atan:
+    return mpfrInput.atan();
+  case Operation::Atanh:
+    return mpfrInput.atanh();
   case Operation::Ceil:
     return mpfrInput.ceil();
   case Operation::Cos:

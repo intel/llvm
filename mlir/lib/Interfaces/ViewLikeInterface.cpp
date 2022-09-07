@@ -70,45 +70,29 @@ mlir::detail::verifyOffsetSizeAndStrideOp(OffsetSizeAndStrideOpInterface op) {
   return success();
 }
 
-template <int64_t dynVal>
-static void printOperandsOrIntegersListImpl(OpAsmPrinter &p, ValueRange values,
-                                            ArrayAttr arrayAttr) {
-  p << '[';
-  if (arrayAttr.empty()) {
-    p << "]";
+void mlir::printDynamicIndexList(OpAsmPrinter &printer, Operation *op,
+                                 OperandRange values, ArrayAttr integers,
+                                 int64_t dynVal) {
+  printer << '[';
+  if (integers.empty()) {
+    printer << "]";
     return;
   }
   unsigned idx = 0;
-  llvm::interleaveComma(arrayAttr, p, [&](Attribute a) {
+  llvm::interleaveComma(integers, printer, [&](Attribute a) {
     int64_t val = a.cast<IntegerAttr>().getInt();
     if (val == dynVal)
-      p << values[idx++];
+      printer << values[idx++];
     else
-      p << val;
+      printer << val;
   });
-  p << ']';
+  printer << ']';
 }
 
-void mlir::printOperandsOrIntegersOffsetsOrStridesList(OpAsmPrinter &p,
-                                                       Operation *op,
-                                                       OperandRange values,
-                                                       ArrayAttr integers) {
-  return printOperandsOrIntegersListImpl<ShapedType::kDynamicStrideOrOffset>(
-      p, values, integers);
-}
-
-void mlir::printOperandsOrIntegersSizesList(OpAsmPrinter &p, Operation *op,
-                                            OperandRange values,
-                                            ArrayAttr integers) {
-  return printOperandsOrIntegersListImpl<ShapedType::kDynamicSize>(p, values,
-                                                                   integers);
-}
-
-template <int64_t dynVal>
-static ParseResult parseOperandsOrIntegersImpl(
+ParseResult mlir::parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    ArrayAttr &integers) {
+    ArrayAttr &integers, int64_t dynVal) {
   if (failed(parser.parseLSquare()))
     return failure();
   // 0-D.
@@ -121,7 +105,7 @@ static ParseResult parseOperandsOrIntegersImpl(
   while (true) {
     OpAsmParser::UnresolvedOperand operand;
     auto res = parser.parseOptionalOperand(operand);
-    if (res.hasValue() && succeeded(res.getValue())) {
+    if (res.has_value() && succeeded(res.value())) {
       values.push_back(operand);
       attrVals.push_back(dynVal);
     } else {
@@ -140,22 +124,6 @@ static ParseResult parseOperandsOrIntegersImpl(
   }
   integers = parser.getBuilder().getI64ArrayAttr(attrVals);
   return success();
-}
-
-ParseResult mlir::parseOperandsOrIntegersOffsetsOrStridesList(
-    OpAsmParser &parser,
-    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    ArrayAttr &integers) {
-  return parseOperandsOrIntegersImpl<ShapedType::kDynamicStrideOrOffset>(
-      parser, values, integers);
-}
-
-ParseResult mlir::parseOperandsOrIntegersSizesList(
-    OpAsmParser &parser,
-    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    ArrayAttr &integers) {
-  return parseOperandsOrIntegersImpl<ShapedType::kDynamicSize>(parser, values,
-                                                               integers);
 }
 
 bool mlir::detail::sameOffsetsSizesAndStrides(
@@ -181,7 +149,7 @@ bool mlir::detail::sameOffsetsSizesAndStrides(
 
 SmallVector<OpFoldResult, 4>
 mlir::getMixedValues(ArrayAttr staticValues, ValueRange dynamicValues,
-                     int64_t dynamicValueIndicator) {
+                     const int64_t dynamicValueIndicator) {
   SmallVector<OpFoldResult, 4> res;
   res.reserve(staticValues.size());
   unsigned numDynamic = 0;
@@ -196,21 +164,15 @@ mlir::getMixedValues(ArrayAttr staticValues, ValueRange dynamicValues,
 }
 
 SmallVector<OpFoldResult, 4>
-mlir::getMixedOffsets(OffsetSizeAndStrideOpInterface op,
-                      ArrayAttr staticOffsets, ValueRange offsets) {
-  return getMixedValues(staticOffsets, offsets, op.getDynamicOffsetIndicator());
+mlir::getMixedStridesOrOffsets(ArrayAttr staticValues,
+                               ValueRange dynamicValues) {
+  return getMixedValues(staticValues, dynamicValues,
+                        ShapedType::kDynamicStrideOrOffset);
 }
 
-SmallVector<OpFoldResult, 4>
-mlir::getMixedSizes(OffsetSizeAndStrideOpInterface op, ArrayAttr staticSizes,
-                    ValueRange sizes) {
-  return getMixedValues(staticSizes, sizes, op.getDynamicSizeIndicator());
-}
-
-SmallVector<OpFoldResult, 4>
-mlir::getMixedStrides(OffsetSizeAndStrideOpInterface op,
-                      ArrayAttr staticStrides, ValueRange strides) {
-  return getMixedValues(staticStrides, strides, op.getDynamicStrideIndicator());
+SmallVector<OpFoldResult, 4> mlir::getMixedSizes(ArrayAttr staticValues,
+                                                 ValueRange dynamicValues) {
+  return getMixedValues(staticValues, dynamicValues, ShapedType::kDynamicSize);
 }
 
 std::pair<ArrayAttr, SmallVector<Value>>

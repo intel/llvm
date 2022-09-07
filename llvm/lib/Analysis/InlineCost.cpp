@@ -126,6 +126,10 @@ static cl::opt<int>
     InstrCost("inline-instr-cost", cl::Hidden, cl::init(5),
               cl::desc("Cost of a single instruction when inlining"));
 
+static cl::opt<int>
+    MemAccessCost("inline-memaccess-cost", cl::Hidden, cl::init(0),
+                  cl::desc("Cost of load/store instruction when inlining"));
+
 static cl::opt<int> CallPenalty(
     "inline-call-penalty", cl::Hidden, cl::init(25),
     cl::desc("Call penalty that is applied per callsite when inlining"));
@@ -157,12 +161,21 @@ static cl::opt<bool> DisableGEPConstOperand(
     cl::desc("Disables evaluation of GetElementPtr with constant operands"));
 
 namespace llvm {
+Optional<int> getStringFnAttrAsInt(const Attribute &Attr) {
+  if (Attr.isValid()) {
+    int AttrValue = 0;
+    if (!Attr.getValueAsString().getAsInteger(10, AttrValue))
+      return AttrValue;
+  }
+  return None;
+}
+
 Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind) {
-  Attribute Attr = CB.getFnAttr(AttrKind);
-  int AttrValue;
-  if (Attr.getValueAsString().getAsInteger(10, AttrValue))
-    return None;
-  return AttrValue;
+  return getStringFnAttrAsInt(CB.getFnAttr(AttrKind));
+}
+
+Optional<int> getStringFnAttrAsInt(Function *F, StringRef AttrKind) {
+  return getStringFnAttrAsInt(F->getFnAttribute(AttrKind));
 }
 
 namespace InlineConstants {
@@ -281,6 +294,9 @@ protected:
 
   /// Called to account for a call.
   virtual void onCallPenalty() {}
+
+  /// Called to account for a load or store.
+  virtual void onMemAccess(){};
 
   /// Called to account for the expectation the inlining would result in a load
   /// elimination.
@@ -625,6 +641,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   }
 
   void onCallPenalty() override { addCost(CallPenalty); }
+
+  void onMemAccess() override { addCost(MemAccessCost); }
+
   void onCallArgumentSetup(const CallBase &Call) override {
     // Pay the price of the argument setup. We account for the average 1
     // instruction per call argument setup here.
@@ -1342,8 +1361,8 @@ bool CallAnalyzer::isGEPFree(GetElementPtrInst &GEP) {
       Operands.push_back(SimpleOp);
     else
       Operands.push_back(Op);
-  return TTI.getUserCost(&GEP, Operands,
-                         TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&GEP, Operands,
+                                TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1620,7 +1639,7 @@ bool CallAnalyzer::visitPtrToInt(PtrToIntInst &I) {
   if (auto *SROAArg = getSROAArgForValueOrNull(I.getOperand(0)))
     SROAArgValues[&I] = SROAArg;
 
-  return TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1643,7 +1662,7 @@ bool CallAnalyzer::visitIntToPtr(IntToPtrInst &I) {
   if (auto *SROAArg = getSROAArgForValueOrNull(Op))
     SROAArgValues[&I] = SROAArg;
 
-  return TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1673,7 +1692,7 @@ bool CallAnalyzer::visitCastInst(CastInst &I) {
     break;
   }
 
-  return TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -2044,6 +2063,7 @@ bool CallAnalyzer::visitLoad(LoadInst &I) {
     return true;
   }
 
+  onMemAccess();
   return false;
 }
 
@@ -2060,6 +2080,8 @@ bool CallAnalyzer::visitStore(StoreInst &I) {
   // 2. We should probably at some point thread MemorySSA for the callee into
   // this and then use that to actually compute *really* precise savings.
   disableLoadElimination();
+
+  onMemAccess();
   return false;
 }
 
@@ -2368,7 +2390,7 @@ bool CallAnalyzer::visitUnreachableInst(UnreachableInst &I) {
 bool CallAnalyzer::visitInstruction(Instruction &I) {
   // Some instructions are free. All of the free intrinsics can also be
   // handled by SROA, etc.
-  if (TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  if (TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
       TargetTransformInfo::TCC_Free)
     return true;
 
@@ -2700,7 +2722,13 @@ InlineResult CallAnalyzer::analyze() {
 
   // If the callee's stack size exceeds the user-specified threshold,
   // do not let it be inlined.
-  if (AllocatedSize > StackSizeThreshold)
+  // The command line option overrides a limit set in the function attributes.
+  size_t FinalStackSizeThreshold = StackSizeThreshold;
+  if (!StackSizeThreshold.getNumOccurrences())
+    if (Optional<int> AttrMaxStackSize = getStringFnAttrAsInt(
+            Caller, InlineConstants::MaxInlineStackSizeAttributeName))
+      FinalStackSizeThreshold = *AttrMaxStackSize;
+  if (AllocatedSize > FinalStackSizeThreshold)
     return InlineResult::failure("stacksize");
 
   return finalizeAnalysis();

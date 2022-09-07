@@ -4,6 +4,7 @@ Checks: |
   llvm-*,
   -llvm-header-guard,
   misc-*,
+  -misc-const-correctness,
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,

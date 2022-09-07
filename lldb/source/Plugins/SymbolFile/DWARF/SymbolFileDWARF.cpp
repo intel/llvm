@@ -862,6 +862,27 @@ Function *SymbolFileDWARF::ParseFunction(CompileUnit &comp_unit,
   return dwarf_ast->ParseFunctionFromDWARF(comp_unit, die, func_range);
 }
 
+ConstString
+SymbolFileDWARF::ConstructFunctionDemangledName(const DWARFDIE &die) {
+  ASSERT_MODULE_LOCK(this);
+  if (!die.IsValid()) {
+    return ConstString();
+  }
+
+  auto type_system_or_err = GetTypeSystemForLanguage(GetLanguage(*die.GetCU()));
+  if (auto err = type_system_or_err.takeError()) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Symbols), std::move(err),
+                   "Unable to construct demangled name for function");
+    return ConstString();
+  }
+
+  DWARFASTParser *dwarf_ast = type_system_or_err->GetDWARFParser();
+  if (!dwarf_ast)
+    return ConstString();
+
+  return dwarf_ast->ConstructDemangledNameFromDWARF(die);
+}
+
 lldb::addr_t SymbolFileDWARF::FixupAddress(lldb::addr_t file_addr) {
   SymbolFileDWARFDebugMap *debug_map_symfile = GetDebugMapSymfile();
   if (debug_map_symfile)
@@ -1680,14 +1701,13 @@ SymbolFileDWARF::GetDIE(const DIERef &die_ref) {
 }
 
 /// Return the DW_AT_(GNU_)dwo_id.
-/// FIXME: Technically 0 is a valid hash.
-static uint64_t GetDWOId(DWARFCompileUnit &dwarf_cu,
+static llvm::Optional<uint64_t> GetDWOId(DWARFCompileUnit &dwarf_cu,
                          const DWARFDebugInfoEntry &cu_die) {
-  uint64_t dwo_id =
-      cu_die.GetAttributeValueAsUnsigned(&dwarf_cu, DW_AT_GNU_dwo_id, 0);
-  if (!dwo_id)
-    dwo_id = cu_die.GetAttributeValueAsUnsigned(&dwarf_cu, DW_AT_dwo_id, 0);
-  return dwo_id;
+  llvm::Optional<uint64_t> dwo_id =
+      cu_die.GetAttributeValueAsOptionalUnsigned(&dwarf_cu, DW_AT_GNU_dwo_id);
+  if (dwo_id)
+    return dwo_id;
+  return cu_die.GetAttributeValueAsOptionalUnsigned(&dwarf_cu, DW_AT_dwo_id);
 }
 
 llvm::Optional<uint64_t> SymbolFileDWARF::GetDWOId() {
@@ -1695,8 +1715,7 @@ llvm::Optional<uint64_t> SymbolFileDWARF::GetDWOId() {
     if (auto comp_unit = GetCompileUnitAtIndex(0))
       if (DWARFCompileUnit *cu = GetDWARFCompileUnit(comp_unit.get()))
         if (DWARFDebugInfoEntry *cu_die = cu->DIE().GetDIE())
-          if (uint64_t dwo_id = ::GetDWOId(*cu, *cu_die))
-            return dwo_id;
+          return ::GetDWOId(*cu, *cu_die);
   }
   return {};
 }
@@ -1846,7 +1865,7 @@ void SymbolFileDWARF::UpdateExternalModuleListIfNeeded() {
 
     // Verify the DWO hash.
     // FIXME: Technically "0" is a valid hash.
-    uint64_t dwo_id = ::GetDWOId(*dwarf_cu, *die.GetDIE());
+    llvm::Optional<uint64_t> dwo_id = ::GetDWOId(*dwarf_cu, *die.GetDIE());
     if (!dwo_id)
       continue;
 
@@ -2310,12 +2329,13 @@ bool SymbolFileDWARF::DIEInDeclContext(const CompilerDeclContext &decl_ctx,
   return false;
 }
 
-void SymbolFileDWARF::FindFunctions(ConstString name,
+void SymbolFileDWARF::FindFunctions(const Module::LookupInfo &lookup_info,
                                     const CompilerDeclContext &parent_decl_ctx,
-                                    FunctionNameType name_type_mask,
                                     bool include_inlines,
                                     SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  ConstString name = lookup_info.GetLookupName();
+  FunctionNameType name_type_mask = lookup_info.GetNameTypeMask();
   LLDB_SCOPED_TIMERF("SymbolFileDWARF::FindFunctions (name = '%s')",
                      name.AsCString());
 
@@ -2347,12 +2367,11 @@ void SymbolFileDWARF::FindFunctions(ConstString name,
 
   llvm::DenseSet<const DWARFDebugInfoEntry *> resolved_dies;
 
-  m_index->GetFunctions(name, *this, parent_decl_ctx, name_type_mask,
-                        [&](DWARFDIE die) {
-                          if (resolved_dies.insert(die.GetDIE()).second)
-                            ResolveFunction(die, include_inlines, sc_list);
-                          return true;
-                        });
+  m_index->GetFunctions(lookup_info, *this, parent_decl_ctx, [&](DWARFDIE die) {
+    if (resolved_dies.insert(die.GetDIE()).second)
+      ResolveFunction(die, include_inlines, sc_list);
+    return true;
+  });
 
   // Return the number of variable that were appended to the list
   const uint32_t num_matches = sc_list.GetSize() - original_size;

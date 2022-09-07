@@ -38,15 +38,46 @@ What's New in Libc++ 16.0.0?
 Implemented Papers
 ------------------
 - P2499R0 - ``string_view`` range constructor should be ``explicit``
+- P2417R2 - A more constexpr bitset
+- P2445R1 - ``std::forward_like``
+- P2273R3 - Making ``std::unique_ptr`` constexpr
 
 Improvements and New Features
 -----------------------------
 
 Deprecations and Removals
 -------------------------
+- Several incidental transitive includes have been removed from libc++. Those
+  includes are removed based on the language version used. Incidental transitive
+  inclusions of the following headers have been removed:
+
+  - C++20: ``chrono``
+  - C++2b: ``algorithm``, ``array``, ``atomic``, ``bit``, ``chrono``,
+    ``climits``, ``cmath``, ``compare``, ``concepts``, ``cstdlib``,
+    ``cstring``, ``ctime``, ``exception``, ``functional``,
+    ``initializer_list``, ``iosfwd``, ``iterator``, ``memory``, ``new``,
+    ``optional``, ``ratio``, ``stdexcept``, ``tuple``, ``typeinfo``,
+    ``unordered_map``, ``utility``, ``variant``, ``vector``.
+
+  Users can also remove all incidental transitive includes by defining
+  ``_LIBCPP_REMOVE_TRANSITIVE_INCLUDES`` regardless of the language version
+  in use. Note that in the future, libc++ reserves the right to remove
+  incidental transitive includes more aggressively, in particular regardless
+  of the language version in use.
+
 
 Upcoming Deprecations and Removals
 ----------------------------------
+
+API Changes
+-----------
+- The comparison operators on ``thread::id`` are now defined as free-standing
+  functions instead of as hidden friends, in conformance with the C++ standard.
+  Also see `issue 56187 <https://github.com/llvm/llvm-project/issues/56187>`_.
+
+- ``_LIBCPP_ENABLE_NODISCARD`` and ``_LIBCPP_DISABLE_NODISCARD_AFTER_CXX17`` are no longer respected.
+  Any standards-required ``[[nodiscard]]`` applications in C++20 are now always enabled. Any extended applications
+  are now enabled by default and can be disabled by defining ``_LIBCPP_DISABLE_NODISCARD_EXT``.
 
 ABI Affecting Changes
 ---------------------
