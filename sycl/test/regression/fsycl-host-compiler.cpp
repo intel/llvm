@@ -38,6 +38,17 @@ int main() {
   for (int i = 0; i < 3; i++)
     if (data[i] != 1) isSuccess = false;
 
+  {
+    buffer<int, 1> b(1);
+    queue q;
+    q.submit([&](handler &cgh) {
+       accessor a{b, cgh};
+       cgh.single_task<class test2>([=] { a[0] = 42; });
+     }).wait();
+    host_accessor a{b};
+    isSuccess &= (a[0] == 42);
+  }
+
   if (!isSuccess)
     return -1;
 
