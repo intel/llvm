@@ -18,7 +18,7 @@ def do_configure(args):
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
     if sys.platform != "darwin":
-        llvm_external_projects.append('libdevice')
+        llvm_external_projects += ';libdevice'
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = 'nvptx64--;nvptx64--nvidiacl'
