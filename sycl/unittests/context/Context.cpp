@@ -20,7 +20,7 @@ public:
 
 protected:
   void SetUp() override {
-    unittest::PiMockPlugin::EnsureInitialized();
+    unittest::PiMock::EnsureMockPluginInitialized();
 
     auto devices = device::get_devices();
     deviceA = devices[0];

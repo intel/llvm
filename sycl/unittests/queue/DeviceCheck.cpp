@@ -96,14 +96,14 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       EnableDefaultContextsName, "1",
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
+
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
   PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  // Create default context normally to avoid issues during its release, which
-  // takes plase after Mock is destroyed.
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
   Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);

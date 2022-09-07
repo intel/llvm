@@ -121,24 +121,21 @@ static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
 class KernelAndProgramCacheTest : public ::testing::Test {
 public:
-  KernelAndProgramCacheTest()
-      : Plt{unittest::PiMockPlugin::GetMockPlatform()} {}
+  KernelAndProgramCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock = std::make_unique<unittest::PiMock>();
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+    setupDefaultMockAPIs(Mock);
+    Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
-    Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+    Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
+    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:
+  unittest::PiMock Mock;
   sycl::platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 // Check that programs built from source are not cached.

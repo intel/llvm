@@ -50,8 +50,8 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // }
 //
 TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   Mock.redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
       redefinePiEnqueueEventsWaitWithBarrier);

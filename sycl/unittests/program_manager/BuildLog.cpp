@@ -87,8 +87,8 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   ScopedEnvVar var(WarningLevelEnvVar, "1",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
@@ -114,8 +114,8 @@ TEST(BuildLog, OutputLogOnLevel2) {
   ScopedEnvVar var(WarningLevelEnvVar, "2",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 

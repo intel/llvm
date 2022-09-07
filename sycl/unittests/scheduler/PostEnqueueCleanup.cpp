@@ -204,8 +204,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
   unittest::ScopedEnvVar HostUnifiedMemoryVar{
       HostUnifiedMemoryName, "1",
       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
       redefinedEnqueueMemBufferMap);

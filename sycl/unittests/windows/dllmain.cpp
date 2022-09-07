@@ -37,8 +37,8 @@ pi_result redefinedTearDown(void *PluginParameter) {
 
 TEST(Windows, DllMainCall) {
 #ifdef _WIN32
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 

@@ -56,8 +56,8 @@ static pi_result redefinedEnqueueNativeKernel(
 }
 
 TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEnqueueNativeKernel>(
       redefinedEnqueueNativeKernel);

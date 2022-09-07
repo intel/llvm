@@ -48,7 +48,8 @@ public:
 
 // Only check events dependency in queue_impl::finalizeHandler
 TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   auto Queue = std::make_shared<MockQueueImpl>(

@@ -187,8 +187,8 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
 }
 
 static void performChecks() {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];

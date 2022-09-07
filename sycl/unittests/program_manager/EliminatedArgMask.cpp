@@ -193,8 +193,8 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateEAM);

@@ -126,8 +126,8 @@ static void testEventStatusCheck(detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, QueueFlushing) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);

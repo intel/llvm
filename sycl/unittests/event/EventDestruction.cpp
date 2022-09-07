@@ -30,21 +30,19 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
 
 class EventDestructionTest : public ::testing::Test {
 public:
-  EventDestructionTest() : Plt{unittest::PiMockPlugin::GetMockPlatform()} {}
+  EventDestructionTest() :  Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-    Mock->redefine<detail::PiApiKind::piMemBufferCreate>(
+    setupDefaultMockAPIs(Mock);
+    Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+    Mock.redefine<detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
   }
 
 protected:
+  unittest::PiMock Mock;
   sycl::platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 // Test that events are destructed in correct time

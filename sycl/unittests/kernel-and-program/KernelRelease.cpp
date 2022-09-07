@@ -84,7 +84,7 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
 }
 
 TEST(KernelReleaseTest, GetKernelRelease) {
-  unittest::PiMock Mock{unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
   Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);

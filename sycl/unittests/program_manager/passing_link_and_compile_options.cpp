@@ -150,8 +150,8 @@ inline pi_result redefinedProgramBuild(
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
@@ -177,8 +177,8 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
@@ -212,8 +212,8 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 // TODO : Add check for linking 2 device images together when implemented.
 
 TEST(Link_Compile_Options, check_sycl_build) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);

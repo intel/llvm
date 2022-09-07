@@ -84,8 +84,8 @@ static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 }
 
 TEST(GetNative, GetNativeHandle) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);

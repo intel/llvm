@@ -65,8 +65,8 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
 }
 
 TEST_F(SchedulerTest, CommandsWaitForEvents) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   Mock.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
   Mock.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);

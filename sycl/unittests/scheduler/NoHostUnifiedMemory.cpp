@@ -88,8 +88,8 @@ redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
 }
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
-  queue Q = sycl::unittest::PiMockPlugin::GetMockQueue();
-  unittest::PiMock Mock{Q};
+  unittest::PiMock Mock;
+  queue Q{Mock.getPlatform().get_devices()[0]};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(

@@ -77,8 +77,8 @@ static pi_result redefinedEventsWait(pi_uint32 num_events,
 pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, InOrderQueueDeps) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(

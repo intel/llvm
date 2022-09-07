@@ -37,8 +37,7 @@ public:
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
-static sycl::device getDeviceWithHostUnifiedMemory() {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
+static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {
   for (sycl::device &D : Plt.get_devices()) {
     if (D.get_info<sycl::info::device::host_unified_memory>())
       return D;
@@ -47,7 +46,9 @@ static sycl::device getDeviceWithHostUnifiedMemory() {
 }
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  sycl::device Dev = getDeviceWithHostUnifiedMemory();
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::device Dev = getDeviceWithHostUnifiedMemory(Plt);
 
   // 1. create two commands: alloca + alloca and link them
   // 2. call Scheduler::GraphBuilder::getOrCreateAllocaForReq

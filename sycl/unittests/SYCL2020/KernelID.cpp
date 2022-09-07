@@ -141,8 +141,8 @@ TEST(KernelID, NoServiceKernelIds) {
 }
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -167,8 +167,8 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 }
 
 TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -189,8 +189,8 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
 }
 
 TEST(KernelID, KernelIDHasKernel) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -269,8 +269,8 @@ TEST(KernelID, KernelIDHasKernel) {
 }
 
 TEST(KernelID, InvalidKernelName) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   try {

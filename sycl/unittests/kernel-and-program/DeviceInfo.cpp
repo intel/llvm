@@ -50,18 +50,16 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class DeviceInfoTest : public ::testing::Test {
 public:
-  DeviceInfoTest() : Plt{unittest::PiMockPlugin::GetMockPlatform()} {}
+  DeviceInfoTest() :  Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock = std::make_unique<unittest::PiMock>();
-
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   }
 
 protected:
+  unittest::PiMock Mock;
   sycl::platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 TEST_F(DeviceInfoTest, GetDeviceUUID) {

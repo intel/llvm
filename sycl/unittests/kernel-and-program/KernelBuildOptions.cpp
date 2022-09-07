@@ -216,8 +216,8 @@ sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -240,8 +240,8 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
 }
 
 TEST(KernelBuildOptions, Program) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];

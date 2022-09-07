@@ -33,8 +33,8 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 }
 
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
-  platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 

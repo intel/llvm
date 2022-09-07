@@ -24,10 +24,9 @@ pi_result redefinedQueueRetain(pi_queue Queue) {
 }
 
 TEST(PiInteropTest, CheckRetain) {
-  platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   context Ctx{Plt.get_devices()[0]};
-
-  unittest::PiMock Mock{Plt};
 
   // The queue construction should not call to piQueueRetain. Instead
   // piQueueCreate should return the "retained" queue.

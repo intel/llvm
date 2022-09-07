@@ -456,8 +456,8 @@ void ChildProcess(int StdErrFD) {
     exit(1);
   }
 
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   setupMock(Mock);
 
@@ -532,7 +532,7 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 
 TEST(Assert, TestPositive) {
   // Preliminary checks
-  sycl::unittest::PiMockPlugin::EnsureInitialized();
+  sycl::unittest::PiMock::EnsureMockPluginInitialized();
 
 #ifndef _WIN32
   static constexpr int ReadFDIdx = 0;
@@ -573,8 +573,8 @@ TEST(Assert, TestAssertServiceKernelHidden) {
 }
 
 TEST(Assert, TestInteropKernelNegative) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -595,8 +595,8 @@ TEST(Assert, TestInteropKernelNegative) {
 }
 
 TEST(Assert, TestInteropKernelFromProgramNegative) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -619,8 +619,8 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
 }
 
 TEST(Assert, TestKernelFromSourceNegative) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};

@@ -75,8 +75,8 @@ static sycl::unittest::PiImage Img = generateImageWithSpecConsts();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(SpecializationConstant, DefaultValuesAreSet) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -105,8 +105,8 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
 }
 
 TEST(SpecializationConstant, DefaultValuesAreOverriden) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -142,8 +142,8 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
 }
 
 TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -186,8 +186,8 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
 }
 
 TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -231,8 +231,8 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
 }
 
 TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
-  sycl::platform Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];

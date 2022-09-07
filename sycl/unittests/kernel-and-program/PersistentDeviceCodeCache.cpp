@@ -158,8 +158,7 @@ public:
     ResetSYCLCacheDirEnv();
   }
 
-  PersistentDeviceCodeCache()
-      : Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()} {
+  PersistentDeviceCodeCache() : Mock{}, Plt{Mock.getPlatform()} {
 
     char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
     if (!SYCLCacheDir) {
@@ -169,10 +168,8 @@ public:
     }
     RootSYCLCacheDir = SYCLCacheDir;
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
-    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
-        redefinedProgramGetInfo);
+    Mock.redefine<detail::PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
   }
 
   /* Helper function for concurent cache item read/write from diffrent number
@@ -218,6 +215,7 @@ public:
 
 protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
+  unittest::PiMock Mock;
   platform Plt;
   device Dev;
   pi_device_binary_struct BinStruct{/*Version*/ 1,
@@ -237,7 +235,6 @@ protected:
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

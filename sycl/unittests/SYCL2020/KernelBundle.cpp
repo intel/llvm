@@ -86,7 +86,7 @@ static sycl::unittest::PiImage Imgs[3] = {
 static sycl::unittest::PiImageArray<3> ImgArray{Imgs};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -106,7 +106,7 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
 }
 
 TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -135,7 +135,7 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
 }
 
 TEST(KernelBundle, EmptyKernelBundle) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -151,7 +151,7 @@ TEST(KernelBundle, EmptyKernelBundle) {
 }
 
 TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -193,7 +193,7 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
 }
 
 TEST(KernelBundle, HasKernelBundle) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -240,7 +240,7 @@ TEST(KernelBundle, HasKernelBundle) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -282,7 +282,7 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -329,7 +329,7 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
 }
 
 TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -376,7 +376,7 @@ TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];
@@ -426,7 +426,7 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
 }
 
 TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
-  sycl::unittest::PiMock Mock{sycl::unittest::PiMockPlugin::GetMockPlatform()};
+  sycl::unittest::PiMock Mock;
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Mock.getPlatform().get_devices()[0];

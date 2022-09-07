@@ -98,11 +98,9 @@ pi_result redefinedContextCreate(const pi_context_properties *Properties,
 // FIXME: mock 3 devices (one root device + two sub-devices) within a single
 // context.
 TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-
   // Setup Mock APIs
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfo);
   Mock.redefine<sycl::detail::PiApiKind::piDevicePartition>(

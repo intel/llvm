@@ -71,22 +71,20 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()} {}
+  BufferTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock = std::make_unique<sycl::unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+    setupDefaultMockAPIs(Mock);
+    Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
-    Mock->redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
+    Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
         redefinedDeviceGetInfo);
   }
 
 protected:
+  sycl::unittest::PiMock Mock;
   sycl::platform Plt;
-  std::unique_ptr<sycl::unittest::PiMock> Mock;
 };
 
 // Test that buffer_location was passed correctly

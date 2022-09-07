@@ -25,12 +25,12 @@ TEST(DefaultContextTest, DefaultContextTest) {
   ScopedEnvVar var(EnableDefaultContextsName, "1",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt1{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock1{Plt1};
+  sycl::unittest::PiMock Mock1;
+  sycl::platform Plt1 = Mock1.getPlatform();
   setupDefaultMockAPIs(Mock1);
 
-  sycl::platform Plt2{sycl::unittest::PiMockPlugin::GetMockPlatform()};
-  sycl::unittest::PiMock Mock2{Plt2};
+  sycl::unittest::PiMock Mock2;
+  sycl::platform Plt2 = Mock2.getPlatform();
   setupDefaultMockAPIs(Mock2);
 
   const sycl::device Dev1 = Plt1.get_devices()[0];
@@ -51,8 +51,8 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   ScopedEnvVar var(EnableDefaultContextsName, "0",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt = sycl::unittest::PiMockPlugin::GetMockPlatform();
-  sycl::unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupDefaultMockAPIs(Mock);
 
   bool catchException = false;

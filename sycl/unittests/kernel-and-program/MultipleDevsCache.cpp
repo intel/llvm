@@ -107,30 +107,27 @@ static pi_result redefinedKernelRelease(pi_kernel kernel) {
 
 class MultipleDeviceCacheTest : public ::testing::Test {
 public:
-  MultipleDeviceCacheTest()
-      : Plt{sycl::unittest::PiMockPlugin::GetMockPlatform()} {}
+  MultipleDeviceCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-    Mock->redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-    Mock->redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-    Mock->redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-    Mock->redefine<detail::PiApiKind::piContextRelease>(
+    setupDefaultMockAPIs(Mock);
+    Mock.redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+    Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
+    Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
+    Mock.redefine<detail::PiApiKind::piContextRelease>(
         redefinedContextRelease);
-    Mock->redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-    Mock->redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
-    Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-    Mock->redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+    Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+    Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+    Mock.redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
+    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:
-  std::unique_ptr<unittest::PiMock> Mock;
+  unittest::PiMock Mock;
   platform Plt;
 };
 

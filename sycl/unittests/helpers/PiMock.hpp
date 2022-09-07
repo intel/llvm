@@ -65,47 +65,6 @@ namespace RT = detail::pi;
 #include <sycl/detail/pi.def>
 #undef _PI_API
 
-class PiMockPlugin {
-public:
-  static void EnsureInitialized() {
-    // Only initialize the plugin once.
-    if (MPluginPtr)
-      return;
-
-    auto RTPlugin = std::make_shared<RT::PiPlugin>(
-        RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
-                     getMockedFunctionPointers()});
-
-    // FIXME: which backend to pass here? does it affect anything?
-    MPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,
-                                                  /*Library=*/nullptr);
-    detail::GlobalHandler::instance().getPlugins().push_back(*MPluginPtr);
-  }
-
-  static platform GetMockPlatform() {
-    EnsureInitialized();
-
-    pi_uint32 NumPlatforms = 0;
-    MPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(0, nullptr,
-                                                                &NumPlatforms);
-    assert(NumPlatforms > 0 && "No platforms returned by mock plugin.");
-    pi_platform PiPlatform;
-    MPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(1, &PiPlatform,
-                                                                nullptr);
-    return detail::createSyclObjFromImpl<platform>(
-        detail::platform_impl::getOrMakePlatformImpl(PiPlatform, *MPluginPtr));
-  }
-
-  static queue GetMockQueue() {
-    return queue{GetMockPlatform().get_devices()[0]};
-  }
-
-  PiMockPlugin() = delete;
-
-private:
-  static inline std::unique_ptr<detail::plugin> MPluginPtr = nullptr;
-};
-
 /// The PiMock class wraps an instance of a SYCL platform class,
 /// and manages all mock redefinitions for the underlying plugin.
 ///
@@ -138,55 +97,33 @@ private:
 // TODO: Consider reworking the class into a `detail::plugin` derivative.
 class PiMock {
 public:
-  /// Constructs PiMock from a device_selector, provided that
-  /// a non-host device can and will be selected. Default-constructs
-  /// from a default_selector.
-  ///
-  /// \param DevSelector is a reference to a device_selector instance.
-  explicit PiMock(
-      const sycl::device_selector &DevSelector = sycl::default_selector{})
-      : PiMock(sycl::platform{DevSelector}) {}
-
-  /// Constructs PiMock from a queue.
-  ///
-  /// \param Queue is a reference to a SYCL queue to which
-  ///        the mock redefinitions will apply.
-  explicit PiMock(sycl::queue &Queue)
-      : PiMock(Queue.get_device().get_platform()) {}
-
-  /// Constructs PiMock from a reference to a SYCL platform instance.
+  /// Constructs PiMock using the mock PI plugin.
   ///
   /// A new plugin will be stored into the platform instance, which
   /// will no longer share the plugin with other platform instances
   /// within the given context. A separate platform instance will be
   /// held by the PiMock instance.
   ///
-  /// \param OriginalPlatform is a reference to a SYCL platform.
-  explicit PiMock(const sycl::platform &OriginalPlatform) {
-    assert(!OriginalPlatform.is_host() && "PI mock isn't supported for host");
-    // Extract impl and plugin handles
-    std::shared_ptr<detail::platform_impl> ImplPtr =
-        detail::getSyclObjImpl(OriginalPlatform);
-    const detail::plugin &OriginalPiPlugin = ImplPtr->getPlugin();
+  PiMock() {
+    // Create new mock plugin platform and plugin handles
+    // Note: Mock plugin will be generated if it has not been yet.
+    MPlatformImpl = GetMockPlatformImpl();
+    const detail::plugin &OriginalPiPlugin = MPlatformImpl->getPlugin();
     // Copy the PiPlugin, thus untying our to-be mock platform from other
     // platforms within the context. Reset our platform to use the new plugin.
     auto NewPluginPtr = std::make_shared<detail::plugin>(
         OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
         OriginalPiPlugin.getLibraryHandle());
-    ImplPtr->setPlugin(NewPluginPtr);
+    MPlatformImpl->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
     MPiPluginMockPtr = &NewPluginPtr->getPiPlugin();
     // Save a copy of the platform resource
-    MPlatform = OriginalPlatform;
     OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
   }
 
-  /// Explicit construction from a host_selector is forbidden.
-  PiMock(const sycl::host_selector &HostSelector) = delete;
-
   PiMock(PiMock &&Other) {
-    MPlatform = std::move(Other.MPlatform);
+    MPlatformImpl = std::move(Other.MPlatformImpl);
     OrigFuncTable = std::move(Other.OrigFuncTable);
     Other.OrigFuncTable = {}; // Move above doesn't reset the optional.
     MPiPluginMockPtr = std::move(Other.MPiPluginMockPtr);
@@ -203,7 +140,9 @@ public:
   /// Returns a handle to the SYCL platform instance.
   ///
   /// \return A reference to the SYCL platform.
-  sycl::platform &getPlatform() { return MPlatform; }
+  sycl::platform getPlatform() {
+    return sycl::detail::createSyclObjFromImpl<sycl::platform>(MPlatformImpl);
+  }
 
   template <detail::PiApiKind PiApiOffset>
   using FuncPtrT = typename RT::PiFuncInfo<PiApiOffset>::FuncPtrT;
@@ -240,12 +179,45 @@ public:
     setFuncPtr<PiApiOffset>(MPiPluginMockPtr, Replacement);
   }
 
+  static void EnsureMockPluginInitialized() {
+    // Only initialize the plugin once.
+    if (MMockPluginPtr)
+      return;
+
+    auto RTPlugin = std::make_shared<RT::PiPlugin>(
+        RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
+                     getMockedFunctionPointers()});
+
+    // FIXME: which backend to pass here? does it affect anything?
+    MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,
+                                                      /*Library=*/nullptr);
+    detail::GlobalHandler::instance().getPlugins().push_back(*MMockPluginPtr);
+  }
+
 private:
-  sycl::platform MPlatform;
+  static std::shared_ptr<sycl::detail::platform_impl> GetMockPlatformImpl() {
+    EnsureMockPluginInitialized();
+
+    pi_uint32 NumPlatforms = 0;
+    MMockPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(
+        0, nullptr, &NumPlatforms);
+    assert(NumPlatforms > 0 && "No platforms returned by mock plugin.");
+    pi_platform PiPlatform;
+    MMockPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(
+        1, &PiPlatform, nullptr);
+    return detail::platform_impl::getOrMakePlatformImpl(PiPlatform,
+                                                        *MMockPluginPtr);
+  }
+
+  std::shared_ptr<sycl::detail::platform_impl> MPlatformImpl;
   std::optional<pi_plugin::FunctionPointers> OrigFuncTable;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
   RT::PiPlugin *MPiPluginMockPtr;
+
+  // Pointer to the mock plugin pointer. This is static to avoid
+  // reinitialization and re-registration of the same plugin.
+  static inline std::unique_ptr<detail::plugin> MMockPluginPtr = nullptr;
 };
 
 } // namespace unittest
