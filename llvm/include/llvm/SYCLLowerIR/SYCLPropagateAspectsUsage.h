@@ -6,24 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Pass propagates metadata corresponding to usage of optional device
-// features.
+// Pass propagates optional kernel features metadata through a module call graph
 //
 //===----------------------------------------------------------------------===//
 //
-#ifndef LLVM_SYCLPROPAGATE_ASPECTS_USAGE_H
-#define LLVM_SYCLPROPAGATE_ASPECTS_USAGE_H
+#ifndef LLVM_SYCL_PROPAGATE_ASPECTS_USAGE_H
+#define LLVM_SYCL_PROPAGATE_ASPECTS_USAGE_H
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
-class PropagateAspectsUsagePass
-    : public PassInfoMixin<PropagateAspectsUsagePass> {
+class SYCLPropagateAspectsUsagePass
+    : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 } // namespace llvm
 
-#endif // LLVM_SYCLPROPAGATE_ASPECTS_USAGE_H
+#endif // LLVM_SYCL_PROPAGATE_ASPECTS_USAGE_H

@@ -6,10 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Pass propagates metadata corresponding to usage of optional device
-// features.
+// Pass propagates optional kernel features metadata through a module call graph
 //
-// The pass consists of a four main steps:
+// The pass consists of four main steps:
 //
 // I. It builds Type -> set of aspects mapping for usage in step II
 // II. It builds Function -> set of aspects mapping to use in further steps
@@ -26,7 +25,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/PropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -277,6 +276,9 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
 // _Z28__spirv_GlobalInvocationId_xv
+// Note: this function was copied from sycl-post-link/ModuleSplitter.cpp and the
+// definition of entry point (i.e. implementation of the function) should be in
+// sync between those two.
 bool isSpirvSyclBuiltin(StringRef FName) {
   if (!FName.consume_front("_Z"))
     return false;
@@ -328,8 +330,8 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 
 } // anonymous namespace
 
-PreservedAnalyses PropagateAspectsUsagePass::run(Module &M,
-                                                 ModuleAnalysisManager &MAM) {
+PreservedAnalyses
+SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects);
 
