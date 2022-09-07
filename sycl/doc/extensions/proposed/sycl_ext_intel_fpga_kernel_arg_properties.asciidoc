@@ -134,34 +134,36 @@ annotated_arg<T, ...> only when T is a pointer type.
 
 ```c++
 namespace sycl::ext::intel::experimental {
-using sycl::ext::oneapi::experimental::properties;
 struct conduit_key {
-  using value_t = property_value<conduit_key>;
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    conduit_key>;
 };
 
 struct register_map_key {
-  using value_t = property_value<register_map_key>;
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    register_map_key>;
 };
 
 struct stable_key {
-  using value_t = property_value<stable_key>;
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    stable_key>;
 };
 
 struct buffer_location_key {
   template<int K>
-  using value_t = property_value<
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
     buffer_location_key, std::integral_constant<int, K>>;
 };
 
 struct awidth_key {
   template<int K>
-  using value_t = property_value<
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
     awidth_key, std::integral_constant<int, K>>;
 };
 
 struct dwidth_key {
   template<int K>
-  using value_t = property_value<
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
     dwidth_key, std::integral_constant<int, K>>;
 };
 
@@ -173,26 +175,26 @@ enum class read_write_mode_enum {
 
 struct read_write_mode_key {
   template<read_write_mode_enum mode>
-  using value_t = property_value<read_write_mode_key,
-    std::integral_constant<read_write_mode_enum, mode>>;
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    read_write_mode_key, std::integral_constant<read_write_mode_enum, mode>>;
 };
 
 struct latency_key {
   template<int K>
-  using value_t = property_value<latency_key,
-    std::integral_constant<int, K>>;
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    latency_key, std::integral_constant<int, K>>;
 };
 
 struct maxburst_key {
   template<int K>
-  using value_t = property_value<
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
     maxburst_key, std::integral_constant<int, K>>;
 };
 
 struct wait_request_key {
   template<bool K>
-  using value_t = property_value<wait_request_key,
-    std::integral_constant<bool, K>>;
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    wait_request_key, std::integral_constant<bool, K>>;
 };
 
 inline constexpr conduit_key::value_t
@@ -228,83 +230,109 @@ inline constexpr wait_request_key::value_t<false>
  wait_request_not_requested;
 } // namespace sycl::ext::intel::experimental
 
+// Type trait specializations
 namespace sycl::ext::oneapi::experimental {
-using sycl::ext::intel::experimental;
-template<> struct is_property_key<conduit_key> : std::true_type {};
 template<> struct is_property_key<
-  register_map_key> : std::true_type {};
-template<> struct is_property_key<stable_key> : std::true_type {};
-template<> struct is_property_key<buffer_location_key> : std::true_type {};
-template<> struct is_property_key<awidth_key> : std::true_type {};
-template<> struct is_property_key<dwidth_key> : std::true_type {};
+  sycl::ext::intel::experimental::conduit_key> : std::true_type {};
 template<> struct is_property_key<
-  read_write_mode_key> : std::true_type {};
+  sycl::ext::intel::experimental::register_map_key> : std::true_type {};
 template<> struct is_property_key<
-  latency_key> : std::true_type {};
-template<> struct is_property_key<maxburst_key> : std::true_type {};
+  sycl::ext::intel::experimental::stable_key> : std::true_type {};
 template<> struct is_property_key<
-  wait_request_key> : std::true_type {};
+  sycl::ext::intel::experimental::buffer_location_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::awidth_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::dwidth_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::read_write_mode_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::latency_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::maxburst_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::wait_request_key> : std::true_type {};
 
 template <typename T, typename PropertyListT>
-struct is_property_key_of<conduit_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::conduit_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<register_map_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::register_map_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<stable_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::stable_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<buffer_location_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::buffer_location_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<awidth_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::awidth_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<dwidth_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::dwidth_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<read_write_mode_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::read_write_mode_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<latency_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::latency_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<maxburst_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::maxburst_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<wait_request_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::wait_request_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
 
 template <typename T, typename PropertyListT>
-struct is_property_key_of<conduit_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::conduit_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<register_map_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::register_map_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<stable_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::stable_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<buffer_location_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::buffer_location_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<awidth_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::awidth_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<dwidth_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::dwidth_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<read_write_mode_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::read_write_mode_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<latency_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::latency_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<maxburst_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::maxburst_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<wait_request_key,
+struct is_property_key_of<
+  sycl::ext::intel::experimental::wait_request_key,
   annotated_arg<T, PropertyListT>> : std::true_type {};
 } // namespace sycl::ext::oneapi::experimental
 ```
