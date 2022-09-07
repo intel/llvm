@@ -98,20 +98,23 @@ enum class register_map_interface_options_enum {
 
 struct streaming_interface_key {
   template <streaming_interface_options_enum option>
-  using value_t = property_value<streaming_interface_key,
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    streaming_interface_key,
     std::integral_constant<streaming_interface_options_enum, option>>;
 };
 
 struct register_map_interface_key {
   template <register_map_interface_options_enum option>
-  using value_t = property_value<register_map_interface_key,
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    register_map_interface_key,
     std::integral_constant<register_map_interface_options_enum, option>>;
 };
 
 struct pipelined_key {
   template <size_t pipeline_directive_or_initiation_interval>
-  using value_t = property_value<pipelined_key,
-    std::integral_constant<size_t, pipeline_directive_or_initiation_interval>;
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    pipelined_key,
+    std::integral_constant<size_t, pipeline_directive_or_initiation_interval>>;
 };
 
 template <streaming_interface_options_enum option>
