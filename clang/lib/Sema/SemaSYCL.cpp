@@ -403,7 +403,7 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   return true;
 }
 
-bool Sema::isDeclAllowedInKernel(const Decl *D) {
+bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
 
