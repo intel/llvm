@@ -17,11 +17,15 @@
 #include <__iterator/distance.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/move_iterator.h>
+#include <__memory/allocate_at_least.h>
 #include <__memory/allocator.h>
+#include <__memory/allocator_traits.h>
 #include <__memory/compressed_pair.h>
+#include <__memory/pointer_traits.h>
+#include <__memory/shared_ptr.h>
 #include <__memory/swap_allocator.h>
 #include <__utility/forward.h>
-#include <memory>
+#include <__utility/move.h>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -47,7 +51,7 @@ private:
 public:
     typedef _Tp                                             value_type;
     typedef _Allocator                                      allocator_type;
-    typedef typename remove_reference<allocator_type>::type __alloc_rr;
+    typedef __libcpp_remove_reference_t<allocator_type>     __alloc_rr;
     typedef allocator_traits<__alloc_rr>                    __alloc_traits;
     typedef value_type&                                     reference;
     typedef const value_type&                               const_reference;
@@ -63,8 +67,8 @@ public:
     pointer                                         __end_;
     __compressed_pair<pointer, allocator_type> __end_cap_;
 
-    typedef typename add_lvalue_reference<allocator_type>::type __alloc_ref;
-    typedef typename add_lvalue_reference<allocator_type>::type __alloc_const_ref;
+    typedef __add_lvalue_reference_t<allocator_type> __alloc_ref;
+    typedef __add_lvalue_reference_t<allocator_type> __alloc_const_ref;
 
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI __alloc_rr&           __alloc() _NOEXCEPT         {return __end_cap_.second();}
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI const __alloc_rr&     __alloc() const _NOEXCEPT   {return __end_cap_.second();}

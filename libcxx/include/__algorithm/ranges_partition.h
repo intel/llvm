@@ -26,6 +26,7 @@
 #include <__ranges/subrange.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
+#include <__utility/pair.h>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -43,7 +44,7 @@ struct __fn {
 
   template <class _Iter, class _Sent, class _Proj, class _Pred>
   _LIBCPP_HIDE_FROM_ABI static constexpr
-  subrange<__uncvref_t<_Iter>> __partition_fn_impl(_Iter&& __first, _Sent&& __last, _Pred&& __pred, _Proj&& __proj) {
+  subrange<__remove_cvref_t<_Iter>> __partition_fn_impl(_Iter&& __first, _Sent&& __last, _Pred&& __pred, _Proj&& __proj) {
     auto&& __projected_pred = std::__make_projected(__pred, __proj);
     auto __result = std::__partition<_RangeAlgPolicy>(
         std::move(__first), std::move(__last), __projected_pred, __iterator_concept<_Iter>());

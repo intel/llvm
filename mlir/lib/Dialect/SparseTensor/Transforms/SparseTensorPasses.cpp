@@ -43,8 +43,8 @@ struct SparsificationPass
   SparsificationPass() = default;
   SparsificationPass(const SparsificationPass &pass) = default;
   SparsificationPass(const SparsificationOptions &options) {
-    parallelization = static_cast<int32_t>(options.parallelizationStrategy);
-    vectorization = static_cast<int32_t>(options.vectorizationStrategy);
+    parallelization = options.parallelizationStrategy;
+    vectorization = options.vectorizationStrategy;
     vectorLength = options.vectorLength;
     enableSIMDIndex32 = options.enableSIMDIndex32;
     enableVLAVectorization = options.enableVLAVectorization;
@@ -57,10 +57,8 @@ struct SparsificationPass
     populateSparseTensorRewriting(prePatterns);
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(prePatterns));
     // Translate strategy flags to strategy options.
-    SparsificationOptions options(
-        sparseParallelizationStrategy(parallelization),
-        sparseVectorizationStrategy(vectorization), vectorLength,
-        enableSIMDIndex32, enableVLAVectorization);
+    SparsificationOptions options(parallelization, vectorization, vectorLength,
+                                  enableSIMDIndex32, enableVLAVectorization);
     // Apply sparsification and vector cleanup rewriting.
     RewritePatternSet patterns(ctx);
     populateSparsificationPatterns(patterns, options);
@@ -158,7 +156,7 @@ struct SparseTensorCodegenPass
     ConversionTarget target(*ctx);
     // Almost everything in the sparse dialect must go!
     target.addIllegalDialect<SparseTensorDialect>();
-    target.addLegalOp<StorageGetOp, StorageSetOp>();
+    target.addLegalOp<StorageGetOp, StorageSetOp, StorageOp>();
     // All dynamic rules below accept new function, call, return, and various
     // tensor and bufferization operations as legal output of the rewriting
     // provided that all sparse tensor types have been fully rewritten.
@@ -171,6 +169,10 @@ struct SparseTensorCodegenPass
     target.addDynamicallyLegalOp<func::ReturnOp>([&](func::ReturnOp op) {
       return converter.isLegal(op.getOperandTypes());
     });
+    target.addDynamicallyLegalOp<bufferization::AllocTensorOp>(
+        [&](bufferization::AllocTensorOp op) {
+          return converter.isLegal(op.getType());
+        });
     target.addDynamicallyLegalOp<bufferization::DeallocTensorOp>(
         [&](bufferization::DeallocTensorOp op) {
           return converter.isLegal(op.getTensor().getType());
@@ -237,33 +239,6 @@ struct SparseTensorStorageExpansionPass
 //===----------------------------------------------------------------------===//
 // Strategy flag methods.
 //===----------------------------------------------------------------------===//
-
-SparseParallelizationStrategy
-mlir::sparseParallelizationStrategy(int32_t flag) {
-  switch (flag) {
-  default:
-    return SparseParallelizationStrategy::kNone;
-  case 1:
-    return SparseParallelizationStrategy::kDenseOuterLoop;
-  case 2:
-    return SparseParallelizationStrategy::kAnyStorageOuterLoop;
-  case 3:
-    return SparseParallelizationStrategy::kDenseAnyLoop;
-  case 4:
-    return SparseParallelizationStrategy::kAnyStorageAnyLoop;
-  }
-}
-
-SparseVectorizationStrategy mlir::sparseVectorizationStrategy(int32_t flag) {
-  switch (flag) {
-  default:
-    return SparseVectorizationStrategy::kNone;
-  case 1:
-    return SparseVectorizationStrategy::kDenseInnerLoop;
-  case 2:
-    return SparseVectorizationStrategy::kAnyStorageInnerLoop;
-  }
-}
 
 SparseToSparseConversionStrategy
 mlir::sparseToSparseConversionStrategy(int32_t flag) {

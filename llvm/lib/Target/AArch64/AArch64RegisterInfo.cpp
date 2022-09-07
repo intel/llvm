@@ -309,7 +309,7 @@ const uint32_t *AArch64RegisterInfo::getWindowsStackProbePreservedMask() const {
 }
 
 BitVector
-AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+AArch64RegisterInfo::getStrictlyReservedRegs(const MachineFunction &MF) const {
   const AArch64FrameLowering *TFI = getFrameLowering(MF);
 
   // FIXME: avoid re-calculating this every time.
@@ -319,6 +319,18 @@ AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   if (TFI->hasFP(MF) || TT.isOSDarwin())
     markSuperRegs(Reserved, AArch64::W29);
+
+  if (MF.getSubtarget<AArch64Subtarget>().isWindowsArm64EC()) {
+    // x13, x14, x23, x24, x28, and v16-v31 are clobbered by asynchronous
+    // signals, so we can't ever use them.
+    markSuperRegs(Reserved, AArch64::W13);
+    markSuperRegs(Reserved, AArch64::W14);
+    markSuperRegs(Reserved, AArch64::W23);
+    markSuperRegs(Reserved, AArch64::W24);
+    markSuperRegs(Reserved, AArch64::W28);
+    for (unsigned i = AArch64::B16; i <= AArch64::B31; ++i)
+      markSuperRegs(Reserved, i);
+  }
 
   for (size_t i = 0; i < AArch64::GPR32commonRegClass.getNumRegs(); ++i) {
     if (MF.getSubtarget<AArch64Subtarget>().isXRegisterReserved(i))
@@ -343,14 +355,32 @@ AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
+BitVector
+AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+  BitVector Reserved = getStrictlyReservedRegs(MF);
+
+  for (size_t i = 0; i < AArch64::GPR32commonRegClass.getNumRegs(); ++i) {
+    if (MF.getSubtarget<AArch64Subtarget>().isXRegisterReservedForRA(i))
+      markSuperRegs(Reserved, AArch64::GPR32commonRegClass.getRegister(i));
+  }
+
+  assert(checkAllSuperRegsMarked(Reserved));
+  return Reserved;
+}
+
 bool AArch64RegisterInfo::isReservedReg(const MachineFunction &MF,
                                         MCRegister Reg) const {
   return getReservedRegs(MF)[Reg];
 }
 
+bool AArch64RegisterInfo::isStrictlyReservedReg(const MachineFunction &MF,
+                                                MCRegister Reg) const {
+  return getStrictlyReservedRegs(MF)[Reg];
+}
+
 bool AArch64RegisterInfo::isAnyArgRegReserved(const MachineFunction &MF) const {
   return llvm::any_of(*AArch64::GPR64argRegClass.MC, [this, &MF](MCPhysReg r) {
-    return isReservedReg(MF, r);
+    return isStrictlyReservedReg(MF, r);
   });
 }
 

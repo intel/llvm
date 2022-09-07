@@ -451,16 +451,16 @@ ELFFileBase::ELFFileBase(Kind k, MemoryBufferRef mb) : InputFile(k, mb) {
 
   switch (ekind) {
   case ELF32LEKind:
-    init<ELF32LE>();
+    init<ELF32LE>(k);
     break;
   case ELF32BEKind:
-    init<ELF32BE>();
+    init<ELF32BE>(k);
     break;
   case ELF64LEKind:
-    init<ELF64LE>();
+    init<ELF64LE>(k);
     break;
   case ELF64BEKind:
-    init<ELF64BE>();
+    init<ELF64BE>(k);
     break;
   default:
     llvm_unreachable("getELFKind");
@@ -475,7 +475,7 @@ static const Elf_Shdr *findSection(ArrayRef<Elf_Shdr> sections, uint32_t type) {
   return nullptr;
 }
 
-template <class ELFT> void ELFFileBase::init() {
+template <class ELFT> void ELFFileBase::init(InputFile::Kind k) {
   using Elf_Shdr = typename ELFT::Shdr;
   using Elf_Sym = typename ELFT::Sym;
 
@@ -490,10 +490,8 @@ template <class ELFT> void ELFFileBase::init() {
   numELFShdrs = sections.size();
 
   // Find a symbol table.
-  bool isDSO =
-      (identify_magic(mb.getBuffer()) == file_magic::elf_shared_object);
   const Elf_Shdr *symtabSec =
-      findSection(sections, isDSO ? SHT_DYNSYM : SHT_SYMTAB);
+      findSection(sections, k == SharedKind ? SHT_DYNSYM : SHT_SYMTAB);
 
   if (!symtabSec)
     return;
@@ -1458,16 +1456,16 @@ template <class ELFT> void SharedFile::parse() {
     // symbol, that's a violation of the spec.
     StringRef name = CHECK(sym.getName(stringTable), this);
     if (sym.getBinding() == STB_LOCAL) {
-      warn("found local symbol '" + name +
-           "' in global part of symbol table in file " + toString(this));
+      errorOrWarn(toString(this) + ": invalid local symbol '" + name +
+                  "' in global part of symbol table");
       continue;
     }
 
-    uint16_t idx = versyms[i] & ~VERSYM_HIDDEN;
+    const uint16_t ver = versyms[i], idx = ver & ~VERSYM_HIDDEN;
     if (sym.isUndefined()) {
       // For unversioned undefined symbols, VER_NDX_GLOBAL makes more sense but
       // as of binutils 2.34, GNU ld produces VER_NDX_LOCAL.
-      if (idx != VER_NDX_LOCAL && idx != VER_NDX_GLOBAL) {
+      if (ver != VER_NDX_LOCAL && ver != VER_NDX_GLOBAL) {
         if (idx >= verneeds.size()) {
           error("corrupt input file: version need index " + Twine(idx) +
                 " for symbol " + name + " is out of bounds\n>>> defined in " +
@@ -1488,33 +1486,32 @@ template <class ELFT> void SharedFile::parse() {
       continue;
     }
 
-    // MIPS BFD linker puts _gp_disp symbol into DSO files and incorrectly
-    // assigns VER_NDX_LOCAL to this section global symbol. Here is a
-    // workaround for this bug.
-    if (config->emachine == EM_MIPS && idx == VER_NDX_LOCAL &&
-        name == "_gp_disp")
-      continue;
-
-    uint32_t alignment = getAlignment<ELFT>(sections, sym);
-    if (!(versyms[i] & VERSYM_HIDDEN)) {
-      auto *s = symtab.addSymbol(
-          SharedSymbol{*this, name, sym.getBinding(), sym.st_other,
-                       sym.getType(), sym.st_value, sym.st_size, alignment});
-      if (s->file == this)
-        s->verdefIndex = idx;
-    }
-
-    // Also add the symbol with the versioned name to handle undefined symbols
-    // with explicit versions.
-    if (idx == VER_NDX_GLOBAL)
-      continue;
-
-    if (idx >= verdefs.size() || idx == VER_NDX_LOCAL) {
+    if (ver == VER_NDX_LOCAL ||
+        (ver != VER_NDX_GLOBAL && idx >= verdefs.size())) {
+      // In GNU ld < 2.31 (before 3be08ea4728b56d35e136af4e6fd3086ade17764), the
+      // MIPS port puts _gp_disp symbol into DSO files and incorrectly assigns
+      // VER_NDX_LOCAL. Workaround this bug.
+      if (config->emachine == EM_MIPS && name == "_gp_disp")
+        continue;
       error("corrupt input file: version definition index " + Twine(idx) +
             " for symbol " + name + " is out of bounds\n>>> defined in " +
             toString(this));
       continue;
     }
+
+    uint32_t alignment = getAlignment<ELFT>(sections, sym);
+    if (ver == idx) {
+      auto *s = symtab.addSymbol(
+          SharedSymbol{*this, name, sym.getBinding(), sym.st_other,
+                       sym.getType(), sym.st_value, sym.st_size, alignment});
+      if (s->file == this)
+        s->verdefIndex = ver;
+    }
+
+    // Also add the symbol with the versioned name to handle undefined symbols
+    // with explicit versions.
+    if (ver == VER_NDX_GLOBAL)
+      continue;
 
     StringRef verName =
         stringTable.data() +

@@ -83,13 +83,16 @@ namespace std {
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__availability>
 #include <__config>
+#include <__memory/allocator.h>
+#include <__memory/allocator_traits.h>
+#include <__memory/shared_ptr.h>
+#include <__memory/unique_ptr.h>
 #include <__utility/forward.h>
 #include <__utility/in_place.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
 #include <cstdlib>
 #include <initializer_list>
-#include <memory>
 #include <type_traits>
 #include <typeinfo>
 #include <version>
@@ -602,7 +605,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST
 _ValueType any_cast(any const & __v)
 {
-    using _RawValueType = __uncvref_t<_ValueType>;
+    using _RawValueType = __remove_cvref_t<_ValueType>;
     static_assert(is_constructible<_ValueType, _RawValueType const &>::value,
                   "ValueType is required to be a const lvalue reference "
                   "or a CopyConstructible type");
@@ -617,7 +620,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST
 _ValueType any_cast(any & __v)
 {
-    using _RawValueType = __uncvref_t<_ValueType>;
+    using _RawValueType = __remove_cvref_t<_ValueType>;
     static_assert(is_constructible<_ValueType, _RawValueType &>::value,
                   "ValueType is required to be an lvalue reference "
                   "or a CopyConstructible type");
@@ -632,7 +635,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST
 _ValueType any_cast(any && __v)
 {
-    using _RawValueType = __uncvref_t<_ValueType>;
+    using _RawValueType = __remove_cvref_t<_ValueType>;
     static_assert(is_constructible<_ValueType, _RawValueType>::value,
                   "ValueType is required to be an rvalue reference "
                   "or a CopyConstructible type");
@@ -672,7 +675,7 @@ any_cast(any * __any) _NOEXCEPT
     using __any_imp::_Action;
     static_assert(!is_reference<_ValueType>::value,
                   "_ValueType may not be a reference.");
-    typedef typename add_pointer<_ValueType>::type _ReturnType;
+    typedef add_pointer_t<_ValueType> _ReturnType;
     if (__any && __any->__h_) {
       void *__p = __any->__call(_Action::_Get, nullptr,
 #if !defined(_LIBCPP_NO_RTTI)
@@ -693,6 +696,12 @@ _LIBCPP_END_NAMESPACE_STD
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 17
 #  include <chrono> // IGNORE-CYCLE due to <format>
+#endif
+
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <iterator>
+#  include <memory>
+#  include <variant>
 #endif
 
 #endif // _LIBCPP_ANY

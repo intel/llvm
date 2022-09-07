@@ -17,15 +17,21 @@
 #include <__functional/unary_function.h>
 #include <__iterator/iterator_traits.h>
 #include <__memory/addressof.h>
+#include <__memory/allocator.h>
 #include <__memory/allocator_traits.h>
+#include <__memory/builtin_new_allocator.h>
 #include <__memory/compressed_pair.h>
 #include <__memory/shared_ptr.h>
+#include <__memory/unique_ptr.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
+#include <__utility/piecewise_construct.h>
 #include <__utility/swap.h>
 #include <exception>
-#include <memory> // TODO: replace with <__memory/__builtin_new_allocator.h>
+#include <new>
+#include <tuple>
 #include <type_traits>
+#include <typeinfo>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -968,7 +974,7 @@ class _LIBCPP_TEMPLATE_VIS function<_Rp(_ArgTypes...)>
     __func __f_;
 
     template <class _Fp, bool = _And<
-        _IsNotSame<__uncvref_t<_Fp>, function>,
+        _IsNotSame<__remove_cvref_t<_Fp>, function>,
         __invokable<_Fp, _ArgTypes...>
     >::value>
     struct __callable;
