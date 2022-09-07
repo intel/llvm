@@ -49,7 +49,8 @@ static inline void workGroupBarrier() {
 //   class can be used to wrap the data. This class very simply constructs
 //   private data for a given group across the entire group.The id of the
 //   current work-item is passed to any access to grab the correct data.
-template <typename T, int Dimensions = 1> class private_memory {
+template <typename T, int Dimensions = 1>
+class __SYCL_TYPE(private_memory) private_memory {
 public:
   // Construct based directly off the number of work-items
   private_memory(const group<Dimensions> &G) {
@@ -90,7 +91,7 @@ private:
 /// within a parallel execution.
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1> class group {
+template <int Dimensions = 1> class __SYCL_TYPE(group) group {
 public:
 #ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
   using id_type = id<Dimensions>;
