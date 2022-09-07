@@ -115,8 +115,7 @@ protected:
     Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
     Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
     Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-    Mock.redefine<detail::PiApiKind::piContextRelease>(
-        redefinedContextRelease);
+    Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
     Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
     Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
     Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);

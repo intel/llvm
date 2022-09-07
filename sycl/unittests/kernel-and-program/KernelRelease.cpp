@@ -98,8 +98,8 @@ TEST(KernelReleaseTest, DISABLED_GetKernelRelease) {
   context Ctx{Mock.getPlatform().get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
-  //program Prg{Ctx};
-  //Prg.build_with_source("");
+  // program Prg{Ctx};
+  // Prg.build_with_source("");
 
   //{ kernel Krnl = Prg.get_kernel(""); }
 
