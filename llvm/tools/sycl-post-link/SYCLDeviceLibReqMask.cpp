@@ -409,9 +409,9 @@ SYCLDeviceLibFuncMap SDLMap = {
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_longlong_as_double",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
-    { "__devicelib_ConvertFToBF16INTEL",
+    {"__devicelib_ConvertFToBF16INTEL",
      DeviceLibExt::cl_intel_devicelib_bfloat16},
-    { "__devicelib_ConvertBF16ToFINTEL",
+    {"__devicelib_ConvertBF16ToFINTEL",
      DeviceLibExt::cl_intel_devicelib_bfloat16},
 };
 

@@ -41,7 +41,6 @@ private:
 #if defined(__NVPTX__)
     return __nvvm_f2bf16_rn(a);
 #else
-    //return __spirv_ConvertFToBF16INTEL(a);
     return __devicelib_ConvertFToBF16INTEL(a);
 #endif
 #else
@@ -67,13 +66,13 @@ private:
     float *res = reinterpret_cast<float *>(&y);
     return *res;
 #else
-    //return __spirv_ConvertBF16ToFINTEL(a);
     return __devicelib_ConvertBF16ToFINTEL(a);
 #endif
 #else
+    // Shift temporary variable to silence the warning
     uint32_t bits = a;
     bits <<= 16;
-    return sycl::bit_cast<float>(bits);
+    return static_cast<float>(bits);
 #endif
   }
 
@@ -139,11 +138,11 @@ public:
     operator op(lhs);                                                          \
     return old;                                                                \
   }
-  OP(++)
-  OP(--)
+    OP(++)
+    OP(--)
 #undef OP
 
-  // Assignment operators overloading
+    // Assignment operators overloading
 #define OP(op)                                                                 \
   friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 &rhs) {           \
     float f = static_cast<float>(lhs);                                         \
@@ -161,10 +160,10 @@ public:
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }
-  OP(+=)
-  OP(-=)
-  OP(*=)
-  OP(/=)
+    OP(+=)
+    OP(-=)
+    OP(*=)
+    OP(/=)
 #undef OP
 
 // Binary operators overloading
@@ -180,21 +179,21 @@ public:
   friend type operator op(const T &lhs, const bfloat16 &rhs) {                 \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }
-  OP(bfloat16, +)
-  OP(bfloat16, -)
-  OP(bfloat16, *)
-  OP(bfloat16, /)
-  OP(bool, ==)
-  OP(bool, !=)
-  OP(bool, <)
-  OP(bool, >)
-  OP(bool, <=)
-  OP(bool, >=)
+    OP(bfloat16, +)
+    OP(bfloat16, -)
+    OP(bfloat16, *)
+    OP(bfloat16, /)
+    OP(bool, ==)
+    OP(bool, !=)
+    OP(bool, <)
+    OP(bool, >)
+    OP(bool, <=)
+    OP(bool, >=)
 #undef OP
 
-  // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
-  // for floating-point types.
-};
+    // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
+    // for floating-point types.
+  };
 
 } // namespace oneapi
 } // namespace ext

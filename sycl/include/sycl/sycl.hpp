@@ -61,7 +61,6 @@
 #endif
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
-//#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
