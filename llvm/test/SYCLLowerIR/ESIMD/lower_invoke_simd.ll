@@ -9,11 +9,8 @@ target triple = "spir64-unknown-unknown"
 $_ZN4sycl3ext6oneapi12experimental6detail14unwrap_uniformIfE4implEf = comdat any
 
 $SIMD_CALL_HELPER = comdat any
-$SIMD_CALL_HELPER_YY = comdat any
 
 declare dso_local spir_func <16 x float> @__dummy_read() #4
-
-declare dso_local x86_regcallcc <16 x float> @SIMD_CALLEE_YY(<16 x float>)
 
 define dso_local x86_regcallcc <16 x float> @SIMD_CALLEE(<16 x float> %x) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
   %y = call spir_func <16 x float> @__dummy_read()
@@ -59,18 +56,8 @@ define dso_local spir_func noundef float @SPMD_CALLER(float noundef %x, <16 x fl
   %res3 = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (<16 x float> (<16 x float>)*, <16 x float>)* @SIMD_CALL_HELPER, <16 x float> (<16 x float>)* %raw_fptr,  float %x)
 ; CHECK: %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (<16 x float> (<16 x float>)*, <16 x float>)* @SIMD_CALL_HELPER, <16 x float> (<16 x float>)* %{{.*}}, float %{{.*}})
 
-;---- The invoke_simd calls.
-; Test case when function pointer is passed the __builtin_invoke_simd
-; and the actual function can be deduced.
-  %res4 = call spir_func float @_Z33__regcall3____builtin_invoke_simdYY(<16 x float> (<16 x float> (<16 x float>)* addrspace(4)*, <16 x float>)* noundef nonnull @SIMD_CALL_HELPER_YY, <16 x float> (<16 x float>)* noundef nonnull @SIMD_CALLEE_YY, float noundef 0.000000e+00)
-; Verify that
-; 1) the second argument (function pointer) is removed
-; 2) The call target (helper) is changed to the optimized one
-; CHECK: %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdYY_{{.+}}(<16 x float> (<16 x float>)* noundef nonnull @[[NAME_YY:SIMD_CALL_HELPER_YY.+]], float noundef 0.000000e+00)
-
-  %res5 = fadd float %res1, %res2
-  %res6 = fadd float %res5, %res3
-  %res = fadd float %res6, %res4
+  %res4 = fadd float %res1, %res2
+  %res = fadd float %res3, %res4
   ret float %res
 }
 ; CHECK: }
@@ -103,22 +90,7 @@ define linkonce_odr dso_local x86_regcallcc <16 x float> @SIMD_CALL_HELPER(<16 x
 ; CHECK: %{{.*}} = call x86_regcallcc <16 x float> @ANOTHER_SIMD_CALLEE(<16 x float> %{{.*}})
 ; CHECK: }
 
-;---- Simd call helper library function mock.
-define linkonce_odr dso_local x86_regcallcc <16 x float> @SIMD_CALL_HELPER_YY(<16 x float> (<16 x float>)* addrspace(4)* noundef align 8 dereferenceable(8) %f, <16 x float> %simd_args) #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
-  %1 = load <16 x float> (<16 x float>)*, <16 x float> (<16 x float>)* addrspace(4)* %f, align 8
-  %call = call x86_regcallcc <16 x float> %1(<16 x float> %simd_args)
-  ret <16 x float> %call
-}
-
-;---- Optimized version for the SIMD_CALLEE_YY call
-; CHECK: define {{.*}} <16 x float> @[[NAME_YY]](<16 x float> %{{.*}}) #[[HELPER_ATTRS]]
-; Verify that indirect call is converted to direct
-; CHECK: %{{.*}} = call x86_regcallcc <16 x float> @SIMD_CALLEE_YY(<16 x float> %{{.*}})
-; CHECK: }
-
-
 declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_simdXX(<16 x float> (<16 x float> (<16 x float>)*, <16 x float>)* noundef, <16 x float> (<16 x float>)* noundef, float noundef)
-declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_simdYY(<16 x float> (<16 x float> (<16 x float>)* addrspace(4)*, <16 x float>)* noundef, <16 x float> (<16 x float>)* noundef, float noundef)
 
 ; Check that VCStackCall attribute is added to the invoke_simd target functions:
 attributes #0 = { "sycl-module-id"="invoke_simd.cpp" }

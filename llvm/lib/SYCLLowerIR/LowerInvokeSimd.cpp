@@ -251,11 +251,6 @@ bool collectUsesLookTrhoughMemAndCasts(Value *V,
     User *UU = U->getUser();
     assert(!isCast(UU));
 
-    if (isa<LoadInst>(UU)) {
-      collectUsesLookThroughCasts(UU, Uses);
-      continue;
-    }
-
     auto *St = dyn_cast<StoreInst>(UU);
 
     if (!St) {
