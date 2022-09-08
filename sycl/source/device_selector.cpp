@@ -192,6 +192,12 @@ __SYCL_EXPORT int accelerator_selector_v(const device &dev) {
   return Score;
 }
 
+int host_selector::operator()(const device &dev) const {
+  // Host device has been removed and host_selector has been deprecated, so this
+  // should never be able to select a device.
+  return detail::REJECT_DEVICE_SCORE;
+}
+
 // -------------- SYCL 1.2.1
 
 // SYCL 1.2.1 device_selector class and sub-classes
