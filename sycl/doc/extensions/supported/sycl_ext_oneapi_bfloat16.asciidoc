@@ -44,12 +44,7 @@ This extension is written against the SYCL 2020 specification, Revision 5.
 == Status
 
 This extension is implemented and fully supported by DPC++.
-[NOTE]
-====
-This extension is currently implemented in DPC++ only for GPU devices that support `bfloat16` natively. Attempting to use this extension in
-kernels that run on other devices may result in undefined behavior.
-Be aware that the compiler is not able to issue a diagnostic to warn you if this happens.
-====
+
 
 == Overview
 
@@ -66,7 +61,12 @@ supporting this extension must predefine the macro
 `SYCL_EXT_ONEAPI_BFLOAT16` to one of the values defined in the table
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro’s
- value to determine which of the extension’s APIs the implementation supports.
+ value to determine which of the extension’s APIs the implementation supports. Attempting to submit a kernel using `bfloat16` to a device that does not support it causes a synchronous `errc::kernel_not_supported` exception to be thrown from the kernel invocation command (e.g. from `parallel_for`).
+
+[NOTE]
+====
+. DPC++ does not currently implement the `errc::kernel_not_supported` exception in this case. Attempting to submit a kernel using `bfloat16` to a device that does not support this extension results in undefined behavior.
+====
 
 [%header,cols="1,5"]
 |===
@@ -86,12 +86,11 @@ enum class aspect {
 }
 ----
 
-This extension is an optional kernel feature as described in section 5.7 of the SYCL 2020 spec, with the associated aspect `ext_oneapi_bfloat16`. Applications can query whether the device has this aspect to determine if it supports kernels that use `bfloat16`. Attempting to submit a kernel using `bfloat16` to a device that does not support it causes a synchronous `errc::kernel_not_supported` exception to be thrown from the kernel invocation command (e.g. from `parallel_for`).
+This extension is an optional kernel feature as described in section 5.7 of the SYCL 2020 spec, with the associated aspect `ext_oneapi_bfloat16`. Applications can query whether the device has this aspect to determine if it supports the  `bfloat16` type in hardware.
 
 [NOTE]
-====
-. DPC++ does not currently implement the `errc::kernel_not_supported` exception in this case. Attempting to submit a kernel using `bfloat16` to a device that does not have the `ext_oneapi_bfloat16` aspect results in undefined behavior. 
-. The `bfloat16` class is currently supported only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. 
+==== 
+. The `bfloat16` class is currently supported in hardware only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. 
 ====
 
 
