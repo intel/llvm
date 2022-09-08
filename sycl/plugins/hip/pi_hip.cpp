@@ -1779,6 +1779,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                        props.arch.hasSharedInt64Atomics);
   }
 
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    size_t FreeMemory = 0;
+    size_t TotalMemory = 0;
+    sycl::detail::pi::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
+                                    hipSuccess,
+                                "failed hipMemGetInfo() API.");
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   FreeMemory);
+  }
+
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
