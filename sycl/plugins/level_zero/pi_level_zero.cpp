@@ -658,16 +658,13 @@ bool _pi_queue::supportsInOrderQueueOptimization(bool HostVisible,
   if (DisableEventsCaching)
     return false;
 
-  bool ProfilingEnabled = (Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
   switch (CachingLevel) {
   case DeviceScopeInternalOnly:
-    return isInOrderQueue() && !ProfilingEnabled && !HostVisible && IsDiscarded
-               ? true
-               : false;
+    return isInOrderQueue() && !HostVisible && IsDiscarded ? true : false;
   case AllDeviceScope:
-    return isInOrderQueue() && !ProfilingEnabled && !HostVisible ? true : false;
+    return isInOrderQueue() && !HostVisible ? true : false;
   case AllEvents:
-    return isInOrderQueue() && !ProfilingEnabled ? true : false;
+    return isInOrderQueue() ? true : false;
   default:
     die("Unexpected mode");
   }
