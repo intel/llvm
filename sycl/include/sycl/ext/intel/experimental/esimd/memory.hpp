@@ -465,7 +465,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset) {
   constexpr int N = 1;
   __ESIMD_NS::simd_mask<N> pred = 1;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  static_assert((reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset) & 0x3) == 0, "Address Alignment Error!!");
+
   if constexpr (_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64) {
     detail::check_lsc_vector_size<NElts>();
     constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
@@ -476,38 +476,33 @@ lsc_block_load(AccessorTy acc, uint32_t offset) {
   } else if constexpr (_DS == lsc_data_size::u16) {
     static_assert(NElts % 2 == 0,
                   "Number of elements is not supported by Transposed load");
+    static_assert(offset % 2 == 0,
+                  "Offset is not supported by Transposed load");
     detail::check_lsc_vector_size<NElts / 2>();
     constexpr detail::lsc_vector_size _VS =
         detail::to_lsc_vector_size<NElts / 2>();
-
+    __ESIMD_NS::simd<uint32_t, N> offsets = offset / 2;
+    __ESIMD_NS::simd<uint32_t, NElts / 2> result =
+        __esimd_lsc_load_bti<uint32_t, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                             _VS, _Transposed, N>(pred.data(), offsets.data(),
+                                                  si);
+    return result.template bit_cast_view<T>();
   } else if constexpr (_DS == lsc_data_size::u8) {
+    static_assert(NElts % 4 == 0,
+                  "Number of elements is not supported by Transposed load");
+    static_assert(offset % 4 == 0,
+                  "Offset is not supported by Transposed load");
+    detail::check_lsc_vector_size<NElts / 4>();
+    constexpr detail::lsc_vector_size _VS =
+        detail::to_lsc_vector_size<NElts / 4>();
+    __ESIMD_NS::simd<uint32_t, N> offsets = offset / 4;
+    __ESIMD_NS::simd<uint32_t, NElts / 4> result =
+        __esimd_lsc_load_bti<uint32_t, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                             _VS, _Transposed, N>(pred.data(), offsets.data(),
+                                                  si);
+    return result.template bit_cast_view<T>();
   }
 #endif
-}
-else if constexpr (_DS == lsc_data_size::u16) {
-
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, NElts / 2> result =
-      __esimd_lsc_load_stateless<uint32_t, L1H, L3H, _AddressScale, _ImmOffset,
-                                 _DS, _VS, _Transposed, N>(pred.data(),
-                                                           addrs.data());
-  return result.template bit_cast_view<T>();
-}
-else if constexpr (_DS == lsc_data_size::u8) {
-  static_assert(NElts % 4 == 0,
-                "Number of elements is not supported by Transposed load");
-  detail::check_lsc_vector_size<NElts / 4>();
-  constexpr detail::lsc_vector_size _VS =
-      detail::to_lsc_vector_size<NElts / 4>();
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, NElts / 4> result =
-      __esimd_lsc_load_stateless<uint32_t, L1H, L3H, _AddressScale, _ImmOffset,
-                                 _DS, _VS, _Transposed, N>(pred.data(),
-                                                           addrs.data());
-  return result.template bit_cast_view<T>();
-}
 }
 
 /// USM pointer gather.
@@ -932,24 +927,54 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   lsc_block_store<T, NElts, DS, L1H>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals);
 #else
-  detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-                "Transposed store is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
   __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data(), si);
+
+  if constexpr (_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64) {
+    detail::check_lsc_vector_size<NElts>();
+    constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+    __ESIMD_NS::simd<uint32_t, N> offsets = offset;
+    __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+                          _Transposed, N>(pred.data(), offsets.data(),
+                                          vals.data(), si);
+  } else if constexpr (_DS == lsc_data_size::u16) {
+    static_assert(NElts % 2 == 0,
+                  "Number of elements is not supported by Transposed store");
+    static_assert(offset % 2 == 0,
+                  "Offset is not supported by Transposed store");
+    detail::check_lsc_vector_size<NElts / 2>();
+    constexpr detail::lsc_vector_size _VS =
+        detail::to_lsc_vector_size<NElts / 2>();
+    __ESIMD_NS::simd<uint32_t, N> offsets = offset / 2;
+    __ESIMD_NS::simd<uint32_t, NElts / 2> tmp =
+        vals.template bit_cast_view<uint32_t>();
+
+    __esimd_lsc_store_bti<uint32_t, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                          _VS, _Transposed, N>(pred.data(), offsets.data(),
+                                               tmp.data(), si);
+  } else if constexpr (_DS == lsc_data_size::u8) {
+    static_assert(NElts % 4 == 0,
+                  "Number of elements is not supported by Transposed store");
+    static_assert(offset % 4 == 0,
+                  "Offset is not supported by Transposed store");
+    detail::check_lsc_vector_size<NElts / 4>();
+    constexpr detail::lsc_vector_size _VS =
+        detail::to_lsc_vector_size<NElts / 4>();
+    __ESIMD_NS::simd<uint32_t, N> offsets = offset / 4;
+    __ESIMD_NS::simd<uint32_t, NElts / 4> tmp =
+        vals.template bit_cast_view<uint32_t>();
+    __esimd_lsc_store_bti<uint32_t, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                          _VS, _Transposed, N>(pred.data(), offsets.data(),
+                                               tmp.data(), si);
+  }
 #endif
 }
 
@@ -1015,23 +1040,47 @@ template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals) {
-  detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-                "Transposed store is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  __esimd_lsc_store_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), addrs.data(),
-                                              vals.data());
+  __ESIMD_NS::simd_mask<N> pred = 1;
+  static_assert((p & 0x3) == 0, "Address Alignment Error!!");
+  if constexpr (_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64) {
+    detail::check_lsc_vector_size<NElts>();
+    constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+    __esimd_lsc_store_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                                _VS, _Transposed, N>(pred.data(), addrs.data(),
+                                                     vals.data());
+  } else if constexpr (_DS == lsc_data_size::u16) {
+    static_assert(NElts % 2 == 0,
+                  "Number of elements is not supported by Transposed store");
+    detail::check_lsc_vector_size<NElts / 2>();
+    constexpr detail::lsc_vector_size _VS =
+        detail::to_lsc_vector_size<NElts / 2>();
+    __ESIMD_NS::simd<uint32_t, NElts / 2> tmp =
+        vals.template bit_cast_view<uint32_t>();
+
+    __esimd_lsc_store_stateless<uint32_t, L1H, L3H, _AddressScale, _ImmOffset,
+                                _DS, _VS, _Transposed, N>(
+        pred.data(), addrs.data(), tmp.data());
+  } else if constexpr (_DS == lsc_data_size::u8) {
+    static_assert(NElts % 4 == 0,
+                  "Number of elements is not supported by Transposed store");
+    detail::check_lsc_vector_size<NElts / 4>();
+    constexpr detail::lsc_vector_size _VS =
+        detail::to_lsc_vector_size<NElts / 4>();
+    __ESIMD_NS::simd<uint32_t, NElts / 4> tmp =
+        vals.template bit_cast_view<uint32_t>();
+    __esimd_lsc_store_stateless<uint32_t, L1H, L3H, _AddressScale, _ImmOffset,
+                                _DS, _VS, _Transposed, N>(
+        pred.data(), addrs.data(), tmp.data());
+  }
 }
 
 namespace detail {
