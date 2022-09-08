@@ -772,6 +772,8 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
     return "libsycl-fallback-imf.spv";
   case DeviceLibExt::cl_intel_devicelib_imf_fp64:
     return "libsycl-fallback-imf-fp64.spv";
+  case DeviceLibExt::cl_intel_devicelib_bfloat16:
+    return "libsycl-fallback-bfloat16.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -795,6 +797,8 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
     return "cl_intel_devicelib_imf";
   case DeviceLibExt::cl_intel_devicelib_imf_fp64:
     return "cl_intel_devicelib_imf_fp64";
+  case DeviceLibExt::cl_intel_devicelib_bfloat16:
+    return "cl_intel_devicelib_bfloat16";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -802,9 +806,15 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
 
 static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
                                            DeviceLibExt Extension,
-                                           const RT::PiDevice &Device) {
+                                           const RT::PiDevice &Device,
+                                           bool UseNativeLib) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
+  std::string LibFileNameStr(LibFileName);
+  if (UseNativeLib) {
+    LibFileNameStr.replace(8, 8, "native");
+    LibFileName = LibFileNameStr.c_str();
+  }
 
   auto LockedCache = Context->acquireCachedLibPrograms();
   auto CachedLibPrograms = LockedCache.get();
@@ -959,7 +969,8 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       {DeviceLibExt::cl_intel_devicelib_complex_fp64, false},
       {DeviceLibExt::cl_intel_devicelib_cstring, false},
       {DeviceLibExt::cl_intel_devicelib_imf, false},
-      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false}};
+      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false},
+      {DeviceLibExt::cl_intel_devicelib_bfloat16, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
@@ -997,8 +1008,14 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
     bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
 
     if (!DeviceSupports || InhibitNativeImpl) {
-      Programs.push_back(loadDeviceLibFallback(Context, Ext, Device));
+      Programs.push_back(loadDeviceLibFallback(Context, Ext, Device, false));
       FallbackIsLoaded = true;
+    } else {
+      // bfloat16 needs native library if device supports it
+      if (Ext == DeviceLibExt::cl_intel_devicelib_bfloat16) {
+        Programs.push_back(loadDeviceLibFallback(Context, Ext, Device, true));
+        FallbackIsLoaded = true;
+      }
     }
   }
   return Programs;

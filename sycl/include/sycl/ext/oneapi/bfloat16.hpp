@@ -15,6 +15,11 @@
 #include <cmath>
 #endif
 
+extern "C" SYCL_EXTERNAL uint16_t
+__devicelib_ConvertFToBF16INTEL(const float &) noexcept;
+extern "C" SYCL_EXTERNAL float
+__devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
@@ -36,10 +41,11 @@ private:
 #if defined(__NVPTX__)
     return __nvvm_f2bf16_rn(a);
 #else
-    return __spirv_ConvertFToBF16INTEL(a);
+    //return __spirv_ConvertFToBF16INTEL(a);
+    return __devicelib_ConvertFToBF16INTEL(a);
 #endif
 #else
-    // In case of float value is nan - propagate bfloat16's qnan
+    // In case float value is nan - propagate bfloat16's qnan
     if (std::isnan(a))
       return 0xffc1;
     union {
@@ -61,7 +67,8 @@ private:
     float *res = reinterpret_cast<float *>(&y);
     return *res;
 #else
-    return __spirv_ConvertBF16ToFINTEL(a);
+    //return __spirv_ConvertBF16ToFINTEL(a);
+    return __devicelib_ConvertBF16ToFINTEL(a);
 #endif
 #else
     // Shift temporary variable to silence the warning
