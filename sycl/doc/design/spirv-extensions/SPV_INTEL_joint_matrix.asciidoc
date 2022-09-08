@@ -28,7 +28,7 @@ https://github.com/intel/llvm
 
 - Alexey Sotkin, Intel +
 - Dounia Khaldi, Intel +
-- Mateusz, Belicki Intel +
+- Mateusz Belicki, Intel +
 - Dmitry Sidorov, Intel +
 
 == Notice
@@ -159,7 +159,7 @@ Add section 3.XX, Matrix Use.
 | 0 | *MatrixA*     | *{capability_name}*
 | 1 | *MatrixB*     | *{capability_name}*
 | 2 | *Accumulator* | *{capability_name}*
-| 3 | *Unused*      | *{capability_name}*
+| 3 | *Unnecessary* | *{capability_name}*
 |====
 
 === Capabilities
@@ -181,9 +181,9 @@ See also extension: *{extension_name}*
 
 ==== 3.37.6 Type-Declaration Instructions
 
-[cols="1,1,8*3",width="100%"]
+[cols="1,1,7*3",width="100%"]
 |=====
-8 |[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
+8+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
  +
 Declare a matrix type. +
  +
@@ -205,8 +205,12 @@ require a constant '<id>', it is invalid for it to not be one of these values.
 If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
 these values. +
  +
-'Scope' is memory scope for operations on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is memory scope for operations on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
  +
 'Use' parameter shows where in a math operation the matrix is used.
 Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one of
@@ -216,10 +220,9 @@ If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one o
 these values. +
  +
 
-
 1+|Capability: +
 *{capability_name}*
-1+| 7+ | {OpTypeJointMatrixINTEL_token}
+1+| 7 + | {OpTypeJointMatrixINTEL_token}
 | 'Result <id>'
 | '<id>' +
 'Component Type'
@@ -231,7 +234,7 @@ these values. +
 'Layout'
 | '<id>' +
 'Scope'
-| Optional '<id>' +
+| '<id>' +
 'Use'
 |=====
 
@@ -259,8 +262,12 @@ require a constant '<id>', it is invalid for it to not be one of these values.
 If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
 these values. +
  +
-'Scope' is syncronization scope for operation on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is syncronization scope for operation on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
  +
 If present, any 'Memory Operands' must begin with a 
 <<Memory_Operands,*memory operand*>> literal. If not present, it is the same as
@@ -306,8 +313,12 @@ require a constant '<id>', it is invalid for it to not be one of these values.
 If non-constant '<id>' are allowed, behavior is undefined if '<id>' is not one of
 these values. +
  +
-'Scope' is syncronization scope for operation on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is syncronization scope for operation on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
  +
 If present, any 'Memory Operands' must begin with a
 <<Memory_Operands,*memory operand*>> literal. If not present, it is the same as
@@ -387,8 +398,12 @@ All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
-'Scope' is syncronization scope for operation on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is syncronization scope for operation on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
 
 1+|Capability: +
 *{capability_name}*
@@ -430,8 +445,12 @@ All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
-'Scope' is syncronization scope for operation on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is syncronization scope for operation on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
 
 1+|Capability: +
 *{capability_name}*
@@ -473,8 +492,12 @@ All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
-'Scope' is syncronization scope for operation on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is syncronization scope for operation on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
 
 1+|Capability: +
 *{capability_name}*
@@ -516,8 +539,12 @@ All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
-'Scope' is syncronization scope for operation on the matrix. It must be the
-result of a constant instruction with scalar 'integer type'. +
+'Scope' is syncronization scope for operation on the matrix.
+Must be an '<id>' of a 32-bit integer scalar. Its value is expected to be one
+either _Workgroup_ or _Subgroup_ from the table 3.27. Scope <id>. If validation
+rules or the client API require a constant '<id>', it is invalid for it to not
+be one of these values. If non-constant '<id>' are allowed, behavior is
+undefined if '<id>' is not one of these values. +
 
 1+|Capability: +
 *{capability_name}*
