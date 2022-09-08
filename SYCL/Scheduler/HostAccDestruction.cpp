@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-dead-args-optimization %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-dead-args-optimization -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 //==---------------------- HostAccDestruction.cpp --------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
