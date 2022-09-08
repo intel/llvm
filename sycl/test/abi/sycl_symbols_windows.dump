@@ -2458,7 +2458,6 @@
 ?is_host@queue@sycl@cl@@QEBA_NXZ
 ?is_in_order@queue@sycl@cl@@QEBA_NXZ
 ?is_specialization_constant_set@kernel_bundle_plain@detail@sycl@cl@@IEBA_NPEBD@Z
-?join_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBV?$vector@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@V?$allocator@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@@2@@5@@Z
 ?join_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBV?$vector@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@V?$allocator@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@@2@@5@W4bundle_state@23@@Z
 ?ldexp@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@V?$vec@H$00@42@@Z
 ?ldexp@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@V?$vec@H$01@42@@Z
