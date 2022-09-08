@@ -15,7 +15,7 @@ inputs:
     description: 'Path to cache location for all repos'
   default_branch:
     description: 'Name of the default branch'
-    default: 'sycl'
+    default: 'sycl-mlir'
 
 runs:
   using: 'composite'
