@@ -184,6 +184,15 @@ public:
     if (MMockPluginPtr)
       return;
 
+    // Ensure that the other plugins are initialized so we can unload them.
+    // This makes sure that the mock plugin is the only available plugin.
+    detail::pi::initialize();
+    detail::GlobalHandler::instance().clearPlugins();
+    std::vector<detail::plugin> &Plugins =
+        detail::GlobalHandler::instance().getPlugins();
+
+    assert(Plugins.empty() && "Clear failed to remove all plugins.");
+
     auto RTPlugin = std::make_shared<RT::PiPlugin>(
         RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
                      getMockedFunctionPointers()});
@@ -191,7 +200,7 @@ public:
     // FIXME: which backend to pass here? does it affect anything?
     MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,
                                                       /*Library=*/nullptr);
-    detail::GlobalHandler::instance().getPlugins().push_back(*MMockPluginPtr);
+    Plugins.push_back(*MMockPluginPtr);
   }
 
 private:

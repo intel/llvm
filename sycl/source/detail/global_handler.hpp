@@ -72,6 +72,8 @@ public:
 
   static void registerDefaultContextReleaseHandler();
 
+  void clearPlugins();
+
 private:
   friend void releaseDefaultContexts();
   friend void shutdown();
