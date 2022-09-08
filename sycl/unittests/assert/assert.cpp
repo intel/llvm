@@ -527,7 +527,6 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 #endif // _WIN32
 
 TEST(Assert, TestPositive) {
-  // Preliminary checks
   sycl::unittest::PiMock::EnsureMockPluginInitialized();
 
 #ifndef _WIN32
