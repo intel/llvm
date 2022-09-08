@@ -137,9 +137,9 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
                                          TC.getDriver().Dir + "/../lib"));
     if (Args.hasArg(options::OPT__SLASH_MDd))
-      CmdArgs.push_back("-defaultlib:sycld.lib");
+      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     else
-      CmdArgs.push_back("-defaultlib:sycl.lib");
+      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
