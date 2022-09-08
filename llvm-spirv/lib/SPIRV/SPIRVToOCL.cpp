@@ -874,74 +874,69 @@ void SPIRVToOCLBase::visitCallSPIRVSubgroupINTELBuiltIn(CallInst *CI, Op OC) {
 
 void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
                                                            Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        // There are three types of AVC Intel Evaluate opcodes:
-        // 1. With multi reference images - does not use OpVmeImageINTEL opcode
-        // for reference images
-        // 2. With dual reference images - uses two OpVmeImageINTEL opcodes for
-        // reference image
-        // 3. With single reference image - uses one OpVmeImageINTEL opcode for
-        // reference image
-        StringRef FnName = CI->getCalledFunction()->getName();
-        int NumImages = 0;
-        if (FnName.contains("SingleReference"))
-          NumImages = 2;
-        else if (FnName.contains("DualReference"))
-          NumImages = 3;
-        else if (FnName.contains("MultiReference"))
-          NumImages = 1;
-        else if (FnName.contains("EvaluateIpe"))
-          NumImages = 1;
+  // There are three types of AVC Intel Evaluate opcodes:
+  // 1. With multi reference images - does not use OpVmeImageINTEL opcode
+  // for reference images
+  // 2. With dual reference images - uses two OpVmeImageINTEL opcodes for
+  // reference image
+  // 3. With single reference image - uses one OpVmeImageINTEL opcode for
+  // reference image
+  StringRef FnName = CI->getCalledFunction()->getName();
+  int NumImages = 0;
+  if (FnName.contains("SingleReference"))
+    NumImages = 2;
+  else if (FnName.contains("DualReference"))
+    NumImages = 3;
+  else if (FnName.contains("MultiReference"))
+    NumImages = 1;
+  else if (FnName.contains("EvaluateIpe"))
+    NumImages = 1;
 
-        auto EraseVmeImageCall = [](CallInst *CI) {
-          if (CI->hasOneUse()) {
-            CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
-            CI->dropAllReferences();
-            CI->eraseFromParent();
-          }
-        };
-        if (NumImages) {
-          CallInst *SrcImage = cast<CallInst>(Args[0]);
-          if (NumImages == 1) {
-            // Multi reference opcode - remove src image OpVmeImageINTEL opcode
-            // and replace it with corresponding OpImage and OpSampler arguments
-            size_t SamplerPos = Args.size() - 1;
-            Args.erase(Args.begin(), Args.begin() + 1);
-            Args.insert(Args.begin(), SrcImage->getOperand(0));
-            Args.insert(Args.begin() + SamplerPos, SrcImage->getOperand(1));
-            EraseVmeImageCall(SrcImage);
-          } else {
-            CallInst *FwdRefImage = cast<CallInst>(Args[1]);
-            CallInst *BwdRefImage =
-                NumImages == 3 ? cast<CallInst>(Args[2]) : nullptr;
-            // Single reference opcode - remove src and ref image
-            // OpVmeImageINTEL opcodes and replace them with src and ref OpImage
-            // opcodes and OpSampler
-            Args.erase(Args.begin(), Args.begin() + NumImages);
-            // insert source OpImage and OpSampler
-            auto SrcOps = SrcImage->args();
-            Args.insert(Args.begin(), SrcOps.begin(), SrcOps.end());
-            // insert reference OpImage
-            Args.insert(Args.begin() + 1, FwdRefImage->getOperand(0));
-            EraseVmeImageCall(SrcImage);
-            EraseVmeImageCall(FwdRefImage);
-            if (BwdRefImage) {
-              // Dual reference opcode - insert second reference OpImage
-              // argument
-              Args.insert(Args.begin() + 2, BwdRefImage->getOperand(0));
-              EraseVmeImageCall(BwdRefImage);
-            }
-          }
-        } else
-          llvm_unreachable("invalid avc instruction");
+  auto EraseVmeImageCall = [](CallInst *CI) {
+    if (CI->hasOneUse()) {
+      CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
+      CI->dropAllReferences();
+      CI->eraseFromParent();
+    }
+  };
 
-        return OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC);
-      },
-      &Attrs);
+  auto Mutator =
+      mutateCallInst(CI, OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC));
+  if (NumImages) {
+    CallInst *SrcImage = cast<CallInst>(Mutator.getArg(0));
+    SmallVector<Type *, 2> SrcImageTys;
+    getParameterTypes(SrcImage, SrcImageTys);
+    if (NumImages == 1) {
+      // Multi reference opcode - remove src image OpVmeImageINTEL opcode
+      // and replace it with corresponding OpImage and OpSampler arguments
+      size_t SamplerPos = Mutator.arg_size() - 1;
+      Mutator.replaceArg(0, {SrcImage->getOperand(0), SrcImageTys[0]});
+      Mutator.insertArg(SamplerPos, {SrcImage->getOperand(1), SrcImageTys[1]});
+    } else {
+      CallInst *FwdRefImage = cast<CallInst>(Mutator.getArg(1));
+      CallInst *BwdRefImage =
+          NumImages == 3 ? cast<CallInst>(Mutator.getArg(2)) : nullptr;
+      // Single reference opcode - remove src and ref image
+      // OpVmeImageINTEL opcodes and replace them with src and ref OpImage
+      // opcodes and OpSampler
+      Mutator.removeArgs(0, NumImages);
+      // insert source OpImage and OpSampler
+      Mutator.insertArg(0, {SrcImage->getOperand(0), SrcImageTys[0]});
+      Mutator.insertArg(1, {SrcImage->getOperand(1), SrcImageTys[1]});
+      // insert reference OpImage
+      getParameterTypes(FwdRefImage, SrcImageTys);
+      Mutator.insertArg(1, {FwdRefImage->getOperand(0), SrcImageTys[0]});
+      EraseVmeImageCall(SrcImage);
+      EraseVmeImageCall(FwdRefImage);
+      if (BwdRefImage) {
+        // Dual reference opcode - insert second reference OpImage argument
+        getParameterTypes(BwdRefImage, SrcImageTys);
+        Mutator.insertArg(2, {BwdRefImage->getOperand(0), SrcImageTys[0]});
+        EraseVmeImageCall(BwdRefImage);
+      }
+    }
+  } else
+    llvm_unreachable("invalid avc instruction");
 }
 
 void SPIRVToOCLBase::visitCallSPIRVGenericPtrMemSemantics(CallInst *CI) {

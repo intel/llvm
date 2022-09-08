@@ -1608,7 +1608,6 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
 // conterpart from 'MCE' with conversion for an argument and result (if needed).
 void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
     CallInst *CI, Op WrappedOC, StringRef DemangledName) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   std::string Prefix = kOCLSubgroupsAVCIntel::Prefix;
 
   // Find 'to_mce' conversion function.
@@ -1625,9 +1624,6 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(ToMCEFName, &ToMCEOC);
   assert(ToMCEOC != OpNop && "Invalid Subgroup AVC Intel built-in call");
 
-  SmallVector<Type *, 2> ParamTys;
-  getParameterTypes(CI, ParamTys);
-
   if (std::strcmp(TyKind, "payload") == 0) {
     // Wrapper built-ins which take the 'payload_t' argument return it as
     // the result: two conversion calls required.
@@ -1637,38 +1633,31 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
     OCLSPIRVSubgroupAVCIntelBuiltinMap::find(FromMCEFName, &FromMCEOC);
     assert(FromMCEOC != OpNop && "Invalid Subgroup AVC Intel built-in call");
 
-    mutateCallInstSPIRV(
-        M, CI,
-        [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-          Ret = MCETy;
-          // Create conversion function call for the last operand
-          Args[Args.size() - 1] = addCallInstSPIRV(
-              M, getSPIRVFuncName(ToMCEOC), MCETy, Args[Args.size() - 1],
-              nullptr, {ParamTys[Args.size() - 1]}, CI, "");
-
-          return getSPIRVFuncName(WrappedOC);
-        },
-        [=](CallInst *NewCI) -> Instruction * {
+    mutateCallInst(CI, WrappedOC)
+        .mapArg(CI->arg_size() - 1,
+                [&](Value *Arg, Type *ParamTy) {
+                  // Create conversion function call for the last operand
+                  return std::pair<Value *, Type *>(
+                      addCallInstSPIRV(M, getSPIRVFuncName(ToMCEOC), MCETy, Arg,
+                                       nullptr, {ParamTy}, CI, ""),
+                      MCESTy);
+                })
+        .changeReturnType(MCETy, [=](IRBuilder<> &, CallInst *NewCI) {
           // Create conversion function call for the return result
           return addCallInstSPIRV(M, getSPIRVFuncName(FromMCEOC), CI->getType(),
                                   NewCI, nullptr, {MCESTy}, CI, "");
-        },
-        &Attrs);
+        });
   } else {
     // Wrapper built-ins which take the 'result_t' argument requires only one
     // conversion for the argument
-    mutateCallInstSPIRV(
-        M, CI,
-        [=](CallInst *, std::vector<Value *> &Args) {
-          // Create conversion function call for the last
-          // operand
-          Args[Args.size() - 1] = addCallInstSPIRV(
-              M, getSPIRVFuncName(ToMCEOC), MCETy, Args[Args.size() - 1],
-              nullptr, {ParamTys[Args.size() - 1]}, CI, "");
-
-          return getSPIRVFuncName(WrappedOC);
-        },
-        &Attrs);
+    mutateCallInst(CI, WrappedOC)
+        .mapArg(CI->arg_size() - 1, [&](Value *Arg, Type *ParamTy) {
+          // Create conversion function call for the last operand
+          return std::pair<Value *, Type *>(
+              addCallInstSPIRV(M, getSPIRVFuncName(ToMCEOC), MCETy, Arg,
+                               nullptr, {ParamTy}, CI, ""),
+              MCESTy);
+        });
   }
 }
 
@@ -1690,45 +1679,44 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   if (OC == OpNop)
     return; // this is not a VME built-in
 
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        SmallVector<Type *, 4> ParamTys;
-        getParameterTypes(CI, ParamTys);
-        auto *TyIt =
-            std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerStructTy);
-        assert(TyIt != ParamTys.end() &&
-               "Invalid Subgroup AVC Intel built-in call");
-        auto SamplerIt = Args.begin() + (TyIt - ParamTys.begin());
-        auto *SamplerVal = *SamplerIt;
-        auto *SamplerTy = *TyIt;
-        Args.erase(SamplerIt);
-        ParamTys.erase(TyIt);
+  SmallVector<Type *, 4> ParamTys;
+  getParameterTypes(CI, ParamTys);
+  auto *TyIt =
+      std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerStructTy);
+  assert(TyIt != ParamTys.end() && "Invalid Subgroup AVC Intel built-in call");
+  unsigned SamplerIndex = TyIt - ParamTys.begin();
+  Value *SamplerVal = CI->getOperand(SamplerIndex);
+  Type *SamplerTy = ParamTys[SamplerIndex];
 
-        for (unsigned I = 0, E = Args.size(); I < E; ++I) {
-          if (!isOCLImageStructType(ParamTys[I]))
-            continue;
+  SmallVector<Type *, 4> AdaptedTys;
+  for (unsigned I = 0; I < CI->arg_size(); I++)
+    AdaptedTys.push_back(
+        OCLTypeToSPIRVPtr->getAdaptedArgumentType(CI->getCalledFunction(), I)
+            .second);
+  auto AdaptedIter = AdaptedTys.begin();
 
-          auto *ImageTy =
-              OCLTypeToSPIRVPtr
-                  ->getAdaptedArgumentType(CI->getCalledFunction(), I)
-                  .second;
-          if (!ImageTy)
-            ImageTy = ParamTys[I];
-          ImageTy = adaptSPIRVImageType(M, ImageTy);
-          auto *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
-              M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::VmeImageINTEL);
+  mutateCallInst(CI, OC)
+      .mapArgs([&](Value *Arg, Type *PointerTy) {
+        if (!isOCLImageStructType(PointerTy))
+          return std::make_pair(Arg, PointerTy);
 
-          Value *SampledImgArgs[] = {Args[I], SamplerVal};
-          Args[I] = addCallInstSPIRV(M, getSPIRVFuncName(OpVmeImageINTEL),
-                                     SampledImgTy, SampledImgArgs, nullptr,
-                                     {ParamTys[I], SamplerTy}, CI,
-                                     kSPIRVName::TempSampledImage);
-        }
-        return getSPIRVFuncName(OC);
-      },
-      &Attrs);
+        auto *ImageTy = *AdaptedIter++;
+        if (!ImageTy)
+          ImageTy = PointerTy;
+        ImageTy = adaptSPIRVImageType(M, ImageTy);
+        auto *SampledImgStructTy = getSPIRVStructTypeByChangeBaseTypeName(
+            M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::VmeImageINTEL);
+        auto *SampledImgTy =
+            PointerType::get(SampledImgStructTy, SPIRAS_Global);
+
+        Value *SampledImgArgs[] = {Arg, SamplerVal};
+        return std::pair<Value *, Type *>(
+            addCallInstSPIRV(M, getSPIRVFuncName(OpVmeImageINTEL), SampledImgTy,
+                             SampledImgArgs, nullptr, {PointerTy, SamplerTy},
+                             CI, kSPIRVName::TempSampledImage),
+            SampledImgStructTy);
+      })
+      .removeArg(SamplerIndex);
 }
 
 void OCLToSPIRVBase::visitCallSplitBarrierINTEL(CallInst *CI,
