@@ -57,6 +57,8 @@ This extension builds on the `sycl::ext::oneapi::complex` and
 dependent on link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex]
 and
 link:sycl_ext_oneapi_complex_marray.asciidoc[sycl_ext_oneapi_complex_marray].
+Function overloads which use `std::complex` are not dependent upon the
+above extensions.
 
 
 == Feature Test Macro
@@ -99,10 +101,11 @@ Note that the following group functions and algorithms already accept
 - `permute_group_by_xor`
 - `select_from_group`
 
-Usage of `gencomplex` and `mgencomplex` with double value type requires support
-for double precision, and specifically the `sycl::aspect::fp64` device aspect.
-Similarly, usage of `gencomplex` and `mgencomplex` with half value type
-requires support for half-precision, with `sycl::aspect::fp16`.
+Each function is only supported if the underlying value type is also supported.
+For example, `group_broadcast` only supports
+`sycl::ext::oneapi::complex<sycl::half>` and
+`marray<sycl::ext::oneapi::complex<sycl::half>>` if the device supports
+`sycl::aspect::fp16`.
 
 == Extended Functions and Algorithms
 
