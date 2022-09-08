@@ -482,10 +482,10 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle, pi_platform *) {
 }
 
 __SYCL_EXPORT pi_result piextGetMemoryConnection(pi_device device1, pi_context context1, pi_device device2, pi_context context2, memory_connection* res){
-  (void) device1;
-  (void) context1;
-  (void) device2;
-  (void) context2;
+  ARG_UNUSED(device1);
+  ARG_UNUSED(context1);
+  ARG_UNUSED(device2);
+  ARG_UNUSED(context2);
   *res = MEMORY_CONNECTION_NONE;
   return PI_SUCCESS;
 }
@@ -1166,7 +1166,7 @@ pi_result piMemImageCreate(pi_context Context, pi_device Device,
                            const pi_image_format *ImageFormat,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
-  (void)Device;
+  ARG_UNUSED(Device);
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     PiTrace("Invalid memory attribute for piMemImageCreate");
     return PI_ERROR_INVALID_OPERATION;
