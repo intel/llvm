@@ -76,6 +76,7 @@ jobs:
         path: src
         ref: ${{ inputs.build_ref || github.ref }}
         cache_path: "/__w/repo_cache/"
+    - default_branch: $GITHUB_BASE_REF        
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
@@ -110,6 +111,10 @@ jobs:
       run: |
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
+    - name: check-mlir
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-mlir
     - name: check-mlir-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
