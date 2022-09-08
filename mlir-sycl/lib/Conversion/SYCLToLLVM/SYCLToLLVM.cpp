@@ -237,12 +237,7 @@ private:
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
-    if (!func)
-      func = op->getParentOfType<func::FuncOp>();
-    assert(func && "Could not find parent function");
 
-    /// Lookup the FuncId corresponding to the member function to use.
     Type retType = op.getODSResults(0).empty()
                        ? LLVM::LLVMVoidType::get(module.getContext())
                        : typeConverter.convertType(op.Result().getType());
@@ -251,12 +246,19 @@ private:
     SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
     FlatSymbolRefAttr funcRef = builder.getOrInsertFuncDecl(
         opAdaptor.MangledName(), retType, operandTypes, module);
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
+    auto newOp = rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op.getOperation(), op.getNumResults() == 0 ? TypeRange() : retType,
         funcRef, opAdaptor.getOperands());
 
-    LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
-                            << *func << "\n");
+    LLVM_DEBUG({
+      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      if (!func)
+        func = op->getParentOfType<func::FuncOp>();
+
+      assert(func && "Could not find parent function");
+      llvm::dbgs() << __func__ << ": Function after rewrite:\n"
+                   << *func << "\n";
+    });
 
     return success();
   }
@@ -306,7 +308,7 @@ private:
         func = op->getParentOfType<func::FuncOp>();
 
       assert(func && "Could not find parent function");
-      llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
+      llvm::dbgs() << __func__ << ": Function after rewrite:\n"
                    << *func << "\n";
     });
 
