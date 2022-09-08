@@ -705,7 +705,7 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
-device selectors (e.g. `sycl::cpu_selector`, `sycl::gpu_selector`,
+device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
 [Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
@@ -740,42 +740,38 @@ the CMake.
 
 ### Code the program for a specific GPU
 
-To specify OpenCL device SYCL provides the abstract `sycl::device_selector`
-class which the can be used to define how the runtime should select the best
-device.
+To assist in finding a specific SYCL compatible device out of all that may be
+available, a "device selector" may be used. A "device selector" is a ranking
+function (C++ Callable) that will give an integer ranking value to all the
+devices on the system. It can be passed to `sycl::queue`, `sycl::device` and
+`sycl::platform` constructors. The highest ranking device is then selected. SYCL
+has built-in device selectors for selecting a generic GPU, CPU, or accelerator
+device, as well as one for a default device. Additionally, a user can define
+their own as function, lambda, or functor class. Device selectors returning
+negative values will "reject" a device ensuring it is not selected, but values 0
+or higher will be selected by the highest score with ties resolved by an
+internal algorithm (see Section 4.6.1 of the SYCL 2020 specification)
 
-The method `sycl::device_selector::operator()` of the SYCL
-`sycl::device_selector` is an abstract member function which takes a
-reference to a SYCL device and returns an integer score. This abstract member
-function can be implemented in a derived class to provide a logic for selecting
-a SYCL device. SYCL runtime uses the device for with the highest score is
-returned. Such object can be passed to `sycl::queue` and `sycl::device`
-constructors.
-
-The example below illustrates how to use `sycl::device_selector` to create
-device and queue objects bound to Intel GPU device:
+The example below illustrates how to use a device selector to create device and
+queue objects bound to Intel GPU device:
 
 ```c++
 #include <sycl/sycl.hpp>
 
 int main() {
-  class NEOGPUDeviceSelector : public sycl::device_selector {
-  public:
-    int operator()(const sycl::device &Device) const override {
-      using namespace sycl::info;
 
-      const std::string DeviceName = Device.get_info<device::name>();
-      const std::string DeviceVendor = Device.get_info<device::vendor>();
+  auto NEOGPUDeviceSelector = [](const sycl::device &Device){
+    using namespace sycl::info;
 
-      return Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
-    }
+    const std::string DeviceName = Device.get_info<device::name>();
+    bool match = Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
+    return match ? 1 : -1;
   };
 
-  NEOGPUDeviceSelector Selector;
   try {
-    sycl::queue Queue(Selector);
-    sycl::device Device(Selector);
-  } catch (sycl::invalid_parameter_error &E) {
+    sycl::queue Queue(NEOGPUDeviceSelector);
+    sycl::device Device(NEOGPUDeviceSelector);
+  } catch (sycl::exception &E) {
     std::cout << E.what() << std::endl;
   }
 }
@@ -786,19 +782,18 @@ The device selector below selects an NVIDIA device only, and won't execute if
 there is none.
 
 ```c++
-class CUDASelector : public sycl::device_selector {
-  public:
-    int operator()(const sycl::device &Device) const override {
-      using namespace sycl::info;
-      const std::string DriverVersion = Device.get_info<device::driver_version>();
 
-      if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
-        std::cout << " CUDA device found " << std::endl;
-        return 1;
-      };
-      return -1;
-    }
-};
+int CUDASelector(const sycl::device &Device) {
+  using namespace sycl::info;
+  const std::string DriverVersion = Device.get_info<device::driver_version>();
+
+  if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
+    std::cout << " CUDA device found " << std::endl;
+    return 1;
+  };
+  return -1;
+}
+
 ```
 
 ### Using the DPC++ toolchain on CUDA platforms
