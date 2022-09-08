@@ -757,14 +757,14 @@ static std::string getTypeSuffix(Type *T, bool IsSigned) {
   return Suffix;
 }
 
-void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args,
-                                                unsigned ImOpArgIndex,
-                                                bool &IsSigned) {
+BuiltinCallMutator
+SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
+                                        Type *T, unsigned ImOpArgIndex) {
   // Default to signed.
-  IsSigned = true;
-  if (Args.size() > ImOpArgIndex) {
-    ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[ImOpArgIndex]);
-    uint64_t ImOpValue = 0;
+  bool IsSigned = true;
+  uint64_t ImOpValue = 0;
+  if (CI->arg_size() > ImOpArgIndex) {
+    ConstantInt *ImOp = dyn_cast<ConstantInt>(CI->getArgOperand(ImOpArgIndex));
     if (ImOp)
       ImOpValue = ImOp->getZExtValue();
     unsigned SignZeroExtMasks = ImageOperandsMask::ImageOperandsSignExtendMask |
@@ -775,104 +775,72 @@ void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args,
       if (ImOpValue & ImageOperandsMask::ImageOperandsZeroExtendMask)
         IsSigned = false;
       ImOpValue &= ~SignZeroExtMasks;
-      Args[ImOpArgIndex] = getInt32(M, ImOpValue);
-      ImOp = cast<ConstantInt>(Args[ImOpArgIndex]);
     }
-    // Drop "Image Operands" argument.
-    Args.erase(Args.begin() + ImOpArgIndex);
+  }
 
-    if (Args.size() > ImOpArgIndex) {
-      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[ImOpArgIndex]);
+  auto Mutator =
+      mutateCallInst(CI, NewFuncName.str() + getTypeSuffix(T, IsSigned));
+  if (ImOpArgIndex < Mutator.arg_size()) {
+    // Drop "Image Operands" argument.
+    Mutator.removeArg(ImOpArgIndex);
+    if (ImOpArgIndex < Mutator.arg_size()) {
+      ConstantFP *LodVal = dyn_cast<ConstantFP>(Mutator.getArg(ImOpArgIndex));
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
           ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
-        Args.erase(Args.begin() + ImOpArgIndex, Args.end());
+        Mutator.removeArgs(ImOpArgIndex, Mutator.arg_size() - ImOpArgIndex);
     }
   }
+  return Mutator;
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
                                                                  Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
-  SmallVector<Type *, 6> ParamTys;
-  getParameterTypes(CallSampledImg, ParamTys);
-  StringRef ImageTypeName;
+  Type *T = CI->getType();
+  if (auto VT = dyn_cast<VectorType>(T))
+    T = VT->getElementType();
+  auto Mutator =
+      mutateCallImageOperands(CI, kOCLBuiltinName::SampledReadImage, T, 2);
   bool IsDepthImage = false;
-  if (isOCLImageStructType(ParamTys[0], &ImageTypeName))
-    IsDepthImage = ImageTypeName.contains("_depth_");
+  Value *Sampler = nullptr;
+  Type *SamplerTy = nullptr;
+  Mutator.mapArg(0, [&](Value *SampledImg) {
+    CallInst *CallSampledImg = cast<CallInst>(SampledImg);
+    SmallVector<Type *, 2> SampledArgTys;
+    getParameterTypes(CallSampledImg, SampledArgTys);
+    Type *ImgTy = SampledArgTys[0];
+    SamplerTy = SampledArgTys[1];
 
-  auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
-                             llvm::Type *&RetTy) {
+    StringRef ImageTypeName;
+    if (isOCLImageStructType(ImgTy, &ImageTypeName))
+      IsDepthImage = ImageTypeName.contains("_depth_");
     auto Img = CallSampledImg->getArgOperand(0);
-    if (!Img->getType()->isOpaquePointerTy())
-      assert(isOCLImageStructType(
-          Img->getType()->getNonOpaquePointerElementType()));
-    auto Sampler = CallSampledImg->getArgOperand(1);
-    Args[0] = Img;
-    Args.insert(Args.begin() + 1, Sampler);
-    bool IsSigned;
-    mutateArgsForImageOperands(Args, 3, IsSigned);
+
+    Sampler = CallSampledImg->getArgOperand(1);
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           UndefValue::get(CallSampledImg->getType()));
       CallSampledImg->dropAllReferences();
       CallSampledImg->eraseFromParent();
     }
-    Type *T = CI->getType();
-    if (auto VT = dyn_cast<VectorType>(T))
-      T = VT->getElementType();
-    RetTy = IsDepthImage ? T : CI->getType();
-    return std::string(kOCLBuiltinName::SampledReadImage) +
-           getTypeSuffix(T, IsSigned);
-  };
-
-  auto ModifyRetTy = [=](CallInst *NewCI) -> Instruction * {
-    if (IsDepthImage) {
-      auto Ins = InsertElementInst::Create(
-          UndefValue::get(FixedVectorType::get(NewCI->getType(), 4)), NewCI,
-          getSizet(M, 0));
-      Ins->insertAfter(NewCI);
-      return Ins;
-    }
-    return NewCI;
-  };
-
-  mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
+    return std::make_pair(Img, ImgTy);
+  });
+  Mutator.insertArg(1, {Sampler, SamplerTy});
+  if (IsDepthImage)
+    Mutator.changeReturnType(T, [&](IRBuilder<> &Builder, CallInst *NewCI) {
+      return Builder.CreateInsertElement(FixedVectorType::get(NewCI->getType(), 4), NewCI, uint64_t(0));
+    });
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        llvm::Type *T = Args[2]->getType();
-        bool IsSigned;
-        mutateArgsForImageOperands(Args, 3, IsSigned);
-        if (Args.size() > 3) {
-          std::swap(Args[2], Args[3]);
-        }
-        return std::string(kOCLBuiltinName::WriteImage) +
-               getTypeSuffix(T, IsSigned);
-      },
-      &Attrs);
+  auto Mutator = mutateCallImageOperands(CI, kOCLBuiltinName::WriteImage,
+                                         CI->getArgOperand(2)->getType(), 3);
+  if (Mutator.arg_size() > 3)
+    Mutator.moveArg(3, 2);
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageReadBuiltIn(CallInst *CI, Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        bool IsSigned;
-        mutateArgsForImageOperands(Args, 2, IsSigned);
-        llvm::Type *T = CI->getType();
-        return std::string(kOCLBuiltinName::ReadImage) +
-               getTypeSuffix(T, IsSigned);
-      },
-      &Attrs);
+  mutateCallImageOperands(CI, kOCLBuiltinName::ReadImage, CI->getType(), 2);
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageQueryBuiltIn(CallInst *CI, Op OC) {
