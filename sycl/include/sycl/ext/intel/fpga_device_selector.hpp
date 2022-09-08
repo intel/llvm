@@ -59,31 +59,18 @@ public:
   fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
 };
 
-class device_name_selector : public device_selector {
-private:
-  std::string device_name;
-
+class fpga_simulator_selector : public fpga_selector {
 public:
-  device_name_selector(const std::string &dev_name) : device_name(dev_name) {}
-
-  int operator()(const device &device) const override {
-    if (device.get_info<sycl::info::device::name>() == device_name)
-      return 10000;
-    return -1;
-  }
-};
-
-static constexpr auto SIMULATOR_DEVICE_NAME =
-    "SimulatorDevice : Multi-process Simulator (aclmsim0)";
-
-class fpga_simulator_selector : public device_name_selector {
-public:
-  fpga_simulator_selector() : device_name_selector(SIMULATOR_DEVICE_NAME) {
+  fpga_simulator_selector(unsigned int numDevices = 1) {
     // Tell the runtime to start a simulator device
+    // Notes:
+    //   This replaces any hardware devices present
+    //   Currently only 1 simulator device is supported
+    auto devices = std::to_string(numDevices);
 #ifdef _WIN32
-    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
+    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", devices.c_str());
 #else
-    setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1", 0);
+    setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", devices.c_str(), 0);
 #endif
   }
 };
