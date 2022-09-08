@@ -39,12 +39,9 @@
 ; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_bitwise_andi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z28work_group_reduce_bitwise_ori(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_bitwise_xori(i32 0)
-; CHECK-LLVM: [[INIT_I32_0:%.*]] = zext i1 false to i32
-; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_logical_andi(i32 [[INIT_I32_0]])
-; CHECK-LLVM: [[INIT_I32_1:%.*]] = zext i1 false to i32
-; CHECK-LLVM: call spir_func i32 @_Z28work_group_reduce_logical_ori(i32 [[INIT_I32_1]])
-; CHECK-LLVM: [[INIT_I32_2:%.*]] = zext i1 false to i32
-; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_logical_xori(i32 [[INIT_I32_2]])
+; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_logical_andi(i32 0)
+; CHECK-LLVM: call spir_func i32 @_Z28work_group_reduce_logical_ori(i32 0)
+; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_logical_xori(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z21work_group_reduce_muli(i32 0)
 ; CHECK-LLVM: call spir_func half @_Z21work_group_reduce_mulDh(half 0xH0000)
 
