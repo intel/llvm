@@ -235,7 +235,7 @@ static const enum CachingLevel {
   const auto CachingLevelStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_EVENTS_CACHING_LEVEL");
 
-  auto Default = AllEvents;
+  auto Default = AllDeviceScope;
   switch (CachingLevelStr ? std::atoi(CachingLevelStr) : Default) {
   case 0:
     return DeviceScopeInternalOnly;
