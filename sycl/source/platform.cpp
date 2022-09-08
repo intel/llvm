@@ -19,7 +19,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
+platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
   impl = detail::platform_impl::getOrMakePlatformImpl(

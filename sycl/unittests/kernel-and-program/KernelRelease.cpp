@@ -83,7 +83,7 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-TEST(KernelReleaseTest, GetKernelRelease) {
+TEST(KernelReleaseTest, DISABLED_GetKernelRelease) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "The program/kernel methods are mostly no-op on the host "
@@ -106,10 +106,10 @@ TEST(KernelReleaseTest, GetKernelRelease) {
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
-  program Prg{Ctx};
-  Prg.build_with_source("");
+  // program Prg{Ctx};
+  // Prg.build_with_source("");
 
-  { kernel Krnl = Prg.get_kernel(""); }
+  // { kernel Krnl = Prg.get_kernel(""); }
 
   ASSERT_EQ(TestContext->KernelReferenceCount, 0)
       << "Reference count not equal to 0 after kernel destruction";

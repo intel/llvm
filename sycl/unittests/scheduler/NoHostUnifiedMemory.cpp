@@ -109,7 +109,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
       redefinedMemCreateWithNativeHandle);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
-  device HostDevice;
+  device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
