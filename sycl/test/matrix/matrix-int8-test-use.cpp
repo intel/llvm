@@ -4,8 +4,8 @@
 // CHECK-DAG: %spirv.JointMatrixINTEL._int_12_12_4_3_2 = type { [12 x [12 x [5 x [4 x [3 x i32]]]]] addrspace(4)* }
 // CHECK-DAG: %spirv.JointMatrixINTEL._char_48_12_4_3_1 = type { [48 x [12 x [5 x [4 x [2 x i8]]]]] addrspace(4)* }
 
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

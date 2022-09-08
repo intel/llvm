@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
@@ -68,8 +68,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix<bfloat16, TK, TN, use::b> sub_b(sg);
            joint_matrix<float, TM, TN, use::accumulator> sub_c(sg);
 
-           // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
-           // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
                                  sg_starty / SG_SZ * TN,

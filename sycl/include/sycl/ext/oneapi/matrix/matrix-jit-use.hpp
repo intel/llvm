@@ -90,7 +90,7 @@ public:
 };
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
-          layout Layout = layout::unused, access::address_space Space>
+          layout Layout, access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
                   joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &res,
@@ -145,7 +145,7 @@ joint_matrix_load(Group sg,
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
-          layout MatL = layout::unused, access::address_space Space>
+          layout MatL, access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_store(Group sg,
                    joint_matrix<T, NumRows, NumCols, Use, MatL, Group> &src,

@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX=1
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
