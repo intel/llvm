@@ -110,6 +110,18 @@ jobs:
       run: |
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
+    - name: check-mlir-sycl
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-mlir-sycl
+    - name: check-cgeist
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-cgeist
+    - name: check-polygeist-opt
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-polygeist-opt
     - name: check-sycl
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
