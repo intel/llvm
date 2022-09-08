@@ -2272,7 +2272,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
 
 namespace reduction {
 namespace aux_krn {
-template <class KernelName, class Accessor> struct Multi;
+template <class KernelName, class Predicate> struct Multi;
 } // namespace aux_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, typename... Reductions,
@@ -2312,7 +2312,7 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
     auto AccReduIndices = filterSequence<Reductions...>(Predicate, ReduIndices);
     associateReduAccsWithHandler(CGH, ReduTuple, AccReduIndices);
     using Name = __sycl_reduction_kernel<reduction::aux_krn::Multi, KernelName,
-                                         decltype(OutAccsTuple)>;
+                                         decltype(Predicate)>;
     // TODO: Opportunity to parallelize across number of elements
     range<1> GlobalRange = {HasUniformWG ? NWorkItems : NWorkGroups * WGSize};
     nd_range<1> Range{GlobalRange, range<1>(WGSize)};

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/kernel_bundle_impl.hpp>
-#include <sycl/program.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>

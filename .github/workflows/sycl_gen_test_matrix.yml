@@ -24,16 +24,21 @@ on:
         type: string
         required: false
         default: ${{ github.run_id }}-${{ github.run_attempt }}
+      ref:
+        description: "Commit to use for checkout or github.sha by default"
+        type: string
+        required: false
+        default: ${{ github.sha }}
     outputs:
       lts_matrix:
         description: "Generated Matrix"
-        value: ${{ jobs.resolve_matrix.outputs.lts_matrix }}
+        value: ${{ jobs.test_matrix.outputs.lts_matrix }}
       lts_aws_matrix:
         description: "Generated Matrix AWS subset"
-        value: ${{ jobs.resolve_matrix.outputs.lts_aws_matrix }}
+        value: ${{ jobs.test_matrix.outputs.lts_aws_matrix }}
 jobs:
-  resolve_matrix:
-    name: Resolve Test Matrix
+  test_matrix:
+    name: Generate Test Matrix
     runs-on: ubuntu-latest
     outputs:
       lts_matrix: ${{ steps.work.outputs.lts_matrix }}
@@ -42,11 +47,11 @@ jobs:
     - name: Download scripts and configs
       shell: bash
       run: |
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.js
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
+        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref }}/devops/scripts/generate_test_matrix.js
+        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref }}/devops/test_configs.json
         wget raw.githubusercontent.com/intel/llvm/sycl/devops/dependencies.json
         mv dependencies.json dependencies.sycl.json
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/dependencies.json
+        wget raw.githubusercontent.com/intel/llvm/${{ inputs.ref }}/devops/dependencies.json
     - id: work
       uses: actions/github-script@v6
       name: Generate matrix

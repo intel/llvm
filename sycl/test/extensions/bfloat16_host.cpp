@@ -73,15 +73,17 @@ int main() {
   Success &= check_bf16_from_float(std::numeric_limits<float>::quiet_NaN(),
                                    std::stoi("1111111111000001", nullptr, 2));
 
+  // see https://float.exposed/b0xffff
   Success &= check_bf16_to_float(
       0, bitsToFloatConv(std::string("00000000000000000000000000000000")));
   Success &= check_bf16_to_float(
-      1, bitsToFloatConv(std::string("01000111100000000000000000000000")));
+      1, bitsToFloatConv(std::string("00000000000000010000000000000000")));
   Success &= check_bf16_to_float(
-      42, bitsToFloatConv(std::string("01001010001010000000000000000000")));
+      42, bitsToFloatConv(std::string("00000000001010100000000000000000")));
   Success &= check_bf16_to_float(
-      std::numeric_limits<uint16_t>::max(),
-      bitsToFloatConv(std::string("01001111011111111111111100000000")));
+      // std::numeric_limits<uint16_t>::max() - 0xffff is bfloat16 -Nan and
+      // -Nan == -Nan check in check_bf16_to_float would fail, so use not Nan:
+      65407, bitsToFloatConv(std::string("11111111011111110000000000000000")));
   if (!Success)
     return -1;
   return 0;

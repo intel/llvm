@@ -438,7 +438,7 @@ void ChildProcess(int StdErrFD) {
     exit(1);
   }
 
-  sycl::platform Plt{sycl::default_selector()};
+  sycl::platform Plt;
 
   sycl::unittest::PiMock Mock{Plt};
 
@@ -626,56 +626,6 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::kernel KInterop{CLKernel, Ctx};
 
   Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
-
-  EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
-            KernelLaunchCounterBase + 1);
-}
-
-TEST(Assert, TestKernelFromSourceNegative) {
-  sycl::platform Plt{sycl::default_selector()};
-  const sycl::backend Backend = Plt.get_backend();
-
-  if (Backend == sycl::backend::ext_oneapi_cuda ||
-      Backend == sycl::backend::ext_oneapi_hip ||
-      Backend == sycl::backend::ext_oneapi_level_zero) {
-    printf(
-        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-
-  constexpr size_t Size = 16;
-  std::array<int, Size> Data;
-
-  for (size_t I = 0; I < Size; I++) {
-    Data[I] = I;
-  }
-
-  sycl::buffer<int, 1> Buf{Data};
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-
-  sycl::context Ctx = Queue.get_context();
-
-  setupMockForInterop(Mock, Ctx, Dev);
-
-  sycl::program P{Queue.get_context()};
-  P.build_with_source(R"CLC(
-          kernel void add(global int* data) {
-              int index = get_global_id(0);
-              data[index] = data[index] + 1;
-          }
-      )CLC",
-                      "-cl-fast-relaxed-math");
-
-  Queue.submit([&](sycl::handler &H) {
-    auto Acc = Buf.get_access<sycl::access::mode::read_write>(H);
-
-    H.set_args(Acc);
-    H.parallel_for(Size, P.get_kernel("add"));
-  });
 
   EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
             KernelLaunchCounterBase + 1);

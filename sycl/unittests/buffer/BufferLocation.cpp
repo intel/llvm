@@ -71,7 +71,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Plt{sycl::default_selector()} {}
+  BufferTest() {}
 
 protected:
   void SetUp() override {
