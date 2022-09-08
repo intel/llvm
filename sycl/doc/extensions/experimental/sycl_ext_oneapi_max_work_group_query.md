@@ -34,7 +34,7 @@ As encouraged by the SYCL specification, a feature-test macro, `SYCL_EXT_ONEAPI_
 ## Examples
 
 ```c++
-sycl::device gpu = sycl::device{sycl::gpu_selector{}};
+sycl::device gpu = sycl::device{sycl::gpu_selector_v};
 std::cout << gpu.get_info<sycl::info::device::name>() << '\n';
 
 #ifdef SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
