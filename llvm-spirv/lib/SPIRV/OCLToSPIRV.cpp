@@ -423,49 +423,45 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   StringRef LenStr = DemangledName.substr(8, 1);
   auto Len = atoi(LenStr.data());
   assert(Len >= 1 && Len <= 3);
+  // Translate ndrange_ND into differently named SPIR-V
+  // decorated functions because they have array arugments
+  // of different dimension which mangled the same way.
+  std::string Postfix("_");
+  Postfix += LenStr;
+  Postfix += 'D';
+  std::string FuncName = getSPIRVFuncName(OpBuildNDRange, Postfix);
+  auto Mutator = mutateCallInst(CI, FuncName);
+
   // SPIR-V ndrange structure requires 3 members in the following order:
   //   global work offset
   //   global work size
   //   local work size
   // The arguments need to add missing members.
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        for (size_t I = 1, E = Args.size(); I != E; ++I)
-          Args[I] = getScalarOrArray(Args[I], Len, CI);
-        switch (Args.size()) {
-        case 2: {
-          // Has global work size.
-          auto T = Args[1]->getType();
-          auto C = getScalarOrArrayConstantInt(CI, T, Len, 0);
-          Args.push_back(C);
-          Args.push_back(C);
-        } break;
-        case 3: {
-          // Has global and local work size.
-          auto T = Args[1]->getType();
-          Args.push_back(getScalarOrArrayConstantInt(CI, T, Len, 0));
-        } break;
-        case 4: {
-          // Move offset arg to the end
-          auto OffsetPos = Args.begin() + 1;
-          Value *OffsetVal = *OffsetPos;
-          Args.erase(OffsetPos);
-          Args.push_back(OffsetVal);
-        } break;
-        default:
-          assert(0 && "Invalid number of arguments");
-        }
-        // Translate ndrange_ND into differently named SPIR-V
-        // decorated functions because they have array arugments
-        // of different dimension which mangled the same way.
-        std::string Postfix("_");
-        Postfix += LenStr;
-        Postfix += 'D';
-        return getSPIRVFuncName(OpBuildNDRange, Postfix);
-      },
-      &Attrs);
+  for (size_t I = 1, E = CI->arg_size(); I != E; ++I)
+    Mutator.mapArg(I, [=](Value *V) { return getScalarOrArray(V, Len, CI); });
+  switch (CI->arg_size()) {
+  case 2: {
+    // Has global work size.
+    auto T = Mutator.getArg(1)->getType();
+    auto C = getScalarOrArrayConstantInt(CI, T, Len, 0);
+    Mutator.appendArg(C);
+    Mutator.appendArg(C);
+    break;
+  }
+  case 3: {
+    // Has global and local work size.
+    auto T = Mutator.getArg(1)->getType();
+    Mutator.appendArg(getScalarOrArrayConstantInt(CI, T, Len, 0));
+    break;
+  }
+  case 4: {
+    // Move offset arg to the end
+    Mutator.moveArg(1, CI->arg_size() - 1);
+    break;
+  }
+  default:
+    assert(0 && "Invalid number of arguments");
+  }
 }
 
 void OCLToSPIRVBase::visitCallAsyncWorkGroupCopy(CallInst *CI,
@@ -1299,29 +1295,23 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
     IsSecondSigned = (IsDot) ? (MangledName[MangledName.size() - 2] == 'i')
                              : (MangledName[MangledName.size() - 3] == 'i');
   }
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        // If arguments are in order unsigned -> signed
-        // then the translator should swap them,
-        // so that the OpSUDotKHR can be used properly
-        if (IsFirstSigned == false && IsSecondSigned == true) {
-          std::swap(Args[0], Args[1]);
-        }
-        Op OC;
-        if (IsDot) {
-          OC = (IsFirstSigned != IsSecondSigned
-                    ? OpSUDot
-                    : ((IsFirstSigned) ? OpSDot : OpUDot));
-        } else {
-          OC = (IsFirstSigned != IsSecondSigned
-                    ? OpSUDotAccSat
-                    : ((IsFirstSigned) ? OpSDotAccSat : OpUDotAccSat));
-        }
-        return getSPIRVFuncName(OC);
-      },
-      &Attrs);
+  Op OC;
+  if (IsDot) {
+    OC = (IsFirstSigned != IsSecondSigned
+        ? OpSUDot
+        : ((IsFirstSigned) ? OpSDot : OpUDot));
+  } else {
+    OC = (IsFirstSigned != IsSecondSigned
+        ? OpSUDotAccSat
+        : ((IsFirstSigned) ? OpSDotAccSat : OpUDotAccSat));
+  }
+  auto Mutator = mutateCallInst(CI, OC);
+  // If arguments are in order unsigned -> signed
+  // then the translator should swap them,
+  // so that the OpSUDotKHR can be used properly
+  if (IsFirstSigned == false && IsSecondSigned == true) {
+    Mutator.moveArg(1, 0);
+  }
 }
 
 void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
@@ -1362,31 +1352,22 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
     ScalarPos.push_back(1);
   }
 
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.resize(VecPos.size() + ScalarPos.size());
-        for (auto I : VecPos) {
-          Args[I] = CI->getOperand(I);
-        }
-        auto VecElemCount =
-            cast<VectorType>(CI->getOperand(VecPos[0])->getType())
-                ->getElementCount();
-        for (auto I : ScalarPos) {
-          Instruction *Inst = InsertElementInst::Create(
-              UndefValue::get(CI->getOperand(VecPos[0])->getType()),
-              CI->getOperand(I), getInt32(M, 0), "", CI);
-          Value *NewVec = new ShuffleVectorInst(
-              Inst, UndefValue::get(CI->getOperand(VecPos[0])->getType()),
-              ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+  assert(CI->arg_size() == VecPos.size() + ScalarPos.size() &&
+         "Argument counts do not match up.");
 
-          Args[I] = NewVec;
-        }
-        return getSPIRVExtFuncName(SPIRVEIS_OpenCL,
-                                   getExtOp(MangledName, DemangledName));
-      },
-      &Attrs);
+  Type *VecTy = CI->getOperand(VecPos[0])->getType();
+  auto VecElemCount = cast<VectorType>(VecTy)->getElementCount();
+  auto Mutator = mutateCallInst(
+      CI, getSPIRVExtFuncName(SPIRVEIS_OpenCL,
+                              getExtOp(MangledName, DemangledName)));
+  for (auto I : ScalarPos)
+    Mutator.mapArg(I, [&](Value *V) {
+      Instruction *Inst = InsertElementInst::Create(UndefValue::get(VecTy), V,
+                                                    getInt32(M, 0), "", CI);
+      return new ShuffleVectorInst(
+          Inst, UndefValue::get(VecTy),
+          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+    });
 }
 
 void OCLToSPIRVBase::visitCallGetImageChannel(CallInst *CI,
