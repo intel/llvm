@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %HOST_RUN_PLACEHOLDER %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
@@ -36,16 +35,8 @@ int main() {
     return 1;
   }
   Kind = get_pointer_type(array, ctxt);
-  if (ctxt.is_host()) {
-    // for now, host device treats all allocations
-    // as host allocations
-    if (Kind != usm::alloc::host) {
-      return 2;
-    }
-  } else {
-    if (Kind != usm::alloc::device) {
-      return 3;
-    }
+  if (Kind != usm::alloc::device) {
+    return 3;
   }
   device D = get_pointer_device(array, ctxt);
   if (D != dev) {
@@ -59,16 +50,8 @@ int main() {
     return 5;
   }
   Kind = get_pointer_type(array, ctxt);
-  if (ctxt.is_host()) {
-    // for now, host device treats all allocations
-    // as host allocations
-    if (Kind != usm::alloc::host) {
-      return 6;
-    }
-  } else {
-    if (Kind != usm::alloc::shared) {
-      return 7;
-    }
+  if (Kind != usm::alloc::shared) {
+    return 7;
   }
   D = get_pointer_device(array, ctxt);
   if (D != dev) {
@@ -103,22 +86,15 @@ int main() {
   // next checks only valid for non-host contexts
   array = (int *)malloc(N * sizeof(int));
   Kind = get_pointer_type(array, ctxt);
-  if (!ctxt.is_host()) {
-    if (Kind != usm::alloc::unknown) {
-      return 12;
-    }
-    try {
-      D = get_pointer_device(array, ctxt);
-    } catch (runtime_error) {
-      return 0;
-    }
-    return 13;
-  } else {
-    // host ctxts always report host
-    if (Kind != usm::alloc::host) {
-      return 14;
-    }
+  if (Kind != usm::alloc::unknown) {
+    return 12;
   }
+  try {
+    D = get_pointer_device(array, ctxt);
+  } catch (runtime_error) {
+    return 0;
+  }
+  return 13;
   free(array);
 
   return 0;

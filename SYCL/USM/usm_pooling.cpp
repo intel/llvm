@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   device D = Q.get_device();
   context C = Q.get_context();
 
-  const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
+  const char *devType = D.is_cpu() ? "CPU" : "GPU";
   std::string pluginName =
       D.get_platform().get_info<sycl::info::platform::name>();
   std::cout << "Running on device " << devType << " ("
