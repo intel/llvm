@@ -42,55 +42,12 @@ public:
   // clang-format off
   enum class FuncId {
     Unknown, 
-
-    // Member functions for the sycl:accessor class.
-    AccessorInt1ReadWriteGlobalBufferFalseCtorDefault, // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
-                                                       //   accessor()
-    AccessorInt1ReadWriteGlobalBufferFalseInit,        // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
-                                                       //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
-
-    // Member functions for the sycl:id<n> class.
-    Id1CtorDefault, // sycl::id<1>::id()
-    Id2CtorDefault, // sycl::id<2>::id()
-    Id3CtorDefault, // sycl::id<3>::id()
-    Id1CtorSizeT,   // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type)
-    Id2CtorSizeT,   // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type)
-    Id3CtorSizeT,   // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type)
-    Id1Ctor2SizeT,  // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long)
-    Id2Ctor2SizeT,  // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long)
-    Id3Ctor2SizeT,  // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long)
-    Id1Ctor3SizeT,  // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
-    Id2Ctor3SizeT,  // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
-    Id3Ctor3SizeT,  // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-    Id1CopyCtor,    // sycl::id<1>::id(sycl::id<1> const&)
-    Id2CopyCtor,    // sycl::id<2>::id(sycl::id<2> const&)
-    Id3CopyCtor,    // sycl::id<3>::id(sycl::id<3> const&)
-    
-    // Member functions for the sycl::Range<n> class.
-    Range1CtorDefault, // sycl::Range<1>::range()
-    Range2CtorDefault, // sycl::range<2>::range()
-    Range3CtorDefault, // sycl::range<3>::range()
-    Range1CtorSizeT,   // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type)
-    Range2CtorSizeT,   // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type)
-    Range3CtorSizeT,   // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type)
-    Range1Ctor2SizeT,  // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long)
-    Range2Ctor2SizeT,  // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long)
-    Range3Ctor2SizeT,  // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long)
-    Range1Ctor3SizeT,  // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
-    Range2Ctor3SizeT,  // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
-    Range3Ctor3SizeT,  // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-    Range1CopyCtor,    // sycl::range<1>::range(sycl::range<1> const&)
-    Range2CopyCtor,    // sycl::range<2>::range(sycl::range<2> const&)
-    Range3CopyCtor,    // sycl::range<3>::range(sycl::range<3> const&)
   };
   // clang-format on
 
   /// Enumerates the descriptor kind.
   enum class Kind {
     Unknown,
-    Accessor, // sycl::accessor class
-    Id,       // sycl::id<n> class
-    Range,    // sycl::range<n> class
   };
 
   /// Each descriptor is uniquely identified by the pair {FuncId, Kind}.
@@ -172,9 +129,6 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
     virtual ~ClassName() {}                                                    \
     bool isValid(FuncId) const override;                                       \
   };
-DEFINE_CLASS(SYCLAccessorFuncDescriptor, Kind::Accessor)
-DEFINE_CLASS(SYCLIdFuncDescriptor, Kind::Id)
-DEFINE_CLASS(SYCLRangeFuncDescriptor, Kind::Range)
 #undef DEFINE_CLASS
 
 /// \class SYCLFuncRegistry
@@ -205,19 +159,6 @@ public:
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);
-
-  /// Declare sycl::accessor<n> function descriptors and add them to the
-  /// registry.
-  void declareAccessorFuncDescriptors(LLVMTypeConverter &converter,
-                                      ModuleOp &module, OpBuilder &builder);
-
-  /// Declare sycl::id<n> function descriptors and add them to the registry.
-  void declareIdFuncDescriptors(LLVMTypeConverter &converter, ModuleOp &module,
-                                OpBuilder &builder);
-
-  /// Declare sycl::range<n> function descriptors and add them to the registry.
-  void declareRangeFuncDescriptors(LLVMTypeConverter &converter,
-                                   ModuleOp &module, OpBuilder &builder);
 
   /// Declare function descriptors and add them to the registry.
   void declareFuncDescriptors(std::vector<SYCLFuncDescriptor> &descriptors,
