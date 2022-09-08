@@ -37,10 +37,11 @@
 /// @tparam SimdCallee the type of the SIMD callee function (the "target"). Must
 ///  be a function type (not lambda or functor).
 /// @tparam SpmdArgs The original SPMD arguments passed to the invoke_simd.
-template <bool IsFunc, class SpmdRet, class SimdCallee, class... SpmdArgs,
-          class = std::enable_if_t<!IsFunc>>
+template <bool IsFunc, class SpmdRet, class HelperFunc,
+          class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<!IsFunc>>
 SYCL_EXTERNAL __regcall SpmdRet
-__builtin_invoke_simd(SimdCallee &&target, const void *obj, SpmdArgs... args)
+__builtin_invoke_simd(HelperFunc helper, const void *obj,
+                      UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -51,10 +52,10 @@ __builtin_invoke_simd(SimdCallee &&target, const void *obj, SpmdArgs... args)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-template <bool IsFunc, class SpmdRet, class SimdCallee, class... SpmdArgs,
-          class = std::enable_if_t<IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet __builtin_invoke_simd(SimdCallee &&target,
-                                                      SpmdArgs... args)
+template <bool IsFunc, class SpmdRet, class HelperFunc,
+          class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<IsFunc>>
+SYCL_EXTERNAL __regcall SpmdRet
+__builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -290,26 +291,18 @@ static constexpr bool is_function_ptr_or_ref_v =
 #endif // __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
     ;
 
-/// The variables typed as pointer to a function become lvalue-reference
-/// when passed to invoke_simd as universal pointer. That creates an
-/// additional indirection, which is resolved automatically by the compiler
-/// for the caller side of __builtin_invoke_simd, but which must be resolved
-/// manually during the creation of invoke-simd-helper.
-/// The class remove_ref_if_ref_to_pointer_callable helps to removes that
-/// unwanted indirection for variable-pointers to functions passed to
-/// invoke_simd.
-template <typename Callable> struct remove_ref_if_ref_to_pointer_callable {
+template <typename Callable> struct remove_ref_from_func_ptr_ref_type {
   using type = Callable;
 };
 
 template <typename Ret, typename... Args>
-struct remove_ref_if_ref_to_pointer_callable<Ret(__regcall *&)(Args...)> {
+struct remove_ref_from_func_ptr_ref_type<Ret(__regcall *&)(Args...)> {
   using type = Ret(__regcall *)(Args...);
 };
 
 template <typename T>
-using remove_ref_if_ref_to_pointer_callable_t =
-    typename remove_ref_if_ref_to_pointer_callable<T>::type;
+using remove_ref_from_func_ptr_ref_type_t =
+    typename remove_ref_from_func_ptr_ref_type<T>::type;
 
 } // namespace detail
 
@@ -345,9 +338,16 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   constexpr bool is_function = detail::is_function_ptr_or_ref_v<Callable>;
 
   if constexpr (is_function) {
+    // The variables typed as pointer to a function become lvalue-reference
+    // when passed to invoke_simd() as universal pointers. That creates an
+    // additional indirection, which is resolved automatically by the compiler
+    // for the caller side of __builtin_invoke_simd, but which must be resolved
+    // manually during the creation of simd_func_call_helper.
+    // The class remove_ref_from_func_ptr_ref_type is used removes that
+    // unwanted indirection.
     return __builtin_invoke_simd<true /*function*/, RetSpmd>(
         detail::simd_func_call_helper<
-            N, detail::remove_ref_if_ref_to_pointer_callable_t<Callable>, T...>,
+            N, detail::remove_ref_from_func_ptr_ref_type_t<Callable>, T...>,
         f, detail::unwrap_uniform<T>::impl(args)...);
   } else {
     // TODO support functors and lambdas which are handled in this branch.
