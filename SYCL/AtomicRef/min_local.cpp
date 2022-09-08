@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// HIP does not support floating point atomics.
-// XFAIL: hip
-
 #include "min.h"
 
 int main() { min_test_all<access::address_space::local_space>(); }
