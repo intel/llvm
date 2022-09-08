@@ -8173,7 +8173,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
               PI_ERROR_INVALID_DEVICE);
   } else {
     pi_device Device;
-    // All devices in the context are of the same platform.
+    // All context member devices or their descendants are of the same platform.
     auto Platform = Context->getPlatform();
     Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
     PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
