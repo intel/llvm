@@ -10,7 +10,8 @@
 
 #include <sycl/sycl.hpp>
 
-// cxx14-warning@* {{DPCPP does not support C++ version earlier than C++17. Some features might not be available.}}
+// cxx14-warning@* {{DPCPP does not support C++ version earlier than C++17. Some
+// features might not be available.}}
 //
 // The next warning is not emitted in device compilation for some reason
 // warning_extension-warning@* 0-1 {{#warning is a C++2b extension}}
