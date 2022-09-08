@@ -58,8 +58,22 @@ using namespace sycl;
 // CHECK:      32 |           pointer _M_start
 // CHECK-NEXT: 40 |           pointer _M_finish
 // CHECK-NEXT: 48 |           pointer _M_end_of_storage
-// CHECK-NEXT:    | [sizeof=56, dsize=56, align=8,
-// CHECK-NEXT:    |  nvsize=56, nvalign=8]
+// CHECK-NEXT: 56 |   class sycl::property_list MPropertyList
+// CHECK-NEXT: 56 |     class sycl::detail::PropertyListBase (base)
+// CHECK-NEXT: 56 |       class std::bitset<32> MDataLessProps
+// CHECK-NEXT: 56 |         struct std::_Base_bitset<1> (base)
+// CHECK-NEXT: 56 |           _WordT _M_w
+// CHECK-NEXT: 64 |       class std::vector<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > MPropsWithData
+// CHECK-NEXT: 64 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > > (base)
+// CHECK-NEXT: 64 |           struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::_Vector_impl _M_impl
+// CHECK-NEXT: 64 |             class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > (base) (empty)
+// CHECK-NEXT: 64 |               class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > (base) (empty)
+// CHECK-NEXT: 64 |             struct std::_Vector_base<class std::shared_ptr<class sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > >::_Vector_impl_data (base)
+// CHECK-NEXT: 64 |               pointer _M_start
+// CHECK-NEXT: 72 |               pointer _M_finish
+// CHECK-NEXT: 80 |               pointer _M_end_of_storage
+// CHECK-NEXT:    | [sizeof=88, dsize=88, align=8,
+// CHECK-NEXT:    |  nvsize=88, nvalign=8]
 
 //----------------------------------------------------------------------------//
 // Host buffer accessor.

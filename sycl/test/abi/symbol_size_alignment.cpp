@@ -45,7 +45,7 @@ int main() {
   check<detail::LocalAccessorBaseDevice<1>, 24, 8>();
   check<detail::AccessorImplHost, 160, 8>();
   check<detail::AccessorBaseHost, 16, 8>();
-  check<detail::LocalAccessorImplHost, 56, 8>();
+  check<detail::LocalAccessorImplHost, 88, 8>();
   check<buffer<int>, 40, 8>();
   check<context, 16, 8>();
   check<cpu_selector, 8, 8>();
