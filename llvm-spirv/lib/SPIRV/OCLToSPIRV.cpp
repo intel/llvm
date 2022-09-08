@@ -941,69 +941,61 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   assert(MangledName.find(kMangledName::Sampler) != StringRef::npos);
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   Function *Func = CI->getCalledFunction();
-  AttributeList Attrs = Func->getAttributes();
   bool IsRetScalar = !CI->getType()->isVectorTy();
   SmallVector<Type *, 3> ArgStructTys;
   getParameterTypes(CI, ArgStructTys);
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        auto *ImageTy =
-            OCLTypeToSPIRVPtr->getAdaptedArgumentType(Func, 0).second;
-        if (!ImageTy)
-          ImageTy = ArgStructTys[0];
-        ImageTy = adaptSPIRVImageType(M, ImageTy);
-        auto SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
-            M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
-        Value *SampledImgArgs[] = {Args[0], Args[1]};
-        auto SampledImg = addCallInstSPIRV(
-            M, getSPIRVFuncName(OpSampledImage), SampledImgTy, SampledImgArgs,
-            nullptr, {ArgStructTys[0], ArgStructTys[1]}, CI,
-            kSPIRVName::TempSampledImage);
+  Type *Ret = CI->getType();
+  auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedArgumentType(Func, 0).second;
+  if (!ImageTy)
+    ImageTy = ArgStructTys[0];
+  ImageTy = adaptSPIRVImageType(M, ImageTy);
+  auto *SampledImgStructTy = getSPIRVStructTypeByChangeBaseTypeName(
+      M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
+  auto *SampledImgTy = PointerType::get(SampledImgStructTy, SPIRAS_Global);
+  Value *SampledImgArgs[] = {CI->getArgOperand(0), CI->getArgOperand(1)};
+  auto SampledImg = addCallInstSPIRV(M, getSPIRVFuncName(OpSampledImage),
+                                     SampledImgTy, SampledImgArgs, nullptr,
+                                     {ArgStructTys[0], ArgStructTys[1]}, CI,
+                                     kSPIRVName::TempSampledImage);
 
-        Args[0] = SampledImg;
-        Args.erase(Args.begin() + 1, Args.begin() + 2);
+  auto Mutator = mutateCallInst(
+      CI, getSPIRVFuncName(OpImageSampleExplicitLod,
+                           std::string(kSPIRVPostfix::ExtDivider) +
+                               getPostfixForReturnType(Ret)));
+  Mutator.replaceArg(0, {SampledImg, SampledImgStructTy})
+      .removeArg(1);
+  unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+  unsigned ImgOpMaskInsIndex = Mutator.arg_size();
+  switch (Mutator.arg_size()) {
+  case 2: // no lod
+    ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+    ImgOpMaskInsIndex = Mutator.arg_size();
+    Mutator.appendArg(getFloat32(M, 0.f));
+    break;
+  case 3: // explicit lod
+    ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+    ImgOpMaskInsIndex = 2;
+    break;
+  case 4: // gradient
+    ImgOpMask |= ImageOperandsMask::ImageOperandsGradMask;
+    ImgOpMaskInsIndex = 2;
+    break;
+  default:
+    assert(0 && "read_image* with unhandled number of args!");
+  }
+  Mutator.insertArg(ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
 
-        unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
-        unsigned ImgOpMaskInsIndex = Args.size();
-        switch (Args.size()) {
-        case 2: // no lod
-          ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
-          ImgOpMaskInsIndex = Args.size();
-          Args.push_back(getFloat32(M, 0.f));
-          break;
-        case 3: // explicit lod
-          ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
-          ImgOpMaskInsIndex = 2;
-          break;
-        case 4: // gradient
-          ImgOpMask |= ImageOperandsMask::ImageOperandsGradMask;
-          ImgOpMaskInsIndex = 2;
-          break;
-        default:
-          assert(0 && "read_image* with unhandled number of args!");
-        }
-        Args.insert(Args.begin() + ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
-
-        // SPIR-V instruction always returns 4-element vector
-        if (IsRetScalar)
-          Ret = FixedVectorType::get(Ret, 4);
-        return getSPIRVFuncName(OpImageSampleExplicitLod,
-                                std::string(kSPIRVPostfix::ExtDivider) +
-                                    getPostfixForReturnType(Ret));
-      },
-      [&](CallInst *CI) -> Instruction * {
-        if (IsRetScalar)
-          return ExtractElementInst::Create(CI, getSizet(M, 0), "",
-                                            CI->getNextNode());
-        return CI;
-      },
-      &Attrs);
+  // SPIR-V instruction always returns 4-element vector
+  if (IsRetScalar)
+    Mutator.changeReturnType(FixedVectorType::get(Ret, 4),
+                             [=](IRBuilder<> &Builder, CallInst *NewCI) {
+                               return Builder.CreateExtractElement(
+                                   NewCI, getSizet(M, 0));
+                             });
 }
 
 void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                                            StringRef DemangledName) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   StringRef TyName;
   SmallVector<StringRef, 4> SubStrs;
   SmallVector<Type *, 4> ParamTys;
@@ -1015,22 +1007,19 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
   auto Desc = map<SPIRVTypeImageDescriptor>(ImageTyName);
   unsigned Dim = getImageDimension(Desc.Dim) + Desc.Arrayed;
   assert(Dim > 0 && "Invalid image dimension.");
-  mutateCallInstSPIRV(
-      M, CI,
-      [&](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        assert(Args.size() == 1);
-        Ret = CI->getType()->isIntegerTy(64) ? Type::getInt64Ty(*Ctx)
-                                             : Type::getInt32Ty(*Ctx);
-        if (Dim > 1)
-          Ret = FixedVectorType::get(Ret, Dim);
-        if (Desc.Dim == DimBuffer)
-          return getSPIRVFuncName(OpImageQuerySize, CI->getType());
-        else {
-          Args.push_back(getInt32(M, 0));
-          return getSPIRVFuncName(OpImageQuerySizeLod, CI->getType());
-        }
-      },
-      [&](CallInst *NCI) -> Instruction * {
+  assert(CI->arg_size() == 1);
+  Type *NewRet = CI->getType()->isIntegerTy(64) ? Type::getInt64Ty(*Ctx)
+                                                : Type::getInt32Ty(*Ctx);
+  if (Dim > 1)
+    NewRet = FixedVectorType::get(NewRet, Dim);
+  auto Mutator = mutateCallInst(CI, getSPIRVFuncName(Desc.Dim == DimBuffer
+                                                         ? OpImageQuerySize
+                                                         : OpImageQuerySizeLod,
+                                                     CI->getType()));
+  if (Desc.Dim != DimBuffer)
+    Mutator.appendArg(getInt32(M, 0));
+  Mutator.changeReturnType(
+      NewRet, [&](IRBuilder<> &, CallInst *NCI) -> Value * {
         if (Dim == 1)
           return NCI;
         if (DemangledName == kOCLBuiltinName::GetImageDim) {
@@ -1059,8 +1048,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                          .Case(kOCLBuiltinName::GetImageArraySize, Dim - 1);
         return ExtractElementInst::Create(NCI, getUInt32(M, I), "",
                                           NCI->getNextNode());
-      },
-      &Attrs);
+      });
 }
 
 /// Remove trivial conversion functions
