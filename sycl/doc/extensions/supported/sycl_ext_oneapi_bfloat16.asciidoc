@@ -86,13 +86,12 @@ enum class aspect {
 }
 ----
 
-This extension is an optional kernel feature as described in section 5.7 of the SYCL 2020 spec, with the associated aspect `ext_oneapi_bfloat16`. Applications can query whether the device has this aspect to determine if it supports the  `bfloat16` type in hardware.
-
+This extension is an optional kernel feature as described in section 5.7 of the SYCL 2020 spec, with the associated aspect `ext_oneapi_bfloat16`. Applications can query whether the device has this aspect to determine if it supports `bfloat16` conversions.
+The `bfloat16` class is currently supported in hardware on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. On other devices it is emulated in software.
 [NOTE]
-==== 
-. The `bfloat16` class is currently supported in hardware only on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. 
 ====
-
+Aspect `ext_oneapi_bfloat16` is deprecated because `bfloat16` is supported on all devices.
+====
 
 === New `bfloat16` class
 
