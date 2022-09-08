@@ -27,6 +27,7 @@ using namespace mlir::sycl;
 //===----------------------------------------------------------------------===//
 // SYCLFuncDescriptor::Id
 //===----------------------------------------------------------------------===//
+#pragma clang diagnostic ignored "-Wglobal-constructors"
 
 std::map<SYCLFuncDescriptor::Kind, std::string>
     SYCLFuncDescriptor::Id::kindToName = {
