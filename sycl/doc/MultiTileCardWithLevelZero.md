@@ -143,8 +143,7 @@ try {
 ``` C++	
 try {
   // The queue is attached to the root-device, driver distributes to sub-devices, if any.
-  auto D = device(gpu_selector{});
-  auto Q = queue(D);
+  auto Q = queue(gpu_selector_v);
   Q.submit([&](handler& cgh) {...});
 }
 ```
@@ -155,7 +154,7 @@ try {
 - Example:
 ``` C++	
 try {
-  auto P = platform(gpu_selector{});
+  auto P = platform(gpu_selector_v);
   auto RootDevices = P.get_devices();
   auto C = context(RootDevices);
   for (auto &D : RootDevices) {

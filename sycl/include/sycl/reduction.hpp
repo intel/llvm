@@ -2272,7 +2272,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
 
 namespace reduction {
 namespace aux_krn {
-template <class KernelName, class Accessor> struct Multi;
+template <class KernelName, class Predicate> struct Multi;
 } // namespace aux_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, typename... Reductions,
@@ -2312,7 +2312,7 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
     auto AccReduIndices = filterSequence<Reductions...>(Predicate, ReduIndices);
     associateReduAccsWithHandler(CGH, ReduTuple, AccReduIndices);
     using Name = __sycl_reduction_kernel<reduction::aux_krn::Multi, KernelName,
-                                         decltype(OutAccsTuple)>;
+                                         decltype(Predicate)>;
     // TODO: Opportunity to parallelize across number of elements
     range<1> GlobalRange = {HasUniformWG ? NWorkItems : NWorkGroups * WGSize};
     nd_range<1> Range{GlobalRange, range<1>(WGSize)};
@@ -2340,34 +2340,6 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
          createReduOutAccs<false>(NWorkGroups, CGH, ReduTuple, ReduIndices));
 
   return NWorkGroups;
-}
-
-inline void
-reduSaveFinalResultToUserMemHelper(std::vector<event> &,
-                                   std::shared_ptr<detail::queue_impl>, bool) {}
-
-template <typename Reduction, typename... RestT>
-void reduSaveFinalResultToUserMemHelper(
-    std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
-    bool IsHost, Reduction &Redu, RestT... Rest) {
-  reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
-}
-
-/// Creates additional kernels that copy the accumulated/final results from
-/// reductions accessors to either user's accessor or user's USM memory.
-/// Returns the event to the last kernel copying data or nullptr if no
-/// additional kernels created.
-template <typename... Reduction, size_t... Is>
-std::shared_ptr<event>
-reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
-                             bool IsHost, std::tuple<Reduction...> &ReduTuple,
-                             std::index_sequence<Is...>) {
-  std::vector<event> Events;
-  reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost,
-                                     std::get<Is>(ReduTuple)...);
-  if (!Events.empty())
-    return std::make_shared<event>(Events.back());
-  return std::shared_ptr<event>();
 }
 
 template <typename Reduction> size_t reduGetMemPerWorkItemHelper(Reduction &) {
