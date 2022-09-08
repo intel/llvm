@@ -2,6 +2,7 @@
 workitem/get_global_offset.ll
 group/collectives.cl
 group/collectives_helpers.ll
+group/group_ballot.cl
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 synchronization/barrier.cl
