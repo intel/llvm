@@ -25,21 +25,6 @@ using namespace mlir;
 using namespace mlir::sycl;
 
 //===----------------------------------------------------------------------===//
-// SYCLFuncDescriptor::Id
-//===----------------------------------------------------------------------===//
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-
-std::map<SYCLFuncDescriptor::Kind, std::string>
-    SYCLFuncDescriptor::Id::kindToName = {
-        {Kind::Unknown, "unknown"},
-};
-
-std::map<std::string, SYCLFuncDescriptor::Kind>
-    SYCLFuncDescriptor::Id::nameToKind = {
-        {"unknown", Kind::Unknown},
-};
-
-//===----------------------------------------------------------------------===//
 // SYCLFuncDescriptor
 //===----------------------------------------------------------------------===//
 
@@ -84,22 +69,11 @@ const SYCLFuncRegistry SYCLFuncRegistry::create(ModuleOp &module,
 }
 
 SYCLFuncDescriptor::FuncId
-SYCLFuncRegistry::getFuncId(SYCLFuncDescriptor::Kind kind, Type retType,
-                            TypeRange argTypes) const {
-  assert(kind != Kind::Unknown && "Invalid descriptor kind");
-  LLVM_DEBUG(llvm::dbgs() << "Looking up function of kind: "
-                          << SYCLFuncDescriptor::Id::kindToName.at(kind)
-                          << "\n";);
-
+SYCLFuncRegistry::getFuncId(Type retType, TypeRange argTypes) const {
   for (const auto &entry : registry) {
     const SYCLFuncDescriptor &desc = entry.second;
     LLVM_DEBUG(llvm::dbgs() << desc << "\n");
 
-    // Skip through entries that do not match the requested kind.
-    if (desc.descId.kind != kind) {
-      LLVM_DEBUG(llvm::dbgs() << "\tskip, kind does not match\n");
-      continue;
-    }
     // Ensure that the entry has return and arguments type that match the one
     // requested.
     if (desc.outputTy != retType) {

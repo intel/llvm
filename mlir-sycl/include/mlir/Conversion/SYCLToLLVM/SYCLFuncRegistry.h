@@ -45,30 +45,18 @@ public:
   };
   // clang-format on
 
-  /// Enumerates the descriptor kind.
-  enum class Kind {
-    Unknown,
-  };
-
-  /// Each descriptor is uniquely identified by the pair {FuncId, Kind}.
+  /// Each descriptor is uniquely identified by the pair {FuncId}.
   class Id {
   public:
     friend class SYCLFuncRegistry;
     friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Id &);
 
-    Id(FuncId id, Kind kind) : funcId(id), kind(kind) {
+    Id(FuncId id) : funcId(id) {
       assert(funcId != FuncId::Unknown && "Illegal function id");
-      assert(kind != Kind::Unknown && "Illegal descriptor kind");
     }
-
-    static std::map<SYCLFuncDescriptor::Kind, std::string> kindToName;
-
-    /// Maps a descriptive name to a Kind.
-    static std::map<std::string, SYCLFuncDescriptor::Kind> nameToKind;
 
   private:
     FuncId funcId = FuncId::Unknown;
-    Kind kind = Kind::Unknown;
   };
 
   /// Returns true if the given \p funcId is valid.
@@ -80,9 +68,9 @@ public:
                     Location loc);
 
 protected:
-  SYCLFuncDescriptor(FuncId funcId, Kind kind, StringRef name,
-                     Type outputTy, ArrayRef<Type> argTys)
-      : descId(funcId, kind), name(name), outputTy(outputTy),
+  SYCLFuncDescriptor(FuncId funcId, StringRef name, Type outputTy,
+                     ArrayRef<Type> argTys)
+      : descId(funcId), name(name), outputTy(outputTy),
         argTys(argTys.begin(), argTys.end()) {}
 
 private:
@@ -98,8 +86,7 @@ private:
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SYCLFuncDescriptor::Id &id) {
-  os << "funcId=" << (int)id.funcId
-     << ", kind=" << SYCLFuncDescriptor::Id::kindToName.at(id.kind);
+  os << "funcId=" << (int)id.funcId;
   return os;
 }
 
@@ -109,34 +96,11 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   return os;
 }
 
-//===----------------------------------------------------------------------===//
-// Derived classes specializing the generic SYCLFuncDescriptor.
-//===----------------------------------------------------------------------===//
-
-#define DEFINE_CLASS(ClassName, ClassKind)                                     \
-  class ClassName : public SYCLFuncDescriptor {                                \
-  public:                                                                      \
-    friend class SYCLFuncRegistry;                                             \
-    using FuncId = SYCLFuncDescriptor::FuncId;                                 \
-    using Kind = SYCLFuncDescriptor::Kind;                                     \
-                                                                               \
-  private:                                                                     \
-    ClassName(FuncId funcId, StringRef name, Type outputTy,                    \
-              ArrayRef<Type> argTys)                                           \
-        : SYCLFuncDescriptor(funcId, ClassKind, name, outputTy, argTys) {      \
-      assert(isValid(funcId) && "Invalid function id");                        \
-    }                                                                          \
-    virtual ~ClassName() {}                                                    \
-    bool isValid(FuncId) const override;                                       \
-  };
-#undef DEFINE_CLASS
-
 /// \class SYCLFuncRegistry
 /// Singleton class representing the set of SYCL functions callable from the
 /// compiler.
 class SYCLFuncRegistry {
   using FuncId = SYCLFuncDescriptor::FuncId;
-  using Kind = SYCLFuncDescriptor::Kind;
   using Registry = std::map<FuncId, SYCLFuncDescriptor>;
 
 public:
@@ -154,8 +118,8 @@ public:
   }
 
   /// Returns the SYCLFuncDescriptor::Id::FuncId corresponding to the function
-  /// descriptor that matches the given \p kind and signature.
-  FuncId getFuncId(Kind kind, Type retType, TypeRange argTypes) const;
+  /// descriptor that matches the given signature.
+  FuncId getFuncId(Type retType, TypeRange argTypes) const;
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);
