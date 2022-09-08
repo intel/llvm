@@ -66,5 +66,5 @@ buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
 # SYCL MLIR
-mlir-sycl/ @etiotto @whitneywhtsang @Naghasan
-polygeist/ @etiotto @whitneywhtsang @Naghasan
+mlir-sycl/ @etiotto @whitneywhtsang
+polygeist/ @etiotto @whitneywhtsang
