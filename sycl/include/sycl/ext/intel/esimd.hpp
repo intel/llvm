@@ -81,6 +81,7 @@
 
 #include <sycl/ext/intel/esimd/alt_ui.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/bfloat16_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/half_type_traits.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
