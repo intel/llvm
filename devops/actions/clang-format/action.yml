@@ -7,7 +7,7 @@ runs:
     shell: bash {0}
     run: |
       git config --global --add safe.directory /__w/llvm/llvm
-      git fetch origin sycl
+      git fetch origin sycl-mlir
       git clang-format ${GITHUB_SHA}
       git diff > ./clang-format.patch
   # Add patch with formatting fixes to CI job artifacts
