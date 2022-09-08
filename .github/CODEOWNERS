@@ -64,3 +64,7 @@ llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-es
 .github/workflows/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
+
+# SYCL MLIR
+mlir-sycl/ @etiotto @whitneywhtsang
+polygeist/ @etiotto @whitneywhtsang
