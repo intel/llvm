@@ -5,11 +5,11 @@
 //===-------------------------------------------------------------------------------------------------===//
 
 // CHECK: llvm.func @foo() -> [[MEMREF:!llvm.struct<\(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>\)>]]
-// CHECK: llvm.func @test() -> !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)> {
-// CHECK-NEXT:  %0 = llvm.call @foo() : () -> !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:  llvm.return %0 : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK: llvm.func @test() -> [[MEMREF]] {
+// CHECK-NEXT:  %0 = llvm.call @foo() : () -> [[MEMREF]]
+// CHECK-NEXT:  llvm.return %0 : [[MEMREF]]
 func.func @test() -> (memref<?xi32>) {
-  %0 = sycl.call() {Function = @"foo", MangledName = @foo, Type = @accessor} : () -> memref<?xi32>
+  %0 = sycl.call() {Function = @foo, MangledName = @foo, Type = @accessor} : () -> memref<?xi32>
   return %0 : memref<?xi32>
 }
 
