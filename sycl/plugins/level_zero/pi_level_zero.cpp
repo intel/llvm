@@ -8173,15 +8173,10 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
               PI_ERROR_INVALID_DEVICE);
   } else {
     pi_device Device;
-    if (Context->Devices.size() == 1) {
-      Device = Context->Devices[0];
-      PI_ASSERT(Device->ZeDevice == ZeDeviceHandle, PI_ERROR_INVALID_DEVICE);
-    } else {
-      // All devices in the context are of the same platform.
-      auto Platform = Context->getPlatform();
-      Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
-      PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-    }
+    // All context member devices or their descendants are of the same platform.
+    auto Platform = Context->getPlatform();
+    Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+    PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
     auto DeallocationHelper =
         [Context, Device, Ptr, OwnZeMemHandle](
