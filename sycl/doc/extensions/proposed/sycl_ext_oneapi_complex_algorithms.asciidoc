@@ -21,8 +21,10 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
-This extension adds limited support for `std::complex<float>` and
-`std::complex<double>` to several SYCL group functions and algorithms.
+This extension adds SYCL group functions and algorithms to complex types in device code.
+This includes `std::complex<float>`, `std::complex<double>`,
+`sycl::complex<sycl::half>`, `sycl::complex<float>`, `sycl::complex<double>`
+and their `marray` equivalents.
 
 == Notice
 
@@ -50,6 +52,15 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 This extension is written against the SYCL 2020 specification, Revision 4.
 
+This extension builds on the `sycl::ext::oneapi::complex` and
+`marray<sycl::ext::oneapi::complex>` classes. Therefore this extension is
+dependent on link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex]
+and
+link:sycl_ext_oneapi_complex_marray.asciidoc[sycl_ext_oneapi_complex_marray].
+Function overloads which use `std::complex` are not dependent upon the
+above extensions.
+
+
 == Feature Test Macro
 
 This extension provides a feature-test macro as described in the core SYCL
@@ -64,18 +75,25 @@ value to determine which of the extension's APIs the implementation supports.
 |===
 |Value |Description
 |1     |Initial extension version.  Base features are supported.
+|2     |Proposal is extended to other complex extensions. Multiplication binary operation is added.
 |===
 
 == Overview
 
+To reduce repetition, within this extension, `gencomplex` will be redefined to
+include `std::complex` floating point types. Therefore, `gencomplex` is defined
+as types `std::complex<float>`, `std::complex<double>`,
+`sycl::complex<sycl::half>`, `sycl::complex<float>`, and
+`sycl::complex<double>`. The extension will also refer to `mgencomplex` which
+are types `sycl::marray<sycl::complex<sycl::half>>`,
+`sycl::marray<sycl::complex<float>>`, and `sycl::marray<sycl::complex<double>>`.
+
 The types supported by some group functions and algorithms in SYCL 2020 are
 restricted to built-in scalar types and SYCL vector types. This extension
-relaxes these restrictions to permit `std::complex<float>` and
-`std::complex<double>` types.
+relaxes these restrictions to permit `gencomplex` and `mgencomplex` types.
 
 Note that the following group functions and algorithms already accept
-`std::complex<float>` arguments and `std::complex<double>` because they
-are trivially copyable:
+`gencomplex` arguments and `mgencomplex` because they are trivially copyable:
 
 - `group_broadcast`
 - `group_shift_left`
@@ -83,14 +101,17 @@ are trivially copyable:
 - `permute_group_by_xor`
 - `select_from_group`
 
-Usage of `std::complex<double>` requires support for double precision,
-and specifically the `sycl::aspect::fp64` device aspect.
+Each function is only supported if the underlying value type is also supported.
+For example, `group_broadcast` only supports
+`sycl::ext::oneapi::complex<sycl::half>` and
+`marray<sycl::ext::oneapi::complex<sycl::half>>` if the device supports
+`sycl::aspect::fp16`.
 
 == Extended Functions and Algorithms
 
-The following group functions and algorithms accept `std::complex<float>`
-and `std::complex<double>` arguments only when used with a `BinaryOperation`
-argument of `sycl::plus`:
+The following group functions and algorithms accept `gencomplex` arguments
+only when used with a `BinaryOperation` argument of `sycl::plus` and
+`sycl::multiplies`. These operations do not support `mgencomplex`:
 
 - `joint_reduce`
 - `reduce_over_group`
@@ -98,10 +119,6 @@ argument of `sycl::plus`:
 - `exclusive_scan_over_group`
 - `joint_inclusive_scan`
 - `inclusive_scan_over_group`
-
-NOTE: `sycl::multiplies` is not currently supported because it cannot be
-implemented as an element-wise operation on the real and imaginary components.
-This restriction may be lifted in a future version of the extension.
 
 NOTE: `sycl::bit_and`, `sycl::bit_or`, `sycl::bit_xor`, `sycl::logical_and`,
 `sycl::logical_or`, `sycl::minimum` and `sycl::maximum` are not supported
@@ -126,4 +143,5 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-12-08|John Pennycook|*Initial public working draft*
+|2|2022-31-08|Aidan Belton|*Extend to support sycl complex extension and multiplication binary operation*
 |========================================
