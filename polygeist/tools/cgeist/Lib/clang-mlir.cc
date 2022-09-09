@@ -136,10 +136,11 @@ void MLIRScanner::initSupportedFunctions() {
                         "ifIXeqT_Li1EEmE4typeE");
   supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ERKS3_");
   supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1Ev");
-  supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
+  // TODO: Add support to the commented out functions.
+  // supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
   supportedFuncs.insert(
       "_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
-  supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
+  // supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
 }
 
 void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
