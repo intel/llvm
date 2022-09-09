@@ -1614,7 +1614,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
   if (!getLangOpts().OptRecordFile.empty()) {
     SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
-    if (Fn && SyclOptReport.HasOptReportInfo(FD)) {
+    if (SyclOptReport.HasOptReportInfo(FD)) {
       llvm::OptimizationRemarkEmitter ORE(Fn);
       for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
         llvm::DiagnosticLocation DL =
