@@ -16,7 +16,12 @@
 
 int main() {
   queue Queue;
-  check<double>(Queue);
-  std::cout << "Test passed." << std::endl;
+  if (Queue.get_device().has(sycl::aspect::fp64)) {
+    check<double>(Queue);
+    std::cout << "Test passed." << std::endl;
+  } else {
+    std::cout << "Test skipped because device doesn't support aspect::fp64"
+              << std::endl;
+  }
   return 0;
 }

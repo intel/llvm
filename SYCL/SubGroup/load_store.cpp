@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -262,14 +262,16 @@ int main() {
     check<aligned_ulong, 4>(Queue);
     check<aligned_ulong, 8>(Queue);
     check<aligned_ulong, 16>(Queue);
-    typedef double aligned_double __attribute__((aligned(16)));
-    check<aligned_double>(Queue);
-    check<aligned_double, 1>(Queue);
-    check<aligned_double, 2>(Queue);
-    check<aligned_double, 3>(Queue);
-    check<aligned_double, 4>(Queue);
-    check<aligned_double, 8>(Queue);
-    check<aligned_double, 16>(Queue);
+    if (Queue.get_device().has(sycl::aspect::fp64)) {
+      typedef double aligned_double __attribute__((aligned(16)));
+      check<aligned_double>(Queue);
+      check<aligned_double, 1>(Queue);
+      check<aligned_double, 2>(Queue);
+      check<aligned_double, 3>(Queue);
+      check<aligned_double, 4>(Queue);
+      check<aligned_double, 8>(Queue);
+      check<aligned_double, 16>(Queue);
+    }
   }
   std::cout << "Test passed." << std::endl;
   return 0;
