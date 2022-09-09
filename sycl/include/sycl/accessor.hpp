@@ -2374,7 +2374,9 @@ public:
 #endif
 
 public:
-  iterator begin() const noexcept { return &this->operator[](id<Dimensions>()); }
+  iterator begin() const noexcept {
+    return &this->operator[](id<Dimensions>());
+  }
   iterator end() const noexcept { return begin() + this->size(); }
 
   const_iterator cbegin() const noexcept { return const_iterator(begin()); }
