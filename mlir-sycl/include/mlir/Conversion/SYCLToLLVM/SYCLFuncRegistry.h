@@ -45,20 +45,6 @@ public:
   };
   // clang-format on
 
-  /// Each descriptor is uniquely identified by the pair {FuncId}.
-  class Id {
-  public:
-    friend class SYCLFuncRegistry;
-    friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Id &);
-
-    Id(FuncId id) : funcId(id) {
-      assert(funcId != FuncId::Unknown && "Illegal function id");
-    }
-
-  private:
-    FuncId funcId = FuncId::Unknown;
-  };
-
   /// Returns true if the given \p funcId is valid.
   virtual bool isValid(FuncId funcId) const { return false; };
 
@@ -70,14 +56,14 @@ public:
 protected:
   SYCLFuncDescriptor(FuncId funcId, StringRef name, Type outputTy,
                      ArrayRef<Type> argTys)
-      : descId(funcId), name(name), outputTy(outputTy),
+      : funcId(funcId), name(name), outputTy(outputTy),
         argTys(argTys.begin(), argTys.end()) {}
 
 private:
   /// Inject the declaration for this function into the module.
   void declareFunction(ModuleOp &module, OpBuilder &b);
 
-  Id descId;                   // unique identifier
+  FuncId funcId;               // unique identifier
   StringRef name;              // SYCL function name
   Type outputTy;               // SYCL function output type
   SmallVector<Type, 4> argTys; // SYCL function arguments types
@@ -85,14 +71,8 @@ private:
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                     const SYCLFuncDescriptor::Id &id) {
-  os << "funcId=" << (int)id.funcId;
-  return os;
-}
-
-inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SYCLFuncDescriptor &desc) {
-  os << "(" << desc.descId << ", name='" << desc.name.str() << "')";
+  os << "(funcId=" << (int)desc.funcId << ", name='" << desc.name.str() << "')";
   return os;
 }
 

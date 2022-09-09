@@ -95,7 +95,7 @@ SYCLFuncRegistry::getFuncId(Type retType, TypeRange argTypes) const {
       continue;
     }
 
-    return desc.descId.funcId;
+    return desc.funcId;
   }
 
   llvm_unreachable("Could not find function id");
@@ -109,7 +109,11 @@ SYCLFuncRegistry::SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder)
   LLVMTypeConverter converter(context, options);
   populateSYCLToLLVMTypeConversion(converter);
 
-  // Invoke declare derived function descriptors here.
+  // clang-format off
+  std::vector<SYCLFuncDescriptor> descriptors = {
+  };
+  // clang-format on
+  declareFuncDescriptors(descriptors, module, builder);
 }
 
 void SYCLFuncRegistry::declareFuncDescriptors(
@@ -118,6 +122,6 @@ void SYCLFuncRegistry::declareFuncDescriptors(
   // Declare function descriptors and add them to the registry.
   for (SYCLFuncDescriptor &desc : descriptors) {
     desc.declareFunction(module, builder);
-    registry.emplace(desc.descId.funcId, desc);
+    registry.emplace(desc.funcId, desc);
   }
 }
