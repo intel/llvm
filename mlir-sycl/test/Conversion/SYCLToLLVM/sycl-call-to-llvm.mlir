@@ -1,6 +1,24 @@
 // RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
 
 //===-------------------------------------------------------------------------------------------------===//
+// sycl.call with non void return type
+//===-------------------------------------------------------------------------------------------------===//
+
+// CHECK: llvm.func @foo() -> [[MEMREF:!llvm.struct<\(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>\)>]]
+// CHECK: llvm.func @test() -> [[MEMREF]] {
+// CHECK-NEXT:  %0 = llvm.call @foo() : () -> [[MEMREF]]
+// CHECK-NEXT:  llvm.return %0 : [[MEMREF]]
+
+func.func private @foo() -> (memref<?xi32>)
+
+func.func @test() -> (memref<?xi32>) {
+  %0 = sycl.call() {Function = @foo, MangledName = @foo, Type = @accessor} : () -> memref<?xi32>
+  return %0 : memref<?xi32>
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
 // Member functions for sycl::accessor
 //===-------------------------------------------------------------------------------------------------===//
 
