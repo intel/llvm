@@ -584,8 +584,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 template <typename T, uint8_t NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
-__ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+          int N = 1>
+__ESIMD_API void lsc_prefetch(const T *p,
+                              __ESIMD_NS::simd<uint32_t, N> offsets = 0,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -603,26 +604,6 @@ __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __esimd_lsc_prefetch_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
                                  _DS, _VS, _Transposed, N>(pred.data(),
                                                            addrs.data());
-}
-
-/// USM pointer prefetch transposed gather with 1 channel.
-/// Supported platforms: DG2, PVC
-/// VISA instruction: lsc_load.ugm
-///
-/// Prefetches elements located at specified address.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @param p is the base pointer.
-///
-template <typename T, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API void lsc_prefetch(const T *p) {
-  lsc_prefetch<T, NElts, DS, L1H, L3H, 1>(p, 0);
 }
 
 /// Accessor-based prefetch gather.
