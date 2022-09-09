@@ -138,7 +138,7 @@ located on the `peer` device.
 currently enabled from this device to the `peer` device.
 
 * `ext::oneapi::peer_access::atomics_supported`: When this query returns true,
-it indicates that this device may perform atomic operationson USM device memory
+it indicates that this device may perform atomic operations on USM device memory
 allocations located on the `peer` device when peer access is enabled to that
 device. If the query returns false, attempting to perform atomic operations on
 `peer` memory will have undefined behavior.
