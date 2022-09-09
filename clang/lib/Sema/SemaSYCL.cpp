@@ -1859,115 +1859,109 @@ public:
   }
 };
 
-static CXXRecordDecl *createNewType(ASTContext &Ctx, const CXXRecordDecl *RD) {
-  auto *ModifiedRD = CXXRecordDecl::Create(
-      Ctx, TTK_Struct, const_cast<DeclContext *>(RD->getDeclContext()),
-      SourceLocation(), SourceLocation(), RD->getIdentifier());
-  ModifiedRD->startDefinition();
-  return ModifiedRD;
-}
-
 class SyclKernelPointerHandler : public SyclKernelFieldHandler {
   llvm::SmallVector<CXXRecordDecl *, 8> ModifiedRecords;
   SmallVector<CXXBaseSpecifier *, 8> ModifiedBases;
 
+  IdentifierInfo *getModifiedName(IdentifierInfo *Id) {
+    std::string Name = (Id->getName() + Twine("_generated")).str();
+    return &SemaRef.getASTContext().Idents.get(Name);
+  }
+
+  // Create Decl for the new type we are generating.
+  // The fields (and base classes) of this record will be generated as
+  // the visitor traverses kernel object record fields.
+  void createNewType(const CXXRecordDecl *RD) {
+    auto *ModifiedRD = CXXRecordDecl::Create(
+        SemaRef.getASTContext(), TTK_Struct,
+        const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
+        SourceLocation(), getModifiedName(RD->getIdentifier()));
+    ModifiedRD->startDefinition();
+    ModifiedRecords.push_back(ModifiedRD);
+  }
+
+  // Create and add FieldDecl for FieldTy to generated record.
   void addField(const FieldDecl *FD, QualType FieldTy) {
     assert(!ModifiedRecords.empty() &&
            "ModifiedRecords should have at least 1 record");
     ASTContext &Ctx = SemaRef.getASTContext();
     auto *Field = FieldDecl::Create(
         Ctx, ModifiedRecords.back(), SourceLocation(), SourceLocation(),
-        FD->getIdentifier(), FieldTy,
+        getModifiedName(FD->getIdentifier()), FieldTy,
         Ctx.getTrivialTypeSourceInfo(FieldTy, SourceLocation()), /*BW=*/nullptr,
         /*Mutable=*/false, ICIS_NoInit);
     Field->setAccess(FD->getAccess());
+    // Add generated field to generated record.
     ModifiedRecords.back()->addDecl(Field);
   }
 
-  void createBaseSpecifier(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) {
+  void createBaseSpecifier(const CXXRecordDecl *Parent, const CXXRecordDecl *RD,
+                           const CXXBaseSpecifier &BS) {
     TypeSourceInfo *TInfo = SemaRef.getASTContext().getTrivialTypeSourceInfo(
         QualType(RD->getTypeForDecl(), 0), SourceLocation());
     CXXBaseSpecifier *ModifiedBase = SemaRef.CheckBaseSpecifier(
-        const_cast<CXXRecordDecl *>(RD), SourceRange(), BS.isVirtual(),
+        const_cast<CXXRecordDecl *>(Parent), SourceRange(), BS.isVirtual(),
         BS.getAccessSpecifier(), TInfo, SourceLocation());
     ModifiedBases.push_back(ModifiedBase);
+  }
 
+  CXXRecordDecl *getGeneratedNewRecord(const CXXRecordDecl *OldBaseDecl) {
+    // At this point we have finished generating fields for the new
+    // class corresponding to OldBaseDecl. Pop out the generated
+    // record.
+    CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
+    ModifiedRD->completeDefinition();
+    // Check the 'old' class for base classes.
+    // Set bases classes for newly generated class if it has any.
+    if (OldBaseDecl->getNumBases() > 0) {
+      SmallVector<CXXBaseSpecifier *, 8> BasesForGeneratedClass;
+      for (size_t I = 0; I < OldBaseDecl->getNumBases(); ++I)
+        BasesForGeneratedClass.insert(BasesForGeneratedClass.begin(),
+                                      ModifiedBases.pop_back_val());
+      ModifiedRD->setBases(BasesForGeneratedClass.data(),
+                           OldBaseDecl->getNumBases());
+    }
+    return ModifiedRD;
   }
 
 public:
   static constexpr const bool VisitInsideSimpleContainersWithPointer = true;
   SyclKernelPointerHandler(Sema &S, const CXXRecordDecl *RD)
       : SyclKernelFieldHandler(S) {
-    CXXRecordDecl *ModifiedRD = createNewType(S.getASTContext(), RD);
-    ModifiedRecords.push_back(ModifiedRD);
+    // Generate new type
+    createNewType(RD);
   }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    // Create the new record type. The fields (and base classes) of this
-    // record will be generated as the visitor traverses kernel object
-    // record fields.
-    //
-    //  Elizabeth - Move this out to separate function
-    auto *RD = Ty->getAsCXXRecordDecl();
-    auto *ModifiedRD = CXXRecordDecl::Create(
-        SemaRef.getASTContext(), TTK_Struct,
-        const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
-        SourceLocation(), RD->getIdentifier());
-    ModifiedRD->startDefinition();
-    ModifiedRecords.push_back(ModifiedRD);
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+    // Generate new type
+    createNewType(Ty->getAsCXXRecordDecl());
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    // At this point, the new type has been created. Add this record as a field
-    // of it's parent record.
-    CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
-    ModifiedRD->completeDefinition();
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    // Get Decl of generated new type
+    CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
+
+    // Add this record as a field of it's parent record.
     if (!ModifiedRecords.empty())
       addField(FD, QualType(ModifiedRD->getTypeForDecl(), 0));
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                   QualType FieldTy) final {
-    // Create the new record type. The fields (and base classes) of this
-    // record will be generated as the visitor traverses kernel object
-    // record fields.
-    auto *RD = FieldTy->getAsCXXRecordDecl();
-    auto *ModifiedRD = CXXRecordDecl::Create(
-        SemaRef.getASTContext(), TTK_Struct,
-        const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
-        SourceLocation(), RD->getIdentifier());
-    ModifiedRD->startDefinition();
-    ModifiedRecords.push_back(ModifiedRD);
+  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                   QualType Ty) final {
+    // Generate new type
+    createNewType(Ty->getAsCXXRecordDecl());
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
-                   QualType FieldTy) final {
-    // Pop out generated class.
-    CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
-    ModifiedRD->completeDefinition();
-
-    // If all bases classes for RD have been created, set the bases.
-    // Doesn't work for multi-level inheritance'
-    // Instead of handling parent decl, handle base classes for current struct itself?
-    //if (RD->getNumBases() == ModifiedBases.size()) {
-      //ModifiedRecords.back()->setBases(ModifiedBases.data(), RD->getNumBases());
-      //ModifiedBases.clear();
-    //}
-
-    const auto *OldBaseDecl = FieldTy->getAsCXXRecordDecl();
-    
-    if (OldBaseDecl->getNumBases() > 0) {
-      SmallVector<CXXBaseSpecifier *, 8> BasesForGeneratedClass;
-      for (size_t I = 0; I < RD->getNumBases(); ++I)
-        BasesForGeneratedClass.push_back(ModifiedBases.pop_back_val());
-      ModifiedRD->setBases(BasesForGeneratedClass.data(), RD->getNumBases());
-    }
+  bool leaveStruct(const CXXRecordDecl *Parent, const CXXBaseSpecifier &BS,
+                   QualType Ty) final {
+    // Get Decl of generated new type
+    CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
 
     // Create CXXBaseSpecifier for this generated class.
-    createBaseSpecifier(ModifiedRD, BS);
+    createBaseSpecifier(Parent, ModifiedRD, BS);
     return true;
   }
 
@@ -1985,8 +1979,8 @@ public:
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
     addField(FD, ModTy);
     return true;
-    // Elizabeth - Do we care about pointer wrapping. We are already one level
-    // in at this point right?
+    // We do not need to wrap pointers since this is a pointer inside
+    // non-decomposed struct.
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
@@ -1998,23 +1992,15 @@ public:
     return handleScalarType(FD, FieldTy);
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *RD, FieldDecl *FD,
-                              QualType Ty) final {
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
     addField(FD, Ty);
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+  bool handleNonDecompStruct(const CXXRecordDecl *Parent,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    // Elizabeth - Fix this
-    /*createBaseSpecifier(Base, BS);
-
-    if (Base->getNumBases() > 0) {
-      SmallVector<CXXBaseSpecifier *, 8> BasesForGeneratedClass;
-      for (size_t I = 0; I < Base->getNumBases(); ++I)
-        BasesForGeneratedClass.push_back(ModifiedBases.pop_back_val());
-      ModifiedRecords.back()->setBases(BasesForGeneratedClass.data(), Base->getNumBases());
-    }*/
+    createBaseSpecifier(Parent, Ty->getAsCXXRecordDecl(), BS);
     return true;
   }
 
@@ -2022,6 +2008,12 @@ public:
   QualType getNewType() {
     CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
     ModifiedRD->completeDefinition();
+
+    // Elizabeth - Check if this will work if kernel functor has generated
+    // base class.
+    if (!ModifiedBases.empty())
+      ModifiedRD->setBases(ModifiedBases.data(), ModifiedBases.size());
+
     return QualType(ModifiedRD->getTypeForDecl(), 0);
   }
 
