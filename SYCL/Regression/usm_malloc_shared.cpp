@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 // This test checks if users will successfully allocate 160, 0, and -16 bytes of

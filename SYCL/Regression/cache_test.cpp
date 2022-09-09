@@ -134,8 +134,8 @@ int main() {
   std::vector<sycl::device> device_list;
   for (const auto &plt : sycl::platform::get_platforms()) {
     std::cout << "Platform " << pindex++ << " "
-              << ((plt.is_host()) ? "host" : "") << " ("
-              << plt.get_info<sycl::info::platform::name>() << ")" << std::endl;
+              << " (" << plt.get_info<sycl::info::platform::name>() << ")"
+              << std::endl;
     platform_list.push_back(plt);
 
     int dindex = 1;

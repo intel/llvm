@@ -108,7 +108,6 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
   //   gpu L0, opencl
   //   cpu
   //   acc
-  //   host
   const std::map<info::device_type, int> scoreByType = {
       {info::device_type::cpu, 300},
       {info::device_type::gpu, 500},
@@ -212,17 +211,6 @@ int main() {
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
-  }
-  targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::host);
-  assert((targetDevIndex >= 0 || deviceNum != 0) &&
-         "Failed to find host device.");
-  if (targetDevIndex >= 0) {
-    host_selector hs;
-    device d = hs.select_device();
-    std::cout << "host_selector selected ";
-    printDeviceType(d);
-    assert(devices[targetDevIndex] == d &&
-           "The selected device is not a host device.");
   }
 
   return 0;

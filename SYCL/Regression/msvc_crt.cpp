@@ -1,10 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple /MD -o %t1.exe %s
-// RUN: %HOST_RUN_PLACEHOLDER %t1.exe
 // RUN: %CPU_RUN_PLACEHOLDER %t1.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t1.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t1.exe
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple /MDd -o %t2.exe %s
-// RUN: %HOST_RUN_PLACEHOLDER %t2.exe
 // RUN: %CPU_RUN_PLACEHOLDER %t2.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t2.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t2.exe
