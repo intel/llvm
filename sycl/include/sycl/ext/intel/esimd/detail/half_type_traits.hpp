@@ -20,22 +20,28 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::esimd::detail {
 
-template <class T>
-struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
-  // Can't use sycl::detail::half_impl::StorageT as RawT for both host and
-  // device as it still maps to struct on/ host (even though the struct is a
-  // trivial wrapper around uint16_t), and for ESIMD we need a type which can be
-  // an element of clang vector.
+// Standalone definitions to use w/o instantiating element_type_traits.
 #ifdef __SYCL_DEVICE_ONLY__
-  using RawT = sycl::detail::half_impl::StorageT;
-  // On device, _Float16 is native Cpp type, so it is the enclosing C++ type
-  using EnclosingCppT = RawT;
+// Can't use sycl::detail::half_impl::StorageT as RawT for both host and
+// device as it still maps to struct on/ host (even though the struct is a
+// trivial wrapper around uint16_t), and for ESIMD we need a type which can be
+// an element of clang vector.
+using half_raw_type = sycl::detail::half_impl::StorageT;
+// On device, _Float16 is native Cpp type, so it is the enclosing C++ type
+using half_enclosing_cpp_type = half_raw_type;
+#else
+using half_raw_type = uint16_t;
+using half_enclosing_cpp_type = float;
+#endif // __SYCL_DEVICE_ONLY__
+
+template <> struct element_type_traits<sycl::half> {
+  using RawT = half_raw_type;
+  using EnclosingCppT = half_enclosing_cpp_type;
+#ifdef __SYCL_DEVICE_ONLY__
   // On device, operations on half are translated to operations on _Float16,
   // which is natively supported by the device compiler
   static inline constexpr bool use_native_cpp_ops = true;
 #else
-  using RawT = uint16_t;
-  using EnclosingCppT = float;
   // On host, we can't use native Cpp '+', '-' etc. over uint16_t to emulate the
   // operations on half type.
   static inline constexpr bool use_native_cpp_ops = false;
@@ -47,8 +53,8 @@ struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
 // ------------------- Type conversion traits
 
 template <int N> struct vector_conversion_traits<sycl::half, N> {
-  using StdT = __cpp_t<sycl::half>;
-  using RawT = __raw_t<sycl::half>;
+  using StdT = half_enclosing_cpp_type;
+  using RawT = half_raw_type;
 
   static ESIMD_INLINE vector_type_t<RawT, N>
   convert_to_raw(vector_type_t<StdT, N> Val)
@@ -57,7 +63,7 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
       ;
 #else
   {
-    vector_type_t<__raw_t<sycl::half>, N> Output = 0;
+    vector_type_t<half_raw_type, N> Output = 0;
 
     for (int i = 0; i < N; i += 1) {
       // 1. Convert Val[i] to float (x) using c++ static_cast
@@ -89,46 +95,46 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-// WrapperElementTypeProxy (a friend of sycl::half) must be used to access
-// private fields of the sycl::half.
-template <>
-ESIMD_INLINE __raw_t<sycl::half>
-WrapperElementTypeProxy::bitcast_to_raw_scalar<sycl::half>(sycl::half Val) {
+// Proxy class to access bit representation of a wrapper type both on host and
+// device. Declared as friend to the sycl::half.
+// TODO add this functionality to sycl type implementation? With C++20,
+// std::bit_cast should be a good replacement.
+class WrapperElementTypeProxy {
+public:
+  static ESIMD_INLINE half_raw_type bitcast_to_raw_scalar(sycl::half Val) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return Val.Data;
+    return Val.Data;
 #else
-  return Val.Data.Buf;
+    return Val.Data.Buf;
 #endif // __SYCL_DEVICE_ONLY__
-}
+  }
 
-template <>
-ESIMD_INLINE sycl::half
-WrapperElementTypeProxy::bitcast_to_wrapper_scalar<sycl::half>(
-    __raw_t<sycl::half> Val) {
+  static ESIMD_INLINE sycl::half bitcast_to_wrapper_scalar(half_raw_type Val) {
 #ifndef __SYCL_DEVICE_ONLY__
-  return sycl::half(::sycl::detail::host_half_impl::half(Val));
+    return sycl::half(::sycl::detail::host_half_impl::half(Val));
 #else
-  sycl::half Res;
-  Res.Data = Val;
-  return Res;
+    sycl::half Res;
+    Res.Data = Val;
+    return Res;
 #endif // __SYCL_DEVICE_ONLY__
-}
+  }
+};
 
 template <> struct scalar_conversion_traits<sycl::half> {
-  using RawT = __raw_t<sycl::half>;
+  using RawT = half_raw_type;
 
   static ESIMD_INLINE RawT bitcast_to_raw(sycl::half Val) {
-    return WrapperElementTypeProxy::bitcast_to_raw_scalar<sycl::half>(Val);
+    return WrapperElementTypeProxy::bitcast_to_raw_scalar(Val);
   }
 
   static ESIMD_INLINE sycl::half bitcast_to_wrapper(RawT Val) {
-    return WrapperElementTypeProxy::bitcast_to_wrapper_scalar<sycl::half>(Val);
+    return WrapperElementTypeProxy::bitcast_to_wrapper_scalar(Val);
   }
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <>
-struct is_esimd_arithmetic_type<__raw_t<sycl::half>, void> : std::true_type {};
+struct is_esimd_arithmetic_type<half_raw_type, void> : std::true_type {};
 #endif // __SYCL_DEVICE_ONLY__
 
 // Misc

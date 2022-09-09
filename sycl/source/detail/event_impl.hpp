@@ -212,6 +212,11 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Returns worker queue for command.
+  ///
+  /// @return a reference to MWorkerQueue.
+  QueueImplPtr &getWorkerQueue() { return MWorkerQueue; };
+
   /// Checks if an event is in a fully intialized state. Default-constructed
   /// events will return true only after having initialized its native event,
   /// while other events will assume that they are fully initialized at
@@ -242,6 +247,8 @@ private:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+
+  QueueImplPtr MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
