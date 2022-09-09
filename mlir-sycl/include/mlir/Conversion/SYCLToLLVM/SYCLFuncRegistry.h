@@ -42,77 +42,8 @@ public:
   // clang-format off
   enum class FuncId {
     Unknown, 
-
-    // Member functions for the sycl:accessor class.
-    AccessorInt1ReadWriteGlobalBufferFalseCtorDefault, // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
-                                                       //   accessor()
-    AccessorInt1ReadWriteGlobalBufferFalseInit,        // sycl::accessor<int, 1, read_write, global_buffer, (placeholder)0>::
-                                                       //   __init(int AS1*, sycl::range<1>, sycl::range<1>, sycl::id<1>)
-
-    // Member functions for the sycl:id<n> class.
-    Id1CtorDefault, // sycl::id<1>::id()
-    Id2CtorDefault, // sycl::id<2>::id()
-    Id3CtorDefault, // sycl::id<3>::id()
-    Id1CtorSizeT,   // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type)
-    Id2CtorSizeT,   // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type)
-    Id3CtorSizeT,   // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type)
-    Id1Ctor2SizeT,  // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long)
-    Id2Ctor2SizeT,  // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long)
-    Id3Ctor2SizeT,  // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long)
-    Id1Ctor3SizeT,  // sycl::id<1>::id<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
-    Id2Ctor3SizeT,  // sycl::id<2>::id<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
-    Id3Ctor3SizeT,  // sycl::id<3>::id<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-    Id1CopyCtor,    // sycl::id<1>::id(sycl::id<1> const&)
-    Id2CopyCtor,    // sycl::id<2>::id(sycl::id<2> const&)
-    Id3CopyCtor,    // sycl::id<3>::id(sycl::id<3> const&)
-    
-    // Member functions for the sycl::Range<n> class.
-    Range1CtorDefault, // sycl::Range<1>::range()
-    Range2CtorDefault, // sycl::range<2>::range()
-    Range3CtorDefault, // sycl::range<3>::range()
-    Range1CtorSizeT,   // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type)
-    Range2CtorSizeT,   // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type)
-    Range3CtorSizeT,   // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type)
-    Range1Ctor2SizeT,  // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long)
-    Range2Ctor2SizeT,  // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long)
-    Range3Ctor2SizeT,  // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long)
-    Range1Ctor3SizeT,  // sycl::range<1>::range<1>(std::enable_if<(1)==(1), unsigned long>::type, unsigned long, unsigned long)
-    Range2Ctor3SizeT,  // sycl::range<2>::range<2>(std::enable_if<(2)==(2), unsigned long>::type, unsigned long, unsigned long)
-    Range3Ctor3SizeT,  // sycl::range<3>::range<3>(std::enable_if<(3)==(3), unsigned long>::type, unsigned long, unsigned long)
-    Range1CopyCtor,    // sycl::range<1>::range(sycl::range<1> const&)
-    Range2CopyCtor,    // sycl::range<2>::range(sycl::range<2> const&)
-    Range3CopyCtor,    // sycl::range<3>::range(sycl::range<3> const&)
   };
   // clang-format on
-
-  /// Enumerates the descriptor kind.
-  enum class Kind {
-    Unknown,
-    Accessor, // sycl::accessor class
-    Id,       // sycl::id<n> class
-    Range,    // sycl::range<n> class
-  };
-
-  /// Each descriptor is uniquely identified by the pair {FuncId, Kind}.
-  class Id {
-  public:
-    friend class SYCLFuncRegistry;
-    friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Id &);
-
-    Id(FuncId id, Kind kind) : funcId(id), kind(kind) {
-      assert(funcId != FuncId::Unknown && "Illegal function id");
-      assert(kind != Kind::Unknown && "Illegal descriptor kind");
-    }
-
-    static std::map<SYCLFuncDescriptor::Kind, std::string> kindToName;
-
-    /// Maps a descriptive name to a Kind.
-    static std::map<std::string, SYCLFuncDescriptor::Kind> nameToKind;
-
-  private:
-    FuncId funcId = FuncId::Unknown;
-    Kind kind = Kind::Unknown;
-  };
 
   /// Returns true if the given \p funcId is valid.
   virtual bool isValid(FuncId funcId) const { return false; };
@@ -123,16 +54,16 @@ public:
                     Location loc);
 
 protected:
-  SYCLFuncDescriptor(FuncId funcId, Kind kind, StringRef name,
-                     Type outputTy, ArrayRef<Type> argTys)
-      : descId(funcId, kind), name(name), outputTy(outputTy),
+  SYCLFuncDescriptor(FuncId funcId, StringRef name, Type outputTy,
+                     ArrayRef<Type> argTys)
+      : funcId(funcId), name(name), outputTy(outputTy),
         argTys(argTys.begin(), argTys.end()) {}
 
 private:
   /// Inject the declaration for this function into the module.
   void declareFunction(ModuleOp &module, OpBuilder &b);
 
-  Id descId;                   // unique identifier
+  FuncId funcId;               // unique identifier
   StringRef name;              // SYCL function name
   Type outputTy;               // SYCL function output type
   SmallVector<Type, 4> argTys; // SYCL function arguments types
@@ -140,49 +71,16 @@ private:
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                     const SYCLFuncDescriptor::Id &id) {
-  os << "funcId=" << (int)id.funcId
-     << ", kind=" << SYCLFuncDescriptor::Id::kindToName.at(id.kind);
-  return os;
-}
-
-inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SYCLFuncDescriptor &desc) {
-  os << "(" << desc.descId << ", name='" << desc.name.str() << "')";
+  os << "(funcId=" << (int)desc.funcId << ", name='" << desc.name.str() << "')";
   return os;
 }
-
-//===----------------------------------------------------------------------===//
-// Derived classes specializing the generic SYCLFuncDescriptor.
-//===----------------------------------------------------------------------===//
-
-#define DEFINE_CLASS(ClassName, ClassKind)                                     \
-  class ClassName : public SYCLFuncDescriptor {                                \
-  public:                                                                      \
-    friend class SYCLFuncRegistry;                                             \
-    using FuncId = SYCLFuncDescriptor::FuncId;                                 \
-    using Kind = SYCLFuncDescriptor::Kind;                                     \
-                                                                               \
-  private:                                                                     \
-    ClassName(FuncId funcId, StringRef name, Type outputTy,                    \
-              ArrayRef<Type> argTys)                                           \
-        : SYCLFuncDescriptor(funcId, ClassKind, name, outputTy, argTys) {      \
-      assert(isValid(funcId) && "Invalid function id");                        \
-    }                                                                          \
-    virtual ~ClassName() {}                                                    \
-    bool isValid(FuncId) const override;                                       \
-  };
-DEFINE_CLASS(SYCLAccessorFuncDescriptor, Kind::Accessor)
-DEFINE_CLASS(SYCLIdFuncDescriptor, Kind::Id)
-DEFINE_CLASS(SYCLRangeFuncDescriptor, Kind::Range)
-#undef DEFINE_CLASS
 
 /// \class SYCLFuncRegistry
 /// Singleton class representing the set of SYCL functions callable from the
 /// compiler.
 class SYCLFuncRegistry {
   using FuncId = SYCLFuncDescriptor::FuncId;
-  using Kind = SYCLFuncDescriptor::Kind;
   using Registry = std::map<FuncId, SYCLFuncDescriptor>;
 
 public:
@@ -200,24 +98,11 @@ public:
   }
 
   /// Returns the SYCLFuncDescriptor::Id::FuncId corresponding to the function
-  /// descriptor that matches the given \p kind and signature.
-  FuncId getFuncId(Kind kind, Type retType, TypeRange argTypes) const;
+  /// descriptor that matches the given signature.
+  FuncId getFuncId(Type retType, TypeRange argTypes) const;
 
 private:
   SYCLFuncRegistry(ModuleOp &module, OpBuilder &builder);
-
-  /// Declare sycl::accessor<n> function descriptors and add them to the
-  /// registry.
-  void declareAccessorFuncDescriptors(LLVMTypeConverter &converter,
-                                      ModuleOp &module, OpBuilder &builder);
-
-  /// Declare sycl::id<n> function descriptors and add them to the registry.
-  void declareIdFuncDescriptors(LLVMTypeConverter &converter, ModuleOp &module,
-                                OpBuilder &builder);
-
-  /// Declare sycl::range<n> function descriptors and add them to the registry.
-  void declareRangeFuncDescriptors(LLVMTypeConverter &converter,
-                                   ModuleOp &module, OpBuilder &builder);
 
   /// Declare function descriptors and add them to the registry.
   void declareFuncDescriptors(std::vector<SYCLFuncDescriptor> &descriptors,

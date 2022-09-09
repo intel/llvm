@@ -14,7 +14,6 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
-#include "mlir/Conversion/SYCLToLLVM/SYCLFuncRegistry.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
@@ -213,26 +212,20 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
 class CallPattern final : public SYCLToLLVMConversion<sycl::SYCLCallOp> {
 public:
   using SYCLToLLVMConversion<sycl::SYCLCallOp>::SYCLToLLVMConversion;
-  using FuncId = SYCLFuncDescriptor::FuncId;
-  using Kind = SYCLFuncDescriptor::Kind;
 
   LogicalResult
   matchAndRewrite(sycl::SYCLCallOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
     assert(op.Type().has_value() &&
            "Expecting op.Type() to have a valid value");
-    StringRef typeName = op.Type().value();
-    Kind kind = SYCLFuncDescriptor::Id::nameToKind.at(typeName.str());
-    assert((kind != Kind::Unknown) && "unknown descriptor kind");
-    return rewriteCall(kind, op, opAdaptor, rewriter);
+    return rewriteCall(op, opAdaptor, rewriter);
   }
 
 private:
   /// Rewrite sycl.call() {Function = *, Type = *} to a LLVM call to the
   /// appropriate member function.
-  LogicalResult rewriteCall(Kind kind, SYCLCallOp op, OpAdaptor opAdaptor,
+  LogicalResult rewriteCall(SYCLCallOp op, OpAdaptor opAdaptor,
                             ConversionPatternRewriter &rewriter) const {
-    assert((kind != Kind::Unknown) && "Unexpected descriptor kind");
     LLVM_DEBUG(llvm::dbgs() << "CallPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
@@ -272,24 +265,18 @@ class ConstructorPattern final
     : public SYCLToLLVMConversion<sycl::SYCLConstructorOp> {
 public:
   using SYCLToLLVMConversion<sycl::SYCLConstructorOp>::SYCLToLLVMConversion;
-  using FuncId = SYCLFuncDescriptor::FuncId;
-  using Kind = SYCLFuncDescriptor::Kind;
 
   LogicalResult
   matchAndRewrite(SYCLConstructorOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteConstructor(
-        SYCLFuncDescriptor::Id::nameToKind.at(op.Type().str()), op, opAdaptor,
-        rewriter);
+    return rewriteConstructor(op, opAdaptor, rewriter);
   }
 
 private:
   /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
   /// constructor function.
-  LogicalResult rewriteConstructor(Kind kind, SYCLConstructorOp op,
-                                   OpAdaptor opAdaptor,
+  LogicalResult rewriteConstructor(SYCLConstructorOp op, OpAdaptor opAdaptor,
                                    ConversionPatternRewriter &rewriter) const {
-    assert((kind != Kind::Unknown) && "Unexpected descriptor kind");
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
