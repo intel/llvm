@@ -9,7 +9,6 @@ double alloc() {
 }
 
 // clang-format off
-
 // CHECK:   func @alloc() -> f64
 // CHECK-NEXT:     %cst = arith.constant 9.9999999999999995E-7 : f64
 // CHECK-NEXT:     %0 = memref.alloca() : memref<1x2xi64>
