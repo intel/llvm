@@ -23,9 +23,9 @@ int main() {
   std::vector<device> Accels;
   std::vector<device> Devs;
 
-  CPUs = device::get_devices(info::device_type::cpu);
-  GPUs = device::get_devices(info::device_type::gpu);
-  Accels = device::get_devices(info::device_type::accelerator);
+  CPUs = device::get_devices(sycl::info::device_type::cpu);
+  GPUs = device::get_devices(sycl::info::device_type::gpu);
+  Accels = device::get_devices(sycl::info::device_type::accelerator);
   Devs = device::get_devices();
 
   std::cout << "# CPU Devices found: " << CPUs.size() << std::endl;
@@ -122,7 +122,8 @@ int main() {
   try {
     // pick something crazy
     device d9(filter_selector("gpu:999"));
-    std::cout << "d9 = " << d9.get_info<info::device::name>() << std::endl;
+    std::cout << "d9 = " << d9.get_info<sycl::info::device::name>()
+              << std::endl;
   } catch (const sycl::runtime_error &e) {
     const char *ErrorMesg =
         "Could not find a device that matches the specified filter(s)!";
@@ -133,7 +134,8 @@ int main() {
   try {
     // pick something crazy
     device d10(filter_selector("bob:gpu"));
-    std::cout << "d10 = " << d10.get_info<info::device::name>() << std::endl;
+    std::cout << "d10 = " << d10.get_info<sycl::info::device::name>()
+              << std::endl;
   } catch (const sycl::runtime_error &e) {
     const char *ErrorMesg = "Invalid filter string!";
     assert(std::string{e.what()}.find(ErrorMesg) == 0);
@@ -143,7 +145,8 @@ int main() {
   try {
     // pick something crazy
     device d11(filter_selector("opencl:bob"));
-    std::cout << "d11 = " << d11.get_info<info::device::name>() << std::endl;
+    std::cout << "d11 = " << d11.get_info<sycl::info::device::name>()
+              << std::endl;
   } catch (const sycl::runtime_error &e) {
     const char *ErrorMesg = "Invalid filter string!";
     assert(std::string{e.what()}.find(ErrorMesg) == 0);

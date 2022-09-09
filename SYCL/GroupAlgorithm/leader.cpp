@@ -35,7 +35,7 @@ void test(queue q) {
 
 int main() {
   queue q;
-  std::string version = q.get_device().get_info<info::device::version>();
+  std::string version = q.get_device().get_info<sycl::info::device::version>();
   if (version < std::string("2.0")) {
     std::cout << "Skipping test\n";
     return 0;

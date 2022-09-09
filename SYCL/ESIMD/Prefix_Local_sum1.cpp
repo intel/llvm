@@ -129,7 +129,8 @@ int main(int argc, char *argv[]) {
           property::queue::enable_profiling{});
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
 
   // allocate and initialized input
   unsigned int *pInputs = static_cast<unsigned int *>(

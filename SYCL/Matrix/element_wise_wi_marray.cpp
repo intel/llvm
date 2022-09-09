@@ -57,7 +57,7 @@ int main() {
 
   queue q;
   auto computeCapability =
-      std::stof(q.get_device().get_info<info::device::backend_version>());
+      std::stof(q.get_device().get_info<sycl::info::device::backend_version>());
 
   if (computeCapability >= 8.0) {
     verify_wi_marray<bfloat16, 16, 16>(q);

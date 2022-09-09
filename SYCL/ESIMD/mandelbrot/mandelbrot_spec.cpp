@@ -124,7 +124,8 @@ int main(int argc, char *argv[]) {
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+    std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+              << "\n";
 
     int crunch{CRUNCH};
     float xoff{XOFF}, yoff{YOFF}, scale{SCALE}, thrs{4.0f};

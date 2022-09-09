@@ -148,7 +148,8 @@ int main(void) {
   queue q(ESIMDSelector{}, createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   bool passed = true;
 
   constexpr bool UNIFORM = true;

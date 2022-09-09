@@ -114,7 +114,8 @@ int main(int argc, char *argv[]) {
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+    std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+              << "\n";
 
     for (int iter = 0; iter <= num_iters; ++iter) {
       auto e = q.submit([&](sycl::handler &cgh) {

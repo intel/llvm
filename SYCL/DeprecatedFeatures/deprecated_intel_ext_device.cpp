@@ -6,6 +6,7 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED: hip
 // Temporarily disable on L0 due to fails in CI
+// UNSUPPORTED: level_zero
 
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //
@@ -66,45 +67,43 @@ int main(int argc, char **argv) {
 
             if (dev.has(aspect::ext_intel_pci_address)) {
               std::cout << "PCI address = "
-                        << dev.get_info<ext::intel::info::device::pci_address>()
+                        << dev.get_info<info::device::ext_intel_pci_address>()
                         << std::endl;
             }
             if (dev.has(aspect::ext_intel_gpu_eu_count)) {
-              totalEUs = dev.get_info<ext::intel::info::device::gpu_eu_count>();
+              totalEUs = dev.get_info<info::device::ext_intel_gpu_eu_count>();
               std::cout << "Number of EUs = " << totalEUs << std::endl;
             }
             if (dev.has(aspect::ext_intel_gpu_eu_simd_width)) {
-              int w =
-                  dev.get_info<ext::intel::info::device::gpu_eu_simd_width>();
+              int w = dev.get_info<info::device::ext_intel_gpu_eu_simd_width>();
               std::cout << "EU SIMD width = " << w << std::endl;
             }
             if (dev.has(aspect::ext_intel_gpu_slices)) {
-              numSlices = dev.get_info<ext::intel::info::device::gpu_slices>();
+              numSlices = dev.get_info<info::device::ext_intel_gpu_slices>();
               std::cout << "Number of slices = " << numSlices << std::endl;
             }
             if (dev.has(aspect::ext_intel_gpu_subslices_per_slice)) {
               numSubslices = dev.get_info<
-                  ext::intel::info::device::gpu_subslices_per_slice>();
+                  info::device::ext_intel_gpu_subslices_per_slice>();
               std::cout << "Number of subslices per slice = " << numSubslices
                         << std::endl;
             }
             if (dev.has(aspect::ext_intel_gpu_eu_count_per_subslice)) {
               numEUsPerSubslice = dev.get_info<
-                  ext::intel::info::device::gpu_eu_count_per_subslice>();
+                  info::device::ext_intel_gpu_eu_count_per_subslice>();
               std::cout << "Number of EUs per subslice = " << numEUsPerSubslice
                         << std::endl;
             }
-            if (SYCL_EXT_INTEL_DEVICE_INFO >= 3 &&
-                dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
-              numHWThreadsPerEU = dev.get_info<
-                  ext::intel::info::device::gpu_hw_threads_per_eu>();
+            if (dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
+              numHWThreadsPerEU =
+                  dev.get_info<info::device::ext_intel_gpu_hw_threads_per_eu>();
               std::cout << "Number of HW threads per EU = " << numHWThreadsPerEU
                         << std::endl;
             }
             if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
               // not supported yet
               long m =
-                  dev.get_info<ext::intel::info::device::max_mem_bandwidth>();
+                  dev.get_info<info::device::ext_intel_max_mem_bandwidth>();
               std::cout << "Maximum memory bandwidth = " << m << std::endl;
             }
             // This is the only data we can verify.
@@ -113,51 +112,8 @@ int main(int argc, char **argv) {
               std::cout << "Failed!" << std::endl;
               return 1;
             }
-            if (SYCL_EXT_INTEL_DEVICE_INFO >= 2 &&
-                dev.has(aspect::ext_intel_device_info_uuid)) {
-              auto UUID = dev.get_info<ext::intel::info::device::uuid>();
-              std::cout << "Device UUID = ";
-              for (int i = 0; i < 16; i++) {
-                std::cout << std::to_string(UUID[i]);
-              }
-              std::cout << "\n";
-            }
           } // SYCL_EXT_INTEL_DEVICE_INFO
         }
-
-// Check if this experimental feature is supported
-#ifdef SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
-        sycl::id<1> groupD =
-            dev.get_info<sycl::ext::oneapi::experimental::info::device::
-                             max_work_groups<1>>();
-        std::cout << "Max work group size in 1D \n";
-        std::cout << "Dimension 1:" << groupD[0] << std::endl;
-
-        sycl::id<2> group2D =
-            dev.get_info<sycl::ext::oneapi::experimental::info::device::
-                             max_work_groups<2>>();
-        std::cout << "Max work group size in 2D \n";
-        std::cout << "Dimension 1:" << group2D[0] << "\n"
-                  << "Dimension 2:" << group2D[1] << std::endl;
-
-        sycl::id<3> group3D =
-            dev.get_info<sycl::ext::oneapi::experimental::info::device::
-                             max_work_groups<3>>();
-        std::cout << "Max work group size in 3D \n";
-        std::cout << "Dimension 1:" << group3D[0] << "\n"
-                  << "Dimension 2:" << group3D[1] << "\n"
-                  << "Dimension 3:" << group3D[2] << std::endl;
-
-        size_t group_max = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                            device::max_global_work_groups>();
-        std::cout << "Max global work group size:" << group_max << "\n";
-
-        assert((group3D[0] <= group_max && group3D[1] <= group_max &&
-                group3D[2] <= group_max) &&
-               "Max work-group size of each dimension must be smaller than "
-               "global work-group size");
-#endif
-
         std::cout << std::endl;
       }
     }

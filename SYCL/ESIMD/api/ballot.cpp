@@ -90,7 +90,8 @@ template <class T> bool test(queue &Q) {
 int main(void) {
   queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
   auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
+            << "\n";
 
   bool Pass = true;
   Pass &= test<ushort>(Q);

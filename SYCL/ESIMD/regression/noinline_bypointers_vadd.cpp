@@ -45,7 +45,8 @@ int main(void) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
   float *A =
       static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctxt));

@@ -5,7 +5,8 @@ using namespace sycl;
 using namespace sycl::ext::oneapi;
 
 bool isSupportedDevice(device D) {
-  std::string PlatformName = D.get_platform().get_info<info::platform::name>();
+  std::string PlatformName =
+      D.get_platform().get_info<sycl::info::platform::name>();
   if (PlatformName.find("CUDA") != std::string::npos)
     return true;
 
@@ -13,7 +14,7 @@ bool isSupportedDevice(device D) {
     return true;
 
   if (PlatformName.find("OpenCL") != std::string::npos) {
-    std::string Version = D.get_info<info::device::version>();
+    std::string Version = D.get_info<sycl::info::device::version>();
     size_t Offset = Version.find("OpenCL");
     if (Offset == std::string::npos)
       return false;

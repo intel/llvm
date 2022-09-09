@@ -159,7 +159,8 @@ template <class T> bool testT(queue &q) {
 int main(void) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   bool passed = true;
   passed &= testT<char>(q);
   passed &= testT<float>(q);

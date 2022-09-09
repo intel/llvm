@@ -19,7 +19,7 @@ int main() {
   std::cout << "Device: " << dev.get_info<info::device::name>() << std::endl;
 
   if (!dev.is_host() && dev.has(aspect::ext_intel_free_memory)) {
-    auto FreeMemory = dev.get_info<info::device::ext_intel_free_memory>();
+    auto FreeMemory = dev.get_info<ext::intel::info::device::free_memory>();
     std::cout << "Free device memory: " << FreeMemory << std::endl;
   } else {
     std::cout

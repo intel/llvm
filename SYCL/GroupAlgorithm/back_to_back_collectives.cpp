@@ -21,7 +21,7 @@ int main() {
       get_kernel_bundle<bundle_state::executable>(q.get_context(), {KernelID});
   kernel k = KB.get_kernel(KernelID);
   device d = q.get_device();
-  int N = k.get_info<info::kernel_device_specific::work_group_size>(d);
+  int N = k.get_info<sycl::info::kernel_device_specific::work_group_size>(d);
 
   std::vector<int> Input(N), Sum(N), EScan(N), IScan(N);
   std::iota(Input.begin(), Input.end(), 0);

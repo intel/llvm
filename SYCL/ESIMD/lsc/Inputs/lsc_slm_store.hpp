@@ -39,7 +39,7 @@ bool test(uint32_t PMask = ~0) {
   queue Q(gpu_selector{});
   auto D = Q.get_device();
   std::cout << "Running case #" << CaseNum << " on "
-            << D.get_info<info::device::name>() << std::endl;
+            << D.get_info<sycl::info::device::name>() << std::endl;
 
   nd_range<1> Range{range<1>{Groups * LocalRange}, range<1>{LocalRange}};
   constexpr uint16_t OutSize = Groups * LocalRange * VL * NChannels;

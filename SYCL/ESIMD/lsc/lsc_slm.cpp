@@ -29,7 +29,7 @@ int main() {
   auto q =
       queue{esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler()};
   auto device = q.get_device();
-  std::cout << "Device name: " << device.get_info<info::device::name>()
+  std::cout << "Device name: " << device.get_info<sycl::info::device::name>()
             << std::endl;
 
   auto vec_0 = std::vector<int>(size);

@@ -88,7 +88,8 @@ int main(void) {
   queue q(ESIMDSelector{}, createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
   float *A = malloc_shared<float>(Size, q);
   float *B = malloc_shared<float>(Size, q);

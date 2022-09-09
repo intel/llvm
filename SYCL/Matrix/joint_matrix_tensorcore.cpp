@@ -233,7 +233,7 @@ int main() {
 
   queue Q;
   auto computeCapability =
-      std::stof(Q.get_device().get_info<info::device::backend_version>());
+      std::stof(Q.get_device().get_info<sycl::info::device::backend_version>());
 
   if (computeCapability >= 7.0) {
     // A/B half, Accumulator float

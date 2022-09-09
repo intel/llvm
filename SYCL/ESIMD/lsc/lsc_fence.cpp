@@ -190,8 +190,8 @@ bool testLocal(queue &Q) {
 
 int main() {
   queue Q;
-  std::cout << "Running on " << Q.get_device().get_info<info::device::name>()
-            << std::endl;
+  std::cout << "Running on "
+            << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
 
   bool Passed = true;
   Passed &= testGlobal(Q, 0);

@@ -330,7 +330,8 @@ template <int N> struct simd_mask_api_test {
 int main(int argc, char **argv) {
   queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
   auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
+            << "\n";
   bool Passed = true;
   // Run tests for different mask size, including the one exceeding the h/w flag
   // register width and being not multiple of such.

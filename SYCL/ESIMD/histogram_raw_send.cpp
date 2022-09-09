@@ -118,7 +118,8 @@ int main(int argc, char *argv[]) {
       static_cast<unsigned char *>(malloc_shared(width * height, dev, ctxt));
   unsigned int *bins = static_cast<unsigned int *>(
       malloc_shared(NUM_BINS * sizeof(unsigned int), dev, ctxt));
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
 
   uint range_width = width / BLOCK_WIDTH;
   uint range_height = height / BLOCK_HEIGHT;
