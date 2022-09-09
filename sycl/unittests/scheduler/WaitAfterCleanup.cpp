@@ -8,10 +8,24 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
+#include <helpers/ScopedEnvVar.hpp>
 
 using namespace sycl;
 
+TEST_F(SchedulerTest, PostEnqueueCleanupForCommandDefault) {
+  auto Cmd = new MockCommand(detail::getSyclObjImpl(MQueue));
+  auto Event = Cmd->getEvent();
+  ASSERT_FALSE(Event == nullptr) << "Command must have an event\n";
+
+  detail::Scheduler::getInstance().waitForEvent(Event);
+  EXPECT_EQ(Event->getCommand(), nullptr) << "Command should be cleaned up\n";
+}
+
 TEST_F(SchedulerTest, WaitAfterCleanup) {
+  unittest::ScopedEnvVar DisabledCleanup{
+      "SYCL_DISABLE_POST_ENQUEUE_CLEANUP", "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+
   auto Cmd = new MockCommand(detail::getSyclObjImpl(MQueue));
   auto Event = Cmd->getEvent();
   ASSERT_FALSE(Event == nullptr) << "Command must have an event\n";

@@ -22,9 +22,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-#ifdef __SYCL_INTERNAL_API
-class program;
-#endif
 class context;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
@@ -127,16 +124,6 @@ public:
   ///
   /// \return a valid kernel_bundle<bundle_state::executable>
   kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
-
-  /// Get the program that this kernel is defined for.
-  ///
-  /// The value returned must be equal to that returned by
-  /// get_info<info::kernel::program>().
-  ///
-  /// \return a valid SYCL program
-#ifdef __SYCL_INTERNAL_API
-  program get_program() const;
-#endif
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
