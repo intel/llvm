@@ -11,6 +11,9 @@
 // Plugin Interface API, the stored addresses of the actual plugin-specific
 // implementations can be overwritten to point at user-defined mock functions.
 //
+// To make testing independent of existing plugins and devices, all plugins are
+// forcefully unloaded and the mock plugin is registered as the only plugin.
+//
 // While this could be done manually for each unit-testing scenario, the library
 // aims to rule out the boilerplate, providing helper APIs which can be re-used
 // by all such unit tests. The test code stemming from this can be more consise,
@@ -65,8 +68,10 @@ namespace RT = detail::pi;
 #include <sycl/detail/pi.def>
 #undef _PI_API
 
-/// The PiMock class wraps an instance of a SYCL platform class,
-/// and manages all mock redefinitions for the underlying plugin.
+/// The PiMock class manages the mock PI plugin and wraps an instance of a SYCL
+/// platform class created from this plugin. Additionally it allows for the
+/// redefinitions of functions in the PI API allowing tests to customize the
+/// behavior of the underlying plugin to fit the need of the tests.
 ///
 /// Mock platform instances must not share the plugin resources with
 /// any other SYCL platform within the given context. Otherwise, mock
@@ -83,15 +88,6 @@ namespace RT = detail::pi;
 /// unittest::PiMock Mock;
 /// Mock.redefine<PiApiKind::piProgramRetain>(redefinePiProgramRetain);
 /// platform &MockP = Mock.getPlatform();
-/// /*...*/
-/// ```
-/// ```
-/// pi_result redefinePiProgramRetain(pi_program program) { /*code*/ }
-/// /*...*/
-/// queue Q;
-/// unittest::PiMock Mock(Q);
-/// Mock.redefine<PiApiKind::piProgramRetain>(redefinePiProgramRetain);
-/// Q.submit(/* expecting mock behavior */);
 /// /*...*/
 /// ```
 // TODO: Consider reworking the class into a `detail::plugin` derivative.
@@ -179,6 +175,10 @@ public:
     setFuncPtr<PiApiOffset>(MPiPluginMockPtr, Replacement);
   }
 
+  /// Ensures that the mock plugin has been initialized and has been registered
+  /// in the global handler. Additionally, all existing plugins will be removed
+  /// and unloaded to avoid them being accidentally picked up by tests using
+  /// selectors.
   static void EnsureMockPluginInitialized() {
     // Only initialize the plugin once.
     if (MMockPluginPtr)
@@ -204,6 +204,10 @@ public:
   }
 
 private:
+  /// Ensures that the mock PI plugin has been registered and creates a
+  /// platform_impl from it.
+  ///
+  /// \return a shared_ptr to a platform_impl created from the mock PI plugin.
   static std::shared_ptr<sycl::detail::platform_impl> GetMockPlatformImpl() {
     EnsureMockPluginInitialized();
 
