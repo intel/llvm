@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device %S/Inputs/checksum.cpp \
 // RUN: -triple spir64-unknown-unknown \
 // RUN: -main-file-name "%S/Inputs/checksum.cpp" \
+// RUN: -full-main-file-name "%S/Inputs/checksum.cpp" \
 // RUN: -fsycl-use-main-file-name -gcodeview -debug-info-kind=constructor \
 // RUN: -emit-llvm -O0 -o - | FileCheck %s
 
@@ -15,6 +16,7 @@
 // RUN: %clang_cc1 -fsycl-is-host %S/Inputs/checksum-with-footer.cpp \
 // RUN: -triple x86_64-pc-windows-msvc \
 // RUN: -main-file-name %S/Inputs/checksum.cpp \
+// RUN: -full-main-file-name %S/Inputs/checksum.cpp \
 // RUN: -fsycl-use-main-file-name -gcodeview -debug-info-kind=constructor \
 // RUN: -S -emit-llvm -O0  -o - | FileCheck %s
 

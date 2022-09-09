@@ -6135,6 +6135,12 @@ def main_file_name : Separate<["-"], "main-file-name">,
   HelpText<"Main file name to use for debug info and source if missing">,
   Flags<[CC1Option, CC1AsOption, NoDriverOption]>,
   MarshallingInfoString<CodeGenOpts<"MainFileName">>;
+
+def full_main_file_name : Separate<["-"], "full-main-file-name">,
+  HelpText<"Name file with full path to use for debug info during host and device compile">,
+  Flags<[CC1Option, CC1AsOption, NoDriverOption]>,
+  MarshallingInfoString<CodeGenOpts<"FullMainFileName">>;
+
 def split_dwarf_output : Separate<["-"], "split-dwarf-output">,
   HelpText<"File name to use for split dwarf debug info output">,
   Flags<[CC1Option, CC1AsOption, NoDriverOption]>,

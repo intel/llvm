@@ -15,6 +15,7 @@
 // RUN: %clang_cc1 -fsycl-is-host -I %S %S/Inputs/debug-info-checksum.cpp \
 // RUN:   -triple x86_64-unknown-linux-gpu \
 // RUN:   -main-file-name "%S/Inputs/debug-info-checksum.cpp" \
+// RUN:   -full-main-file-name "%S/Inputs/debug-info-checksum.cpp" \
 // RUN:   -fsycl-use-main-file-name -dwarf-version=5 -S -emit-llvm \
 // RUN:   -O0 -debug-info-kind=constructor -o - | FileCheck %s
 //
