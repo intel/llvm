@@ -41,7 +41,8 @@ template <typename T> struct is_compile_time_property : std::false_type {};
 ///
 /// \ingroup sycl_api
 template <typename... PropsT>
-class accessor_property_list : protected sycl::detail::PropertyListBase {
+class __SYCL_TYPE(accessor_property_list) accessor_property_list
+    : protected sycl::detail::PropertyListBase {
   // These structures check if compile-time-constant property is present in
   // list. For runtime properties this check is always true.
   template <class T, class U> struct AreSameTemplate : std::is_same<T, U> {};

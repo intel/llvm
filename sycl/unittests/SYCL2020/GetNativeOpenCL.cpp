@@ -115,9 +115,6 @@ TEST(GetNative, GetNativeHandle) {
   context Context(Plt);
   queue Queue(Context, Selector);
 
-  program Program{Context};
-  Program.build_with_source("");
-
   auto Device = Queue.get_device();
 
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Context);
@@ -133,13 +130,12 @@ TEST(GetNative, GetNativeHandle) {
 
   get_native<backend::opencl>(Context);
   get_native<backend::opencl>(Queue);
-  get_native<backend::opencl>(Program);
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
   get_native<backend::opencl>(Buffer);
 
   // Depending on global caches state, piDeviceRetain is called either once or
-  // twice, so there'll be 6 or 7 calls.
-  ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
+  // twice, so there'll be 5 or 6 calls.
+  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";
 }

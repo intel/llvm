@@ -44,6 +44,10 @@ def do_configure(args):
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
 
+    # lld is needed on Windows or for the HIP plugin on AMD
+    if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
+        llvm_enable_projects += ';lld'
+
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
@@ -65,8 +69,6 @@ def do_configure(args):
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += libclc_amd_target_names
 
-            # The HIP plugin for AMD uses lld for linking
-            llvm_enable_projects += ';lld'
         elif args.hip_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += libclc_nvidia_target_names

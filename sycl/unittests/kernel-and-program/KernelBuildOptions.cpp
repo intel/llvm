@@ -253,37 +253,3 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-link-img");
 }
-
-TEST(KernelBuildOptions, Program) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
-  sycl::program Prg1(Ctx);
-  sycl::program Prg2(Ctx);
-
-  Prg1.build_with_source("");
-  EXPECT_TRUE(BuildOpts.size() == 0) << "Expect empty build options";
-  Prg2.build_with_source("", "-api-opts");
-  EXPECT_EQ(BuildOpts, "-api-opts");
-}
