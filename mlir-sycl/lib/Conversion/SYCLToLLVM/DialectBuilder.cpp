@@ -27,7 +27,7 @@ using namespace mlir::sycl;
 
 DialectBuilder::~DialectBuilder() {}
 
-template<typename OP, typename... Types>
+template <typename OP, typename... Types>
 OP DialectBuilder::create(Types... args) const {
   return builder.create<OP>(loc, args...);
 }
@@ -37,14 +37,22 @@ FlatSymbolRefAttr DialectBuilder::getOrInsertFuncDecl(StringRef funcName,
                                                       ArrayRef<Type> argsTypes,
                                                       ModuleOp &module,
                                                       bool isVarArg) const {
-  if (module.lookupSymbol<LLVM::LLVMFuncOp>(funcName))
-    return SymbolRefAttr::get(builder.getContext(), funcName);
+  assert(!funcName.contains('@') && "funcName should not contain '@'");
+
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>(funcName)) {
+    auto funcDecl = SymbolRefAttr::get(builder.getContext(), funcName);
+    LLVM_DEBUG(llvm::dbgs() << "Found declaration: " << funcDecl << "\n");
+    return funcDecl;
+  }
 
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(module.getBody());
   auto funcType = LLVM::LLVMFunctionType::get(resultType, argsTypes, isVarArg);
   builder.create<LLVM::LLVMFuncOp>(module.getLoc(), funcName, funcType);
-  return SymbolRefAttr::get(builder.getContext(), funcName);
+  auto funcDecl = SymbolRefAttr::get(builder.getContext(), funcName);
+  LLVM_DEBUG(llvm::dbgs() << "Created declaration: " << funcDecl << "\n");
+
+  return funcDecl;
 }
 
 BoolAttr DialectBuilder::getBoolAttr(bool val) const {
@@ -76,24 +84,22 @@ ArrayAttr DialectBuilder::getI64ArrayAttr(ArrayRef<int64_t> vals) const {
 }
 
 //===----------------------------------------------------------------------===//
-// MemRefBuilder
+// FuncBuilder
 //===----------------------------------------------------------------------===//
 
-memref::AllocOp MemRefBuilder::genAlloc(MemRefType type) const {
-  return create<memref::AllocOp>(type);
+func::CallOp FuncBuilder::genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,
+                                  ValueRange operands) const {
+  assert(funcSym && "Expecting a valid function symbol");
+  return create<func::CallOp>(resTypes, funcSym, operands);
 }
 
-memref::AllocaOp MemRefBuilder::genAlloca(MemRefType type) const {
-  return create<memref::AllocaOp>(type);
-}
-
-memref::CastOp MemRefBuilder::genCast(Value input,
-                                      MemRefType outputType) const {
-  return create<memref::CastOp>(outputType, input);
-}
-
-memref::DeallocOp MemRefBuilder::genDealloc(Value val) const {
-  return create<memref::DeallocOp>(val);
+func::CallOp FuncBuilder::genCall(StringRef funcName, TypeRange resTypes,
+                                  ValueRange operands, ModuleOp &module) const {
+  assert(!funcName.contains('@') && "funcName should not contain '@'");
+  assert(module.lookupSymbol<LLVM::LLVMFuncOp>(funcName) &&
+         "Expecting to find a function declaration");
+  auto funcSym = SymbolRefAttr::get(builder.getContext(), funcName);
+  return genCall(funcSym, resTypes, operands);
 }
 
 //===----------------------------------------------------------------------===//
@@ -109,8 +115,9 @@ LLVM::BitcastOp LLVMBuilder::genBitcast(Type type, Value val) const {
   return create<LLVM::BitcastOp>(type, val);
 }
 
-LLVM::ExtractValueOp LLVMBuilder::genExtractValue(Type type, Value container,
-                                                  ArrayRef<int64_t> position) const {
+LLVM::ExtractValueOp
+LLVMBuilder::genExtractValue(Type type, Value container,
+                             ArrayRef<int64_t> position) const {
   return create<LLVM::ExtractValueOp>(type, container,
                                       getI64ArrayAttr(position));
 }
@@ -119,6 +126,15 @@ LLVM::CallOp LLVMBuilder::genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,
                                   ValueRange operands) const {
   assert(funcSym && "Expecting a valid function symbol");
   return create<LLVM::CallOp>(resTypes, funcSym, operands);
+}
+
+LLVM::CallOp LLVMBuilder::genCall(StringRef funcName, TypeRange resTypes,
+                                  ValueRange operands, ModuleOp &module) const {
+  assert(!funcName.contains('@') && "funcName should not contain '@'");
+  assert(module.lookupSymbol<LLVM::LLVMFuncOp>(funcName) &&
+         "Expecting to find a function declaration");
+  auto funcSym = SymbolRefAttr::get(builder.getContext(), funcName);
+  return genCall(funcSym, resTypes, operands);
 }
 
 LLVM::ConstantOp LLVMBuilder::genConstant(Type type, double val) const {
@@ -151,4 +167,25 @@ LLVM::ConstantOp LLVMBuilder::genConstant(Type type, double val) const {
 
 LLVM::SExtOp LLVMBuilder::genSignExtend(Type type, Value val) const {
   return create<LLVM::SExtOp>(type, val);
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefBuilder
+//===----------------------------------------------------------------------===//
+
+memref::AllocOp MemRefBuilder::genAlloc(MemRefType type) const {
+  return create<memref::AllocOp>(type);
+}
+
+memref::AllocaOp MemRefBuilder::genAlloca(MemRefType type) const {
+  return create<memref::AllocaOp>(type);
+}
+
+memref::CastOp MemRefBuilder::genCast(Value input,
+                                      MemRefType outputType) const {
+  return create<memref::CastOp>(outputType, input);
+}
+
+memref::DeallocOp MemRefBuilder::genDealloc(Value val) const {
+  return create<memref::DeallocOp>(val);
 }

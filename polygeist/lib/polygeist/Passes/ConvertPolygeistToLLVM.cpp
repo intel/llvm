@@ -34,6 +34,8 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
+#include "llvm/Support/Debug.h"
+
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
 using namespace mlir;
@@ -750,6 +752,9 @@ struct ConvertPolygeistToLLVMPass
       }
       if (failed(applyPartialConversion(m, target, std::move(patterns))))
         signalPassFailure();
+
+      LLVM_DEBUG(llvm::dbgs() << "ConvertPolygeistToLLVMPass: Module after:\n";
+                 m->dump(); llvm::dbgs() << "\n";);
     }
   }
 };
