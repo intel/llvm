@@ -8,7 +8,7 @@ kernel void test(int global *in, int global *in2) {
   if (in < in2)
     return;
 }
-// RUN: %clang_cc1 -triple spir64 -x cl -cl-std=CL2.0 -O0 -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
+// RUN: %clang_cc1 -triple spir64 -x cl -cl-std=CL2.0 -O0 -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
