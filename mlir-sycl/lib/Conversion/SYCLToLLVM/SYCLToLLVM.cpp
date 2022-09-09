@@ -278,7 +278,7 @@ private:
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    FuncBuilder builder(rewriter, op.getLoc());    
+    FuncBuilder builder(rewriter, op.getLoc());
     builder.genCall(op.MangledName(), TypeRange(), op.getOperands(), module);
     rewriter.eraseOp(op);
 
