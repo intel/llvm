@@ -19,6 +19,7 @@
 
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
@@ -254,13 +255,6 @@ static void createAllocFields(OpBuilder &builder, Location loc, Type type,
   fields.push_back(createAllocation(builder, loc, eltType, valuesSz));
 }
 
-/// Returns integral constant, if defined.
-static Optional<int64_t> getConstantInt(Value val) {
-  if (auto constantOp = val.getDefiningOp<arith::ConstantOp>())
-    return constantOp.getValue().cast<IntegerAttr>().getInt();
-  return {};
-}
-
 //===----------------------------------------------------------------------===//
 // Codegen rules.
 //===----------------------------------------------------------------------===//
@@ -354,7 +348,7 @@ public:
     auto enc = getSparseTensorEncoding(op.getSource().getType());
     if (!enc)
       return failure();
-    Optional<int64_t> index = getConstantInt(adaptor.getIndex());
+    Optional<int64_t> index = op.getConstantIndex();
     if (!index)
       return failure();
     // Access into static dimension can query original type directly.
@@ -473,13 +467,62 @@ public:
     // conversion.
     auto tuple = llvm::cast<UnrealizedConversionCastOp>(
         adaptor.getTensor().getDefiningOp());
-    auto idx = Base::getIndexForOp(tuple, op);
-    if (!idx)
-      // Failed to get the index.
-      return failure();
+    unsigned idx = Base::getIndexForOp(tuple, op);
     auto fields = tuple.getInputs();
-    assert(*idx < fields.size());
-    rewriter.replaceOp(op, fields[*idx]);
+    assert(idx < fields.size());
+    rewriter.replaceOp(op, fields[idx]);
+    return success();
+  }
+};
+
+/// Sparse codegen rule for the expand op.
+class SparseExpandConverter : public OpConversionPattern<ExpandOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(ExpandOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    ShapedType srcType = op.getTensor().getType().cast<ShapedType>();
+    Type eltType = srcType.getElementType();
+    Type boolType = rewriter.getIntegerType(1);
+    Type idxType = rewriter.getIndexType();
+    // All initialization should be done on entry of the loop nest.
+    rewriter.setInsertionPointAfter(op.getTensor().getDefiningOp());
+    // Determine the size for access expansion (always the innermost stored
+    // dimension size, translated back to original dimension). Note that we
+    // recursively rewrite the new DimOp on the **original** tensor.
+    auto enc = getSparseTensorEncoding(srcType);
+    unsigned innerDim = srcType.getRank() - 1;
+    if (AffineMap p = enc.getDimOrdering())
+      innerDim = p.getDimPosition(innerDim);
+    Value sz = rewriter.create<tensor::DimOp>(loc, op.getTensor(), innerDim);
+    // Generate a memref for `sz` elements of type `t`.
+    auto genAlloc = [&](Type t) {
+      auto memTp = MemRefType::get({ShapedType::kDynamicSize}, t);
+      return rewriter.create<memref::AllocOp>(loc, memTp, ValueRange{sz});
+    };
+    // Allocate temporary buffers for values, filled-switch, and indices.
+    // We do not use stack buffers for this, since the expanded size may
+    // be rather large (as it envelops a single expanded dense dimension).
+    Value values = genAlloc(eltType);
+    Value filled = genAlloc(boolType);
+    Value indices = genAlloc(idxType);
+    Value zero = constantZero(rewriter, loc, idxType);
+    // Reset the values/filled-switch to all-zero/false. Note that this
+    // introduces an O(N) operation into the computation, but this reset
+    // operation is amortized over the innermost loops for the access
+    // pattern expansion. As noted in the operation doc, we would like
+    // to amortize this setup cost even between kernels.
+    rewriter.create<linalg::FillOp>(
+        loc, ValueRange{constantZero(rewriter, loc, eltType)},
+        ValueRange{values});
+    rewriter.create<linalg::FillOp>(
+        loc, ValueRange{constantZero(rewriter, loc, boolType)},
+        ValueRange{filled});
+    // Replace expansion op with these buffers and initial index.
+    assert(op.getNumResults() == 4);
+    rewriter.replaceOp(op, {values, filled, indices, zero});
     return success();
   }
 };
@@ -490,12 +533,10 @@ class SparseToPointersConverter
 public:
   using SparseGetterOpConverter::SparseGetterOpConverter;
   // Callback for SparseGetterOpConverter.
-  static Optional<unsigned> getIndexForOp(UnrealizedConversionCastOp /*tuple*/,
-                                          ToPointersOp op) {
-    Optional<int64_t> dim = getConstantInt(op.getDim());
-    if (!dim)
-      return llvm::None; // variable dim
-    return getFieldIndex(op.getTensor().getType(), /*ptrDim=*/*dim, -1);
+  static unsigned getIndexForOp(UnrealizedConversionCastOp /*tuple*/,
+                                ToPointersOp op) {
+    uint64_t dim = op.getDimension().getZExtValue();
+    return getFieldIndex(op.getTensor().getType(), /*ptrDim=*/dim, -1);
   }
 };
 
@@ -505,12 +546,10 @@ class SparseToIndicesConverter
 public:
   using SparseGetterOpConverter::SparseGetterOpConverter;
   // Callback for SparseGetterOpConverter.
-  static Optional<unsigned> getIndexForOp(UnrealizedConversionCastOp /*tuple*/,
-                                          ToIndicesOp op) {
-    Optional<int64_t> dim = getConstantInt(op.getDim());
-    if (!dim)
-      return llvm::None; // variable dim
-    return getFieldIndex(op.getTensor().getType(), -1, /*idxDim=*/*dim);
+  static unsigned getIndexForOp(UnrealizedConversionCastOp /*tuple*/,
+                                ToIndicesOp op) {
+    uint64_t dim = op.getDimension().getZExtValue();
+    return getFieldIndex(op.getTensor().getType(), -1, /*idxDim=*/dim);
   }
 };
 
@@ -520,8 +559,8 @@ class SparseToValuesConverter
 public:
   using SparseGetterOpConverter::SparseGetterOpConverter;
   // Callback for SparseGetterOpConverter.
-  static Optional<unsigned> getIndexForOp(UnrealizedConversionCastOp tuple,
-                                          ToValuesOp /*op*/) {
+  static unsigned getIndexForOp(UnrealizedConversionCastOp tuple,
+                                ToValuesOp /*op*/) {
     // The last field holds the value buffer.
     return tuple.getInputs().size() - 1;
   }
@@ -547,8 +586,9 @@ mlir::SparseTensorTypeToBufferConverter::SparseTensorTypeToBufferConverter() {
 void mlir::populateSparseTensorCodegenPatterns(TypeConverter &typeConverter,
                                                RewritePatternSet &patterns) {
   patterns.add<SparseReturnConverter, SparseCallConverter, SparseDimOpConverter,
-               SparseCastConverter, SparseTensorAllocConverter,
-               SparseTensorDeallocConverter, SparseToPointersConverter,
-               SparseToIndicesConverter, SparseToValuesConverter,
-               SparseTensorLoadConverter>(typeConverter, patterns.getContext());
+               SparseCastConverter, SparseExpandConverter,
+               SparseTensorAllocConverter, SparseTensorDeallocConverter,
+               SparseToPointersConverter, SparseToIndicesConverter,
+               SparseToValuesConverter, SparseTensorLoadConverter>(
+               typeConverter, patterns.getContext());
 }
