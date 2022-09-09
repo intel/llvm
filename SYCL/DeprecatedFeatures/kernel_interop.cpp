@@ -26,9 +26,6 @@ using namespace sycl;
 
 int main() {
   queue Queue;
-  if (Queue.is_host())
-    return 0;
-
   context Context = Queue.get_context();
 
   cl_context ClContext = Context.get();
