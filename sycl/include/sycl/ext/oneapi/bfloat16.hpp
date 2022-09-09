@@ -34,7 +34,6 @@ public:
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
 
-private:
   // Explicit conversion functions
   static storage_t from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -84,7 +83,6 @@ private:
     return res;
   }
 
-public:
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
 

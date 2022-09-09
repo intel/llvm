@@ -48,8 +48,19 @@ This extension is implemented and fully supported by DPC++.
 
 == Overview
 
-This extension adds support for a 16-bit floating point type `bfloat16`. This type occupies 16 bits of storage space as does the `sycl::half` type. However, `bfloat16` allots 8 bits to the exponent instead of the 5 bits used by `sycl::half` and 7 bits to the significand versus 10 bits used by `sycl::half`. Thus, `bfloat16` has the same dynamic range as a 32-bit `float` but with reduced precision. This type is useful when memory required to store the values must be reduced, and when the calculations require high dynamic range but can tolerate lower-precision. Some implementations may still perform operations on this type using 32-bit math. For example, they may convert the `bfloat16` value to `float`, and then perform the operation on the 32-bit `float`.
+This extension adds support for a 16-bit floating point type `bfloat16`.
+This type occupies 16 bits of storage space as does the `sycl::half` type.
+However, `bfloat16` allots 8 bits to the exponent instead of the 5 bits used by
+`sycl::half` and 7 bits to the significand versus 10 bits used by `sycl::half`.
+Thus, `bfloat16` has the same dynamic range as a 32-bit `float` but with reduced
+precision. This type is useful when memory required to store the values must be
+reduced, and when the calculations require high dynamic range but can tolerate
+lower-precision. Some implementations may still perform operations on this type
+using 32-bit math. For example, they may convert the `bfloat16` value to
+`float`, and then perform the operation on the 32-bit `float`.
 
+[NOTE]
+The bfloat16 type is supported on all devices. DPC++ currently supports this type natively on Intel Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. On other devices it is emulated in software.
 
 == Specification
 
@@ -61,11 +72,16 @@ supporting this extension must predefine the macro
 `SYCL_EXT_ONEAPI_BFLOAT16` to one of the values defined in the table
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro’s
- value to determine which of the extension’s APIs the implementation supports. Attempting to submit a kernel using `bfloat16` to a device that does not support it causes a synchronous `errc::kernel_not_supported` exception to be thrown from the kernel invocation command (e.g. from `parallel_for`).
+value to determine which of the extension’s APIs the implementation supports.
+Attempting to submit a kernel using `bfloat16` to a device that does not
+support it causes a synchronous `errc::kernel_not_supported` exception to be
+thrown from the kernel invocation command (e.g. from `parallel_for`).
 
 [NOTE]
 ====
-. DPC++ does not currently implement the `errc::kernel_not_supported` exception in this case. Attempting to submit a kernel using `bfloat16` to a device that does not support this extension results in undefined behavior.
+. DPC++ does not currently implement the `errc::kernel_not_supported`
+exception in this case. Attempting to submit a kernel using `bfloat16`
+to a device that does not support this extension results in undefined behavior.
 ====
 
 [%header,cols="1,5"]
@@ -74,28 +90,12 @@ the implementation supports this feature, or applications can test the macro’s
 |1     |Initial extension version. Base features are supported.
 |===
 
-=== Extension to `enum class aspect`
-
-[source]
-----
-namespace sycl {
-enum class aspect {
-  ...
-  ext_oneapi_bfloat16
-}
-}
-----
-
-This extension is an optional kernel feature as described in section 5.7 of the SYCL 2020 spec, with the associated aspect `ext_oneapi_bfloat16`. Applications can query whether the device has this aspect to determine if it supports `bfloat16` conversions.
-The `bfloat16` class is currently supported in hardware on Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. On other devices it is emulated in software.
-[NOTE]
-====
-Aspect `ext_oneapi_bfloat16` is deprecated because `bfloat16` is supported on all devices.
-====
 
 === New `bfloat16` class
 
-The `bfloat16` type represents a 16-bit floating point value. Conversions from `float` to `bfloat16` are done with round to nearest even (RTE) rounding mode.
+The `bfloat16` type represents a 16-bit floating point value.
+Conversions from `float` to `bfloat16` are done with round to
+nearest even (RTE) rounding mode.
 
 [source]
 ----
@@ -104,11 +104,16 @@ namespace ext {
 namespace oneapi {
 
 class bfloat16 {
+using storage_t = uint16_t;
 
 public:
   bfloat16() = default;
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
+
+  // Explicit conversion functions
+  static storage_t from_float(const float &a);
+  static float to_float(const storage_t &a);
 
   // Convert from float to bfloat16
   bfloat16(const float &a);
@@ -299,9 +304,15 @@ int main(int argc, char *argv[]) {
 
 === New bfloat16 math functions
 
-Many applications will require dedicated functions that take parameters of type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions. These functions can be used as element wise operations on matrices, supplementing the `bfloat16` support in the `sycl_ext_oneapi_matrix` extension.
+Many applications will require dedicated functions that take parameters of
+type `bfloat16`. This extension adds `bfloat16` support to the `fma`, `fmin`,
+`fmax` and `fabs` SYCL floating point math functions. These functions can be
+used as element wise operations on matrices, supplementing the `bfloat16`
+support in the `sycl_ext_oneapi_matrix` extension.
 
-The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions can be found in the SYCL specification: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
+The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point
+math functions can be found in the SYCL specification:
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
 
 
 
@@ -320,8 +331,10 @@ marray<bfloat16, N> fma(marray<bfloat16, N> a, marray<bfloat16, N> b, marray<bfl
 
 ===== Description
 
-Returns the correctly rounded floating-point representation of the sum of `c` with the infinitely precise product of `a` and `b`.
-Rounding of intermediate products shall not occur. The mantissa LSB rounds to the nearest even. Subnormal numbers are supported.
+Returns the correctly rounded floating-point representation of the sum of `c`
+with the infinitely precise product of `a` and `b`.
+Rounding of intermediate products shall not occur.
+The mantissa LSB rounds to the nearest even. Subnormal numbers are supported.
 
 ==== fmax
 
@@ -382,11 +395,36 @@ T fabs(T x);
 
 Compute absolute value of a `bfloat16`.
 
+== Deprecated Features
+
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_bfloat16
+}
+}
+----
+
+This extension adds a new aspect named `ext_oneapi_bfloat16`, but usage of this
+aspect is deprecated. It used to indicate whether a device supports `bfloat16`,
+but all devices are now required to support `bfloat16` when an implementation
+supports this extension. Therefore, this aspect now returns true for all devices.
+
+
 == Issues
 
-1. The CUDA backend does not have a use case that would necessitate support of the `vec` class in bfloat16 math functions, and `marray` would always be preferred over `vec` if `vec` support were to be added in the CUDA backend. For portability reasons, support for the `vec` class can be easily added if other backends require it.
+1. The CUDA backend does not have a use case that would necessitate
+support of the `vec` class in bfloat16 math functions, and `marray`
+would always be preferred over `vec` if `vec` support were to be
+added in the CUDA backend. For portability reasons, support for the
+`vec` class can be easily added if other backends require it.
 
-2. We should decide on a roadmap to extend support of `bfloat16` to other SYCL 2020 math functions.
+2. We should decide on a roadmap to extend support of `bfloat16`
+to other SYCL 2020 math functions.
 
 == Revision History
 
