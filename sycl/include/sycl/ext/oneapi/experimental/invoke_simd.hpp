@@ -34,9 +34,11 @@
 /// to the SIMD target, as well as process SPMD arguments in the way described
 /// in the specification for `invoke_simd`.
 /// @tparam SpmdRet the return type. Can be `uniform<T>`.
-/// @tparam SimdCallee the type of the SIMD callee function (the "target"). Must
-///  be a function type (not lambda or functor).
-/// @tparam SpmdArgs The original SPMD arguments passed to the invoke_simd.
+/// @tparam HelperFunc the type of SIMD callee helper function. It is needed
+/// to convert the arguments of user's callee function and pass them to call
+/// of user's function.
+/// @tparam UserSimdFuncAndSpmdArgs is the pack that contains the user's SIMD
+/// target function and the original SPMD arguments passed to invoke_simd.
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<!IsFunc>>
 SYCL_EXTERNAL __regcall SpmdRet
