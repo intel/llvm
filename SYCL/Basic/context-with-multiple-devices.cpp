@@ -20,11 +20,6 @@ int main() {
   auto DeviceList =
       sycl::device::get_devices(sycl::info::device_type::accelerator);
 
-  // remove host device from the list
-  DeviceList.erase(std::remove_if(DeviceList.begin(), DeviceList.end(),
-                                  [](auto Device) { return Device.is_host(); }),
-                   DeviceList.end());
-
   sycl::context Context(DeviceList, &exceptionHandler);
 
   std::vector<sycl::queue> QueueList;

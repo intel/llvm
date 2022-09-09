@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %HOST_RUN_PLACEHOLDER %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
@@ -36,19 +35,6 @@ int main() {
 
   assert((dev1 == dev2) && "Device 1 == Device 2");
   assert((plat1 == plat2) && "Platform 1 == Platform 2");
-
-  device h1{host_selector{}};
-  device h2{host_selector{}};
-
-  assert(h1.is_host() && "Device h1 is host");
-  assert(h2.is_host() && "Device h2 is host");
-  assert(h1 == h2 && "Host devices equal each other");
-
-  platform hp1 = h1.get_platform();
-  platform hp2 = h2.get_platform();
-  assert(hp1.is_host() && "Platform hp1 is host");
-  assert(hp2.is_host() && "Platform hp2 is host");
-  assert(hp1 == hp2 && "Host platforms equal each other");
 
   return 0;
 }

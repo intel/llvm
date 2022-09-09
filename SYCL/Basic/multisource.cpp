@@ -10,7 +10,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.kernel.o %s -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.kernel.o %t.main.o -o %t.fat
-// RUN: %HOST_RUN_PLACEHOLDER %t.fat
 // RUN: %CPU_RUN_PLACEHOLDER %t.fat
 // RUN: %GPU_RUN_PLACEHOLDER %t.fat
 // RUN: %ACC_RUN_PLACEHOLDER %t.fat
@@ -20,7 +19,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.calc.o %s -DCALC_KERNEL
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.init.o %t.calc.o %t.main.o -o %t.fat
-// RUN: %HOST_RUN_PLACEHOLDER %t.fat
 // RUN: %CPU_RUN_PLACEHOLDER %t.fat
 // RUN: %GPU_RUN_PLACEHOLDER %t.fat
 // RUN: %ACC_RUN_PLACEHOLDER %t.fat

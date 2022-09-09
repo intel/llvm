@@ -1,5 +1,4 @@
 // RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -59,8 +58,6 @@ template <> std::string info_to_string(info::device_type info) {
     return "custom";
   case info::device_type::automatic:
     return "automatic";
-  case info::device_type::host:
-    return "host";
   case info::device_type::all:
     return "all";
   default:
@@ -165,16 +162,10 @@ template <> std::string info_to_string(info::partition_affinity_domain info) {
 }
 
 template <> std::string info_to_string(platform info) {
-  if (info.is_host()) {
-    return "SYCL host platform";
-  }
   return "SYCL OpenCL platform";
 }
 
 template <> std::string info_to_string(device info) {
-  if (info.is_host()) {
-    return "SYCL host device";
-  }
   return "SYCL OpenCL device";
 }
 
@@ -344,15 +335,11 @@ int main() {
                                                        "Printf buffer size");
   print_info<info::device::preferred_interop_user_sync, bool>(
       dev, "Preferred interop user sync");
-  // TODO test once subdevice creation is enabled
-  // print_info<info::device::parent_device, device>(dev, "Parent device");
-  if (!dev.is_host()) {
-    try {
-      print_info<info::device::parent_device, device>(dev, "Parent device");
-    } catch (invalid_object_error e) {
-      std::cout << "Expected exception has been caught: " << e.what()
-                << std::endl;
-    }
+  try {
+    print_info<info::device::parent_device, device>(dev, "Parent device");
+  } catch (invalid_object_error e) {
+    std::cout << "Expected exception has been caught: " << e.what()
+              << std::endl;
   }
   print_info<info::device::partition_max_sub_devices, sycl::cl_uint>(
       dev, "Partition max sub devices");

@@ -107,9 +107,7 @@ int main() {
     int result = cl_queues.size();
     device dev = Queue.get_device();
     int expected_result =
-        dev.is_host()
-            ? 0
-            : getExpectedQueueNumber(get_native<backend::opencl>(dev), 3);
+        getExpectedQueueNumber(get_native<backend::opencl>(dev), 3);
 
     if (expected_result != result) {
       std::cout << "Result Num of queues = " << result << std::endl
@@ -150,9 +148,7 @@ int main() {
     int result = cl_queues.size();
     device dev = Queue.get_device();
     int expected_result =
-        dev.is_host() ? 0
-                      : getExpectedQueueNumber(get_native<backend::opencl>(dev),
-                                               maxNumQueues);
+        getExpectedQueueNumber(get_native<backend::opencl>(dev), maxNumQueues);
 
     if (expected_result != result) {
       std::cout << "Result Num of queues = " << result << std::endl

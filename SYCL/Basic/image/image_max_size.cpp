@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -124,16 +123,6 @@ int main() {
   std::cout << "3d: Max image width: " << MaxWidth3D << std::endl;
   std::cout << "3d: Max image height: " << MaxHeight3D << std::endl;
   std::cout << "3d: Max image depth: " << MaxDepth3D << std::endl;
-
-  // For HOST the max image size may be huge, limit it to some reasonably big
-  // number here, e.g. the max sizes for opencl:gpu on UHD Graphics 630.
-  if (Q.is_host()) {
-    MaxWidth2D = 16 * 1024;
-    MaxHeight2D = 16 * 1024;
-    MaxWidth3D = 16 * 1024;
-    MaxHeight3D = 16 * 1024;
-    MaxDepth3D = 16 * 1024;
-  }
 
   // Using max sizes in one image may require too much memory.
   // Check them one by one.
