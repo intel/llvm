@@ -2347,6 +2347,12 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
   // Use base classes constructors
   using local_acc::local_acc;
 
+  using value_type = DataT;
+  using iterator = value_type *;
+  using const_iterator = const DataT *;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
 #ifdef __SYCL_DEVICE_ONLY__
 
   // __init needs to be defined within the class not through inheritance.
@@ -2366,6 +2372,23 @@ public:
   }
 
 #endif
+
+public:
+  iterator begin() const noexcept { return &this->operator[](id<Dimensions>()); }
+  iterator end() const noexcept { return begin() + this->size(); }
+
+  const_iterator cbegin() const noexcept { return const_iterator(begin()); }
+  const_iterator cend() const noexcept { return const_iterator(end()); }
+
+  reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+  reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+  const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(end());
+  }
+  const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(begin());
+  }
 };
 
 /// Image accessors.
