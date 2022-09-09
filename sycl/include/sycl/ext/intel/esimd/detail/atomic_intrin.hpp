@@ -84,13 +84,18 @@ template <typename Ty> Ty atomic_min(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  Ty _old, _new;
-  do {
-    _old = *ptr;
-    _new = std::min<Ty>(_old, val);
-  } while (!__atomic_compare_exchange_n(ptr, &_old, _new, false,
-                                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-  return _new;
+  // TODO FIXME: fix implementation for FP types.
+  if constexpr (std::is_integral_v<Ty>) {
+    Ty _old, _new;
+    do {
+      _old = *ptr;
+      _new = std::min<Ty>(_old, val);
+    } while (!__atomic_compare_exchange_n(ptr, &_old, _new, false,
+                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+    return _new;
+  } else {
+    __ESIMD_UNSUPPORTED_ON_HOST;
+  }
 #endif
 }
 
@@ -99,13 +104,18 @@ template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  Ty _old, _new;
-  do {
-    _old = *ptr;
-    _new = std::max<Ty>(_old, val);
-  } while (!__atomic_compare_exchange_n(ptr, &_old, _new, false,
-                                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-  return _new;
+  // TODO FIXME: fix implementation for FP types.
+  if constexpr (std::is_integral_v<Ty>) {
+    Ty _old, _new;
+    do {
+      _old = *ptr;
+      _new = std::max<Ty>(_old, val);
+    } while (!__atomic_compare_exchange_n(ptr, &_old, _new, false,
+                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+    return _new;
+  } else {
+    __ESIMD_UNSUPPORTED_ON_HOST;
+  }
 #endif
 }
 
@@ -114,10 +124,15 @@ template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty expected, Ty desired) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  Ty _old = expected;
-  __atomic_compare_exchange_n(ptr, &_old, desired, false, __ATOMIC_SEQ_CST,
-                              __ATOMIC_SEQ_CST);
-  return *ptr;
+  // TODO FIXME: fix implementation for FP types.
+  if constexpr (std::is_integral_v<Ty>) {
+    Ty _old = expected;
+    __atomic_compare_exchange_n(ptr, &_old, desired, false, __ATOMIC_SEQ_CST,
+                                __ATOMIC_SEQ_CST);
+    return *ptr;
+  } else {
+    __ESIMD_UNSUPPORTED_ON_HOST;
+  }
 #endif
 }
 

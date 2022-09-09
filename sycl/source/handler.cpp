@@ -82,6 +82,15 @@ void handler::setHandlerKernelBundle(
   MImpl->MKernelBundle = NewKernelBundleImpPtr;
 }
 
+void handler::setHandlerKernelBundle(kernel Kernel) {
+  // Kernel may not have an associated kernel bundle if it is created from a
+  // program. As such, apply getSyclObjImpl directly on the kernel, i.e. not
+  //  the other way around: getSyclObjImp(Kernel->get_kernel_bundle()).
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
+      detail::getSyclObjImpl(Kernel)->get_kernel_bundle();
+  setHandlerKernelBundle(KernelBundleImpl);
+}
+
 event handler::finalize() {
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.

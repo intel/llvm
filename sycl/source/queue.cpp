@@ -123,12 +123,11 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 }
 
 event queue::discard_or_return(const event &Event) {
-  if (impl->MDiscardEvents) {
-    using detail::event_impl;
-    auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
-    return detail::createSyclObjFromImpl<event>(Impl);
-  }
-  return Event;
+  if (!(impl->MDiscardEvents))
+    return Event;
+  using detail::event_impl;
+  auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
+  return detail::createSyclObjFromImpl<event>(Impl);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,

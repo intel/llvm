@@ -304,12 +304,13 @@ protected:
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
-  using AccType = accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                           IsPlaceholder, PropertyListT>;
-
   // The class which allows to access value of N dimensional accessor using N
   // subscript operators, e.g. accessor[2][2][3]
-  template <int SubDims> class AccessorSubscript {
+  template <int SubDims,
+            typename AccType =
+                accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                         IsPlaceholder, PropertyListT>>
+  class AccessorSubscript {
     static constexpr int Dims = Dimensions;
 
     mutable id<Dims> MIDs;
@@ -325,11 +326,11 @@ protected:
       MIDs[0] = Index;
     }
 
-    template <int CurDims = SubDims>
-    typename detail::enable_if_t<(CurDims > 1), AccessorSubscript<CurDims - 1>>
-    operator[](size_t Index) {
+    template <int CurDims = SubDims,
+              typename = detail::enable_if_t<(CurDims > 1)>>
+    auto operator[](size_t Index) {
       MIDs[Dims - CurDims] = Index;
-      return AccessorSubscript<CurDims - 1>(MAccessor, MIDs);
+      return AccessorSubscript<CurDims - 1, AccType>(MAccessor, MIDs);
     }
 
     template <int CurDims = SubDims,
@@ -788,7 +789,7 @@ private:
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
-class __SYCL_SPECIAL_CLASS accessor :
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
 #endif
@@ -816,12 +817,14 @@ protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
   using AccessorCommonT::AS;
-  using AccessorCommonT::IsAccessAnyWrite;
-  using AccessorCommonT::IsAccessReadOnly;
-  using AccessorCommonT::IsConstantBuf;
-  using AccessorCommonT::IsGlobalBuf;
-  using AccessorCommonT::IsHostBuf;
-  using AccessorCommonT::IsPlaceH;
+  // Cannot do "using AccessorCommonT::Flag" as it doesn't work with g++ as host
+  // compiler, for some reason.
+  static constexpr bool IsAccessAnyWrite = AccessorCommonT::IsAccessAnyWrite;
+  static constexpr bool IsAccessReadOnly = AccessorCommonT::IsAccessReadOnly;
+  static constexpr bool IsConstantBuf = AccessorCommonT::IsConstantBuf;
+  static constexpr bool IsGlobalBuf = AccessorCommonT::IsGlobalBuf;
+  static constexpr bool IsHostBuf = AccessorCommonT::IsHostBuf;
+  static constexpr bool IsPlaceH = AccessorCommonT::IsPlaceH;
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
@@ -931,8 +934,9 @@ protected:
 
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
-  template <typename, int, access::mode, access::target, access::placeholder,
-            typename>
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
   friend class accessor;
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1011,7 +1015,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1042,7 +1046,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1072,7 +1076,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1103,7 +1107,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1133,7 +1137,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1166,7 +1170,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1229,7 +1233,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1261,7 +1265,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1447,7 +1451,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1488,7 +1492,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1560,7 +1564,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1600,7 +1604,7 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer) {
+                         BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1759,8 +1763,7 @@ public:
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
-  typename AccessorCommonT::template AccessorSubscript<Dims - 1>
-  operator[](size_t Index) const {
+  auto operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
@@ -1784,6 +1787,50 @@ public:
   constant_ptr<DataT> get_pointer() const {
     return constant_ptr<DataT>(getPointerAdjusted());
   }
+
+  // accessor::has_property for runtime properties is only available in host
+  // code. This restriction is not listed in the core spec and will be added in
+  // future versions.
+  template <typename Property>
+  typename sycl::detail::enable_if_t<
+      !ext::oneapi::is_compile_time_property<Property>::value, bool>
+  has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return AccessorBaseHost::impl->MPropertyList.has_property<Property>();
+#else
+    return false;
+#endif
+  }
+
+  // accessor::get_property for runtime properties is only available in host
+  // code. This restriction is not listed in the core spec and will be added in
+  // future versions.
+  template <typename Property,
+            typename = typename sycl::detail::enable_if_t<
+                !ext::oneapi::is_compile_time_property<Property>::value>>
+  Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return AccessorBaseHost::impl->MPropertyList.get_property<Property>();
+#else
+    return Property();
+#endif
+  }
+
+#if __cplusplus >= 201703L
+  template <typename Property>
+  static constexpr bool has_property(
+      typename std::enable_if_t<
+          ext::oneapi::is_compile_time_property<Property>::value> * = 0) {
+    return PropertyListT::template has_property<Property>();
+  }
+
+  template <typename Property>
+  static constexpr auto get_property(
+      typename std::enable_if_t<
+          ext::oneapi::is_compile_time_property<Property>::value> * = 0) {
+    return PropertyListT::template get_property<Property>();
+  }
+#endif
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
@@ -1941,27 +1988,27 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &)
     -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                 detail::deduceAccessTarget<Type1, Type1>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                 detail::deduceAccessTarget<Type1, Type1>(target::device),
@@ -1970,14 +2017,14 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                 detail::deduceAccessTarget<Type1, Type2>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                 detail::deduceAccessTarget<Type1, Type2>(target::device),
@@ -1986,14 +2033,14 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                 detail::deduceAccessTarget<Type2, Type3>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                 detail::deduceAccessTarget<Type2, Type3>(target::device),
@@ -2002,7 +2049,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
          Type4)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                 detail::deduceAccessTarget<Type3, Type4>(target::device),
@@ -2010,7 +2057,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
          Type4, const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                 detail::deduceAccessTarget<Type3, Type4>(target::device),
@@ -2023,8 +2070,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::local, IsPlaceholder> :
+class __SYCL_SPECIAL_CLASS local_accessor_base :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::LocalAccessorBaseHost,
 #endif
@@ -2041,7 +2087,9 @@ protected:
   using AccessorCommonT::IsAccessAnyWrite;
   template <int Dims>
   using AccessorSubscript =
-      typename AccessorCommonT::template AccessorSubscript<Dims>;
+      typename AccessorCommonT::template AccessorSubscript<
+          Dims,
+          local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>>;
 
   using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
@@ -2064,7 +2112,7 @@ protected:
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor()
+  local_accessor_base()
       : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 protected:
@@ -2098,8 +2146,8 @@ public:
   using const_reference = const DataT &;
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
-  accessor(handler &, const detail::code_location CodeLoc =
-                          detail::code_location::current())
+  local_accessor_base(handler &, const detail::code_location CodeLoc =
+                                     detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}){}
 #else
@@ -2111,9 +2159,9 @@ public:
 
         template <int Dims = Dimensions,
                   typename = detail::enable_if_t<Dims == 0>>
-        accessor(handler &, const property_list &propList,
-                 const detail::code_location CodeLoc =
-                     detail::code_location::current())
+        local_accessor_base(handler &, const property_list &propList,
+                            const detail::code_location CodeLoc =
+                                detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2127,7 +2175,7 @@ public:
 #endif
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
-  accessor(
+  local_accessor_base(
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
@@ -2142,10 +2190,10 @@ public:
 
         template <int Dims = Dimensions,
                   typename = detail::enable_if_t<(Dims > 0)>>
-        accessor(range<Dimensions> AllocationSize, handler &,
-                 const property_list &propList,
-                 const detail::code_location CodeLoc =
-                     detail::code_location::current())
+        local_accessor_base(range<Dimensions> AllocationSize, handler &,
+                            const property_list &propList,
+                            const detail::code_location CodeLoc =
+                                detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
@@ -2213,7 +2261,9 @@ public:
   }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
-  typename AccessorCommonT::template AccessorSubscript<Dims - 1>
+  typename AccessorCommonT::template AccessorSubscript<
+      Dims - 1,
+      local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>>
   operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
@@ -2222,8 +2272,79 @@ public:
     return local_ptr<DataT>(getQualifiedPtr());
   }
 
-  bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
-  bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
+  bool operator==(const local_accessor_base &Rhs) const {
+    return impl == Rhs.impl;
+  }
+  bool operator!=(const local_accessor_base &Rhs) const {
+    return !(*this == Rhs);
+  }
+};
+
+// TODO: Remove deprecated specialization once no longer needed
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder>
+class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
+                                    access::target::local, IsPlaceholder>
+    : public local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder> {
+
+  using local_acc =
+      local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
+
+  // Use base classes constructors
+  using local_acc::local_acc;
+
+#ifdef __SYCL_DEVICE_ONLY__
+
+  // __init needs to be defined within the class not through inheritance.
+  // Map this function to inherited func.
+  void __init(typename local_acc::ConcreteASPtrType Ptr,
+              range<local_acc::AdjustedDim> AccessRange,
+              range<local_acc::AdjustedDim> range,
+              id<local_acc::AdjustedDim> id) {
+    local_acc::__init(Ptr, AccessRange, range, id);
+  }
+
+public:
+  // Default constructor for objects later initialized with __init member.
+  accessor() {
+    local_acc::impl = detail::InitializedVal<local_acc::AdjustedDim,
+                                             range>::template get<0>();
+  }
+
+#endif
+};
+
+template <typename DataT, int Dimensions = 1>
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
+    : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
+                                 access::placeholder::false_t> {
+
+  using local_acc =
+      local_accessor_base<DataT, Dimensions, access::mode::read_write,
+                          access::placeholder::false_t>;
+
+  // Use base classes constructors
+  using local_acc::local_acc;
+
+#ifdef __SYCL_DEVICE_ONLY__
+
+  // __init needs to be defined within the class not through inheritance.
+  // Map this function to inherited func.
+  void __init(typename local_acc::ConcreteASPtrType Ptr,
+              range<local_acc::AdjustedDim> AccessRange,
+              range<local_acc::AdjustedDim> range,
+              id<local_acc::AdjustedDim> id) {
+    local_acc::__init(Ptr, AccessRange, range, id);
+  }
+
+public:
+  // Default constructor for objects later initialized with __init member.
+  local_accessor() {
+    local_acc::impl = detail::InitializedVal<local_acc::AdjustedDim,
+                                             range>::template get<0>();
+  }
+
+#endif
 };
 
 /// Image accessors.
@@ -2233,8 +2354,9 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image, IsPlaceholder>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
+                               access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder> {
 public:
@@ -2321,8 +2443,9 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image_array, IsPlaceholder>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
+                               access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder> {
 #ifdef __SYCL_DEVICE_ONLY__

@@ -29,7 +29,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 }
 } // namespace detail
 
-device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
+device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
@@ -152,7 +152,14 @@ device::get_info() const {
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
 #include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_info<Namespace::info::DescType::Desc>() const;
+
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return getImplBackend(impl); }
