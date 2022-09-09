@@ -69,10 +69,12 @@ private:
     return __devicelib_ConvertBF16ToFINTEL(a);
 #endif
 #else
-    // Shift temporary variable to silence the warning
-    uint32_t bits = a;
-    bits <<= 16;
-    return static_cast<float>(bits);
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    intStorage = a << 16;
+    return floatValue;
 #endif
   }
 

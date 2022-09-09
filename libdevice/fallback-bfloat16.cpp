@@ -35,10 +35,12 @@ __devicelib_ConvertFToBF16INTEL(const float &a) {
 
 DEVICE_EXTERN_C_INLINE float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &a) {
-  uint32_t y = a;
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
+  union {
+    uint32_t intStorage;
+    float floatValue;
+  };
+  intStorage = a << 16;
+  return floatValue;
 }
 
 #endif // __SPIR__

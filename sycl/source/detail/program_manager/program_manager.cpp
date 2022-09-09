@@ -798,7 +798,7 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   case DeviceLibExt::cl_intel_devicelib_imf_fp64:
     return "cl_intel_devicelib_imf_fp64";
   case DeviceLibExt::cl_intel_devicelib_bfloat16:
-    return "cl_intel_devicelib_bfloat16";
+    return "cl_intel_bfloat16_conversions";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
