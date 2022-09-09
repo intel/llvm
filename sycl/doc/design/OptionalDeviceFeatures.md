@@ -1006,39 +1006,27 @@ architectures need to be identified:
 - a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
   device target architecture)
 
-In all such places architecture naming should be the same. In some cases aliases
-are allowed. Below is a list of target architectures supported by DPC++:
+The following table lists these target names:
 
-| target/alias(es)                     | description                               |
-|--------------------------------------|-------------------------------------------|
-| ptx64                                | Generic 64-bit PTX target architecture    |
-| spir64                               | Generic 64-bit SPIR-V target              |
-| x86_64                               | Generic 64-bit x86 architecture           |
-|                    intel_gpu_pvc     | Ponte Vecchio Intel graphics architecture |
-|                    intel_gpu_acm_g12 | Alchemist G12 Intel graphics architecture |
-|                    intel_gpu_acm_g11 | Alchemist G11 Intel graphics architecture |
-|                    intel_gpu_acm_g10 | Alchemist G10 Intel graphics architecture |
-| intel_gpu_12_10_0, intel_gpu_dg1     | DG1           Intel graphics architecture |
-|                    intel_gpu_adl_n   | Alder Lake N  Intel graphics architecture |
-|                    intel_gpu_adl_p   | Alder Lake P  Intel graphics architecture |
-|                    intel_gpu_rpl_s   | Raptor Lake   Intel graphics architecture |
-|                    intel_gpu_adl_s   | Alder Lake S  Intel graphics architecture |
-|                    intel_gpu_rkl     | Rocket Lake   Intel graphics architecture |
-|  intel_gpu_12_0_0, intel_gpu_tgllp   | Tiger Lake    Intel graphics architecture |
-|  intel_gpu_11_2_0, intel_gpu_ehl     | Elkhart Lake  Intel graphics architecture |
-|  intel_gpu_11_0_0, intel_gpu_icllp   | Ice Lake      Intel graphics architecture |
-|   intel_gpu_9_7_0, intel_gpu_cml     | Comet Lake    Intel graphics architecture |
-|   intel_gpu_9_6_0, intel_gpu_aml     | Amber Lake    Intel graphics architecture |
-|   intel_gpu_9_5_0, intel_gpu_whl     | Whiskey Lake  Intel graphics architecture |
-|   intel_gpu_9_4_0, intel_gpu_glk     | Gemini Lake   Intel graphics architecture |
-|   intel_gpu_9_3_0, intel_gpu_apl     | Apollo Lake   Intel graphics architecture |
-|   intel_gpu_9_2_9, intel_gpu_cfl     | Coffee Lake   Intel graphics architecture |
-|   intel_gpu_9_1_9, intel_gpu_kbl     | Kaby Lake     Intel graphics architecture |
-|   intel_gpu_9_0_9, intel_gpu_skl     | Skylake       Intel graphics architecture |
-|   intel_gpu_8_0_0, intel_gpu_bdw     | Broadwell     Intel graphics architecture |
+| name                 | aspect name               | description                            |
+-----------------------|---------------------------|----------------------------------------|
+| ptx64                | (none)                    | Generic 64-bit PTX target architecture |
+| spir64               | (none)                    | Generic 64-bit SPIR-V target           |
+| x86\_64              | ext\_intel\_x86\_64       | Generic 64-bit x86 architecture        |
+| intel\_gpu\_\<name\> | ext\_intel\_gpu\_\<name\> | Intel graphics architecture \<name\>   |
 
-TODO: Provide full list of AOT targets supported by the identification
-mechanism.
+The "name" column in this table gives the target name used for the
+`-fsycl-targets` option, the `-target` option to the `sycl-aspec-filter` tool,
+and the target name for the configuration file entry.  Since aspects must
+follow a different naming convention, the "aspect name" column provides this
+name.  The last row in this table corresponds to all of the aspect names listed
+in the [sycl\_ext\_intel\_device\_aspects][8] extension whose name starts with
+`ext_intel_gpu_`.
+
+[8]: <../extensions/proposed/sycl_ext_intel_device_aspects.asciidoc>
+
+TODO: This table needs to be filled out for the CPU variants supported by the
+`opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.
 
 Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
@@ -1092,7 +1080,7 @@ sub-group size.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][8], we need to decorate
+As described above under ["Changes to DPC++ headers"][9], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -1100,7 +1088,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[8]: <#changes-to-dpc-headers>
+[9]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
