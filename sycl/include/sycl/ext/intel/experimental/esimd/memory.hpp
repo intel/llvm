@@ -496,7 +496,7 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
