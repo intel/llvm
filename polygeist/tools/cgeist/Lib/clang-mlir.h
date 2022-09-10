@@ -155,10 +155,12 @@ private:
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
 
-  llvm::SmallSet<std::string, 4> supportedCons;
-  void initSupportedConstructors();
-  bool isSupportedConstructor(std::string name) const {
-    return supportedCons.contains(name);
+  llvm::SmallSet<std::string, 4> supportedFuncs;
+  // Initialize a whitelist of SYCL functions to emit instead just the
+  // declaration. Eventually, this list should be removed.
+  void initSupportedFunctions();
+  bool isSupportedFunctions(std::string name) const {
+    return supportedFuncs.contains(name);
   }
 
   // ValueCategory getValue(std::string name);

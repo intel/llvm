@@ -116,32 +116,32 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
     : Glob(Glob), module(module), builder(module->getContext()),
       loc(builder.getUnknownLoc()), ThisCapture(nullptr), LTInfo(LTInfo) {}
 
-void MLIRScanner::initSupportedConstructors() {
-  // List from SYCLFuncRegistry.cpp Please modify as new constructors are
-  // added to that file.
-  supportedCons.insert("_ZN2cl4sycl2idILi1EEC1Ev");
-  supportedCons.insert("_ZN2cl4sycl2idILi2EEC1Ev");
-  supportedCons.insert("_ZN2cl4sycl2idILi3EEC1Ev");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi3EEC1ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi3EEC1ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm");
-  supportedCons.insert(
-      "_ZN2cl4sycl2idILi3EEC1ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm");
-  supportedCons.insert("_ZN2cl4sycl6detail5arrayILi1EEC1ILi1EEENSt9enable_"
-                       "ifIXeqT_Li1EEmE4typeE");
+void MLIRScanner::initSupportedFunctions() {
+  // Functions needed for single_task with one dimensional write buffer.
+  supportedFuncs.insert("_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_"
+                        "2idILi1EEENS0_5rangeILi1EEES7_");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEEC1Ev");
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEEixILi1EvEERiNS0_2idILi1EEE");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
+  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ILi1EEENSt9enable_"
+                        "ifIXeqT_Li1EEmE4typeE");
+  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ERKS3_");
+  supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1Ev");
+  // TODO: Add support to the commented out functions.
+  // These commented out require fixes to their codegen.
+  // supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
+  // supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
 }
 
 void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
@@ -153,7 +153,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
     llvm::errs() << *fd << "\n";
   }
 
-  initSupportedConstructors();
+  initSupportedFunctions();
   setEntryAndAllocBlock(function.addEntryBlock());
 
   unsigned i = 0;
@@ -1502,7 +1502,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     if (DebugFunction) {
       llvm::dbgs() << "Starting codegen of " << name << "\n";
     }
-    if (isSupportedConstructor(name)) {
+    if (isSupportedFunctions(name)) {
       if (DebugFunction) {
         llvm::dbgs() << "Function found in registry, continue codegen-ing...\n";
       }
