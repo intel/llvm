@@ -4715,7 +4715,7 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
   assert(name != "free");
 
   llvm::GlobalValue::LinkageTypes LV;
-  if (!FD->hasBody())
+  if (!FD->hasBody() || !ShouldEmit)
     LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage;
   else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
     LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
