@@ -36,15 +36,13 @@ int test_fmod(float x, float y) {
     sycl::buffer<float, 1> vector_buffer(out.data(), out.size());
     sycl::buffer<float, 1> scalar_buffer(&scalar_result, sycl::range<1>(1));
 
-    sycl::nd_range<1> nd{sycl::range<1>(1), sycl::range<1>(1)};
-
     auto e = queue.submit([&](sycl::handler &cgh) {
       sycl::accessor<float, 1, sycl_write> vector_out =
           vector_buffer.get_access<sycl_write>(cgh);
       sycl::accessor<float, 1, sycl_write> scalar_out =
           scalar_buffer.get_access<sycl_write>(cgh);
 
-      auto kernel = ([=](sycl::item<1> item) [[intel::sycl_explicit_simd]] {
+      auto kernel = ([=]() [[intel::sycl_explicit_simd]] {
         using namespace sycl::ext::intel::esimd;
 
         simd<float, SIMD> a = ha;
@@ -52,14 +50,14 @@ int test_fmod(float x, float y) {
 
         simd<float, SIMD> vector_result =
             sycl::ext::intel::experimental::esimd::fmod(a, b);
-        simd<float, SIMD> scalar_result =
+        simd<float, 1> scalar_result =
             sycl::ext::intel::experimental::esimd::fmod(ha, hb);
 
         vector_result.copy_to(vector_out, 0);
         scalar_result.copy_to(scalar_out, 0);
       });
 
-      cgh.parallel_for<class Reduction>(nd, kernel);
+      cgh.single_task<class Reduction>(kernel);
     });
     queue.wait();
   }
