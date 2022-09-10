@@ -3664,7 +3664,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     assert(se.val);
     auto Derived =
-        (E->isLValue() || E->isXValue())
+         (E->isLValue() || E->isXValue())
             ? cast<CXXRecordDecl>(
                   E->getSubExpr()->getType()->castAs<RecordType>()->getDecl())
             : E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
