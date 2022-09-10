@@ -233,6 +233,34 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   return Result;
 }
 
+// CP -- work
+static bool supports_affinity_domain(const device &dev,
+                                     info::partition_property partitionProp,
+                                     info::partition_affinity_domain domain) {
+  if (partitionProp != info::partition_property::partition_by_affinity_domain) {
+    return true;
+  }
+  auto supported = dev.get_info<info::device::partition_affinity_domains>();
+  for (info::partition_affinity_domain dom : supported) {
+    if (dom == domain) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool
+supports_partition_property(const device &dev,
+                            info::partition_property partitionProp) {
+  auto supported = dev.get_info<info::device::partition_properties>();
+  for (info::partition_property prop : supported) {
+    if (prop == partitionProp) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
@@ -296,6 +324,30 @@ platform_impl::get_devices(info::device_type DeviceType) const {
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
 
+  // CP
+  const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR");
+  Parse_ONEAPI_DEVICE_SELECTOR(dev_filter);
+  /*
+    constexpr info::partition_property partitionProperty =
+    info::partition_property::partition_by_affinity_domain; constexpr
+    info::partition_affinity_domain affinityDomain =
+    info::partition_affinity_domain::next_partitionable; std::vector<device>
+    papaSauce; for(device &dev : Res){
+
+      if (supports_partition_property(dev, partitionProperty) &&
+    supports_affinity_domain(dev, partitionProperty, affinityDomain)){ auto
+    subDevices =
+    dev.create_sub_devices<info::partition_property::partition_by_affinity_domain>(affinityDomain);
+        for(device &sub : subDevices){
+          papaSauce.push_back(sub);
+        }
+      } else {
+        papaSauce.push_back(dev);
+      }
+    } // for
+
+    return papaSauce;
+    */
   return Res;
 }
 

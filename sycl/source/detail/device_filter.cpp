@@ -18,7 +18,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-std::vector<std::string_view> tokenize(const std::string &Filter,
+std::vector<std::string_view> tokenize(const std::string_view &Filter,
                                        const std::string &Delim) {
   std::vector<std::string_view> Tokens;
   size_t Pos = 0;
@@ -41,6 +41,145 @@ std::vector<std::string_view> tokenize(const std::string &Filter,
   }
   return Tokens;
 }
+
+// ---------------------------------------
+// ONEAPI_DEVICE_SELECTOR support
+
+static backend Parse_ODS_Backend(const std::string_view &BackendStr) {
+  // Check if the first entry matches with a known backend type
+  auto SyclBeMap = getSyclBeMap(); // <-- std::array<std::pair<std::string,
+                                   // backend>>  [{"level_zero",
+                                   // backend::level_zero}, {"*", ::all}, ...]
+  auto It = std::find_if(
+      std::begin(SyclBeMap), std::end(SyclBeMap), [&](auto BePair) {
+        return std::string::npos != BackendStr.find(BePair.first);
+      });
+
+  if (It == SyclBeMap.end())
+    // TODO: - do not return ::all, throw an exception instead,
+    // as backend is required.
+    return backend::all;
+  else {
+    return It->second;
+  }
+}
+
+static void Parse_ODS_Device(ods_target &Target,
+                             const std::string_view &DeviceStr) {
+  // DeviceStr will be: 'gpu', '*', '0', '0.1', or '*.*'
+  std::vector<std::string_view> DeviceSubPair = tokenize(DeviceStr, ".");
+  std::string_view TopDeviceStr = DeviceSubPair[0];
+
+  // TODO: if we ever support "gpu.0" type syntax
+  // then remove this .size() == 1 check and just check for device type.
+  // second handling of top wildcard can be removed, as can the early exit.
+  if (DeviceSubPair.size() == 1) {
+    // handle explicit device type (e.g. 'gpu')
+    auto DeviceTypeMap =
+        getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
+                                // info::device::type>>
+    auto It = std::find_if(
+        std::begin(DeviceTypeMap), std::end(DeviceTypeMap), [&](auto DtPair) {
+          return std::string::npos != DeviceStr.find(DtPair.first);
+        });
+    if (It != DeviceTypeMap.end()) {
+      Target.HasDeviceType = true;
+      Target.DeviceType = It->second;
+      // handle wildcard
+      if (TopDeviceStr[0] == '*') {
+        Target.HasDeviceWildCard = true;
+        Target.HasDeviceType = false;
+      }
+      return; // early exit, as nothing can follow 'gpu' at this time.
+    }
+  }
+
+  // TopDeviceStr is wildcard or number.
+  if (TopDeviceStr[0] == '*') {
+    Target.HasDeviceWildCard = true;
+  } else {
+    std::string TDS(TopDeviceStr);
+    Target.DeviceNumber = std::stoi(TDS);
+    Target.HasDeviceNumber = true;
+  }
+
+  if (DeviceSubPair.size() == 2) {
+    // we have a subdevice.
+    std::string_view SubDeviceStr = DeviceSubPair[1];
+    // SubDeviceStr is wildcard or number.
+    if (SubDeviceStr[0] == '*') {
+      Target.HasSubDeviceWildCard = true;
+    } else {
+      std::string SDS(SubDeviceStr);
+      Target.SubDeviceNumber = std::stoi(SDS);
+      Target.HasSubDeviceNumber = true;
+    }
+  }
+}
+
+std::vector<ods_target>
+Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
+  std::vector<ods_target> Result;
+  if (envStr.empty()) {
+    ods_target acceptAnything;
+    Result.push_back(acceptAnything);
+    return Result;
+  }
+
+  std::vector<std::string_view> Entries = tokenize(envStr, ";");
+  // each entry: "level_zero:gpu" or "opencl:0.0,0.1", etc. or possibly just
+  // "level_zero"
+  for (const auto Entry : Entries) {
+    std::vector<std::string_view> Pair = tokenize(Entry, ":");
+    backend be = Parse_ODS_Backend(Pair[0]); // Pair[0] is backend
+
+    if (Pair.size() == 1) {
+      ods_target backendOnly(be);
+      Result.push_back(backendOnly);
+    } else if (Pair.size() == 2) {
+      std::vector<std::string_view> Targets = tokenize(Pair[1], ",");
+      for (auto TargetStr : Targets) {
+        ods_target DeviceTarget(be);
+        Parse_ODS_Device(DeviceTarget, TargetStr);
+        Result.push_back(DeviceTarget);
+        // std::cout << "DeviceTarget: " << DeviceTarget << std::endl;
+      }
+    }
+
+    // std::cout << "Size of Pair: " << Pair.size() << std::endl;
+  }
+
+  return Result;
+}
+
+std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
+  Out << Target.Backend;
+  if (Target.HasDeviceType) {
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto Match = std::find_if(
+        DeviceTypeMap.begin(), DeviceTypeMap.end(),
+        [&](auto Pair) { return (Pair.second == Target.DeviceType); });
+    if (Match != DeviceTypeMap.end()) {
+      Out << ":" << Match->first;
+    } else {
+      Out << ":???";
+    }
+    return Out; // early exit
+  }
+  if (Target.HasDeviceWildCard)
+    Out << ":*";
+  if (Target.HasDeviceNumber)
+    Out << ":" << Target.DeviceNumber;
+  if (Target.HasSubDeviceWildCard)
+    Out << ".*";
+  if (Target.HasSubDeviceNumber)
+    Out << "." << Target.SubDeviceNumber;
+
+  return Out;
+}
+
+// ---------------------------------------
+// SYCL_DEVICE_FILTER support
 
 device_filter::device_filter(const std::string &FilterString) {
   std::vector<std::string_view> Tokens = tokenize(FilterString, ":");

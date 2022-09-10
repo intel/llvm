@@ -19,6 +19,41 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+// ---------------------------------------
+// ONEAPI_DEVICE_SELECTOR support
+
+// the ONEAPI_DEVICE_SELECTOR string gets broken down into these targets
+// will will match devices.
+struct ods_target {
+public:
+  bool HasBackend = false;
+  backend Backend = backend::all;
+
+  bool HasDeviceType = false;
+  info::device_type DeviceType = info::device_type::all;
+
+  bool HasDeviceWildCard = false;
+  bool HasDeviceNumber = false;
+  unsigned DeviceNumber = 0;
+
+  bool HasSubDeviceWildCard = false;
+  bool HasSubDeviceNumber = false;
+  unsigned SubDeviceNumber = 0;
+
+  ods_target(backend be) {
+    HasBackend = true;
+    Backend = be;
+  };
+  ods_target(){};
+  friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
+};
+
+std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
+std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
+
+// ---------------------------------------
+// SYCL_DEVICE_FILTER support
+
 struct device_filter {
   backend Backend = backend::all;
   info::device_type DeviceType = info::device_type::all;
