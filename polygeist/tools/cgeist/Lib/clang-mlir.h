@@ -156,6 +156,8 @@ private:
   mlir::Block *allocationScope;
 
   llvm::SmallSet<std::string, 4> supportedFuncs;
+  // Initialize a whitelist of SYCL functions to emit instead just the
+  // declaration. Eventually, this list should be removed.
   void initSupportedFunctions();
   bool isSupportedFunctions(std::string name) const {
     return supportedFuncs.contains(name);

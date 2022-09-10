@@ -137,6 +137,7 @@ void MLIRScanner::initSupportedFunctions() {
   supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ERKS3_");
   supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1Ev");
   // TODO: Add support to the commented out functions.
+  // These commented out require fixes to their codegen.
   // supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
   supportedFuncs.insert(
       "_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
