@@ -34,6 +34,11 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
+// clang-format off
+// Ensure declaration to have external linkage.
+// CHECK: func.func private @_ZN4sycl3_V12idILi2EEC1Ev(memref<?x!sycl_id_2_>) attributes {llvm.linkage = #llvm.linkage<external>}
+// clang-format on
+
 SYCL_EXTERNAL void cons_1() {
   auto id = sycl::id<2>{};
 }
