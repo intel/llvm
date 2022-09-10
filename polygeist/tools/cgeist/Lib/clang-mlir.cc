@@ -136,12 +136,10 @@ void MLIRScanner::initSupportedFunctions() {
                         "ifIXeqT_Li1EEmE4typeE");
   supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ERKS3_");
   supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1Ev");
-  // TODO: Add support to the commented out functions.
-  // These commented out require fixes to their codegen.
-  // supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
+  supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
   supportedFuncs.insert(
       "_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
-  // supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
+  supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
 }
 
 void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
@@ -3443,6 +3441,12 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
           field->getType()->getUnqualifiedDesugaredType()));
 }
 
+static bool isSyclIDorRangetoArray(mlir::Type &nt, mlir::Value &value) {
+  mlir::Type elemTy = value.getType().dyn_cast<MemRefType>().getElementType();
+  return ((elemTy.isa<sycl::IDType>() || elemTy.isa<sycl::RangeType>()) &&
+          nt.dyn_cast<MemRefType>().getElementType().isa<sycl::ArrayType>());
+}
+
 mlir::Value MLIRScanner::GetAddressOfDerivedClass(
     mlir::Value value, const CXXRecordDecl *DerivedClass,
     CastExpr::path_const_iterator Start, CastExpr::path_const_iterator End) {
@@ -3575,7 +3579,10 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
     if (subIndex) {
       if (auto mt = value.getType().dyn_cast<MemRefType>()) {
         auto shape = std::vector<int64_t>(mt.getShape());
-        shape.erase(shape.begin());
+        // We do not remove dimensions for an id->array or range->array, because
+        // the later cast will be incompatible due to dimension mismatch.
+        if (!isSyclIDorRangetoArray(nt, value))
+          shape.erase(shape.begin());
         auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                          MemRefLayoutAttrInterface(),
                                          mt.getMemorySpace());
@@ -3615,8 +3622,12 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
       if (pt) {
         value = builder.create<polygeist::Memref2PointerOp>(loc, pt, value);
       } else {
-        if (value.getType() != nt)
-          value = builder.create<memref::CastOp>(loc, nt, value);
+        if (value.getType() != nt) {
+          if (isSyclIDorRangetoArray(nt, value))
+            value = builder.create<sycl::SYCLCastOp>(loc, nt, value);
+          else
+            value = builder.create<memref::CastOp>(loc, nt, value);
+        }
       }
     }
 
