@@ -3098,6 +3098,9 @@ public:
   void SetParamDefaultArgument(ParmVarDecl *Param, Expr *DefaultArg,
                                SourceLocation EqualLoc);
 
+  StmtResult BuildMemCpyCall(SourceLocation Loc, QualType T, Expr *From,
+                             Expr *To);
+
   // Contexts where using non-trivial C union types can be disallowed. This is
   // passed to err_non_trivial_c_union_in_invalid_context.
   enum NonTrivialCUnionContext {

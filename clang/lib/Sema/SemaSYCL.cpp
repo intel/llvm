@@ -2878,23 +2878,29 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, ParamRef);
   }
 
+  void createMemCpyCall(QualType Ty, SmallVectorImpl<Stmt *> &AddTo) {
+    Expr *ParamRef = createParamReferenceExpr();
+    Expr *FieldOfLocalClone = MemberExprBases.back();
+    StmtResult Call = SemaRef.BuildMemCpyCall(KernelCallerSrcLoc, Ty, ParamRef,
+                                              FieldOfLocalClone);
+
+    Expr *MemCpyCallExpr = Call.getAs<Expr>();
+
+    AddTo.push_back(MemCpyCallExpr);
+  }
+
   // Call __builtin_memcpy to copy modified type with pointer
   // to local clone
-  void generateBitwiseCopy(FieldDecl *FD, QualType Ty) {
-    // Need to change this to bitwise copy
-    addSimpleFieldInit(FD, Ty);
+  // Elizabeth - Refactor Sema once this works
+  void handleGeneratedType(FieldDecl *FD, QualType Ty) {
 
-    // Compute the size of the memory buffer to be copied.
-    /*QualType SizeType = S.Context.getSizeType();
-    llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
-                   SemaRef.Context.getTypeSizeInChars(Ty).getQuantity());
+    addFieldInit(FD, Ty, None,
+                 InitializationKind::CreateDefault(KernelCallerSrcLoc));
+    addFieldMemberExpr(FD, Ty);
 
-    Expr *ParamRef = createParamReferenceExpr();
-    From = UnaryOperator::Create(SemaRef.Context, ParamRef, UO_AddrOf,
-    SemaRef.Context.getPointerType(ParamRef->getType()), VK_PRValue,
-    OK_Ordinary, KernelCallerSrcLoc, false, SemaRef.CurFPFeatureOverrides());
-    */
-    // How do I get a reference to the field of local clone?
+    createMemCpyCall(Ty, BodyStmts);
+
+    removeFieldMemberExpr(FD, Ty);
   }
 
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
@@ -3129,7 +3135,7 @@ public:
     CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
     assert(RD && "Type must be a C++ record type");
     if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
-      generateBitwiseCopy(FD, Ty);
+      handleGeneratedType(FD, Ty);
     else
       addSimpleFieldInit(FD, Ty);
     return true;
