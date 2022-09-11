@@ -2407,6 +2407,10 @@ static void handleUnusedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static void handleConstructorAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   uint32_t priority = ConstructorAttr::DefaultPriority;
+  if (S.getLangOpts().HLSL && AL.getNumArgs()) {
+    S.Diag(AL.getLoc(), diag::err_hlsl_init_priority_unsupported);
+    return;
+  }
   if (AL.getNumArgs() &&
       !checkUInt32Argument(S, AL, AL.getArgAsExpr(0), priority))
     return;
@@ -4331,6 +4335,7 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
       }
     }
   }
+  
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
   // ReqdWorkGroupSizeAttr, check to see if the attribute holds values equal to
