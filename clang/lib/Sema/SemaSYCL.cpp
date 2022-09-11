@@ -2371,11 +2371,6 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *Base,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    // We need to create a list of BaseSpecifiers for each class
-    //   Actions.ActOnBaseSpecifiers(ClassDecl, BaseInfo);
-    //  Or maybe just setBases() which requires us to create a bunch of
-    //  CXXBaseSpecifiers
-
     CXXRecordDecl *BaseRecordDecl = Ty->getAsCXXRecordDecl();
     SyclKernelPointerHandler PointerHandler(SemaRef, BaseRecordDecl);
     KernelObjVisitor Visitor{SemaRef};
@@ -2889,17 +2884,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     AddTo.push_back(MemCpyCallExpr);
   }
 
-  // Call __builtin_memcpy to copy modified type with pointer
-  // to local clone
-  // Elizabeth - Refactor Sema once this works
+  // Adds default initializer for generated type and creates
+  // a call to __builtin_memcpy to iniatilize local clone from
+  // kernel argument.
   void handleGeneratedType(FieldDecl *FD, QualType Ty) {
-
     addFieldInit(FD, Ty, None,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
     addFieldMemberExpr(FD, Ty);
-
     createMemCpyCall(Ty, BodyStmts);
-
     removeFieldMemberExpr(FD, Ty);
   }
 
