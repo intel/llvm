@@ -1515,7 +1515,6 @@
 ?compile_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@AEBVproperty_list@23@@Z
 ?compile_with_kernel_name@program@sycl@cl@@AEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0_J@Z
 ?compile_with_source@program@sycl@cl@@QEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z
-?constructorNotification@buffer_impl@detail@sycl@cl@@QEAAXAEBUcode_location@234@PEAX@Z
 ?constructorNotification@buffer_impl@detail@sycl@cl@@QEAAXAEBUcode_location@234@PEAXPEBX2IIQEA_K@Z
 ?constructorNotification@detail@sycl@cl@@YAXPEAX0W4target@access@23@W4mode@523@AEBUcode_location@123@@Z
 ?contains_specialization_constants@kernel_bundle_plain@detail@sycl@cl@@QEBA_NXZ
@@ -2458,7 +2457,6 @@
 ?is_host@queue@sycl@cl@@QEBA_NXZ
 ?is_in_order@queue@sycl@cl@@QEBA_NXZ
 ?is_specialization_constant_set@kernel_bundle_plain@detail@sycl@cl@@IEBA_NPEBD@Z
-?join_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBV?$vector@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@V?$allocator@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@@2@@5@@Z
 ?join_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBV?$vector@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@V?$allocator@V?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@@2@@5@W4bundle_state@23@@Z
 ?ldexp@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@V?$vec@H$00@42@@Z
 ?ldexp@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@V?$vec@H$01@42@@Z
