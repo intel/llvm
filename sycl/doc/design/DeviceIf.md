@@ -25,10 +25,11 @@ $ clang++ -fsycl -fsycl-targets=spir64_gen -Xs "-device skl" ...
 ```
 
 Notice that `-fsycl-targets` option specifies only the generic name
-`spir64_gen` whereas the device name is passed directly to `ocloc` via
-`-Xs "-device skl"`.  Since the compiler driver merely passes the `-Xs` options
-directly to the underlying `ocloc` without understanding them, the compiler
-driver does not currently know the target device(s) of the AOT compilation.
+`spir64_gen` whereas the device name is passed directly to `ocloc` (the Intel
+GPU AOT compiler) via `-Xs "-device skl"`.  Since the compiler driver merely
+passes the `-Xs` options directly to the underlying `ocloc` without
+understanding them, the compiler driver does not currently know the target
+device(s) of the AOT compilation.
 
 To fix this, the `-fsycl-targets` option should be changed to accept the
 following GPU device names in addition to the target names it currently
