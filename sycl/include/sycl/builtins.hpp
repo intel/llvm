@@ -36,8 +36,11 @@ namespace __sycl_std = __host_std;
 #ifdef __FAST_MATH__
 #define __FAST_MATH_GENFLOAT(T)                                                \
   (detail::is_svgenfloatd<T>::value || detail::is_svgenfloath<T>::value)
+#define __FAST_MATH_SGENFLOAT(T)                                               \
+  (std::is_same<T, double>::value || std::is_same<T, half>::value)
 #else
 #define __FAST_MATH_GENFLOAT(T) (detail::is_svgenfloat<T>::value)
+#define __FAST_MATH_SGENFLOAT(T) (detail::is_sgenfloat<T>::value)
 #endif
 
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
@@ -47,26 +50,26 @@ namespace __sycl_std = __host_std;
 // using larger vectorizations for large marray sizes is possible; however more
 // testing is required in order to ascertain the performance implications for
 // all backends.
+#define __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                               \
+  marray<T, N> res;                                                            \
+  for (size_t i = 0; i < N / 2; i++) {                                         \
+    vec<T, 2> partial_res =                                                    \
+        __sycl_std::__invoke_##NAME<vec<T, 2>>(detail::to_vec2(x, i * 2));     \
+    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));                 \
+  }                                                                            \
+  if (N % 2) {                                                                 \
+    res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1]);                     \
+  }                                                                            \
+  return res;
+
 #define __SYCL_MATH_FUNCTION_OVERLOAD(NAME)                                    \
   template <typename T, size_t N>                                              \
   inline __SYCL_ALWAYS_INLINE                                                  \
       std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
       NAME(marray<T, N> x) __NOEXC {                                           \
-    marray<T, N> res;                                                          \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      vec<T, 2> partial_res =                                                  \
-          __sycl_std::__invoke_##NAME<vec<T, 2>>(detail::to_vec2(x, i * 2));   \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1]);                   \
-    }                                                                          \
-    return res;                                                                \
+    __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                                   \
   }
 
-__SYCL_MATH_FUNCTION_OVERLOAD(sin)
-__SYCL_MATH_FUNCTION_OVERLOAD(cos)
-__SYCL_MATH_FUNCTION_OVERLOAD(tan)
 __SYCL_MATH_FUNCTION_OVERLOAD(cospi)
 __SYCL_MATH_FUNCTION_OVERLOAD(sinpi)
 __SYCL_MATH_FUNCTION_OVERLOAD(tanpi)
@@ -87,40 +90,60 @@ __SYCL_MATH_FUNCTION_OVERLOAD(ceil)
 __SYCL_MATH_FUNCTION_OVERLOAD(floor)
 __SYCL_MATH_FUNCTION_OVERLOAD(erfc)
 __SYCL_MATH_FUNCTION_OVERLOAD(erf)
-__SYCL_MATH_FUNCTION_OVERLOAD(exp)
-__SYCL_MATH_FUNCTION_OVERLOAD(exp2)
-__SYCL_MATH_FUNCTION_OVERLOAD(exp10)
 __SYCL_MATH_FUNCTION_OVERLOAD(expm1)
 __SYCL_MATH_FUNCTION_OVERLOAD(tgamma)
 __SYCL_MATH_FUNCTION_OVERLOAD(lgamma)
-__SYCL_MATH_FUNCTION_OVERLOAD(log)
-__SYCL_MATH_FUNCTION_OVERLOAD(log2)
-__SYCL_MATH_FUNCTION_OVERLOAD(log10)
 __SYCL_MATH_FUNCTION_OVERLOAD(log1p)
 __SYCL_MATH_FUNCTION_OVERLOAD(logb)
 __SYCL_MATH_FUNCTION_OVERLOAD(rint)
 __SYCL_MATH_FUNCTION_OVERLOAD(round)
-__SYCL_MATH_FUNCTION_OVERLOAD(sqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD(rsqrt)
 __SYCL_MATH_FUNCTION_OVERLOAD(trunc)
 
 #undef __SYCL_MATH_FUNCTION_OVERLOAD
+
+// __SYCL_MATH_FUNCTION_OVERLOAD_FM cases use corresponding native
+// implementations when the -ffast-math flag is used with float.
+#define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
+  template <typename T, size_t N>                                              \
+  inline __SYCL_ALWAYS_INLINE                                                  \
+      std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>                 \
+      NAME(marray<T, N> x) __NOEXC {                                           \
+    __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                                   \
+  }
+
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(sin)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(cos)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(tan)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp2)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp10)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(log)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
+
+#undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
+#undef __SYCL_MATH_FUNCTION_OVERLOAD_IMPL
+
+#define __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(NAME)                             \
+  marray<T, N> res;                                                            \
+  for (size_t i = 0; i < N / 2; i++) {                                         \
+    auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(                 \
+        detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));                 \
+    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));                 \
+  }                                                                            \
+  if (N % 2) {                                                                 \
+    res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1]);           \
+  }                                                                            \
+  return res;
 
 #define __SYCL_MATH_FUNCTION_2_OVERLOAD(NAME)                                  \
   template <typename T, size_t N>                                              \
   inline __SYCL_ALWAYS_INLINE                                                  \
       std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
       NAME(marray<T, N> x, marray<T, N> y) __NOEXC {                           \
-    marray<T, N> res;                                                          \
-    for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(               \
-          detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));               \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
-    }                                                                          \
-    if (N % 2) {                                                               \
-      res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1]);         \
-    }                                                                          \
-    return res;                                                                \
+    __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(NAME)                                 \
   }
 
 __SYCL_MATH_FUNCTION_2_OVERLOAD(atan2)
@@ -135,10 +158,18 @@ __SYCL_MATH_FUNCTION_2_OVERLOAD(maxmag)
 __SYCL_MATH_FUNCTION_2_OVERLOAD(minmag)
 __SYCL_MATH_FUNCTION_2_OVERLOAD(nextafter)
 __SYCL_MATH_FUNCTION_2_OVERLOAD(pow)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(powr)
 __SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
 
 #undef __SYCL_MATH_FUNCTION_2_OVERLOAD
+
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>
+    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
+  __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)
+}
+
+#undef __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL
 
 #define __SYCL_MATH_FUNCTION_3_OVERLOAD(NAME)                                  \
   template <typename T, size_t N>                                              \
@@ -165,206 +196,206 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-// genfloat acos (genfloat x)
+// svgenfloat acos (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
   return __sycl_std::__invoke_acos<T>(x);
 }
 
-// genfloat acosh (genfloat x)
+// svgenfloat acosh (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acosh(T x) __NOEXC {
   return __sycl_std::__invoke_acosh<T>(x);
 }
 
-// genfloat acospi (genfloat x)
+// svgenfloat acospi (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acospi(T x) __NOEXC {
   return __sycl_std::__invoke_acospi<T>(x);
 }
 
-// genfloat asin (genfloat x)
+// svgenfloat asin (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> asin(T x) __NOEXC {
   return __sycl_std::__invoke_asin<T>(x);
 }
 
-// genfloat asinh (genfloat x)
+// svgenfloat asinh (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> asinh(T x) __NOEXC {
   return __sycl_std::__invoke_asinh<T>(x);
 }
 
-// genfloat asinpi (genfloat x)
+// svgenfloat asinpi (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> asinpi(T x) __NOEXC {
   return __sycl_std::__invoke_asinpi<T>(x);
 }
 
-// genfloat atan (genfloat y_over_x)
+// svgenfloat atan (svgenfloat y_over_x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>
 atan(T y_over_x) __NOEXC {
   return __sycl_std::__invoke_atan<T>(y_over_x);
 }
 
-// genfloat atan2 (genfloat y, genfloat x)
+// svgenfloat atan2 (svgenfloat y, svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> atan2(T y,
                                                               T x) __NOEXC {
   return __sycl_std::__invoke_atan2<T>(y, x);
 }
 
-// genfloat atanh (genfloat x)
+// svgenfloat atanh (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> atanh(T x) __NOEXC {
   return __sycl_std::__invoke_atanh<T>(x);
 }
 
-// genfloat atanpi (genfloat x)
+// svgenfloat atanpi (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> atanpi(T x) __NOEXC {
   return __sycl_std::__invoke_atanpi<T>(x);
 }
 
-// genfloat atan2pi (genfloat y, genfloat x)
+// svgenfloat atan2pi (svgenfloat y, svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> atan2pi(T y,
                                                                 T x) __NOEXC {
   return __sycl_std::__invoke_atan2pi<T>(y, x);
 }
 
-// genfloat cbrt (genfloat x)
+// svgenfloat cbrt (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> cbrt(T x) __NOEXC {
   return __sycl_std::__invoke_cbrt<T>(x);
 }
 
-// genfloat ceil (genfloat x)
+// svgenfloat ceil (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> ceil(T x) __NOEXC {
   return __sycl_std::__invoke_ceil<T>(x);
 }
 
-// genfloat copysign (genfloat x, genfloat y)
+// svgenfloat copysign (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> copysign(T x,
                                                                  T y) __NOEXC {
   return __sycl_std::__invoke_copysign<T>(x, y);
 }
 
-// genfloat cos (genfloat x)
+// svgenfloat cos (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> cos(T x) __NOEXC {
   return __sycl_std::__invoke_cos<T>(x);
 }
 
-// genfloat cosh (genfloat x)
+// svgenfloat cosh (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> cosh(T x) __NOEXC {
   return __sycl_std::__invoke_cosh<T>(x);
 }
 
-// genfloat cospi (genfloat x)
+// svgenfloat cospi (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> cospi(T x) __NOEXC {
   return __sycl_std::__invoke_cospi<T>(x);
 }
 
-// genfloat erfc (genfloat x)
+// svgenfloat erfc (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> erfc(T x) __NOEXC {
   return __sycl_std::__invoke_erfc<T>(x);
 }
 
-// genfloat erf (genfloat x)
+// svgenfloat erf (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> erf(T x) __NOEXC {
   return __sycl_std::__invoke_erf<T>(x);
 }
 
-// genfloat exp (genfloat x )
+// svgenfloat exp (svgenfloat x )
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp(T x) __NOEXC {
   return __sycl_std::__invoke_exp<T>(x);
 }
 
-// genfloat exp2 (genfloat x)
+// svgenfloat exp2 (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp2(T x) __NOEXC {
   return __sycl_std::__invoke_exp2<T>(x);
 }
 
-// genfloat exp10 (genfloat x)
+// svgenfloat exp10 (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp10(T x) __NOEXC {
   return __sycl_std::__invoke_exp10<T>(x);
 }
 
-// genfloat expm1 (genfloat x)
+// svgenfloat expm1 (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> expm1(T x) __NOEXC {
   return __sycl_std::__invoke_expm1<T>(x);
 }
 
-// genfloat fabs (genfloat x)
+// svgenfloat fabs (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> fabs(T x) __NOEXC {
   return __sycl_std::__invoke_fabs<T>(x);
 }
 
-// genfloat fdim (genfloat x, genfloat y)
+// svgenfloat fdim (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> fdim(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fdim<T>(x, y);
 }
 
-// genfloat floor (genfloat x)
+// svgenfloat floor (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> floor(T x) __NOEXC {
   return __sycl_std::__invoke_floor<T>(x);
 }
 
-// genfloat fma (genfloat a, genfloat b, genfloat c)
+// svgenfloat fma (svgenfloat a, svgenfloat b, svgenfloat c)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> fma(T a, T b,
                                                             T c) __NOEXC {
   return __sycl_std::__invoke_fma<T>(a, b, c);
 }
 
-// genfloat fmax (genfloat x, genfloat y)
+// svgenfloat fmax (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> fmax(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmax<T>(x, y);
 }
 
-// genfloat fmax (genfloat x, sgenfloat y)
+// svgenfloat fmax (svgenfloat x, sgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_vgenfloat<T>::value, T>
 fmax(T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_fmax<T>(x, T(y));
 }
 
-// genfloat fmin (genfloat x, genfloat y)
+// svgenfloat fmin (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> fmin(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmin<T>(x, y);
 }
 
-// genfloat fmin (genfloat x, sgenfloat y)
+// svgenfloat fmin (svgenfloat x, sgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_vgenfloat<T>::value, T>
 fmin(T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_fmin<T>(x, T(y));
 }
 
-// genfloat fmod (genfloat x, genfloat y)
+// svgenfloat fmod (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> fmod(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmod<T>(x, y);
 }
 
-// genfloat fract (genfloat x, genfloatptr iptr)
+// svgenfloat fract (svgenfloat x, genfloatptr iptr)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
@@ -373,7 +404,7 @@ fract(T x, T2 iptr) __NOEXC {
   return __sycl_std::__invoke_fract<T>(x, iptr);
 }
 
-// genfloat frexp (genfloat x, genintptr exp)
+// svgenfloat frexp (svgenfloat x, genintptr exp)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
@@ -382,14 +413,14 @@ frexp(T x, T2 exp) __NOEXC {
   return __sycl_std::__invoke_frexp<T>(x, exp);
 }
 
-// genfloat hypot (genfloat x, genfloat y)
+// svgenfloat hypot (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> hypot(T x,
                                                               T y) __NOEXC {
   return __sycl_std::__invoke_hypot<T>(x, y);
 }
 
-// genint ilogb (genfloat x)
+// genint ilogb (svgenfloat x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::change_base_type_t<T, int> ilogb(T x) __NOEXC {
@@ -421,13 +452,13 @@ ldexp(T x, T2 k) __NOEXC {
   return __sycl_std::__invoke_ldexp<T>(x, k);
 }
 
-// genfloat lgamma (genfloat x)
+// svgenfloat lgamma (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> lgamma(T x) __NOEXC {
   return __sycl_std::__invoke_lgamma<T>(x);
 }
 
-// genfloat lgamma_r (genfloat x, genintptr signp)
+// svgenfloat lgamma_r (svgenfloat x, genintptr signp)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
@@ -436,58 +467,58 @@ lgamma_r(T x, T2 signp) __NOEXC {
   return __sycl_std::__invoke_lgamma_r<T>(x, signp);
 }
 
-// genfloat log (genfloat x)
+// svgenfloat log (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log(T x) __NOEXC {
   return __sycl_std::__invoke_log<T>(x);
 }
 
-// genfloat log2 (genfloat x)
+// svgenfloat log2 (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log2(T x) __NOEXC {
   return __sycl_std::__invoke_log2<T>(x);
 }
 
-// genfloat log10 (genfloat x)
+// svgenfloat log10 (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log10(T x) __NOEXC {
   return __sycl_std::__invoke_log10<T>(x);
 }
 
-// genfloat log1p (genfloat x)
+// svgenfloat log1p (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> log1p(T x) __NOEXC {
   return __sycl_std::__invoke_log1p<T>(x);
 }
 
-// genfloat logb (genfloat x)
+// svgenfloat logb (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> logb(T x) __NOEXC {
   return __sycl_std::__invoke_logb<T>(x);
 }
 
-// genfloat mad (genfloat a, genfloat b, genfloat c)
+// svgenfloat mad (svgenfloat a, svgenfloat b, svgenfloat c)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> mad(T a, T b,
                                                             T c) __NOEXC {
   return __sycl_std::__invoke_mad<T>(a, b, c);
 }
 
-// genfloat maxmag (genfloat x, genfloat y)
+// svgenfloat maxmag (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> maxmag(T x,
                                                                T y) __NOEXC {
   return __sycl_std::__invoke_maxmag<T>(x, y);
 }
 
-// genfloat minmag (genfloat x, genfloat y)
+// svgenfloat minmag (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> minmag(T x,
                                                                T y) __NOEXC {
   return __sycl_std::__invoke_minmag<T>(x, y);
 }
 
-// genfloat modf (genfloat x, genfloatptr iptr)
+// svgenfloat modf (svgenfloat x, genfloatptr iptr)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
@@ -503,20 +534,20 @@ detail::nan_return_t<T> nan(T nancode) __NOEXC {
       detail::convert_data_type<T, detail::nan_argument_base_t<T>>()(nancode));
 }
 
-// genfloat nextafter (genfloat x, genfloat y)
+// svgenfloat nextafter (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> nextafter(T x,
                                                                   T y) __NOEXC {
   return __sycl_std::__invoke_nextafter<T>(x, y);
 }
 
-// genfloat pow (genfloat x, genfloat y)
+// svgenfloat pow (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> pow(T x, T y) __NOEXC {
   return __sycl_std::__invoke_pow<T>(x, y);
 }
 
-// genfloat pown (genfloat x, genint y)
+// svgenfloat pown (svgenfloat x, genint y)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genint<T2>::value, T>
@@ -525,20 +556,20 @@ pown(T x, T2 y) __NOEXC {
   return __sycl_std::__invoke_pown<T>(x, y);
 }
 
-// genfloat powr (genfloat x, genfloat y)
+// svgenfloat powr (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> powr(T x, T y) __NOEXC {
   return __sycl_std::__invoke_powr<T>(x, y);
 }
 
-// genfloat remainder (genfloat x, genfloat y)
+// svgenfloat remainder (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> remainder(T x,
                                                                   T y) __NOEXC {
   return __sycl_std::__invoke_remainder<T>(x, y);
 }
 
-// genfloat remquo (genfloat x, genfloat y, genintptr quo)
+// svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genintptr<T2>::value, T>
@@ -547,13 +578,13 @@ remquo(T x, T y, T2 quo) __NOEXC {
   return __sycl_std::__invoke_remquo<T>(x, y, quo);
 }
 
-// genfloat rint (genfloat x)
+// svgenfloat rint (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> rint(T x) __NOEXC {
   return __sycl_std::__invoke_rint<T>(x);
 }
 
-// genfloat rootn (genfloat x, genint y)
+// svgenfloat rootn (svgenfloat x, genint y)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genint<T2>::value, T>
@@ -562,25 +593,25 @@ rootn(T x, T2 y) __NOEXC {
   return __sycl_std::__invoke_rootn<T>(x, y);
 }
 
-// genfloat round (genfloat x)
+// svgenfloat round (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> round(T x) __NOEXC {
   return __sycl_std::__invoke_round<T>(x);
 }
 
-// genfloat rsqrt (genfloat x)
+// svgenfloat rsqrt (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> rsqrt(T x) __NOEXC {
   return __sycl_std::__invoke_rsqrt<T>(x);
 }
 
-// genfloat sin (genfloat x)
+// svgenfloat sin (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sin(T x) __NOEXC {
   return __sycl_std::__invoke_sin<T>(x);
 }
 
-// genfloat sincos (genfloat x, genfloatptr cosval)
+// svgenfloat sincos (svgenfloat x, genfloatptr cosval)
 template <typename T, typename T2>
 detail::enable_if_t<
     detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
@@ -589,56 +620,56 @@ sincos(T x, T2 cosval) __NOEXC {
   return __sycl_std::__invoke_sincos<T>(x, cosval);
 }
 
-// genfloat sinh (genfloat x)
+// svgenfloat sinh (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> sinh(T x) __NOEXC {
   return __sycl_std::__invoke_sinh<T>(x);
 }
 
-// genfloat sinpi (genfloat x)
+// svgenfloat sinpi (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> sinpi(T x) __NOEXC {
   return __sycl_std::__invoke_sinpi<T>(x);
 }
 
-// genfloat sqrt (genfloat x)
+// svgenfloat sqrt (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sqrt(T x) __NOEXC {
   return __sycl_std::__invoke_sqrt<T>(x);
 }
 
-// genfloat tan (genfloat x)
+// svgenfloat tan (svgenfloat x)
 template <typename T>
 detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> tan(T x) __NOEXC {
   return __sycl_std::__invoke_tan<T>(x);
 }
 
-// genfloat tanh (genfloat x)
+// svgenfloat tanh (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> tanh(T x) __NOEXC {
   return __sycl_std::__invoke_tanh<T>(x);
 }
 
-// genfloat tanpi (genfloat x)
+// svgenfloat tanpi (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> tanpi(T x) __NOEXC {
   return __sycl_std::__invoke_tanpi<T>(x);
 }
 
-// genfloat tgamma (genfloat x)
+// svgenfloat tgamma (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> tgamma(T x) __NOEXC {
   return __sycl_std::__invoke_tgamma<T>(x);
 }
 
-// genfloat trunc (genfloat x)
+// svgenfloat trunc (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> trunc(T x) __NOEXC {
   return __sycl_std::__invoke_trunc<T>(x);
 }
 
 /* --------------- 4.13.5 Common functions. ---------------------------------*/
-// genfloat clamp (genfloat x, genfloat minval, genfloat maxval)
+// svgenfloat clamp (svgenfloat x, svgenfloat minval, svgenfloat maxval)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>
 clamp(T x, T minval, T maxval) __NOEXC {
@@ -655,20 +686,20 @@ clamp(T x, typename T::element_type minval,
   return __sycl_std::__invoke_fclamp<T>(x, T(minval), T(maxval));
 }
 
-// genfloat degrees (genfloat radians)
+// svgenfloat degrees (svgenfloat radians)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>
 degrees(T radians) __NOEXC {
   return __sycl_std::__invoke_degrees<T>(radians);
 }
 
-// genfloat abs (genfloat x)
+// svgenfloat abs (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> abs(T x) __NOEXC {
   return __sycl_std::__invoke_fabs<T>(x);
 }
 
-// genfloat max (genfloat x, genfloat y)
+// svgenfloat max (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>(max)(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmax_common<T>(x, y);
@@ -683,7 +714,7 @@ detail::enable_if_t<detail::is_vgenfloat<T>::value, T>(max)(
   return __sycl_std::__invoke_fmax_common<T>(x, T(y));
 }
 
-// genfloat min (genfloat x, genfloat y)
+// svgenfloat min (svgenfloat x, svgenfloat y)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>(min)(T x, T y) __NOEXC {
   return __sycl_std::__invoke_fmin_common<T>(x, y);
@@ -698,7 +729,7 @@ detail::enable_if_t<detail::is_vgenfloat<T>::value, T>(min)(
   return __sycl_std::__invoke_fmin_common<T>(x, T(y));
 }
 
-// genfloat mix (genfloat x, genfloat y, genfloat a)
+// svgenfloat mix (svgenfloat x, svgenfloat y, svgenfloat a)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> mix(T x, T y,
                                                             T a) __NOEXC {
@@ -714,14 +745,14 @@ mix(T x, T y, typename T::element_type a) __NOEXC {
   return __sycl_std::__invoke_mix<T>(x, y, T(a));
 }
 
-// genfloat radians (genfloat degrees)
+// svgenfloat radians (svgenfloat degrees)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>
 radians(T degrees) __NOEXC {
   return __sycl_std::__invoke_radians<T>(degrees);
 }
 
-// genfloat step (genfloat edge, genfloat x)
+// svgenfloat step (svgenfloat edge, svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> step(T edge,
                                                              T x) __NOEXC {
@@ -737,7 +768,7 @@ step(typename T::element_type edge, T x) __NOEXC {
   return __sycl_std::__invoke_step<T>(T(edge), x);
 }
 
-// genfloat smoothstep (genfloat edge0, genfloat edge1, genfloat x)
+// svgenfloat smoothstep (svgenfloat edge0, svgenfloat edge1, svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T>
 smoothstep(T edge0, T edge1, T x) __NOEXC {
@@ -754,7 +785,7 @@ smoothstep(typename T::element_type edge0, typename T::element_type edge1,
   return __sycl_std::__invoke_smoothstep<T>(T(edge0), T(edge1), x);
 }
 
-// genfloat sign (genfloat x)
+// svgenfloat sign (svgenfloat x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> sign(T x) __NOEXC {
   return __sycl_std::__invoke_sign<T>(x);
@@ -1561,6 +1592,7 @@ __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp2)
 __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp10)
 __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log)
 __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log2)
+__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log10)
 __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(sqrt)
 __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(rsqrt)
 __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(recip)
@@ -1819,75 +1851,105 @@ detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 
 #ifdef __FAST_MATH__
 /* ----------------- -ffast-math functions. ---------------------------------*/
+
+#define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
+  template <typename T, size_t N>                                              \
+  inline __SYCL_ALWAYS_INLINE                                                  \
+      std::enable_if_t<std::is_same<T, float>::value, marray<T, N>>            \
+      NAME(marray<T, N> x) __NOEXC {                                           \
+    return native::NAME(x);                                                    \
+  }
+
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(sin)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(cos)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(tan)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp2)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp10)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(log)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
+__SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
+#undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
+
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same<T, float>::value, marray<T, N>>
+    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
+  return native::powr(x, y);
+}
+
+//todo update naming of all changed to sv!
 // genfloatf cos (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> cos(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
   return native::cos(x);
 }
 
 // genfloatf exp (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp(T x) __NOEXC {
   return native::exp(x);
 }
 
 // genfloatf exp2 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp2(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp2(T x) __NOEXC {
   return native::exp2(x);
 }
 
 // genfloatf exp10 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp10(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp10(T x) __NOEXC {
   return native::exp10(x);
 }
 
 // genfloatf log(genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> log(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> log(T x) __NOEXC {
   return native::log(x);
 }
 
 // genfloatf log2 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> log2(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> log2(T x) __NOEXC {
   return native::log2(x);
 }
 
 // genfloatf log10 (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> log10(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> log10(T x) __NOEXC {
   return native::log10(x);
 }
 
 // genfloatf powr (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> powr(T x, T y) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x, T y) __NOEXC {
   return native::powr(x, y);
 }
 
 // genfloatf rsqrt (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> rsqrt(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> rsqrt(T x) __NOEXC {
   return native::rsqrt(x);
 }
 
 // genfloatf sin (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> sin(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> sin(T x) __NOEXC {
   return native::sin(x);
 }
 
 // genfloatf sqrt (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> sqrt(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> sqrt(T x) __NOEXC {
   return native::sqrt(x);
 }
 
 // genfloatf tan (genfloatf x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
+detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
   return native::tan(x);
 }
 
