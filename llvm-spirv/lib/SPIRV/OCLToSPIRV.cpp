@@ -160,7 +160,7 @@ void OCLToSPIRVBase::transVecLoadStoreName(std::string &DemangledName,
 char OCLToSPIRVLegacy::ID = 0;
 
 bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
-  M = &Module;
+  initialize(Module);
   Ctx = &M->getContext();
   auto Src = getSPIRVSource(&Module);
   // This is a pre-processing pass, which transform LLVM IR module to a more
@@ -1581,7 +1581,7 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
   auto *BlockF = cast<Function>(getUnderlyingObject(BlockFVal));
 
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInst(
+  ::mutateCallInst(
       M, CI,
       [=](CallInst *CI, std::vector<Value *> &Args) {
         Value *Param = *Args.rbegin();

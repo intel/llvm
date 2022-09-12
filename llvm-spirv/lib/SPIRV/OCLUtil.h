@@ -54,6 +54,10 @@ using namespace SPIRV;
 using namespace llvm;
 using namespace spv;
 
+namespace SPIRV {
+class BuiltinCallMutator;
+} // namespace SPIRV
+
 namespace OCLUtil {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -520,6 +524,8 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
 
 void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
                                     std::string &Name);
+
+std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F);
 } // namespace OCLUtil
 
 using namespace OCLUtil;

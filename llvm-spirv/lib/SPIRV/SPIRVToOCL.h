@@ -42,6 +42,7 @@
 #define SPIRVTOOCL_H
 
 #include "OCLUtil.h"
+#include "SPIRVBuiltinHelper.h"
 #include "SPIRVInternal.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/PassManager.h"
@@ -51,9 +52,12 @@
 
 namespace SPIRV {
 
-class SPIRVToOCLBase : public InstVisitor<SPIRVToOCLBase> {
+class SPIRVToOCLBase : public InstVisitor<SPIRVToOCLBase>,
+                       protected BuiltinCallHelper {
 public:
-  SPIRVToOCLBase() : M(nullptr), Ctx(nullptr) {}
+  SPIRVToOCLBase()
+      : BuiltinCallHelper(ManglingRules::OpenCL, translateOpaqueType),
+        M(nullptr), Ctx(nullptr) {}
   virtual ~SPIRVToOCLBase() {}
 
   virtual bool runSPIRVToOCL(Module &M) = 0;
