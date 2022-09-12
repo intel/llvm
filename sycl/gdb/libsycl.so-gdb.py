@@ -80,11 +80,6 @@ class HostAccessorLocal(HostAccessor):
             )
         return result
 
-    def data(self):
-        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getPtr()"
-        return gdb.parse_and_eval(eval_string);
-
-
 class DeviceAccessor(Accessor):
     """For CPU/GPU memory layout"""
 
