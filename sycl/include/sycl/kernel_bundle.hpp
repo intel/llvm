@@ -573,10 +573,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
-// TODO: This is no longer in use. Remove when ABI break is allowed.
-__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
-
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
           bundle_state State);

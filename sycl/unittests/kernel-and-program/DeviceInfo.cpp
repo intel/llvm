@@ -74,7 +74,7 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
     return;
   }
 
-  auto UUID = Dev.get_info<info::device::ext_intel_device_info_uuid>();
+  auto UUID = Dev.get_info<ext::intel::info::device::uuid>();
 
   EXPECT_EQ(TestContext->UUIDInfoCalled, true)
       << "Expect piDeviceGetInfo to be "
@@ -97,7 +97,7 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
     return;
   }
 
-  auto FreeMemory = Dev.get_info<info::device::ext_intel_free_memory>();
+  auto FreeMemory = Dev.get_info<ext::intel::info::device::free_memory>();
 
   EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
       << "Expect piDeviceGetInfo to be "
