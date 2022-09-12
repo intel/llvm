@@ -1,7 +1,7 @@
 # FPGA selector
 
 Intel FPGA users can use header file: `#include<sycl/ext/intel/fpga_device_selector.hpp>` to simplify their code
-when they want to specify FPGA hardware device or FPGA emulation device.
+when they want to specify FPGA hardware device, FPGA simulator device or FPGA emulation device.
 
 ## Implementation
 
@@ -14,6 +14,15 @@ one FPGA board installed in their system (one device per platform).
 ...
 // force FPGA hardware device
 sycl::queue deviceQueue{sycl::ext::intel::fpga_selector{}};
+...
+```
+
+## Usage: select FPGA simulator device
+```c++
+#include <sycl/ext/intel/fpga_device_selector.hpp>
+...
+// force FPGA simulator device
+sycl::queue deviceQueue{sycl::ext::intel::fpga_simulator_selector{}};
 ...
 ```
 
@@ -39,3 +48,4 @@ extension’s APIs the implementation supports.
 |Value |Description|
 |:---- |:---------:|
 |1     |Initial extension version. Base features are supported.|
+|2     |fpga_simulator_selector added.|

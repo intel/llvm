@@ -34,10 +34,6 @@ public:
     const platform &pf = device.get_platform();
     const std::string &platform_name = pf.get_info<info::platform::name>();
     if (platform_name == device_platform_name) {
-      const std::string name = device.get_info<sycl::info::device::name>();
-      // Prefer hardware devices over simulator ones.
-      if (name.find("SimulatorDevice") != std::string::npos)
-        return 9000;
       return 10000;
     }
     return -1;
@@ -61,16 +57,12 @@ public:
 
 class fpga_simulator_selector : public fpga_selector {
 public:
-  fpga_simulator_selector(unsigned int numDevices = 1) {
-    // Tell the runtime to start a simulator device
-    // Notes:
-    //   This replaces any hardware devices present
-    //   Currently only 1 simulator device is supported
-    auto devices = std::to_string(numDevices);
+  fpga_simulator_selector() {
+    // Tell the runtime to use a simulator device rather than hardware
 #ifdef _WIN32
-    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", devices.c_str());
+    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
 #else
-    setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", devices.c_str(), 0);
+    setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1", 0);
 #endif
   }
 };
