@@ -590,6 +590,16 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   return Out;
 }
 
+DeviceBinaryImage::DeviceBinaryImage(pi_device_binary Bin)
+    : BinProperties(
+          static_cast<size_t>(PropertyOffsetID::PropertyOffsetIDSize)) {
+  init(Bin);
+}
+
+DeviceBinaryImage::DeviceBinaryImage()
+    : Bin(nullptr), BinProperties(static_cast<size_t>(
+                        PropertyOffsetID::PropertyOffsetIDSize)) {}
+
 void DeviceBinaryImage::print() const {
   std::cerr << "  --- Image " << Bin << "\n";
   if (!Bin)
@@ -836,10 +846,22 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
-  DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
-  KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
+  getBinProperty(PropertyOffsetID::SpecConstIDMap)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
+  getBinProperty(PropertyOffsetID::SpecConstDefaultValuesMap)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
+  getBinProperty(PropertyOffsetID::DeviceLibReqMask)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  getBinProperty(PropertyOffsetID::KernelParamOptInfo)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  getBinProperty(PropertyOffsetID::AssertUsed)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
+  getBinProperty(PropertyOffsetID::ProgramMetadata)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
+  getBinProperty(PropertyOffsetID::ExportedSymbols)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
+  getBinProperty(PropertyOffsetID::DeviceGlobals)
+      .init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
 }
 
 } // namespace pi

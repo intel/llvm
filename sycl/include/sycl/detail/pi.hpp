@@ -279,8 +279,9 @@ public:
     friend class DeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
-  private:
     PropertyRange() : Begin(nullptr), End(nullptr) {}
+
+  private:
     // Searches for a property set with given name and constructs a
     // PropertyRange spanning all its elements. If property set is not found,
     // the range will span zero elements.
@@ -294,8 +295,8 @@ public:
   };
 
 public:
-  DeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
-  DeviceBinaryImage() : Bin(nullptr){};
+  DeviceBinaryImage(pi_device_binary Bin);
+  DeviceBinaryImage();
 
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
@@ -348,40 +349,29 @@ public:
   /// And for an interger specialization constant, the list of tuples will look
   /// like:
   /// { ID5, 0, 4 }
-  const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
-  const PropertyRange getSpecConstantsDefaultValues() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
-    SpecConstDefaultValuesMap.init(
-        Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
-    return SpecConstDefaultValuesMap;
+  const PropertyRange &getSpecConstants() const {
+    return getBinProperty(PropertyOffsetID::SpecConstIDMap);
   }
-  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getSpecConstantsDefaultValues() const {
+    return getBinProperty(PropertyOffsetID::SpecConstDefaultValuesMap);
+  }
+  const PropertyRange &getDeviceLibReqMask() const {
+    return getBinProperty(PropertyOffsetID::DeviceLibReqMask);
+  }
   const PropertyRange &getKernelParamOptInfo() const {
-    return KernelParamOptInfo;
+    return getBinProperty(PropertyOffsetID::KernelParamOptInfo);
   }
-  const PropertyRange getAssertUsed() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    PropertyRange AssertUsed;
-    AssertUsed.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
-    return AssertUsed;
+  const PropertyRange &getAssertUsed() const {
+    return getBinProperty(PropertyOffsetID::AssertUsed);
   }
-  const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
-  const PropertyRange getExportedSymbols() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    DeviceBinaryImage::PropertyRange ExportedSymbols;
-    ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
-    return ExportedSymbols;
+  const PropertyRange &getProgramMetadata() const {
+    return getBinProperty(PropertyOffsetID::ProgramMetadata);
   }
-  const PropertyRange getDeviceGlobals() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    DeviceBinaryImage::PropertyRange DeviceGlobals;
-    DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
-    return DeviceGlobals;
+  const PropertyRange &getExportedSymbols() const {
+    return getBinProperty(PropertyOffsetID::ExportedSymbols);
+  }
+  const PropertyRange &getDeviceGlobals() const {
+    return getBinProperty(PropertyOffsetID::DeviceGlobals);
   }
   virtual ~DeviceBinaryImage() {}
 
@@ -391,10 +381,33 @@ protected:
 
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
-  DeviceBinaryImage::PropertyRange SpecConstIDMap;
-  DeviceBinaryImage::PropertyRange DeviceLibReqMask;
-  DeviceBinaryImage::PropertyRange KernelParamOptInfo;
-  DeviceBinaryImage::PropertyRange ProgramMetadata;
+
+  enum class PropertyOffsetID : uint16_t {
+    SpecConstIDMap = 0,
+    SpecConstDefaultValuesMap = 1,
+    DeviceLibReqMask = 2,
+    KernelParamOptInfo = 3,
+    AssertUsed = 4,
+    ProgramMetadata = 5,
+    ExportedSymbols = 6,
+    DeviceGlobals = 7,
+    // New property offsets must be added before PropertyOffsetIDSize and after
+    // all others.
+    PropertyOffsetIDSize = 8
+  };
+
+  const PropertyRange &getBinProperty(PropertyOffsetID Offset) const {
+    return BinProperties[static_cast<size_t>(Offset)];
+  }
+
+  PropertyRange &getBinProperty(PropertyOffsetID Offset) {
+    return BinProperties[static_cast<size_t>(Offset)];
+  }
+
+  // Contains all property ranges read from the binary image.
+  // NOTE: This should be resized inside the source files to ensure the most
+  // up-to-date view of PropertyOffsetID.
+  std::vector<DeviceBinaryImage::PropertyRange> BinProperties;
 };
 
 /// Tries to determine the device binary image foramat. Returns
