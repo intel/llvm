@@ -3119,7 +3119,8 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
 }
 
 SPIRVToLLVM::SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule)
-    : M(LLVMModule), BM(TheSPIRVModule) {
+    : BuiltinCallHelper(ManglingRules::OpenCL), M(LLVMModule),
+      BM(TheSPIRVModule) {
   assert(M && "Initialization without an LLVM module is not allowed");
   Context = &M->getContext();
   DbgTran.reset(new SPIRVToLLVMDbgTran(TheSPIRVModule, LLVMModule, this));
@@ -4457,7 +4458,7 @@ Instruction *SPIRVToLLVM::transAllAny(SPIRVInstruction *I, BasicBlock *BB) {
   BuiltinFuncMangleInfo BtnInfo;
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return cast<Instruction>(mapValue(
-      I, mutateCallInst(
+      I, ::mutateCallInst(
              M, CI,
              [=](CallInst *, std::vector<Value *> &Args) {
                auto *OldArg = CI->getOperand(0);
@@ -4478,7 +4479,7 @@ Instruction *SPIRVToLLVM::transRelational(SPIRVInstruction *I, BasicBlock *BB) {
   BuiltinFuncMangleInfo BtnInfo;
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return cast<Instruction>(mapValue(
-      I, mutateCallInst(
+      I, ::mutateCallInst(
              M, CI,
              [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
                if (CI->getType()->isVectorTy()) {
