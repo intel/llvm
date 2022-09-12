@@ -233,7 +233,7 @@ private:
 
     Type retType = op.getODSResults(0).empty()
                        ? LLVM::LLVMVoidType::get(module.getContext())
-                       : typeConverter.convertType(op.Result().getType());
+                       : typeConverter.convertType(op.getType());
 
     LLVMBuilder builder(rewriter, op.getLoc());
     SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
@@ -258,6 +258,91 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// CastPattern - Converts `sycl.cast` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class CastPattern final : public SYCLToLLVMConversion<sycl::SYCLCastOp> {
+public:
+  using SYCLToLLVMConversion<sycl::SYCLCastOp>::SYCLToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(SYCLCastOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return rewriteCast(op, opAdaptor, rewriter);
+  }
+
+private:
+  /// Rewrite sycl.cast() to a LLVM bitcast operation.
+  LogicalResult rewriteCast(SYCLCastOp op, OpAdaptor opAdaptor,
+                            ConversionPatternRewriter &rewriter) const {
+    LLVM_DEBUG(llvm::dbgs() << "CastPattern: Rewriting op: "; op.dump();
+               llvm::dbgs() << "\n");
+
+    assert(op.source().getType().isa<MemRefType>() &&
+           "The cast source type should be a memref type");
+    assert(op.result().getType().isa<MemRefType>() &&
+           "The result source type should be a memref type");
+
+    Location loc = op.getLoc();
+    LLVMBuilder builder(rewriter, loc);    
+
+    // Ensure the input and result types are legal.
+    auto srcType = op.source().getType().cast<MemRefType>();
+    auto resType = op.result().getType().cast<MemRefType>();
+    if (!isValidMemRefType(srcType) || !isValidMemRefType(resType))
+      return failure();
+
+    // Ensure the result type can be converted.
+    Type convResType = typeConverter.convertType(resType);
+    if (!convResType)
+      return failure();
+
+    // Create a memref descriptor to hold the result of the cast operation.
+    auto resMemRefDesc = MemRefDescriptor::undef(rewriter, loc, convResType);
+
+    // Cast the allocated and aligned pointer fields of the source memref
+    // descriptor to the type of the same fields in the result memref descriptor.
+    MemRefDescriptor srcMemRefDesc(opAdaptor.source());
+    Value allocatedPtr =
+        builder.genBitcast(resMemRefDesc.getElementPtrType(),
+                           srcMemRefDesc.allocatedPtr(rewriter, loc));
+    Value alignedPtr =
+        builder.genBitcast(resMemRefDesc.getElementPtrType(),
+                           srcMemRefDesc.alignedPtr(rewriter, loc));
+    resMemRefDesc.setAllocatedPtr(rewriter, loc, allocatedPtr);
+    resMemRefDesc.setAlignedPtr(rewriter, loc, alignedPtr);
+
+    // Copy the remaining fields of the source memref descriptor.
+    resMemRefDesc.setOffset(rewriter, loc, srcMemRefDesc.offset(rewriter, loc));
+
+    for (int pos = 0; pos < resType.getRank(); ++pos) {
+      resMemRefDesc.setSize(rewriter, loc, pos, srcMemRefDesc.size(rewriter, loc, pos));
+      resMemRefDesc.setStride(rewriter, loc, pos, srcMemRefDesc.stride(rewriter, loc, pos));     
+    }
+
+    rewriter.replaceOp(op.getOperation(), {resMemRefDesc});
+
+    LLVM_DEBUG({
+      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      if (!func)
+        func = op->getParentOfType<func::FuncOp>();
+
+      assert(func && "Could not find parent function");
+      llvm::dbgs() << "CastPattern: Function after rewrite:\n" << *func << "\n";
+    });
+
+    return success();
+  }
+
+  bool isValidMemRefType(MemRefType memRefType) const {
+    if (!typeConverter.convertType(memRefType.getElementType()))
+      return false;
+
+    return memRefType.getLayout().isIdentity();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConstructorPattern - Converts `sycl.constructor` to LLVM.
 //===----------------------------------------------------------------------===//
 
@@ -273,8 +358,8 @@ public:
   }
 
 private:
-  /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
-  /// constructor function.
+  /// Rewrite sycl.constructor() { type = * } to a LLVM call to the
+  /// appropriate constructor function.
   LogicalResult rewriteConstructor(SYCLConstructorOp op, OpAdaptor opAdaptor,
                                    ConversionPatternRewriter &rewriter) const {
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
@@ -302,46 +387,47 @@ private:
     rewriter.eraseOp(op);
     return success();
   }
-};
+  };
 
-//===----------------------------------------------------------------------===//
-// Pattern population
-//===----------------------------------------------------------------------===//
+  //===----------------------------------------------------------------------===//
+  // Pattern population
+  //===----------------------------------------------------------------------===//
 
-void mlir::sycl::populateSYCLToLLVMTypeConversion(
-    LLVMTypeConverter &typeConverter) {
-  typeConverter.addConversion([&](sycl::AccessorImplDeviceType type) {
-    return convertAccessorImplDeviceType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::AccessorType type) {
-    return convertAccessorType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::ArrayType type) {
-    return convertArrayType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::GroupType type) {
-    return convertGroupType(type, typeConverter);
-  });
-  typeConverter.addConversion(
-      [&](sycl::IDType type) { return convertIDType(type, typeConverter); });
-  typeConverter.addConversion([&](sycl::ItemBaseType type) {
-    return convertItemBaseType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::ItemType type) {
-    return convertItemType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::NdItemType type) {
-    return convertNdItemType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::RangeType type) {
-    return convertRangeType(type, typeConverter);
-  });
-}
+  void mlir::sycl::populateSYCLToLLVMTypeConversion(
+      LLVMTypeConverter &typeConverter) {
+    typeConverter.addConversion([&](sycl::AccessorImplDeviceType type) {
+      return convertAccessorImplDeviceType(type, typeConverter);
+    });
+    typeConverter.addConversion([&](sycl::AccessorType type) {
+      return convertAccessorType(type, typeConverter);
+    });
+    typeConverter.addConversion([&](sycl::ArrayType type) {
+      return convertArrayType(type, typeConverter);
+    });
+    typeConverter.addConversion([&](sycl::GroupType type) {
+      return convertGroupType(type, typeConverter);
+    });
+    typeConverter.addConversion(
+        [&](sycl::IDType type) { return convertIDType(type, typeConverter); });
+    typeConverter.addConversion([&](sycl::ItemBaseType type) {
+      return convertItemBaseType(type, typeConverter);
+    });
+    typeConverter.addConversion([&](sycl::ItemType type) {
+      return convertItemType(type, typeConverter);
+    });
+    typeConverter.addConversion([&](sycl::NdItemType type) {
+      return convertNdItemType(type, typeConverter);
+    });
+    typeConverter.addConversion([&](sycl::RangeType type) {
+      return convertRangeType(type, typeConverter);
+    });
+  }
 
-void mlir::sycl::populateSYCLToLLVMConversionPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
-  populateSYCLToLLVMTypeConversion(typeConverter);
+  void mlir::sycl::populateSYCLToLLVMConversionPatterns(
+      LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
+    populateSYCLToLLVMTypeConversion(typeConverter);
 
-  patterns.add<CallPattern>(patterns.getContext(), typeConverter);
-  patterns.add<ConstructorPattern>(patterns.getContext(), typeConverter);
-}
+    patterns.add<CallPattern>(patterns.getContext(), typeConverter);
+    patterns.add<CastPattern>(patterns.getContext(), typeConverter);    
+    patterns.add<ConstructorPattern>(patterns.getContext(), typeConverter);
+  }
