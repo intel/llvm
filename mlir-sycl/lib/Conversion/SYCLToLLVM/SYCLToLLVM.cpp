@@ -231,7 +231,7 @@ private:
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
     FuncBuilder builder(rewriter, op.getLoc());
 
-    bool producesResult = !op.getODSResults(0).empty();
+    bool producesResult = op.getNumResults() != 0;
     TypeRange retType =
         producesResult ? TypeRange(op.Result().getType()) : TypeRange();
     func::CallOp funcCall =
@@ -242,9 +242,9 @@ private:
     rewriter.replaceOp(op.getOperation(), results);
 
     LLVM_DEBUG({
-      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      Operation *func = funcCall->getParentOfType<LLVM::LLVMFuncOp>();
       if (!func)
-        func = op->getParentOfType<func::FuncOp>();
+        func = funcCall->getParentOfType<func::FuncOp>();
 
       assert(func && "Could not find parent function");
       llvm::dbgs() << "CallPattern: Function after rewrite:\n" << *func << "\n";
@@ -279,13 +279,15 @@ private:
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
     FuncBuilder builder(rewriter, op.getLoc());
-    builder.genCall(op.MangledName(), TypeRange(), op.getOperands(), module);
+    func::CallOp funcCall = builder.genCall(op.MangledName(), TypeRange(),
+                                            op.getOperands(), module);
     rewriter.eraseOp(op);
+    (void)funcCall;
 
     LLVM_DEBUG({
-      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      Operation *func = funcCall->getParentOfType<LLVM::LLVMFuncOp>();
       if (!func)
-        func = op->getParentOfType<func::FuncOp>();
+        func = funcCall->getParentOfType<func::FuncOp>();
 
       assert(func && "Could not find parent function");
       llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
