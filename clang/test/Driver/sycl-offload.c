@@ -634,6 +634,11 @@
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
 
+/// Check no SYCL runtime is linked with -nostdlib
+// RUN: %clang -fsycl -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
+// CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
+// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+
 /// Check for default linking of sycl.lib with -fsycl usage
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
@@ -643,10 +648,18 @@
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl -nolibsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
-// RUN: %clang_cl -fsycl -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
-// CHECK-LINK-NOLIBSYCL-NOT: "--dependent-lib=sycl"
+// RUN: %clang_cl -fsycl -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL-CL %s
+// CHECK-LINK-NOLIBSYCL-CL-NOT: "--dependent-lib=sycl"
 // CHECK-LINK-NOLIBSYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-NOLIBSYCL-NOT: "-defaultlib:sycl.lib"
+
+/// Check SYCL runtime is linked despite -nostdlib on Windows, this is
+/// necessary for the Windows Clang CMake to work
+// RUN: %clang -fsycl -nostdlib -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB %s
+// RUN: %clang_cl -fsycl -nostdlib %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB-CL %s
+// CHECK-LINK-NOSTDLIB-CL: "--dependent-lib=sycl"
+// CHECK-LINK-NOSTDLIB: "{{.*}}link{{(.exe)?}}"
+// CHECK-LINK-NOSTDLIB: "-defaultlib:sycl.lib"
 
 /// Check sycld.lib is chosen with /MDd
 // RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
