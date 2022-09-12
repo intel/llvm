@@ -32,7 +32,8 @@ public:
 
   int operator()(const device &device) const override {
     const platform &pf = device.get_platform();
-    const std::string &platform_name = pf.get_info<info::platform::name>();
+    const std::string &platform_name =
+        pf.get_info<sycl::info::platform::name>();
     if (platform_name == device_platform_name) {
       return 10000;
     }
