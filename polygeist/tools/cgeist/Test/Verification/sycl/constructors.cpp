@@ -18,6 +18,7 @@
 
 #include <sycl/sycl.hpp>
 
+// clang-format off
 // CHECK: !sycl_id_2_ = !sycl.id<2>
 // CHECK: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
 
@@ -33,22 +34,26 @@
 // CHECK-NEXT: sycl.constructor(%1) {Type = @id} : (memref<?x!sycl_id_2_>) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
+// clang-format on
 
 SYCL_EXTERNAL void cons_1() {
   auto id = sycl::id<2>{};
 }
 
+// clang-format off
 // CHECK: func.func @_Z6cons_2mm(%arg0: i64, %arg1: i64) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: sycl.constructor(%1, %arg0, %arg1) {Type = @id} : (memref<?x!sycl_id_2_>, i64, i64) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
+// clang-format on
 
 SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
   auto id = sycl::id<2>{a, b};
 }
 
+// clang-format off
 // CHECK: func.func @_Z6cons_3N2cl4sycl4itemILi2ELb1EEE(%arg0: !sycl_item_2_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
@@ -58,6 +63,7 @@ SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-NEXT: sycl.constructor(%1, %3) {Type = @id} : (memref<?x!sycl_id_2_>, memref<?x!sycl_item_2_1_>) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
+// clang-format on
 
 SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
   auto id = sycl::id<2>{val};
