@@ -1566,7 +1566,6 @@ select(T a, T b, T2 c) __NOEXC {
 
 namespace native {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
-// genfloatf cos (genfloatf x)
 
 #define __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(NAME)                             \
   template <size_t N>                                                          \
@@ -1621,6 +1620,7 @@ __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(powr)
 
 #undef __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD
 
+// genfloatf cos (genfloatf x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
   return __sycl_std::__invoke_native_cos<T>(x);
@@ -1880,7 +1880,6 @@ inline __SYCL_ALWAYS_INLINE
   return native::powr(x, y);
 }
 
-//todo update naming of all changed to sv!
 // genfloatf cos (genfloatf x)
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
