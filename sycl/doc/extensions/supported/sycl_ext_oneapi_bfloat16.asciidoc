@@ -73,16 +73,7 @@ supporting this extension must predefine the macro
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro’s
 value to determine which of the extension’s APIs the implementation supports.
-Attempting to submit a kernel using `bfloat16` to a device that does not
-support it causes a synchronous `errc::kernel_not_supported` exception to be
-thrown from the kernel invocation command (e.g. from `parallel_for`).
 
-[NOTE]
-====
-. DPC++ does not currently implement the `errc::kernel_not_supported`
-exception in this case. Attempting to submit a kernel using `bfloat16`
-to a device that does not support this extension results in undefined behavior.
-====
 
 [%header,cols="1,5"]
 |===
