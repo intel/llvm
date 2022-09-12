@@ -48,6 +48,13 @@ public:
   friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
 };
 
+class ods_target_list {
+public:
+  std::vector<ods_target> TargetList;
+  ods_target_list() {}
+  ods_target_list(const std::string &FilterString);
+};
+
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
 std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
 

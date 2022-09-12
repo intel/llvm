@@ -142,11 +142,11 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
         ods_target DeviceTarget(be);
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
-        // std::cout << "DeviceTarget: " << DeviceTarget << std::endl;
+        // CP
+        std::cout << "DeviceTarget: " << DeviceTarget << " " << Targets.size()
+                  << std::endl;
       }
     }
-
-    // std::cout << "Size of Pair: " << Pair.size() << std::endl;
   }
 
   return Result;
@@ -176,6 +176,10 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
     Out << "." << Target.SubDeviceNumber;
 
   return Out;
+}
+
+ods_target_list::ods_target_list(const std::string &envStr) {
+  TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
 }
 
 // ---------------------------------------

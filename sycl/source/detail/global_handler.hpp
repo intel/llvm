@@ -24,6 +24,7 @@ class ProgramManager;
 class Sync;
 class plugin;
 class device_filter_list;
+class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
@@ -66,6 +67,7 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   std::mutex &getHandlerExtendedMembersMutex();
   ThreadPool &getHostTaskThreadPool();
@@ -100,6 +102,7 @@ private:
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // The mutex for synchronizing accesses to handlers extended members
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;

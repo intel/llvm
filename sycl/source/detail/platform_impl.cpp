@@ -325,8 +325,14 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       });
 
   // CP
-  const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR");
-  Parse_ONEAPI_DEVICE_SELECTOR(dev_filter);
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  if (OdsTargetList != nullptr) {
+    std::cout << "Num Targets: " << OdsTargetList->TargetList.size()
+              << std::endl;
+  }
+  // const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR");
+  // if(dev_filter != nullptr)
+  //   Parse_ONEAPI_DEVICE_SELECTOR(dev_filter);
   /*
     constexpr info::partition_property partitionProperty =
     info::partition_property::partition_by_affinity_domain; constexpr
