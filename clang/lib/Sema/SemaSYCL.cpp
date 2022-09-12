@@ -1480,10 +1480,14 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
     visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
   } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
                  Value) {
-    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
+    // We are currently in PointerHandler visitor.
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
+      // This is record containing pointers.
       visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
-    else
+    } else {
+      // This is a record without pointers.
       visitSimpleRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
+    }
   } else {
     // "Simple" Containers are those that do NOT need to be decomposed,
     // "Complex" containers are those that DO. In the case where the container
@@ -1515,6 +1519,17 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 
   if (Field->hasAttr<SYCLRequiresDecompositionAttr>()) {
     visitComplexArray(Owner, Field, ArrayTy, Handlers...);
+  } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
+                 Value) {
+    // We are currently in PointerHandler visitor.
+    if (Field->hasAttr<SYCLGenerateNewTypeAttr>()) {
+      // This is an array of pointers, or an array of a type containing
+      // pointers.
+      visitComplexArray(Owner, Field, ArrayTy, Handlers...);
+    } else {
+      // This is an array which does not contain pointers.
+      visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
+    }
   } else {
     if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
       visitSimpleArray(
@@ -1781,7 +1796,7 @@ public:
     return true;
   }
 
-  bool handlePointerType(FieldDecl *, QualType) final {
+  bool handlePointerType(FieldDecl *FD, QualType Ty) final {
     PointerStack.back() = true;
     return true;
   }
@@ -1793,6 +1808,10 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+    // If a record needs to be decomposed, it is marked with
+    // SYCLRequiresDecompositionAttr. Else if a record contains
+    // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
+    // will never be marked with both attributes.
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
       assert(RD && "should not be null.");
@@ -1821,6 +1840,10 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
                    QualType Ty) final {
+    // If a record needs to be decomposed, it is marked with
+    // SYCLRequiresDecompositionAttr. Else if a record contains
+    // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
+    // will never be marked with both attributes.
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
       assert(RD && "should not be null.");
@@ -1840,13 +1863,18 @@ public:
     return true;
   }
 
-  // Elizabeth - Look into handling arrays
   bool enterArray(FieldDecl *, QualType ArrayTy, QualType ElementTy) final {
     CollectionStack.push_back(false);
+    PointerStack.push_back(false);
     return true;
   }
 
   bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType ElementTy) final {
+    // If an array needs to be decomposed, it is marked with
+    // SYCLRequiresDecompositionAttr. Else if the array is an array of pointers
+    // or an array of structs containing pointers, it is marked with
+    // SYCLGenerateNewTypeAttr. An array will never be marked with both
+    // attributes.
     if (CollectionStack.pop_back_val()) {
       // Cannot assert, since in MD arrays we'll end up marking them multiple
       // times.
@@ -1854,11 +1882,19 @@ public:
         FD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
+        FD->addAttr(
+            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      PointerStack.back() = true;
     }
     return true;
   }
 };
 
+// This visitor is used to traverse a non-decomposed record/array to
+// generate a new type corresponding to this record/array.
 class SyclKernelPointerHandler : public SyclKernelFieldHandler {
   llvm::SmallVector<CXXRecordDecl *, 8> ModifiedRecords;
   SmallVector<CXXBaseSpecifier *, 8> ModifiedBases;
@@ -2004,6 +2040,14 @@ public:
     return true;
   }
 
+  bool handleSimpleArrayType(FieldDecl *FD, QualType Ty) final {
+    addField(FD, Ty);
+    return true;
+  }
+
+  // Elizabeth - We need to handle complex array by adding enterArray, etc to
+  // create new array type
+
 public:
   QualType getNewType() {
     CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
@@ -2017,7 +2061,7 @@ public:
     return QualType(ModifiedRD->getTypeForDecl(), 0);
   }
 
-  // Elizabeth - Need to handle KernelHandler, array
+  // Elizabeth - Need to handle KernelHandler, arrays
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
@@ -2203,6 +2247,22 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     return FD;
   }
 
+  // If the record has been marked with SYCLGenerateNewTypeAttr,
+  // it implies that it contains a pointer within. This function
+  // defines a PointerHandler visitor which visits this record
+  // recursively and modifies the address spaces of any pointer
+  // found as required, thereby generating a new record with all
+  // pointers in 'right' address space. PointerHandler.getNewType()
+  // returns this generated type, which is then added an openCL
+  // kernel argument.
+  QualType GenerateNewType(const CXXRecordDecl *RD) {
+    SyclKernelPointerHandler PointerHandler(SemaRef, RD);
+    KernelObjVisitor Visitor{SemaRef};
+    Visitor.VisitRecordBases(RD, PointerHandler);
+    Visitor.VisitRecordFields(RD, PointerHandler);
+    return PointerHandler.getNewType();
+  }
+
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(Sema &S, SourceLocation Loc, bool IsInline,
@@ -2360,23 +2420,29 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *RD, FieldDecl *FD,
                              QualType Ty) final {
+    // This is a field which should not be decomposed.
     CXXRecordDecl *FieldRecordDecl = Ty->getAsCXXRecordDecl();
-    SyclKernelPointerHandler PointerHandler(SemaRef, FieldRecordDecl);
-    KernelObjVisitor Visitor{SemaRef};
-    Visitor.VisitRecordBases(FieldRecordDecl, PointerHandler);
-    Visitor.VisitRecordFields(FieldRecordDecl, PointerHandler);
-    addParam(FD, PointerHandler.getNewType());
+    assert(FieldRecordDecl && "Type must be a C++ record type");
+    // Check if we need to generate a new type for this record,
+    // i.e. this record contains pointers.
+    if (FieldRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(FD, GenerateNewType(FieldRecordDecl));
+    else
+      addParam(FD, Ty);
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *Base,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
+    // This is a base class which should not be decomposed.
     CXXRecordDecl *BaseRecordDecl = Ty->getAsCXXRecordDecl();
-    SyclKernelPointerHandler PointerHandler(SemaRef, BaseRecordDecl);
-    KernelObjVisitor Visitor{SemaRef};
-    Visitor.VisitRecordBases(BaseRecordDecl, PointerHandler);
-    Visitor.VisitRecordFields(BaseRecordDecl, PointerHandler);
-    addParam(BS, PointerHandler.getNewType());
+    assert(BaseRecordDecl && "Type must be a C++ record type");
+    // Check if we need to generate a new type for this record,
+    // i.e. this record contains pointers.
+    if (BaseRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(BS, GenerateNewType(BaseRecordDecl));
+    else
+      addParam(BS, Ty);
     return true;
   }
 
