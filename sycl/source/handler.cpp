@@ -38,10 +38,6 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue))),
       MQueue(std::move(Queue)), MIsHost(IsHost) {
-  // Create extended members
-  auto ExtendedMembers =
-      std::make_shared<std::vector<detail::ExtendedMemberT>>();
-  MSharedPtrStorage.push_back(std::move(ExtendedMembers));
 }
 
 // Sets the submission state to indicate that an explicit kernel bundle has been

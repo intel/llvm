@@ -42,110 +42,13 @@ namespace detail {
 class event_impl;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
-// Periodically there is a need to extend handler and CG classes to hold more
-// data(members) than it has now. But any modification of the layout of those
-// classes is an ABI break. To have an ability to have more data the following
-// approach is implemented:
-//
-// Those classes have a member - MSharedPtrStorage which is an std::vector of
-// std::shared_ptr's and is supposed to hold reference counters of user
-// provided shared_ptr's.
-//
-// The first element of this vector is reused to store a vector of additional
-// members handler and CG need to have.
-//
-// These additional arguments are represented using "ExtendedMemberT" structure
-// which has a pointer to an arbitrary value and an integer which is used to
-// understand how the value the pointer points to should be interpreted.
-//
-// ========  ========      ========
-// |      |  |      | ...  |      | std::vector<std::shared_ptr<void>>
-// ========  ========      ========
-//    ||        ||            ||
-//    ||        \/            \/
-//    ||       user          user
-//    ||       data          data
-//    \/
-// ========  ========      ========
-// | Type |  | Type | ...  | Type | std::vector<ExtendedMemberT>
-// |      |  |      |      |      |
-// | Ptr  |  | Ptr  | ...  | Ptr  |
-// ========  ========      ========
-//
-// Prior to this change this vector was supposed to have user's values only, so
-// it is not legal to expect that the first argument is a special one.
-// Versioning is implemented to overcome this problem - if the first element of
-// the MSharedPtrStorage is a pointer to the special vector then CGType value
-// has version "1" encoded.
-//
-// The version of CG type is encoded in the highest byte of the value:
-//
-// 0x00000001 - CG type KERNEL version 0
-// 0x01000001 - CG type KERNEL version 1
-//    ^
-//    |
-// The byte specifies the version
-//
-// A user of this vector should not expect that a specific data is stored at a
-// specific position, but iterate over all looking for an ExtendedMemberT value
-// with the desired type.
-// This allows changing/extending the contents of this vector without changing
-// the version.
-
-// Used to represent a type of an extended member
-enum class ExtendedMembersType : unsigned int { PLACEHOLDER_TYPE };
-
-// Holds a pointer to an object of an arbitrary type and an ID value which
-// should be used to understand what type pointer points to.
-// Used as to extend handler class without introducing new class members which
-// would change handler layout.
-struct ExtendedMemberT {
-  ExtendedMembersType MType;
-  std::shared_ptr<void> MData;
-};
-
-static std::shared_ptr<std::vector<ExtendedMemberT>>
-convertToExtendedMembers(const std::shared_ptr<const void> &SPtr) {
-  return std::const_pointer_cast<std::vector<ExtendedMemberT>>(
-      std::static_pointer_cast<const std::vector<ExtendedMemberT>>(SPtr));
-}
-
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
 
-// The constant is used to left shift a CG type value to access it's version
-constexpr unsigned int ShiftBitsForVersion = 24;
-
-// Constructs versioned type
-constexpr unsigned int getVersionedCGType(unsigned int Type,
-                                          unsigned char Version) {
-  return Type | (static_cast<unsigned int>(Version) << ShiftBitsForVersion);
-}
-
-// Returns the type without version encoded
-constexpr unsigned char getUnversionedCGType(unsigned int Type) {
-  unsigned int Mask = -1;
-  Mask >>= (sizeof(Mask) * 8 - ShiftBitsForVersion);
-  return Type & Mask;
-}
-
-// Returns the version encoded to the type
-constexpr unsigned char getCGTypeVersion(unsigned int Type) {
-  return Type >> ShiftBitsForVersion;
-}
-
 /// Base class for all types of command groups.
 class CG {
 public:
-  // Used to version CG and handler classes. Using unsigned char as the version
-  // is encoded in the highest byte of CGType value. So it is not possible to
-  // encode a value > 255 anyway which should be big enough room for version
-  // bumping.
-  enum class CG_VERSION : unsigned char {
-    V0 = 0,
-    V1 = 1,
-  };
 
   /// Type of the command group.
   enum CGTYPE : unsigned int {
@@ -189,21 +92,7 @@ public:
 
   CG(CG &&CommandGroup) = default;
 
-  CGTYPE getType() { return static_cast<CGTYPE>(getUnversionedCGType(MType)); }
-
-  CG_VERSION getVersion() {
-    return static_cast<CG_VERSION>(getCGTypeVersion(MType));
-  }
-
-  std::shared_ptr<std::vector<ExtendedMemberT>> getExtendedMembers() {
-    if (getCGTypeVersion(MType) == static_cast<unsigned int>(CG_VERSION::V0) ||
-        MSharedPtrStorage.empty())
-      return nullptr;
-
-    // The first value in shared_ptr storage is supposed to store a vector of
-    // extended members.
-    return convertToExtendedMembers(MSharedPtrStorage[0]);
-  }
+  CGTYPE getType() { return MType; }
 
   virtual ~CG() = default;
 
