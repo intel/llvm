@@ -9,6 +9,7 @@ set(SRC_LIST
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
   VectorComputeUtil.cpp
+  SPIRVBuiltinHelper.cpp
   SPIRVLowerBitCastToNonStandardType.cpp
   SPIRVLowerBool.cpp
   SPIRVLowerConstExpr.cpp
