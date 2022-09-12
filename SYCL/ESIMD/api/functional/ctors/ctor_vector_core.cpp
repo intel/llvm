@@ -33,8 +33,7 @@ int main(int, char **) {
   sycl::device device = queue.get_device();
   // verify aspect::fp16 due to using sycl::half data type
   // verify aspect::fp64 due to using double data type
-  if (!device.is_host() && !device.has(sycl::aspect::fp16) &&
-      !device.has(sycl::aspect::fp64)) {
+  if (!device.has(sycl::aspect::fp16) && !device.has(sycl::aspect::fp64)) {
     std::cout << "Test skipped\n";
     return 0;
   }
