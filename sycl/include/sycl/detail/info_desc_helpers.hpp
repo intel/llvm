@@ -109,6 +109,21 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   };
 #include <sycl/info/device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template <> struct PiInfoCode<Namespace::info::DescType::Desc> {             \
+    static constexpr pi_device_info value =                                    \
+        static_cast<pi_device_info>(PiCode);                                   \
+  };                                                                           \
+  template <>                                                                  \
+  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
+      : std::true_type {                                                       \
+    using return_type = Namespace::info::DescType::Desc::return_type;          \
+  };
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 } // namespace detail
 } // __SYCL_INLINE_NAMESPACE(_V1)
 } // namespace sycl
