@@ -238,8 +238,7 @@ config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SY
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')
 
-supported_sycl_be = ['host',
-                     'opencl',
+supported_sycl_be = ['opencl',
                      'ext_oneapi_cuda',
                      'ext_oneapi_hip',
                      'ext_oneapi_level_zero',
@@ -299,34 +298,15 @@ config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
 found_at_least_one_device = False
 
-host_run_substitute = "true"
-host_run_on_linux_substitute = "true "
-host_check_substitute = ""
-host_check_on_linux_substitute = ""
-supported_device_types=['cpu', 'gpu', 'acc', 'host']
+supported_device_types=['cpu', 'gpu', 'acc']
 
 for target_device in config.target_devices.split(','):
-    if ( target_device not in supported_device_types ):
+    if target_device == 'host':
+        lit_config.warning("Host device type is no longer supported.")
+    elif ( target_device not in supported_device_types ):
         lit_config.error("Unknown SYCL target device type specified '" +
                          target_device +
                          "' supported devices are " + ', '.join(supported_device_types))
-
-if 'host' in config.target_devices.split(','):
-    found_at_least_one_device = True
-    lit_config.note("Test HOST device")
-    host_run_substitute = "env SYCL_DEVICE_FILTER=host "
-    host_check_substitute = "| FileCheck %s"
-    config.available_features.add('host')
-    if platform.system() == "Linux":
-        host_run_on_linux_substitute = "env SYCL_DEVICE_FILTER=host "
-        host_check_on_linux_substitute = "| FileCheck %s"
-else:
-    lit_config.warning("HOST device not used")
-
-config.substitutions.append( ('%HOST_RUN_PLACEHOLDER',  host_run_substitute) )
-config.substitutions.append( ('%HOST_RUN_ON_LINUX_PLACEHOLDER',  host_run_on_linux_substitute) )
-config.substitutions.append( ('%HOST_CHECK_PLACEHOLDER',  host_check_substitute) )
-config.substitutions.append( ('%HOST_CHECK_ON_LINUX_PLACEHOLDER',  host_check_on_linux_substitute) )
 
 cpu_run_substitute = "true"
 cpu_run_on_linux_substitute = "true "
@@ -336,7 +316,7 @@ cpu_check_on_linux_substitute = ""
 if 'cpu' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Test CPU device")
-    cpu_run_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:cpu,host ".format(SYCL_PLUGIN=config.sycl_be)
+    cpu_run_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=config.sycl_be)
     cpu_check_substitute = "| FileCheck %s"
     config.available_features.add('cpu')
     if platform.system() == "Linux":
@@ -359,18 +339,18 @@ gpu_check_on_linux_substitute = ""
 if 'gpu' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Test GPU device")
-    gpu_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=config.sycl_be)
+    gpu_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
     gpu_check_substitute = "| FileCheck %s"
     config.available_features.add('gpu')
 
     if config.sycl_be == "ext_oneapi_level_zero":
         gpu_l0_check_substitute = "| FileCheck %s"
         if lit_config.params.get('ze_debug'):
-            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} SYCL_DEVICE_FILTER=level_zero:gpu,host ".format(ZE_DEBUG=config.ze_debug)
+            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} SYCL_DEVICE_FILTER=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
             config.available_features.add('ze_debug'+config.ze_debug)
 
     if platform.system() == "Linux":
-        gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=config.sycl_be)
+        gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
         gpu_check_on_linux_substitute = "| FileCheck %s"
 
     if config.sycl_be == "ext_oneapi_cuda":
