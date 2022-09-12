@@ -46,10 +46,12 @@ class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
 
+// If there's a need to add new members to CG classes without breaking ABI
+// compatibility, we can bring back the extended members mechanism. See
+// https://github.com/intel/llvm/pull/6759
 /// Base class for all types of command groups.
 class CG {
 public:
-
   /// Type of the command group.
   enum CGTYPE : unsigned int {
     None = 0,
