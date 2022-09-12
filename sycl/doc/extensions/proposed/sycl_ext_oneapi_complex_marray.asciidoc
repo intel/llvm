@@ -156,10 +156,10 @@ namespace oneapi {
 
             // real and imag
             template <class T, std::size_t NumElements>
-            marray<T, NumElements> real();
+            constexpr marray<T, NumElements> real() const;
 
             template <class T, std::size_t NumElements>
-            marray<T, NumElements> imag();
+            constexpr marray<T, NumElements> imag() const;
 
             template <class T, std::size_t NumElements, std::size_t... I>
             marray<T, int_seq::size()> real(std::integer_sequence<std::size_t, I...> int_seq);
