@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
@@ -175,6 +175,7 @@ template <class T> bool test(queue q) {
 int main(int argc, char **argv) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
   auto dev = q.get_device();
+  const bool doublesSupported = dev.has(sycl::aspect::fp64);
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
   bool passed = true;
@@ -187,7 +188,8 @@ int main(int argc, char **argv) {
   passed &= test<int>(q);
   passed &= test<uint64_t>(q);
   passed &= test<float>(q);
-  passed &= test<double>(q);
+  if (doublesSupported)
+    passed &= test<double>(q);
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
   return passed ? 0 : 1;

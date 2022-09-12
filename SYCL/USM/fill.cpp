@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
@@ -124,6 +124,8 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
+  const bool DoublesSupported = dev.has(sycl::aspect::fp64);
+
   test_struct test_obj{4, 42, 424, 4242, 4.2f, 4.242, 4.24242};
 
   if (dev.get_info<info::device::usm_host_allocations>()) {
@@ -133,8 +135,10 @@ int main() {
     runHostTests<long long>(dev, ctxt, q, 4242);
     runHostTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
     runHostTests<float>(dev, ctxt, q, 4.242f);
-    runHostTests<double>(dev, ctxt, q, 4.24242);
-    runHostTests<test_struct>(dev, ctxt, q, test_obj);
+    if (DoublesSupported) {
+      runHostTests<double>(dev, ctxt, q, 4.24242);
+      runHostTests<test_struct>(dev, ctxt, q, test_obj);
+    }
   }
 
   if (dev.get_info<info::device::usm_shared_allocations>()) {
@@ -144,8 +148,10 @@ int main() {
     runSharedTests<long long>(dev, ctxt, q, 4242);
     runSharedTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
     runSharedTests<float>(dev, ctxt, q, 4.242f);
-    runSharedTests<double>(dev, ctxt, q, 4.24242);
-    runSharedTests<test_struct>(dev, ctxt, q, test_obj);
+    if (DoublesSupported) {
+      runSharedTests<double>(dev, ctxt, q, 4.24242);
+      runSharedTests<test_struct>(dev, ctxt, q, test_obj);
+    }
   }
 
   if (dev.get_info<info::device::usm_device_allocations>()) {
@@ -155,8 +161,10 @@ int main() {
     runDeviceTests<long long>(dev, ctxt, q, 4242);
     runDeviceTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
     runDeviceTests<float>(dev, ctxt, q, 4.242f);
-    runDeviceTests<double>(dev, ctxt, q, 4.24242);
-    runDeviceTests<test_struct>(dev, ctxt, q, test_obj);
+    if (DoublesSupported) {
+      runDeviceTests<double>(dev, ctxt, q, 4.24242);
+      runDeviceTests<test_struct>(dev, ctxt, q, test_obj);
+    }
   }
 
   return 0;

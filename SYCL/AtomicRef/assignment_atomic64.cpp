@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -10,13 +10,18 @@ using namespace sycl;
 int main() {
   queue q;
 
-  if (!q.get_device().has(aspect::atomic64)) {
+  device dev = q.get_device();
+
+  if (!dev.has(aspect::atomic64)) {
     std::cout << "Skipping test\n";
     return 0;
   }
 
+  const bool DoublesSupported = dev.has(sycl::aspect::fp64);
+
   constexpr int N = 32;
-  assignment_test<double>(q, N);
+  if (DoublesSupported)
+    assignment_test<double>(q, N);
 
   // Include long tests if they are 64 bits wide
   if constexpr (sizeof(long) == 8) {

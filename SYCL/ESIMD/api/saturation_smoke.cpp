@@ -9,7 +9,7 @@
 // UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to unimplemented 'half' type
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks main functionality of esimd::saturate function.
@@ -184,12 +184,14 @@ int main(int argc, char **argv) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+  const bool doublesSupported = dev.has(sycl::aspect::fp64);
 
   bool passed = true;
   passed &= test<half, int, FpToInt>(q);
   passed &= test<half, unsigned char, FpToInt>(q);
   passed &= test<float, int, FpToInt>(q);
-  passed &= test<double, short, FpToInt>(q);
+  if (doublesSupported)
+    passed &= test<double, short, FpToInt>(q);
 
   passed &= test<unsigned char, char, UIntToSameOrNarrowAnyInt>(q);
   passed &= test<unsigned short, short, UIntToSameOrNarrowAnyInt>(q);
@@ -206,7 +208,8 @@ int main(int argc, char **argv) {
 
   passed &= test<float, float, FpToFp>(q);
   passed &= test<half, half, FpToFp>(q);
-  passed &= test<double, double, FpToFp>(q);
+  if (doublesSupported)
+    passed &= test<double, double, FpToFp>(q);
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
   return passed ? 0 : 1;
