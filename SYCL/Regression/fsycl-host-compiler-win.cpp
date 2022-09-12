@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK /std:c++17" /Fe%t.exe %s
+// RUN: %clangxx -fsycl -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK /std:c++17 /Zc:__cplusplus" /Fe%t.exe %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t.exe
