@@ -2,6 +2,9 @@
 
 #include "Inputs/sycl.hpp"
 
+// This test shows that global_variable_allowed attribute allows
+// global variables of type decorated with it to be referenced in device code.
+
 template <typename T>
 struct [[__sycl_detail__::global_variable_allowed]] global_variable_allowed {
 public:
