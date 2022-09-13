@@ -99,8 +99,8 @@ static void Parse_ODS_Device(ods_target &Target,
     Target.HasDeviceWildCard = true;
   } else {
     std::string TDS(TopDeviceStr);
-    Target.DeviceNumber = std::stoi(TDS);
-    Target.HasDeviceNumber = true;
+    Target.DeviceNum = std::stoi(TDS);
+    Target.HasDeviceNum = true;
   }
 
   if (DeviceSubPair.size() == 2) {
@@ -111,8 +111,8 @@ static void Parse_ODS_Device(ods_target &Target,
       Target.HasSubDeviceWildCard = true;
     } else {
       std::string SDS(SubDeviceStr);
-      Target.SubDeviceNumber = std::stoi(SDS);
-      Target.HasSubDeviceNumber = true;
+      Target.SubDeviceNum = std::stoi(SDS);
+      Target.HasSubDeviceNum = true;
     }
   }
 }
@@ -168,12 +168,12 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   }
   if (Target.HasDeviceWildCard)
     Out << ":*";
-  if (Target.HasDeviceNumber)
-    Out << ":" << Target.DeviceNumber;
+  if (Target.HasDeviceNum)
+    Out << ":" << Target.DeviceNum;
   if (Target.HasSubDeviceWildCard)
     Out << ".*";
-  if (Target.HasSubDeviceNumber)
-    Out << "." << Target.SubDeviceNumber;
+  if (Target.HasSubDeviceNum)
+    Out << "." << Target.SubDeviceNum;
 
   return Out;
 }

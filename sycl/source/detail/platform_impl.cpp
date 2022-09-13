@@ -148,17 +148,13 @@ std::vector<platform> platform_impl::get_platforms() {
   return Platforms;
 }
 
-// Filter out the devices that are not compatible with SYCL_DEVICE_FILTER.
-// All three entries (backend:device_type:device_num) are optional.
-// The missing entries are constructed using '*', which means 'any' | 'all'
-// by the device_filter constructor.
-// This function matches devices in the order of backend, device_type, and
-// device_num.
+// Filter out the devices that are not compatible with SYCL_DEVICE_FILTER or
+// ONEAPI_DEVICE_SELECTOR This function matches devices in the order of backend,
+// device_type, and device_num. The device_filter and ods_target structs pun for
+// each other, as do device_filter_list and ods_target_list.
+template <typename ListT, typename FilterT>
 static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                               RT::PiPlatform Platform) {
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-  if (!FilterList)
-    return;
+                               RT::PiPlatform Platform, ListT *FilterList) {
 
   std::vector<plugin> &Plugins = RT::initialize();
   auto It =
@@ -184,7 +180,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
-    for (const device_filter &Filter : FilterList->get()) {
+    for (const FilterT &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend;
       // First, match the backend entry
       if (FilterBackend == Backend || FilterBackend == backend::all) {
@@ -261,6 +257,29 @@ supports_partition_property(const device &dev,
   return false;
 }
 
+static std::vector<device>
+amendDeviceAndSubDevices(backend PlatformBackend,
+                         std::vector<device> DeviceList,
+                         ods_target_list *OdsTargetList) {
+  constexpr info::partition_property partitionProperty =
+      info::partition_property::partition_by_affinity_domain;
+  constexpr info::partition_affinity_domain affinityDomain =
+      info::partition_affinity_domain::next_partitionable;
+
+  std::vector<device> FinalResult;
+
+  for (unsigned i = 0; i < DeviceList.size(); i++) {
+    // device has already been screened. The question is whether it should be a
+    // top level device and/or is expected to add its sub-devices to the list.
+    device &d = DeviceList[i];
+    for (ods_target target : OdsTargetList->get()) {
+      backend TargetBackend = target.Backend;
+      if (PlatformBackend == TargetBackend || TargetBackend == backend::all) {
+      }
+    }
+  }
+}
+
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
@@ -313,9 +332,29 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
 
-  // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
-  filterDeviceFilter(PiDevices, MPlatform);
+  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
+  // We do NOT attempt to support both simultaneously.
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
 
+  // The first step is to filter out devices that are not compatible with
+  // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR
+  if (OdsTargetList) {
+    if (FilterList) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "ONEAPI_DEVICE_SELECTOR cannot be used in "
+                            "conjunction with SYCL_DEVICE_FILTER");
+    }
+    filterDeviceFilter<ods_target_list, ods_target>(PiDevices, MPlatform,
+                                                    OdsTargetList);
+
+  } else if (FilterList) {
+    filterDeviceFilter<device_filter_list, device_filter>(PiDevices, MPlatform,
+                                                          FilterList);
+  }
+
+  // The next step is to inflate the PIDevices we've filtered into SYCL Device
+  // classes.
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, Plugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
@@ -324,15 +363,17 @@ platform_impl::get_devices(info::device_type DeviceType) const {
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
 
-  // CP
-  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-  if (OdsTargetList != nullptr) {
-    std::cout << "Num Targets: " << OdsTargetList->TargetList.size()
-              << std::endl;
-  }
-  // const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR");
-  // if(dev_filter != nullptr)
-  //   Parse_ONEAPI_DEVICE_SELECTOR(dev_filter);
+  // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
+  if (!OdsTargetList)
+    return Res;
+
+  // Otherwise, our last step is to re-screen the devices, possibly replacing
+  // them with subdevices (which have been ignored until now)
+  backend Backend = getPlugin().getBackend();
+  std::vector<device> FinalResult =
+      amendDeviceAndSubDevices(Backend, Res, OdsTargetList);
+
+  // Lastly, if using the ONEAPI_DEVICE_SELECTOR then we may
   /*
     constexpr info::partition_property partitionProperty =
     info::partition_property::partition_by_affinity_domain; constexpr

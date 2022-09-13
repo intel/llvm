@@ -33,12 +33,12 @@ public:
   info::device_type DeviceType = info::device_type::all;
 
   bool HasDeviceWildCard = false;
-  bool HasDeviceNumber = false;
-  unsigned DeviceNumber = 0;
+  bool HasDeviceNum = false;
+  unsigned DeviceNum = 0;
 
   bool HasSubDeviceWildCard = false;
-  bool HasSubDeviceNumber = false;
-  unsigned SubDeviceNumber = 0;
+  bool HasSubDeviceNum = false;
+  unsigned SubDeviceNum = 0;
 
   ods_target(backend be) {
     HasBackend = true;
@@ -49,10 +49,12 @@ public:
 };
 
 class ods_target_list {
-public:
   std::vector<ods_target> TargetList;
+
+public:
   ods_target_list() {}
   ods_target_list(const std::string &FilterString);
+  std::vector<ods_target> &get() { return TargetList; }
 };
 
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
