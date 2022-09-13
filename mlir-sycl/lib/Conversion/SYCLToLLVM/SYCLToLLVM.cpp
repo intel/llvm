@@ -290,7 +290,7 @@ private:
 
     // Cast the source memref descriptor's allocate & aligned pointers to the
     // type of those pointers in the results memref.
-    Location loc = op.getLoc();    
+    Location loc = op.getLoc();
     LLVMBuilder builder(rewriter, loc);
     MemRefDescriptor srcMemRefDesc(opAdaptor.source());
     Value allocatedPtr = builder.genBitcast(
@@ -306,8 +306,8 @@ private:
     }
 
     MemRefDescriptor resMemRefDesc = createMemRefDescriptor(
-          loc, resType, allocatedPtr, alignedPtr, sizes, strides, rewriter);
-    resMemRefDesc.setOffset(rewriter, loc, srcMemRefDesc.offset(rewriter, loc));          
+        loc, resType, allocatedPtr, alignedPtr, sizes, strides, rewriter);
+    resMemRefDesc.setOffset(rewriter, loc, srcMemRefDesc.offset(rewriter, loc));
 
     rewriter.replaceOp(op.getOperation(), {resMemRefDesc});
 
