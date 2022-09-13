@@ -65,7 +65,7 @@ def IndexType : AnyTypeOf<[I32, I64, Index]>;
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, SYCL_RangeType]>;
+def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, SYCL_IDType, SYCL_RangeType]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   let summary = "Generic constructor operation";
   let description = [{
