@@ -322,8 +322,8 @@ constexpr void check_lsc_atomic() {
 /// @param pred is predicates.
 /// @return is a vector of type T and size N * NElts
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          int N>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
                __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -395,9 +395,9 @@ __ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
 /// @param pred is predicates.
 /// @return is a vector of type T and size N * NElts
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_gather(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -440,7 +440,8 @@ lsc_gather(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param pred is predicates.
 /// @return is a vector of type T and size N * NElts
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
@@ -575,9 +576,9 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 /// @param offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N>
 __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
@@ -611,7 +612,8 @@ __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API void lsc_prefetch(const T *p) {
   detail::check_lsc_vector_size<NElts>();
@@ -651,7 +653,8 @@ __ESIMD_API void lsc_prefetch(const T *p) {
 /// @param offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
@@ -693,7 +696,8 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
@@ -737,8 +741,8 @@ lsc_prefetch(AccessorTy acc, uint32_t offset) {
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          int N>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
                                  __ESIMD_NS::simd<T, N * NElts> vals,
                                  __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -809,9 +813,9 @@ __ESIMD_API void lsc_slm_block_store(uint32_t offset,
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N>
 __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
                              __ESIMD_NS::simd<T, N * NElts> vals,
                              __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -853,7 +857,8 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
