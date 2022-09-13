@@ -471,17 +471,10 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
 void OCLToSPIRVBase::visitCallAsyncWorkGroupCopy(CallInst *CI,
                                                  StringRef DemangledName) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        if (DemangledName == OCLUtil::kOCLBuiltinName::AsyncWorkGroupCopy) {
-          Args.insert(Args.begin() + 3, addSizet(1));
-        }
-        Args.insert(Args.begin(), addInt32(ScopeWorkgroup));
-        return getSPIRVFuncName(OpGroupAsyncCopy);
-      },
-      &Attrs);
+  auto Mutator = mutateCallInst(CI, OpGroupAsyncCopy);
+  if (DemangledName == OCLUtil::kOCLBuiltinName::AsyncWorkGroupCopy)
+    Mutator.insertArg(3, addSizet(1));
+  Mutator.insertArg(0, addInt32(ScopeWorkgroup));
 }
 
 CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
@@ -514,7 +507,6 @@ void OCLToSPIRVBase::visitCallAtomicInit(CallInst *CI) {
 
 void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
 
   auto Args = getArguments(CI);
   assert(Args.size() == 1);
@@ -531,19 +523,10 @@ void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
     CI->replaceAllUsesWith(Cast);
     CI->eraseFromParent();
   } else {
-    mutateCallInstSPIRV(
-        M, CI,
-        [&](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-          Args[0] = Cmp;
-          Ret = Type::getInt1Ty(*Ctx);
-
-          return getSPIRVFuncName(OC);
-        },
-        [&](CallInst *CI) -> Instruction * {
-          return CastInst::CreateZExtOrBitCast(CI, Type::getInt32Ty(*Ctx), "",
-                                               CI->getNextNode());
-        },
-        &Attrs);
+    mutateCallInst(CI, OC).setArgs({Cmp}).changeReturnType(
+        Type::getInt32Ty(*Ctx), [](IRBuilder<> &Builder, CallInst *CI) {
+          return Builder.CreateZExtOrBitCast(CI, Builder.getInt32Ty());
+        });
   }
 }
 
@@ -793,13 +776,7 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     Rounding = DemangledName.substr(Loc, 4).str();
   }
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        return getSPIRVFuncName(OC, TargetTyName + Sat + Rounding);
-      },
-      &Attrs);
+  mutateCallInst(CI, getSPIRVFuncName(OC, TargetTyName + Sat + Rounding));
 }
 
 void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
@@ -971,16 +948,10 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
 void OCLToSPIRVBase::visitCallReadImageMSAA(CallInst *CI,
                                             StringRef MangledName) {
   assert(MangledName.find("msaa") != StringRef::npos);
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.insert(Args.begin() + 2, getInt32(M, ImageOperandsSampleMask));
-        return getSPIRVFuncName(OpImageRead,
-                                std::string(kSPIRVPostfix::ExtDivider) +
-                                    getPostfixForReturnType(CI));
-      },
-      &Attrs);
+  mutateCallInst(
+      CI, getSPIRVFuncName(OpImageRead, std::string(kSPIRVPostfix::ExtDivider) +
+                                            getPostfixForReturnType(CI)))
+      .insertArg(2, getInt32(M, ImageOperandsSampleMask));
 }
 
 void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
@@ -1200,44 +1171,15 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
 void OCLToSPIRVBase::visitCallRelational(CallInst *CI,
                                          StringRef DemangledName) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
-  std::string SPIRVName = getSPIRVFuncName(OC);
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        Ret = Type::getInt1Ty(*Ctx);
-        if (CI->getOperand(0)->getType()->isVectorTy())
-          Ret = FixedVectorType::get(
-              Type::getInt1Ty(*Ctx),
-              cast<FixedVectorType>(CI->getOperand(0)->getType())
-                  ->getNumElements());
-        return SPIRVName;
-      },
-      [=](CallInst *NewCI) -> Instruction * {
-        Value *False = nullptr, *True = nullptr;
-        if (NewCI->getType()->isVectorTy()) {
-          Type *IntTy = Type::getInt32Ty(*Ctx);
-          if (cast<FixedVectorType>(NewCI->getOperand(0)->getType())
-                  ->getElementType()
-                  ->isDoubleTy())
-            IntTy = Type::getInt64Ty(*Ctx);
-          if (cast<FixedVectorType>(NewCI->getOperand(0)->getType())
-                  ->getElementType()
-                  ->isHalfTy())
-            IntTy = Type::getInt16Ty(*Ctx);
-          Type *VTy = FixedVectorType::get(
-              IntTy, cast<FixedVectorType>(NewCI->getType())->getNumElements());
-          False = Constant::getNullValue(VTy);
-          True = Constant::getAllOnesValue(VTy);
-        } else {
-          False = getInt32(M, 0);
-          True = getInt32(M, 1);
-        }
-        return SelectInst::Create(NewCI, True, False, "", NewCI->getNextNode());
-      },
-      &Attrs);
+  // i1 or <i1 x N>, depending on whether it returns a vector type.
+  Type *BoolTy = CI->getType()->getWithNewType(Type::getInt1Ty(*Ctx));
+  mutateCallInst(CI, OC).changeReturnType(BoolTy, [=](IRBuilder<> &Builder,
+                                                      CallInst *NewCI) {
+    return Builder.CreateSelect(NewCI, Constant::getAllOnesValue(CI->getType()),
+                                Constant::getNullValue(CI->getType()));
+  });
 }
 
 void OCLToSPIRVBase::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
@@ -1464,19 +1406,12 @@ void OCLToSPIRVBase::visitCallGetImageChannel(CallInst *CI,
                                               StringRef DemangledName,
                                               unsigned int Offset) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
-  std::string SPIRVName = getSPIRVFuncName(OC);
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        return SPIRVName;
-      },
-      [=](CallInst *NewCI) -> Instruction * {
-        return BinaryOperator::CreateAdd(NewCI, getInt32(M, Offset), "", CI);
-      },
-      &Attrs);
+  mutateCallInst(CI, OC).changeReturnType(
+      CI->getType(), [=](IRBuilder<> &Builder, CallInst *NewCI) {
+        return Builder.CreateAdd(NewCI, Builder.getInt32(Offset));
+      });
 }
 void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
                                             StringRef DemangledName) {
@@ -1636,18 +1571,12 @@ void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
 
 void OCLToSPIRVBase::visitSubgroupImageMediaBlockINTEL(
     CallInst *CI, StringRef DemangledName) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   spv::Op OpCode = DemangledName.rfind("read") != StringRef::npos
                        ? spv::OpSubgroupImageMediaBlockReadINTEL
                        : spv::OpSubgroupImageMediaBlockWriteINTEL;
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        // Moving the last argument to the beginning.
-        std::rotate(Args.begin(), Args.end() - 1, Args.end());
-        return getSPIRVFuncName(OpCode, CI->getType());
-      },
-      &Attrs);
+  // Move the last argument to the beginning.
+  mutateCallInst(CI, getSPIRVFuncName(OpCode, CI->getType()))
+      .moveArg(CI->arg_size() - 1, 0);
 }
 
 static const char *getSubgroupAVCIntelOpKind(StringRef Name) {
@@ -1710,13 +1639,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
       return;
   }
 
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        return getSPIRVFuncName(OC);
-      },
-      &Attrs);
+  mutateCallInst(CI, OC);
 }
 
 // Handles Subgroup AVC Intel extension wrapper built-ins.
@@ -1939,13 +1862,7 @@ void OCLToSPIRVBase::visitCallConvertBFloat16AsUshort(CallInst *CI,
     }
   }
 
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        return getSPIRVFuncName(internal::OpConvertFToBF16INTEL);
-      },
-      &Attrs);
+  mutateCallInst(CI, internal::OpConvertFToBF16INTEL);
 }
 
 void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
@@ -1988,13 +1905,7 @@ void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
     }
   }
 
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        return getSPIRVFuncName(internal::OpConvertBF16ToFINTEL);
-      },
-      &Attrs);
+  mutateCallInst(CI, internal::OpConvertBF16ToFINTEL);
 }
 } // namespace SPIRV
 
