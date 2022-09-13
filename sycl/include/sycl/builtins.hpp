@@ -189,15 +189,14 @@ inline __SYCL_ALWAYS_INLINE
     return res;                                                                \
   }
 
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mad)
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
-__SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
+    __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-// svgenfloat acos (svgenfloat x)
-template <typename T>
-detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
+    // svgenfloat acos (svgenfloat x)
+    template <typename T>
+    detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
   return __sycl_std::__invoke_acos<T>(x);
 }
 
