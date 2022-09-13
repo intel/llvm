@@ -14,6 +14,7 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
@@ -209,13 +210,13 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
 
-class CallPattern final : public SYCLToLLVMConversion<sycl::SYCLCallOp> {
+class CallPattern final : public ConvertOpToLLVMPattern<sycl::SYCLCallOp> {
 public:
-  using SYCLToLLVMConversion<sycl::SYCLCallOp>::SYCLToLLVMConversion;
+  using ConvertOpToLLVMPattern<sycl::SYCLCallOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
   matchAndRewrite(sycl::SYCLCallOp op, OpAdaptor opAdaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+                  ConversionPatternRewriter &rewriter) const final {
     assert(op.Type().has_value() &&
            "Expecting op.Type() to have a valid value");
     return rewriteCall(op, opAdaptor, rewriter);
@@ -230,10 +231,9 @@ private:
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-
     Type retType = op.getODSResults(0).empty()
                        ? LLVM::LLVMVoidType::get(module.getContext())
-                       : typeConverter.convertType(op.getType());
+                       : typeConverter->convertType(op.result().getType());
 
     LLVMBuilder builder(rewriter, op.getLoc());
     SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
@@ -242,15 +242,12 @@ private:
     auto newOp = rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op.getOperation(), op.getNumResults() == 0 ? TypeRange() : retType,
         funcRef, opAdaptor.getOperands());
+    (void) newOp;
 
     LLVM_DEBUG({
-      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
-      if (!func)
-        func = op->getParentOfType<func::FuncOp>();
-
+      Operation *func = newOp->getParentOfType<LLVM::LLVMFuncOp>();
       assert(func && "Could not find parent function");
-      llvm::dbgs() << __func__ << ": Function after rewrite:\n"
-                   << *func << "\n";
+      llvm::dbgs() << "CallPattern: Function after rewrite:\n" << *func << "\n";
     });
 
     return success();
@@ -261,9 +258,9 @@ private:
 // CastPattern - Converts `sycl.cast` to LLVM.
 //===----------------------------------------------------------------------===//
 
-class CastPattern final : public SYCLToLLVMConversion<sycl::SYCLCastOp> {
+class CastPattern final : public ConvertOpToLLVMPattern<sycl::SYCLCastOp> {
 public:
-  using SYCLToLLVMConversion<sycl::SYCLCastOp>::SYCLToLLVMConversion;
+  using ConvertOpToLLVMPattern<sycl::SYCLCastOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
   matchAndRewrite(SYCLCastOp op, OpAdaptor opAdaptor,
@@ -283,76 +280,54 @@ private:
     assert(op.result().getType().isa<MemRefType>() &&
            "The result source type should be a memref type");
 
-    Location loc = op.getLoc();
-    LLVMBuilder builder(rewriter, loc);
-
     // Ensure the input and result types are legal.
     auto srcType = op.source().getType().cast<MemRefType>();
     auto resType = op.result().getType().cast<MemRefType>();
-    if (!isValidMemRefType(srcType) || !isValidMemRefType(resType))
+
+    if (!isConvertibleAndHasIdentityMaps(srcType) ||
+        !isConvertibleAndHasIdentityMaps(resType))
       return failure();
 
-    // Ensure the result type can be converted.
-    Type convResType = typeConverter.convertType(resType);
-    if (!convResType)
-      return failure();
-
-    // Create a memref descriptor to hold the result of the cast operation.
-    auto resMemRefDesc = MemRefDescriptor::undef(rewriter, loc, convResType);
-
-    // Cast the allocated and aligned pointer fields of the source memref
-    // descriptor to the type of the same fields in the result memref
-    // descriptor.
+    // Cast the source memref descriptor's allocate & aligned pointers to the
+    // type of those pointers in the results memref.
+    Location loc = op.getLoc();    
+    LLVMBuilder builder(rewriter, loc);
     MemRefDescriptor srcMemRefDesc(opAdaptor.source());
-    Value allocatedPtr =
-        builder.genBitcast(resMemRefDesc.getElementPtrType(),
-                           srcMemRefDesc.allocatedPtr(rewriter, loc));
-    Value alignedPtr =
-        builder.genBitcast(resMemRefDesc.getElementPtrType(),
-                           srcMemRefDesc.alignedPtr(rewriter, loc));
-    resMemRefDesc.setAllocatedPtr(rewriter, loc, allocatedPtr);
-    resMemRefDesc.setAlignedPtr(rewriter, loc, alignedPtr);
+    Value allocatedPtr = builder.genBitcast(
+        getElementPtrType(resType), srcMemRefDesc.allocatedPtr(rewriter, loc));
+    Value alignedPtr = builder.genBitcast(
+        getElementPtrType(resType), srcMemRefDesc.alignedPtr(rewriter, loc));
 
-    // Copy the remaining fields of the source memref descriptor.
-    resMemRefDesc.setOffset(rewriter, loc, srcMemRefDesc.offset(rewriter, loc));
-
+    // Create the result memref descriptor.
+    SmallVector<Value, 4> sizes, strides;
     for (int pos = 0; pos < resType.getRank(); ++pos) {
-      resMemRefDesc.setSize(rewriter, loc, pos,
-                            srcMemRefDesc.size(rewriter, loc, pos));
-      resMemRefDesc.setStride(rewriter, loc, pos,
-                              srcMemRefDesc.stride(rewriter, loc, pos));
+      sizes.push_back(srcMemRefDesc.size(rewriter, loc, pos));
+      strides.push_back(srcMemRefDesc.stride(rewriter, loc, pos));
     }
+
+    MemRefDescriptor resMemRefDesc = createMemRefDescriptor(
+          loc, resType, allocatedPtr, alignedPtr, sizes, strides, rewriter);
+    resMemRefDesc.setOffset(rewriter, loc, srcMemRefDesc.offset(rewriter, loc));          
 
     rewriter.replaceOp(op.getOperation(), {resMemRefDesc});
 
     LLVM_DEBUG({
       Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
-      if (!func)
-        func = op->getParentOfType<func::FuncOp>();
-
       assert(func && "Could not find parent function");
       llvm::dbgs() << "CastPattern: Function after rewrite:\n" << *func << "\n";
     });
 
     return success();
   }
-
-  bool isValidMemRefType(MemRefType memRefType) const {
-    if (!typeConverter.convertType(memRefType.getElementType()))
-      return false;
-
-    return memRefType.getLayout().isIdentity();
-  }
 };
 
 //===----------------------------------------------------------------------===//
 // ConstructorPattern - Converts `sycl.constructor` to LLVM.
 //===----------------------------------------------------------------------===//
-
 class ConstructorPattern final
-    : public SYCLToLLVMConversion<sycl::SYCLConstructorOp> {
+    : public ConvertOpToLLVMPattern<sycl::SYCLConstructorOp> {
 public:
-  using SYCLToLLVMConversion<sycl::SYCLConstructorOp>::SYCLToLLVMConversion;
+  using ConvertOpToLLVMPattern<sycl::SYCLConstructorOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
   matchAndRewrite(SYCLConstructorOp op, OpAdaptor opAdaptor,
@@ -361,15 +336,14 @@ public:
   }
 
 private:
-  /// Rewrite sycl.constructor() { type = * } to a LLVM call to the
-  /// appropriate constructor function.
+  /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
+  /// constructor function.
   LogicalResult rewriteConstructor(SYCLConstructorOp op, OpAdaptor opAdaptor,
                                    ConversionPatternRewriter &rewriter) const {
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-
     LLVMBuilder builder(rewriter, op.getLoc());
     SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
     FlatSymbolRefAttr funcRef = builder.getOrInsertFuncDecl(
@@ -379,11 +353,8 @@ private:
 
     LLVM_DEBUG({
       Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
-      if (!func)
-        func = op->getParentOfType<func::FuncOp>();
-
       assert(func && "Could not find parent function");
-      llvm::dbgs() << __func__ << ": Function after rewrite:\n"
+      llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
                    << *func << "\n";
     });
 
@@ -430,7 +401,7 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
   populateSYCLToLLVMTypeConversion(typeConverter);
 
-  patterns.add<CallPattern>(patterns.getContext(), typeConverter);
-  patterns.add<CastPattern>(patterns.getContext(), typeConverter);
-  patterns.add<ConstructorPattern>(patterns.getContext(), typeConverter);
+  patterns.add<CallPattern>(typeConverter);
+  patterns.add<CastPattern>(typeConverter);
+  patterns.add<ConstructorPattern>(typeConverter);
 }

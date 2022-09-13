@@ -15,7 +15,6 @@ include "mlir/IR/OpBase.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "mlir/Interfaces/ViewLikeInterface.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPE DECLARATIONS
@@ -92,7 +91,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
 
 def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef]>;
 def CastRes : AnyTypeOf<[ArrayMemRef]>;
-def SYCLCastOp : Op<SYCL_Dialect, "cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
+def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   NoSideEffect, MemRefsNormalizable]
 > {
   let summary = "Derive to base cast operation";
@@ -152,13 +151,6 @@ def SYCLCallOp : SYCL_Op<"call", []> {
   let assemblyFormat = [{
     `(` $Args `)` attr-dict `:` functional-type($Args, results)
   }];
-
-  let extraClassDeclaration = [{
-    /// Return the result type of a sycl.call operation.
-    ::mlir::Type getType() { 
-      assert(!getODSResults(0).empty() && "CallOp does not return a value");
-      return getResult(0).getType(); }
-  }];  
 }
 
 #endif // SYCL_OPS

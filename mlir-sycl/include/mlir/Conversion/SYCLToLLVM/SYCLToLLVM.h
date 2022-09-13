@@ -14,25 +14,10 @@
 #define MLIR_CONVERSION_SYCLTOLLVM_SYCLTOLLVM_H
 
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 
 namespace mlir {
 class LLVMTypeConverter;
-class MLIRContext;
-class ModuleOp;
-
 namespace sycl {
-template <typename SYCLOp>
-class SYCLToLLVMConversion : public OpConversionPattern<SYCLOp> {
-public:
-  SYCLToLLVMConversion(MLIRContext *context, LLVMTypeConverter &typeConverter,
-                       PatternBenefit benefit = 1)
-      : OpConversionPattern<SYCLOp>(typeConverter, context, benefit),
-        typeConverter(typeConverter) {}
-
-protected:
-  LLVMTypeConverter &typeConverter;
-};
 
 /// Populates type conversions with additional SYCL types.
 void populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter);
