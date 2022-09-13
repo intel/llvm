@@ -96,10 +96,7 @@ func::CallOp FuncBuilder::genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,
 func::CallOp FuncBuilder::genCall(StringRef funcName, TypeRange resTypes,
                                   ValueRange operands, ModuleOp &module) const {
   assert(!funcName.contains('@') && "funcName should not contain '@'");
-  assert(module.lookupSymbol<LLVM::LLVMFuncOp>(funcName) &&
-         "Expecting to find a function declaration");
-  auto funcSym = SymbolRefAttr::get(builder.getContext(), funcName);
-  return genCall(funcSym, resTypes, operands);
+  return create<func::CallOp>(funcName, resTypes, operands);
 }
 
 //===----------------------------------------------------------------------===//
