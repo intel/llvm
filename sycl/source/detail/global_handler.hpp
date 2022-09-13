@@ -67,7 +67,6 @@ public:
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
-  std::mutex &getHandlerExtendedMembersMutex();
   ThreadPool &getHostTaskThreadPool();
 
   static void registerDefaultContextReleaseHandler();
@@ -101,8 +100,6 @@ private:
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
-  // The mutex for synchronizing accesses to handlers extended members
-  InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 };

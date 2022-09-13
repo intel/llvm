@@ -797,11 +797,6 @@ private:
   // Offset of the WI's flush buffer in the pool.
   mutable unsigned WIOffset = 0;
 
-  // Offset in the flush buffer
-  // TODO: This field is not used anymore.
-  // To be removed when API/ABI changes are allowed.
-  mutable unsigned Offset = 0;
-
   mutable size_t FlushBufferSize;
 
   // Fields and methods to work with manipulators

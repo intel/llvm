@@ -364,9 +364,15 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   return true;
 }
 
-bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
+bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
+
+    // Allow __builtin_assume_aligned to be called from within device code.
+    if (FD->getBuiltinID() &&
+        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned)
+      return true;
+
     // Allow to use `::printf` only for CUDA.
     if (Context.getTargetInfo().getTriple().isNVPTX()) {
       if (FD->getBuiltinID() == Builtin::BIprintf)
