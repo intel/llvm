@@ -34,6 +34,8 @@ int main() {
   queue Q;
 
   Q.single_task([=]() { DeviceGlobalVar.get()[0] = 42; });
+  // Make sure that the write happens before subsequent read
+  Q.wait();
 
   int OutVal = 0;
   {
