@@ -242,7 +242,7 @@ private:
     auto newOp = rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op.getOperation(), op.getNumResults() == 0 ? TypeRange() : retType,
         funcRef, opAdaptor.getOperands());
-    (void) newOp;
+    (void)newOp;
 
     LLVM_DEBUG({
       Operation *func = newOp->getParentOfType<LLVM::LLVMFuncOp>();
