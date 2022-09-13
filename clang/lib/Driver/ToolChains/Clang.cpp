@@ -5003,6 +5003,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
+
+    // Add any predefined macros associated with intel_gpu* type targets
+    // passed in with -fsycl-targets
+    if (auto *CA = dyn_cast<CompileJobAction>(&JA)) {
+      if (RawTriple.isSPIR() &&
+          RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        auto Device = CA->getDependentActionsInfo();
+        if (!Device.empty())
+          CmdArgs.push_back(Args.MakeArgString(
+              Twine("-D") + SYCL::gen::getGenDeviceMacro(Device)));
+      }
+      if (RawTriple.isSPIR() &&
+          RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+        CmdArgs.push_back("-D__SYCL_TARGET_INTEL_X86_64__");
+    }
   }
 
   if (IsSYCL) {
@@ -9077,7 +9092,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
-      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs);
+      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA);
       TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-compile-opts=");
       BuildArgs.clear();

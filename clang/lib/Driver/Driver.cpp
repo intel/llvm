@@ -1086,8 +1086,22 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               << SYCLForceTarget->getAsString(C.getInputArgs());
 
         for (StringRef Val : SYCLTargetsValues->getValues()) {
+          StringRef Val_t(Val);
+          // Handle target specifications that resemble 'intel_gpu_*' here.
+          // These are 'spir64_gen' based.
+          if (Val.startswith("intel_gpu_")) {
+            // Add the proper -device value to the list.
+            StringRef ValidDevice(tools::SYCL::gen::resolveGenDevice(
+                Val.drop_front(sizeof("intel_gpu_") - 1)));
+            if (ValidDevice.empty()) {
+              Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+              continue;
+            }
+            Val_t = "spir64_gen";
+          }
+
           llvm::Triple TT(MakeSYCLDeviceTriple(Val));
-          if (!isValidSYCLTriple(TT)) {
+          if (!isValidSYCLTriple(MakeSYCLDeviceTriple(Val_t))) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
           }
@@ -1125,7 +1139,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(TT);
+          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(Val_t));
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -3584,8 +3598,19 @@ void Driver::checkForOffloadMismatch(Compilation &C,
   // each target individually.
   SmallVector<StringRef, 4> Targets;
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-    for (const char *Val : A->getValues())
+    for (StringRef Val : A->getValues()) {
+      if (Val.startswith("intel_gpu_")) {
+        StringRef ValidDevice(tools::SYCL::gen::resolveGenDevice(
+            Val.drop_front(sizeof("intel_gpu_") - 1)));
+        if (!ValidDevice.empty()) {
+          Targets.push_back(Args.MakeArgString(
+              C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
+              ValidDevice));
+          continue;
+        }
+      }
       Targets.push_back(Val);
+    }
   } else { // Implied targets
     // No -fsycl-targets given, check based on -fintelfpga or default device
     bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
@@ -4687,6 +4712,10 @@ class OffloadingActionBuilder final {
     /// targets.
     SmallVector<std::pair<llvm::Triple, const char *>, 8> GpuArchList;
 
+    /// List of GEN devices to use in this compilation with spir64_gen
+    /// targets.
+    SmallVector<const char *, 8> GenDeviceList;
+
     /// Build the last steps for CUDA after all BC files have been linked.
     JobAction *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
@@ -4786,6 +4815,7 @@ class OffloadingActionBuilder final {
           return ABRT_Success;
 
         Action *DeviceCompilerInput = nullptr;
+        int I = 0, J = 0;
         for (Action *&A : SYCLDeviceActions) {
           types::ID OutputType = types::TY_LLVM_BC;
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
@@ -4806,8 +4836,17 @@ class OffloadingActionBuilder final {
             if (Args.hasArg(options::OPT_fsyntax_only))
               OutputType = types::TY_Nothing;
             A = C.MakeAction<CompileJobAction>(A, OutputType);
+            const auto *TC = ToolChains[I];
+            llvm::Triple TT(TC->getTriple());
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+              if (auto *CA = dyn_cast<CompileJobAction>(A)) {
+                CA->registerDependentActionInfo(GenDeviceList[J]);
+                ++J;
+              }
+            }
           }
           DeviceCompilerInput = A;
+          ++I;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
         DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
@@ -5160,8 +5199,10 @@ class OffloadingActionBuilder final {
 
               // We are using BoundArch="" here since the NVPTX bundles in
               // the devicelib .o files do not contain any arch information
-              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
+              for (auto &TargetInfo : SYCLTargetInfoList) {
+                SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                    TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
+              }
               OffloadAction::DeviceDependences Dep;
               Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
                       Action::OFK_SYCL);
@@ -5494,6 +5535,14 @@ class OffloadingActionBuilder final {
               BEInputs.push_back(A);
             BuildCodeAction =
                 C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
+            int I = 0;
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+              if (auto *BEA =
+                      dyn_cast<BackendCompileJobAction>(BuildCodeAction)) {
+                BEA->registerDependentActionInfo(GenDeviceList[I]);
+                ++I;
+              }
+            }
           }
           ActionList TformInputs{PostLinkAction, BuildCodeAction};
           auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
@@ -5683,7 +5732,22 @@ class OffloadingActionBuilder final {
           Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
           llvm::StringMap<StringRef> FoundNormalizedTriples;
-          for (const char *Val : SYCLTargetsValues->getValues()) {
+          for (StringRef Val : SYCLTargetsValues->getValues()) {
+            StringRef Val_t(Val);
+            // Handle target specifications that resemble 'intel_gpu_*' here.
+            // These are 'spir64_gen' based.
+            if (Val.startswith("intel_gpu_")) {
+              StringRef ValidDevice(tools::SYCL::gen::resolveGenDevice(
+                  Val.drop_front(sizeof("intel_gpu_") - 1)));
+              if (ValidDevice.empty()) {
+                // Unrecognized, we have already diagnosed this earlier, so
+                // just skip.
+                continue;
+              }
+              // Add the proper -device value to the list.
+              GenDeviceList.emplace_back(ValidDevice.data());
+              Val_t = "spir64_gen";
+            }
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
             std::string NormalizedName = TT.normalize();
 
@@ -5696,9 +5760,13 @@ class OffloadingActionBuilder final {
             // the following iterations.
             FoundNormalizedTriples[NormalizedName] = Val;
 
-            SYCLTripleList.push_back(TT);
+            SYCLTripleList.push_back(C.getDriver().MakeSYCLDeviceTriple(Val_t));
             if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
               SYCLfpgaTriple = true;
+            // For user specified spir64_gen, add an empty device value as a
+            // placeholder.
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+              GenDeviceList.emplace_back("");
           }
 
           // Fill GpuArchList, end if there are issues in initializingGpuArchMap
@@ -5707,15 +5775,25 @@ class OffloadingActionBuilder final {
             return true;
 
           int I = 0;
+          int J = 0;
           // Fill SYCLTargetInfoList
           for (auto TT : SYCLTripleList) {
             auto TCIt = llvm::find_if(
                 ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
             assert(TCIt != ToolChains.end() &&
                    "Toolchain was not created for this platform");
-            if (!TT.isNVPTX() && !TT.isAMDGCN())
+            if (!TT.isNVPTX() && !TT.isAMDGCN()) {
+              // When users specify the target as 'intel_gpu_*', the proper
+              // triple is 'spir64_gen'.  The given string from intel_gpu_*
+              // is the target device.
+              if (TT.isSPIR() &&
+                  TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+                SYCLTargetInfoList.emplace_back(*TCIt, GenDeviceList[J]);
+                ++J;
+                continue;
+              }
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
-            else {
+            } else {
               SYCLTargetInfoList.emplace_back(*TCIt, GpuArchList[I].second);
               ++I;
             }
@@ -5739,6 +5817,9 @@ class OffloadingActionBuilder final {
             // populate the AOT binary inputs vector.
             SYCLAOTInputs.push_back(std::make_pair(TT, TF));
             ShouldAddDefaultTriple = false;
+            // Add an empty entry to the Device list
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+              GenDeviceList.emplace_back("");
           }
         }
       } else if (HasValidSYCLRuntime) {
@@ -8170,8 +8251,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
           TargetDeviceOffloadKind == Action::OFK_SYCL) {
         if (UI.DependentOffloadKind == Action::OFK_Host)
           Arch = StringRef();
-        else
-          Arch = UI.DependentBoundArch;
+        else {
+          if (TC->getTriple().isSPIR())
+            Arch = BoundArch;
+          else
+            Arch = UI.DependentBoundArch;
+        }
       } else
         Arch = BoundArch;
       // When unbundling for SYCL and there is no Target offload, assume

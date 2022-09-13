@@ -501,8 +501,21 @@ public:
 class CompileJobAction : public JobAction {
   void anchor() override;
 
+private:
+  /// String that keeps information about dependencies of this compile action.
+  /// This is used for device compilations for spir64_gen AOT targets
+  StringRef DependentBoundArch;
+
 public:
   CompileJobAction(Action *Input, types::ID OutputType);
+
+  /// Register information about a dependent action.
+  void registerDependentActionInfo(StringRef BoundArch) {
+    DependentBoundArch = BoundArch;
+  }
+
+  /// Return the information about all depending actions.
+  StringRef getDependentActionsInfo() const { return DependentBoundArch; }
 
   static bool classof(const Action *A) {
     return A->getKind() == CompileJobClass;
@@ -807,9 +820,22 @@ private:
 class BackendCompileJobAction : public JobAction {
   void anchor() override;
 
+private:
+  /// String that keeps information about dependencies of this backend compile
+  /// action.
+  StringRef DependentBoundArch;
+
 public:
   BackendCompileJobAction(ActionList &Inputs, types::ID OutputType);
   BackendCompileJobAction(Action *Input, types::ID OutputType);
+
+  /// Register information about a dependent action.
+  void registerDependentActionInfo(StringRef BoundArch) {
+    DependentBoundArch = BoundArch;
+  }
+
+  /// Return the information about all depending actions.
+  StringRef getDependentActionsInfo() const { return DependentBoundArch; }
 
   static bool classof(const Action *A) {
     return A->getKind() == BackendCompileJobClass;
