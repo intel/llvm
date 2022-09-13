@@ -158,12 +158,12 @@ struct OCLBuiltinTransInfo {
   std::string MangledName;
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
-  std::function<void(std::vector<Value *> &)> PostProc;
+  std::function<void(BuiltinCallMutator &)> PostProc;
   Type *RetTy;      // Return type of the translated function
   bool IsRetSigned; // When RetTy is int, determines if extensions
                     // on it should be a sext or zet.
   OCLBuiltinTransInfo() : RetTy(nullptr), IsRetSigned(false) {
-    PostProc = [](std::vector<Value *> &) {};
+    PostProc = [](BuiltinCallMutator &) {};
   }
 };
 
