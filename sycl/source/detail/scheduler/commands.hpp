@@ -218,8 +218,7 @@ protected:
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
   EventImplPtr MEvent;
-
-  QueueImplPtr &MWorkerQueue;
+  QueueImplPtr MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
