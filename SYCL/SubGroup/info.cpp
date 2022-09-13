@@ -1,6 +1,3 @@
-// See https://github.com/intel/llvm/issues/2922 for more info
-// UNSUPPORTED: cuda || hip
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -40,7 +37,7 @@ int main() {
     auto Kernel = KB.get_kernel(KernelID);
     range<2> GlobalRange{50, 40};
 
-    buffer<double, 2> ABuf{GlobalRange}, BBuf{GlobalRange}, CBuf{GlobalRange};
+    buffer<float, 2> ABuf{GlobalRange}, BBuf{GlobalRange}, CBuf{GlobalRange};
 
     Queue.submit([&](sycl::handler &cgh) {
       auto A = ABuf.get_access<access::mode::read_write>(cgh);

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
@@ -27,12 +27,11 @@ struct test_struct {
   long long d;
   half e;
   float f;
-  double g;
 };
 
 bool operator==(const test_struct &lhs, const test_struct &rhs) {
   return lhs.a == rhs.a && lhs.b == rhs.b && lhs.c == rhs.c && lhs.d == rhs.d &&
-         lhs.e == rhs.e && lhs.f == rhs.f && lhs.g == rhs.g;
+         lhs.e == rhs.e && lhs.f == rhs.f;
 }
 
 template <typename T> T *regular(queue q, alloc kind) {
@@ -44,6 +43,9 @@ template <typename T> T *aligned(queue q, alloc kind) {
 }
 
 template <typename T> void test(queue q, T val, T *src, T *dst, bool dev_dst) {
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   q.fill(src, val, N).wait();
 
   // Use queue::copy for the first half and handler::copy for the second
@@ -87,7 +89,7 @@ int main() {
   queue q;
   auto dev = q.get_device();
 
-  test_struct test_obj{4, 42, 424, 4242, 4.2f, 4.242f, 4.24242};
+  test_struct test_obj{4, 42, 424, 4242, 4.2f, 4.242f};
 
   if (dev.has(aspect::usm_host_allocations)) {
     runTests<short>(q, 4, alloc::host, alloc::host);
