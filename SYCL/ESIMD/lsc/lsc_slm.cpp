@@ -81,8 +81,8 @@ int main() {
             lsc_block_store<int, SIMDSize>(access_3, offset, data_3);
 
             lsc_slm_block_store<int, SIMDSize>(offset, data);
-            lsc_slm_atomic_update<atomic_op::cmpxchg, int>(offsets, compare,
-                                                           swap, pred);
+            lsc_slm_atomic_update<atomic_op::cmpxchg, int>(offsets, swap,
+                                                           compare, pred);
             auto data_4 = lsc_slm_block_load<int, SIMDSize>(offset);
             lsc_block_store<int, SIMDSize>(access_4, offset, data_4);
           });
