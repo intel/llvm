@@ -9,9 +9,9 @@
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/pi.hpp>
 
-#include <memory>
 #include <algorithm>
 #include <cstring>
+#include <memory>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -80,7 +80,7 @@ const char *DeviceBinaryProperty::asCString() const {
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
-                                            const char *PropSetName) {
+                                              const char *PropSetName) {
   assert(!this->Begin && !this->End && "already initialized");
   pi_device_binary_property_set PS = nullptr;
 
