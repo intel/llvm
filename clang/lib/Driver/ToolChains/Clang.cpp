@@ -5438,7 +5438,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Set the main file name, so that debug info works even with
   // -save-temps.
   CmdArgs.push_back("-main-file-name");
-  CmdArgs.push_back(getBaseInputName(Args, Input));
+  if (!IsSYCL || Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+    CmdArgs.push_back(getBaseInputName(Args, Input));
+  } else {
+    SmallString<256> AbsPath = llvm::StringRef(Input.getBaseInput());
+    D.getVFS().makeAbsolute(AbsPath);
+    CmdArgs.push_back(
+        Args.MakeArgString(llvm::sys::path::filename(Input.getBaseInput())));
+    CmdArgs.push_back("-fsycl-use-main-file-name");
+  }
+  CmdArgs.push_back("-full-main-file-name");
+  CmdArgs.push_back(Input.getBaseInput());
 
   // Some flags which affect the language (via preprocessor
   // defines).

@@ -485,6 +485,10 @@ CODEGENOPT(SkipRaxSetup, 1, 0)
 ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
                 5, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Skip)
 
+/// Whether to expect -main-file-name to be an absolute path to use it for
+/// checksum calculations or not.
+CODEGENOPT(SYCLUseMainFileName, 1, 0)
+
 /// Whether to use opaque pointers.
 CODEGENOPT(OpaquePointers, 1, 0)
 

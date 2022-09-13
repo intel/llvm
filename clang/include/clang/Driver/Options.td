@@ -6151,6 +6151,10 @@ def main_file_name : Separate<["-"], "main-file-name">,
   HelpText<"Main file name to use for debug info and source if missing">,
   Flags<[CC1Option, CC1AsOption, NoDriverOption]>,
   MarshallingInfoString<CodeGenOpts<"MainFileName">>;
+def full_main_file_name : Separate<["-"], "full-main-file-name">,
+  HelpText<"Name file with full path to use for debug info during host and device compile">,
+  Flags<[CC1Option, CC1AsOption, NoDriverOption]>,
+  MarshallingInfoString<CodeGenOpts<"FullMainFileName">>;
 def split_dwarf_output : Separate<["-"], "split-dwarf-output">,
   HelpText<"File name to use for split dwarf debug info output">,
   Flags<[CC1Option, CC1AsOption, NoDriverOption]>,
@@ -6510,6 +6514,10 @@ def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
+def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
+  HelpText<"Tells compiler that -main-file-name contains an absolute path and "
+           "file specified there should be used for checksum calculation.">,
+  MarshallingInfoFlag<CodeGenOpts<"SYCLUseMainFileName">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
