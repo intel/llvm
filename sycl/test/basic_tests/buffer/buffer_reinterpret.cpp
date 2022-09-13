@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 
 template <int Dimensions> sycl::range<Dimensions> create_range() {
   return sycl::range<Dimensions>(1);
