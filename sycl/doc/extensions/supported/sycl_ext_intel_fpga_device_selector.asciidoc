@@ -98,10 +98,6 @@ the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
 supports.
 
-_And follow the text with a table like this *unless the extension is
-"experimental"*.  Note that your table may have more than one row if it
-has multiple versions._
-
 [%header,cols="1,5"]
 |===
 |Value
