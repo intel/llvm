@@ -451,7 +451,7 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
+  return lsc_gather<T, NElts, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
@@ -667,7 +667,7 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
              __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_prefetch<T, NElts, DS, L1H, L3H, N>(
+  return lsc_prefetch<T, NElts, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
@@ -874,8 +874,8 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
             __ESIMD_NS::simd<T, N * NElts> vals,
             __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  lsc_scatter<T, NElts, DS, L1H, L3H, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
-                                         offsets, pred);
+  lsc_scatter<T, NElts, DS, L1H, L3H>(__ESIMD_DNS::accessorToPointer<T>(acc),
+                                      offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
