@@ -112,7 +112,7 @@ program_impl::program_impl(
         MContext->getHandleRef(), Devices.size(), Devices.data(),
         LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
         &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+    Plugin.checkPiResult(Err);
   }
 }
 
@@ -284,6 +284,23 @@ void program_impl::build_with_source(std::string KernelSource,
   MIsInterop = true;
 }
 
+inline void checkBuildNLinkResults(const RT::PiResult &Err,
+                                   const RT::PiProgram &Program,
+                                   const ContextImplPtr &Context) {
+  if (Err == PI_SUCCESS)
+    return;
+  std::error_code errCode{errc::build};
+  // Covers whole group of INVALID error codes
+  if (Err > PI_ERROR_INVALID_DEVICE_PARTITION_COUNT &&
+      Err < PI_ERROR_INVALID_VALUE)
+    errCode = errc::invalid;
+
+  throw sycl::exception(
+      errCode, "Program compilation error " + sycl::detail::codeToString(Err) +
+                   ":\n" +
+                   ProgramManager::getProgramBuildLog(Program, Context));
+}
+
 void program_impl::link(std::string LinkOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
@@ -298,7 +315,7 @@ void program_impl::link(std::string LinkOptions) {
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
         /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+    checkBuildNLinkResults(Err, MProgram, MContext);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
   }
@@ -404,13 +421,7 @@ void program_impl::compile(const std::string &Options) {
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       MProgram, Devices.size(), Devices.data(), CompileOpts, 0, nullptr,
       nullptr, nullptr, nullptr);
-
-  if (Err != PI_SUCCESS) {
-    throw compile_program_error(
-        "Program compilation error:\n" +
-            ProgramManager::getProgramBuildLog(MProgram, MContext),
-        Err);
-  }
+  checkBuildNLinkResults(Err, MProgram, MContext);
   MCompileOptions = Options;
   MBuildOptions = Options;
 }
@@ -423,13 +434,7 @@ void program_impl::build(const std::string &Options) {
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
-
-  if (Err != PI_SUCCESS) {
-    throw compile_program_error(
-        "Program build error:\n" +
-            ProgramManager::getProgramBuildLog(MProgram, MContext),
-        Err);
-  }
+  checkBuildNLinkResults(Err, MProgram, MContext);
   MBuildOptions = Options;
 }
 
