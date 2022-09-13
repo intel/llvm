@@ -4787,7 +4787,7 @@ class OffloadingActionBuilder final {
 
         Action *DeviceCompilerInput = nullptr;
         for (auto TargetActionInfo :
-               llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+             llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
           Action *&A = std::get<0>(TargetActionInfo);
           auto &TargetInfo = std::get<1>(TargetActionInfo);
           types::ID OutputType = types::TY_LLVM_BC;

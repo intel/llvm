@@ -251,9 +251,9 @@ public:
     Itanium,
     Cygnus,
     CoreCLR,
-    Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
-    MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
-    
+    Simulator, // Simulator variants of other systems, e.g., Apple's iOS
+    MacABI,    // Mac Catalyst variant of Apple's iOS deployment target.
+
     // Shader Stages
     Pixel,
     Vertex,

@@ -288,7 +288,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Callable: return "callable";
   case Mesh: return "mesh";
   case Amplification: return "amplification";
-  case SYCLMLIR: return "syclmlir";
+  case SYCLMLIR:
+    return "syclmlir";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
