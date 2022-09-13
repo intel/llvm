@@ -57,13 +57,62 @@ get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
 
 // Device-specific methods
 template <typename Param>
+uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
+                                                    RT::PiDevice Device,
+                                                    const void *In,
+                                                    size_t InSize,
+                                                    const plugin &Plugin) {
+  static_assert(is_kernel_device_specific_info_desc<Param>::value,
+                "Unexpected kernel_device_specific information descriptor");
+  static_assert(std::is_same<typename Param::return_type, uint32_t>::value,
+                "Unexpected return type");
+  static_assert(IsSubGroupInfo<Param>::value,
+                "Unexpected kernel_device_specific information descriptor for "
+                "query with input");
+  uint32_t Result;
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
+      Kernel, Device, PiInfoCode<Param>::value, InSize, In,
+      sizeof(uint32_t), &Result, nullptr);
+
+  return Result;
+}
+
+template <typename Param>
+uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
+                                                    RT::PiDevice Device,
+                                                    sycl::range<3> In,
+                                                    const plugin &Plugin) {
+  size_t Input[3] = {In[0], In[1], In[2]};
+  return get_kernel_device_specific_info_with_input<Param>(
+      Kernel, Device, Input, 3 * sizeof(size_t), Plugin);
+}
+
+template <typename Param>
 typename std::enable_if<IsSubGroupInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
                                        const plugin &Plugin, void *Result,
                                        size_t Size) {
-  Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, 0, nullptr, Size, Result,
-      nullptr);
+  if constexpr (std::is_same_v<
+                    Param, info::kernel_device_specific::max_sub_group_size>) {
+    // max_sub_group_size requires additional information about intended work
+    // group size, so we use max work size from the device to avoid truncating
+    // the max sub-group size.
+    assert(Size >= sizeof(uint32_t) &&
+           "Unexpected result size for "
+           "info::kernel_device_specific::max_sub_group_size");
+    size_t MaxWGSize[3] = {0, 0, 0};
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, 3 * sizeof(size_t),
+        MaxWGSize, nullptr);
+    *reinterpret_cast<uint32_t *>(Result) =
+        get_kernel_device_specific_info_with_input<Param>(
+            Kernel, Device, MaxWGSize, 3 * sizeof(size_t), Plugin);
+  } else {
+    Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
+        Kernel, Device, PiInfoCode<Param>::value, 0, nullptr, Size, Result,
+        nullptr);
+  }
 }
 
 template <typename Param>
@@ -103,28 +152,6 @@ get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
   get_kernel_device_specific_info_helper<Param>(Kernel, Device, Plugin, Result,
                                                 sizeof(size_t) * 3);
   return sycl::range<3>(Result[0], Result[1], Result[2]);
-}
-
-template <typename Param>
-uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
-                                                    RT::PiDevice Device,
-                                                    sycl::range<3> In,
-                                                    const plugin &Plugin) {
-  static_assert(is_kernel_device_specific_info_desc<Param>::value,
-                "Unexpected kernel_device_specific information descriptor");
-  static_assert(std::is_same<typename Param::return_type, uint32_t>::value,
-                "Unexpected return type");
-  static_assert(IsSubGroupInfo<Param>::value,
-                "Unexpected kernel_device_specific information descriptor for "
-                "query with input");
-  size_t Input[3] = {In[0], In[1], In[2]};
-  uint32_t Result;
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, sizeof(size_t) * 3, Input,
-      sizeof(uint32_t), &Result, nullptr);
-
-  return Result;
 }
 
 template <typename Param>
@@ -174,6 +201,13 @@ inline uint32_t get_kernel_device_specific_info_host<
 template <>
 inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::max_num_sub_groups>(const sycl::device &) {
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_ERROR_INVALID_KERNEL);
+}
+
+template <>
+inline uint32_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::max_sub_group_size>(const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
                              PI_ERROR_INVALID_KERNEL);
 }
