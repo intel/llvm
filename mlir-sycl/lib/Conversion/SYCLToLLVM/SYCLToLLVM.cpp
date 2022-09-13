@@ -223,31 +223,29 @@ public:
   }
 
 private:
-  /// Rewrite sycl.call() {Function = *, Type = *} to a LLVM call to the
-  /// appropriate member function.
+  /// Rewrite sycl.call to a func call to the appropriate member function.
   LogicalResult rewriteCall(SYCLCallOp op, OpAdaptor opAdaptor,
                             ConversionPatternRewriter &rewriter) const {
     LLVM_DEBUG(llvm::dbgs() << "CallPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
+    assert(op.getNumResults() <= 1 && "Call should produce at most one result");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    Type retType = op.getODSResults(0).empty()
-                       ? LLVM::LLVMVoidType::get(module.getContext())
-                       : typeConverter->convertType(op.result().getType());
+    FuncBuilder builder(rewriter, op.getLoc());
 
-    LLVMBuilder builder(rewriter, op.getLoc());
-    SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
-    FlatSymbolRefAttr funcRef = builder.getOrInsertFuncDecl(
-        opAdaptor.MangledName(), retType, operandTypes, module);
-    auto newOp = rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op.getOperation(), op.getNumResults() == 0 ? TypeRange() : retType,
-        funcRef, opAdaptor.getOperands());
-    (void)newOp;
+    bool producesResult = op.getNumResults() == 1;
+    func::CallOp funcCall = builder.genCall(
+        op.MangledName(),
+        producesResult ? TypeRange(op.result().getType()) : TypeRange(),
+        op.getOperands(), module);
+
+    rewriter.replaceOp(op.getOperation(),
+                       producesResult ? funcCall->getResult(0) : ValueRange());
 
     LLVM_DEBUG({
-      Operation *func = newOp->getParentOfType<LLVM::LLVMFuncOp>();
+      Operation *func = funcCall->getParentOfType<LLVM::LLVMFuncOp>();
       assert(func && "Could not find parent function");
-      llvm::dbgs() << "CallPattern: Function after rewrite:\n" << *func << "\n";
+      llvm::dbgs() << "CastPattern: Function after rewrite:\n" << *func << "\n";
     });
 
     return success();
@@ -336,29 +334,27 @@ public:
   }
 
 private:
-  /// Rewrite sycl.constructor() { type = * } to a LLVM call to the appropriate
-  /// constructor function.
+  /// Rewrite sycl.constructor to a func call to the appropriate constructor
+  /// function.
   LogicalResult rewriteConstructor(SYCLConstructorOp op, OpAdaptor opAdaptor,
                                    ConversionPatternRewriter &rewriter) const {
     LLVM_DEBUG(llvm::dbgs() << "ConstructorPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
-    LLVMBuilder builder(rewriter, op.getLoc());
-    SmallVector<Type> operandTypes(opAdaptor.Args().getTypes());
-    FlatSymbolRefAttr funcRef = builder.getOrInsertFuncDecl(
-        opAdaptor.MangledName(), LLVM::LLVMVoidType::get(module.getContext()),
-        operandTypes, module);
-    builder.genCall(funcRef, {}, opAdaptor.getOperands());
+    FuncBuilder builder(rewriter, op.getLoc());
+    func::CallOp funcCall = builder.genCall(op.MangledName(), TypeRange(),
+                                            op.getOperands(), module);
+    rewriter.eraseOp(op);
+    (void)funcCall;
 
     LLVM_DEBUG({
-      Operation *func = op->getParentOfType<LLVM::LLVMFuncOp>();
+      Operation *func = funcCall->getParentOfType<LLVM::LLVMFuncOp>();
       assert(func && "Could not find parent function");
       llvm::dbgs() << "ConstructorPattern: Function after rewrite:\n"
                    << *func << "\n";
     });
 
-    rewriter.eraseOp(op);
     return success();
   }
 };
