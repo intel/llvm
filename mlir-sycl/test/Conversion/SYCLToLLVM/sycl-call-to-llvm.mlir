@@ -4,16 +4,16 @@
 // sycl.call with non void return type
 //===-------------------------------------------------------------------------------------------------===//
 
-// CHECK: llvm.func @foo() -> [[MEMREF:!llvm.struct<\(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>\)>]]
-// CHECK: llvm.func @test() -> [[MEMREF]] {
-// CHECK-NEXT:  %0 = llvm.call @foo() : () -> [[MEMREF]]
-// CHECK-NEXT:  llvm.return %0 : [[MEMREF]]
+// CHECK: llvm.func @foo() -> [[RET_TYPE:i32]]
+// CHECK: llvm.func @test() -> [[RET_TYPE]] {
+// CHECK-NEXT:  %0 = llvm.call @foo() : () -> [[RET_TYPE]]
+// CHECK-NEXT:  llvm.return %0 : [[RET_TYPE]]
 
-func.func private @foo() -> (memref<?xi32>)
+func.func private @foo() -> (i32)
 
-func.func @test() -> (memref<?xi32>) {
-  %0 = sycl.call() {Function = @foo, MangledName = @foo, Type = @accessor} : () -> memref<?xi32>
-  return %0 : memref<?xi32>
+func.func @test() -> (i32) {
+  %0 = sycl.call() {Function = @foo, MangledName = @foo, Type = @accessor} : () -> i32
+  return %0 : i32
 }
 
 // -----
