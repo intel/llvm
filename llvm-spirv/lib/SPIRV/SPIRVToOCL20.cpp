@@ -239,76 +239,53 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
 }
 
 void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Instruction *PInsertBefore = CI;
+  bool HasVaargs = CI->arg_size() > 10;
+  bool HasEvents = true;
+  Value *EventRet = CI->getArgOperand(5);
+  if (isa<ConstantPointerNull>(EventRet)) {
+    Value *NumEvents = CI->getArgOperand(3);
+    if (isa<ConstantInt>(NumEvents)) {
+      ConstantInt *NE = cast<ConstantInt>(NumEvents);
+      HasEvents = NE->getZExtValue() != 0;
+    }
+  }
 
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        bool HasVaargs = Args.size() > 10;
-        bool HasEvents = true;
-        Value *EventRet = Args[5];
-        if (isa<ConstantPointerNull>(EventRet)) {
-          Value *NumEvents = Args[3];
-          if (isa<ConstantInt>(NumEvents)) {
-            ConstantInt *NE = cast<ConstantInt>(NumEvents);
-            HasEvents = NE->getZExtValue() != 0;
-          }
-        }
+  StringRef FName = "";
+  if (!HasVaargs && !HasEvents)
+    FName = "__enqueue_kernel_basic";
+  else if (!HasVaargs && HasEvents)
+    FName = "__enqueue_kernel_basic_events";
+  else if (HasVaargs && !HasEvents)
+    FName = "__enqueue_kernel_varargs";
+  else
+    FName = "__enqueue_kernel_events_varargs";
 
-        Value *Invoke = Args[6];
-        auto *Int8PtrTyGen = Type::getInt8PtrTy(*Ctx, SPIRAS_Generic);
-        Args[6] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-            Invoke, Int8PtrTyGen, "", PInsertBefore);
+  auto Mutator = mutateCallInst(CI, FName.str());
+  Mutator.mapArg(6, [=](IRBuilder<> &Builder, Value *Invoke) {
+    Value *Replace = CastInst::CreatePointerBitCastOrAddrSpaceCast(
+        Invoke, Builder.getInt8PtrTy(SPIRAS_Generic), "", CI);
+    return std::pair<Value *, Type *>(Replace, Builder.getInt8Ty());
+  });
 
-        // Don't remove arguments immediately, just mark them as removed with
-        // nullptr, and remove them at the end of processing. It allows for
-        // easier understanding of which argument is going to be removed.
-        auto MarkAsRemoved = [&Args](size_t Start, size_t End) {
-          assert(Start <= End);
-          for (size_t I = Start; I < End; I++)
-            Args[I] = nullptr;
-        };
+  if (!HasVaargs) {
+    // Remove arguments at indices 8 (Param Size), 9 (Param Align)
+    Mutator.removeArgs(8, 2);
+  } else {
+    // GEP to array of sizes of local arguments
+    Mutator.moveArg(10, 8);
+    Type *Int32Ty = Type::getInt32Ty(*Ctx);
+    size_t NumLocalArgs = Mutator.arg_size() - 10;
+    Mutator.insertArg(8, ConstantInt::get(Int32Ty, NumLocalArgs));
 
-        if (!HasEvents) {
-          // Mark arguments at indices 3 (Num Events), 4 (Wait Events), 5 (Ret
-          // Event) as removed.
-          MarkAsRemoved(3, 6);
-        }
+    // Mark all SPIRV-specific arguments as removed
+    Mutator.removeArgs(10, Mutator.arg_size() - 10);
+  }
 
-        if (!HasVaargs) {
-          // Mark arguments at indices 8 (Param Size), 9 (Param Align) as
-          // removed.
-          MarkAsRemoved(8, 10);
-        } else {
-          // GEP to array of sizes of local arguments
-          Value *GEP = Args[10];
-          size_t NumLocalArgs = Args.size() - 10;
-
-          // Mark all SPIRV-specific arguments as removed
-          MarkAsRemoved(8, Args.size());
-
-          Type *Int32Ty = Type::getInt32Ty(*Ctx);
-          Args[8] = ConstantInt::get(Int32Ty, NumLocalArgs);
-          Args[9] = GEP;
-        }
-
-        Args.erase(std::remove(Args.begin(), Args.end(), nullptr), Args.end());
-
-        std::string FName = "";
-        if (!HasVaargs && !HasEvents)
-          FName = "__enqueue_kernel_basic";
-        else if (!HasVaargs && HasEvents)
-          FName = "__enqueue_kernel_basic_events";
-        else if (HasVaargs && !HasEvents)
-          FName = "__enqueue_kernel_varargs";
-        else
-          FName = "__enqueue_kernel_events_varargs";
-
-        return FName;
-      },
-      &Attrs);
+  if (!HasEvents) {
+    // Remove arguments at indices 3 (Num Events), 4 (Wait Events), 5 (Ret
+    // Event).
+    Mutator.removeArgs(3, 3);
+  }
 }
 
 } // namespace SPIRV
