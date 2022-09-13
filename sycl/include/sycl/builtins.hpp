@@ -101,7 +101,7 @@ __SYCL_MATH_FUNCTION_OVERLOAD(trunc)
 
 #undef __SYCL_MATH_FUNCTION_OVERLOAD
 
-// __SYCL_MATH_FUNCTION_OVERLOAD_FM cases use corresponding native
+// __SYCL_MATH_FUNCTION_OVERLOAD_FM cases are replaced by corresponding native
 // implementations when the -ffast-math flag is used with float.
 #define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
   template <typename T, size_t N>                                              \
@@ -189,14 +189,15 @@ inline __SYCL_ALWAYS_INLINE
     return res;                                                                \
   }
 
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
-    __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(mad)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-    // svgenfloat acos (svgenfloat x)
-    template <typename T>
-    detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
+// svgenfloat acos (svgenfloat x)
+template <typename T>
+detail::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
   return __sycl_std::__invoke_acos<T>(x);
 }
 
