@@ -192,15 +192,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 }
 
 template <typename Group, typename T1, typename T2, typename T3, size_t M,
-          size_t K, size_t N, layout LayoutA, layout LayoutB, layout LayoutC>
+          size_t K, size_t N>
 inline __SYCL_ALWAYS_INLINE
-    joint_matrix<T3, M, N, use::accumulator, LayoutC, Group>
+    joint_matrix<T3, M, N, use::accumulator, layout::unused, Group>
     joint_matrix_mad(
-        Group sg, joint_matrix<T1, M, K, use::a, LayoutA, Group> &mA,
-        joint_matrix<T2, K, N, use::b, LayoutB, Group> &mB,
-        joint_matrix<T3, M, N, use::accumulator, LayoutC, Group> &mC) {
+        Group sg, joint_matrix<T1, M, K, use::a, layout::unused, Group> &mA,
+        joint_matrix<T2, K, N, use::b, layout::unused, Group> &mB,
+        joint_matrix<T3, M, N, use::accumulator, layout::unused, Group> &mC) {
 #ifdef __SYCL_DEVICE_ONLY__
-  joint_matrix<T3, M, N, use::accumulator, LayoutC, Group> res(sg);
+  joint_matrix<T3, M, N, use::accumulator, layout::unused, Group> res(sg);
   if constexpr (std::is_same<T1, uint16_t>::value &&
                 std::is_same<T2, uint16_t>::value &&
                 std::is_same<T3, float>::value)
