@@ -1002,28 +1002,26 @@ architectures need to be identified:
 
 - `-fsycl-targets` option
 - a device configuration file entry
-- `-target` option of the `sycl-aspec-filter` tool
-- a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
-  device target architecture)
+- `-target` option of the `sycl-aspect-filter` tool
+- a new SYCL enumeration named `architecture`
 
 The following table lists these target names:
 
-| name                 | aspect name               | description                            |
------------------------|---------------------------|----------------------------------------|
-| ptx64                | (none)                    | Generic 64-bit PTX target architecture |
-| spir64               | (none)                    | Generic 64-bit SPIR-V target           |
-| x86\_64              | ext\_intel\_x86\_64       | Generic 64-bit x86 architecture        |
-| intel\_gpu\_\<name\> | ext\_intel\_gpu\_\<name\> | Intel graphics architecture \<name\>   |
+| name                 | has `architecture` enum | description                            |
+-----------------------|-------------------------|----------------------------------------|
+| ptx64                | no                      | Generic 64-bit PTX target architecture |
+| spir64               | no                      | Generic 64-bit SPIR-V target           |
+| x86\_64              | yes                     | Generic 64-bit x86 architecture        |
+| intel\_gpu\_\<name\> | yes                     | Intel graphics architecture \<name\>   |
 
-The "name" column in this table gives the target name used for the
-`-fsycl-targets` option, the `-target` option to the `sycl-aspec-filter` tool,
-and the target name for the configuration file entry.  Since aspects must
-follow a different naming convention, the "aspect name" column provides this
-name.  The last row in this table corresponds to all of the aspect names listed
-in the [sycl\_ext\_intel\_device\_aspects][8] extension whose name starts with
-`ext_intel_gpu_`.
+The "name" column in this table lists the possible target names.  Since not all
+targets have a corresponding enumerator in the `architecture` enumeration, the
+second column tells when there is such an enumerator.  The last row in this
+table corresponds to all of the architecture names listed in the
+[sycl\_ext\_intel\_device\_architecture][8] extension whose name starts with
+`intel_gpu_`.
 
-[8]: <../extensions/proposed/sycl_ext_intel_device_aspects.asciidoc>
+[8]: <../extensions/proposed/sycl_ext_intel_device_architecture.asciidoc>
 
 TODO: This table needs to be filled out for the CPU variants supported by the
 `opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.

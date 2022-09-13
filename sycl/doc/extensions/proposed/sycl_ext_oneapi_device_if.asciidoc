@@ -40,11 +40,6 @@ This extension is written against the SYCL 2020 revision 5 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension also depends on the following other SYCL extensions:
-
-* link:./sycl_ext_intel_device_aspects.asciidoc[
-  sycl_ext_intel_device_aspects]
-
 
 == Status
 
@@ -53,17 +48,6 @@ feedback.  Interfaces defined in this specification may not be implemented yet
 or may be in a preliminary state.  The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
-
-[comment]
---
-_Add the following paragraph when this specification becomes "experimental"._
-
-There are important limitations with the DPC++ implementation of this
-experimental extension.  In particular, this extension may only be used when
-the application is compiled in AOT mode.  See the section below titled
-"Limitations with the experimental version" for a full description of the
-limitations.
---
 
 
 == Overview
@@ -217,7 +201,7 @@ using sycl;
 void frob() {
   if_device_has<aspect::foo>([] {
     // code that uses features tied to "foo" aspect
-  }).else_if_device_has<aspect::bar([] {
+  }).else_if_device_has<aspect::bar>([] {
     // code that uses features tied to "bar" aspect
   }).else_device([] {
     // fallback code that works on all devices
@@ -249,95 +233,3 @@ It is not sufficient to guard the use of optional kernel features with a
 regular `if` statement.  Even if the condition of the `if` is `false`, the
 code may fail to compile for a device that does not support the feature.
 ====
-
-
-== Limitations with the experimental version
-
-This experimental extension has two important limitations in the DPC++
-implementation.
-
-The first limitation is that the `if_device_has` function may only be used in a
-translation unit (source file) that is compiled in AOT mode with
-`-fsycl-targets=<device>`, where `<device>` is one of the following target
-names:
-
-* `spir64_x86_64`
-* `intel_gpu_bdw`
-* `intel_gpu_skl`
-* `intel_gpu_kbl`
-* `intel_gpu_cfl`
-* `intel_gpu_apl`
-* `intel_gpu_glk`
-* `intel_gpu_whl`
-* `intel_gpu_aml`
-* `intel_gpu_cml`
-* `intel_gpu_icllp`
-* `intel_gpu_ehl`
-* `intel_gpu_tgllp`
-* `intel_gpu_rkl`
-* `intel_gpu_adl_s`
-* `intel_gpu_rpl_s`
-* `intel_gpu_adl_p`
-* `intel_gpu_adl_n`
-* `intel_gpu_dg1`
-* `intel_gpu_acm_g10`
-* `intel_gpu_acm_g11`
-* `intel_gpu_acm_g12`
-* `intel_gpu_pvc`
-* `intel_gpu_8_0_0`
-* `intel_gpu_9_0_9`
-* `intel_gpu_9_1_9`
-* `intel_gpu_9_2_9`
-* `intel_gpu_9_3_0`
-* `intel_gpu_9_4_0`
-* `intel_gpu_9_5_0`
-* `intel_gpu_9_6_0`
-* `intel_gpu_9_7_0`
-* `intel_gpu_11_0_0`
-* `intel_gpu_11_2_0`
-* `intel_gpu_12_0_0`
-* `intel_gpu_12_10_0`
-
-The second limitation is that the `if_device_has` and `else_if_device_has`
-functions support only the following aspects for their `Aspects` parameter
-pack:
-
-* `ext_intel_x86_64`
-* `ext_intel_gpu_bdw`
-* `ext_intel_gpu_skl`
-* `ext_intel_gpu_kbl`
-* `ext_intel_gpu_cfl`
-* `ext_intel_gpu_apl`
-* `ext_intel_gpu_glk`
-* `ext_intel_gpu_whl`
-* `ext_intel_gpu_aml`
-* `ext_intel_gpu_cml`
-* `ext_intel_gpu_icllp`
-* `ext_intel_gpu_ehl`
-* `ext_intel_gpu_tgllp`
-* `ext_intel_gpu_rkl`
-* `ext_intel_gpu_adl_s`
-* `ext_intel_gpu_rpl_s`
-* `ext_intel_gpu_adl_p`
-* `ext_intel_gpu_adl_n`
-* `ext_intel_gpu_dg1`
-* `ext_intel_gpu_acm_g10`
-* `ext_intel_gpu_acm_g11`
-* `ext_intel_gpu_acm_g12`
-* `ext_intel_gpu_pvc`
-* `ext_intel_gpu_8_0_0`
-* `ext_intel_gpu_9_0_9`
-* `ext_intel_gpu_9_1_9`
-* `ext_intel_gpu_9_2_9`
-* `ext_intel_gpu_9_3_0`
-* `ext_intel_gpu_9_4_0`
-* `ext_intel_gpu_9_5_0`
-* `ext_intel_gpu_9_6_0`
-* `ext_intel_gpu_9_7_0`
-* `ext_intel_gpu_11_0_0`
-* `ext_intel_gpu_11_2_0`
-* `ext_intel_gpu_12_0_0`
-* `ext_intel_gpu_12_10_0`
-
-We expect that both of these limitations will be lifted in a future version of
-this extension specification.
