@@ -298,6 +298,12 @@ Tool *ToolChain::getClang() const {
   return Clang.get();
 }
 
+Tool *ToolChain::getCgeist() const {
+  if (!Cgeist)
+    Cgeist.reset(new tools::Cgeist(*this, getClang()));
+  return Cgeist.get();
+}
+
 Tool *ToolChain::getFlang() const {
   if (!Flang)
     Flang.reset(new tools::Flang(*this));
@@ -674,7 +680,14 @@ bool ToolChain::needsGCovInstrumentation(const llvm::opt::ArgList &Args) {
 
 Tool *ToolChain::SelectTool(const JobAction &JA) const {
   if (D.IsFlangMode() && getDriver().ShouldUseFlangCompiler(JA)) return getFlang();
-  if (getDriver().ShouldUseClangCompiler(JA)) return getClang();
+  if (getDriver().ShouldUseClangCompiler(JA)) {
+    if (JA.getOffloadingToolChain() &&
+        JA.getOffloadingToolChain()->getTriple().getEnvironment() ==
+            llvm::Triple::SYCLMLIR) {
+      return getCgeist();
+    }
+    return getClang();
+  }
   Action::ActionClass AC = JA.getKind();
   if (AC == Action::AssembleJobClass && useIntegratedAs())
     return getClangAs();

@@ -245,6 +245,7 @@ public:
     MuslEABI,
     MuslEABIHF,
     MuslX32,
+    SYCLMLIR,
 
     MSVC,
     Itanium,

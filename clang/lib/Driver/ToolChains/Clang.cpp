@@ -5201,7 +5201,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (JA.getType() == types::TY_Nothing) {
       CmdArgs.push_back("-fsyntax-only");
     } else if (JA.getType() == types::TY_LLVM_IR ||
-               JA.getType() == types::TY_LTO_IR) {
+               JA.getType() == types::TY_LTO_IR ||
+               JA.getType() == types::TY_MLIR_IR) {
       CmdArgs.push_back("-emit-llvm");
     } else if (JA.getType() == types::TY_LLVM_BC ||
                JA.getType() == types::TY_LTO_BC) {
@@ -9911,4 +9912,54 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // wrapper.
   LinkCommand->replaceExecutable(Exec);
   LinkCommand->replaceArguments(CmdArgs);
+}
+
+// Build an invocation to cgeist by stealing a clang invocation.
+// TODO: cgeist's driver actually replicate large part of clang.
+//       This make sense given the object and structure of the upstream project
+//       but given our context, a clang plugin would do just fine. We simply
+//       need to provide the frontend action (which already exist) via the
+//       plugin interface. As we control clang, we can make driver adjustments
+//       where needed.
+void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
+                          const InputInfo &Output, const InputInfoList &Inputs,
+                          const llvm::opt::ArgList &TCArgs,
+                          const char *LinkingOutput) const {
+  // Get the list of clang flags by build a Job
+  Clang->ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
+
+  const auto &ClangCommand = *C.getJobs().getJobs().back().get();
+
+  ArgStringList CmdArgs;
+
+  if (JA.getType() == types::TY_MLIR_IR) {
+    // Cgeist option to dump MLIR
+    CmdArgs.push_back("-S");
+  } else if (JA.getType() == types::TY_LLVM_IR) {
+    CmdArgs.push_back("-emit-llvm");
+    CmdArgs.push_back("-S");
+  } else if (JA.getType() == types::TY_LLVM_BC) {
+    CmdArgs.push_back("-emit-llvm");
+  }
+
+  TCArgs.AddAllArgValues(CmdArgs, options::OPT_Xcgeist);
+
+  for (const InputInfo &I : Inputs) {
+    if (I.isFilename())
+      CmdArgs.push_back(I.getFilename());
+    else
+      I.getInputArg().renderAsInput(TCArgs, CmdArgs);
+  }
+
+  CmdArgs.push_back("--args");
+  CmdArgs.insert(CmdArgs.end(), ClangCommand.getArguments().begin(),
+                 ClangCommand.getArguments().end());
+
+  // Kill the clang cmd to add ours instead.
+  C.getJobs().getJobsForOverride().pop_back();
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, Inputs, Output));
 }
