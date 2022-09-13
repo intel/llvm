@@ -280,6 +280,10 @@ private:
   /// Transform OpenCL vload/vstore function name.
   void transVecLoadStoreName(std::string &DemangledName,
                              const std::string &Stem, bool AlwaysN);
+
+  void processSubgroupBlockReadWriteINTEL(CallInst *CI,
+                                          OCLBuiltinTransInfo &Info,
+                                          const Type *DataTy);
 };
 
 class OCLToSPIRVLegacy : public OCLToSPIRVBase, public llvm::ModulePass {
