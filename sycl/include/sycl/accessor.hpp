@@ -12,6 +12,7 @@
 #include <sycl/atomic.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/accessor_iterator.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
@@ -32,6 +33,7 @@
 #include <sycl/sampler.hpp>
 
 #include <type_traits>
+#include <iterator>
 
 #include <utility>
 
@@ -972,6 +974,13 @@ public:
   using reference = DataT &;
   using const_reference = const DataT &;
 
+  using iterator =
+      typename detail::__accessor_iterator<DataT, Dimensions, AccessMode,
+                                           AccessTarget, IsPlaceholder,
+                                           PropertyListT>;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
+
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
   // Dimensions = 0
@@ -1834,6 +1843,14 @@ public:
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
+
+  iterator begin() noexcept {
+    return iterator::__get_begin(this, get_offset(), get_range());
+  }
+
+  iterator end() noexcept {
+    return iterator::__get_end(this, get_offset(), get_range());
+  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
