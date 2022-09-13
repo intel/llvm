@@ -198,9 +198,8 @@ template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty desired, Ty expected) {
   } else {
     CmpxchgTy<Ty> desired_bits = *(CmpxchgTy<Ty> *)&desired;
     CmpxchgTy<Ty> local_bits = *(CmpxchgTy<Ty> *)&expected;
-    __atomic_compare_exchange_n((CmpxchgTy<Ty> *)ptr, &local_bits,
-                                desired_bits, false, __ATOMIC_SEQ_CST,
-                                __ATOMIC_SEQ_CST);
+    __atomic_compare_exchange_n((CmpxchgTy<Ty> *)ptr, &local_bits, desired_bits,
+                                false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
     return *((Ty *)&local_bits);
   }
 #endif
