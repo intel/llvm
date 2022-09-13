@@ -8,7 +8,7 @@
 // Exclude PVC not to run same test cases twice (via the *_pvc.cpp variant).
 // REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // Tests various unary operations applied to simd objects.
@@ -174,7 +174,8 @@ int main(void) {
   passed &= test<half, 1>(mod_ops, q);
   passed &= test<half, 32>(mod_ops, q);
   passed &= test<float, 32>(mod_ops, q);
-  passed &= test<double, 7>(mod_ops, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<double, 7>(mod_ops, q);
 
   auto signed_ops = esimd_test::OpSeq<UnOp, UnOp::minus, UnOp::plus>{};
   passed &= test<char, 7>(signed_ops, q);
@@ -183,7 +184,8 @@ int main(void) {
   passed &= test<int64_t, 16>(signed_ops, q);
   passed &= test<half, 16>(signed_ops, q);
   passed &= test<float, 16>(signed_ops, q);
-  passed &= test<double, 16>(signed_ops, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<double, 16>(signed_ops, q);
 
 #ifdef USE_BF16
   // TODO: the rest unary operations are not yet supported for bfloat16 on host.

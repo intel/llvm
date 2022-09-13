@@ -8,7 +8,7 @@
 // Exclude PVC not to run same test cases twice (via the *_pvc.cpp variant).
 // REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // Tests various binary operations applied to simd objects.
@@ -266,11 +266,13 @@ int main(void) {
   auto arith_ops = esimd_test::ArithBinaryOpsNoDiv;
   passed &= test<unsigned char, int, 1, BinOp, VSf, IDf>(arith_ops, q);
   passed &= test<char, float, 7, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  passed &= test<short, double, 7, BinOp, VEf, IDf>(arith_ops, q, 1e-15);
+  if (dev.has(aspect::fp64))
+    passed &= test<short, double, 7, BinOp, VEf, IDf>(arith_ops, q, 1e-15);
   passed &= test<float, float, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
   passed &= test<half, char, 1, BinOp, verify_n, IDf>(arith_ops, q, 1);
   passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(arith_ops, q, 1);
-  passed &= test<double, half, 7, BinOp, VSf, IDf>(arith_ops, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<double, half, 7, BinOp, VSf, IDf>(arith_ops, q);
   passed &= test<short, uint64_t, 7, BinOp, VSf, IDf>(arith_ops, q);
 #ifdef USE_BF16
   passed &= test<bfloat16, int, 8, BinOp, VSf, IDf>(arith_ops, q);
@@ -282,13 +284,15 @@ int main(void) {
   passed &= test<unsigned char, int, 1, BinOp, VSf, IDf>(div_op, q);
   passed &= test<char, float, 7, BinOp, VEf, IDf>(div_op, q, 0.000001f);
 #ifndef WA_BUG
-  passed &= test<short, double, 7, BinOp, VSf, IDf>(div_op, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<short, double, 7, BinOp, VSf, IDf>(div_op, q);
 #endif // WA_BUG
   passed &= test<float, float, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
   passed &= test<half, char, 1, BinOp, verify_n, IDf>(div_op, q, 1);
   passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(div_op, q, 1);
 #ifndef WA_BUG
-  passed &= test<double, half, 7, BinOp, VSf, IDf>(div_op, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<double, half, 7, BinOp, VSf, IDf>(div_op, q);
 #endif // WA_BUG
   passed &= test<short, uint64_t, 7, BinOp, VSf, IDf>(div_op, q);
 #ifdef USE_BF16
@@ -327,11 +331,13 @@ int main(void) {
   auto cmp_ops = esimd_test::CmpOps;
   passed &= test<unsigned char, int, 1, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<char, float, 7, CmpOp, VSf, IDf>(cmp_ops, q);
-  passed &= test<short, double, 7, CmpOp, VSf, IDf>(cmp_ops, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<short, double, 7, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<float, float, 32, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<half, char, 1, CmpOp, VSf, IDf>(cmp_ops, q, 1);
   passed &= test<half, unsigned int, 32, CmpOp, VSf, IDf>(cmp_ops, q, 1);
-  passed &= test<double, half, 7, CmpOp, VSf, IDf>(cmp_ops, q);
+  if (dev.has(aspect::fp64))
+    passed &= test<double, half, 7, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<short, uint64_t, 7, CmpOp, VSf, IDf>(cmp_ops, q);
 #ifdef USE_BF16
   passed &= test<bfloat16, int, 32, CmpOp, VSf, IDf>(cmp_ops, q);
