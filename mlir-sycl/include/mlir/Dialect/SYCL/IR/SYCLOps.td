@@ -12,8 +12,9 @@
 #define SYCL_OPS
 
 include "mlir/IR/OpBase.td"
-include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPE DECLARATIONS
@@ -88,12 +89,11 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
 // CAST OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def CastArgs : AnyTypeOf<[IDMemRef, RangeMemRef]>;
+def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef]>;
 def CastRes : AnyTypeOf<[ArrayMemRef]>;
-def SYCLCastOp : SYCL_Op<"cast", [
-    DeclareOpInterfaceMethods<CastOpInterface>,
-    NoSideEffect]
-  > {
+def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
+  NoSideEffect, MemRefsNormalizable]
+> {
   let summary = "Derive to base cast operation";
   let description = [{
     This operation is used when a method of the base type is called with its
@@ -101,11 +101,11 @@ def SYCLCastOp : SYCL_Op<"cast", [
     cast the type to its base type.
   }];
 
-  let arguments = (ins CastArgs:$Args);
-  let results = (outs CastRes:$Result);
+  let arguments = (ins CastArg:$source);
+  let results = (outs CastRes:$result);
 
   let assemblyFormat = [{
-    `(` $Args `)` attr-dict `:` functional-type($Args, results)
+    `(` $source `)` attr-dict `:` functional-type($source, results)
   }];
 }
 
@@ -126,12 +126,12 @@ def SYCLCallOp : SYCL_Op<"call", []> {
     FlatSymbolRefAttr:$MangledName,
     Variadic<AnyType>:$Args
   );
-  let results = (outs Optional<AnyType>:$Result);
+  let results = (outs Optional<AnyType>:$result);
 
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins
-    "::llvm::Optional<::mlir::Type>":$Result,
+    "::llvm::Optional<::mlir::Type>":$result,
     "::llvm::Optional<::llvm::StringRef>":$Type,
     "::llvm::StringRef":$Function,
     "::llvm::StringRef":$MangledName,
@@ -142,8 +142,8 @@ def SYCLCallOp : SYCL_Op<"call", []> {
       }
       odsState.addAttribute(FunctionAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Function));
       odsState.addAttribute(MangledNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), MangledName));
-      if (Result.hasValue()) {
-        odsState.addTypes(Result.getValue());
+      if (result.hasValue()) {
+        odsState.addTypes(result.getValue());
       }
     }]>
   ];
