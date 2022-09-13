@@ -284,11 +284,12 @@ private:
 
   static std::string translateOpaqueType(StringRef STName);
 
-  /// Mutate the argument list based on (optional) image operands at position
-  /// ImOpArgIndex.  Set IsSigned according to any SignExtend/ZeroExtend Image
-  /// Operands present in Args, or default to signed if there are none.
-  void mutateArgsForImageOperands(std::vector<Value *> &Args,
-                                  unsigned ImOpArgIndex, bool &IsSigned);
+  /// Mutate the call instruction based on (optional) image operands at position
+  /// ImOpArgIndex. The new function name will be based on NewFuncName, and the
+  /// type suffix based on Ty and whether the image operand was signed.
+  BuiltinCallMutator mutateCallImageOperands(CallInst *CI,
+                                             StringRef NewFuncName, Type *Ty,
+                                             unsigned ImOpArgIndex);
 
 protected:
   Module *M;
