@@ -7,7 +7,11 @@
 // RUN: env SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
 // RUN: env SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=0 SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s
 
-// CACHING-ENABLED: zeEventCreate = 1
+// With events caching we should be reusing them and 9 should be enough.
+// Might require more than one if previous one hasn't been released by the time
+// we need a new one.
+
+// CACHING-ENABLED: zeEventCreate = {{[1-9]}}
 // CACHING-DISABLED: zeEventCreate = 256
 
 // Check event caching modes in the L0 plugin.
