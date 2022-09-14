@@ -1103,18 +1103,20 @@ void _pi_queue::setLastCommandEvent(pi_event Event) {
     // and if copy was not created before. If Event has external references then
     // it will be put in the cache when it's external references are gone.
     if (!Event->hasExternalRefs() &&
-        !(CandidateForReuse && CandidateForReuse->ZeEvent == Event->ZeEvent)) {
+        !(InOrderEventCandidateForReuse &&
+          InOrderEventCandidateForReuse->ZeEvent == Event->ZeEvent)) {
       // We expect that old candidate was put in the cache otherwise it is a
       // memory leak.
-      assert(CandidateForReuse == nullptr);
+      assert(InOrderEventCandidateForReuse == nullptr);
 
       // Create new pi_event using same handles and make it a candidate.
-      CandidateForReuse =
+      InOrderEventCandidateForReuse =
           new _pi_event(Event->ZeEvent, Event->ZeEventPool, Context,
                         PI_COMMAND_TYPE_USER, /* OwnZeEvent */ true);
-      CandidateForReuse->Queue = this;
+      InOrderEventCandidateForReuse->Queue = this;
       if (Event->isHostVisible())
-        CandidateForReuse->HostVisibleEvent = CandidateForReuse;
+        InOrderEventCandidateForReuse->HostVisibleEvent =
+            InOrderEventCandidateForReuse;
     }
   }
 
@@ -1660,11 +1662,11 @@ pi_result _pi_queue::cacheEventForReuse(pi_command_list_ptr_t CommandList) {
   // was submitted then we know that by this point the candidate event is going
   // to be completed so we can put it in the cache for reuse.
   // If this is not an in-order queue then candidate is just empty.
-  if (CandidateForReuse && !CommandList->second.EventList.empty() &&
+  if (InOrderEventCandidateForReuse && !CommandList->second.EventList.empty() &&
       CommandList->second.EventList.back()->ZeEvent !=
-          CandidateForReuse->ZeEvent) {
-    addEventToCache(CandidateForReuse);
-    CandidateForReuse = nullptr;
+          InOrderEventCandidateForReuse->ZeEvent) {
+    addEventToCache(InOrderEventCandidateForReuse);
+    InOrderEventCandidateForReuse = nullptr;
   }
   return PI_SUCCESS;
 }
@@ -3841,8 +3843,8 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
           Queue->CopyCommandBatch.NumTimesClosedEarly);
 
   // If non-cached candidate left then add it to the cache.
-  if (Queue->CandidateForReuse)
-    Queue->addEventToCache(Queue->CandidateForReuse);
+  if (Queue->InOrderEventCandidateForReuse)
+    Queue->addEventToCache(Queue->InOrderEventCandidateForReuse);
 
   for (auto Cache : Queue->EventCaches) {
     for (auto Event : Cache) {
@@ -6137,10 +6139,11 @@ pi_result piEventRelease(pi_event Event) {
         // another pi_event.
         pi_event RecreatedEvent = nullptr;
 
-        if (Event->Queue->CandidateForReuse &&
-            Event->Queue->CandidateForReuse->ZeEvent == Event->ZeEvent) {
-          RecreatedEvent = Event->Queue->CandidateForReuse;
-          Event->Queue->CandidateForReuse = nullptr;
+        if (Event->Queue->InOrderEventCandidateForReuse &&
+            Event->Queue->InOrderEventCandidateForReuse->ZeEvent ==
+                Event->ZeEvent) {
+          RecreatedEvent = Event->Queue->InOrderEventCandidateForReuse;
+          Event->Queue->InOrderEventCandidateForReuse = nullptr;
         } else {
           RecreatedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
                                          Event->Context, PI_COMMAND_TYPE_USER,
@@ -6153,8 +6156,8 @@ pi_result piEventRelease(pi_event Event) {
         Event->Queue->addEventToCache(RecreatedEvent);
       } else {
         // Event is the last command event and it is not completed. This means
-        // that we can put this event to CandidateForReuse now because the
-        // external reference count is zero.
+        // that we can put this event to InOrderEventCandidateForReuse now
+        // because the external reference count is zero.
         Event->Queue->setLastCommandEvent(Event);
       }
     }

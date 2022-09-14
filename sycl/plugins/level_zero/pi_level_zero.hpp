@@ -1097,7 +1097,7 @@ struct _pi_queue : _pi_object {
   // Copy of the last command event which is suitable for reuse.
   // It will be put into the cache when new command is submitted to the in-order
   // queue.
-  pi_event CandidateForReuse = nullptr;
+  pi_event InOrderEventCandidateForReuse = nullptr;
 
   // Caches of events for reuse.
   std::vector<std::list<pi_event>> EventCaches{2};
