@@ -112,7 +112,15 @@ enum class MatrixLayout : uint32_t {
   RowMajor = 0,
   ColumnMajor = 1,
   PackedA = 2,
-  PackedB = 3
+  PackedB = 3,
+  Unused = 4
+};
+
+enum class MatrixUse : uint32_t {
+  MatrixA = 0,
+  MatrixB = 1,
+  Accumulator = 2,
+  Unnecessary = 3
 };
 
 // TODO: replace the following W/A with a better solution when we have it.
@@ -129,10 +137,13 @@ enum class MatrixLayout : uint32_t {
 // information to SPIRV translator.
 // The long term solution would be to introduce a matrix type in Clang and use
 // it instead of this member.
-template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
-          Scope::Flag S = Scope::Flag::Subgroup>
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
+          Scope::Flag S = Scope::Flag::Subgroup,
+          MatrixUse U = MatrixUse::Unnecessary>
 struct __spirv_JointMatrixINTEL {
-  T (*Value)[R][C][static_cast<size_t>(U) + 1][static_cast<size_t>(S) + 1];
+  T(*Value)
+  [R][C][static_cast<size_t>(L) + 1][static_cast<size_t>(S) + 1]
+     [static_cast<size_t>(U) + 1];
 };
 
 } // namespace __spv

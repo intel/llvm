@@ -661,10 +661,13 @@
 // CHECK-LINK-NOSTDLIB: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-NOSTDLIB: "-defaultlib:sycl.lib"
 
-/// Check sycld.lib is chosen with /MDd
-// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
-// CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycld"
-// CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycld.lib"
+/// Check sycld.lib is chosen with /MDd or -g
+// RUN:  %clang -fsycl -g -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG-CL %s
+// CHECK-LINK-SYCL-DEBUG-CL: "--dependent-lib=sycld"
+// CHECK-LINK-SYCL-DEBUG-CL-NOT: "-defaultlib:sycld.lib"
+// CHECK-LINK-SYCL-DEBUG: "-defaultlib:sycld.lib"
+// CHECK-LINK-SYCL-DEBUG-NOT: "--dependent-lib=sycld"
 
 /// Check "-spirv-allow-unknown-intrinsics=llvm.genx." option is emitted for llvm-spirv tool
 // RUN: %clangxx %s -fsycl -### 2>&1 | FileCheck %s --check-prefix=CHK-ALLOW-INTRIN
