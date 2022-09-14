@@ -52,9 +52,9 @@ void *AccessorBaseHost::getPtr() const {
 
 void *AccessorBaseHost::getMemoryObject() const { return impl->MSYCLMemObj; }
 
-LocalAccessorBaseHost::LocalAccessorBaseHost(sycl::range<3> Size, int Dims,
-                                             int ElemSize,
-                                             const property_list &PropertyList) {
+LocalAccessorBaseHost::LocalAccessorBaseHost(
+    sycl::range<3> Size, int Dims, int ElemSize,
+    const property_list &PropertyList) {
   impl = std::shared_ptr<LocalAccessorImplHost>(
       new LocalAccessorImplHost(Size, Dims, ElemSize, PropertyList));
 }
