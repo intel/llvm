@@ -31,6 +31,9 @@ For any DPC++-related commit, the `[SYCL]` tag should be present in the
 commit message title. To a reasonable extent, additional tags can be used
 to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
+## Using \<iostream\> 
+
+According to [LLVM Coding Standards](https://llvm.org/docs/CodingStandards.html#include-iostream-is-forbidden), the use `#include <iostream>` is forbidden in library files. Thereby it's suggested to use the `<sycl/detail/iostream_proxy.hpp>` header instead, as it has the functionality of `<iostream>` without it's static constructor.
 ## Tests development
 
 Every product change should be accompanied with corresponding test modification
