@@ -627,11 +627,12 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
   for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->getOperand(0);
+    auto Op = (*It)->stripPointerCasts();
     auto *F = dyn_cast<Function>(Op);
     if (llvm::isSafeToDestroyConstant(*It)) {
       (*It)->destroyConstant();
-    } else if (F) {
+    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+               !F->use_empty()) {
       // The element in "llvm.used" array has other users. That is Ok for
       // specialization constants, but is wrong for kernels.
       llvm::report_fatal_error("Unexpected usage of SYCL kernel");
