@@ -235,7 +235,7 @@ static const enum CachingLevel {
       std::getenv("SYCL_PI_LEVEL_ZERO_INORDER_QUEUE_REUSE_EVENTS");
 
   auto Default = AllDeviceScope;
-  switch (CachingLevelStr ? std::atoi(CachingLevelStr) : Default) {
+  switch (CachingLevelStr ? std::stoi(CachingLevelStr) : Default) {
   case 0:
     return Disabled;
   case 1:
@@ -707,6 +707,7 @@ inline static pi_result createEventAndAssociateQueue(
     pi_command_list_ptr_t CommandList, bool IsDiscarded = false,
     bool ForceHostVisible = false) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   *Event = nullptr;
   bool HostVisible =
@@ -714,8 +715,7 @@ inline static pi_result createEventAndAssociateQueue(
 
   // If the queue supports optimization for the requested type of event
   // then try to get it from cache.
-  if (Queue &&
-      Queue->supportsInOrderQueueOptimization(HostVisible, IsDiscarded))
+  if (Queue->supportsInOrderQueueOptimization(HostVisible, IsDiscarded))
     PI_CALL(Queue->getEventFromCache(CommandList, HostVisible, Event));
 
   if (*Event == nullptr)
@@ -6116,53 +6116,53 @@ pi_result piEventRetain(pi_event Event) {
   return PI_SUCCESS;
 }
 
-pi_result piEventReleaseExternal(pi_event Event) {
+// This function can be called only by external user, should not be used to
+// release event inside the plugin.
+pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  if (!Event->Queue || !Event->Queue->supportsInOrderQueueOptimization(
-                           Event->isHostVisible(), Event->IsDiscarded))
-    return PI_SUCCESS;
+  // If it is the right type of event for in-order queue optimization then
+  // update and check number of external references. If it is zero then event
+  // can be reused.
+  if (Event->Queue && Event->Queue->supportsInOrderQueueOptimization(
+                          Event->isHostVisible(), Event->IsDiscarded)) {
+    std::scoped_lock Lock(Event->Queue->Mutex);
+    if (--Event->RefCountExternal == 0) {
+      if (Event != Event->Queue->LastCommandEvent || Event->Completed) {
+        // Event may be still not completed. But we know that it is not the
+        // last event, so new command was already submitted which
+        // depends on this event. So we can safely reuse native handles for
+        // another pi_event.
+        pi_event RecreatedEvent = nullptr;
 
-  if (--Event->RefCountExternal != 0)
-    return PI_SUCCESS;
+        if (Event->Queue->CandidateForReuse &&
+            Event->Queue->CandidateForReuse->ZeEvent == Event->ZeEvent) {
+          RecreatedEvent = Event->Queue->CandidateForReuse;
+          Event->Queue->CandidateForReuse = nullptr;
+        } else {
+          RecreatedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
+                                         Event->Context, PI_COMMAND_TYPE_USER,
+                                         /* OwnZeEvent */ true);
+          RecreatedEvent->Queue = Event->Queue;
+          if (Event->isHostVisible())
+            RecreatedEvent->HostVisibleEvent = RecreatedEvent;
+        }
 
-  if (Event != Event->Queue->LastCommandEvent || Event->Completed) {
-    // Event may be still not completed. But we know that it is not the
-    // last event, so new command was already submitted which
-    // depends on this event. So we can safely reuse native handles for another
-    // pi_event.
-    pi_event RecreatedEvent = nullptr;
-
-    if (Event->Queue->CandidateForReuse &&
-        Event->Queue->CandidateForReuse->ZeEvent == Event->ZeEvent) {
-      RecreatedEvent = Event->Queue->CandidateForReuse;
-      Event->Queue->CandidateForReuse = nullptr;
-    } else {
-      RecreatedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
-                                     Event->Context, PI_COMMAND_TYPE_USER,
-                                     /* OwnZeEvent */ true);
-      RecreatedEvent->Queue = Event->Queue;
-      if (Event->isHostVisible())
-        RecreatedEvent->HostVisibleEvent = RecreatedEvent;
+        Event->Queue->addEventToCache(RecreatedEvent);
+      } else {
+        // Event is the last command event and it is not completed. This means
+        // that we can put this event to CandidateForReuse now because the
+        // external reference count is zero.
+        Event->Queue->setLastCommandEvent(Event);
+      }
     }
-
-    Event->Queue->addEventToCache(RecreatedEvent);
-  } else {
-    // Event is the last command event and it is not completed. This means that
-    // we can put this event to CandidateForReuse now because the external
-    // reference count is zero.
-    Event->Queue->setLastCommandEvent(Event);
   }
 
-  return PI_SUCCESS;
-}
-
-pi_result piEventRelease(pi_event Event) {
-  PI_CALL(piEventReleaseExternal(Event));
   PI_CALL(piEventReleaseInternal(Event));
   return PI_SUCCESS;
 }
 
+// This function must be used for releasing event inside the plugin.
 static pi_result piEventReleaseInternal(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
