@@ -27,6 +27,11 @@
 // CHECK:            "context-hash": "[[HASH_FOO:.*]]"
 // CHECK:            "name": "Mod"
 // CHECK-NEXT:     }
+// CHECK:           "command-line": [
+// CHECK:           "-D"
+// CHECK:            "context-hash": "[[HASH:.*]]"
+// CHECK:            "name": "Mod"
+// CHECK-NEXT:     }
 // CHECK-NEXT:   ]
 // CHECK-NEXT:   "translation-units": [
 // CHECK-NEXT:     {
@@ -56,7 +61,7 @@
 // CHECK-NEXT:     {
 // CHECK:            "clang-module-deps": [
 // CHECK-NEXT:         {
-// CHECK-NEXT:           "context-hash": "[[HASH_NO_FOO]]"
+// CHECK-NEXT:           "context-hash": "[[HASH]]"
 // CHECK-NEXT:            "module-name": "Mod"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ]
