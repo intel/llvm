@@ -7,8 +7,9 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_BE` (deprecated) | `PI_OPENCL`, `PI_LEVEL_ZERO`, `PI_CUDA` | Force SYCL RT to consider only devices of the specified backend during the device selection. We are planning to deprecate `SYCL_BE` environment variable in the future. The specific grace period is not decided yet. Please use the new env var `SYCL_DEVICE_FILTER` instead. |
-| `SYCL_DEVICE_TYPE` (deprecated) | CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. We are planning to deprecate `SYCL_DEVICE_TYPE` environment variable in the future. The specific grace period is not decided yet. Please use the new env var `SYCL_DEVICE_FILTER` instead. |
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like LevelZero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `SYCL_BE` (deprecated) | `PI_OPENCL`, `PI_LEVEL_ZERO`, `PI_CUDA` | Force SYCL RT to consider only devices of the specified backend during the device selection.  The `SYCL_BE` environment variable is deprecated and will be removed soon. Please use the new env var `ONEAPI_DEVICE_SELECTOR` instead. |
+| `SYCL_DEVICE_TYPE` (deprecated) | CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. The `SYCL_DEVICE_TYPE` environment variable is deprecated and will be removed soon. Please use the new env var `ONEAPI_DEVICE_SELECTOR` instead. |
 | `SYCL_DEVICE_FILTER` | `backend:device_type:device_num` | See Section [`SYCL_DEVICE_FILTER`](#sycl_device_filter)  below. |
 | `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
@@ -27,6 +28,53 @@ compiler and runtime.
 | `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
+
+### `ONEAPI_DEVICE_SELECTOR`
+
+With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of them, usually preferring a LevelZero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose sub-devices (aka "tiles") as individual devices.  
+
+A value for this environment value consists of a backend name, followed by a colon ( : ), followed by some sort of device specifier (a named device type, a wildcard symbol ( * ) , or an exact numeric device id).  This can optionally be followed by period ( . ) and then a wilcard symbol ( * ) or an numeric index (using 0 based counting).   Commas can be used to string multiple device specifiers behind any backend.    Moreover, individual entries can be separated by semi-colons. 
+
+
+Possible values of `backend` are:
+- `level_zero`
+- `opencl`
+- `cuda`
+- `hip`
+- `esimd_emulator`
+- `*`
+
+Possible named device types are:
+- `cpu`
+- `gpu`
+- `acc`
+- `*`
+
+To see the exact numeric device id of each of the available devices, simply run `sycl-ls`.
+
+Example: `ONEAPI_DEVICE_SELECTOR=opencl:2.0` This would select the first tile of some device with an id of 2 from OpenCL platform. 
+
+Common Usage Examples:
+
+| Example | Result |
+-----------|---------
+| `ONEAPI_DEVICE_SELECTOR=opencl:*` | All the devices on the OpenCL platform are available |
+| `ONEAPI_DEVICE_SELECTOR=level_zero:gpu` | Only gpu devices on the LevelZero platform will be available.|
+| `ONEAPI_DEVICE_SELECTOR="opencl:gpu;level_zero:gpu"` | GPU devices from both Level Zero and OpenCL will be available. (Quotation marks will likely be needed when using semi-colon separated entries.) |
+| `ONEAPI_DEVICE_SELECTOR=opencl:gpu,cpu` | Only cpu and gpu devices on the OpenCL platform will be available.|
+| `ONEAPI_DEVICE_SELECTOR=opencl:0` | Device with numeric identifier of 0 chosen from the OpenCL platform. |
+| `ONEAPI_DEVICE_SELECTOR=hip:0,2` | Devices with numeric identifier of 0 and 2 are chosen from the Hip platform. |
+| `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices (aka tiles) from the OpenCL device identified by 0 will be available. |
+| `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third tile (2 in 0 based counting) of the OpenCL device with numeric identifier 0 will be the sole device available.  |
+
+
+Notes:
+- The backend argument is always required. An error will be thrown if it is absent.
+- Additionally, the backend MUST be followed by colon ( : ) and at least one device specifier of some sort, else an error is thrown.
+- For sub-devices/tiles, the parent device must support partitioning ( see`info::partition_by_domain` and `info::next_partitionable` in the SYCL 2020 Spec)
+- if using semi-colons ( ; ) to seperate entries, quotation marks will likely be needed around the entire environment variable. 
+
+
 
 ### `SYCL_DEVICE_ALLOWLIST`
 
