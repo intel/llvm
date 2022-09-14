@@ -34,6 +34,7 @@ public:
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
 
+private:
   // Explicit conversion functions
   static storage_t from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -83,6 +84,7 @@ public:
     return res;
   }
 
+public:
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
 
@@ -117,7 +119,7 @@ public:
 #if defined(__NVPTX__)
     return from_bits(__nvvm_neg_bf16(lhs.value));
 #else
-    return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
+    return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #endif
 #else
     (void)lhs;

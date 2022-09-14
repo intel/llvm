@@ -127,7 +127,7 @@ inline __SYCL_ALWAYS_INLINE
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fabs(x.raw()));
+  return sycl::bit_cast<bfloat16>(__clc_fabs(x.raw()));
 #else
   std::ignore = x;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
@@ -146,7 +146,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   }
 
   if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
+    res[N - 1] = sycl::bit_cast<bfloat16>(__clc_fabs(x[N - 1].raw()));
   }
   return res;
 #else
@@ -159,7 +159,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
+  return sycl::bit_cast<bfloat16>(__clc_fmin(x.raw(), y.raw()));
 #else
   std::ignore = x;
   std::ignore = y;
@@ -182,7 +182,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 
   if (N % 2) {
     res[N - 1] =
-        bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
+        sycl::bit_cast<bfloat16>(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
   }
 
   return res;
@@ -197,7 +197,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
+  return sycl::bit_cast<bfloat16>(__clc_fmax(x.raw(), y.raw()));
 #else
   std::ignore = x;
   std::ignore = y;
@@ -220,7 +220,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 
   if (N % 2) {
     res[N - 1] =
-        bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
+        sycl::bit_cast<bfloat16>(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
   }
   return res;
 #else
@@ -234,7 +234,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
+  return sycl::bit_cast<bfloat16>(__clc_fma(x.raw(), y.raw(), z.raw()));
 #else
   std::ignore = x;
   std::ignore = y;
@@ -259,7 +259,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(
+    res[N - 1] = sycl::bit_cast<bfloat16>(
         __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
   }
   return res;
