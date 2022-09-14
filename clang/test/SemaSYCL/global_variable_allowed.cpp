@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -sycl-std=2020 -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -std=c++17 -sycl-std=2020 -verify -fsyntax-only %s
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 // This test shows that global_variable_allowed attribute allows
 // global variables of type decorated with it to be referenced in device code.
@@ -51,15 +51,18 @@ struct [[__sycl_detail__::global_variable_allowed(72)]] attribute_argument;
 
 
 int main() {
-  sycl::kernel_single_task<class KernelName1>([=]() {
-    (void)glob;
-    (void)static_glob;
-    (void)inline_glob;
-    (void)static_const_glob;
-    (void)Foo::d;
-    (void)foo_instance;
-    (void)foo_static_instance;
-    (void)ext;
-    (void)f;
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class KernelName1>([=]() {
+      (void)glob;
+      (void)static_glob;
+      (void)inline_glob;
+      (void)static_const_glob;
+      (void)Foo::d;
+      (void)foo_instance;
+      (void)foo_static_instance;
+      (void)ext;
+      (void)f;
+    });
   });
 }
