@@ -34,7 +34,7 @@ public:
 
   bool HasDeviceWildCard = false;
   bool HasDeviceNum = false;
-  unsigned DeviceNum = 0;
+  int DeviceNum = 0;
 
   bool HasSubDeviceWildCard = false;
   bool HasSubDeviceNum = false;
@@ -55,6 +55,7 @@ public:
   ods_target_list() {}
   ods_target_list(const std::string &FilterString);
   std::vector<ods_target> &get() { return TargetList; }
+  bool containsHost();
 };
 
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target);

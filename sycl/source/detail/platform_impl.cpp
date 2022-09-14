@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -229,10 +230,9 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   return Result;
 }
 
-// CP -- work
-static bool supports_affinity_domain(const device &dev,
-                                     info::partition_property partitionProp,
-                                     info::partition_affinity_domain domain) {
+static bool supportsAffinityDomain(const device &dev,
+                                   info::partition_property partitionProp,
+                                   info::partition_affinity_domain domain) {
   if (partitionProp != info::partition_property::partition_by_affinity_domain) {
     return true;
   }
@@ -245,9 +245,8 @@ static bool supports_affinity_domain(const device &dev,
   return false;
 }
 
-static bool
-supports_partition_property(const device &dev,
-                            info::partition_property partitionProp) {
+static bool supportsPartitionProperty(const device &dev,
+                                      info::partition_property partitionProp) {
   auto supported = dev.get_info<info::device::partition_properties>();
   for (info::partition_property prop : supported) {
     if (prop == partitionProp) {
@@ -259,7 +258,7 @@ supports_partition_property(const device &dev,
 
 static std::vector<device>
 amendDeviceAndSubDevices(backend PlatformBackend,
-                         std::vector<device> DeviceList,
+                         std::vector<device> &DeviceList,
                          ods_target_list *OdsTargetList) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
@@ -271,23 +270,81 @@ amendDeviceAndSubDevices(backend PlatformBackend,
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
     // top level device and/or is expected to add its sub-devices to the list.
-    device &d = DeviceList[i];
+    device &dev = DeviceList[i];
+    bool deviceAdded = false;
     for (ods_target target : OdsTargetList->get()) {
       backend TargetBackend = target.Backend;
       if (PlatformBackend == TargetBackend || TargetBackend == backend::all) {
+        bool deviceMatch = target.HasDeviceWildCard; // opencl:*
+        if (target.HasDeviceType) {                  // opencl:gpu
+          deviceMatch = ((target.DeviceType == info::device_type::all) ||
+                         (dev.get_info<info::device::device_type>() ==
+                          target.DeviceType));
+
+        } else if (target.HasDeviceNum) { // opencl:0
+          deviceMatch = (target.DeviceNum == i);
+        }
+
+        if (deviceMatch) {
+          // Top level matches. Do we add it, or subdevices?
+          if (target.HasSubDeviceNum || target.HasSubDeviceWildCard) {
+            if (supportsPartitionProperty(dev, partitionProperty) &&
+                supportsAffinityDomain(dev, partitionProperty,
+                                       affinityDomain)) {
+              auto subDevices = dev.create_sub_devices<
+                  info::partition_property::partition_by_affinity_domain>(
+                  affinityDomain);
+              if (target.HasSubDeviceWildCard) {
+                for (device &sub : subDevices)
+                  FinalResult.push_back(sub);
+
+              } else {
+                if (subDevices.size() > target.SubDeviceNum) {
+                  FinalResult.push_back(subDevices[target.SubDeviceNum]);
+                } else {
+                  std::stringstream ss;
+                  ss << "subdevice index out of bounds: " << target;
+                  throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                        ss.str());
+                }
+              }
+            } else if (target.HasDeviceNum ||
+                       (target.HasDeviceType &&
+                        target.DeviceType != info::device_type::all)) {
+              // this device was specifically requested and yet is not
+              // partitionable.
+              std::stringstream ss;
+              ss << "device is not partitionable: " << target;
+              throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                    ss.str());
+            }
+          } else {
+            if (!deviceAdded) {
+              FinalResult.push_back(dev);
+              deviceAdded = true;
+            }
+          }
+        } // /if deviceMatch
       }
-    }
-  }
+    } // /for
+  }   // /for
+
+  return FinalResult;
 }
 
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
+  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
+  // We do NOT attempt to support both simultaneously.
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
+
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
-    // If SYCL_DEVICE_FILTER is set, check if filter contains host.
-    device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-    if (!FilterList || FilterList->containsHost()) {
+    if ((!FilterList && !OdsTargetList) ||
+        (OdsTargetList && OdsTargetList->containsHost()) ||
+        (FilterList && FilterList->containsHost())) {
       Res.push_back(
           createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
     }
@@ -303,6 +360,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   Plugin.call<PiApiKind::piDevicesGet>(
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
+  const backend Backend = Plugin.getBackend();
 
   if (NumDevices == 0) {
     // If platform doesn't have devices (even without filter)
@@ -332,13 +390,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
 
-  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
-  // We do NOT attempt to support both simultaneously.
-  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-
   // The first step is to filter out devices that are not compatible with
-  // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR
+  // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR. This is also the mechanism by
+  // which top level device ids are assigned.
   if (OdsTargetList) {
     if (FilterList) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -347,14 +401,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     }
     filterDeviceFilter<ods_target_list, ods_target>(PiDevices, MPlatform,
                                                     OdsTargetList);
-
   } else if (FilterList) {
     filterDeviceFilter<device_filter_list, device_filter>(PiDevices, MPlatform,
                                                           FilterList);
   }
 
-  // The next step is to inflate the PIDevices we've filtered into SYCL Device
-  // classes.
+  // The next step is to inflate the filtered PIDevices into SYCL Device
+  // objects.
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, Plugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
@@ -367,35 +420,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (!OdsTargetList)
     return Res;
 
-  // Otherwise, our last step is to re-screen the devices, possibly replacing
+  // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
-  backend Backend = getPlugin().getBackend();
-  std::vector<device> FinalResult =
-      amendDeviceAndSubDevices(Backend, Res, OdsTargetList);
-
-  // Lastly, if using the ONEAPI_DEVICE_SELECTOR then we may
-  /*
-    constexpr info::partition_property partitionProperty =
-    info::partition_property::partition_by_affinity_domain; constexpr
-    info::partition_affinity_domain affinityDomain =
-    info::partition_affinity_domain::next_partitionable; std::vector<device>
-    papaSauce; for(device &dev : Res){
-
-      if (supports_partition_property(dev, partitionProperty) &&
-    supports_affinity_domain(dev, partitionProperty, affinityDomain)){ auto
-    subDevices =
-    dev.create_sub_devices<info::partition_property::partition_by_affinity_domain>(affinityDomain);
-        for(device &sub : subDevices){
-          papaSauce.push_back(sub);
-        }
-      } else {
-        papaSauce.push_back(dev);
-      }
-    } // for
-
-    return papaSauce;
-    */
-  return Res;
+  return amendDeviceAndSubDevices(Backend, Res, OdsTargetList);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {

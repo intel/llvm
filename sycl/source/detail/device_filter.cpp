@@ -12,6 +12,7 @@
 #include <sycl/info/info_desc.hpp>
 
 #include <cstring>
+#include <iostream>
 #include <string_view>
 
 namespace sycl {
@@ -45,7 +46,8 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
 
-static backend Parse_ODS_Backend(const std::string_view &BackendStr) {
+static backend Parse_ODS_Backend(const std::string_view &BackendStr,
+                                 const std::string_view &FullEntry) {
   // Check if the first entry matches with a known backend type
   auto SyclBeMap = getSyclBeMap(); // <-- std::array<std::pair<std::string,
                                    // backend>>  [{"level_zero",
@@ -55,64 +57,68 @@ static backend Parse_ODS_Backend(const std::string_view &BackendStr) {
         return std::string::npos != BackendStr.find(BePair.first);
       });
 
-  if (It == SyclBeMap.end())
-    // TODO: - do not return ::all, throw an exception instead,
-    // as backend is required.
-    return backend::all;
-  else {
+  if (It == SyclBeMap.end()) {
+    // backend is required
+    std::stringstream ss;
+    ss << "ONEAPI_DEVICE_SELECTOR parsing error. Backend is required but "
+          "missing from \""
+       << FullEntry << "\"";
+    throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+  } else {
     return It->second;
   }
 }
 
 static void Parse_ODS_Device(ods_target &Target,
                              const std::string_view &DeviceStr) {
-  // DeviceStr will be: 'gpu', '*', '0', '0.1', or '*.*'
+  // DeviceStr will be: 'gpu', '*', '0', '0.1', 'gpu.*', '0.*', or 'gpu.2', etc.
   std::vector<std::string_view> DeviceSubPair = tokenize(DeviceStr, ".");
   std::string_view TopDeviceStr = DeviceSubPair[0];
 
-  // TODO: if we ever support "gpu.0" type syntax
-  // then remove this .size() == 1 check and just check for device type.
-  // second handling of top wildcard can be removed, as can the early exit.
-  if (DeviceSubPair.size() == 1) {
-    // handle explicit device type (e.g. 'gpu')
-    auto DeviceTypeMap =
-        getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
-                                // info::device::type>>
-    auto It = std::find_if(
-        std::begin(DeviceTypeMap), std::end(DeviceTypeMap), [&](auto DtPair) {
-          return std::string::npos != DeviceStr.find(DtPair.first);
-        });
-    if (It != DeviceTypeMap.end()) {
-      Target.HasDeviceType = true;
-      Target.DeviceType = It->second;
-      // handle wildcard
-      if (TopDeviceStr[0] == '*') {
-        Target.HasDeviceWildCard = true;
-        Target.HasDeviceType = false;
-      }
-      return; // early exit, as nothing can follow 'gpu' at this time.
+  // Handle explicit device type (e.g. 'gpu').
+  auto DeviceTypeMap =
+      getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
+                              // info::device::type>>
+  auto It = std::find_if(
+      std::begin(DeviceTypeMap), std::end(DeviceTypeMap), [&](auto DtPair) {
+        return std::string::npos != TopDeviceStr.find(DtPair.first);
+      });
+  if (It != DeviceTypeMap.end()) {
+    Target.HasDeviceType = true;
+    Target.DeviceType = It->second;
+    // Handle wildcard.
+    if (TopDeviceStr[0] == '*') {
+      Target.HasDeviceWildCard = true;
+      Target.HasDeviceType = false;
+    }
+  } else { // Only thing left is a number.
+    std::string TDS(TopDeviceStr);
+    try {
+      Target.DeviceNum = std::stoi(TDS);
+      Target.HasDeviceNum = true;
+    } catch (...) {
+      std::stringstream ss;
+      ss << "error parsing device number: " << TDS;
+      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
     }
   }
 
-  // TopDeviceStr is wildcard or number.
-  if (TopDeviceStr[0] == '*') {
-    Target.HasDeviceWildCard = true;
-  } else {
-    std::string TDS(TopDeviceStr);
-    Target.DeviceNum = std::stoi(TDS);
-    Target.HasDeviceNum = true;
-  }
-
   if (DeviceSubPair.size() == 2) {
-    // we have a subdevice.
+    // We have a subdevice.
     std::string_view SubDeviceStr = DeviceSubPair[1];
     // SubDeviceStr is wildcard or number.
     if (SubDeviceStr[0] == '*') {
       Target.HasSubDeviceWildCard = true;
     } else {
       std::string SDS(SubDeviceStr);
-      Target.SubDeviceNum = std::stoi(SDS);
-      Target.HasSubDeviceNum = true;
+      try {
+        Target.SubDeviceNum = std::stoi(SDS);
+        Target.HasSubDeviceNum = true;
+      } catch (...) {
+        std::stringstream ss;
+        ss << "error parsing sub-device index: " << SDS;
+        throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+      }
     }
   }
 }
@@ -127,11 +133,10 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   }
 
   std::vector<std::string_view> Entries = tokenize(envStr, ";");
-  // each entry: "level_zero:gpu" or "opencl:0.0,0.1", etc. or possibly just
-  // "level_zero"
+  // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or just "level_zero".
   for (const auto Entry : Entries) {
     std::vector<std::string_view> Pair = tokenize(Entry, ":");
-    backend be = Parse_ODS_Backend(Pair[0]); // Pair[0] is backend
+    backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
 
     if (Pair.size() == 1) {
       ods_target backendOnly(be);
@@ -142,9 +147,6 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
         ods_target DeviceTarget(be);
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
-        // CP
-        std::cout << "DeviceTarget: " << DeviceTarget << " " << Targets.size()
-                  << std::endl;
       }
     }
   }
@@ -164,7 +166,6 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
     } else {
       Out << ":???";
     }
-    return Out; // early exit
   }
   if (Target.HasDeviceWildCard)
     Out << ":*";
@@ -180,6 +181,19 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
 
 ods_target_list::ods_target_list(const std::string &envStr) {
   TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
+}
+
+bool ods_target_list::containsHost() {
+  for (const ods_target &Target : TargetList) {
+    if (Target.Backend == backend::host || Target.Backend == backend::all)
+      if (Target.DeviceType == info::device_type::host ||
+          Target.DeviceType == info::device_type::all)
+        // SYCL RT never creates more than one HOST device.
+        // All device numbers other than 0 are rejected.
+        if (!Target.HasDeviceNum || Target.DeviceNum == 0)
+          return true;
+  }
+  return false;
 }
 
 // ---------------------------------------
