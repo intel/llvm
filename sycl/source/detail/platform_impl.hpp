@@ -142,12 +142,8 @@ public:
   ///
   /// \param PiDevice is the PiDevice whose impl is requested
   ///
-  /// \param PlatormImpl is the Platform for that Device
-  ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl>
-  getDeviceImpl(RT::PiDevice PiDevice,
-                const std::shared_ptr<platform_impl> &PlatformImpl);
+  std::shared_ptr<device_impl> getDeviceImpl(RT::PiDevice PiDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
@@ -193,9 +189,7 @@ public:
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
 private:
-  std::shared_ptr<device_impl>
-  getDeviceImplHelper(RT::PiDevice PiDevice,
-                      const std::shared_ptr<platform_impl> &PlatformImpl);
+  std::shared_ptr<device_impl> getDeviceImplHelper(RT::PiDevice PiDevice);
 
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;

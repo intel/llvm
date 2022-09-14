@@ -598,7 +598,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // member's descendant instead. Fetch the corresponding device from the cache.
   std::shared_ptr<detail::platform_impl> PltImpl = CtxImpl->getPlatformImpl();
   std::shared_ptr<detail::device_impl> DevImpl =
-      PltImpl->getDeviceImpl(DeviceId, PltImpl);
+      PltImpl->getDeviceImpl(DeviceId);
   if (DevImpl)
     return detail::createSyclObjFromImpl<device>(DevImpl);
   throw runtime_error("Cannot find device associated with USM allocation!",
