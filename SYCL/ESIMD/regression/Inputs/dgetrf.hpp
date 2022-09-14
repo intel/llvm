@@ -298,11 +298,10 @@ ESIMD_INLINE void dgetrfnp_esimd(int64_t m, int64_t n, double *a, int64_t lda,
 #endif // defined(USE_REF)
 }
 
-void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
-                              int64_t stride_a, int64_t *ipiv,
+void dgetrfnp_batch_strided_c(queue &queue, int64_t m, int64_t n, double *a,
+                              int64_t lda, int64_t stride_a, int64_t *ipiv,
                               int64_t stride_ipiv, int64_t batch,
                               int64_t *info) {
-  queue queue((gpu_selector()));
   auto device = queue.get_device();
   auto context = queue.get_context();
   int status;
@@ -446,6 +445,11 @@ void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
                               int64_t *info);
 
 int main(int argc, char *argv[]) {
+  queue queue((gpu_selector()));
+
+  if (!queue.get_device().has(aspect::fp64))
+    return 0;
+
   int exit_status = 0;
   int64_t m = 64, n = 64, lda = 64;
   int64_t stride_a = lda * n, stride_ipiv = n;
@@ -472,8 +476,8 @@ int main(int argc, char *argv[]) {
     }
 
     /* Run the tested function */
-    dgetrfnp_batch_strided_c(m, n, a, lda, stride_a, ipiv, stride_ipiv, batch,
-                             info);
+    dgetrfnp_batch_strided_c(queue, m, n, a, lda, stride_a, ipiv, stride_ipiv,
+                             batch, info);
 
     /* Check that the computation completed successfully */
     exit_status += dgetrfnp_batch_strided_check(m, n, a_copy, a, lda, stride_a,
