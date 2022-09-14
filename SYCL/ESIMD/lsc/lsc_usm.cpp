@@ -69,8 +69,8 @@ int main() {
 
             lsc_atomic_update<atomic_op::inc, int>(vec_2, offsets, pred);
             lsc_atomic_update<atomic_op::add, int>(vec_3, offsets, add, pred);
-            lsc_atomic_update<atomic_op::cmpxchg, int>(vec_4, offsets, swap,
-                                                       compare, pred);
+            lsc_atomic_update<atomic_op::cmpxchg, int>(vec_4, offsets, compare,
+                                                       swap, pred);
           });
     });
     q.wait();
