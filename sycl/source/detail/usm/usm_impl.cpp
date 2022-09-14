@@ -594,12 +594,13 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
       PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
 
-  for (const device &Dev : CtxImpl->getDevices()) {
-    // Try to find the real sycl device used in the context
-    if (detail::getSyclObjImpl(Dev)->getHandleRef() == DeviceId)
-      return Dev;
-  }
-
+  // The device is not necessarily a member of the context, it could be a
+  // member's descendant instead. Fetch the corresponding device from the cache.
+  std::shared_ptr<detail::platform_impl> PltImpl = CtxImpl->getPlatformImpl();
+  std::shared_ptr<detail::device_impl> DevImpl =
+      PltImpl->getDeviceImpl(DeviceId);
+  if (DevImpl)
+    return detail::createSyclObjFromImpl<device>(DevImpl);
   throw runtime_error("Cannot find device associated with USM allocation!",
                       PI_ERROR_INVALID_OPERATION);
 }
