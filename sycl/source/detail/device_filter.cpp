@@ -133,14 +133,17 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   }
 
   std::vector<std::string_view> Entries = tokenize(envStr, ";");
-  // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or just "level_zero".
+  // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or "opencl:*" but NOT just
+  // "opencl".
   for (const auto Entry : Entries) {
     std::vector<std::string_view> Pair = tokenize(Entry, ":");
     backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
 
     if (Pair.size() == 1) {
-      ods_target backendOnly(be);
-      Result.push_back(backendOnly);
+      std::stringstream ss;
+      ss << "Incomplete selector!  Try '" << Pair[0]
+         << ":*' if all devices under the backend was original intention.";
+      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
     } else if (Pair.size() == 2) {
       std::vector<std::string_view> Targets = tokenize(Pair[1], ",");
       for (auto TargetStr : Targets) {

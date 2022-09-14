@@ -121,7 +121,9 @@ std::vector<platform> platform_impl::get_platforms() {
           Plugin.getPlatformId(PiPlatform);
         }
         // Skip platforms which do not contain requested device types
-        if (!Platform.get_devices(ForcedType).empty() &&
+        // ::all means _no_ forced type.
+        if ((ForcedType == info::device_type::all ||
+             !Platform.get_devices(ForcedType).empty()) &&
             !IsBannedPlatform(Platform))
           Platforms.push_back(Platform);
       }
@@ -154,8 +156,8 @@ std::vector<platform> platform_impl::get_platforms() {
 // device_type, and device_num. The device_filter and ods_target structs pun for
 // each other, as do device_filter_list and ods_target_list.
 template <typename ListT, typename FilterT>
-static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                               RT::PiPlatform Platform, ListT *FilterList) {
+static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
+                              RT::PiPlatform Platform, ListT *FilterList) {
 
   std::vector<plugin> &Plugins = RT::initialize();
   auto It =
@@ -163,7 +165,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         return Plugin.containsPiPlatform(Platform);
       });
   if (It == Plugins.end())
-    return;
+    return -1;
 
   plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
@@ -172,6 +174,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   // backend
   std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
   int DeviceNum = Plugin.getStartingDeviceId(Platform);
+  int StartingNum = DeviceNum;
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
@@ -208,6 +211,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
   Plugin.setLastDeviceId(Platform, DeviceNum);
+  return StartingNum;
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
@@ -237,29 +241,21 @@ static bool supportsAffinityDomain(const device &dev,
     return true;
   }
   auto supported = dev.get_info<info::device::partition_affinity_domains>();
-  for (info::partition_affinity_domain dom : supported) {
-    if (dom == domain) {
-      return true;
-    }
-  }
-  return false;
+  auto It = std::find(std::begin(supported), std::end(supported), domain);
+  return It != std::end(supported);
 }
 
 static bool supportsPartitionProperty(const device &dev,
                                       info::partition_property partitionProp) {
   auto supported = dev.get_info<info::device::partition_properties>();
-  for (info::partition_property prop : supported) {
-    if (prop == partitionProp) {
-      return true;
-    }
-  }
-  return false;
+  auto It =
+      std::find(std::begin(supported), std::end(supported), partitionProp);
+  return It != std::end(supported);
 }
 
-static std::vector<device>
-amendDeviceAndSubDevices(backend PlatformBackend,
-                         std::vector<device> &DeviceList,
-                         ods_target_list *OdsTargetList) {
+static std::vector<device> amendDeviceAndSubDevices(
+    backend PlatformBackend, std::vector<device> &DeviceList,
+    ods_target_list *OdsTargetList, int PlatformDeviceIndex) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
@@ -282,7 +278,7 @@ amendDeviceAndSubDevices(backend PlatformBackend,
                           target.DeviceType));
 
         } else if (target.HasDeviceNum) { // opencl:0
-          deviceMatch = (target.DeviceNum == i);
+          deviceMatch = (target.DeviceNum == PlatformDeviceIndex + (int)i);
         }
 
         if (deviceMatch) {
@@ -295,9 +291,8 @@ amendDeviceAndSubDevices(backend PlatformBackend,
                   info::partition_property::partition_by_affinity_domain>(
                   affinityDomain);
               if (target.HasSubDeviceWildCard) {
-                for (device &sub : subDevices)
-                  FinalResult.push_back(sub);
-
+                FinalResult.insert(FinalResult.end(), subDevices.begin(),
+                                   subDevices.end());
               } else {
                 if (subDevices.size() > target.SubDeviceNum) {
                   FinalResult.push_back(subDevices[target.SubDeviceNum]);
@@ -318,11 +313,9 @@ amendDeviceAndSubDevices(backend PlatformBackend,
               throw sycl::exception(sycl::make_error_code(errc::invalid),
                                     ss.str());
             }
-          } else {
-            if (!deviceAdded) {
-              FinalResult.push_back(dev);
-              deviceAdded = true;
-            }
+          } else if (!deviceAdded) {
+            FinalResult.push_back(dev);
+            deviceAdded = true;
           }
         } // /if deviceMatch
       }
@@ -358,7 +351,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   pi_uint32 NumDevices = 0;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piDevicesGet>(
-      MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
+      MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
+      0, // CP info::device_type::all
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
   const backend Backend = Plugin.getBackend();
 
@@ -382,9 +376,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   std::vector<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDevicesGet>(MPlatform,
-                                       pi::cast<RT::PiDeviceType>(DeviceType),
-                                       NumDevices, PiDevices.data(), nullptr);
+  Plugin.call<PiApiKind::piDevicesGet>(
+      MPlatform,
+      pi::cast<RT::PiDeviceType>(DeviceType), // CP info::device_type::all
+      NumDevices, PiDevices.data(), nullptr);
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
@@ -393,17 +388,18 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // The first step is to filter out devices that are not compatible with
   // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR. This is also the mechanism by
   // which top level device ids are assigned.
+  int PlatformDeviceIndex;
   if (OdsTargetList) {
     if (FilterList) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "ONEAPI_DEVICE_SELECTOR cannot be used in "
                             "conjunction with SYCL_DEVICE_FILTER");
     }
-    filterDeviceFilter<ods_target_list, ods_target>(PiDevices, MPlatform,
-                                                    OdsTargetList);
+    PlatformDeviceIndex = filterDeviceFilter<ods_target_list, ods_target>(
+        PiDevices, MPlatform, OdsTargetList);
   } else if (FilterList) {
-    filterDeviceFilter<device_filter_list, device_filter>(PiDevices, MPlatform,
-                                                          FilterList);
+    PlatformDeviceIndex = filterDeviceFilter<device_filter_list, device_filter>(
+        PiDevices, MPlatform, FilterList);
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
@@ -422,7 +418,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
-  return amendDeviceAndSubDevices(Backend, Res, OdsTargetList);
+  return amendDeviceAndSubDevices(Backend, Res, OdsTargetList,
+                                  PlatformDeviceIndex);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
