@@ -222,27 +222,26 @@ static bool doEagerInit = [] {
   return EagerInit ? std::atoi(EagerInit) != 0 : false;
 }();
 
-// Controls events caching level for in-order queues with discard-events
-// property.
+// Controls events level of reusing events for in-order queues.
 static const enum CachingLevel {
-  // Cache and reuse discarded device-scope events only.
-  DeviceScopeInternalOnly,
-  // Cache and reuse all device-scope events.
-  AllDeviceScope,
-  // Cache and reuse all types of events.
-  AllEvents
+  // Don't reuse events.
+  Disabled,
+  // Reuse discarded device-scope events only.
+  DeviceScopeDiscardedOnly,
+  // Reuse all device-scope events.
+  AllDeviceScope
 } CachingLevel = [] {
   const auto CachingLevelStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_EVENTS_CACHING_LEVEL");
+      std::getenv("SYCL_PI_LEVEL_ZERO_INORDER_QUEUE_REUSE_EVENTS");
 
   auto Default = AllDeviceScope;
   switch (CachingLevelStr ? std::atoi(CachingLevelStr) : Default) {
   case 0:
-    return DeviceScopeInternalOnly;
+    return Disabled;
   case 1:
-    return AllDeviceScope;
+    return DeviceScopeDiscardedOnly;
   case 2:
-    return AllEvents;
+    return AllDeviceScope;
   }
   return Default;
 }();
@@ -655,16 +654,13 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 // for provided type of event.
 bool _pi_queue::supportsInOrderQueueOptimization(bool HostVisible,
                                                  bool IsDiscarded) {
-  if (DisableEventsCaching)
-    return false;
-
   switch (CachingLevel) {
-  case DeviceScopeInternalOnly:
+  case Disabled:
+    return false;
+  case DeviceScopeDiscardedOnly:
     return isInOrderQueue() && !HostVisible && IsDiscarded ? true : false;
   case AllDeviceScope:
     return isInOrderQueue() && !HostVisible ? true : false;
-  case AllEvents:
-    return isInOrderQueue() ? true : false;
   default:
     die("Unexpected mode");
   }
@@ -1090,7 +1086,7 @@ bool _pi_queue::isDiscardEvents() const {
   return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
 }
 
-void _pi_queue::setLastCommandEvent(pi_event Event, bool EventLocked) {
+void _pi_queue::setLastCommandEvent(pi_event Event) {
   // Save copy of the last event. We can put event into the cache only if it is
   // not referenced externally anymore and only after the submission of the next
   // command. If Event is nullptr then it means it was synchronized but we can't
@@ -1100,9 +1096,6 @@ void _pi_queue::setLastCommandEvent(pi_event Event, bool EventLocked) {
   // synchornized before command is actually submitted).
   if (Event && supportsInOrderQueueOptimization(Event->isHostVisible(),
                                                 Event->IsDiscarded)) {
-    std::unique_lock EventLock(Event->Mutex, std::defer_lock);
-    if (!EventLocked)
-      EventLock.lock();
 
     // Prepare a copy for caching only if Event doesn't have external references
     // and if copy was not created before. If Event has external references then
@@ -1664,6 +1657,7 @@ pi_result _pi_queue::cacheEventForReuse(pi_command_list_ptr_t CommandList) {
   // from the command associated with the candidate for reuse. If new command
   // was submitted then we know that by this point the candidate event is going
   // to be completed so we can put it in the cache for reuse.
+  // If this is not an in-order queue then candidate is just empty.
   if (CandidateForReuse && !CommandList->second.EventList.empty() &&
       CommandList->second.EventList.back()->ZeEvent !=
           CandidateForReuse->ZeEvent) {
@@ -1778,48 +1772,44 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         pi_event HostVisibleEvent;
         auto Res = createEventAndAssociateQueue(
             this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-            /* IsDiscarded */ true, /* ForceHostVisible */ true);
+            /* IsInternal */ false, /* ForceHostVisible */ true);
         if (Res)
           return Res;
 
         // Update each command's event in the command-list to "see" this
         // proxy event as a host-visible counterpart.
         for (auto &Event : CommandList->second.EventList) {
-          // EventList contains HostVisibleEvent itself as well.
-          if (Event->HostVisibleEvent)
-            continue;
-
-          std::scoped_lock EventLock(Event->Mutex, HostVisibleEvent->Mutex);
+          std::scoped_lock EventLock(Event->Mutex);
           // Internal event doesn't need host-visible proxy.
           if (!Event->hasExternalRefs())
             continue;
 
-          Event->HostVisibleEvent = HostVisibleEvent;
-          HostVisibleEvent->RefCount.increment();
-
-          // Bump external reference count of the proxy event for each event
-          // which is externally visible. It is needed because proxy event
-          // becomes invisible only when all events that use it as a proxy are
-          // not visible externally.
-          HostVisibleEvent->RefCountExternal++;
+          if (!Event->HostVisibleEvent) {
+            Event->HostVisibleEvent = HostVisibleEvent;
+            HostVisibleEvent->RefCount.increment();
+          }
         }
 
-        // Update last command event if we optimize events usage in the in-order
-        // queue.
-        if (supportsInOrderQueueOptimization(HostVisibleEvent->isHostVisible(),
-                                             !HostVisibleEvent->IsDiscarded)) {
-          ZE_CALL(zeCommandListAppendBarrier,
-                  (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
-          cacheEventForReuse(CommandList);
-          setLastCommandEvent(HostVisibleEvent);
-        } else {
-          // Finally set to signal the host-visible event at the end of the
-          // command-list.
-          // TODO: see if we need a barrier here (or explicit wait for all
-          // events in the batch).
-          ZE_CALL(zeCommandListAppendSignalEvent,
-                  (CommandList->first, HostVisibleEvent->ZeEvent));
-        }
+        // Decrement the reference count of the event such that all the
+        // remaining references are from the other commands in this batch and
+        // from the command-list itself. This host-visible event will not be
+        // waited/released by SYCL RT, so it must be destroyed after all events
+        // in the batch are gone. We know that refcount is more than 2 because
+        // we check that EventList of the command list is not empty above, i.e.
+        // after createEventAndAssociateQueue ref count is 2 and then +1 for
+        // each event in the EventList.
+        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+
+        // Indicate no cleanup is needed for this PI event as it is special.
+        HostVisibleEvent->CleanedUp = true;
+
+        // Finally set to signal the host-visible event at the end of the
+        // command-list.
+        // TODO: see if we need a barrier here (or explicit wait for all events
+        // in the batch).
+        ZE_CALL(zeCommandListAppendSignalEvent,
+                (CommandList->first, HostVisibleEvent->ZeEvent));
       }
     }
 
@@ -5671,6 +5661,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 
     // We want to batch these commands to avoid extra submissions (costly)
     bool OkToBatch = true;
+
     pi_command_list_ptr_t CommandList{};
     if (auto Res = Queue->Context->getAvailableCommandList(
             Queue, CommandList, false /* UseCopyEngine */, OkToBatch))
@@ -5682,14 +5673,6 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
         /* IsDiscarded */ false, /* ForceHostVisible */ true);
     if (Res != PI_SUCCESS)
       return Res;
-
-    // Respect last command event if optimization is enabled.
-    if (Queue->supportsInOrderQueueOptimization(/* HostVisible */ true,
-                                                /* IsInternal */ false) &&
-        Queue->LastCommandEvent) {
-      ZE_CALL(zeCommandListAppendWaitOnEvents,
-              (CommandList->first, 1, &(Queue->LastCommandEvent->ZeEvent)));
-    }
 
     ZE_CALL(zeCommandListAppendWaitOnEvents, (CommandList->first, 1, &ZeEvent));
     ZE_CALL(zeCommandListAppendSignalEvent,
@@ -6139,51 +6122,40 @@ pi_result piEventRetain(pi_event Event) {
 pi_result piEventReleaseExternal(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  pi_event HostVisibleEvent = nullptr;
-  if (Event->Queue) {
-    std::scoped_lock Lock(Event->Queue->Mutex, Event->Mutex);
-    if (--Event->RefCountExternal == 0) {
-      if (Event->Queue->supportsInOrderQueueOptimization(Event->isHostVisible(),
-                                                         Event->IsDiscarded)) {
+  if (!Event->Queue || !Event->Queue->supportsInOrderQueueOptimization(
+                           Event->isHostVisible(), Event->IsDiscarded))
+    return PI_SUCCESS;
 
-        // If LastCommandEvent is non-null and not completed then it means that
-        // condidate for reuse is a copy of LastCommandEvent right now.
-        //
-        if (Event != Event->Queue->LastCommandEvent || Event->Completed) {
-          // Event may be still not completed. But we know that it is not the
-          // last event, so there some command was already submitted which
-          // depends on it. So we can safely put native handles to the cache.
-          pi_event RecreatedEvent = nullptr;
+  if (--Event->RefCountExternal != 0)
+    return PI_SUCCESS;
 
-          if (Event->Queue->CandidateForReuse &&
-              Event->Queue->CandidateForReuse->ZeEvent == Event->ZeEvent) {
-            RecreatedEvent = Event->Queue->CandidateForReuse;
-            Event->Queue->CandidateForReuse = nullptr;
-          } else {
-            RecreatedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
-                                           Event->Context, PI_COMMAND_TYPE_USER,
-                                           /* OwnZeEvent */ true);
-            RecreatedEvent->Queue = Event->Queue;
-            if (Event->isHostVisible())
-              RecreatedEvent->HostVisibleEvent = RecreatedEvent;
-          }
+  if (Event != Event->Queue->LastCommandEvent || Event->Completed) {
+    // Event may be still not completed. But we know that it is not the
+    // last event, so new command was already submitted which
+    // depends on this event. So we can safely reuse native handles for another
+    // pi_event.
+    pi_event RecreatedEvent = nullptr;
 
-          Event->Queue->addEventToCache(RecreatedEvent);
-        } else {
-          // If we are here then it means that currently Event is in the
-          // LastCommandEvent and it is not completed. This means that we can
-          // put this event to CandidateForReuse now because ref count external
-          // turned to zero.
-          Event->Queue->setLastCommandEvent(Event, true);
-        }
-      }
-      if (Event->HostVisibleEvent && Event != Event->HostVisibleEvent) {
-        HostVisibleEvent = Event->HostVisibleEvent;
-      }
+    if (Event->Queue->CandidateForReuse &&
+        Event->Queue->CandidateForReuse->ZeEvent == Event->ZeEvent) {
+      RecreatedEvent = Event->Queue->CandidateForReuse;
+      Event->Queue->CandidateForReuse = nullptr;
+    } else {
+      RecreatedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
+                                     Event->Context, PI_COMMAND_TYPE_USER,
+                                     /* OwnZeEvent */ true);
+      RecreatedEvent->Queue = Event->Queue;
+      if (Event->isHostVisible())
+        RecreatedEvent->HostVisibleEvent = RecreatedEvent;
     }
+
+    Event->Queue->addEventToCache(RecreatedEvent);
+  } else {
+    // Event is the last command event and it is not completed. This means that
+    // we can put this event to CandidateForReuse now because the external
+    // reference count is zero.
+    Event->Queue->setLastCommandEvent(Event);
   }
-  if (HostVisibleEvent)
-    PI_CALL(piEventReleaseExternal(HostVisibleEvent));
 
   return PI_SUCCESS;
 }
@@ -6224,8 +6196,10 @@ static pi_result piEventReleaseInternal(pi_event Event) {
   }
 
   bool InOrderQueueOptimization =
-      Event->Queue && Event->Queue->supportsInOrderQueueOptimization(
-                          Event->isHostVisible(), Event->IsDiscarded);
+      Event->Queue &&
+      Event->Queue->supportsInOrderQueueOptimization(Event->isHostVisible(),
+                                                     Event->IsDiscarded) &&
+      !Event->hasExternalRefs();
 
   // We intentionally incremented the reference counter when an event is
   // created so that we can avoid pi_queue is released before the associated

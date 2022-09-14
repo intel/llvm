@@ -1110,7 +1110,7 @@ struct _pi_queue : _pi_object {
   // reuse when new command is submitted to the in-order queue. If last command
   // command event is referenced externally it will be considered for reuse only
   // after external reference count turns to zero.
-  void setLastCommandEvent(pi_event Event, bool EventLocked = false);
+  void setLastCommandEvent(pi_event Event);
 
   // Put the candidate for reuse into the cache if new command was submitted to
   // the command list.
