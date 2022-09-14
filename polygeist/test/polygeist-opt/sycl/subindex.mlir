@@ -17,10 +17,13 @@ func.func @test_1(%arg0: memref<?x!llvm.struct<(!sycl.id<1>)>>) -> memref<?x!syc
 // CHECK-LABEL: @test_2
 // CHECK: llvm.return %{{.*}} : !llvm.struct<(ptr<struct<"class.cl::sycl::detail::AccessorImplDevice 
 
-func.func @test_2(%arg0 : memref<?x!sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>>) -> memref<?x!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>> { 
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>
+!sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+
+func.func @test_2(%arg0 : memref<?x!sycl_accessor_1_i32_read_write_global_buffer>) -> memref<?x!sycl_accessor_impl_device_1_> { 
   %c0 = arith.constant 0 : index
-  %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>>, index) -> memref<?x!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>>
-  return %0 : memref<?x!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>> 
+  %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_read_write_global_buffer>, index) -> memref<?x!sycl_accessor_impl_device_1_>
+  return %0 : memref<?x!sycl_accessor_impl_device_1_>
 }
 
 // -----
