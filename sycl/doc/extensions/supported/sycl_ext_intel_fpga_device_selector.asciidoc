@@ -1,4 +1,4 @@
-= sycl_ext_fpga_selector
+= sycl_ext_intel_fpga_device_selector
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -70,24 +70,6 @@ to your source code.
 
 == Specification
 
-=== Select FPGA hardware device
-....
-// force FPGA hardware device
-sycl::queue deviceQueue{sycl::ext::intel::fpga_selector{}};
-....
-
-=== Select FPGA simulator device
-....
-// force FPGA simulator device
-sycl::queue deviceQueue{sycl::ext::intel::fpga_simulator_selector{}};
-....
-
-=== Select FPGA emulator device
-....
-// force FPGA emulator device
-sycl::queue deviceQueue{sycl::ext::intel::fpga_emulator_selector{}};
-....
-
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
@@ -109,6 +91,29 @@ supports.
 |2
 |fpga_simulator_selector added.
 |===
+
+=== Select FPGA hardware device
+....
+// select FPGA hardware device
+sycl::queue deviceQueue{sycl::ext::intel::fpga_selector{}};
+....
+
+=== Select FPGA simulator device
+....
+// select FPGA simulator device
+sycl::queue deviceQueue{sycl::ext::intel::fpga_simulator_selector{}};
+....
+
+[NOTE]
+====
+Added in version 2 of this extension.
+====
+
+=== Select FPGA emulator device
+....
+// select FPGA emulator device
+sycl::queue deviceQueue{sycl::ext::intel::fpga_emulator_selector{}};
+....
 
 == Implementation notes
 
