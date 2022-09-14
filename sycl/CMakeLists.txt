@@ -30,7 +30,7 @@ set(SYCL_MINOR_VERSION 7)
 set(SYCL_PATCH_VERSION 0)
 # Don't forget to re-enable sycl_symbols_windows.dump once we leave ABI-breaking
 # window!
-set(SYCL_DEV_ABI_VERSION 10)
+set(SYCL_DEV_ABI_VERSION 17)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -383,6 +383,12 @@ if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS OpenCL-ICD)
 endif()
 
+# Build and install lld as part of the sycl-toolchain if available
+if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl-toolchain lld)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
+endif()
+
 if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
@@ -403,14 +409,13 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
+  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    message(FATAL_ERROR
+      "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+
   add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
-
-  # On AMD platform lld is also needed
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    add_dependencies(sycl-toolchain lld)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
-  endif()
 endif()
 
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)

@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
@@ -276,10 +278,13 @@ shr(T1 src0, T2 src1, Sat sat = {}) {
 /// the input vector \p src0 shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
   return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
 }
 
@@ -292,10 +297,14 @@ __ESIMD_API
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
   __ESIMD_NS::simd<T1, SZ> Src1 = src1;
   return esimd::rol<T0>(src0, Src1);
@@ -309,13 +318,17 @@ rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated left value.
 template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T0>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    std::remove_const_t<T0>>
 rol(T1 src0, T2 src1) {
   __ESIMD_NS::simd<T1, 1> Src0 = src0;
   __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, src1);
@@ -331,10 +344,13 @@ rol(T1 src0, T2 src1) {
 /// the input vector \p src0 shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
   return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
 }
 
@@ -347,10 +363,14 @@ __ESIMD_API
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
 ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
   __ESIMD_NS::simd<T1, SZ> Src1 = src1;
   return esimd::ror<T0>(src0, Src1);
@@ -364,13 +384,17 @@ ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated right value.
 template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T0>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>() &&
+        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t,
+                                    int64_t, uint64_t>(),
+    std::remove_const_t<T0>>
 ror(T1 src0, T2 src1) {
   __ESIMD_NS::simd<T1, 1> Src0 = src0;
   __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, src1);
@@ -1737,7 +1761,8 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename Sat = __ESIMD_NS::saturation_off_tag>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 dpas(__ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-     __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+     __ESIMD_NS::simd<T2, N2> src2,
+     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   // types: dst, src0, src1, src2
   // ud, d | ud, d | ub,b,u4,s4,u2,s2 | ub,b,u4,s4,u2,s2
   constexpr bool check_integer =
@@ -1870,7 +1895,8 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename Sat = __ESIMD_NS::saturation_off_tag>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 dpas(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-     __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+     __ESIMD_NS::simd<T2, N2> src2,
+     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   return dpas<src1_precision, src2_precision, T, systolic_depth, repeat_count>(
       src0, src1, src2, sat);
 }
@@ -1887,9 +1913,9 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<T1, N1> src1,
-                                        __ESIMD_NS::simd<T2, N2> src2,
-                                        Sat sat = {}) {
+__ESIMD_API __ESIMD_NS::simd<T, N>
+dpas(__ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
+     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
 
   static_assert(__ESIMD_DNS::is_fp_or_dword_type<T>::value,
                 "Dst must be FP or DWORD type");
@@ -1952,10 +1978,12 @@ template <argument_type src1_precision, argument_type src2_precision,
           typename Sat = __ESIMD_NS::saturation_off_tag>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
-      __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
+      __ESIMD_NS::simd<T2, N2> src2,
+      std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
-      src1_precision == src2_precision && src1_precision == argument_type::FP16;
+      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
+      (src1_precision == src2_precision) &&
+      (src1_precision == argument_type::FP16);
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&
                            src1_precision == src2_precision &&
@@ -2023,11 +2051,11 @@ template <argument_type src1_precision, argument_type src2_precision,
           int systolic_depth, int repeat_count, typename T, typename T1,
           typename T2, int N, int N1, int N2,
           typename Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
-                                          __ESIMD_NS::simd<T2, N2> src2,
-                                          Sat sat = {}) {
+__ESIMD_API __ESIMD_NS::simd<T, N>
+dpasw2(__ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
+       std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
+      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
       src1_precision == src2_precision && src1_precision == argument_type::FP16;
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&

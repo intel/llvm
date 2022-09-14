@@ -6,9 +6,6 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
-#include <sycl/detail/accessor_impl.hpp>
-#include <sycl/detail/buffer_impl.hpp>
-#include <sycl/detail/image_impl.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_event.hpp>
 #include <sycl/device_selector.hpp>
@@ -18,7 +15,6 @@
 #include <sycl/kernel.hpp>
 #include <sycl/multi_ptr.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/program.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stream.hpp>
@@ -46,9 +42,7 @@ int main() {
   check<accessor_t, 32, 8>();
   check<detail::AccessorImplDevice<1>, 24, 8>();
   check<detail::LocalAccessorBaseDevice<1>, 24, 8>();
-  check<detail::AccessorImplHost, 128, 8>();
   check<detail::AccessorBaseHost, 16, 8>();
-  check<detail::LocalAccessorImplHost, 56, 8>();
   check<buffer<int>, 40, 8>();
   check<context, 16, 8>();
   check<cpu_selector, 8, 8>();
@@ -59,12 +53,8 @@ int main() {
   check<gpu_selector, 8, 8>();
 #ifdef _MSC_VER
   check<handler, 568, 8>();
-  check<detail::buffer_impl, 216, 8>();
-  check<detail::image_impl<1>, 272, 8>();
 #else
   check<handler, 576, 8>();
-  check<detail::buffer_impl, 184, 8>();
-  check<detail::image_impl<1>, 240, 8>();
 #endif
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
@@ -73,7 +63,6 @@ int main() {
   check<private_memory<int, 1>, 4, 4>();
   check<detail::sampler_impl, 8, 8>();
 #endif
-  check<program, 16, 8>();
   check<range<1>, 8, 8>();
   check<sampler, 16, 8>();
   check<stream, 144, 8>();

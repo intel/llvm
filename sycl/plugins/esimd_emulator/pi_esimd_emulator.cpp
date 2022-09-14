@@ -14,8 +14,8 @@
 
 #include <stdint.h>
 
+#include <detail/accessor_impl.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>

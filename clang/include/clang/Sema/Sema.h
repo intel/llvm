@@ -2287,6 +2287,9 @@ public:
                                              Expr *E);
   SYCLIntelFPGALoopCoalesceAttr *
   BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelFPGAMaxReinvocationDelayAttr *
+  BuildSYCLIntelFPGAMaxReinvocationDelayAttr(const AttributeCommonInfo &CI, 
+                                             Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
@@ -10855,6 +10858,9 @@ public:
   ReqdWorkGroupSizeAttr *
   MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A);
 
+  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  SYCLTypeAttr::SYCLType TypeName);
+
   /// Only called on function definitions; if there is a MSVC #pragma optimize
   /// in scope, consider changing the function's attributes based on the
   /// optimization list passed to the pragma.
@@ -13543,12 +13549,16 @@ public:
     const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
     if (!RecTy)
       return false;
+
+    if (RecTy->hasAttr<AttrTy>())
+      return true;
+
     if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
       ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
       if (CXXRecordDecl *RD = Template->getTemplatedDecl())
         return RD->hasAttr<AttrTy>();
     }
-    return RecTy->hasAttr<AttrTy>();
+    return false;
   }
 
 private:
@@ -13972,7 +13982,7 @@ public:
     KernelConstStaticVariable
   };
 
-  bool isKnownGoodSYCLDecl(const Decl *D);
+  bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
