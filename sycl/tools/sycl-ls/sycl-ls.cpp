@@ -115,6 +115,17 @@ int main(int argc, char **argv) {
         << std::endl;
   }
 
+  const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  if (ods_targets) {
+    std::cerr
+        << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
+        << ods_targets << "." << std::endl;
+    std::cerr
+        << "To see the correct device id, please unset ONEAPI_DEVICE_SELECTOR."
+        << std::endl
+        << std::endl;
+  }
+
   const auto &Platforms = platform::get_platforms();
 
   // Keep track of the number of devices per backend

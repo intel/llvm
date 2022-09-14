@@ -49,9 +49,9 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
 static backend Parse_ODS_Backend(const std::string_view &BackendStr,
                                  const std::string_view &FullEntry) {
   // Check if the first entry matches with a known backend type
-  auto SyclBeMap = getSyclBeMap(); // <-- std::array<std::pair<std::string,
-                                   // backend>>  [{"level_zero",
-                                   // backend::level_zero}, {"*", ::all}, ...]
+  auto SyclBeMap =
+      getSyclBeMap(); // <-- std::array<std::pair<std::string, backend>>
+                      // [{"level_zero", backend::level_zero}, {"*", ::all}, ...
   auto It = std::find_if(
       std::begin(SyclBeMap), std::end(SyclBeMap), [&](auto BePair) {
         return std::string::npos != BackendStr.find(BePair.first);
