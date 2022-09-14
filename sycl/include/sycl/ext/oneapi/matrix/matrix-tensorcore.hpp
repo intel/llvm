@@ -822,7 +822,7 @@ void joint_matrix_store(
 }
 
 template <typename Group, typename T1, typename T2, typename T3, std::size_t M,
-          std::size_t K, std::size_t N, layout LayoutA, layout LayoutB>
+          std::size_t K, std::size_t N, layout LayoutA = sycl::ext::oneapi::experimental::matrix::layout::unused, layout LayoutB = sycl::ext::oneapi::experimental::matrix::layout::unused>
 void joint_matrix_mad(
     Group sg,
     joint_matrix<T3, M, N, matrix_use::accumulator,
@@ -833,19 +833,25 @@ void joint_matrix_mad(
     joint_matrix<T2, M, N, matrix_use::accumulator,
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &C) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__) 
+#if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_mad_impl<T1, T2, T3, M, K, N, LayoutA,
                                                    LayoutB>{}
       .mad(D, A, B, C);
+#elif defined(__AMDGCN__)
+//rocM wmma joint_matrix_mad_impl
+#elif defined(__SPIR__)
+//intel joint_matrix_mad_impl
+#endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
   std::ignore = A;
   std::ignore = B;
   std::ignore = C;
-  throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_mad is "
-                      "only supported by CUDA devices",
+  throw runtime_error("joint_matrix_mad is "
+                      "not supported on HOST",
                       PI_ERROR_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
 // This function rounds the bottom 13 bits up or down, and then zeros out the
