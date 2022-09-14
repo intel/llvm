@@ -263,6 +263,31 @@ protected:
     return rewriter.create<mlir::LLVM::GEPOp>(loc, ty, base, cv);
   }
 
+  // Find the LLVMFuncOp in whose entry block the alloca should be inserted.
+  // The order to find the LLVMFuncOp is as follows:
+  // 1. The parent operation of the current block if it is a LLVMFuncOp.
+  // 2. The first ancestor that is a LLVMFuncOp.
+  mlir::LLVM::LLVMFuncOp
+  getFuncForAllocaInsert(mlir::ConversionPatternRewriter &rewriter) const {
+    mlir::Operation *parentOp = rewriter.getInsertionBlock()->getParentOp();
+    return mlir::isa<mlir::LLVM::LLVMFuncOp>(parentOp)
+               ? mlir::cast<mlir::LLVM::LLVMFuncOp>(parentOp)
+               : parentOp->getParentOfType<mlir::LLVM::LLVMFuncOp>();
+  }
+
+  // Generate an alloca of size 1 and type \p toTy.
+  mlir::LLVM::AllocaOp
+  genAllocaWithType(mlir::Location loc, mlir::Type toTy, unsigned alignment,
+                    mlir::ConversionPatternRewriter &rewriter) const {
+    auto thisPt = rewriter.saveInsertionPoint();
+    mlir::LLVM::LLVMFuncOp func = getFuncForAllocaInsert(rewriter);
+    rewriter.setInsertionPointToStart(&func.front());
+    auto size = genI32Constant(loc, rewriter, 1);
+    auto al = rewriter.create<mlir::LLVM::AllocaOp>(loc, toTy, size, alignment);
+    rewriter.restoreInsertionPoint(thisPt);
+    return al;
+  }
+
   fir::LLVMTypeConverter &lowerTy() const {
     return *static_cast<fir::LLVMTypeConverter *>(this->getTypeConverter());
   }
@@ -969,15 +994,38 @@ getMalloc(fir::AllocMemOp op, mlir::ConversionPatternRewriter &rewriter) {
                                         /*isVarArg=*/false));
 }
 
-/// Helper function for generating the LLVM IR that computes the size
-/// in bytes for a derived type.
+/// Helper function for generating the LLVM IR that computes the distance
+/// in bytes between adjacent elements pointed to by a pointer
+/// of type \p ptrTy. The result is returned as a value of \p idxTy integer
+/// type.
 static mlir::Value
-computeDerivedTypeSize(mlir::Location loc, mlir::Type ptrTy, mlir::Type idxTy,
+computeElementDistance(mlir::Location loc, mlir::Type ptrTy, mlir::Type idxTy,
                        mlir::ConversionPatternRewriter &rewriter) {
+  // Note that we cannot use something like
+  // mlir::LLVM::getPrimitiveTypeSizeInBits() for the element type here. For
+  // example, it returns 10 bytes for mlir::Float80Type for targets where it
+  // occupies 16 bytes. Proper solution is probably to use
+  // mlir::DataLayout::getTypeABIAlignment(), but DataLayout is not being set
+  // yet (see llvm-project#57230). For the time being use the '(intptr_t)((type
+  // *)0 + 1)' trick for all types. The generated instructions are optimized
+  // into constant by the first pass of InstCombine, so it should not be a
+  // performance issue.
   auto nullPtr = rewriter.create<mlir::LLVM::NullOp>(loc, ptrTy);
   auto gep = rewriter.create<mlir::LLVM::GEPOp>(
       loc, ptrTy, nullPtr, llvm::ArrayRef<mlir::LLVM::GEPArg>{1});
   return rewriter.create<mlir::LLVM::PtrToIntOp>(loc, idxTy, gep);
+}
+
+/// Return value of the stride in bytes between adjacent elements
+/// of LLVM type \p llTy. The result is returned as a value of
+/// \p idxTy integer type.
+static mlir::Value
+genTypeStrideInBytes(mlir::Location loc, mlir::Type idxTy,
+                     mlir::ConversionPatternRewriter &rewriter,
+                     mlir::Type llTy) {
+  // Create a pointer type and use computeElementDistance().
+  auto ptrTy = mlir::LLVM::LLVMPointerType::get(llTy);
+  return computeElementDistance(loc, ptrTy, idxTy, rewriter);
 }
 
 namespace {
@@ -1010,18 +1058,14 @@ struct AllocMemOpConversion : public FIROpConversion<fir::AllocMemOp> {
     return mlir::success();
   }
 
-  // Compute the (allocation) size of the allocmem type in bytes.
+  /// Compute the allocation size in bytes of the element type of
+  /// \p llTy pointer type. The result is returned as a value of \p idxTy
+  /// integer type.
   mlir::Value genTypeSizeInBytes(mlir::Location loc, mlir::Type idxTy,
                                  mlir::ConversionPatternRewriter &rewriter,
                                  mlir::Type llTy) const {
-    // Use the primitive size, if available.
     auto ptrTy = llTy.dyn_cast<mlir::LLVM::LLVMPointerType>();
-    if (auto size =
-            mlir::LLVM::getPrimitiveTypeSizeInBits(ptrTy.getElementType()))
-      return genConstantIndex(loc, idxTy, rewriter, size / 8);
-
-    // Otherwise, generate the GEP trick in LLVM IR to compute the size.
-    return computeDerivedTypeSize(loc, ptrTy, idxTy, rewriter);
+    return computeElementDistance(loc, ptrTy, idxTy, rewriter);
   }
 };
 } // namespace
@@ -1077,31 +1121,6 @@ template <typename OP>
 struct EmboxCommonConversion : public FIROpConversion<OP> {
   using FIROpConversion<OP>::FIROpConversion;
 
-  // Find the LLVMFuncOp in whose entry block the alloca should be inserted.
-  // The order to find the LLVMFuncOp is as follows:
-  // 1. The parent operation of the current block if it is a LLVMFuncOp.
-  // 2. The first ancestor that is a LLVMFuncOp.
-  mlir::LLVM::LLVMFuncOp
-  getFuncForAllocaInsert(mlir::ConversionPatternRewriter &rewriter) const {
-    mlir::Operation *parentOp = rewriter.getInsertionBlock()->getParentOp();
-    return mlir::isa<mlir::LLVM::LLVMFuncOp>(parentOp)
-               ? mlir::cast<mlir::LLVM::LLVMFuncOp>(parentOp)
-               : parentOp->getParentOfType<mlir::LLVM::LLVMFuncOp>();
-  }
-
-  // Generate an alloca of size 1 and type \p toTy.
-  mlir::LLVM::AllocaOp
-  genAllocaWithType(mlir::Location loc, mlir::Type toTy, unsigned alignment,
-                    mlir::ConversionPatternRewriter &rewriter) const {
-    auto thisPt = rewriter.saveInsertionPoint();
-    mlir::LLVM::LLVMFuncOp func = getFuncForAllocaInsert(rewriter);
-    rewriter.setInsertionPointToStart(&func.front());
-    auto size = this->genI32Constant(loc, rewriter, 1);
-    auto al = rewriter.create<mlir::LLVM::AllocaOp>(loc, toTy, size, alignment);
-    rewriter.restoreInsertionPoint(thisPt);
-    return al;
-  }
-
   static int getCFIAttr(fir::BoxType boxTy) {
     auto eleTy = boxTy.getEleTy();
     if (eleTy.isa<fir::PointerType>())
@@ -1127,45 +1146,66 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
   std::tuple<mlir::Value, mlir::Value> getSizeAndTypeCode(
       mlir::Location loc, mlir::ConversionPatternRewriter &rewriter,
       mlir::Type boxEleTy, mlir::ValueRange lenParams = {}) const {
-    auto doInteger =
-        [&](unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
-      int typeCode = fir::integerBitsToTypeCode(width);
-      return {this->genConstantOffset(loc, rewriter, width / 8),
-              this->genConstantOffset(loc, rewriter, typeCode)};
-    };
-    auto doLogical =
-        [&](unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
-      int typeCode = fir::logicalBitsToTypeCode(width);
-      return {this->genConstantOffset(loc, rewriter, width / 8),
-              this->genConstantOffset(loc, rewriter, typeCode)};
-    };
-    auto doFloat = [&](unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
-      int typeCode = fir::realBitsToTypeCode(width);
-      return {this->genConstantOffset(loc, rewriter, width / 8),
-              this->genConstantOffset(loc, rewriter, typeCode)};
-    };
-    auto doComplex =
-        [&](unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
-      auto typeCode = fir::complexBitsToTypeCode(width);
-      return {this->genConstantOffset(loc, rewriter, width / 8 * 2),
-              this->genConstantOffset(loc, rewriter, typeCode)};
-    };
-    auto doCharacter =
-        [&](unsigned width,
-            mlir::Value len) -> std::tuple<mlir::Value, mlir::Value> {
-      auto typeCode = fir::characterBitsToTypeCode(width);
-      auto typeCodeVal = this->genConstantOffset(loc, rewriter, typeCode);
-      if (width == 8)
-        return {len, typeCodeVal};
-      auto i64Ty = mlir::IntegerType::get(&this->lowerTy().getContext(), 64);
-      auto byteWidth = genConstantIndex(loc, i64Ty, rewriter, width / 8);
-      auto len64 = FIROpConversion<OP>::integerCast(loc, rewriter, i64Ty, len);
-      auto size =
-          rewriter.create<mlir::LLVM::MulOp>(loc, i64Ty, byteWidth, len64);
-      return {size, typeCodeVal};
-    };
+    auto i64Ty = mlir::IntegerType::get(rewriter.getContext(), 64);
     auto getKindMap = [&]() -> fir::KindMapping & {
       return this->lowerTy().getKindMap();
+    };
+    auto doInteger =
+        [&](mlir::Type type,
+            unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
+      int typeCode = fir::integerBitsToTypeCode(width);
+      return {
+          genTypeStrideInBytes(loc, i64Ty, rewriter, this->convertType(type)),
+          this->genConstantOffset(loc, rewriter, typeCode)};
+    };
+    auto doLogical =
+        [&](mlir::Type type,
+            unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
+      int typeCode = fir::logicalBitsToTypeCode(width);
+      return {
+          genTypeStrideInBytes(loc, i64Ty, rewriter, this->convertType(type)),
+          this->genConstantOffset(loc, rewriter, typeCode)};
+    };
+    auto doFloat = [&](mlir::Type type,
+                       unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
+      int typeCode = fir::realBitsToTypeCode(width);
+      return {
+          genTypeStrideInBytes(loc, i64Ty, rewriter, this->convertType(type)),
+          this->genConstantOffset(loc, rewriter, typeCode)};
+    };
+    auto doComplex =
+        [&](mlir::Type type,
+            unsigned width) -> std::tuple<mlir::Value, mlir::Value> {
+      auto typeCode = fir::complexBitsToTypeCode(width);
+      return {
+          genTypeStrideInBytes(loc, i64Ty, rewriter, this->convertType(type)),
+          this->genConstantOffset(loc, rewriter, typeCode)};
+    };
+    auto doCharacter = [&](fir::CharacterType type, mlir::ValueRange lenParams)
+        -> std::tuple<mlir::Value, mlir::Value> {
+      unsigned bitWidth = getKindMap().getCharacterBitsize(type.getFKind());
+      auto typeCode = fir::characterBitsToTypeCode(bitWidth);
+      auto typeCodeVal = this->genConstantOffset(loc, rewriter, typeCode);
+
+      bool lengthIsConst = (type.getLen() != fir::CharacterType::unknownLen());
+      mlir::Value eleSize =
+          genTypeStrideInBytes(loc, i64Ty, rewriter, this->convertType(type));
+
+      if (!lengthIsConst) {
+        // If length is constant, then the fir::CharacterType will be
+        // represented as an array of known size of elements having
+        // the corresponding LLVM type. In this case eleSize already
+        // holds correct memory size. If length is not constant, then
+        // the fir::CharacterType will decay to a scalar type,
+        // so we have to multiply it by the non-constant length
+        // to get its size in memory.
+        assert(!lenParams.empty());
+        auto len64 = FIROpConversion<OP>::integerCast(loc, rewriter, i64Ty,
+                                                      lenParams.back());
+        eleSize =
+            rewriter.create<mlir::LLVM::MulOp>(loc, i64Ty, eleSize, len64);
+      }
+      return {eleSize, typeCodeVal};
     };
     // Pointer-like types.
     if (auto eleTy = fir::dyn_cast_ptrEleTy(boxEleTy))
@@ -1173,58 +1213,47 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
     // Integer types.
     if (fir::isa_integer(boxEleTy)) {
       if (auto ty = boxEleTy.dyn_cast<mlir::IntegerType>())
-        return doInteger(ty.getWidth());
+        return doInteger(ty, ty.getWidth());
       auto ty = boxEleTy.cast<fir::IntegerType>();
-      return doInteger(getKindMap().getIntegerBitsize(ty.getFKind()));
+      return doInteger(ty, getKindMap().getIntegerBitsize(ty.getFKind()));
     }
     // Floating point types.
     if (fir::isa_real(boxEleTy)) {
       if (auto ty = boxEleTy.dyn_cast<mlir::FloatType>())
-        return doFloat(ty.getWidth());
+        return doFloat(ty, ty.getWidth());
       auto ty = boxEleTy.cast<fir::RealType>();
-      return doFloat(getKindMap().getRealBitsize(ty.getFKind()));
+      return doFloat(ty, getKindMap().getRealBitsize(ty.getFKind()));
     }
     // Complex types.
     if (fir::isa_complex(boxEleTy)) {
       if (auto ty = boxEleTy.dyn_cast<mlir::ComplexType>())
         return doComplex(
-            ty.getElementType().cast<mlir::FloatType>().getWidth());
+            ty, ty.getElementType().cast<mlir::FloatType>().getWidth());
       auto ty = boxEleTy.cast<fir::ComplexType>();
-      return doComplex(getKindMap().getRealBitsize(ty.getFKind()));
+      return doComplex(ty, getKindMap().getRealBitsize(ty.getFKind()));
     }
     // Character types.
-    if (auto ty = boxEleTy.dyn_cast<fir::CharacterType>()) {
-      auto charWidth = getKindMap().getCharacterBitsize(ty.getFKind());
-      if (ty.getLen() != fir::CharacterType::unknownLen()) {
-        auto len = this->genConstantOffset(loc, rewriter, ty.getLen());
-        return doCharacter(charWidth, len);
-      }
-      assert(!lenParams.empty());
-      return doCharacter(charWidth, lenParams.back());
-    }
+    if (auto ty = boxEleTy.dyn_cast<fir::CharacterType>())
+      return doCharacter(ty, lenParams);
     // Logical type.
     if (auto ty = boxEleTy.dyn_cast<fir::LogicalType>())
-      return doLogical(getKindMap().getLogicalBitsize(ty.getFKind()));
+      return doLogical(ty, getKindMap().getLogicalBitsize(ty.getFKind()));
     // Array types.
     if (auto seqTy = boxEleTy.dyn_cast<fir::SequenceType>())
       return getSizeAndTypeCode(loc, rewriter, seqTy.getEleTy(), lenParams);
     // Derived-type types.
     if (boxEleTy.isa<fir::RecordType>()) {
-      auto ptrTy = mlir::LLVM::LLVMPointerType::get(
-          this->lowerTy().convertType(boxEleTy));
-      auto nullPtr = rewriter.create<mlir::LLVM::NullOp>(loc, ptrTy);
-      auto gep = rewriter.create<mlir::LLVM::GEPOp>(
-          loc, ptrTy, nullPtr, llvm::ArrayRef<mlir::LLVM::GEPArg>{1});
-      auto eleSize = rewriter.create<mlir::LLVM::PtrToIntOp>(
-          loc, this->lowerTy().indexType(), gep);
+      auto eleSize = genTypeStrideInBytes(loc, i64Ty, rewriter,
+                                          this->convertType(boxEleTy));
       return {eleSize,
               this->genConstantOffset(loc, rewriter, fir::derivedToTypeCode())};
     }
     // Reference type.
     if (fir::isa_ref_type(boxEleTy)) {
-      // FIXME: use the target pointer size rather than sizeof(void*)
-      return {this->genConstantOffset(loc, rewriter, sizeof(void *)),
-              this->genConstantOffset(loc, rewriter, CFI_type_cptr)};
+      auto ptrTy = mlir::LLVM::LLVMPointerType::get(
+          mlir::LLVM::LLVMVoidType::get(rewriter.getContext()));
+      mlir::Value size = genTypeStrideInBytes(loc, i64Ty, rewriter, ptrTy);
+      return {size, this->genConstantOffset(loc, rewriter, CFI_type_cptr)};
     }
     fir::emitFatalError(loc, "unhandled type in fir.box code generation");
   }
@@ -1445,7 +1474,8 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
     if (thisBlock && mlir::isa<mlir::LLVM::GlobalOp>(thisBlock->getParentOp()))
       return boxValue;
     auto boxPtrTy = mlir::LLVM::LLVMPointerType::get(boxValue.getType());
-    auto alloca = genAllocaWithType(loc, boxPtrTy, defaultAlign, rewriter);
+    auto alloca =
+        this->genAllocaWithType(loc, boxPtrTy, defaultAlign, rewriter);
     rewriter.create<mlir::LLVM::StoreOp>(loc, boxValue, alloca);
     return alloca;
   }
@@ -1526,14 +1556,7 @@ struct XEmboxOpConversion : public EmboxCommonConversion<fir::cg::XEmboxOp> {
     // Adjust the element scaling factor if the element is a dependent type.
     if (fir::hasDynamicSize(seqEleTy)) {
       if (auto charTy = seqEleTy.dyn_cast<fir::CharacterType>()) {
-        assert(xbox.lenParams().size() == 1);
-        mlir::LLVM::ConstantOp charSize = genConstantIndex(
-            loc, i64Ty, rewriter, lowerTy().characterBitsize(charTy) / 8);
-        mlir::Value castedLen =
-            integerCast(loc, rewriter, i64Ty, operands[xbox.lenParamOffset()]);
-        auto byteOffset =
-            rewriter.create<mlir::LLVM::MulOp>(loc, i64Ty, charSize, castedLen);
-        prevPtrOff = integerCast(loc, rewriter, i64Ty, byteOffset);
+        prevPtrOff = eleSize;
       } else if (seqEleTy.isa<fir::RecordType>()) {
         // prevPtrOff = ;
         TODO(loc, "generate call to calculate size of PDT");
@@ -1546,14 +1569,14 @@ struct XEmboxOpConversion : public EmboxCommonConversion<fir::cg::XEmboxOp> {
 
     const auto hasSubcomp = !xbox.subcomponent().empty();
     const bool hasSubstr = !xbox.substr().empty();
-    /// Compute initial element stride that will be use to compute the step in
-    /// each dimension.
-    mlir::Value prevDimByteStride = integerCast(loc, rewriter, i64Ty, eleSize);
+    // Initial element stride that will be use to compute the step in
+    // each dimension.
+    mlir::Value prevDimByteStride = eleSize;
     if (hasSubcomp) {
       // We have a subcomponent. The step value needs to be the number of
       // bytes per element (which is a derived type).
-      auto eleTy = mlir::LLVM::LLVMPointerType::get(convertType(seqEleTy));
-      prevDimByteStride = computeDerivedTypeSize(loc, eleTy, i64Ty, rewriter);
+      prevDimByteStride =
+          genTypeStrideInBytes(loc, i64Ty, rewriter, convertType(seqEleTy));
     } else if (hasSubstr) {
       // We have a substring. The step value needs to be the number of bytes
       // per CHARACTER element.
@@ -2692,12 +2715,29 @@ struct LoadOpConversion : public FIROpConversion<fir::LoadOp> {
   mlir::LogicalResult
   matchAndRewrite(fir::LoadOp load, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    // fir.box is a special case because it is considered as an ssa values in
-    // fir, but it is lowered as a pointer to a descriptor. So fir.ref<fir.box>
-    // and fir.box end up being the same llvm types and loading a
-    // fir.ref<fir.box> is actually a no op in LLVM.
-    if (load.getType().isa<fir::BoxType>()) {
-      rewriter.replaceOp(load, adaptor.getOperands()[0]);
+    if (auto boxTy = load.getType().dyn_cast<fir::BoxType>()) {
+      // fir.box is a special case because it is considered as an ssa values in
+      // fir, but it is lowered as a pointer to a descriptor. So
+      // fir.ref<fir.box> and fir.box end up being the same llvm types and
+      // loading a fir.ref<fir.box> is implemented as taking a snapshot of the
+      // descriptor value into a new descriptor temp.
+      auto inputBoxStorage = adaptor.getOperands()[0];
+      mlir::Location loc = load.getLoc();
+      fir::SequenceType seqTy = fir::unwrapUntilSeqType(boxTy);
+      mlir::Type eleTy = fir::unwrapPassByRefType(boxTy);
+      // fir.box of assumed rank and polymorphic entities do not have a storage
+      // size that is know at compile time. The copy needs to be runtime driven
+      // depending on the actual dynamic rank or type.
+      if (eleTy.isa<mlir::NoneType>() || (seqTy && seqTy.hasUnknownShape()))
+        TODO(loc, "loading polymorphic or assumed rank fir.box");
+      mlir::Type boxPtrTy = inputBoxStorage.getType();
+      auto boxValue = rewriter.create<mlir::LLVM::LoadOp>(
+          loc, boxPtrTy.cast<mlir::LLVM::LLVMPointerType>().getElementType(),
+          inputBoxStorage);
+      auto newBoxStorage =
+          genAllocaWithType(loc, boxPtrTy, defaultAlign, rewriter);
+      rewriter.create<mlir::LLVM::StoreOp>(loc, boxValue, newBoxStorage);
+      rewriter.replaceOp(load, newBoxStorage.getResult());
     } else {
       rewriter.replaceOpWithNewOp<mlir::LLVM::LoadOp>(
           load, convertType(load.getType()), adaptor.getOperands(),

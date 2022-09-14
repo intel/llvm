@@ -128,6 +128,8 @@ public:
 
   /// Add `scale` multiples of the source row to the target row.
   void addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale);
+  /// Add `scale` multiples of the rowVec row to the specified row.
+  void addToRow(unsigned row, ArrayRef<int64_t> rowVec, int64_t scale);
 
   /// Add `scale` multiples of the source column to the target column.
   void addToColumn(unsigned sourceColumn, unsigned targetColumn, int64_t scale);
@@ -188,7 +190,7 @@ private:
 
   /// Stores the data. data.size() is equal to nRows * nReservedColumns.
   /// data.capacity() / nReservedColumns is the number of reserved rows.
-  SmallVector<int64_t, 64> data;
+  SmallVector<int64_t, 16> data;
 };
 
 } // namespace presburger

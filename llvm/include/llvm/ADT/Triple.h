@@ -693,6 +693,11 @@ public:
     return getObjectFormat() == Triple::XCOFF;
   }
 
+  /// Tests whether the OS uses the DXContainer binary format.
+  bool isOSBinFormatDXContainer() const {
+    return getObjectFormat() == Triple::DXContainer;
+  }
+
   /// Tests whether the target is the PS4 platform.
   bool isPS4() const {
     return getArch() == Triple::x86_64 &&
@@ -931,7 +936,8 @@ public:
 
   /// Tests whether the target supports comdat
   bool supportsCOMDAT() const {
-    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF());
+    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF() ||
+             isOSBinFormatDXContainer());
   }
 
   /// Tests whether the target uses emulated TLS as default.

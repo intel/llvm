@@ -925,29 +925,11 @@ define <32 x i16> @splatvar_shift_v32i16(<32 x i16> %a, i16 %b) {
 ; XOPAVX2-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %shift = lshr <32 x i16> %a, %splat
 ; XOPAVX2-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <32 x i16> %shift
 ;
-; AVX512F-LABEL: 'splatvar_shift_v32i16'
-; AVX512F-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %insert = insertelement <32 x i16> poison, i16 %b, i32 0
-; AVX512F-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %splat = shufflevector <32 x i16> %insert, <32 x i16> poison, <32 x i32> zeroinitializer
-; AVX512F-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %shift = lshr <32 x i16> %a, %splat
-; AVX512F-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <32 x i16> %shift
-;
-; AVX512BW-LABEL: 'splatvar_shift_v32i16'
-; AVX512BW-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %insert = insertelement <32 x i16> poison, i16 %b, i32 0
-; AVX512BW-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %splat = shufflevector <32 x i16> %insert, <32 x i16> poison, <32 x i32> zeroinitializer
-; AVX512BW-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %shift = lshr <32 x i16> %a, %splat
-; AVX512BW-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <32 x i16> %shift
-;
-; AVX512VL-LABEL: 'splatvar_shift_v32i16'
-; AVX512VL-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %insert = insertelement <32 x i16> poison, i16 %b, i32 0
-; AVX512VL-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %splat = shufflevector <32 x i16> %insert, <32 x i16> poison, <32 x i32> zeroinitializer
-; AVX512VL-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %shift = lshr <32 x i16> %a, %splat
-; AVX512VL-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <32 x i16> %shift
-;
-; AVX512BWVL-LABEL: 'splatvar_shift_v32i16'
-; AVX512BWVL-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %insert = insertelement <32 x i16> poison, i16 %b, i32 0
-; AVX512BWVL-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %splat = shufflevector <32 x i16> %insert, <32 x i16> poison, <32 x i32> zeroinitializer
-; AVX512BWVL-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %shift = lshr <32 x i16> %a, %splat
-; AVX512BWVL-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <32 x i16> %shift
+; AVX512-LABEL: 'splatvar_shift_v32i16'
+; AVX512-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %insert = insertelement <32 x i16> poison, i16 %b, i32 0
+; AVX512-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %splat = shufflevector <32 x i16> %insert, <32 x i16> poison, <32 x i32> zeroinitializer
+; AVX512-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %shift = lshr <32 x i16> %a, %splat
+; AVX512-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret <32 x i16> %shift
 ;
 ; BTVER2-LABEL: 'splatvar_shift_v32i16'
 ; BTVER2-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %insert = insertelement <32 x i16> poison, i16 %b, i32 0

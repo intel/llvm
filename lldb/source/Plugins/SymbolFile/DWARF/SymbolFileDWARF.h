@@ -55,6 +55,8 @@ class SymbolFileDWARFDebugMap;
 class SymbolFileDWARFDwo;
 class SymbolFileDWARFDwp;
 
+class DWARFStrOffsetsInfo;
+
 #define DIE_IS_BEING_PARSED ((lldb_private::Type *)1)
 
 class SymbolFileDWARF : public lldb_private::SymbolFileCommon,
@@ -163,6 +165,9 @@ public:
                                 lldb::SymbolContextItem resolve_scope,
                                 lldb_private::SymbolContext &sc) override;
 
+  lldb_private::Status
+  GetFrameVariableError(lldb_private::StackFrame &frame) override;
+
   uint32_t ResolveSymbolContext(
       const lldb_private::SourceLocationSpec &src_location_spec,
       lldb::SymbolContextItem resolve_scope,
@@ -243,7 +248,9 @@ public:
 
   bool Supports_DW_AT_APPLE_objc_complete_type(DWARFUnit *cu);
 
-  lldb_private::DebugMacrosSP ParseDebugMacros(lldb::offset_t *offset);
+  lldb_private::DebugMacrosSP
+  ParseDebugMacros(lldb::offset_t *offset,
+                   const DWARFStrOffsetsInfo *str_offsets_info);
 
   static DWARFDIE GetParentSymbolContextDIE(const DWARFDIE &die);
 

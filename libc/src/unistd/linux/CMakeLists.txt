@@ -1,4 +1,17 @@
 add_entrypoint_object(
+  access
+  SRCS
+    access.cpp
+  HDRS
+    ../access.h
+  DEPENDS
+    libc.include.unistd
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
   chdir
   SRCS
     chdir.cpp
@@ -17,6 +30,46 @@ add_entrypoint_object(
     close.cpp
   HDRS
     ../close.h
+  DEPENDS
+    libc.include.unistd
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  dup
+  SRCS
+    dup.cpp
+  HDRS
+    ../dup.h
+  DEPENDS
+    libc.include.unistd
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  dup2
+  SRCS
+    dup2.cpp
+  HDRS
+    ../dup2.h
+  DEPENDS
+    libc.include.fcntl
+    libc.include.unistd
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  dup3
+  SRCS
+    dup3.cpp
+  HDRS
+    ../dup3.h
   DEPENDS
     libc.include.unistd
     libc.include.sys_syscall

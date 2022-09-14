@@ -262,9 +262,29 @@ def POSIX : StandardSpec<"POSIX"> {
     [], // Enumerations
     [
         FunctionSpec<
+          "access",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>, ArgSpec<IntType>]
+        >,
+        FunctionSpec<
           "chdir",
           RetValSpec<IntType>,
           [ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "dup",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>]
+        >,
+        FunctionSpec<
+          "dup2",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<IntType>]
+        >,
+        FunctionSpec<
+          "dup3",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<IntType>, ArgSpec<IntType>]
         >,
         FunctionSpec<
           "fchdir",

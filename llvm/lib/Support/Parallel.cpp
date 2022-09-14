@@ -22,6 +22,15 @@ llvm::ThreadPoolStrategy llvm::parallel::strategy;
 namespace llvm {
 namespace parallel {
 #if LLVM_ENABLE_THREADS
+
+#ifdef _WIN32
+static thread_local unsigned threadIndex;
+
+unsigned getThreadIndex() { return threadIndex; }
+#else
+thread_local unsigned threadIndex;
+#endif
+
 namespace detail {
 
 namespace {
@@ -95,6 +104,7 @@ public:
 
 private:
   void work(ThreadPoolStrategy S, unsigned ThreadID) {
+    threadIndex = ThreadID;
     S.apply_thread_strategy(ThreadID);
     while (true) {
       std::unique_lock<std::mutex> Lock(Mutex);

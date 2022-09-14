@@ -3636,6 +3636,7 @@ static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
                                          options::OPT_D,
                                          options::OPT_I,
                                          options::OPT_S,
+                                         options::OPT_O,
                                          options::OPT_emit_llvm,
                                          options::OPT_emit_obj,
                                          options::OPT_disable_llvm_passes,
@@ -6625,13 +6626,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasFlag(options::OPT_fopenmp_target_debug,
                        options::OPT_fno_openmp_target_debug, /*Default=*/false))
         CmdArgs.push_back("-fopenmp-target-debug");
-
-      // When in OpenMP offloading mode with NVPTX target, check if full runtime
-      // is required.
-      if (Args.hasFlag(options::OPT_fopenmp_cuda_force_full_runtime,
-                       options::OPT_fno_openmp_cuda_force_full_runtime,
-                       /*Default=*/false))
-        CmdArgs.push_back("-fopenmp-cuda-force-full-runtime");
 
       // When in OpenMP offloading mode, forward assumptions information about
       // thread and team counts in the device.

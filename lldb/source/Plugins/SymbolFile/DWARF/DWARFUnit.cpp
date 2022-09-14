@@ -598,7 +598,7 @@ void DWARFUnit::ClearDIEsRWLocked() {
   m_die_array.clear();
   m_die_array.shrink_to_fit();
 
-  if (m_dwo)
+  if (m_dwo && !m_dwo->m_cancel_scopes)
     m_dwo->ClearDIEsRWLocked();
 }
 
@@ -1059,4 +1059,19 @@ DWARFUnit::FindRnglistFromIndex(uint32_t index) {
   if (!maybe_offset)
     return maybe_offset.takeError();
   return FindRnglistFromOffset(*maybe_offset);
+}
+
+
+bool DWARFUnit::HasAny(llvm::ArrayRef<dw_tag_t> tags) {
+  ExtractUnitDIEIfNeeded();
+  if (m_dwo)
+    return m_dwo->HasAny(tags);
+
+  for (const auto &die: m_die_array) {
+    for (const auto tag: tags) {
+      if (tag == die.Tag())
+        return true;
+    }
+  }
+  return false;
 }
