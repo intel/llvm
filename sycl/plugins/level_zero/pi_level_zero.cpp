@@ -222,7 +222,7 @@ static bool doEagerInit = [] {
   return EagerInit ? std::atoi(EagerInit) != 0 : false;
 }();
 
-// Controls events level of reusing events for in-order queues.
+// Controls the level of reusing events for in-order queues.
 static const enum CachingLevel {
   // Don't reuse events.
   Disabled,
@@ -650,10 +650,11 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-// Returns bool value indicating whether queue supports in-order optimization
-// for provided type of event.
-bool _pi_queue::supportsInOrderQueueOptimization(bool HostVisible,
-                                                 bool IsDiscarded) {
+// Returns bool value indicating whether provided type of event is supported by
+// optimization which allows to reuse uncompleted Level Zero events in scope of
+// the same queue.
+bool _pi_queue::supportsInOrderQueueReuseEventsOptimization(bool HostVisible,
+                                                            bool IsDiscarded) {
   switch (CachingLevel) {
   case Disabled:
     return false;
@@ -715,7 +716,8 @@ inline static pi_result createEventAndAssociateQueue(
 
   // If the queue supports optimization for the requested type of event
   // then try to get it from cache.
-  if (Queue->supportsInOrderQueueOptimization(HostVisible, IsDiscarded))
+  if (Queue->supportsInOrderQueueReuseEventsOptimization(HostVisible,
+                                                         IsDiscarded))
     PI_CALL(Queue->getEventFromCache(CommandList, HostVisible, Event));
 
   if (*Event == nullptr)
@@ -1094,8 +1096,8 @@ void _pi_queue::setLastCommandEvent(pi_event Event) {
   // next command (because we add the last command event into the waitlist of
   // the next command and after that it is possible that event will get
   // synchornized before command is actually submitted).
-  if (Event && supportsInOrderQueueOptimization(Event->isHostVisible(),
-                                                Event->IsDiscarded)) {
+  if (Event && supportsInOrderQueueReuseEventsOptimization(
+                   Event->isHostVisible(), Event->IsDiscarded)) {
 
     // Prepare a copy for caching only if Event doesn't have external references
     // and if copy was not created before. If Event has external references then
@@ -6124,7 +6126,7 @@ pi_result piEventRelease(pi_event Event) {
   // If it is the right type of event for in-order queue optimization then
   // update and check number of external references. If it is zero then event
   // can be reused.
-  if (Event->Queue && Event->Queue->supportsInOrderQueueOptimization(
+  if (Event->Queue && Event->Queue->supportsInOrderQueueReuseEventsOptimization(
                           Event->isHostVisible(), Event->IsDiscarded)) {
     std::scoped_lock Lock(Event->Queue->Mutex);
     if (--Event->RefCountExternal == 0) {
@@ -6194,8 +6196,8 @@ static pi_result piEventReleaseInternal(pi_event Event) {
 
   bool InOrderQueueOptimization =
       Event->Queue &&
-      Event->Queue->supportsInOrderQueueOptimization(Event->isHostVisible(),
-                                                     Event->IsDiscarded) &&
+      Event->Queue->supportsInOrderQueueReuseEventsOptimization(
+          Event->isHostVisible(), Event->IsDiscarded) &&
       !Event->hasExternalRefs();
 
   // We intentionally incremented the reference counter when an event is

@@ -1125,7 +1125,8 @@ struct _pi_queue : _pi_object {
 
   // Returns bool value indicating whether queue supports optimization (events
   // caching) for provided type of event.
-  bool supportsInOrderQueueOptimization(bool HostVisible, bool IsDiscarded);
+  bool supportsInOrderQueueReuseEventsOptimization(bool HostVisible,
+                                                   bool IsDiscarded);
 };
 
 struct _pi_mem : _pi_object {
