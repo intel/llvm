@@ -87,10 +87,6 @@ XPTIRegistry &GlobalHandler::getXPTIRegistry() {
   return getOrCreate(MXPTIRegistry);
 }
 
-std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
-  return getOrCreate(MHandlerExtendedMembersMutex);
-}
-
 ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
   ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);

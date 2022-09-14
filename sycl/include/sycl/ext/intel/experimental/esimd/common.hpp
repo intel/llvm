@@ -108,7 +108,7 @@ template <lsc_vector_size VS> constexpr void check_lsc_vector_size() {
                 "Unsupported vector size");
 }
 
-template <uint8_t VS> constexpr void check_lsc_vector_size() {
+template <int VS> constexpr void check_lsc_vector_size() {
   static_assert(VS == 1 || VS == 2 || VS == 3 || VS == 4 || VS == 8 ||
                     VS == 16 || VS == 32 || VS == 64,
                 "Unsupported vector size");
@@ -144,7 +144,7 @@ template <lsc_vector_size VS> constexpr uint8_t to_int() {
   }
 }
 
-template <uint8_t VS> constexpr lsc_vector_size to_lsc_vector_size() {
+template <int VS> constexpr lsc_vector_size to_lsc_vector_size() {
   check_lsc_vector_size<VS>();
   switch (VS) {
   case 1:

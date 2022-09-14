@@ -250,6 +250,7 @@ bool collectUsesLookTrhoughMemAndCasts(Value *V,
   for (const Use *U : TmpVUses) {
     User *UU = U->getUser();
     assert(!isCast(UU));
+
     auto *St = dyn_cast<StoreInst>(UU);
 
     if (!St) {
@@ -257,7 +258,7 @@ bool collectUsesLookTrhoughMemAndCasts(Value *V,
       continue;
     }
     // Current user is a store (of V) instruction, see if...
-    assert((V = St->getValueOperand()) &&
+    assert((V == St->getValueOperand()) &&
            "bad V param in collectUsesLookTrhoughMemAndCasts");
     Value *Addr = stripCasts(St->getPointerOperand());
 

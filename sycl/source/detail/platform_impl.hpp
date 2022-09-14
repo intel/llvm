@@ -137,6 +137,18 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+  /// Queries the device_impl cache to return a shared_ptr for the
+  /// device_impl corresponding to the PiDevice.
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \param PlatormImpl is the Platform for that Device
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl>
+  getDeviceImpl(RT::PiDevice PiDevice,
+                const std::shared_ptr<platform_impl> &PlatformImpl);
+
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
   /// a new entry to the cache
@@ -181,6 +193,10 @@ public:
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
 private:
+  std::shared_ptr<device_impl>
+  getDeviceImplHelper(RT::PiDevice PiDevice,
+                      const std::shared_ptr<platform_impl> &PlatformImpl);
+
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
