@@ -10,11 +10,11 @@
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
 #include <cstdio>
+#include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <optional>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 #include <vector>
