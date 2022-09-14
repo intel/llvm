@@ -533,16 +533,14 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(                                               \
-      const sycl::ext::oneapi::bfloat16 &rhs) {                                \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) op rhs, idx);        \
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(                                               \
-      const sycl::ext::oneapi::bfloat16 &rhs) {                                \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
@@ -557,15 +555,15 @@ public:
 #if __SYCL_DEVICE_ONLY__
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
-      const wi_element<sycl::ext::oneapi::bfloat16, NumRows,                   \
-                       NumCols, Use, Layout, Group> &lhs,                      \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &lhs,                                    \
       const sycl::ext::oneapi::bfloat16 &rhs) {                                \
     return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) op rhs;           \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &lhs,                                  \
-      const wi_element<sycl::ext::oneapi::bfloat16, NumRows,                   \
-                       NumCols, Use, Layout, Group> &rhs) {                    \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &rhs) {                                  \
     return __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx) op lhs;           \
   }
   OP(sycl::ext::oneapi::bfloat16, +)
@@ -575,16 +573,16 @@ public:
 #undef OP
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
-      const wi_element<sycl::ext::oneapi::bfloat16, NumRows,                   \
-                       NumCols, Use, Layout, Group> &lhs,                      \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &lhs,                                    \
       const sycl::ext::oneapi::bfloat16 &rhs) {                                \
     return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
         lhs.M.spvm, lhs.idx)) op static_cast<float>(rhs)};                     \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &lhs,                                  \
-      const wi_element<sycl::ext::oneapi::bfloat16, NumRows,                   \
-                       NumCols, Use, Layout, Group> &rhs) {                    \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &rhs) {                                  \
     return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
         rhs.M.spvm, rhs.idx)) op static_cast<float>(lhs)};                     \
   }
@@ -598,16 +596,16 @@ public:
 #else // __SYCL_DEVICE_ONLY__
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
-      const wi_element<sycl::ext::oneapi::bfloat16, NumRows,                   \
-                       NumCols, Use, Layout, Group> &,                         \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &,                                       \
       const sycl::ext::oneapi::bfloat16 &) {                                   \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &,                                     \
-      const wi_element<sycl::ext::oneapi::bfloat16, NumRows,                   \
-                       NumCols, Use, Layout, Group> &) {                       \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &) {                                     \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
   }
