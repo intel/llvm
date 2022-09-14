@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_GROUP_STATIC_ARRAY
+= SYCL_EXT_ONEAPI_GROUP_FIXED_SIZE_ARRAY
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -39,19 +39,19 @@ NOTE: This extension is experimental: interfaces are subject to change later.
 == Introduction
 
 This extension introduces interfaces for Group algorithms library (core SYCL specification 4.17.4)
-that are based on static arrays.
+that are based on fixed-size arrays.
 
 == Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros". Therefore, an
 implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_GROUP_STATIC_ARRAY` to one of the values defined in the table below.
+`SYCL_EXT_ONEAPI_GROUP_FIXED_SIZE_ARRAY` to one of the values defined in the table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's APIs the implementation supports.
 
-Table 1. Values of the `SYCL_EXT_ONEAPI_STATIC_ARRAY_INPUT` macro.
+Table 1. Values of the `SYCL_EXT_ONEAPI_FIXED_SIZE_ARRAY_INPUT` macro.
 [%header,cols="1,5"]
 |===
 |Value |Description
@@ -59,146 +59,6 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_STATIC_ARRAY_INPUT` macro.
 |===
 
 == Changes for Interfaces of Group Algorithms
-
-=== Reduce
-
-Using static arrays for reduction might be more performant
-than calling reduce functions many times to avoid extra barriers.
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation>
-  T reduce_over_group(Group g, sycl::span<T, ItemsPerWorkItem> x, BinaryOperation binary_op); // (1)
-
-  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation>
-  T reduce_over_group(Group g, sycl::span<V, ItemsPerWorkItem> x, T init, BinaryOperation binary_op); // (2)
-
-}
-----
-
-_Preconditions_: `binary_op` must be an instance of a SYCL function object.
-`init` and `binary_op` must be the same for all work-items in the group.
-
-1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`T` is a fundamental type, `BinaryOperation` is a SYCL function object type and
-`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
-
-_Mandates_: `binary_op(x[i], x[j])`, where `i, j < ItemsPerWorkItem`,
-must return a value of type `T`.
-
-_Returns_: The result of combining all the values inside `x` for all work-items in the group
-using the `binary_op` operator, where the values are combined according to the generalized
-sum defined in the {cpp} Standard.
-
-2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true, `V` and `T`
-are fundamental types, `BinaryOperation` is a SYCL function object type and `ItemsPerWorkItem`
-is not equal to `sycl::dynamic_extent`.
-
-_Mandates_: `binary_op(init, x[i])`, where `i < ItemsPerWorkItem`, must return a value of type `T`.
-
-_Returns_: The result of combining the initial value `init` and all the values inside `x` for
-all work-items in the group using the `binary_op` operator, where the values are combined
-according to the generalized sum defined in the {cpp} Standard.
-
-=== Exclusive Scan and Inclusive Scan
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename Properties = sycl::ext::oneapi::experimental::properties<>>
-  void exclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, Properties properties = {}); // (1)
-
-  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename Properties = sycl::ext::oneapi::experimental::properties<>>
-  void exclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, T init, BinaryOperation binary_op, Properties properties = {}); // (2)
-
-}
-----
-
-_Preconditions_: `binary_op` must be an instance of a SYCL function object.
-`init` and `binary_op` must be the same for all work-items in the group.
-
-1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`T` is a fundamental type, `BinaryOperation` is a SYCL function object type,
-`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
-`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
-
-_Mandates_: `binary_op(in_data[i], in_data[j])`, where `i, j < ItemsPerWorkItem`,
-must return a value of type `T`.
-
-_Effects_: Perform the exclusive scan of all values of `in_data` for all work-items in the group
-and the identity value of `binary_op`, using the operator `binary_op`. The scan is computed
-using a generalized noncommutative sum as defined in standard {cpp}. For multi-dimensional groups,
-the order of work-items in the group is determined by their linear id.
-Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
-`in_data` mustn't be changed by the algorithm.
-
-2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`V` and `T` are fundamental types, `BinaryOperation` is a SYCL function object type,
-`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
-`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
-
-_Mandates_: `binary_op(init, in_data[i])`, where `i < ItemsPerWorkItem`,
-must return a value of type `T`.
-
-_Effects_: Perform the exclusive scan of all values of `in_data` for all work-items in the group
-and an initial value specified by `init`, using the operator `binary_op`.
-The scan is computed using a generalized noncommutative sum as defined in standard {cpp}.
-For multi-dimensional groups, the order of work-items in the group is determined by their linear id.
-Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
-`in_data` mustn't be changed by the algorithm.
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename... Properties>
-  void inclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, Properties properties = {}); // (1)
-
-  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation, typename... Properties>
-  void inclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, BinaryOperation binary_op, T init, Properties properties = {}); // (2)
-
-}
-----
-
-_Preconditions_: `binary_op` must be an instance of a SYCL function object
-and must be the same for all work-items in the group.
-
-1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`T` is a fundamental type, `BinaryOperation` is a SYCL function object type,
-`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
-`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
-
-_Mandates_: `binary_op(in_data[i], in_data[j])`, where `i, j < ItemsPerWorkItem`,
-must return a value of type `T`.
-
-_Effects_: Perform the inclusive scan of all values of `in_data` for all work-items in the group
-and the identity value of `binary_op`, using the operator `binary_op`. The scan is computed
-using a generalized noncommutative sum as defined in standard C++. For multi-dimensional groups,
-the order of work-items in the group is determined by their linear id.
-Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
-`in_data` mustn't be changed by the algorithm.
-
-2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`V` and `T` are fundamental types, `BinaryOperation` is a SYCL function object type,
-`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
-`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
-
-_Mandates_: `binary_op(init, in_data[i])`, where `i < ItemsPerWorkItem`,
-must return a value of type `T`.
-
-_Effects_: Perform the inclusive scan of all values of `in_data` for all work-items in the group
-and an initial value specified by `init`, using the operator `binary_op`. The scan is computed
-using a generalized noncommutative sum as defined in standard C++. For multi-dimensional groups,
-the order of work-items in the group is determined by their linear id.
-Result is written to `out_data` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
-`in_data` mustn't be changed by the algorithm.
 
 === Sorting functions
 
@@ -240,8 +100,8 @@ some associated scratch space and
 
 _Effects_: Sort elements in the range containing of elements inside `values` from all work-items
 from the group using the `gh` group helper object.
-Result of sorting is placed into `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
+Result of sorting is placed into `values` with data patterns specified by `properties`.
+Default data patterns are those that are specified by the `group_algorithm_data_pattern::blocked` property.
 Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
@@ -252,8 +112,8 @@ some associated scratch space and
 
 _Effects_: Perform key-value sorting for elements in ranges containing of elements
 inside `keys` and `values` from all work-items from the group using the `gh` group helper object.
-Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
+Result of sorting is placed into `keys` and `values` with data patterns specified by `properties`.
+Default data patterns are those that are specified by the `group_algorithm_data_pattern::blocked` property.
 Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
@@ -267,8 +127,8 @@ _Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} sta
 _Effects_: Sort elements in the range containing of elements inside `values` from all work-items
 from the group with respect to the binary comparison function object `comp` using the `gh` group
 helper object.
-Result of sorting is placed into `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
+Result of sorting is placed into `values` with data patterns specified by `properties`.
+Default data patterns are those that are specified by the `group_algorithm_data_pattern::blocked` property.
 
 _Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
 
@@ -281,8 +141,8 @@ _Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} sta
 _Effects_: Perform key-value sorting for elements in ranges containing of elements
 inside `keys` and `values` from all work-items from the group with respect to the binary comparison
 function object `comp` using the `gh` group helper object.
-Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
+Result of sorting is placed into `keys` and `values` with data patterns specified by `properties`.
+Default data patterns are those that are specified by the `group_algorithm_data_pattern::blocked` property.
 Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
@@ -323,8 +183,8 @@ Table 2. Changes for `operator()` of Sorters.
 void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});`
 |Implements a sorting algorithm that is called by `sort_over_group` and that accepts
 the `sycl::span` value as an input parameter.
-Result of sorting is placed into `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
+Result of sorting is placed into `values` with the data pattern specified by `properties`.
+Default data patterns are those that are specified by the `group_algorithm_data_pattern::blocked` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 
@@ -332,8 +192,8 @@ Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});`
 |Implements a sorting algorithm that is called by `sort_over_group` and that
 accepts two `sycl::span` values as input parameters.
-Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
-Default layout is one that is specified by the `layout<blocked>` property.
+Result of sorting is placed into `keys` and `values` with data patterns specified by `properties`.
+Default data patterns are those that are specified by the `group_algorithm_data_pattern::blocked` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 |===
@@ -445,16 +305,16 @@ If other `scope` values are passed, behavior is unspecified.
 
 |===
 
-=== SYCL Properties for Interfaces with Static Private Arrays
+=== SYCL Properties for Interfaces with Fixed-size Private Arrays
 
-Group algorithms using the static array interface are performed across
+Group algorithms using the fixed-size array interface are performed across
 `N * ItemsPerWorkItem` elements in the group, where `N` is the work-group size and
 `ItemsPerWorkItem` is the number of elements that are processed by one work-item.
 
 When a work-item contributes multiple values to a group algorithm,
 there are multiple ways to interpret the order of that data.
 Let `r` is a virtual range for sorting of `N * ItemsPerWorkItem` elements.
-The extension supports two layouts:
+The extension supports two data patterns:
 
 a) Data from the `[r + id * ItemsPerWorkItem; r + (id + 1) * ItemsPerWorkItem)` virtual range
 placed into the private memory under the span for `id`-th work-item.
@@ -462,28 +322,28 @@ placed into the private memory under the span for `id`-th work-item.
 b) `i * N + id` element of `r` fill the `i`-th element of the private memory
 under the span for `id`-th work-item.
 
-To specify a correct layout for placing of resulting data there is a enum:
+To specify a correct data pattern for placing of resulting data there is a enum:
 
 [source,c++]
 ----
-class enum group_algorithm_layout{
+class enum group_algorithm_data_pattern{
   blocked,
   striped
 };
 ----
 
-1.`sycl::ext::oneapi::experimental::group_algorithm_layout::blocked`
-to specify layout described in a).
+1.`sycl::ext::oneapi::experimental::group_algorithm_data_pattern::blocked`
+to specify a data pattern described in a).
 
-2.`sycl::ext::oneapi::experimental::group_algorithm_layout::striped`
-to specify layout described in b).
+2.`sycl::ext::oneapi::experimental::group_algorithm_data_pattern::striped`
+to specify a data pattern described in b).
 
 Example:
 
 N = 3;
 
 |===
-|Work-item id|Input private static array
+|Work-item id|Input private fixed-size array
 
 |0
 |{11, 10, 9, 8}
@@ -498,10 +358,10 @@ After performing sorting by ascending there is the following virtual range:
 
 Consider 2 layouts:
 
-1.`sycl::ext::oneapi::experimental::group_algorithm_layout::blocked`.
+1.`sycl::ext::oneapi::experimental::group_algorithm_data_pattern::blocked`.
 
 |===
-|Work-item id|Output private static array
+|Work-item id|Output private fixed-size array
 
 |0
 |{0, 1, 2, 3}
@@ -511,10 +371,10 @@ Consider 2 layouts:
 |{8, 9, 10, 11}
 |===
 
-2.`sycl::ext::oneapi::experimental::group_algorithm_layout::striped`.
+2.`sycl::ext::oneapi::experimental::group_algorithm_data_pattern::striped`.
 
 |===
-|Work-item id|Output private static array
+|Work-item id|Output private fixed-size array
 
 |0
 |{0, 3, 6, 9}
@@ -531,26 +391,22 @@ link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL Properties Extension] requirements
 ----
 namespace sycl::ext::oneapi::experimental::property
 {
-    template<group_algorithm_layout type>
-    struct layout_in; // (1)
+    template<group_algorithm_data_pattern type>
+    struct input_data_pattern; // (1)
 
-    template<group_algorithm_layout type>
-    struct layout_out; // (2)
-
-    template<group_algorithm_layout type>
-    struct layout; // (3)
+    template<group_algorithm_data_pattern type>
+    struct output_data_pattern; // (2)
 }
 ----
 
-1. `layout_in` specifies the layout for input data.
-2. `layout_out` specifies the layout for output data.
-3. `layout` specifies the same layout for input and output data both.
+1. `input_data_pattern` specifies the data pattern for input.
+2. `output_data_pattern` specifies the data pattern for output.
 
 Example:
-`sort_over_group(g, my_span, properties<layout_in<blocked>, layout_out<striped>>{});`
+`sort_over_group(g, my_span, properties<input_data_pattern<blocked>, output_data_pattern<striped>>{});`
 
-It's specified that data initially in `my_span` satisfies the `blocked` layout.
-After sorting data will be placed to `my_span` corresponding to the `striped` layout.
+It's specified that data initially in `my_span` satisfies the `blocked` data pattern.
+After sorting data will be placed to `my_span` corresponding to the `striped` data pattern.
 
 == Examples
 
@@ -608,18 +464,14 @@ q.submit([&](sycl::handler& h) {
 sort_over_group(group, std::make_tuple(sycl::span{keys}, sycl::span{values}), sorter);
 ----
 
-The thing is that tuple is not a span. It's better to have any _zip_span_ that allows the SoA layout. Interfaces without tuple highlights that we have parameters with different meaning: only keys are comparing, but keys and values are moving both. However, it can look like inconsistent comparing to other interfaces of sorting.
+The thing is that tuple is not a span. It's better to have any _zip_span_ that allows the SoA data pattern. Interfaces without tuple highlights that we have parameters with different meaning: only keys are comparing, but keys and values are moving both. However, it can look like inconsistent comparing to other interfaces of sorting.
 
 2.Is Sorter needed to be applied to keys only or to keys and values both in case of key-value sorting?
 
-3.Do we need to have separate predefined sorters for static array interfaces?
+3.Do we need to have separate predefined sorters for fixed-size array interfaces?
 e.g. instead of changing `default_sorter` and `radix_sorter` to have new sorters `default_span_sorter`, `radix_span_sorter`.
 
 4.Will it be better to add interfaces for other group algorithms?
-
-5.Should our interfaces have `sycl::span` or `std::span`?
-
-6.What is a better name for properties? e.g. `plain`/`packed`/`close` and `strode`/`spread`.
 
 == Revision History
 
