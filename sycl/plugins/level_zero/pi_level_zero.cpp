@@ -6111,10 +6111,7 @@ pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 
 pi_result piEventRetain(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
-  {
-    std::scoped_lock Lock(Event->Mutex);
-    Event->RefCountExternal++;
-  }
+  Event->RefCountExternal++;
   Event->RefCount.increment();
   return PI_SUCCESS;
 }
