@@ -72,8 +72,8 @@ uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
   uint32_t Result;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, InSize, In,
-      sizeof(uint32_t), &Result, nullptr);
+      Kernel, Device, PiInfoCode<Param>::value, InSize, In, sizeof(uint32_t),
+      &Result, nullptr);
 
   return Result;
 }
