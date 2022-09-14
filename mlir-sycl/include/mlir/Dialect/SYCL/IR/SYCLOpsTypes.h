@@ -107,6 +107,20 @@ struct AccessorTypeStorage : public TypeStorage {
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
+struct AccessorCommonTypeStorage : public TypeStorage {
+  using KeyTy = uint8_t;
+
+  AccessorCommonTypeStorage(const KeyTy &Key) {}
+
+  bool operator==(const KeyTy &Key) const { return true; }
+
+  static AccessorCommonTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                              const KeyTy &Key) {
+    return new (Allocator.allocate<AccessorCommonTypeStorage>())
+        AccessorCommonTypeStorage(Key);
+  }
+};
+
 struct RangeTypeStorage : public TypeStorage {
   using KeyTy = unsigned int;
 
@@ -330,6 +344,16 @@ public:
   mlir::StringRef getAccessModeAsString() const;
   mlir::StringRef getTargetModeAsString() const;
   llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
+class AccessorCommonType
+    : public Type::TypeBase<AccessorCommonType, Type,
+                            detail::AccessorCommonTypeStorage> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::AccessorCommonType get(MLIRContext *Context);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 };
 
 class RangeType
