@@ -1521,15 +1521,14 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
     visitComplexArray(Owner, Field, ArrayTy, Handlers...);
   } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
                  Value) {
-    // We are currently in PointerHandler visitor.
-    if (Field->hasAttr<SYCLGenerateNewTypeAttr>()) {
-      // This is an array of pointers, or an array of a type containing
-      // pointers.
-      visitComplexArray(Owner, Field, ArrayTy, Handlers...);
-    } else {
-      // This is an array which does not contain pointers.
-      visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
-    }
+    assert(!Field->hasAttr<SYCLGenerateNewTypeAttr>() &&
+           "Arrays should trigger decomposition");
+    // We are currently in PointerHandler visitor, which implies this is a
+    // 'simple' array i.e. one that does not include special types or pointers.
+    // Array of pointers/ array of type containing pointers will be handled in
+    // a follow-up PR. Currently, they continue to trigger decomposition, and
+    // will be handled in 'if' statment above.
+    visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
   } else {
     if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
       visitSimpleArray(
@@ -1770,6 +1769,14 @@ class SyclKernelDecompMarker : public SyclKernelFieldHandler {
   llvm::SmallVector<bool, 16> CollectionStack;
   llvm::SmallVector<bool, 16> PointerStack;
 
+  // FIXME: Array of pointers/ array of type containing pointers
+  // will be handled in a follow up PR. Currently, they continue
+  // to trigger decomposition.
+  // TODO: Remove this method once arrays are handled correctly
+  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
+    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
+  }
+
 public:
   static constexpr const bool VisitUnionBody = false;
   static constexpr const bool VisitNthArrayElement = false;
@@ -1797,7 +1804,13 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType Ty) final {
-    PointerStack.back() = true;
+    // FIXME: Array of pointers/ array of type containing pointers
+    // will be handled in a follow up PR. Currently, they continue
+    // to trigger decomposition.
+    if (isArrayElement(FD, Ty))
+      CollectionStack.back() = true;
+    else
+      PointerStack.back() = true;
     return true;
   }
 
@@ -1870,11 +1883,6 @@ public:
   }
 
   bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType ElementTy) final {
-    // If an array needs to be decomposed, it is marked with
-    // SYCLRequiresDecompositionAttr. Else if the array is an array of pointers
-    // or an array of structs containing pointers, it is marked with
-    // SYCLGenerateNewTypeAttr. An array will never be marked with both
-    // attributes.
     if (CollectionStack.pop_back_val()) {
       // Cannot assert, since in MD arrays we'll end up marking them multiple
       // times.
@@ -1884,10 +1892,10 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
-        FD->addAttr(
-            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
-      PointerStack.back() = true;
+      // FIXME: Array of pointers/ array of type containing pointers
+      // will be handled in a follow up PR. Currently, they continue
+      // to trigger decomposition.
+      llvm_unreachable("PointerStack should not be true when handling arrays.");
     }
     return true;
   }
@@ -2045,8 +2053,9 @@ public:
     return true;
   }
 
-  // Elizabeth - We need to handle complex array by adding enterArray, etc to
-  // create new array type
+  // FIXME: Array of pointers/ array of types containing pointers
+  // will be handled in a follow-up PR. Currently they continue to
+  // trigger decomposition.
 
 public:
   QualType getNewType() {
@@ -2061,7 +2070,7 @@ public:
     return QualType(ModifiedRD->getTypeForDecl(), 0);
   }
 
-  // Elizabeth - Need to handle KernelHandler, arrays
+  // Elizabeth - Need to handle KernelHandler
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
