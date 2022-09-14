@@ -161,6 +161,11 @@ private:
 
     bool passed = true;
 
+    auto device = queue.get_device();
+    if (should_skip_test_with<SrcT>(device) ||
+        should_skip_test_with<DstT>(device))
+      return passed;
+
     shared_vector<DstT> result(NumElems, shared_allocator<DstT>(queue));
     shared_vector<SrcT> shared_ref_data(ref_data.begin(), ref_data.end(),
                                         shared_allocator<SrcT>(queue));

@@ -171,6 +171,9 @@ private:
     bool passed = true;
     log::trace<TestDescriptionT>(std::forward<TestDescriptionArgsT>(args)...);
 
+    if (should_skip_test_with<DataT>(queue.get_device()))
+      return passed;
+
     const std::vector<DataT> ref_data = generate_ref_data<DataT, VecSize>();
 
     if constexpr (VecSize == 1) {

@@ -95,6 +95,9 @@ public:
                   "Value that used for increase ref data for fill plus simd "
                   "size should be less than char max value.");
 
+    if (should_skip_test_with<DataT>(queue.get_device()))
+      return passed;
+
     shared_allocator<DataT> allocator(queue);
     shared_vector<DataT> result(NumElems, allocator);
     shared_vector<DataT> initial_ref_data(NumElems, allocator);

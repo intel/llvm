@@ -96,6 +96,9 @@ public:
     bool passed = true;
     log::trace<TestDescriptionT>(data_type, alignment_name);
 
+    if (should_skip_test_with<DataT>(queue.get_device()))
+      return passed;
+
     const std::vector<DataT> ref_data = generate_ref_data<DataT, NumElems>();
 
     // If current number of elements is equal to one, then run test with each

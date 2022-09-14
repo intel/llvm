@@ -173,6 +173,10 @@ class run_test {
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
     bool passed = true;
+
+    if (should_skip_test_with<DataT>(queue.get_device()))
+      return passed;
+
     std::vector<DataT> ref_data =
         IsAccuracyTestT::template generate_input_data<DataT, NumElems,
                                                       TestCaseT>();
