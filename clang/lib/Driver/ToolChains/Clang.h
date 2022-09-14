@@ -309,7 +309,7 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-/// Offload bundler tool.
+/// Cgeist tool.
 class LLVM_LIBRARY_VISIBILITY Cgeist final : public Tool {
   const Tool *Clang;
 

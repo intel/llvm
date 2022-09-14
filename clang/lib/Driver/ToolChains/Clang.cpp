@@ -9915,10 +9915,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 // Build an invocation to cgeist by stealing a clang invocation.
-// TODO: cgeist's driver actually replicate large part of clang.
-//       This make sense given the object and structure of the upstream project
+// TODO: cgeist's driver actually replicates large part of clang.
+//       This makes sense given the object and structure of the upstream project
 //       but given our context, a clang plugin would do just fine. We simply
-//       need to provide the frontend action (which already exist) via the
+//       need to provide the frontend action (which already exists) via the
 //       plugin interface. As we control clang, we can make driver adjustments
 //       where needed.
 void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
