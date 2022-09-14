@@ -136,7 +136,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
                                          TC.getDriver().Dir + "/../lib"));
-    if (Args.hasArg(options::OPT__SLASH_MDd))
+    if (Args.hasArg(options::OPT_g_Flag))
       CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     else
       CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
