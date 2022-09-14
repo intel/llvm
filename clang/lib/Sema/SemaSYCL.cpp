@@ -1908,7 +1908,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
   SmallVector<CXXBaseSpecifier *, 8> ModifiedBases;
 
   IdentifierInfo *getModifiedName(IdentifierInfo *Id) {
-    std::string Name = (Id->getName() + Twine("_generated")).str();
+    std::string Name =
+        Id ? (Twine("_generated_") + Id->getName()).str() : "_generated_";
     return &SemaRef.getASTContext().Idents.get(Name);
   }
 
@@ -1917,7 +1918,7 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
   // the visitor traverses kernel object record fields.
   void createNewType(const CXXRecordDecl *RD) {
     auto *ModifiedRD = CXXRecordDecl::Create(
-        SemaRef.getASTContext(), TTK_Struct,
+        SemaRef.getASTContext(), RD->getTagKind(),
         const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
         SourceLocation(), getModifiedName(RD->getIdentifier()));
     ModifiedRD->startDefinition();
@@ -2731,7 +2732,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SourceLocation KernelCallerSrcLoc; // KernelCallerFunc source location.
   // Contains a count of how many containers we're in.  This is used by the
   // pointer-struct-wrapping code to ensure that we don't try to wrap
-  // non-top-level pointers.
+  // top-level pointers.
   uint64_t StructDepth = 0;
   VarDecl *KernelHandlerClone = nullptr;
 
@@ -2948,15 +2949,58 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, ParamRef);
   }
 
-  void createMemCpyCall(QualType Ty, SmallVectorImpl<Stmt *> &AddTo) {
-    Expr *ParamRef = createParamReferenceExpr();
-    Expr *FieldOfLocalClone = MemberExprBases.back();
-    StmtResult Call = SemaRef.BuildMemCpyCall(KernelCallerSrcLoc, Ty, ParamRef,
-                                              FieldOfLocalClone);
+  Expr *addDerivedToBaseCastExpr(const CXXRecordDecl *RD,
+                                 const CXXBaseSpecifier &BS,
+                                 Expr *LocalCloneRef) {
+    CXXCastPath BasePath;
+    QualType DerivedTy(RD->getTypeForDecl(), 0);
+    QualType BaseTy = BS.getType();
+    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, KernelCallerSrcLoc,
+                                         SourceRange(), &BasePath,
+                                         /*IgnoreBaseAccess*/ true);
+    auto Cast = ImplicitCastExpr::Create(
+        SemaRef.Context, SemaRef.Context.getPointerType(BaseTy),
+        CK_DerivedToBase, LocalCloneRef,
+        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
+    return Cast;
+  }
 
-    Expr *MemCpyCallExpr = Call.getAs<Expr>();
+  Expr *getAddressOf(Expr *E) {
+    return UnaryOperator::Create(SemaRef.Context, E, UO_AddrOf,
+                                 SemaRef.Context.getPointerType(E->getType()),
+                                 VK_PRValue, OK_Ordinary, KernelCallerSrcLoc,
+                                 false, SemaRef.CurFPFeatureOverrides());
+  }
 
-    AddTo.push_back(MemCpyCallExpr);
+  Expr *buildMemCpyCall(Expr *From, Expr *To, QualType T) {
+    // Compute the size of the memory buffer to be copied.
+    QualType SizeType = SemaRef.Context.getSizeType();
+    llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
+                     SemaRef.Context.getTypeSizeInChars(T).getQuantity());
+
+    LookupResult R(SemaRef, &SemaRef.Context.Idents.get("__builtin_memcpy"),
+                   KernelCallerSrcLoc, Sema::LookupOrdinaryName);
+    SemaRef.LookupName(R, SemaRef.TUScope, true);
+
+    FunctionDecl *MemCpy = R.getAsSingle<FunctionDecl>();
+
+    assert(MemCpy && "__builtin_memcpy should be found");
+
+    ExprResult MemCpyRef =
+        SemaRef.BuildDeclRefExpr(MemCpy, SemaRef.Context.BuiltinFnTy,
+                                 VK_PRValue, KernelCallerSrcLoc, nullptr);
+
+    assert(MemCpyRef.isUsable() && "Builtin reference cannot fail");
+
+    Expr *CallArgs[] = {To, From,
+                        IntegerLiteral::Create(SemaRef.Context, Size, SizeType,
+                                               KernelCallerSrcLoc)};
+    ExprResult Call =
+        SemaRef.BuildCallExpr(/*Scope=*/nullptr, MemCpyRef.get(),
+                              KernelCallerSrcLoc, CallArgs, KernelCallerSrcLoc);
+
+    assert(!Call.isInvalid() && "Call to __builtin_memcpy cannot fail!");
+    return Call.getAs<Expr>();
   }
 
   // Adds default initializer for generated type and creates
@@ -2966,8 +3010,24 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, None,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
     addFieldMemberExpr(FD, Ty);
-    createMemCpyCall(Ty, BodyStmts);
+    Expr *ParamRef = getAddressOf(createParamReferenceExpr());
+    Expr *LocalCloneRef = getAddressOf(MemberExprBases.back());
+    Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
+    BodyStmts.push_back(MemCpyCallExpr);
     removeFieldMemberExpr(FD, Ty);
+  }
+
+  // Adds default initializer for generated base and creates
+  // a call to __builtin_memcpy to initialize the base of local clone
+  // from kernel argument.
+  void handleGeneratedType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                           QualType Ty) {
+    addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
+    Expr *ParamRef = getAddressOf(createParamReferenceExpr());
+    Expr *LocalCloneRef = getAddressOf(MemberExprBases.back());
+    LocalCloneRef = addDerivedToBaseCastExpr(RD, BS, LocalCloneRef);
+    Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
+    BodyStmts.push_back(MemCpyCallExpr);
   }
 
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
@@ -3208,9 +3268,14 @@ public:
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+  bool handleNonDecompStruct(const CXXRecordDecl *RD,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    addSimpleBaseInit(BS, Ty);
+    CXXRecordDecl *BaseDecl = Ty->getAsCXXRecordDecl();
+    assert(BaseDecl && "Type must be a C++ record type");
+    if (BaseDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      handleGeneratedType(RD, BS, Ty);
+    else
+      addSimpleBaseInit(BS, Ty);
     return true;
   }
 
@@ -3276,7 +3341,6 @@ public:
         SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
         /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
     MemberExprBases.push_back(Cast);
-
     addCollectionInitListExpr(BaseTy->getAsCXXRecordDecl());
     return true;
   }

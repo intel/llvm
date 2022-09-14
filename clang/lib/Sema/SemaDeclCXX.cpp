@@ -902,55 +902,6 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
   return New;
 }
 
-StmtResult Sema::BuildMemCpyCall(SourceLocation Loc, QualType T, Expr *From,
-                                 Expr *To) {
-  // Compute the size of the memory buffer to be copied.
-  QualType SizeType = Context.getSizeType();
-  llvm::APInt Size(Context.getTypeSize(SizeType),
-                   Context.getTypeSizeInChars(T).getQuantity());
-
-  // Take the address of the field references for "from" and "to". We
-  // directly construct UnaryOperators here because semantic analysis
-  // does not permit us to take the address of an xvalue.
-  From = UnaryOperator::Create(
-      Context, From, UO_AddrOf, Context.getPointerType(From->getType()),
-      VK_PRValue, OK_Ordinary, Loc, false, CurFPFeatureOverrides());
-  To = UnaryOperator::Create(Context, To, UO_AddrOf,
-                             Context.getPointerType(To->getType()), VK_PRValue,
-                             OK_Ordinary, Loc, false, CurFPFeatureOverrides());
-
-  const Type *E = T->getBaseElementTypeUnsafe();
-  bool NeedsCollectableMemCpy =
-      !getLangOpts().SYCLIsDevice && E->isRecordType() &&
-      E->castAs<RecordType>()->getDecl()->hasObjectMember();
-
-  // Create a reference to the __builtin_objc_memmove_collectable function
-  StringRef MemCpyName = NeedsCollectableMemCpy
-                             ? "__builtin_objc_memmove_collectable"
-                             : "__builtin_memcpy";
-  LookupResult R(*this, &Context.Idents.get(MemCpyName), Loc,
-                 Sema::LookupOrdinaryName);
-  LookupName(R, TUScope, true);
-
-  FunctionDecl *MemCpy = R.getAsSingle<FunctionDecl>();
-  if (!MemCpy)
-    // Something went horribly wrong earlier, and we will have complained
-    // about it.
-    return StmtError();
-
-  ExprResult MemCpyRef =
-      BuildDeclRefExpr(MemCpy, Context.BuiltinFnTy, VK_PRValue, Loc, nullptr);
-  assert(MemCpyRef.isUsable() && "Builtin reference cannot fail");
-
-  Expr *CallArgs[] = {To, From,
-                      IntegerLiteral::Create(Context, Size, SizeType, Loc)};
-  ExprResult Call =
-      BuildCallExpr(/*Scope=*/nullptr, MemCpyRef.get(), Loc, CallArgs, Loc);
-
-  assert(!Call.isInvalid() && "Call to __builtin_memcpy cannot fail!");
-  return Call.getAs<Stmt>();
-}
-
 static bool checkSimpleDecomposition(
     Sema &S, ArrayRef<BindingDecl *> Bindings, ValueDecl *Src,
     QualType DecompType, const llvm::APSInt &NumElems, QualType ElemType,
@@ -14099,7 +14050,54 @@ public:
 static StmtResult
 buildMemcpyForAssignmentOp(Sema &S, SourceLocation Loc, QualType T,
                            const ExprBuilder &ToB, const ExprBuilder &FromB) {
-  return S.BuildMemCpyCall(Loc, T, FromB.build(S, Loc), ToB.build(S, Loc));
+  // Compute the size of the memory buffer to be copied.
+  QualType SizeType = S.Context.getSizeType();
+  llvm::APInt Size(S.Context.getTypeSize(SizeType),
+                   S.Context.getTypeSizeInChars(T).getQuantity());
+
+  // Take the address of the field references for "from" and "to". We
+  // directly construct UnaryOperators here because semantic analysis
+  // does not permit us to take the address of an xvalue.
+  Expr *From = FromB.build(S, Loc);
+  From = UnaryOperator::Create(
+      S.Context, From, UO_AddrOf, S.Context.getPointerType(From->getType()),
+      VK_PRValue, OK_Ordinary, Loc, false, S.CurFPFeatureOverrides());
+  Expr *To = ToB.build(S, Loc);
+  To = UnaryOperator::Create(
+      S.Context, To, UO_AddrOf, S.Context.getPointerType(To->getType()),
+      VK_PRValue, OK_Ordinary, Loc, false, S.CurFPFeatureOverrides());
+
+  const Type *E = T->getBaseElementTypeUnsafe();
+  bool NeedsCollectableMemCpy =
+      E->isRecordType() &&
+      E->castAs<RecordType>()->getDecl()->hasObjectMember();
+
+  // Create a reference to the __builtin_objc_memmove_collectable function
+  StringRef MemCpyName = NeedsCollectableMemCpy ?
+    "__builtin_objc_memmove_collectable" :
+    "__builtin_memcpy";
+  LookupResult R(S, &S.Context.Idents.get(MemCpyName), Loc,
+                 Sema::LookupOrdinaryName);
+  S.LookupName(R, S.TUScope, true);
+
+  FunctionDecl *MemCpy = R.getAsSingle<FunctionDecl>();
+  if (!MemCpy)
+    // Something went horribly wrong earlier, and we will have complained
+    // about it.
+    return StmtError();
+
+  ExprResult MemCpyRef = S.BuildDeclRefExpr(MemCpy, S.Context.BuiltinFnTy,
+                                            VK_PRValue, Loc, nullptr);
+  assert(MemCpyRef.isUsable() && "Builtin reference cannot fail");
+
+  Expr *CallArgs[] = {
+    To, From, IntegerLiteral::Create(S.Context, Size, SizeType, Loc)
+  };
+  ExprResult Call = S.BuildCallExpr(/*Scope=*/nullptr, MemCpyRef.get(),
+                                    Loc, CallArgs, Loc);
+
+  assert(!Call.isInvalid() && "Call to __builtin_memcpy cannot fail!");
+  return Call.getAs<Stmt>();
 }
 
 /// Builds a statement that copies/moves the given entity from \p From to
