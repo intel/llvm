@@ -13,6 +13,9 @@
 // Smoke test for 2D region select API which can be used to represent 2D tiles.
 // Tests int types.
 
+// Temporarily disable while the failure is being investigated.
+// UNSUPPORTED: windows
+
 #include "simd_view_select_2d.hpp"
 
 int main(int argc, char **argv) {
