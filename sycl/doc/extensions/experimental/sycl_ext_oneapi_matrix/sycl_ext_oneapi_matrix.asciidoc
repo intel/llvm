@@ -75,23 +75,23 @@ The same class, `joint_matrix`, should handle both cases where sizes are constan
 IMPORTANT: In the current implementation, only the static extent is supported
 
 #### Use
-Specifying the usage of the matrix: matrix left (A), matrix right (B) or accumuator (C) is required by backend implementations to reason about the layout of the matrix in regiters.
+Specifying the usage of the matrix: matrix left (A), matrix right (B) or accumulator +(C)+ is required by backend implementations to reason about the layout of the matrix in registers.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 enum class use {
   a,
   b,
-  accumulator,
+  accumulator
 };
 }
 ```
 
-IMPORTANT: In both AMX and DPAS support, `use` template parameter is required
+IMPORTANT: In both AMX and DPAS support, the `use` template parameter is required
 
 
 #### Layout
-Besides row major and column major layouts, `layout` is flexible enough to introduce custom layouts such as symmetric or tiled layouts.
+Besides row major and column major layouts, `layout` is flexible enough to introduce custom layouts such as packed layout.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -99,12 +99,12 @@ enum class layout {
   row_major,
   col_major,
   packed,
-  unused,
+  unused
 };
 }
 ```
 
-IMPORTANT: In both AMX and DPAS support, layout template parameter is unused and will be ignored if specified
+IMPORTANT: In both AMX and DPAS support, the `layout` template parameter is unused and will be ignored if specified
 
 #### Memory Scope
 In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
@@ -254,12 +254,11 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 
 IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet.
 
-IMPORTANT: Since the current tensorcores implementation is AOT, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the tensorcores AOT backend. 
-
+IMPORTANT: In the Tensore Cores implementation, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the Tensor Cores backend.
 
 ## VNNI/Packed Layout
-Intel AMX and DPAS compute assumes register for B tile (src1) to be in VNNI format as they need 32bit of K-data in A and B to be contiguous in memory.
-The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transform.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed` layout for a 16-bit type.
+Intel AMX and DPAS compute assumes that the B tile register (src1) is in the VNNI format as they need 32bit of K-data in A and B to be contiguous in memory. 
+The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transformation.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed` layout for a 16-bit type.
 
 #### Example 1: 16-bit elements
       // Example of a 4 row x 4 column matrix using a 16-bit data element, in row-major layout.
@@ -303,7 +302,7 @@ range<2> G = {M/tM, N};
 range<2> L = {1, SG_SIZE};
 int8_t *memA = malloc_shared<int8_t>(M*K, q);
 int8_t *memB = malloc_shared<int8_t>(K*N, q);
-Int32_t *memC = malloc_shared<int32_t>(M*N, q);
+int32_t *memC = malloc_shared<int32_t>(M*N, q);
 // Assuming memB has already been VNNIed
 q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)                            
   [[sycl::reqd_sub_group_size(SG_SIZE)]] {
@@ -339,7 +338,7 @@ The query interface proposed here consists of three functionalities:
 
 - Default values: this provides a default shape if the user does not provide a specific combination. In this case, aliases to the `joint_matrix` type can be used, namely `joint_matrix_a/b/c` where no additional argument is needed. This form happens when the user specifies all template parameters except the sizes of the matrices (`tiles`) M, N, and K.
 
-- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query return an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively depending whether the implementation supports a continuous or discrete number of sizes. For example, Intel AMX implementation supports a continuous number of sizes so the `max_*` variant is applied and only the maximum number is returned. DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
+- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
 
 The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which  they are defined.
 
@@ -599,8 +598,8 @@ multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<mat
 We did not utilize this extension for this matrix API version because sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not clear yet. 
 
 ### WI data to joint matrix mapping coordinates information for piece-wise operations
-The indexing provided inside the `wi_data` class acesses only the portion of the current WI. It is not possible the location or coordinates of this portion in the original matrix.  This coordinates mapping  is implementation defined and change from one backend to the other.   For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping coordinates information is needed to reason about the matrix view.
-With joint matrix, we want to write, as much as possible, one code to run on different backends. So if backend X states that a WI owns one exact row of the matrix for instance. Writing the following code will work only on that backend for that version of hardware. The hardware and implementations change, for instance, the same WI can own half of the row because SG size increased or hardware units increased. 
+The indexing provided inside the `wi_data` class accesses only the portion of the matrix held by the current WI. It is not possible to know the location of this portion in the original matrix.  This coordinates mapping  is implementation defined and changes from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping information is needed to reason about the matrix view.
+Within the joint matrix extension, we want to write, as much as possible, one code to run on different backends. If backend X states that a WI owns one exact row of the matrix for instance, writing the following code will work only on that backend for that version of hardware. If a different hardware and implementation is used, the same WI may own only half of the row if, for example, the SG size increased. 
 
 ```c++
 auto data = C.get_wi_data();
@@ -609,9 +608,7 @@ for (int i = 0; i < length; ++i) {
 }
 ```
 
-
-
-We want to keep backward compatibility in the joint matrix code when implementations or hardware change. To that end, instead of hard-code this mapping, we write  general backend and target-agnostic, especially in the JIT compilation mode of SYCL. This is possible by querying this mapping so code does not have to change from one version to the other.
+We want to keep backward compatibility in the joint matrix code when implementations or hardware change. To that end, instead of hard-coding this mapping, we use general backend and target-agnostic functionality, especially in the JIT compilation mode of SYCL. For this reason we would like to be able to query this mapping so that code does not have to change from one version to the other.
 
 So for the mapping problem, since this mapping is implementation-defined, one of the proposals is to add runtime functions like:
 ```c++
