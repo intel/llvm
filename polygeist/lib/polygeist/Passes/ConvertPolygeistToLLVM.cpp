@@ -114,33 +114,35 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       targetMemRef.setOffset(rewriter, loc, baseOffset);
     }
 
-    if (auto ST = sourceMemRefType.getElementType()
+    if (auto ST = getTypeConverter()
+                      ->convertType(sourceMemRefType.getElementType())
                       .dyn_cast<mlir::LLVM::LLVMStructType>()) {
       assert(sourceMemRefType.getShape().size() ==
                  viewMemRefType.getShape().size() &&
              "Expecting the input and output MemRef size to be the same");
+
+      if (auto ST = sourceMemRefType.getElementType()
+                        .dyn_cast<mlir::LLVM::LLVMStructType>()) {
+        // According to MLIRASTConsumer::getMLIRType() in clang-mlir.cc, memref
+        // of struct type is only generated for struct that has at least one
+        // entry of SYCL type, otherwise a llvm pointer type is generated
+        // instead of a memref.
+        assert(any_of(ST.getBody(),
+                      [](mlir::Type Element) {
+                        return sycl::isSYCLType(Element);
+                      }) &&
+               "Expecting at least one element type of the struct to be a SYCL "
+               "type");
+      } else
+        assert(sycl::isSYCLType(sourceMemRefType.getElementType()) &&
+               "Expecting element type of the memref to be a SYCL type");
+
       // The first index (zero) takes a pointer to the structure.
       Value zero = rewriter.create<LLVM::ConstantOp>(
           loc, idxs[0].getType(),
           rewriter.getIntegerAttr(idxs[0].getType(), 0));
       Value idxs[] = {zero, transformed.index()};
 
-      // According to MLIRASTConsumer::getMLIRType() in clang-mlir.cc, memref of
-      // struct type is only generated for struct that has at least one entry of
-      // SYCL type, otherwise a llvm pointer type is generated instead of a
-      // memref.
-      assert(any_of(ST.getBody(),
-                    [](Type Element) {
-                      return Element
-                          .isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                               mlir::sycl::RangeType,
-                               mlir::sycl::AccessorImplDeviceType,
-                               mlir::sycl::ArrayType, mlir::sycl::ItemType,
-                               mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-                               mlir::sycl::GroupType>();
-                    }) &&
-             "Expecting at least one element type of the struct to be a SYCL "
-             "type");
       // According to MLIRScanner::InitializeValueByInitListExpr() in
       // clang-mlir.cc, when a memref element type is a struct type, the return
       // type of a polygeist.subindex should be a memref of the element type of
