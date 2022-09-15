@@ -59,7 +59,7 @@ on:
       cts_matrix:
         type: string
         required: false
-        default: "[]"
+        default: ""
       cts_cmake_extra_args:
         type: string
         required: false
