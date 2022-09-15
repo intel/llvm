@@ -99,9 +99,9 @@ private:
 
   template <access::address_space Space> static void check_space() {
     static_assert(
-        _space == access::address_space::global_space ||
-            _space == access::address_space::ext_intel_global_device_space ||
-            _space == access::address_space::ext_intel_global_host_space,
+        Space == access::address_space::global_space ||
+            Space == access::address_space::ext_intel_global_device_space ||
+            Space == access::address_space::ext_intel_global_host_space,
         "lsu controls are only supported for global_ptr, "
         "device_ptr, and host_ptr objects");
   }
