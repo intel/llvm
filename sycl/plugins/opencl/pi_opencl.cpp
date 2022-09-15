@@ -539,38 +539,51 @@ pi_result piProgramCreate(pi_context context, const void *il, size_t length,
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
-  size_t devVerSize;
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr,
-                              &devVerSize);
-  std::string devVer(devVerSize, '\0');
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
-                              &devVer.front(), nullptr);
+  OCLV::OpenCLVersion platVer;
+  ret_err = getPlatformVersion(curPlatform, platVer);
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
   pi_result err = PI_SUCCESS;
-  if (devVer.find("OpenCL 1.0") == std::string::npos &&
-      devVer.find("OpenCL 1.1") == std::string::npos &&
-      devVer.find("OpenCL 1.2") == std::string::npos &&
-      devVer.find("OpenCL 2.0") == std::string::npos) {
+  if (platVer >= OCLV::V2_1) {
+
+    /* Make sure all devices support CL 2.1 or newer as well. */
+    for (cl_device_id dev : devicesInCtx) {
+      OCLV::OpenCLVersion devVer;
+
+      ret_err = getDeviceVersion(dev, devVer);
+      CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
+
+      /* If the device does not support CL 2.1 or greater, we need to make sure
+       * it supports the cl_khr_il_program extension.
+       */
+      if (devVer < OCLV::V2_1) {
+        bool supported = false;
+
+        ret_err = checkDeviceExtensions(dev, {"cl_khr_il_program"}, supported);
+        CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
+
+        if (!supported)
+          return cast<pi_result>(CL_INVALID_OPERATION);
+      }
+    }
     if (res_program != nullptr)
       *res_program = cast<pi_program>(clCreateProgramWithIL(
           cast<cl_context>(context), il, length, cast<cl_int *>(&err)));
     return err;
   }
 
-  size_t extSize;
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr,
-                              &extSize);
-  std::string extStr(extSize, '\0');
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, extSize,
-                              &extStr.front(), nullptr);
+  /* If none of the devices conform with CL 2.1 or newer make sure they all
+   * support the cl_khr_il_program extension.
+   */
+  for (cl_device_id dev : devicesInCtx) {
+    bool supported = false;
 
-  if (ret_err != CL_SUCCESS ||
-      extStr.find("cl_khr_il_program") == std::string::npos) {
-    if (res_program != nullptr)
-      *res_program = nullptr;
-    return cast<pi_result>(CL_INVALID_CONTEXT);
+    ret_err = checkDeviceExtensions(dev, {"cl_khr_il_program"}, supported);
+    CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
+
+    if (!supported)
+      return cast<pi_result>(CL_INVALID_OPERATION);
   }
 
   using apiFuncT =
