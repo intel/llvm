@@ -16,6 +16,8 @@
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 
+using uint = unsigned int;
+
 // generic work-group split barrier
 __ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
 #ifdef __SYCL_DEVICE_ONLY__
