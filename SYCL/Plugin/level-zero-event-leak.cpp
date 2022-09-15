@@ -3,7 +3,12 @@
 // UNSUPPORTED: windows
 //
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out wait 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out nowait 2>&1 %GPU_CHECK_PLACEHOLDER
+//
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -DCHECK_INORDER -o %t.inorder.out
+// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.inorder.out wait 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.inorder.out nowait 2>&1 %GPU_CHECK_PLACEHOLDER
 //
 // CHECK-NOT: LEAK
 
@@ -36,10 +41,31 @@
 #include <sycl/sycl.hpp>
 
 int main(int argc, char **argv) {
+  assert(argc == 2 && "Invalid number of arguments");
+  std::string use_queue_finish(argv[1]);
+
+  bool Use = false;
+  if (use_queue_finish == "wait") {
+    Use = true;
+    std::cerr << "Use queue::wait" << std::endl;
+  } else if (use_queue_finish == "nowait") {
+    std::cerr << "No wait. Ensure resources are released anyway" << std::endl;
+  } else {
+    assert(0 && "Unsupported parameter value");
+  }
+
+#ifdef CHECK_INORDER
+  sycl::queue Q({sycl::property::queue::in_order{}});
+#else
   sycl::queue Q;
+#endif
+
   const unsigned n_chunk = 1000;
   for (int i = 0; i < n_chunk; i++)
     Q.single_task([=]() {});
-  Q.wait();
+
+  if (Use)
+    Q.wait();
+
   return 0;
 }
