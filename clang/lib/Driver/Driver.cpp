@@ -802,6 +802,18 @@ static bool addSYCLDefaultTriple(Compilation &C,
   return true;
 }
 
+// Prefix for Intel GPU specific targets used for -fsycl-targets
+constexpr char IntelGPU[] = "intel_gpu_";
+
+static bool isIntelGPUTarget(StringRef Target, StringRef &Device) {
+  if (Target.startswith(IntelGPU)) {
+    Device = tools::SYCL::gen::resolveGenDevice(
+        Target.drop_front(sizeof(IntelGPU) - 1));
+    return true;
+  }
+  return false;
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -1089,11 +1101,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           StringRef Val_t(Val);
           // Handle target specifications that resemble 'intel_gpu_*' here.
           // These are 'spir64_gen' based.
-          if (Val.startswith("intel_gpu_")) {
-            // Add the proper -device value to the list.
-            StringRef ValidDevice(tools::SYCL::gen::resolveGenDevice(
-                Val.drop_front(sizeof("intel_gpu_") - 1)));
-            if (ValidDevice.empty()) {
+          StringRef Device;
+          if (isIntelGPUTarget(Val, Device)) {
+            if (Device.empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
@@ -3599,15 +3609,12 @@ void Driver::checkForOffloadMismatch(Compilation &C,
   SmallVector<StringRef, 4> Targets;
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (StringRef Val : A->getValues()) {
-      if (Val.startswith("intel_gpu_")) {
-        StringRef ValidDevice(tools::SYCL::gen::resolveGenDevice(
-            Val.drop_front(sizeof("intel_gpu_") - 1)));
-        if (!ValidDevice.empty()) {
-          Targets.push_back(Args.MakeArgString(
-              C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
-              ValidDevice));
-          continue;
-        }
+      StringRef ValidDevice;
+      if (isIntelGPUTarget(Val, ValidDevice) && !ValidDevice.empty()) {
+        Targets.push_back(Args.MakeArgString(
+            C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
+            ValidDevice));
+        continue;
       }
       Targets.push_back(Val);
     }
@@ -5736,14 +5743,11 @@ class OffloadingActionBuilder final {
             StringRef Val_t(Val);
             // Handle target specifications that resemble 'intel_gpu_*' here.
             // These are 'spir64_gen' based.
-            if (Val.startswith("intel_gpu_")) {
-              StringRef ValidDevice(tools::SYCL::gen::resolveGenDevice(
-                  Val.drop_front(sizeof("intel_gpu_") - 1)));
-              if (ValidDevice.empty()) {
-                // Unrecognized, we have already diagnosed this earlier, so
-                // just skip.
+            StringRef ValidDevice;
+            if (isIntelGPUTarget(Val, ValidDevice)) {
+              if (ValidDevice.empty())
+                // Unrecognized, we have already diagnosed this earlier; skip.
                 continue;
-              }
               // Add the proper -device value to the list.
               GenDeviceList.emplace_back(ValidDevice.data());
               Val_t = "spir64_gen";
