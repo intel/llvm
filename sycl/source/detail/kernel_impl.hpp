@@ -16,13 +16,12 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/program.hpp>
 
 #include <cassert>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // Forward declaration
 class program_impl;
@@ -172,6 +171,8 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
+  ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -198,13 +199,6 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
-#ifdef __SYCL_INTERNAL_API
-template <>
-inline program kernel_impl::get_info<info::kernel::program>() const {
-  return createSyclObjFromImpl<program>(MProgramImpl);
-}
-#endif
-
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {
@@ -219,7 +213,7 @@ kernel_impl::get_info(const device &Device) const {
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device,
-                      const cl::sycl::range<3> &WGSize) const {
+                      const sycl::range<3> &WGSize) const {
   if (is_host()) {
     throw runtime_error("Sub-group feature is not supported on HOST device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -230,5 +224,5 @@ kernel_impl::get_info(const device &Device,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -12,8 +12,8 @@
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 device_impl::device_impl()
@@ -161,7 +161,10 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw sycl::feature_not_supported();
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::partition_equally.",
+        PI_ERROR_INVALID_OPERATION);
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -187,7 +190,10 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw sycl::feature_not_supported();
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::partition_by_counts.",
+        PI_ERROR_INVALID_OPERATION);
   }
   static const pi_device_partition_property P[] = {
       PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
@@ -232,9 +238,17 @@ std::vector<device> device_impl::create_sub_devices(
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(
-          info::partition_property::partition_by_affinity_domain) ||
-      !is_affinity_supported(AffinityDomain)) {
-    throw sycl::feature_not_supported();
+          info::partition_property::partition_by_affinity_domain)) {
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::partition_by_affinity_domain.",
+        PI_ERROR_INVALID_OPERATION);
+  }
+  if (!is_affinity_supported(AffinityDomain)) {
+    throw sycl::feature_not_supported(
+        "Device does not support " + affinityDomainToString(AffinityDomain) +
+            ".",
+        PI_ERROR_INVALID_VALUE);
   }
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -347,6 +361,11 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_free_memory:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
     auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
         MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
@@ -401,5 +420,5 @@ std::string device_impl::getDeviceName() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

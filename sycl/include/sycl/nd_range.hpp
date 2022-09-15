@@ -13,8 +13,8 @@
 #include <sycl/range.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.
@@ -64,5 +64,5 @@ public:
   }
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

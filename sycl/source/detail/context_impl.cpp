@@ -21,8 +21,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -140,7 +140,8 @@ uint32_t context_impl::get_info<info::context::reference_count>() const {
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   if (is_host())
-    return platform();
+    return createSyclObjFromImpl<platform>(
+        platform_impl::getHostPlatformImpl());
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
@@ -229,5 +230,5 @@ bool context_impl::isBufferLocationSupported() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

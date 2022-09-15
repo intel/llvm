@@ -541,7 +541,7 @@ static llvm::MDNode *getAspectsMD(ASTContext &ASTContext,
 
 void CodeGenModule::Release() {
   Module *Primary = getContext().getModuleForCodeGen();
-  if (CXX20ModuleInits && Primary && !Primary->isModuleMapModule())
+  if (CXX20ModuleInits && Primary && !Primary->isHeaderLikeModule())
     EmitModuleInitializers(Primary);
   EmitDeferred();
   DeferredDecls.insert(EmittedDeferredDecls.begin(),
@@ -795,6 +795,9 @@ void CodeGenModule::Release() {
   if (CodeGenOpts.FunctionReturnThunks)
     getModule().addModuleFlag(llvm::Module::Override, "function_return_thunk_extern", 1);
 
+  if (CodeGenOpts.IndirectBranchCSPrefix)
+    getModule().addModuleFlag(llvm::Module::Override, "indirect_branch_cs_prefix", 1);
+
   // Add module metadata for return address signing (ignoring
   // non-leaf/all) and stack tagging. These are actually turned on by function
   // attributes, but we use module metadata to emit build attributes. This is
@@ -837,13 +840,15 @@ void CodeGenModule::Release() {
         llvm::MDString::get(Ctx, CodeGenOpts.MemoryProfileOutput));
   }
 
-  if ((LangOpts.CUDAIsDevice || LangOpts.isSYCL()) && getTriple().isNVPTX()) {
+  if ((LangOpts.CUDAIsDevice || LangOpts.SYCLIsDevice) && getTriple().isNVPTX()) {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
-                              CodeGenOpts.FP32DenormalMode.Output !=
-                                  llvm::DenormalMode::IEEE);
+                              (CodeGenOpts.FP32DenormalMode.Output !=
+                                  llvm::DenormalMode::IEEE) ||
+                              (CodeGenOpts.FPDenormalMode.Output !=
+                                  llvm::DenormalMode::IEEE));
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
@@ -2251,6 +2256,19 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
         VD->getStorageDuration() == SD_Static)
       addUsedOrCompilerUsedGlobal(GV);
   }
+
+  if (getLangOpts().SYCLIsDevice) {
+    // Add internal device_global variables to llvm.compiler.used array to
+    // prevent early optimizations from removing these variables from the
+    // module.
+    if (D && isa<VarDecl>(D)) {
+      const auto *VD = cast<VarDecl>(D);
+      const RecordDecl *RD = VD->getType()->getAsRecordDecl();
+      if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>() &&
+          VD->getFormalLinkage() == InternalLinkage)
+        addUsedOrCompilerUsedGlobal(GV);
+    }
+  }
 }
 
 bool CodeGenModule::GetCPUAndFeaturesAttributes(GlobalDecl GD,
@@ -2661,21 +2679,23 @@ void CodeGenModule::EmitModuleInitializers(clang::Module *Primary) {
   // source, first Global Module Fragments, if present.
   if (auto GMF = Primary->getGlobalModuleFragment()) {
     for (Decl *D : getContext().getModuleInitializers(GMF)) {
-      assert(D->getKind() == Decl::Var && "GMF initializer decl is not a var?");
+      if (isa<ImportDecl>(D))
+        continue;
+      assert(isa<VarDecl>(D) && "GMF initializer decl is not a var?");
       EmitTopLevelDecl(D);
     }
   }
   // Second any associated with the module, itself.
   for (Decl *D : getContext().getModuleInitializers(Primary)) {
     // Skip import decls, the inits for those are called explicitly.
-    if (D->getKind() == Decl::Import)
+    if (isa<ImportDecl>(D))
       continue;
     EmitTopLevelDecl(D);
   }
   // Third any associated with the Privat eMOdule Fragment, if present.
   if (auto PMF = Primary->getPrivateModuleFragment()) {
     for (Decl *D : getContext().getModuleInitializers(PMF)) {
-      assert(D->getKind() == Decl::Var && "PMF initializer decl is not a var?");
+      assert(isa<VarDecl>(D) && "PMF initializer decl is not a var?");
       EmitTopLevelDecl(D);
     }
   }
@@ -4255,7 +4275,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // All MSVC dtors other than the base dtor are linkonce_odr and delegate to
     // each other bottoming out with the base dtor.  Therefore we emit non-base
     // dtors on usage, even if there is no dtor definition in the TU.
-    if (D && isa<CXXDestructorDecl>(D) &&
+    if (isa_and_nonnull<CXXDestructorDecl>(D) &&
         getCXXABI().useThunkForDtorVariant(cast<CXXDestructorDecl>(D),
                                            GD.getDtorType()))
       addDeferredDeclToEmit(GD);

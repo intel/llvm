@@ -86,8 +86,10 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ExitCodes.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Host.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -783,6 +785,8 @@ static bool addSYCLDefaultTriple(Compilation &C,
   /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (!C.getDriver().isSYCLDefaultTripleImplied())
     return false;
+  if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
+    return false;
   for (const auto &SYCLTriple : SYCLTriples) {
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
         SYCLTriple.isSPIR())
@@ -1055,6 +1059,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ),
       {"per_kernel", "per_source", "auto", "off"});
 
+  Arg *SYCLForceTarget =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
+  if (SYCLForceTarget) {
+    StringRef Val(SYCLForceTarget->getValue());
+    llvm::Triple TT(MakeSYCLDeviceTriple(Val));
+    if (!isValidSYCLTriple(TT))
+      Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+  }
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
@@ -1064,6 +1076,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
     if (SYCLTargetsValues) {
       if (SYCLTargetsValues->getNumValues()) {
+
+        // Multiple targets are currently not supported when using
+        // -fsycl-force-target as the bundler does not allow for multiple
+        // outputs of the same target.
+        if (SYCLForceTarget && SYCLTargetsValues->getNumValues() > 1)
+          Diag(clang::diag::err_drv_multiple_target_with_forced_target)
+              << SYCLTargetsValues->getAsString(C.getInputArgs())
+              << SYCLForceTarget->getAsString(C.getInputArgs());
+
         for (StringRef Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(MakeSYCLDeviceTriple(Val));
           if (!isValidSYCLTriple(TT)) {
@@ -1659,8 +1680,21 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (checkForSYCLDefaultDevice(*C, *TranslatedArgs))
     setSYCLDefaultTriple(true);
 
+  // Check missing targets in archives/objects based on inputs from the user.
+  checkForOffloadMismatch(*C, *TranslatedArgs);
+
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
+
+  // Use new offloading path for OpenMP.  This is disabled as the SYCL
+  // offloading path is not properly setup to use the updated device linking
+  // scheme.
+  if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
+       Args.hasFlag(options::OPT_fopenmp_new_driver,
+                    options::OPT_no_offload_new_driver, true)) ||
+      Args.hasFlag(options::OPT_offload_new_driver,
+                   options::OPT_no_offload_new_driver, false))
+    setUseNewOffloadingDriver();
 
   // Determine FPGA emulation status.
   if (C->hasOffloadToolChain<Action::OFK_SYCL>()) {
@@ -1818,10 +1852,35 @@ void Driver::generateCompilationDiagnostics(
   if (C.getArgs().hasArg(options::OPT_fno_crash_diagnostics))
     return;
 
-  // Don't try to generate diagnostics for link or dsymutil jobs.
-  if (FailingCommand.getCreator().isLinkJob() ||
-      FailingCommand.getCreator().isDsymutilJob())
+  unsigned Level = 1;
+  if (Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_EQ)) {
+    Level = llvm::StringSwitch<unsigned>(A->getValue())
+                .Case("off", 0)
+                .Case("compiler", 1)
+                .Case("all", 2)
+                .Default(1);
+  }
+  if (!Level)
     return;
+
+  // Don't try to generate diagnostics for dsymutil jobs.
+  if (FailingCommand.getCreator().isDsymutilJob())
+    return;
+
+  bool IsLLD = false;
+  TempFileList SavedTemps;
+  if (FailingCommand.getCreator().isLinkJob()) {
+    C.getDefaultToolChain().GetLinkerPath(&IsLLD);
+    if (!IsLLD || Level < 2)
+      return;
+
+    // If lld crashed, we will re-run the same command with the input it used
+    // to have. In that case we should not remove temp files in
+    // initCompilationForDiagnostics yet. They will be added back and removed
+    // later.
+    SavedTemps = std::move(C.getTempFiles());
+    assert(!C.getTempFiles().size());
+  }
 
   // Print the version of the compiler.
   PrintVersion(C, llvm::errs());
@@ -1916,6 +1975,18 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
+  // If lld failed, rerun it again with --reproduce.
+  if (IsLLD) {
+    const char *TmpName = CreateTempFile(C, "linker-crash", "tar");
+    Command NewLLDInvocation = Cmd;
+    llvm::opt::ArgStringList ArgList = NewLLDInvocation.getArguments();
+    ArgList.push_back(Saver.save(Twine{"--reproduce="} + TmpName).data());
+    NewLLDInvocation.replaceArguments(std::move(ArgList));
+
+    // Redirect stdout/stderr to /dev/null.
+    NewLLDInvocation.Execute({None, {""}, {""}}, nullptr, nullptr);
+  }
+
   const TempFileList &TempFiles = C.getTempFiles();
   if (TempFiles.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
@@ -1945,6 +2016,9 @@ void Driver::generateCompilationDiagnostics(
       llvm::sys::path::append(VFS, "vfs", "vfs.yaml");
     }
   }
+
+  for (auto &TempFile : SavedTemps)
+    C.addTempFile(TempFile.first);
 
   // Assume associated files are based off of the first temporary file.
   CrashReportInfo CrashInfo(TempFiles[0].first, VFS);
@@ -3116,6 +3190,72 @@ static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   return runBundler(BundlerArgs, C);
 }
 
+static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
+                                                      const StringRef &File) {
+  // Do not do the check if the file doesn't exist
+  if (!llvm::sys::fs::exists(File))
+    return {};
+
+  bool IsArchive = isStaticArchiveFile(File);
+  if (!(IsArchive || isObjectFile(File.str())))
+    return {};
+
+  // Use the bundler to grab the list of sections from the given archive
+  // or object.
+  StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
+  llvm::ErrorOr<std::string> BundlerBinary =
+      llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
+  const char *Input = C.getArgs().MakeArgString(Twine("-input=") + File.str());
+  // Always use -type=ao for bundle checking.  The 'bundles' are
+  // actually archives.
+  SmallVector<StringRef, 6> BundlerArgs = {
+      BundlerBinary.get(), IsArchive ? "-type=ao" : "-type=o", Input, "-list"};
+  // Since this is run in real time and not in the toolchain, output the
+  // command line if requested.
+  bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
+  if (C.getArgs().hasArg(options::OPT_v) || OutputOnly) {
+    for (StringRef A : BundlerArgs)
+      if (OutputOnly)
+        llvm::errs() << "\"" << A << "\" ";
+      else
+        llvm::errs() << A << " ";
+    llvm::errs() << '\n';
+  }
+  if (BundlerBinary.getError())
+    return {};
+  llvm::SmallString<64> OutputFile(
+      C.getDriver().GetTemporaryPath("bundle-list", "txt"));
+  llvm::FileRemover OutputRemover(OutputFile.c_str());
+  llvm::Optional<llvm::StringRef> Redirects[] = {
+      {""},
+      OutputFile.str(),
+      OutputFile.str(),
+  };
+
+  std::string ErrorMessage;
+  if (llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs, {}, Redirects,
+                                /*SecondsToWait*/ 0, /*MemoryLimit*/ 0,
+                                &ErrorMessage)) {
+    // Could not get the information, return false
+    return {};
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> OutputBuf =
+      llvm::MemoryBuffer::getFile(OutputFile.c_str());
+  if (!OutputBuf) {
+    // Could not capture output, return false
+    return {};
+  }
+
+  SmallVector<std::string, 4> Sections;
+  for (llvm::line_iterator LineIt(**OutputBuf); !LineIt.is_at_end(); ++LineIt)
+    Sections.push_back(LineIt->str());
+  if (Sections.empty())
+    return {};
+
+  return Sections;
+}
+
 static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   // Do not do the check if the file doesn't exist
   if (!llvm::sys::fs::exists(File))
@@ -3130,20 +3270,21 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   // file and the target triple being looked for.
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
-  const char *Inputs =
-      C.getArgs().MakeArgString(Twine("-input=") + File.str());
-  // Always use -type=ao for bundle checking.  The 'bundles' are
-  // actually archives.
+  const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + File.str());
   SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
                                            IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
-static bool hasOffloadSections(Compilation &C, const StringRef &Archive,
+static bool hasOffloadSections(Compilation &C, const StringRef &File,
                                DerivedArgList &Args) {
   // Do not do the check if the file doesn't exist
-  if (!llvm::sys::fs::exists(Archive))
+  if (!llvm::sys::fs::exists(File))
+    return false;
+
+  bool IsArchive = isStaticArchiveFile(File);
+  if (!(IsArchive || isObjectFile(File.str())))
     return false;
 
   llvm::Triple TT(C.getDefaultToolChain().getTriple());
@@ -3152,10 +3293,9 @@ static bool hasOffloadSections(Compilation &C, const StringRef &Archive,
   // TODO - Improve checking to check for explicit offload target instead
   // of the generic host availability.
   const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
-  const char *Inputs = Args.MakeArgString(Twine("-input=") + Archive.str());
-  // Always use -type=ao for bundle checking.  The 'bundles' are
-  // actually archives.
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
+  const char *Inputs = Args.MakeArgString(Twine("-input=") + File.str());
+  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
+                                           IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -3404,6 +3544,73 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
                hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCX));
     }
   return false;
+}
+
+// Goes through all of the arguments, including inputs expected for the
+// linker directly, to determine if the targets contained in the objects and
+// archives match target expectations being performed.
+void Driver::checkForOffloadMismatch(Compilation &C,
+                                     DerivedArgList &Args) const {
+  // Check only if enabled with -fsycl
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    return;
+
+  SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args, true));
+  // Gather all of the sections seen in the offload objects/archives
+  SmallVector<std::string, 4> UniqueSections;
+  for (StringRef OLArg : OffloadLibArgs) {
+    SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
+    for (auto Section : Sections) {
+      // We only care about sections that start with 'sycl-'.  Also remove
+      // the prefix before adding it.
+      std::string Prefix("sycl-");
+      if (Section.compare(0, Prefix.length(), Prefix) != 0)
+        continue;
+      std::string Arch = Section.substr(Prefix.length());
+      // There are a few different variants for FPGA, if we see one, just
+      // use the default FPGA triple to reduce possible match confusion.
+      if (Arch.compare(0, 4, "fpga") == 0)
+        Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
+      if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
+          UniqueSections.end())
+        UniqueSections.push_back(Arch);
+    }
+  }
+
+  if (!UniqueSections.size())
+    return;
+
+  // Put together list of user defined and implied targets, we will diagnose
+  // each target individually.
+  SmallVector<StringRef, 4> Targets;
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    for (const char *Val : A->getValues())
+      Targets.push_back(Val);
+  } else { // Implied targets
+    // No -fsycl-targets given, check based on -fintelfpga or default device
+    bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
+    // -fsycl -fintelfpga implies spir64_fpga
+    Targets.push_back(SYCLfpga ? "spir64_fpga" : getDefaultSYCLArch(C));
+  }
+
+  for (auto SyclTarget : Targets) {
+    // Match found sections with user and implied targets.
+    llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(SyclTarget));
+    // If any matching section is found, we are good.
+    if (std::find(UniqueSections.begin(), UniqueSections.end(), TT.str()) !=
+        UniqueSections.end())
+      continue;
+    // Didn't find any matches, return the full list for the diagnostic.
+    SmallString<128> ArchListStr;
+    int Cnt = 0;
+    for (std::string Section : UniqueSections) {
+      if (Cnt)
+        ArchListStr += ", ";
+      ArchListStr += Section;
+      Cnt++;
+    }
+    Diag(diag::warn_drv_sycl_target_missing) << SyclTarget << ArchListStr;
+  }
 }
 
 /// Check whether the given input tree contains any clang-offload-dependency
@@ -4473,6 +4680,9 @@ class OffloadingActionBuilder final {
     /// List of static archives to extract FPGA dependency info from
     ActionList FPGAArchiveInputs;
 
+    // SYCLInstallation is needed in order to link SYCLDeviceLibs
+    SYCLInstallationDetector SYCLInstallation;
+
     /// List of GPU architectures to use in this compilation with NVPTX/AMDGCN
     /// targets.
     SmallVector<std::pair<llvm::Triple, const char *>, 8> GpuArchList;
@@ -4513,7 +4723,8 @@ class OffloadingActionBuilder final {
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs,
                       OffloadingActionBuilder &OAB)
-        : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB) {}
+        : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
+          SYCLInstallation(C.getDriver()) {}
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4892,10 +5103,8 @@ class OffloadingActionBuilder final {
         }
       }
 
-      const toolchains::SYCLToolChain *SYCLTC =
-          static_cast<const toolchains::SYCLToolChain *>(TC);
       SmallVector<SmallString<128>, 4> LibLocCandidates;
-      SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+      SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
@@ -4948,20 +5157,100 @@ class OffloadingActionBuilder final {
               auto *SYCLDeviceLibsUnbundleAction =
                   C.MakeAction<OffloadUnbundlingJobAction>(
                       SYCLDeviceLibsInputAction);
-              addDeviceDepences(SYCLDeviceLibsUnbundleAction);
-              DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+
+              // We are using BoundArch="" here since the NVPTX bundles in
+              // the devicelib .o files do not contain any arch information
+              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+                      Action::OFK_SYCL);
+              auto *SYCLDeviceLibsDependenciesAction =
+                  C.MakeAction<OffloadAction>(
+                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
               if (!LibLocSelected)
                 LibLocSelected = !LibLocSelected;
             }
           }
         }
       };
+
       addInputs(sycl_device_wrapper_libs);
-      if (isSpirvAOT)
+      if (isSpirvAOT || TC->getTriple().isNVPTX())
         addInputs(sycl_device_fallback_libs);
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         addInputs(sycl_device_annotation_libs);
+
+      // For NVPTX backend we need to also link libclc and CUDA libdevice
+      // at the same stage that we link all of the unbundled SYCL libdevice
+      // objects together.
+      if (TC->getTriple().isNVPTX() && NumOfDeviceLibLinked) {
+        std::string LibSpirvFile;
+        if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
+          auto ProvidedPath =
+              Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
+          if (llvm::sys::fs::exists(ProvidedPath))
+            LibSpirvFile = ProvidedPath;
+        } else {
+          SmallVector<StringRef, 8> LibraryPaths;
+
+          // Expected path w/out install.
+          SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
+          llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+          LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+          // Expected path w/ install.
+          SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
+          llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
+          LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+          // Select remangled libclc variant
+          std::string LibSpirvTargetName =
+              (TC->getAuxTriple()->isOSWindows())
+                  ? "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl."
+                    "bc"
+                  : "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl."
+                    "bc";
+
+          for (StringRef LibraryPath : LibraryPaths) {
+            SmallString<128> LibSpirvTargetFile(LibraryPath);
+            llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+            if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+                Args.hasArg(options::OPT__HASH_HASH_HASH)) {
+              LibSpirvFile = std::string(LibSpirvTargetFile.str());
+              break;
+            }
+          }
+        }
+
+        if (!LibSpirvFile.empty()) {
+          Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                             Args.MakeArgString(LibSpirvFile));
+          auto *SYCLLibClcInputAction =
+              C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
+          DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+        }
+
+        const toolchains::CudaToolChain *CudaTC =
+            static_cast<const toolchains::CudaToolChain *>(TC);
+        for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+          const char *BoundArch =
+              SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
+          std::string LibDeviceFile =
+              CudaTC->CudaInstallation.getLibDeviceFile(BoundArch);
+          if (!LibDeviceFile.empty()) {
+            Arg *CudaDeviceLibInputArg =
+                MakeInputArg(Args, C.getDriver().getOpts(),
+                             Args.MakeArgString(LibDeviceFile));
+            auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
+                *CudaDeviceLibInputArg, types::TY_LLVM_BC);
+            DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
+          }
+        }
+      }
       return NumOfDeviceLibLinked != 0;
     }
 
@@ -5111,11 +5400,12 @@ class OffloadingActionBuilder final {
         // When spv online link is supported by all backends, the fallback
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
-        if (isSPIR) {
+        if (isSPIR || isNVPTX) {
           bool UseJitLink =
+              isSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
                            options::OPT_fno_sycl_device_lib_jit_link, false);
-          bool UseAOTLink = isSpirvAOT || !UseJitLink;
+          bool UseAOTLink = isSPIR && (isSpirvAOT || !UseJitLink);
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, FullLinkObjects, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
@@ -5300,7 +5590,6 @@ class OffloadingActionBuilder final {
         } else
           continue;
 
-        A->claim();
         auto ParsedArg = Opts.ParseOneArg(Args, Index);
 
         // TODO: Support --no-cuda-gpu-arch, --{,no-}cuda-gpu-arch=all.
@@ -5330,6 +5619,7 @@ class OffloadingActionBuilder final {
           }
           ParsedArg->claim();
           GpuArchList.emplace_back(*TargetBE, ArchStr);
+          A->claim();
         }
       }
 
@@ -8077,6 +8367,36 @@ static bool HasPreprocessOutput(const Action &JA) {
   return false;
 }
 
+const char *Driver::CreateTempFile(Compilation &C, StringRef Prefix,
+                                   StringRef Suffix, bool MultipleArchs,
+                                   StringRef BoundArch,
+                                   types::ID Type) const {
+  SmallString<128> TmpName;
+  Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_dir);
+  if (CCGenDiagnostics && A) {
+    SmallString<128> CrashDirectory(A->getValue());
+    if (!getVFS().exists(CrashDirectory))
+      llvm::sys::fs::create_directories(CrashDirectory);
+    llvm::sys::path::append(CrashDirectory, Prefix);
+    const char *Middle = !Suffix.empty() ? "-%%%%%%." : "-%%%%%%";
+    std::error_code EC = llvm::sys::fs::createUniqueFile(
+        CrashDirectory + Middle + Suffix, TmpName);
+    if (EC) {
+      Diag(clang::diag::err_unable_to_make_temp) << EC.message();
+      return "";
+    }
+  } else {
+    if (MultipleArchs && !BoundArch.empty()) {
+      TmpName = GetTemporaryDirectory(Prefix);
+      llvm::sys::path::append(TmpName,
+                              Twine(Prefix) + "-" + BoundArch + "." + Suffix);
+    } else {
+      TmpName = GetTemporaryPath(Prefix, Suffix);
+    }
+  }
+  return C.addTempFile(C.getArgs().MakeArgString(TmpName), Type);
+}
+
 const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
                                        const char *BaseInput,
                                        StringRef OrigBoundArch, bool AtTopLevel,
@@ -8174,31 +8494,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
-    SmallString<128> TmpName;
     const char *Suffix = types::getTypeTempSuffix(JA.getType(), IsCLMode());
-    Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_dir);
-    if (CCGenDiagnostics && A) {
-      SmallString<128> CrashDirectory(A->getValue());
-      if (!getVFS().exists(CrashDirectory))
-        llvm::sys::fs::create_directories(CrashDirectory);
-      llvm::sys::path::append(CrashDirectory, Split.first);
-      const char *Middle = Suffix ? "-%%%%%%." : "-%%%%%%";
-      std::error_code EC = llvm::sys::fs::createUniqueFile(
-          CrashDirectory + Middle + Suffix, TmpName);
-      if (EC) {
-        Diag(clang::diag::err_unable_to_make_temp) << EC.message();
-        return "";
-      }
-    } else {
-      if (MultipleArchs && !BoundArch.empty()) {
-        TmpName = GetTemporaryDirectory(Split.first);
-        llvm::sys::path::append(TmpName,
-                                Split.first + "-" + BoundArch + "." + Suffix);
-      } else {
-        TmpName = GetTemporaryPath(Split.first, Suffix);
-      }
-    }
-    return C.addTempFile(C.getArgs().MakeArgString(TmpName), JA.getType());
+    return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
+                          JA.getType());
   }
 
   SmallString<128> BasePath(BaseInput);

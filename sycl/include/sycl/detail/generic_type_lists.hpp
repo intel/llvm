@@ -18,8 +18,8 @@
 // types of parameters to kernel functions
 
 // Forward declarations
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
 namespace detail {
@@ -28,11 +28,11 @@ class half;
 }
 } // namespace detail
 using half = detail::half_impl::half;
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace gtl {
 // floating point types
@@ -557,5 +557,5 @@ using nonlocal_address_space_list =
                        access::address_space::ext_intel_global_host_space>;
 } // namespace gvl
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

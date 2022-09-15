@@ -32,33 +32,9 @@
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+// Here we simplify the KernelFunc param is simplified to be
 // _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
 // these macros are #undef immediately.
-
-// replace _CODELOCPARAM(&CodeLoc) with nothing
-// or :   , const detail::code_location &CodeLoc =
-// detail::code_location::current()
-// replace _CODELOCARG(&CodeLoc) with nothing
-// or :  const detail::code_location &CodeLoc = {}
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
-
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
 #ifdef __SYCL_NONCONST_FUNCTOR__
@@ -75,8 +51,8 @@
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class context;
@@ -187,6 +163,8 @@ public:
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), async_handler{}, PropList) {}
@@ -197,6 +175,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
@@ -223,6 +203,8 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const property_list &PropList = {});
 
@@ -234,6 +216,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
@@ -486,7 +470,7 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename PropertyT> bool has_property() const;
+  template <typename PropertyT> bool has_property() const noexcept;
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
@@ -1027,8 +1011,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<
-      ext::oneapi::detail::AreAllButLastReductions<RestT...>::value, event>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
@@ -1081,11 +1064,7 @@ public:
         CodeLoc);
   }
 
-// Clean up CODELOC and KERNELFUNC macros.
-#undef _CODELOCPARAM
-#undef _CODELOCONLYPARAM
-#undef _CODELOCARG
-#undef _CODELOCFW
+// Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
@@ -1162,8 +1141,7 @@ private:
   /// \param Range specifies the global work space of the kernel
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename... RestT>
-  std::enable_if_t<
-      ext::oneapi::detail::AreAllButLastReductions<RestT...>::value, event>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
@@ -1301,8 +1279,8 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 #endif // __SYCL_USE_FALLBACK_ASSERT
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::queue> {

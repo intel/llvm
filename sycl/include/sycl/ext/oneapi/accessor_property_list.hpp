@@ -13,10 +13,11 @@
 #include <sycl/detail/property_list_base.hpp>
 #include <sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-template <typename, int, access::mode, access::target, access::placeholder,
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
 namespace detail {
@@ -40,7 +41,8 @@ template <typename T> struct is_compile_time_property : std::false_type {};
 ///
 /// \ingroup sycl_api
 template <typename... PropsT>
-class accessor_property_list : protected sycl::detail::PropertyListBase {
+class __SYCL_TYPE(accessor_property_list) accessor_property_list
+    : protected sycl::detail::PropertyListBase {
   // These structures check if compile-time-constant property is present in
   // list. For runtime properties this check is always true.
   template <class T, class U> struct AreSameTemplate : std::is_same<T, U> {};
@@ -212,6 +214,10 @@ public:
   }
 #endif
 
+  operator sycl::property_list() const {
+    return property_list(MDataLessProps, MPropsWithData);
+  }
+
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
@@ -232,5 +238,5 @@ private:
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

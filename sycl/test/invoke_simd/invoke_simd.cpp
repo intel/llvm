@@ -1,4 +1,4 @@
-// RUN: %clangxx -c -fsycl %s
+// RUN: %clangxx -c -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s
 
 // The tests checks that invoke_simd API is compileable.
 
@@ -35,9 +35,9 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
   return a + b;
 }
 
-SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
-                                      int i) SYCL_ESIMD_FUNCTION;
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
+                                          int i) SYCL_ESIMD_FUNCTION;
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
@@ -84,7 +84,8 @@ int main(void) {
   queue q(ESIMDSelector{}, createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
   // TODO: release memory in the end of the test
   float *A =
@@ -151,9 +152,9 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
-                                      int i) SYCL_ESIMD_FUNCTION {
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
+                                          int i) SYCL_ESIMD_FUNCTION {
   esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
   return res;
 }
@@ -307,4 +308,3 @@ void check_not_f(char ch) {
   assert_is_not_func(capt_lambda);
   assert_is_not_func(non_capt_lambda);
 }
-// }

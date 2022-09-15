@@ -9,9 +9,9 @@
 #pragma once
 
 #include <detail/config.hpp>
+#include <detail/device_binary_image.hpp>
 #include <fcntl.h>
 #include <string>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/util.hpp>
@@ -20,8 +20,8 @@
 #include <thread>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 /* This is temporary solution until std::filesystem is available when SYCL RT
@@ -192,5 +192,5 @@ public:
   }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

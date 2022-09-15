@@ -474,7 +474,7 @@ namespace {
 inline namespace other {
   device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
 }                               // with same name in enclosing namespace scope
-inline namespace {
+inline namespace other2 {
   namespace foo {               // ILLEGAL: namespace name shadows "::foo"
   }                             // namespace which contains "device_global"
                                 // variable.

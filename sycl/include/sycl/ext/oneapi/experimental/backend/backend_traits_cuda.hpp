@@ -30,8 +30,8 @@ typedef struct CUstream_st *CUstream;
 typedef struct CUevent_st *CUevent;
 typedef struct CUmod_st *CUmodule;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -58,12 +58,6 @@ template <> struct interop<backend::ext_oneapi_cuda, queue> {
 template <> struct interop<backend::ext_oneapi_cuda, platform> {
   using type = std::vector<CUdevice>;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-#endif
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendInput<backend::ext_oneapi_cuda,
@@ -117,16 +111,6 @@ template <> struct BackendReturn<backend::ext_oneapi_cuda, platform> {
   using type = std::vector<CUdevice>;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-#endif
-
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = true;
@@ -139,5 +123,5 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

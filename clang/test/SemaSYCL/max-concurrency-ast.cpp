@@ -3,7 +3,7 @@
 // Tests for AST of Intel FPGA max concurrency function attribute.
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: FunctionDecl {{.*}} func1 'void ()'

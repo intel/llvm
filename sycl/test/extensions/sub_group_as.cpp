@@ -26,9 +26,7 @@ int main(int argc, char *argv[]) {
     queue.submit([&](sycl::handler &cgh) {
       auto global = buf.get_access<sycl::access::mode::read_write,
                                    sycl::access::target::device>(cgh);
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::local>
-          local(N, cgh);
+      sycl::local_accessor<int, 1> local(N, cgh);
 
       cgh.parallel_for<class test>(
           sycl::nd_range<1>(N, 32), [=](sycl::nd_item<1> it) {
@@ -91,19 +89,19 @@ int main(int argc, char *argv[]) {
   // CHECK-O3: call spir_func void {{.*}}assert
 
   // load() accepting raw pointers method
-  // CHECK-O0: define{{.*}}spir_func i32 {{.*}}cl4sycl3ext6oneapi9sub_group4load{{.*}}addrspace(4) %
+  // CHECK-O0: define{{.*}}spir_func i32 {{.*}}4sycl3_V13ext6oneapi9sub_group4load{{.*}}addrspace(4) %
   // CHECK-O0: call spir_func ptr addrspace(3) {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func i32 {{.*}}sycl3ext6oneapi9sub_group4load{{.*}}ptr addrspace(3) %
+  // CHECK-O0: call spir_func i32 {{.*}}sycl3_V13ext6oneapi9sub_group4load{{.*}}ptr addrspace(3) %
   // CHECK-O0: call spir_func ptr addrspace(1) {{.*}}SYCL_GenericCastToPtrExplicit_ToGlobal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func i32 {{.*}}sycl3ext6oneapi9sub_group4load{{.*}}ptr addrspace(1) %
+  // CHECK-O0: call spir_func i32 {{.*}}sycl3_V13ext6oneapi9sub_group4load{{.*}}ptr addrspace(1) %
   // CHECK-O0: call spir_func void {{.*}}assert
 
   // store() accepting raw pointers method
-  // CHECK-O0: define{{.*}}spir_func void {{.*}}cl4sycl3ext6oneapi9sub_group5store{{.*}}ptr addrspace(4) %
+  // CHECK-O0: define{{.*}}spir_func void {{.*}}4sycl3_V13ext6oneapi9sub_group5store{{.*}}ptr addrspace(4) %
   // CHECK-O0: call spir_func ptr addrspace(3) {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func void {{.*}}cl4sycl3ext6oneapi9sub_group5store{{.*}}, ptr addrspace(3) %
+  // CHECK-O0: call spir_func void {{.*}}4sycl3_V13ext6oneapi9sub_group5store{{.*}}, ptr addrspace(3) %
   // CHECK-O0: call spir_func ptr addrspace(1) {{.*}}SYCL_GenericCastToPtrExplicit_ToGlobal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func void {{.*}}cl4sycl3ext6oneapi9sub_group5store{{.*}}, ptr addrspace(1) %
+  // CHECK-O0: call spir_func void {{.*}}4sycl3_V13ext6oneapi9sub_group5store{{.*}}, ptr addrspace(1) %
   // CHECK-O0: call spir_func void {{.*}}assert
 
   // CHECK-O0: define {{.*}}spir_func ptr addrspace(3) {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4) %

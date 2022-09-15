@@ -14,12 +14,12 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 /// Reading the value of a specialization constant
 ///
 /// \ingroup sycl_api
-class kernel_handler {
+class __SYCL_TYPE(kernel_handler) kernel_handler {
 public:
 #if __cplusplus >= 201703L
   template <auto &S>
@@ -69,5 +69,5 @@ private:
   char *MSpecializationConstantsBuffer = nullptr;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

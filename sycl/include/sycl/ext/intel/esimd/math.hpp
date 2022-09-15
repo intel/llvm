@@ -21,8 +21,9 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_math
 /// @{
@@ -678,10 +679,10 @@ pack_mask(simd_mask<N> src0) {
 /// @return an \c uint, where each bit is set if the corresponding element of
 /// the source operand is non-zero and unset otherwise.
 template <typename T, int N>
-__ESIMD_API
-    std::enable_if_t<detail::is_type<T, ushort, uint>() && (N > 0 && N <= 32),
-                     uint>
-    ballot(simd<T, N> mask) {
+__ESIMD_API std::enable_if_t<(std::is_same_v<T, ushort> ||
+                              std::is_same_v<T, uint>)&&(N > 0 && N <= 32),
+                             uint>
+ballot(simd<T, N> mask) {
   simd_mask<N> cmp = (mask != 0);
   if constexpr (N == 8 || N == 16 || N == 32) {
     return __esimd_pack_mask<N>(cmp.data());
@@ -1085,5 +1086,6 @@ ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
 
 /// @} sycl_esimd_math
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

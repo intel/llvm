@@ -1,3 +1,4 @@
+// RUN: %clangxx %fsycl-host-only -DUSE_DEPRECATED_LOCAL_ACC -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
 #include <sycl/sycl.hpp>
@@ -30,9 +31,14 @@ int main() {
     sycl::sampler samp(sycl::coordinate_normalization_mode::normalized,
                        sycl::addressing_mode::clamp,
                        sycl::filtering_mode::nearest);
+#ifdef USE_DEPRECATED_LOCAL_ACC
     sycl::accessor<int, 1, sycl::access::mode::read_write,
                    sycl::access::target::local>
         local_acc({size}, h);
+#else
+    sycl::local_accessor<int, 1> local_acc({size}, h);
+#endif
+
     TriviallyCopyable tc{1, 2};
     NonTriviallyCopyable ntc;
     h.set_arg(0, local_acc);

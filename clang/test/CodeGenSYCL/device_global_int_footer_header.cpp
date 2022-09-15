@@ -7,14 +7,14 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl::ext::oneapi;
+using namespace sycl::ext::oneapi;
 
 int main() {
-  cl::sycl::kernel_single_task<class first_kernel>([]() {});
+  sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK-HEADER: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-HEADER-NEXT: namespace sycl {
+// CHECK-HEADER: namespace sycl {
+// CHECK-HEADER-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-HEADER-NEXT: namespace detail {
 // CHECK-HEADER-NEXT: namespace {
 // CHECK-HEADER-NEXT: class __sycl_device_global_registration {
@@ -24,8 +24,8 @@ int main() {
 // CHECK-HEADER-NEXT: __sycl_device_global_registration __sycl_device_global_registrar;
 // CHECK-HEADER-NEXT: } // namespace
 // CHECK-HEADER: } // namespace detail
+// CHECK-HEADER: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 // CHECK-HEADER: } // namespace sycl
-// CHECK-HEADER: } // __SYCL_INLINE_NAMESPACE(cl)
 
 // CHECK-FOOTER: #include <sycl/detail/defines_elementary.hpp>
 

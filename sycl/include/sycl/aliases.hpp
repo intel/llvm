@@ -14,16 +14,16 @@
 #include <cstddef>
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
 namespace detail {
 namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::vec<TYPE, N>;
@@ -64,8 +64,8 @@ class half;
   __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
   __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
 using schar = signed char;
 using uchar = unsigned char;
@@ -93,8 +93,8 @@ __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __SYCL_MAKE_VECTOR_ALIAS
 #undef __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES

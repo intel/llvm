@@ -135,6 +135,8 @@ MODULE_PASS("SYCLMutatePrintfAddrspace", SYCLMutatePrintfAddrspacePass())
 MODULE_PASS("SPIRITTAnnotations", SPIRITTAnnotationsPass())
 MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
+MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperMDPass())
+MODULE_PASS("sycl-propagate-aspects-usage", SYCLPropagateAspectsUsagePass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -484,6 +486,13 @@ FUNCTION_PASS_WITH_PARAMS("print<stack-lifetime>",
                            },
                           parseStackLifetimeOptions,
                           "may;must")
+FUNCTION_PASS_WITH_PARAMS("print<da>",
+                          "DependenceAnalysisPrinterPass",
+                           [](bool NormalizeResults) {
+                             return DependenceAnalysisPrinterPass(dbgs(), NormalizeResults);
+                           },
+                          parseDependenceAnalysisPrinterOptions,
+                          "normalized-results")
 #undef FUNCTION_PASS_WITH_PARAMS
 
 #ifndef LOOPNEST_PASS

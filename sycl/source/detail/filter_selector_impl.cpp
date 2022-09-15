@@ -19,8 +19,8 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -63,13 +63,13 @@ filter create_filter(const std::string &Input) {
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.HasDeviceType) {
-      Result.DeviceType = info::device_type::cpu;
+      Result.DeviceType = sycl::info::device_type::cpu;
       Result.HasDeviceType = true;
     } else if (Token == "gpu" && !Result.HasDeviceType) {
-      Result.DeviceType = info::device_type::gpu;
+      Result.DeviceType = sycl::info::device_type::gpu;
       Result.HasDeviceType = true;
     } else if (Token == "accelerator" && !Result.HasDeviceType) {
-      Result.DeviceType = info::device_type::accelerator;
+      Result.DeviceType = sycl::info::device_type::accelerator;
       Result.HasDeviceType = true;
     } else if (Token == "opencl" && !Result.HasBackend) {
       Result.Backend = backend::opencl;
@@ -142,9 +142,10 @@ int filter_selector_impl::operator()(const device &Dev) const {
         BackendOK = (BE == Filter.Backend);
     }
     if (Filter.HasDeviceType) {
-      info::device_type DT = Dev.get_info<info::device::device_type>();
+      sycl::info::device_type DT =
+          Dev.get_info<sycl::info::device::device_type>();
       // DeviceType is okay if the filter is set 'all'.
-      if (Filter.DeviceType == info::device_type::all)
+      if (Filter.DeviceType == sycl::info::device_type::all)
         DeviceTypeOK = true;
       else
         DeviceTypeOK = (DT == Filter.DeviceType);
@@ -190,7 +191,7 @@ void filter_selector_impl::reset() const {
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
+using namespace ext::oneapi;
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

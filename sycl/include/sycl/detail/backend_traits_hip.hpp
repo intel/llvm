@@ -29,8 +29,8 @@ typedef struct ihipEvent_t *HIPevent;
 typedef struct ihipModule_t *HIPmodule;
 typedef void *HIPdeviceptr;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -57,12 +57,6 @@ template <> struct interop<backend::ext_oneapi_hip, queue> {
 template <> struct interop<backend::ext_oneapi_hip, platform> {
   using type = std::vector<HIPdevice>;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_hip, program> {
-  using type = HIPmodule;
-};
-#endif
 
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
@@ -125,16 +119,6 @@ template <> struct BackendReturn<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_hip, program> {
-  using type = HIPmodule;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_hip, program> {
-  using type = HIPmodule;
-};
-#endif
-
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_hip> {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = false;
@@ -147,5 +131,5 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_hip> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

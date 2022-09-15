@@ -19,8 +19,8 @@
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // TODO: make code thread-safe
 
 // Forward declaration
@@ -44,7 +44,7 @@ class filter_selector;
 /// \ingroup sycl_api
 class __SYCL_EXPORT platform {
 public:
-  /// Constructs a SYCL platform as a host platform.
+  /// Constructs a SYCL platform using the default device.
   platform();
 
   /// Constructs a SYCL platform instance from an OpenCL cl_platform_id.
@@ -64,6 +64,8 @@ public:
   /// provided device selector.
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   explicit platform(const device_selector &DeviceSelector);
 
 #if __cplusplus >= 201703L
@@ -170,8 +172,8 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 }; // class platform
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::platform> {

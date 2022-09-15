@@ -22,8 +22,8 @@
 #include <set>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
@@ -373,19 +373,8 @@ __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
 
-inline auto getDeviceComparisonLambda() {
-  return [](device a, device b) { return a.getNative() != b.getNative(); };
-}
-
-inline const std::vector<device>
-removeDuplicateDevices(const std::vector<device> &Devs) {
-  auto compareDevices = getDeviceComparisonLambda();
-  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
-      Devs.begin(), Devs.end(), compareDevices);
-  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
-                                    UniqueDeviceSet.end());
-  return UniqueDevices;
-}
+__SYCL_EXPORT const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs);
 
 } // namespace detail
 
@@ -584,10 +573,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
-// TODO: This is no longer in use. Remove when ABI break is allowed.
-__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
-
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
           bundle_state State);
@@ -723,8 +708,8 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::kernel_id> {

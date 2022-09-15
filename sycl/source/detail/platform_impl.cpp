@@ -21,8 +21,8 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
@@ -142,7 +142,8 @@ std::vector<platform> platform_impl::get_platforms() {
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   if (!FilterList || FilterList->backendCompatible(backend::host))
-    Platforms.emplace_back(platform());
+    Platforms.emplace_back(
+        createSyclObjFromImpl<platform>(platform_impl::getHostPlatformImpl()));
 
   return Platforms;
 }
@@ -212,21 +213,22 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   Plugin.setLastDeviceId(Platform, DeviceNum);
 }
 
+std::shared_ptr<device_impl>
+platform_impl::getDeviceImpl(RT::PiDevice PiDevice) {
+  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+  return getDeviceImplHelper(PiDevice);
+}
+
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
     RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
-
   // If we've already seen this device, return the impl
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == PiDevice)
-        return Device;
-    }
-  }
+  std::shared_ptr<device_impl> Result = getDeviceImplHelper(PiDevice);
+  if (Result)
+    return Result;
 
   // Otherwise make the impl
-  std::shared_ptr<device_impl> Result =
-      std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  Result = std::make_shared<device_impl>(PiDevice, PlatformImpl);
   MDeviceCache.emplace_back(Result);
 
   return Result;
@@ -240,7 +242,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // If SYCL_DEVICE_FILTER is set, check if filter contains host.
     device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
     if (!FilterList || FilterList->containsHost()) {
-      Res.push_back(device());
+      Res.push_back(
+          createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
     }
   }
 
@@ -332,6 +335,17 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
+std::shared_ptr<device_impl>
+platform_impl::getDeviceImplHelper(RT::PiDevice PiDevice) {
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
+  }
+  return nullptr;
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template ReturnT platform_impl::get_info<info::platform::Desc>() const;
 
@@ -339,5 +353,5 @@ bool platform_impl::has(aspect Aspect) const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

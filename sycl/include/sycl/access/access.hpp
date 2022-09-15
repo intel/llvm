@@ -10,14 +10,14 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace access {
 
 enum class target {
   global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
   constant_buffer = 2015,
-  local = 2016,
+  local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
   host_buffer = 2018,
   host_image = 2019,
@@ -45,19 +45,12 @@ enum class placeholder { false_t = 0, true_t = 1 };
 enum class address_space : int {
   private_space = 0,
   global_space = 1,
-  constant_space = 2,
+  constant_space __SYCL2020_DEPRECATED("sycl::access::address_space::constant_"
+                                       "space is deprecated since SYCL 2020") =
+      2,
   local_space = 3,
   ext_intel_global_device_space = 4,
   ext_intel_global_host_space = 5,
-  global_device_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_device_space' instead") =
-      ext_intel_global_device_space,
-  global_host_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_host_space' instead") =
-      ext_intel_global_host_space,
-  ext_intel_host_device_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_global_host_space' instead") =
-      ext_intel_global_host_space,
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
@@ -192,9 +185,9 @@ template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
   // of emitting incorrect (in terms of OpenCL) address space casts from
-  // constant to generic (and vise-versa). So, global address space is used here
-  // instead of constant to avoid incorrect address space casts in the produced
-  // device code.
+  // constant to generic (and vise-versa). So, global address space is used
+  // here instead of constant to avoid incorrect address space casts in the
+  // produced device code.
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   using type = const __OPENCL_GLOBAL_AS__ ElementType;
 #else
@@ -212,8 +205,11 @@ template <class T> struct remove_AS {
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <class T> struct deduce_AS {
-  static_assert(!std::is_same<typename detail::remove_AS<T>::type, T>::value,
-                "Only types with address space attributes are supported");
+  // Undecorated pointers are considered generic.
+  // TODO: This assumes that the implementation uses generic as default. If
+  //       address space inference is used this may need to change.
+  static const access::address_space value =
+      access::address_space::generic_space;
 };
 
 template <class T> struct remove_AS<__OPENCL_GLOBAL_AS__ T> {
@@ -280,5 +276,5 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_PRIVATE_AS__
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

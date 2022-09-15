@@ -17,8 +17,8 @@
 
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class Builder;
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -160,5 +160,5 @@ template <int Dims> item<Dims> this_item() {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

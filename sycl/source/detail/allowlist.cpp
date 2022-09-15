@@ -14,8 +14,8 @@
 #include <algorithm>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 constexpr char BackendNameKeyName[] = "BackendName";
@@ -400,5 +400,5 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

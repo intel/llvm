@@ -11,8 +11,8 @@
 
 #include <sycl/backend.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace opencl {
 // Implementation of various "make" functions resides in SYCL RT because
 // creating SYCL objects requires knowing details not accessible here.
@@ -22,10 +22,6 @@ namespace opencl {
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
 __SYCL_EXPORT device make_device(pi_native_handle NativeHandle);
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle);
-#ifdef __SYCL_INTERNAL_API
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle);
-#endif
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle);
 
@@ -53,17 +49,6 @@ T make(typename detail::interop<backend::opencl, T>::type Interop) {
   return make_context(detail::pi::cast<pi_native_handle>(Interop));
 }
 
-// Construction of SYCL program.
-#ifdef __SYCL_INTERNAL_API
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, program>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_program free function")
-T make(const context &Context,
-       typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_program(Context, detail::pi::cast<pi_native_handle>(Interop));
-}
-#endif
-
 // Construction of SYCL queue.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
@@ -73,5 +58,5 @@ T make(const context &Context,
   return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
 } // namespace opencl
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

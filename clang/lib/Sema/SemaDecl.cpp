@@ -2918,6 +2918,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLDeviceHasAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
     NewAttr = S.MergeSYCLUsesAspectsAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLTypeAttr>(Attr))
+    NewAttr = S.MergeSYCLTypeAttr(D, *A, A->getType());
   else if (const auto *A = dyn_cast<SYCLIntelPipeIOAttr>(Attr))
     NewAttr = S.MergeSYCLIntelPipeIOAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
@@ -3081,7 +3083,7 @@ static void checkNewAttributesAfterDef(Sema &S, Decl *New, const Decl *Old) {
       continue;
     } else if (isa<OMPDeclareVariantAttr>(NewAttribute)) {
       // We allow to add OMP[Begin]DeclareVariantAttr to be added to
-      // declarations after defintions.
+      // declarations after definitions.
       ++I;
       continue;
     }
@@ -7678,13 +7680,32 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTSCSpec(TSCS);
   }
 
-  // Global variables with types decorated with device_global attribute must be
-  // static if they are declared in SYCL device code.
   if (getLangOpts().SYCLIsDevice) {
-    if (SCSpec != DeclSpec::SCS_static && !NewVD->hasGlobalStorage() &&
-        isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            NewVD->getType()))
-      Diag(D.getIdentifierLoc(), diag::err_sycl_device_global_incorrect_scope);
+    // device_global array is not allowed.
+    if (const ArrayType *AT = getASTContext().getAsArrayType(NewVD->getType()))
+      if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+              AT->getElementType()))
+        Diag(NewVD->getLocation(), diag::err_sycl_device_global_array);
+
+    // Global variables with types decorated with device_global attribute must
+    // be static if they are declared in SYCL device code.
+    if (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            NewVD->getType())) {
+      if (SCSpec == DeclSpec::SCS_static) {
+        const DeclContext *DC = NewVD->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            Diag(D.getIdentifierLoc(),
+                 diag::err_sycl_device_global_incorrect_scope);
+            break;
+          }
+          DC = DC->getParent();
+        }
+      } else if (!NewVD->hasGlobalStorage()) {
+        Diag(D.getIdentifierLoc(),
+             diag::err_sycl_device_global_incorrect_scope);
+      }
+    }
 
     // Static variables declared inside SYCL device code must be const or
     // constexpr unless their types are decorated with global_variable_allowed
@@ -10628,7 +10649,7 @@ static Attr *getImplicitCodeSegAttrFromClass(Sema &S, const FunctionDecl *FD) {
 /// (from the current #pragma code-seg value).
 ///
 /// \param FD Function being declared.
-/// \param IsDefinition Whether it is a definition or just a declarartion.
+/// \param IsDefinition Whether it is a definition or just a declaration.
 /// \returns A CodeSegAttr or SectionAttr to apply to the function or
 ///          nullptr if no attribute should be added.
 Attr *Sema::getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD,
@@ -11560,17 +11581,12 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
       CXXRecordDecl *Record = Destructor->getParent();
       QualType ClassType = Context.getTypeDeclType(Record);
 
-      // FIXME: Shouldn't we be able to perform this check even when the class
-      // type is dependent? Both gcc and edg can handle that.
-      if (!ClassType->isDependentType()) {
-        DeclarationName Name
-          = Context.DeclarationNames.getCXXDestructorName(
-                                        Context.getCanonicalType(ClassType));
-        if (NewFD->getDeclName() != Name) {
-          Diag(NewFD->getLocation(), diag::err_destructor_name);
-          NewFD->setInvalidDecl();
-          return Redeclaration;
-        }
+      DeclarationName Name = Context.DeclarationNames.getCXXDestructorName(
+          Context.getCanonicalType(ClassType));
+      if (NewFD->getDeclName() != Name) {
+        Diag(NewFD->getLocation(), diag::err_destructor_name);
+        NewFD->setInvalidDecl();
+        return Redeclaration;
       }
     } else if (auto *Guide = dyn_cast<CXXDeductionGuideDecl>(NewFD)) {
       if (auto *TD = Guide->getDescribedFunctionTemplate())
@@ -14765,7 +14781,7 @@ static void RebuildLambdaScopeInfo(CXXMethodDecl *CallOperator,
   auto I = LambdaClass->field_begin();
   for (const auto &C : LambdaClass->captures()) {
     if (C.capturesVariable()) {
-      VarDecl *VD = C.getCapturedVar();
+      ValueDecl *VD = C.getCapturedVar();
       if (VD->isInitCapture())
         S.CurrentInstantiationScope->InstantiatedLocal(VD, VD);
       const bool ByRef = C.getCaptureKind() == LCK_ByRef;
@@ -15566,8 +15582,8 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   // Because typo correction is expensive, only do it if the implicit
   // function declaration is going to be treated as an error.
   //
-  // Perform the corection before issuing the main diagnostic, as some consumers
-  // use typo-correction callbacks to enhance the main diagnostic.
+  // Perform the correction before issuing the main diagnostic, as some
+  // consumers use typo-correction callbacks to enhance the main diagnostic.
   if (S && !ExternCPrev &&
       (Diags.getDiagnosticLevel(diag_id, Loc) >= DiagnosticsEngine::Error)) {
     DeclFilterCCC<FunctionDecl> CCC{};
@@ -19290,7 +19306,7 @@ void Sema::ActOnPragmaRedefineExtname(IdentifierInfo* Name,
     else
       Diag(PrevDecl->getLocation(), diag::warn_redefine_extname_not_applied)
           << /*Variable*/(isa<FunctionDecl>(PrevDecl) ? 0 : 1) << PrevDecl;
-  // Otherwise, add a label atttibute to ExtnameUndeclaredIdentifiers.
+    // Otherwise, add a label attribute to ExtnameUndeclaredIdentifiers.
   } else
     (void)ExtnameUndeclaredIdentifiers.insert(std::make_pair(Name, Attr));
 }

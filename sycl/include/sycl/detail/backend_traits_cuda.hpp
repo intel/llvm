@@ -35,8 +35,8 @@ typedef unsigned long long CUdeviceptr;
 typedef unsigned int CUdeviceptr;
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -59,12 +59,6 @@ template <> struct interop<backend::ext_oneapi_cuda, event> {
 template <> struct interop<backend::ext_oneapi_cuda, queue> {
   using type = CUstream;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-#endif
 
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
@@ -127,16 +121,6 @@ template <> struct BackendReturn<backend::ext_oneapi_cuda, queue> {
   using type = CUstream;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-#endif
-
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

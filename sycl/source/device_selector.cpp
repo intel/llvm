@@ -24,8 +24,8 @@
 #include <cctype>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 
@@ -133,16 +133,15 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 
 } // namespace detail
 
-device device_selector::select_device() const {
-  return detail::select_device([&](const device &dev) { return (*this)(dev); });
-}
+// -------------- SYCL 2020
 
+/// default_selector_v
 /// Devices of different kinds are prioritized in the following order:
 /// 1. GPU
 /// 2. CPU
 /// 3. Host
 /// 4. Accelerator
-int default_selector::operator()(const device &dev) const {
+__SYCL_EXPORT int default_selector_v(const device &dev) {
   // The default selector doesn't reject any devices.
   int Score = 0;
 
@@ -170,7 +169,7 @@ int default_selector::operator()(const device &dev) const {
   return Score;
 }
 
-int gpu_selector::operator()(const device &dev) const {
+__SYCL_EXPORT int gpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_gpu()) {
@@ -180,7 +179,7 @@ int gpu_selector::operator()(const device &dev) const {
   return Score;
 }
 
-int cpu_selector::operator()(const device &dev) const {
+__SYCL_EXPORT int cpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_cpu()) {
@@ -190,7 +189,7 @@ int cpu_selector::operator()(const device &dev) const {
   return Score;
 }
 
-int accelerator_selector::operator()(const device &dev) const {
+__SYCL_EXPORT int accelerator_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_accelerator()) {
@@ -198,6 +197,30 @@ int accelerator_selector::operator()(const device &dev) const {
     Score += detail::getDevicePreference(dev);
   }
   return Score;
+}
+
+// -------------- SYCL 1.2.1
+
+// SYCL 1.2.1 device_selector class and sub-classes
+
+device device_selector::select_device() const {
+  return detail::select_device([&](const device &dev) { return (*this)(dev); });
+}
+
+int default_selector::operator()(const device &dev) const {
+  return default_selector_v(dev);
+}
+
+int gpu_selector::operator()(const device &dev) const {
+  return gpu_selector_v(dev);
+}
+
+int cpu_selector::operator()(const device &dev) const {
+  return cpu_selector_v(dev);
+}
+
+int accelerator_selector::operator()(const device &dev) const {
+  return accelerator_selector_v(dev);
 }
 
 int host_selector::operator()(const device &dev) const {
@@ -246,20 +269,19 @@ device filter_selector::select_device() const {
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  filter_selector::filter_selector(const std::string &Input)
-      : ext::oneapi::filter_selector(Input) {}
+using namespace ext::oneapi;
+filter_selector::filter_selector(const std::string &Input)
+    : ext::oneapi::filter_selector(Input) {}
 
-  int filter_selector::operator()(const device &Dev) const {
-    return ext::oneapi::filter_selector::operator()(Dev);
-  }
+int filter_selector::operator()(const device &Dev) const {
+  return ext::oneapi::filter_selector::operator()(Dev);
+}
 
-  void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
+void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
 
-  device filter_selector::select_device() const {
-    return ext::oneapi::filter_selector::select_device();
-  }
-} // namespace ONEAPI
-
+device filter_selector::select_device() const {
+  return ext::oneapi::filter_selector::select_device();
+}
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

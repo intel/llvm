@@ -184,7 +184,7 @@ constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
 constexpr ExecutionMode ExecutionModeStreamingInterfaceINTEL =
     static_cast<ExecutionMode>(IExecModeStreamingInterfaceINTEL);
 
-constexpr LoopControlMask LoopControlLoopCountINTELMask =
+static const LoopControlMask LoopControlLoopCountINTELMask =
     static_cast<LoopControlMask>(ILoopControlLoopCountINTELMask);
 
 } // namespace internal

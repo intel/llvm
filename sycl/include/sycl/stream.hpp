@@ -13,8 +13,8 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/handler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace detail {
 
@@ -797,11 +797,6 @@ private:
   // Offset of the WI's flush buffer in the pool.
   mutable unsigned WIOffset = 0;
 
-  // Offset in the flush buffer
-  // TODO: This field is not used anymore.
-  // To be removed when API/ABI changes are allowed.
-  mutable unsigned Offset = 0;
-
   mutable size_t FlushBufferSize;
 
   // Fields and methods to work with manipulators
@@ -1159,8 +1154,8 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 namespace std {
 template <> struct hash<sycl::stream> {
   size_t operator()(const sycl::stream &S) const {

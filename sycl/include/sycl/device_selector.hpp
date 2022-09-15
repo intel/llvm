@@ -13,8 +13,8 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
@@ -31,7 +31,8 @@ class filter_selector;
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT device_selector {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "Use Callable instead to select device.") device_selector {
 
 public:
   virtual ~device_selector() = default;
@@ -46,7 +47,9 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT default_selector : public device_selector {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "Use the callable sycl::default_selector_v instead.") default_selector
+    : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -56,7 +59,9 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT gpu_selector : public device_selector {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "Use the callable sycl::gpu_selector_v instead.") gpu_selector
+    : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -66,7 +71,9 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT cpu_selector : public device_selector {
+class __SYCL_EXPORT __SYCL2020_DEPRECATED(
+    "Use the callable sycl::cpu_selector_v instead.") cpu_selector
+    : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -76,7 +83,9 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT accelerator_selector : public device_selector {
+class __SYCL_EXPORT
+__SYCL2020_DEPRECATED("Use the callable sycl::accelerator_selector_v instead.")
+    accelerator_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
@@ -86,13 +95,22 @@ public:
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT host_selector : public device_selector {
+class __SYCL_EXPORT
+__SYCL2020_DEPRECATED("Use a callable function instead.") host_selector
+    : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
 
-namespace detail {
+// -------------- SYCL 2020
 
+// SYCL 2020 standalone selectors
+__SYCL_EXPORT int default_selector_v(const device &dev);
+__SYCL_EXPORT int gpu_selector_v(const device &dev);
+__SYCL_EXPORT int cpu_selector_v(const device &dev);
+__SYCL_EXPORT int accelerator_selector_v(const device &dev);
+
+namespace detail {
 // SYCL 2020 section 4.6.1.1 defines a negative score to reject a device from
 // selection
 static constexpr int REJECT_DEVICE_SCORE = -1;
@@ -116,7 +134,6 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
               const context &SyclContext);
-
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -25,8 +25,8 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/queue.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -49,12 +49,6 @@ template <> struct interop<backend::opencl, queue> {
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::opencl, program> {
-  using type = cl_program;
-};
-#endif
 
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
@@ -84,17 +78,10 @@ struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
 };
 
-#ifdef SYCL2020_CONFORMANT_APIS
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = std::vector<cl_mem>;
 };
-#else
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
-  using type = cl_mem;
-};
-#endif
 
 template <> struct BackendInput<backend::opencl, context> {
   using type = cl_context;
@@ -112,7 +99,6 @@ template <> struct BackendReturn<backend::opencl, device> {
   using type = cl_device_id;
 };
 
-#ifdef SYCL2020_CONFORMANT_APIS
 template <> struct interop<backend::opencl, event> {
   using type = std::vector<cl_event>;
   using value_type = cl_event;
@@ -125,17 +111,6 @@ template <> struct BackendReturn<backend::opencl, event> {
   using type = std::vector<cl_event>;
   using value_type = cl_event;
 };
-#else
-template <> struct interop<backend::opencl, event> {
-  using type = cl_event;
-};
-template <> struct BackendInput<backend::opencl, event> {
-  using type = cl_event;
-};
-template <> struct BackendReturn<backend::opencl, event> {
-  using type = cl_event;
-};
-#endif
 
 template <> struct BackendInput<backend::opencl, queue> {
   using type = cl_command_queue;
@@ -152,16 +127,6 @@ template <> struct BackendInput<backend::opencl, platform> {
 template <> struct BackendReturn<backend::opencl, platform> {
   using type = cl_platform_id;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::opencl, program> {
-  using type = cl_program;
-};
-
-template <> struct BackendReturn<backend::opencl, program> {
-  using type = cl_program;
-};
-#endif
 
 template <bundle_state State>
 struct BackendInput<backend::opencl, kernel_bundle<State>> {
@@ -212,5 +177,5 @@ inline PiDevice
     cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

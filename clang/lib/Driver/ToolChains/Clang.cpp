@@ -3014,6 +3014,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       RoundingMathPresent = false;
       break;
 
+    case options::OPT_fcuda_flush_denormals_to_zero:
+    case options::OPT_fgpu_flush_denormals_to_zero:
+      DenormalFP32Math = llvm::DenormalMode::getPreserveSign();
+      break;
+
     case options::OPT_fdenormal_fp_math_EQ:
       DenormalFPMath = llvm::parseDenormalFPAttribute(A->getValue());
       DenormalFP32Math = DenormalFPMath;
@@ -6492,8 +6497,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   } else if (IsOpenMPDevice) {
     // When compiling for the OpenMP device we want protected visibility by
-    // default. This prevents the device from accidenally preempting code on the
-    // host, makes the system more robust, and improves performance.
+    // default. This prevents the device from accidentally preempting code on
+    // the host, makes the system more robust, and improves performance.
     CmdArgs.push_back("-fvisibility");
     CmdArgs.push_back("protected");
   }
@@ -6866,6 +6871,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-mfunction-return=") + A->getValue()));
 
+  Args.AddLastArg(CmdArgs, options::OPT_mindirect_branch_cs_prefix);
+
   // Forward -f options with positive and negative forms; we translate these by
   // hand.  Do not propagate PGO options to the GPU-side compilations as the
   // profile info is for the host-side compilation only.
@@ -7105,7 +7112,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // support by default, or just assume that all languages do.
   bool HaveModules =
       Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
-              Std->containsValue("c++latest"));
+              Std->containsValue("c++2b") || Std->containsValue("c++latest"));
   RenderModulesOptions(C, D, Args, Input, Output, CmdArgs, HaveModules);
 
   if (Args.hasFlag(options::OPT_fpch_validate_input_files_content,
@@ -8137,9 +8144,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
       if (RTOptionID == options::OPT__SLASH_MDd)
-        CmdArgs.push_back("--dependent-lib=sycld");
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       else
-        CmdArgs.push_back("--dependent-lib=sycl");
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
@@ -8734,7 +8741,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
-        !StringRef(CurDep->getOffloadingArch()).empty()) {
+        !StringRef(CurDep->getOffloadingArch()).empty() &&
+        !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
     }
@@ -8909,12 +8917,22 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += ',';
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';
-    Triples += Dep.DependentToolChain->getTriple().normalize();
+    // When -fsycl-force-target is used, this value overrides the expected
+    // output type we are unbundling.
+    if (Dep.DependentOffloadKind == Action::OFK_SYCL &&
+        TCArgs.hasArg(options::OPT_fsycl_force_target_EQ)) {
+      StringRef Val(
+          TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      Triples += TT.normalize();
+    } else
+      Triples += Dep.DependentToolChain->getTriple().normalize();
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
-        !Dep.DependentBoundArch.empty()) {
+        !Dep.DependentBoundArch.empty() &&
+        !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
     }
@@ -9541,11 +9559,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto
 
-  // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (!(getToolChain().getTriple().isAMDGCN()) &&
-      TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                     options::OPT_fno_sycl_dead_args_optimization,
-                     isSYCLOptimizationO2orHigher(TCArgs)))
+  if (!(getToolChain().getTriple().isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())

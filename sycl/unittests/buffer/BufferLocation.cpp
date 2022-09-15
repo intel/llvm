@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <detail/buffer_impl.hpp>
+
 const uint64_t DEFAULT_VALUE = 7777;
 static uint64_t PassedLocation = DEFAULT_VALUE;
 
@@ -69,7 +71,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Plt{sycl::default_selector()} {}
+  BufferTest() {}
 
 protected:
   void SetUp() override {

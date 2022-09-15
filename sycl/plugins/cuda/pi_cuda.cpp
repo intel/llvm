@@ -331,8 +331,8 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -357,8 +357,8 @@ void assertion(bool Condition, const char *Message) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 //--------------
 // PI object implementation
@@ -1887,6 +1887,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    result.c_str());
   }
 
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    size_t FreeMemory = 0;
+    size_t TotalMemory = 0;
+    sycl::detail::pi::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
+                                    CUDA_SUCCESS,
+                                "failed cuMemGetInfo() API.");
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   FreeMemory);
+  }
+
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
@@ -2824,9 +2834,10 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
           arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_HALF &&
           arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
-        sycl::detail::pi::die(
-            "PI CUDA kernels only support images with channel types int32, "
-            "uint32, float, and half.");
+        setErrorMessage("PI CUDA kernels only support images with channel "
+                        "types int32, uint32, float, and half.",
+                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
       }
       CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
       kernel->set_kernel_arg(arg_index, sizeof(cuSurf), (void *)&cuSurf);
@@ -5108,6 +5119,16 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     // TODO: If ptr points to valid system-allocated pageable memory we should
     // check that the device also has the
     // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
+  }
+
+  unsigned int is_managed;
+  PI_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
+  if (!is_managed) {
+    setErrorMessage(
+        "Memory advice ignored as memory advices only works with USM",
+        PI_SUCCESS);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
   pi_result result = PI_SUCCESS;

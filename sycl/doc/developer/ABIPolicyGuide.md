@@ -123,10 +123,3 @@ Whenever you need to change the existing ABI, please, follow these steps:
    part of version, as described above)
 
 At the end of this window we will increment major version of the DPC++ library
-
-## BKMs on avoiding changing ABI
-
-1. If there is a need to add a new field in `sycl::handler` or/and
-   `sycl::detail::CG` classes it can be done without breaking ABI using the
-   approach described in the comment at the beggining of
-   [cg.hpp](../../include/sycl/detail/cg.hpp)

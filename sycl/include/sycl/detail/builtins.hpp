@@ -25,8 +25,8 @@
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)
 #define __SYCL_EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)
 #else
-#define __FUNC_PREFIX_OCL
-#define __FUNC_PREFIX_CORE
+#define __FUNC_PREFIX_OCL sycl_host_
+#define __FUNC_PREFIX_CORE sycl_host_
 #define __SYCL_EXTERN_IT1(Ret, prefix, call, Arg)                              \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg)
 #define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg)                         \
@@ -103,7 +103,6 @@
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 #endif // __SYCL_DEVICE_ONLY__
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
@@ -280,7 +279,6 @@ __SYCL_MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #ifndef __SYCL_DEVICE_ONLY__
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)
 #endif
 
 #undef __NOEXC

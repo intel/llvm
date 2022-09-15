@@ -195,7 +195,7 @@ int main() {
   []() {
     static int LocalLambda2;
     auto Lambda = [](){};
-    cl::sycl::kernel_single_task<decltype(Lambda)>(Lambda);
+    sycl::kernel_single_task<decltype(Lambda)>(Lambda);
     puts(__builtin_sycl_unique_stable_id(LocalLambda2));
     // CHECK: call i32 @puts({{.+}} @[[LOCAL_LAMBDA_2]])
   }();

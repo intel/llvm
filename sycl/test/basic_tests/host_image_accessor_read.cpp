@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %t.out
 
 //==---- host_image_accessor_read.cpp - SYCL host image accessor check ----==//
 //
@@ -22,7 +22,6 @@ int foo(float *image_data) {
   sycl::range<3> r(3, 3, 3);
   {
     sycl::buffer<int, 1> ResultBuf(result, sycl::range<1>(2));
-    sycl::queue Q;
     sycl::image<3> Image(image_data, channelOrder, channelType, r);
 
     sycl::range<2> pitch = Image.get_pitch();

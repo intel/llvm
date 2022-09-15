@@ -8,8 +8,8 @@
 
 // CHECK: class kernel_A;
 
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

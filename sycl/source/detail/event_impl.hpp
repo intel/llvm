@@ -21,8 +21,8 @@
 #include <condition_variable>
 #include <optional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 class plugin;
@@ -46,7 +46,9 @@ public:
   /// If the constructed SYCL event is waited on it will complete immediately.
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete);
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
   ///
@@ -65,11 +67,6 @@ public:
   //
   /// \return true if this event is a SYCL host event.
   bool is_host();
-
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
 
   /// Waits for the event.
   ///
@@ -215,6 +212,28 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Returns worker queue for command.
+  ///
+  /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
+  /// pointer
+  QueueImplPtr getWorkerQueue() { return MWorkerQueue.lock(); };
+
+  /// Sets worker queue for command.
+  ///
+  /// @return
+  void setWorkerQueue(const QueueImplPtr &WorkerQueue) {
+    MWorkerQueue = WorkerQueue;
+  };
+
+  /// Checks if an event is in a fully intialized state. Default-constructed
+  /// events will return true only after having initialized its native event,
+  /// while other events will assume that they are fully initialized at
+  /// construction, relying on external sources to supply member data.
+  ///
+  /// \return true if the event is considered to be in a fully initialized
+  /// state.
+  bool isInitialized() const noexcept { return MIsInitialized; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -231,12 +250,13 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+
+  std::weak_ptr<queue_impl> MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
@@ -266,5 +286,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

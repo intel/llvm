@@ -69,8 +69,8 @@ class __copyAcc2Acc;
 // For unit testing purposes
 class MockHandler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 
@@ -234,11 +234,6 @@ private:
   KernelType KernelFunc;
 };
 
-} // namespace detail
-
-namespace ext {
-namespace oneapi {
-namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo;
@@ -251,7 +246,7 @@ using sycl::detail::queue_impl;
 /// If we are given sycl::range and not sycl::nd_range we have more freedom in
 /// how to split the iteration space.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
                         uint32_t NumConcurrentWorkGroups, Reduction &Redu);
 
@@ -303,6 +298,9 @@ reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem);
+
 template <typename... ReductionT, size_t... Is>
 size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
                              std::index_sequence<Is...>);
@@ -317,8 +315,6 @@ template <class FunctorTy>
 event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
                      FunctorTy Func);
 } // namespace detail
-} // namespace oneapi
-} // namespace ext
 
 /// Command group handler class.
 ///
@@ -384,15 +380,9 @@ private:
     return Storage;
   }
 
-  void setType(detail::CG::CGTYPE Type) {
-    constexpr detail::CG::CG_VERSION Version = detail::CG::CG_VERSION::V1;
-    MCGType = static_cast<detail::CG::CGTYPE>(
-        getVersionedCGType(Type, static_cast<int>(Version)));
-  }
+  void setType(detail::CG::CGTYPE Type) { MCGType = Type; }
 
-  detail::CG::CGTYPE getType() {
-    return static_cast<detail::CG::CGTYPE>(getUnversionedCGType(MCGType));
-  }
+  detail::CG::CGTYPE getType() { return MCGType; }
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
@@ -404,13 +394,6 @@ private:
 
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
-                               const detail::kernel_param_desc_t *KernelArgs);
-
-  /// Extracts and prepares kernel arguments from the lambda using integration
-  /// header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
@@ -418,11 +401,6 @@ private:
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-  /// TODO replace with the version below once ABI breaking changes are allowed.
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource);
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
@@ -477,8 +455,7 @@ private:
   }
 
   template <class FunctorTy>
-  friend event
-  ext::oneapi::detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
+  friend event detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
                                       bool IsHost, FunctorTy Func);
   /// }@
 
@@ -538,7 +515,7 @@ private:
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
+    detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of requirements.
     MRequirements.push_back(Req);
     // Store copy of the accessor.
@@ -747,10 +724,14 @@ private:
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
-    static_assert(!KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
-                  "Unexpected kernel lambda size. This can be caused by an "
-                  "external host compiler producing a lambda with an "
-                  "unexpected layout. This is a limitation of the compiler.");
+    static_assert(
+        !KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
+        "Unexpected kernel lambda size. This can be caused by an "
+        "external host compiler producing a lambda with an "
+        "unexpected layout. This is a limitation of the compiler."
+        "In many cases the difference is related to capturing constexpr "
+        "variables. In such cases removing constexpr specifier aligns the "
+        "captures between the host compiler and the device compiler.");
 
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
@@ -789,20 +770,6 @@ private:
       if (Src[I] > Dst[I])
         return false;
     return true;
-  }
-
-  // TODO: Delete these functions when ABI breaking changes are allowed.
-  // Currently these functions are unused but they are static members of
-  // the exported class 'handler' and has got into sycl library some time ago
-  // and must stay there for a while.
-  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
-  }
-  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    return detail::getDelinearizedId(Range, Index);
   }
 
   /// Handles some special cases of the copy operation from one accessor
@@ -1306,15 +1273,14 @@ private:
     kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
   }
 
-  std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
-  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
-
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
+
+  void setHandlerKernelBundle(kernel Kernel);
 
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
@@ -1440,6 +1406,11 @@ public:
   void
   set_arg(int ArgIndex,
           accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  template <typename DataT, int Dims>
+  void set_arg(int ArgIndex, local_accessor<DataT, Dims> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
@@ -1642,22 +1613,18 @@ public:
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
         __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
 #else
-        ext::oneapi::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
+        detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
 #endif
-    // TODO: currently the maximal work group size is determined for the given
+    // TODO: currently the preferred work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
-    ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-        *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
-    if (Reduction::is_usm ||
-        (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
-        (!Reduction::has_fast_atomics && Reduction::is_dw_acc)) {
+    size_t PrefWGSize = detail::reduGetPreferredWGSize(MQueue, OneElemSize);
+    if (detail::reduCGFuncForRange<KernelName>(*this, KernelFunc, Range,
+                                               PrefWGSize,
+                                               NumConcurrentWorkGroups, Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
-        ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
-            CopyHandler, Redu);
+        detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
   }
@@ -1667,13 +1634,13 @@ public:
   void parallel_for(nd_range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
     if constexpr (!Reduction::has_fast_atomics &&
-                  !Reduction::has_atomic_add_float64) {
+                  !Reduction::has_float64_atomics) {
       // The most basic implementation.
       parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
       std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-      if constexpr (Reduction::has_atomic_add_float64) {
+      if constexpr (Reduction::has_float64_atomics) {
         /// This version is a specialization for the add
         /// operator. It performs runtime checks for device aspect "atomic64";
         /// if found, fast sycl::atomic_ref operations are used to update the
@@ -1683,8 +1650,8 @@ public:
 
         if (D.has(aspect::atomic64)) {
 
-          ext::oneapi::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc,
-                                                              Range, Redu);
+          detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc, Range,
+                                                 Redu);
         } else {
           // Resort to basic implementation as well.
           parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
@@ -1693,8 +1660,7 @@ public:
       } else {
         // Use fast sycl::atomic operations to update reduction variable at the
         // end of each work-group work.
-        ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
-                                                    Redu);
+        detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
       }
       // If the reduction variable must be initialized with the identity value
       // before the kernel run, then an additional working accessor is created,
@@ -1708,8 +1674,7 @@ public:
       if (Reduction::is_usm || Redu.initializeToIdentity()) {
         this->finalize();
         MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
-          ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
-              CopyHandler, Redu);
+          detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
         });
       }
     }
@@ -1745,8 +1710,7 @@ public:
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it may be safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    size_t MaxWGSize = detail::reduGetMaxWGSize(MQueue, OneElemSize);
     if (Range.get_local_range().size() > MaxWGSize)
       throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires work group size not bigger"
@@ -1755,7 +1719,7 @@ public:
                                 PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
-    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
+    detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
@@ -1775,73 +1739,44 @@ public:
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
-        NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName, KernelType>(
+        NWorkItems = detail::reduAuxCGFunc<KernelName, KernelType>(
             AuxHandler, NWorkItems, MaxWGSize, Redu);
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm || Reduction::is_dw_acc) {
+    if (Reduction::is_usm) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
-        ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
-            CopyHandler, Redu);
+        detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
   }
 
   // This version of parallel_for may handle one or more reductions packed in
-  // \p Rest argument. Note thought that the last element in \p Rest pack is
-  // the kernel function.
+  // \p Rest argument. The last element in \p Rest pack is the kernel function,
+  // everything else is reduction(s).
   // TODO: this variant is currently enabled for 2+ reductions only as the
   // versions handling 1 reduction variable are more efficient right now.
   //
-  // Algorithm:
-  // 1) discard_write accessor (DWAcc), InitializeToIdentity = true:
-  //    a) Create uninitialized buffer and read_write accessor (RWAcc).
-  //    b) discard-write partial sums to RWAcc.
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  //    d) Copy RWAcc to DWAcc.
-  // 2) read_write accessor (RWAcc), InitializeToIdentity = false:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's RWAcc (if #work-groups is 1).
-  //    b) discard-write to RWAcc (#WG > 1), or update-write (#WG == 1).
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  // 3) read_write accessor (RWAcc), InitializeToIdentity = true:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's RWAcc (if #work-groups is 1).
-  //    b) discard-write to RWAcc.
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  // 4) USM pointer, InitializeToIdentity = false:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's USM pointer (if #work-groups is 1).
-  //    b) discard-write to RWAcc (#WG > 1) or
-  //       update-write to USM pointer (#WG == 1).
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  // 5) USM pointer, InitializeToIdentity = true:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's USM pointer (if #work-groups is 1).
-  //    b) discard-write to RWAcc (#WG > 1) or
-  //       discard-write to USM pointer (#WG == 1).
-  //    c) Repeat the steps (a) and (b) to get one final sum.
+  // This is basically a tree reduction where we re-use user's reduction
+  // variable instead of creating temporary storage for the last iteration
+  // (#WG == 1).
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<
-      (sizeof...(RestT) >= 3 &&
-       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value)>
+  std::enable_if_t<(sizeof...(RestT) >= 3 &&
+                    detail::AreAllButLastReductions<RestT...>::value)>
   parallel_for(nd_range<Dims> Range, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
     auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
-    auto ReduTuple =
-        ext::oneapi::detail::tuple_select_elements(ArgsTuple, ReduIndices);
+    auto ReduTuple = detail::tuple_select_elements(ArgsTuple, ReduIndices);
 
     size_t LocalMemPerWorkItem =
-        ext::oneapi::detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+        detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize =
-        ext::oneapi::detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
+    size_t MaxWGSize = detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
     if (Range.get_local_range().size() > MaxWGSize)
       throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires work group size not bigger"
@@ -1849,24 +1784,18 @@ public:
                                     std::to_string(MaxWGSize),
                                 PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
-    ext::oneapi::detail::reduCGFuncMulti<KernelName>(*this, KernelFunc, Range,
-                                                     ReduTuple, ReduIndices);
+    detail::reduCGFuncMulti<KernelName>(*this, KernelFunc, Range, ReduTuple,
+                                        ReduIndices);
     std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
-        NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName,
-                                                        decltype(KernelFunc)>(
+        NWorkItems = detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
             AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       });
     } // end while (NWorkItems > 1)
-
-    auto CopyEvent = ext::oneapi::detail::reduSaveFinalResultToUserMem(
-        QueueCopy, MIsHost, ReduTuple, ReduIndices);
-    if (CopyEvent)
-      MLastEvent = *CopyEvent;
   }
 #endif // __cplusplus >= 201703L
 
@@ -1946,7 +1875,7 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -2019,7 +1948,7 @@ public:
   void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2065,7 +1994,7 @@ public:
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2103,7 +2032,7 @@ public:
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2141,7 +2070,7 @@ public:
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2183,7 +2112,7 @@ public:
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2223,7 +2152,7 @@ public:
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
+    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
@@ -2593,6 +2522,7 @@ public:
   void mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
+  std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
@@ -2610,7 +2540,7 @@ private:
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// The list of requirements to the memory objects for the scheduling.
-  std::vector<detail::Requirement *> MRequirements;
+  std::vector<detail::AccessorImplHost *> MRequirements;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;
@@ -2666,7 +2596,7 @@ private:
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
             typename RedOutVar>
-  friend class ext::oneapi::detail::reduction_impl_algo;
+  friend class detail::reduction_impl_algo;
 
 #ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,
@@ -2705,5 +2635,5 @@ private:
         NumWorkItems, KernelFunc);
   }
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
