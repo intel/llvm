@@ -10,7 +10,7 @@
 ; REQUIRES: spirv-as
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/OpenCL_CPP/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
 
 ; COM: TODO: Enable this test when the version of SPIRV-Tools used by buildbot is updated to 
 ; COM: recognise CPP_for_OpenCL as a valid source language.
@@ -18,19 +18,19 @@
 ; COM: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-CPP14
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/OpenCL_C/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/GLSL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/HLSL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/ESSL/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
 
 ; RUN: sed -e 's/SOURCE_LANGUAGE/Unknown/' %s | spirv-as --target-env spv1.3 - -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-OPENCL
 
 ; SPIR-V
 ; Version: 1.1

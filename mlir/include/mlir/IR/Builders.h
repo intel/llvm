@@ -138,6 +138,7 @@ public:
   DenseIntElementsAttr getIndexTensorAttr(ArrayRef<int64_t> values);
 
   /// Tensor-typed DenseArrayAttr getters.
+  DenseBoolArrayAttr getDenseBoolArrayAttr(ArrayRef<bool> values);
   DenseI8ArrayAttr getDenseI8ArrayAttr(ArrayRef<int8_t> values);
   DenseI16ArrayAttr getDenseI16ArrayAttr(ArrayRef<int16_t> values);
   DenseI32ArrayAttr getDenseI32ArrayAttr(ArrayRef<int32_t> values);
@@ -481,8 +482,7 @@ public:
 
   /// Overload to create or fold a single result operation.
   template <typename OpTy, typename... Args>
-  typename std::enable_if<OpTy::template hasTrait<OpTrait::OneResult>(),
-                          Value>::type
+  std::enable_if_t<OpTy::template hasTrait<OpTrait::OneResult>(), Value>
   createOrFold(Location location, Args &&...args) {
     SmallVector<Value, 1> results;
     createOrFold<OpTy>(results, location, std::forward<Args>(args)...);
@@ -491,8 +491,7 @@ public:
 
   /// Overload to create or fold a zero result operation.
   template <typename OpTy, typename... Args>
-  typename std::enable_if<OpTy::template hasTrait<OpTrait::ZeroResults>(),
-                          OpTy>::type
+  std::enable_if_t<OpTy::template hasTrait<OpTrait::ZeroResults>(), OpTy>
   createOrFold(Location location, Args &&...args) {
     auto op = create<OpTy>(location, std::forward<Args>(args)...);
     SmallVector<Value, 0> unused;

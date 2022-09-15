@@ -26,7 +26,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/program.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -215,6 +214,8 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
     const QueueImplPtr &WorkerQueue = getWorkerQueue();
+    // MWorkerQueue in command is always not null. So check if
+    // EventImpl->getWorkerQueue != nullptr is implicit.
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
@@ -411,12 +412,12 @@ void Command::waitForEvents(QueueImplPtr Queue,
 Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
-      MWorkerQueue(MEvent->getWorkerQueue()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
       MType(Type) {
   MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -1314,6 +1315,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
   }
 
   MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
 }
@@ -1495,6 +1497,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
   }
 
   MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
 }
@@ -1860,8 +1863,7 @@ void ExecCGCommand::emitInstrumentationData() {
                       ->getDeviceImage()
                       ->get_program_ref();
       } else if (nullptr != KernelCG->MSyclKernel) {
-        auto SyclProg = detail::getSyclObjImpl(
-            KernelCG->MSyclKernel->get_info<info::kernel::program>());
+        auto SyclProg = KernelCG->MSyclKernel->getProgramImpl();
         Program = SyclProg->getHandleRef();
       } else {
         std::tie(Kernel, KernelMutex, Program) =
@@ -2159,9 +2161,7 @@ pi_int32 enqueueImpKernel(
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
-
-    auto SyclProg =
-        detail::getSyclObjImpl(MSyclKernel->get_info<info::kernel::program>());
+    auto SyclProg = MSyclKernel->getProgramImpl();
     Program = SyclProg->getHandleRef();
     if (SyclProg->is_cacheable()) {
       RT::PiKernel FoundKernel = nullptr;

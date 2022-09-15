@@ -9,10 +9,9 @@ load(":targets.bzl", "llvm_targets")
 load(":enum_targets_gen.bzl", "enum_targets_gen")
 load(":binary_alias.bzl", "binary_alias")
 
-package(
-    default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
-)
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])
 
 exports_files(["LICENSE.TXT"])
 
@@ -487,7 +486,10 @@ cc_library(
         "lib/DebugInfo/Symbolize/*.cpp",
         "lib/DebugInfo/Symbolize/*.h",
     ]),
-    hdrs = glob(["include/llvm/DebugInfo/Symbolize/*.h", "include/llvm/Debuginfod/*.h"]),
+    hdrs = glob([
+        "include/llvm/DebugInfo/Symbolize/*.h",
+        "include/llvm/Debuginfod/*.h",
+    ]),
     copts = llvm_copts,
     deps = [
         ":BinaryFormat",
@@ -857,6 +859,7 @@ cc_library(
         ":BinaryFormat",
         ":BitReader",
         ":Core",
+        ":IRReader",
         ":MC",
         ":MCParser",
         ":Support",
@@ -2343,6 +2346,7 @@ cc_library(
         ":Support",
         ":Target",
         ":TransformUtils",
+        ":WindowsDriver",
         ":config",
     ],
 )
@@ -4039,8 +4043,8 @@ cc_binary(
 cc_binary(
     name = "split-file",
     srcs = glob([
-        "tools/split-file/*.cpp",
-        "tools/split-file/*.h",
+        "utils/split-file/*.cpp",
+        "utils/split-file/*.h",
     ]),
     copts = llvm_copts,
     stamp = 0,
@@ -4175,6 +4179,19 @@ py_binary(
     name = "lit",
     testonly = True,
     srcs = ["utils/lit/lit.py"] + glob(["utils/lit/lit/**/*.py"]),
+)
+
+cc_library(
+    name = "TestingADT",
+    testonly = True,
+    hdrs = glob([
+        "include/llvm/Testing/ADT/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Support",
+        ":gmock",
+    ],
 )
 
 cc_library(

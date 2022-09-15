@@ -129,6 +129,7 @@ fi
 cd "$TEST_WD"
 if [[ "$COMMAND_ALLOW_BISECT_CODES" == "" ]]; then
   bash -c "$COMMAND" || exit 1
+  exit
 fi
 
 # Otherwise, just run the command.

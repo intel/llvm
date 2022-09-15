@@ -517,7 +517,7 @@ bool llvm::thinLTOPropagateFunctionAttrs(
           ++NumThinLinkNoUnwind;
         }
 
-        for (auto &S : V.getSummaryList()) {
+        for (const auto &S : V.getSummaryList()) {
           if (auto *FS = dyn_cast<FunctionSummary>(S.get())) {
             if (InferredFlags.NoRecurse)
               FS->setNoRecurse();
@@ -1146,7 +1146,7 @@ static bool isFunctionMallocLike(Function *F, const SCCNodeSet &SCCNodes) {
           break;
         if (CB.getCalledFunction() && SCCNodes.count(CB.getCalledFunction()))
           break;
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       }
       default:
         return false; // Did not come from an allocation.

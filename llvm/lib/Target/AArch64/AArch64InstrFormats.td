@@ -117,6 +117,8 @@ def extract_high_v8i16 :
     ComplexPattern<v4i16, 1, "SelectExtractHigh", [extract_subvector, bitconvert]>;
 def extract_high_v4i32 :
     ComplexPattern<v2i32, 1, "SelectExtractHigh", [extract_subvector, bitconvert]>;
+def extract_high_v2i64 :
+    ComplexPattern<v1i64, 1, "SelectExtractHigh", [extract_subvector, bitconvert]>;
 
 def extract_high_dup_v8i16 :
    BinOpFrag<(extract_subvector (v8i16 (AArch64duplane16 (v8i16 node:$LHS), node:$RHS)), (i64 4))>;
@@ -3890,7 +3892,7 @@ class BasePrefetchRO<bits<2> sz, bit V, bits<2> opc, dag outs, dag ins,
 multiclass PrefetchRO<bits<2> sz, bit V, bits<2> opc, string asm> {
   def roW : BasePrefetchRO<sz, V, opc, (outs),
                 (ins prfop:$Rt, GPR64sp:$Rn, GPR32:$Rm, ro_Wextend64:$extend),
-                asm, [(AArch64Prefetch imm:$Rt,
+                asm, [(AArch64Prefetch timm:$Rt,
                                      (ro_Windexed64 GPR64sp:$Rn, GPR32:$Rm,
                                                     ro_Wextend64:$extend))]> {
     let Inst{13} = 0b0;
@@ -3898,7 +3900,7 @@ multiclass PrefetchRO<bits<2> sz, bit V, bits<2> opc, string asm> {
 
   def roX : BasePrefetchRO<sz, V, opc, (outs),
                 (ins prfop:$Rt, GPR64sp:$Rn, GPR64:$Rm, ro_Xextend64:$extend),
-                asm,  [(AArch64Prefetch imm:$Rt,
+                asm,  [(AArch64Prefetch timm:$Rt,
                                       (ro_Xindexed64 GPR64sp:$Rn, GPR64:$Rm,
                                                      ro_Xextend64:$extend))]> {
     let Inst{13} = 0b1;
@@ -6502,24 +6504,27 @@ multiclass SIMDNarrowThreeVectorBHS<bit U, bits<4> opc, string asm,
 }
 
 multiclass SIMDDifferentThreeVectorBD<bit U, bits<4> opc, string asm,
-                                      Intrinsic IntOp> {
+                                      SDPatternOperator OpNode> {
   def v8i8   : BaseSIMDDifferentThreeVector<U, 0b000, opc,
                                             V128, V64, V64,
                                             asm, ".8h", ".8b", ".8b",
-      [(set (v8i16 V128:$Rd), (IntOp (v8i8 V64:$Rn), (v8i8 V64:$Rm)))]>;
+      [(set (v8i16 V128:$Rd), (OpNode (v8i8 V64:$Rn), (v8i8 V64:$Rm)))]>;
   def v16i8  : BaseSIMDDifferentThreeVector<U, 0b001, opc,
                                             V128, V128, V128,
                                             asm#"2", ".8h", ".16b", ".16b", []>;
   let Predicates = [HasAES] in {
     def v1i64  : BaseSIMDDifferentThreeVector<U, 0b110, opc,
                                               V128, V64, V64,
-                                              asm, ".1q", ".1d", ".1d", []>;
+                                              asm, ".1q", ".1d", ".1d",
+        [(set (v16i8 V128:$Rd), (OpNode (v1i64 V64:$Rn), (v1i64 V64:$Rm)))]>;
     def v2i64  : BaseSIMDDifferentThreeVector<U, 0b111, opc,
                                               V128, V128, V128,
-                                              asm#"2", ".1q", ".2d", ".2d", []>;
+                                              asm#"2", ".1q", ".2d", ".2d",
+        [(set (v16i8 V128:$Rd), (OpNode (extract_high_v2i64 (v2i64 V128:$Rn)),
+                                        (extract_high_v2i64 (v2i64 V128:$Rm))))]>;
   }
 
-  def : Pat<(v8i16 (IntOp (v8i8 (extract_high_v16i8 (v16i8 V128:$Rn))),
+  def : Pat<(v8i16 (OpNode (v8i8 (extract_high_v16i8 (v16i8 V128:$Rn))),
                           (v8i8 (extract_high_v16i8 (v16i8 V128:$Rm))))),
       (!cast<Instruction>(NAME#"v16i8") V128:$Rn, V128:$Rm)>;
 }
@@ -8847,20 +8852,6 @@ multiclass SIMDIndexedLongSQDMLXSDTied<bit U, bits<4> opc, string asm,
     let Inst{20} = idx{0};
   }
 
-  // FIXME: it would be nice to use the scalar (v1i32) instruction here, but an
-  // intermediate EXTRACT_SUBREG would be untyped.
-  def : Pat<(i32 (Accum (i32 FPR32Op:$Rd),
-                (i32 (vector_extract (v4i32
-                         (int_aarch64_neon_sqdmull (v4i16 V64:$Rn),
-                             (v4i16 (AArch64duplane16 (v8i16 V128_lo:$Rm),
-                                                    VectorIndexH:$idx)))),
-                         (i64 0))))),
-            (EXTRACT_SUBREG
-                (!cast<Instruction>(NAME # v4i16_indexed)
-                    (SUBREG_TO_REG (i32 0), FPR32Op:$Rd, ssub), V64:$Rn,
-                    V128_lo:$Rm, VectorIndexH:$idx),
-                ssub)>;
-
   def v8i16_indexed : BaseSIMDIndexedTied<1, U, 0, 0b01, opc,
                                       V128, V128,
                                       V128_lo, VectorIndexH,
@@ -8914,6 +8905,31 @@ multiclass SIMDIndexedLongSQDMLXSDTied<bit U, bits<4> opc, string asm,
     let Inst{20} = idx{0};
   }
 
+  def : Pat<(i32 (Accum (i32 FPR32Op:$Rd),
+                        (i32 (vector_extract
+                                    (v4i32 (int_aarch64_neon_sqdmull
+                                                (v4i16 V64:$Rn),
+                                                (v4i16 V64:$Rm))),
+                                    (i64 0))))),
+            (!cast<Instruction>(NAME # v1i32_indexed)
+                        FPR32Op:$Rd,
+                        (EXTRACT_SUBREG V64:$Rn, hsub),
+                        (INSERT_SUBREG (IMPLICIT_DEF), V64:$Rm, dsub),
+                        (i64 0))>;
+
+  def : Pat<(i32 (Accum (i32 FPR32Op:$Rd),
+                        (i32 (vector_extract
+                                    (v4i32 (int_aarch64_neon_sqdmull
+                                                (v4i16 V64:$Rn),
+                                                (v4i16 (AArch64duplane16
+                                                            (v8i16 V128_lo:$Rm),
+                                                            VectorIndexH:$idx)))),
+                                    (i64 0))))),
+            (!cast<Instruction>(NAME # v1i32_indexed)
+                        FPR32Op:$Rd,
+                        (EXTRACT_SUBREG V64:$Rn, hsub),
+                        V128_lo:$Rm,
+                        VectorIndexH:$idx)>;
 
   def v1i64_indexed : BaseSIMDIndexedTied<1, U, 1, 0b10, opc,
                                       FPR64Op, FPR32Op, V128, VectorIndexS,

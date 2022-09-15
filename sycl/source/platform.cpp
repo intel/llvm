@@ -79,8 +79,9 @@ context platform::ext_oneapi_get_default_context() const {
       &PlatformToDefaultContextCache =
           detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
 
-  std::lock_guard Lock{detail::GlobalHandler::instance()
-                           .getPlatformToDefaultContextCacheMutex()};
+  std::lock_guard<std::mutex> Lock{
+      detail::GlobalHandler::instance()
+          .getPlatformToDefaultContextCacheMutex()};
 
   auto It = PlatformToDefaultContextCache.find(impl);
   if (PlatformToDefaultContextCache.end() == It)
