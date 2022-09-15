@@ -39,7 +39,21 @@ private:
   static storage_t from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
+#if (__CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
+#else
+    // TODO std::isnan not defined in device code
+    // if (std::isnan(a))
+    // return 0xffc1;
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    floatValue = a;
+    // Do RNE and truncate
+    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+#endif
 #else
     return __devicelib_ConvertFToBF16INTEL(a);
 #endif
@@ -59,15 +73,8 @@ private:
   }
 
   static float to_float(const storage_t &a) {
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-    uint32_t y = a;
-    y = y << 16;
-    float *res = reinterpret_cast<float *>(&y);
-    return *res;
-#else
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     return __devicelib_ConvertBF16ToFINTEL(a);
-#endif
 #else
     union {
       uint32_t intStorage;
@@ -117,7 +124,11 @@ public:
   friend bfloat16 operator-(bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
+#if (__CUDA_ARCH__ >= 800)
     return from_bits(__nvvm_neg_bf16(lhs.value));
+#else
+    return -to_float(lhs.value);
+#endif
 #else
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #endif
