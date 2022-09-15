@@ -77,6 +77,7 @@ runs:
     shell: bash
     run: |
       echo "::group::Configure execution environment"
+      export PATH=$PWD/toolchain/bin/:$PATH
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
