@@ -12,13 +12,13 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 
-template <int _N = 1, typename _F>
-void fpga_loop_fuse [[intel::loop_fuse(_N)]] (_F f) {
+template <int N = 1, typename F>
+void fpga_loop_fuse [[intel::loop_fuse(N)]] (F f) {
   f();
 }
 
-template <int _N = 1, typename _F>
-void fpga_loop_fuse_independent [[intel::loop_fuse_independent(_N)]] (_F f) {
+template <int N = 1, typename F>
+void fpga_loop_fuse_independent [[intel::loop_fuse_independent(N)]] (F f) {
   f();
 }
 

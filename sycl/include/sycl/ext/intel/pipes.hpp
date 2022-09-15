@@ -17,18 +17,18 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 
-template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
+template <class Name, class DataT, int32_t MinCapacity = 0> class pipe {
 public:
-  using value_type = _dataT;
-  static constexpr int32_t min_capacity = _min_capacity;
+  using value_type = DataT;
+  static constexpr int32_t min_capacity = MinCapacity;
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static _dataT read(bool &_Success) {
+  static DataT read(bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_RPipeTy<_dataT> _RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
-    _dataT TempData;
+    __ocl_RPipeTy<DataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
+    DataT TempData;
     _Success = !static_cast<bool>(
         __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
@@ -42,10 +42,10 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const _dataT &_Data, bool &_Success) {
+  static void write(const DataT &_Data, bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_WPipeTy<_dataT> _WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __ocl_WPipeTy<DataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
     _Success = !static_cast<bool>(
         __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
 #else
@@ -60,11 +60,11 @@ public:
   // Blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static _dataT read() {
+  static DataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_RPipeTy<_dataT> _RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
-    _dataT TempData;
+    __ocl_RPipeTy<DataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
+    DataT TempData;
     __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
@@ -76,10 +76,10 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const _dataT &_Data) {
+  static void write(const DataT &_Data) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_WPipeTy<_dataT> _WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __ocl_WPipeTy<DataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
     (void)_Data;
@@ -90,8 +90,8 @@ public:
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(_dataT);
-  static constexpr int32_t m_Alignment = alignof(_dataT);
+  static constexpr int32_t m_Size = sizeof(DataT);
+  static constexpr int32_t m_Alignment = alignof(DataT);
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
                                                            min_capacity};
@@ -109,28 +109,28 @@ struct ethernet_pipe_id {
   static constexpr int32_t id = ID;
 };
 
-template <class _dataT, size_t _min_capacity>
+template <class DataT, size_t MinCapacity>
 using ethernet_read_pipe =
-  kernel_readable_io_pipe<ethernet_pipe_id<0>, _dataT, _min_capacity>;
+  kernel_readable_io_pipe<ethernet_pipe_id<0>, DataT, MinCapacity>;
 
-template <class _dataT, size_t _min_capacity>
+template <class DataT, size_t MinCapacity>
 using ethernet_write_pipe =
-  kernel_writeable_io_pipe<ethernet_pipe_id<1>, _dataT, _min_capacity>;
+  kernel_writeable_io_pipe<ethernet_pipe_id<1>, DataT, MinCapacity>;
 } // namespace intelfpga */
 
-template <class _name, class _dataT, size_t _min_capacity = 0>
+template <class Name, class DataT, size_t MinCapacity = 0>
 class kernel_readable_io_pipe {
 public:
-  using value_type = _dataT;
-  static constexpr int32_t min_capacity = _min_capacity;
+  using value_type = DataT;
+  static constexpr int32_t min_capacity = MinCapacity;
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static _dataT read(bool &_Success) {
+  static DataT read(bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_RPipeTy<_dataT> _RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
-    _dataT TempData;
+    __ocl_RPipeTy<DataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
+    DataT TempData;
     _Success = !static_cast<bool>(
         __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
@@ -145,11 +145,11 @@ public:
   // Blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static _dataT read() {
+  static DataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_RPipeTy<_dataT> _RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
-    _dataT TempData;
+    __ocl_RPipeTy<DataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
+    DataT TempData;
     __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
@@ -160,27 +160,27 @@ public:
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(_dataT);
-  static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t ID = _name::id;
+  static constexpr int32_t m_Size = sizeof(DataT);
+  static constexpr int32_t m_Alignment = alignof(DataT);
+  static constexpr int32_t ID = Name::id;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, min_capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-template <class _name, class _dataT, size_t _min_capacity = 0>
+template <class Name, class DataT, size_t MinCapacity = 0>
 class kernel_writeable_io_pipe {
 public:
-  using value_type = _dataT;
-  static constexpr int32_t min_capacity = _min_capacity;
+  using value_type = DataT;
+  static constexpr int32_t min_capacity = MinCapacity;
   // Non-blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const _dataT &_Data, bool &_Success) {
+  static void write(const DataT &_Data, bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_WPipeTy<_dataT> _WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __ocl_WPipeTy<DataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
     _Success = !static_cast<bool>(
         __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
 #else
@@ -195,10 +195,10 @@ public:
   // Blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const _dataT &_Data) {
+  static void write(const DataT &_Data) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_WPipeTy<_dataT> _WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __ocl_WPipeTy<DataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
     (void)_Data;
@@ -209,9 +209,9 @@ public:
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(_dataT);
-  static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t ID = _name::id;
+  static constexpr int32_t m_Size = sizeof(DataT);
+  static constexpr int32_t m_Alignment = alignof(DataT);
+  static constexpr int32_t ID = Name::id;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, min_capacity};

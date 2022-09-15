@@ -21,7 +21,7 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-template <class _name, class _dataT, int32_t _min_capacity = 0,
+template <class Name, class DataT, int32_t MinCapacity = 0,
           class _propertiesT = decltype(oneapi::experimental::properties{}),
           class = void>
 class pipe {
@@ -30,8 +30,8 @@ class pipe {
                 "experimental pipe properties are not yet implemented");
 };
 
-template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT>
-class pipe<_name, _dataT, _min_capacity, _propertiesT,
+template <class Name, class DataT, int32_t MinCapacity, class _propertiesT>
+class pipe<Name, DataT, MinCapacity, _propertiesT,
            std::enable_if_t<std::is_same_v<
                _propertiesT, decltype(oneapi::experimental::properties{})>>> {
 public:
@@ -39,7 +39,7 @@ public:
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static _dataT read(bool &Success, _functionPropertiesT Properties) {
+  static DataT read(bool &Success, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
@@ -65,9 +65,9 @@ public:
       _control_type_code = 3;
     }
 
-    __ocl_RPipeTy<_dataT> _RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
-    _dataT TempData;
+    __ocl_RPipeTy<DataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
+    DataT TempData;
     Success = !static_cast<bool>(__latency_control_nb_read_wrapper(
         _RPipe, &TempData, _anchor_id, _target_anchor, _control_type_code,
         _relative_cycle));
@@ -81,14 +81,14 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static _dataT read(bool &Success) {
+  static DataT read(bool &Success) {
     return read(Success, oneapi::experimental::properties{});
   }
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static void write(const _dataT &Data, bool &Success,
+  static void write(const DataT &Data, bool &Success,
                     _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
@@ -115,8 +115,8 @@ public:
       _control_type_code = 3;
     }
 
-    __ocl_WPipeTy<_dataT> _WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __ocl_WPipeTy<DataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
     Success = !static_cast<bool>(__latency_control_nb_write_wrapper(
         _WPipe, &Data, _anchor_id, _target_anchor, _control_type_code,
         _relative_cycle));
@@ -130,7 +130,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static void write(const _dataT &Data, bool &Success) {
+  static void write(const DataT &Data, bool &Success) {
     write(Data, Success, oneapi::experimental::properties{});
   }
 
@@ -138,7 +138,7 @@ public:
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static _dataT read(_functionPropertiesT Properties) {
+  static DataT read(_functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
@@ -164,9 +164,9 @@ public:
       _control_type_code = 3;
     }
 
-    __ocl_RPipeTy<_dataT> _RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
-    _dataT TempData;
+    __ocl_RPipeTy<DataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
+    DataT TempData;
     __latency_control_bl_read_wrapper(_RPipe, &TempData, _anchor_id,
                                       _target_anchor, _control_type_code,
                                       _relative_cycle);
@@ -179,12 +179,12 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static _dataT read() { return read(oneapi::experimental::properties{}); }
+  static DataT read() { return read(oneapi::experimental::properties{}); }
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static void write(const _dataT &Data, _functionPropertiesT Properties) {
+  static void write(const DataT &Data, _functionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
@@ -210,8 +210,8 @@ public:
       _control_type_code = 3;
     }
 
-    __ocl_WPipeTy<_dataT> _WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __ocl_WPipeTy<DataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
     __latency_control_bl_write_wrapper(_WPipe, &Data, _anchor_id,
                                        _target_anchor, _control_type_code,
                                        _relative_cycle);
@@ -224,14 +224,14 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  static void write(const _dataT &Data) {
+  static void write(const DataT &Data) {
     write(Data, oneapi::experimental::properties{});
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(_dataT);
-  static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t m_Capacity = _min_capacity;
+  static constexpr int32_t m_Size = sizeof(DataT);
+  static constexpr int32_t m_Alignment = alignof(DataT);
+  static constexpr int32_t m_Capacity = MinCapacity;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
                                                            m_Capacity};

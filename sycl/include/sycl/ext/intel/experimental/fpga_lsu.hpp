@@ -23,37 +23,37 @@ constexpr uint8_t CACHE = 0x2;
 constexpr uint8_t STATICALLY_COALESCE = 0x4;
 constexpr uint8_t PREFETCH = 0x8;
 
-template <int32_t _N> struct burst_coalesce_impl {
-  static constexpr int32_t value = _N;
+template <int32_t N> struct burst_coalesce_impl {
+  static constexpr int32_t value = N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t _N> struct cache {
-  static constexpr int32_t value = _N;
+template <int32_t N> struct cache {
+  static constexpr int32_t value = N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t _N> struct prefetch_impl {
-  static constexpr int32_t value = _N;
+template <int32_t N> struct prefetch_impl {
+  static constexpr int32_t value = N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t _N> struct statically_coalesce_impl {
-  static constexpr int32_t value = _N;
+template <int32_t N> struct statically_coalesce_impl {
+  static constexpr int32_t value = N;
   static constexpr int32_t default_value = 1;
 };
 
-template <bool _B> using burst_coalesce = burst_coalesce_impl<_B>;
-template <bool _B> using prefetch = prefetch_impl<_B>;
-template <bool _B> using statically_coalesce = statically_coalesce_impl<_B>;
+template <bool B> using burst_coalesce = burst_coalesce_impl<B>;
+template <bool B> using prefetch = prefetch_impl<B>;
+template <bool B> using statically_coalesce = statically_coalesce_impl<B>;
 
 template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr, _propertiesT Properties) {
-    check_space<_space>();
+  template <typename T, access::address_space Space, typename _propertiesT>
+  static T load(sycl::multi_ptr<T, Space> Ptr, _propertiesT Properties) {
+    check_space<Space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     // Get latency control properties
@@ -80,7 +80,7 @@ public:
       _control_type_code = 3;
     }
 
-    return *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
+    return *__latency_control_mem_wrapper((T *)Ptr, _anchor_id, _target_anchor,
                                           _control_type_code, _relative_cycle);
 #else
     (void)Properties;
@@ -88,15 +88,15 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
-    return load<_T, _space>(Ptr, oneapi::experimental::properties{});
+  template <typename T, access::address_space Space>
+  static T load(sycl::multi_ptr<T, Space> Ptr) {
+    return load<T, Space>(Ptr, oneapi::experimental::properties{});
   }
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val,
+  template <typename T, access::address_space Space, typename _propertiesT>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val,
                     _propertiesT Properties) {
-    check_space<_space>();
+    check_space<Space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     // Get latency control properties
@@ -123,7 +123,7 @@ public:
       _control_type_code = 3;
     }
 
-    *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
+    *__latency_control_mem_wrapper((T *)Ptr, _anchor_id, _target_anchor,
                                    _control_type_code, _relative_cycle) = Val;
 #else
     (void)Properties;
@@ -131,9 +131,9 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
-    store<_T, _space>(Ptr, Val, oneapi::experimental::properties{});
+  template <typename T, access::address_space Space>
+  static void store(sycl::multi_ptr<T, Space> Ptr, T Val) {
+    store<T, Space>(Ptr, Val, oneapi::experimental::properties{});
   }
 
 private:
@@ -157,11 +157,11 @@ private:
 
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
 
-  template <access::address_space _space> static void check_space() {
+  template <access::address_space Space> static void check_space() {
     static_assert(
-        _space == access::address_space::global_space ||
-            _space == access::address_space::ext_intel_global_device_space ||
-            _space == access::address_space::ext_intel_global_host_space,
+        Space == access::address_space::global_space ||
+            Space == access::address_space::ext_intel_global_device_space ||
+            Space == access::address_space::ext_intel_global_host_space,
         "lsu controls are only supported for global_ptr, "
         "device_ptr, and host_ptr objects");
   }
@@ -185,8 +185,8 @@ private:
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control params via __builtin_intel_fpga_mem when ready.
-  template <typename _T>
-  static _T *__latency_control_mem_wrapper(_T *Ptr, int32_t AnchorID,
+  template <typename T>
+  static T *__latency_control_mem_wrapper(T *Ptr, int32_t AnchorID,
                                            int32_t TargetAnchor, int32_t Type,
                                            int32_t Cycle) {
     return __builtin_intel_fpga_mem(

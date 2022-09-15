@@ -17,18 +17,18 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 
-template <template <int32_t> class _Type, class _T>
-struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
+template <template <int32_t> class Type, class T>
+struct _MatchType : std::is_same<Type<T::value>, T> {};
 
-template <template <int32_t> class _Type, class... _T> struct _GetValue {
-  static constexpr auto value = _Type<0>::default_value;
+template <template <int32_t> class Type, class... T> struct _GetValue {
+  static constexpr auto value = Type<0>::default_value;
 };
 
-template <template <int32_t> class _Type, class _T1, class... _T>
-struct _GetValue<_Type, _T1, _T...> {
+template <template <int32_t> class Type, class T1, class... T>
+struct _GetValue<Type, T1, T...> {
   static constexpr auto value =
-      detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
-                            _GetValue<_Type, _T...>>::value;
+      detail::conditional_t<_MatchType<Type, T1>::value, T1,
+                            _GetValue<Type, T...>>::value;
 };
 } // namespace intel
 } // namespace ext
