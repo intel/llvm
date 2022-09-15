@@ -223,19 +223,21 @@ static bool doEagerInit = [] {
 }();
 
 // Controls the level of reusing events for in-order queues.
-static const enum CachingLevel {
+static const enum InOrderQueueReuseEventsLevel {
   // Don't reuse events.
   Disabled,
   // Reuse discarded device-scope events only.
   DeviceScopeDiscardedOnly,
   // Reuse all device-scope events.
   AllDeviceScope
-} CachingLevel = [] {
-  const auto CachingLevelStr =
+} InOrderQueueReuseEventsLevel = [] {
+  const auto InOrderQueueReuseEventsLevelStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_INORDER_QUEUE_REUSE_EVENTS");
 
   auto Default = AllDeviceScope;
-  switch (CachingLevelStr ? std::stoi(CachingLevelStr) : Default) {
+  switch (InOrderQueueReuseEventsLevelStr
+              ? std::stoi(InOrderQueueReuseEventsLevelStr)
+              : Default) {
   case 0:
     return Disabled;
   case 1:
@@ -655,7 +657,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 // the same queue.
 bool _pi_queue::supportsInOrderQueueReuseEventsOptimization(bool HostVisible,
                                                             bool IsDiscarded) {
-  switch (CachingLevel) {
+  switch (InOrderQueueReuseEventsLevel) {
   case Disabled:
     return false;
   case DeviceScopeDiscardedOnly:
