@@ -526,9 +526,9 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
                                         RT::PiProgram NativePrg) const {
   // iterate via all specialization constants the program's image depends on,
   // and set each to current runtime value (if any)
-  const pi::DeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
+  const RTDeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
   ContextImplPtr Ctx = getSyclObjImpl(get_context());
-  using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+  using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
 
   auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
   NativePrg = NativePrg ? NativePrg : getHandleRef();
@@ -540,7 +540,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
       continue;
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");
-    pi::ByteArray Descriptors = pi::DeviceBinaryProperty(*SCIt).asByteArray();
+    ByteArray Descriptors = DeviceBinaryProperty(*SCIt).asByteArray();
     // First 8 bytes are consumed by size of the property
     assert(Descriptors.size() > 8 && "Unexpected property size");
     // Expected layout is vector of 3-component tuples (flattened into a vector

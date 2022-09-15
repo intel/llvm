@@ -245,12 +245,12 @@ public:
 private:
   void updateSpecConstSymMap() {
     if (MBinImage) {
-      const pi::DeviceBinaryImage::PropertyRange &SCRange =
+      const RTDeviceBinaryImage::PropertyRange &SCRange =
           MBinImage->getSpecConstants();
-      using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+      using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
 
       // get default values for specialization constants
-      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+      const RTDeviceBinaryImage::PropertyRange &SCDefValRange =
           MBinImage->getSpecConstantsDefaultValues();
 
       // This variable is used to calculate spec constant value offset in a
@@ -259,8 +259,7 @@ private:
       for (SCItTy SCIt : SCRange) {
         const char *SCName = (*SCIt)->Name;
 
-        pi::ByteArray Descriptors =
-            pi::DeviceBinaryProperty(*SCIt).asByteArray();
+        ByteArray Descriptors = DeviceBinaryProperty(*SCIt).asByteArray();
         assert(Descriptors.size() > 8 && "Unexpected property size");
 
         // Expected layout is vector of 3-component tuples (flattened into a
@@ -301,8 +300,8 @@ private:
       bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
 
       if (HasDefaultValues) {
-        pi::ByteArray DefValDescriptors =
-            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        ByteArray DefValDescriptors =
+            DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
         assert(DefValDescriptors.size() - 8 == MSpecConstsBlob.size() &&
                "Specialization constant default value blob do not have the "
                "expected size.");

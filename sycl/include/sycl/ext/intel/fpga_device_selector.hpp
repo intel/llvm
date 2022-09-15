@@ -56,6 +56,18 @@ public:
   fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
 };
 
+class fpga_simulator_selector : public fpga_selector {
+public:
+  fpga_simulator_selector() {
+    // Tell the runtime to use a simulator device rather than hardware
+#ifdef _WIN32
+    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
+#else
+    setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1", 0);
+#endif
+  }
+};
+
 } // namespace intel
 } // namespace ext
 

@@ -6513,9 +6513,11 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
   char *ZeHandleSrc;
   PI_CALL(Src->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
+  bool PreferCopyEngine = true;
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size, ZeHandleSrc + Offset,
-                              NumEventsInWaitList, EventWaitList, Event);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -6534,11 +6536,13 @@ pi_result piEnqueueMemBufferReadRect(
 
   char *ZeHandleSrc;
   PI_CALL(Buffer->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
+  bool PreferCopyEngine = true;
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue, ZeHandleSrc,
       static_cast<char *>(Ptr), BufferOffset, HostOffset, Region,
       BufferRowPitch, HostRowPitch, BufferSlicePitch, HostSlicePitch,
-      BlockingRead, NumEventsInWaitList, EventWaitList, Event);
+      BlockingRead, NumEventsInWaitList, EventWaitList, Event,
+      PreferCopyEngine);
 }
 
 } // extern "C"
@@ -6780,11 +6784,13 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
 
   char *ZeHandleDst;
   PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
+  bool PreferCopyEngine = true;
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
                               ZeHandleDst + Offset, // dst
                               BlockingWrite, Size,
                               Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event);
+                              NumEventsInWaitList, EventWaitList, Event,
+                              PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -6802,12 +6808,13 @@ pi_result piEnqueueMemBufferWriteRect(
 
   char *ZeHandleDst;
   PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
+  bool PreferCopyEngine = true;
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, Queue,
       const_cast<char *>(static_cast<const char *>(Ptr)), ZeHandleDst,
       HostOffset, BufferOffset, Region, HostRowPitch, BufferRowPitch,
       HostSlicePitch, BufferSlicePitch, BlockingWrite, NumEventsInWaitList,
-      EventWaitList, Event);
+      EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcMem, pi_mem DstMem,
