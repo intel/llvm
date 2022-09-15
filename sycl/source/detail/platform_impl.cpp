@@ -229,6 +229,16 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
+  if (is_host() && (DeviceType == info::device_type::host ||
+                    DeviceType == info::device_type::all)) {
+    Res.push_back(
+        createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
+  }
+
+  // If any DeviceType other than host was requested for host platform,
+  // an empty vector will be returned.
+  if (is_host() || DeviceType == info::device_type::host)
+    return Res;
 
   pi_uint32 NumDevices = 0;
   const detail::plugin &Plugin = getPlugin();

@@ -59,7 +59,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::queue Queue1{Dev};
   sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
 
-  sycl::device HostDevice{host_selector{}};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));

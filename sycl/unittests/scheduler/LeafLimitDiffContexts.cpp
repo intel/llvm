@@ -10,7 +10,9 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
+#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+
 
 #include <algorithm>
 #include <cstddef>
@@ -35,8 +37,10 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  device Device = Selector.select_device();
+  // Ensure the mock plugin has been initialized prior to selecting a device.
+  unittest::PiMock::EnsureMockPluginInitialized();
+
+  device Device;
   struct QueueRelatedObjects {
     context Context;
     queue Queue;
