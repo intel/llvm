@@ -190,6 +190,15 @@ template <class Reducer> class combiner {
   static constexpr size_t Extent = ReducerTraits<Reducer>::extent;
 
 public:
+  // According to SYCL2020 copy constructors for a derived reducer class are
+  // marked as 'delete' to avoid errors when a lambda accepts a private copy of a
+  // `reducer` argument.
+  combiner() {}
+  combiner(const combiner &) = delete;
+  combiner(combiner &&) = delete;
+  combiner &operator=(const combiner &) = delete;
+  combiner &operator=(combiner &&) = delete;
+  
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
               is_geninteger<_T>::value>
