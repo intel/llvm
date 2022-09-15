@@ -212,8 +212,7 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
-  default_selector Selector;
-  queue Queue{Ctx, Selector};
+  queue Queue{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
   MockScheduler MS;
 

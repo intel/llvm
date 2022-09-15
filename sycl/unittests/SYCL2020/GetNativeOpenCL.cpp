@@ -98,9 +98,8 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
 
-  default_selector Selector;
   context Context(Plt);
-  queue Queue(Context, Selector);
+  queue Queue(Context, default_selector_v);
 
   auto Device = Queue.get_device();
 
