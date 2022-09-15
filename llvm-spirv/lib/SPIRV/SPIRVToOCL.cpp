@@ -813,7 +813,7 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
                                                                  Op OC) {
   Type *T = CI->getType();
-  if (auto VT = dyn_cast<VectorType>(T))
+  if (auto *VT = dyn_cast<VectorType>(T))
     T = VT->getElementType();
   auto Mutator =
       mutateCallImageOperands(CI, kOCLBuiltinName::SampledReadImage, T, 2);
