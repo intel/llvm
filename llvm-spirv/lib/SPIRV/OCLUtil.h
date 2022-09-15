@@ -54,6 +54,10 @@ using namespace SPIRV;
 using namespace llvm;
 using namespace spv;
 
+namespace SPIRV {
+class BuiltinCallMutator;
+} // namespace SPIRV
+
 namespace OCLUtil {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,12 +158,12 @@ struct OCLBuiltinTransInfo {
   std::string MangledName;
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
-  std::function<void(std::vector<Value *> &)> PostProc;
+  std::function<void(BuiltinCallMutator &)> PostProc;
   Type *RetTy;      // Return type of the translated function
   bool IsRetSigned; // When RetTy is int, determines if extensions
                     // on it should be a sext or zet.
   OCLBuiltinTransInfo() : RetTy(nullptr), IsRetSigned(false) {
-    PostProc = [](std::vector<Value *> &) {};
+    PostProc = [](BuiltinCallMutator &) {};
   }
 };
 
@@ -305,6 +309,7 @@ const static char SubgroupBlockWriteINTELPrefix[] =
     "intel_sub_group_block_write";
 const static char SubgroupImageMediaBlockINTELPrefix[] =
     "intel_sub_group_media_block";
+const static char SplitBarrierINTELPrefix[] = "intel_work_group_barrier_";
 const static char LDEXP[] = "ldexp";
 #define _SPIRV_OP(x)                                                           \
   const static char ConvertBFloat16##x##AsUShort##x[] =                        \
@@ -482,20 +487,6 @@ inline OCLMemOrderKind mapSPIRVMemOrderToOCL(unsigned Sema) {
   return OCLMemOrderMap::rmap(extractSPIRVMemOrderSemantic(Sema));
 }
 
-/// Mutate call instruction to call OpenCL builtin function.
-CallInst *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs = nullptr);
-
-/// Mutate call instruction to call OpenCL builtin function.
-Instruction *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr, bool TakeFuncName = false);
-
 /// If the value is a special type initializer (something that bitcasts from
 /// spirv.ConstantSampler to spirv.Sampler or likewise for PipeStorage), get the
 /// original type initializer, unwrap the bitcast. Otherwise, return nullptr.
@@ -506,7 +497,7 @@ bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerStructTy(StructType *Ty);
+bool isSamplerStructTy(Type *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);
@@ -519,6 +510,8 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
 
 void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
                                     std::string &Name);
+
+std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F);
 } // namespace OCLUtil
 
 using namespace OCLUtil;

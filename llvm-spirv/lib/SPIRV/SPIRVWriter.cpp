@@ -1485,6 +1485,14 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           LoopCount.Avg = getMDOperandAsInt(Node, 1);
           LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
+        } else if (S == "llvm.loop.intel.max_reinvocation_delay.count") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          size_t I = getMDOperandAsInt(Node, 1);
+          ParametersToSort.emplace_back(
+              spv::internal::LoopControlMaxReinvocationDelayINTELMask, I);
+          LoopControl |=
+              spv::internal::LoopControlMaxReinvocationDelayINTELMask;
         }
       }
     }
@@ -2712,15 +2720,15 @@ struct IntelLSUControlsInfo {
       ResultVec.emplace_back(DecorationDontStaticallyCoalesceINTEL,
                              std::vector<std::string>());
     // Conditional values
-    if (CacheSizeInfo.hasValue()) {
+    if (CacheSizeInfo.has_value()) {
       ResultVec.emplace_back(
           DecorationCacheSizeINTEL,
-          std::vector<std::string>{std::to_string(CacheSizeInfo.getValue())});
+          std::vector<std::string>{std::to_string(CacheSizeInfo.value())});
     }
-    if (PrefetchInfo.hasValue()) {
+    if (PrefetchInfo.has_value()) {
       ResultVec.emplace_back(
           DecorationPrefetchINTEL,
-          std::vector<std::string>{std::to_string(PrefetchInfo.getValue())});
+          std::vector<std::string>{std::to_string(PrefetchInfo.value())});
     }
     return ResultVec;
   }
@@ -2898,7 +2906,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
         LSUControls.setWithBitMask(ParamsBitMask);
       } else if (Name == "cache-size") {
         ValidDecorationFound = true;
-        if (!LSUControls.CacheSizeInfo.hasValue())
+        if (!LSUControls.CacheSizeInfo.has_value())
           continue;
         unsigned CacheSizeValue = 0;
         bool Failure = ValueStr.getAsInteger(10, CacheSizeValue);
@@ -4787,7 +4795,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // for this call, because there is no support for type corresponding to
     // OpTypeSampledImage. So, in this case, we create the required type here.
     Value *Image = CI->getArgOperand(0);
-    SmallVector<StructType *, 4> ParamTys;
+    SmallVector<Type *, 4> ParamTys;
     getParameterTypes(CI, ParamTys);
     Type *ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
     Type *SampledImgTy = getSPIRVStructTypeByChangeBaseTypeName(

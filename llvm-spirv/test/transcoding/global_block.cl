@@ -24,9 +24,9 @@ kernel void block_kernel(__global int* res) {
 
 // CHECK-LLVM-LABEL: @block_kernel
 // CHECK-SPIRV: FunctionCall [[int]] {{[0-9]+}} [[block_invoke]] {{[0-9]+}} [[five]]
-// CHECK-LLVM: %call = call spir_func i32 @_block_invoke(i8 addrspace(4)* {{.*}}, i32 5)
+// CHECK-LLVM: %call = call spir_func i32 @_block_invoke(ptr addrspace(4) {{.*}}, i32 5)
 
 // CHECK-SPIRV: 5 Function [[int]] [[block_invoke]] 2 [[block_invoke_type]]
 // CHECK-SPIRV-NEXT: 3 FunctionParameter [[int8Ptr]] {{[0-9]+}}
 // CHECK-SPIRV-NEXT: 3 FunctionParameter [[int]] {{[0-9]+}}
-// CHECK-LLVM: define internal spir_func i32 @_block_invoke(i8 addrspace(4)* {{.*}}, i32 %{{.*}})
+// CHECK-LLVM: define internal spir_func i32 @_block_invoke(ptr addrspace(4) {{.*}}, i32 %{{.*}})

@@ -1,4 +1,4 @@
-add_llvm_library(LLVMSPIRVLib
+set(SRC_LIST
   LLVMSPIRVOpts.cpp
   LLVMToSPIRVDbgTran.cpp
   Mangler/FunctionDescriptor.cpp
@@ -9,6 +9,7 @@ add_llvm_library(LLVMSPIRVLib
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
   VectorComputeUtil.cpp
+  SPIRVBuiltinHelper.cpp
   SPIRVLowerBitCastToNonStandardType.cpp
   SPIRVLowerBool.cpp
   SPIRVLowerConstExpr.cpp
@@ -36,20 +37,41 @@ add_llvm_library(LLVMSPIRVLib
   libSPIRV/SPIRVStream.cpp
   libSPIRV/SPIRVType.cpp
   libSPIRV/SPIRVValue.cpp
-  LINK_COMPONENTS
-    Analysis
-    BitWriter
-    CodeGen
-    Core
-    Demangle
-    IRReader
-    Linker
-    Passes
-    Support
-    TransformUtils
+)
+if(LLVM_LINK_LLVM_DYLIB)
+  add_llvm_library(LLVMSPIRVLib STATIC DISABLE_LLVM_LINK_LLVM_DYLIB
+    ${SRC_LIST}
+    DEPENDS
+      intrinsics_gen
+      LLVMAnalysis
+      LLVMBitWriter
+      LLVMCodeGen
+      LLVMCore
+      LLVMDemangle
+      LLVMIRReader
+      LLVMLinker
+      LLVMPasses
+      LLVMSupport
+      LLVMTransformUtils
+  )
+else()
+  add_llvm_library(LLVMSPIRVLib
+    ${SRC_LIST}
+    LINK_COMPONENTS
+      Analysis
+      BitWriter
+      CodeGen
+      Core
+      Demangle
+      IRReader
+      Linker
+      Passes
+      Support
+      TransformUtils
   DEPENDS
     intrinsics_gen
-)
+  )
+endif()
 
 target_include_directories(LLVMSPIRVLib
   PRIVATE

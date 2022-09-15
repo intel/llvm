@@ -38,4 +38,4 @@ kernel void block_ret_struct(__global int* res)
 // CHECK-SPIRV: 7 FunctionCall {{[0-9]+}} {{[0-9]+}} [[BlockInv]] [[StructRet]] [[BlockLit]] [[StructArg]]
 
 // CHECK-LLVM: %[[StructA:.*]] = type { i32 }
-// CHECK-LLVM: call {{.*}} void @__block_ret_struct_block_invoke(%[[StructA]]*
+// CHECK-LLVM: call {{.*}} void @__block_ret_struct_block_invoke(ptr noalias sret(%[[StructA]])

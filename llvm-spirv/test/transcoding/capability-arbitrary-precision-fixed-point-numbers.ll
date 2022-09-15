@@ -100,7 +100,7 @@
 ; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK-ERROR: Fixed point instructions can't be translated correctly without enabled SPV_INTEL_arbitrary_precision_fixed_point extension!
 
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 2 Capability Kernel
@@ -187,8 +187,8 @@
 ; CHECK-LLVM: call i10 @intel_arbitrary_fixed_sincospi.i10.i13(i13 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
 ; CHECK-LLVM: call i44 @intel_arbitrary_fixed_log.i44.i64(i64 %[[#]], i1 true, i32 24, i32 22, i32 0, i32 0)
 ; CHECK-LLVM: call i34 @intel_arbitrary_fixed_exp.i34.i44(i44 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
-; CHECK-LLVM: call void @intel_arbitrary_fixed_sincos.i66.i34(i66 addrspace(4)* sret(i66) %[[#]], i34 %[[#]], i1 true, i32 3, i32 2, i32 0, i32 0)
-; CHECK-LLVM: call void @intel_arbitrary_fixed_exp.i68.i68(i68 addrspace(4)* sret(i68) %[[#]], i68 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
+; CHECK-LLVM: call void @intel_arbitrary_fixed_sincos.i66.i34(ptr addrspace(4) sret(i66) %[[#]], i34 %[[#]], i1 true, i32 3, i32 2, i32 0, i32 0)
+; CHECK-LLVM: call void @intel_arbitrary_fixed_exp.i68.i68(ptr addrspace(4) sret(i68) %[[#]], i68 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
 
 ; ModuleID = 'ap_fixed.cpp'
 source_filename = "ap_fixed.cpp"
