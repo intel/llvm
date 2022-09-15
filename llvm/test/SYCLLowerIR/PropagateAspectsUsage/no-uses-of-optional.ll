@@ -18,3 +18,6 @@ define weak dso_local spir_func void @func() {
 
 !intel_types_that_use_aspects = !{!0}
 !0 = !{!"MyStruct", i32 1}
+
+!intel_sycl_aspects = !{!2}
+!2 = !{!"fp64", i32 6}
