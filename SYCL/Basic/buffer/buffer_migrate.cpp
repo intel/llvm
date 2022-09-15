@@ -1,3 +1,5 @@
+// The test is flaky, disable until investigated/fixed.
+// REQUIRES: TEMPORARILY_DISABLED
 // REQUIRES: gpu
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
