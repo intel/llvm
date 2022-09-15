@@ -1668,7 +1668,7 @@ retry:
         break;
       }
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   default:
     Diags.Report(Tok.getLocation(), diag::err_mmap_unknown_token);
@@ -2026,8 +2026,7 @@ void ModuleMapParser::parseModuleDecl() {
     ActiveModule->IsSystem = true;
   if (Attrs.IsExternC)
     ActiveModule->IsExternC = true;
-  if (Attrs.NoUndeclaredIncludes ||
-      (!ActiveModule->Parent && ModuleName == "Darwin"))
+  if (Attrs.NoUndeclaredIncludes)
     ActiveModule->NoUndeclaredIncludes = true;
   ActiveModule->Directory = Directory;
 

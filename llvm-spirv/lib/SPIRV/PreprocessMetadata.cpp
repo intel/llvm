@@ -349,6 +349,18 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
           .add(spv::internal::ExecutionModeFastCompositeKernelINTEL)
           .done();
     }
+
+    if (Attrs.hasFnAttr(kVCMetadata::VCNamedBarrierCount)) {
+      SPIRVWord NBarrierCnt = 0;
+      Attrs.getFnAttr(kVCMetadata::VCNamedBarrierCount)
+          .getValueAsString()
+          .getAsInteger(0, NBarrierCnt);
+      EM.addOp()
+          .add(&F)
+          .add(spv::ExecutionModeNamedBarrierCountINTEL)
+          .add(NBarrierCnt)
+          .done();
+    }
   }
 }
 

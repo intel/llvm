@@ -114,6 +114,7 @@ const static char VCCallable[] = "VCCallable";
 const static char VCSingleElementVector[] = "VCSingleElementVector";
 const static char VCFCEntry[] = "VCFCEntry";
 const static char VCMediaBlockIO[] = "VCMediaBlockIO";
+const static char VCNamedBarrierCount[] = "VCNamedBarrierCount";
 } // namespace kVCMetadata
 
 namespace kVCType {
