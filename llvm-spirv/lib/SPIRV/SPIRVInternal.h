@@ -549,7 +549,8 @@ void move(std::vector<T> &V, size_t Begin, size_t End, size_t Target) {
 }
 
 /// Find position of first pointer type value in a vector.
-inline size_t findFirstPtr(const std::vector<Value *> &Args) {
+template <typename Container>
+inline unsigned findFirstPtr(const Container &Args) {
   auto PtArg = std::find_if(Args.begin(), Args.end(), [](Value *V) {
     return V->getType()->isPointerTy();
   });
