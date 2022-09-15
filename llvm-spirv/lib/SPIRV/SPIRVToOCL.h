@@ -203,17 +203,17 @@ public:
 
   /// Transform __spirv_OpAtomicCompareExchange and
   /// __spirv_OpAtomicCompareExchangeWeak
-  virtual Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) = 0;
+  virtual void visitCallSPIRVAtomicCmpExchg(CallInst *CI) = 0;
 
   /// Transform __spirv_OpAtomicIIncrement/OpAtomicIDecrement to:
   /// - OCL2.0: atomic_fetch_add_explicit/atomic_fetch_sub_explicit
   /// - OCL1.2: atomic_inc/atomic_dec
-  virtual Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) = 0;
+  virtual void visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) = 0;
 
   /// Transform __spirv_Atomic* to atomic_*.
   ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>
   ///      atomic_*(atomic_op, ops, ..., order(sema), map(scope))
-  virtual Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) = 0;
+  virtual void visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) = 0;
 
   /// Transform __spirv_MemoryBarrier to:
   /// - OCL2.0: atomic_work_item_fence.__spirv_MemoryBarrier(scope, sema) =>
@@ -246,7 +246,7 @@ public:
 
   /// Transform __spirv_Opcode to ocl-version specific builtin name
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
-  virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
+  virtual void mutateAtomicName(CallInst *CI, Op OC) = 0;
 
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
@@ -324,35 +324,35 @@ public:
 
   /// Transform __spirv_OpAtomic functions. It firstly conduct generic
   /// mutations for all builtins and then mutate some of them seperately
-  Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
+  void visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
 
   /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
   /// atomic_inc / atomic_dec
-  Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
+  void visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
 
   /// Transform __spirv_OpAtomicUMin/SMin/UMax/SMax into
   /// atomic_min/atomic_max, as there is no distinction in OpenCL 1.2
   /// between signed and unsigned version of those functions
-  Instruction *visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC);
+  void visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC);
 
   /// Transform __spirv_OpAtomicLoad to atomic_add(*ptr, 0)
-  Instruction *visitCallSPIRVAtomicLoad(CallInst *CI);
+  void visitCallSPIRVAtomicLoad(CallInst *CI);
 
   /// Transform __spirv_OpAtomicStore to atomic_xchg(*ptr, value)
-  Instruction *visitCallSPIRVAtomicStore(CallInst *CI);
+  void visitCallSPIRVAtomicStore(CallInst *CI);
 
   /// Transform __spirv_OpAtomicFlagClear to atomic_xchg(*ptr, 0)
   /// with ignoring the result
-  Instruction *visitCallSPIRVAtomicFlagClear(CallInst *CI);
+  void visitCallSPIRVAtomicFlagClear(CallInst *CI);
 
   /// Transform __spirv_OpAtomicFlagTestAndTest to
   /// (bool)atomic_xchg(*ptr, 1)
-  Instruction *visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI);
+  void visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI);
 
   /// Transform __spirv_OpAtomicCompareExchange/Weak into atomic_cmpxchg
   /// OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
   /// the same semantics as OpAtomicCompareExchange.
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
+  void visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 
   /// Trigger assert, since OpenCL 1.2 doesn't support enqueue_kernel
   void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) override;
@@ -361,7 +361,7 @@ public:
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
 
   /// Transform atomic builtin name into correct ocl-dependent name
-  Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
+  void mutateAtomicName(CallInst *CI, Op OC) override;
 
   // Transform FP atomic opcode to corresponding OpenCL function name
   std::string mapFPAtomicName(Op OC) override;
@@ -419,11 +419,11 @@ public:
   /// Transform __spirv_Atomic* to atomic_*.
   ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>
   ///      atomic_*(generic atomic_op, ops, ..., order(sema), map(scope))
-  Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
+  void visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) override;
 
   /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
   /// atomic_fetch_add_explicit / atomic_fetch_sub_explicit
-  Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
+  void visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
 
   /// Transform __spirv_EnqueueKernel to __enqueue_kernel
   void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) override;
@@ -432,7 +432,7 @@ public:
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
 
   /// Transform atomic builtin name into correct ocl-dependent name
-  Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
+  void mutateAtomicName(CallInst *CI, Op OC) override;
 
   // Transform FP atomic opcode to corresponding OpenCL function name
   std::string mapFPAtomicName(Op OC) override;
@@ -441,7 +441,7 @@ public:
   /// atomic_compare_exchange_strong_explicit
   /// OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
   /// the same semantics as OpAtomicCompareExchange.
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
+  void visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 };
 
 class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,
