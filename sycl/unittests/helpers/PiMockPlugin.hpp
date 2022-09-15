@@ -899,15 +899,15 @@ inline pi_result mock_piPluginGetLastError(char **message) {
   return PI_SUCCESS;
 }
 
-#define _CONCAT(A, B) A##B
-#define CONCAT(A, B) _CONCAT(A, B)
+#define _PI_MOCK_PLUGIN_CONCAT(A, B) A##B
+#define PI_MOCK_PLUGIN_CONCAT(A, B) _PI_MOCK_PLUGIN_CONCAT(A, B)
 
 inline pi_plugin::FunctionPointers getMockedFunctionPointers() {
   return {
-#define _PI_API(api) CONCAT(mock_, api),
+#define _PI_API(api) PI_MOCK_PLUGIN_CONCAT(mock_, api),
 #include <sycl/detail/pi.def>
   };
 }
 
-#undef CONCAT
-#undef _CONCAT
+#undef PI_MOCK_PLUGIN_CONCAT
+#undef _PI_MOCK_PLUGIN_CONCAT
