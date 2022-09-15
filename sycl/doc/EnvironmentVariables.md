@@ -33,7 +33,7 @@ compiler and runtime.
 
 With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of them, usually preferring a LevelZero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose sub-devices (aka "tiles") as individual devices.  
 
-A value for this environment value consists of a backend name, followed by a colon ( : ), followed by some sort of device specifier (a named device type, a wildcard symbol ( * ) , or an exact numeric device id).  This can optionally be followed by period ( . ) and then a wilcard symbol ( * ) or an numeric index (using 0 based counting).   Commas can be used to string multiple device specifiers behind any backend.    Moreover, individual entries can be separated by semi-colons. 
+A value for this environment value consists of a backend name, followed by a colon ( : ), followed by some sort of device specifier (a named device type, a wildcard symbol ( * ) , or an exact numeric device id).  This can optionally be followed by period ( . )  and then a sub-device specifier, which could be either a wilcard symbol ( * ) or an numeric index (using 0 based counting).   Commas can be used to string multiple device specifiers behind any backend.    Moreover, individual entries can be separated by semi-colons. 
 
 
 Possible values of `backend` are:

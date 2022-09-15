@@ -12,7 +12,7 @@
 #include <sycl/info/info_desc.hpp>
 
 #include <cstring>
-#include <iostream>
+#include <sstream>
 #include <string_view>
 
 namespace sycl {

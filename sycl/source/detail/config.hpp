@@ -272,7 +272,7 @@ public:
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, info::device_type>, 5> &
+const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
