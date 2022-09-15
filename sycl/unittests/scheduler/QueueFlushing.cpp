@@ -140,10 +140,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
-  default_selector Selector;
-  queue QueueA{Ctx, Selector};
+  queue QueueA{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplA = detail::getSyclObjImpl(QueueA);
-  queue QueueB{Ctx, Selector};
+  queue QueueB{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplB = detail::getSyclObjImpl(QueueB);
   ExpectedDepQueue = QueueImplB->getHandleRef();
 
@@ -214,7 +213,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     detail::EventImplPtr DepEvent;
     {
-      queue TempQueue{Ctx, Selector};
+      queue TempQueue{Ctx, default_selector_v};
       detail::QueueImplPtr TempQueueImpl = detail::getSyclObjImpl(TempQueue);
       DepEvent.reset(new detail::event_impl(TempQueueImpl));
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());

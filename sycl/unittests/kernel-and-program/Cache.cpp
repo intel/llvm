@@ -91,15 +91,6 @@ struct TestCtx {
 
 std::unique_ptr<TestCtx> globalCtx;
 
-static pi_result redefinedProgramCreateWithSource(pi_context context,
-                                                  pi_uint32 count,
-                                                  const char **strings,
-                                                  const size_t *lengths,
-                                                  pi_program *ret_program) {
-  *ret_program = reinterpret_cast<pi_program>(1);
-  return PI_SUCCESS;
-}
-
 static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,
                                         size_t param_value_size,
@@ -113,25 +104,13 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
-
 class KernelAndProgramCacheTest : public ::testing::Test {
 public:
   KernelAndProgramCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-        redefinedProgramCreateWithSource);
     Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:

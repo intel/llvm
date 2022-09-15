@@ -118,7 +118,7 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
 
 // Note: Split from shutdown so it is available to the unittests for ensuring
 //       that the mock plugin is the lone plugin.
-void GlobalHandler::clearPlugins() {
+void GlobalHandler::unloadPlugins() {
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
@@ -153,7 +153,7 @@ void shutdown() {
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
-  GlobalHandler::instance().clearPlugins();
+  GlobalHandler::instance().unloadPlugins();
   if (GlobalHandler::instance().MPlugins.Inst)
     GlobalHandler::instance().MPlugins.Inst.reset(nullptr);
 

@@ -527,6 +527,9 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 #endif // _WIN32
 
 TEST(Assert, TestPositive) {
+  // Ensure that the mock plugin is initialized before spawning work. Since the
+  // test needs no redefinitions we do not need to create a PiMock instance, but
+  // the mock plugin is still needed to have a valid platform available.
   sycl::unittest::PiMock::EnsureMockPluginInitialized();
 
 #ifndef _WIN32

@@ -187,7 +187,7 @@ public:
     // Ensure that the other plugins are initialized so we can unload them.
     // This makes sure that the mock plugin is the only available plugin.
     detail::pi::initialize();
-    detail::GlobalHandler::instance().clearPlugins();
+    detail::GlobalHandler::instance().unloadPlugins();
     std::vector<detail::plugin> &Plugins =
         detail::GlobalHandler::instance().getPlugins();
 

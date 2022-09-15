@@ -30,6 +30,8 @@ void *loadOsLibrary(const std::string &PluginPath) {
 }
 
 int unloadOsLibrary(void *Library) {
+  // The mock plugin does not have an associated library, so we allow nullptr
+  // here to avoid it trying to free a non-existent library.
   if (!Library)
     return 0;
   return dlclose(Library);
