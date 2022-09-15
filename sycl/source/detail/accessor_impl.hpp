@@ -101,14 +101,17 @@ class __SYCL_EXPORT LocalAccessorImplHost {
 public:
   // Allocate ElemSize more data to have sufficient padding to enforce
   // alignment.
-  LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize)
+  LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize,
+                        const property_list &PropertyList)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
-        MMem(Size[0] * Size[1] * Size[2] * ElemSize + ElemSize) {}
+        MMem(Size[0] * Size[1] * Size[2] * ElemSize + ElemSize),
+        MPropertyList(PropertyList) {}
 
   sycl::range<3> MSize;
   int MDims;
   int MElemSize;
   std::vector<char> MMem;
+  property_list MPropertyList;
 };
 
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
