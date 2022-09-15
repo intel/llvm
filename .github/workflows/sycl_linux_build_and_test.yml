@@ -115,11 +115,11 @@ jobs:
       run: |
         # TODO consider moving this to Dockerfile
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-        cmake --build $GITHUB_WORKSPACE/build --target check-sycl
+        # cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
+        # cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
@@ -183,7 +183,7 @@ jobs:
 
   llvm_test_suite:
     needs: [build, aws-start]
-    if: ${{ inputs.lts_matrix != '[]' }}
+    if: always() && ${{ inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
