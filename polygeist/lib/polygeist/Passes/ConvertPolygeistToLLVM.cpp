@@ -101,7 +101,8 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     Type convViewElemType = getTypeConverter()->convertType(viewElemType);
 
     // When the converted source operand element type is a struct, the original
-    // memref element type represents a SYCL type. Handle the non-SYCL case first.
+    // memref element type represents a SYCL type. Handle the non-SYCL case
+    // first.
     if (!convSourceElemType.isa<LLVM::LLVMStructType>()) {
       assert(
           convViewElemType ==
@@ -119,7 +120,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     // SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
-    // Note:in MLIRASTConsumer::getMLIRType(), a memref of struct type is 
+    // Note:in MLIRASTConsumer::getMLIRType(), a memref of struct type is
     // generated only for a struct that has at least one member of SYCL type,
     // otherwise a llvm pointer type is generated instead of a memref).
     assert((sycl::isSYCLType(sourceElemType) ||
@@ -133,8 +134,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
 
     SmallVector<Value, 4> indices;
     computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
-                   convViewElemType, indices, subViewOp, transformed,
-                   rewriter);
+                   convViewElemType, indices, subViewOp, transformed, rewriter);
     assert(!indices.empty() && "Expecting a least one index");
 
     // According to MLIRScanner::InitializeValueByInitListExpr() in
@@ -145,73 +145,70 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, indices);
     auto memRefDesc = createMemRefDescriptor(loc, viewMemRefType, gep, gep,
                                              sizes, strides, rewriter);
-    LLVM_DEBUG(llvm::dbgs() << "gep: " << *gep << "\n");                                             
+    LLVM_DEBUG(llvm::dbgs() << "gep: " << *gep << "\n");
 
     rewriter.replaceOp(subViewOp, {memRefDesc});
     return success();
   }
 
-  private:
-    // Compute the indices of the GEP operation we lower the SubIndexOp to.
-    // The indices are computed based on:
-    //   a) the (converted) source element type, and
-    //   b) the (converted) result element type that is requested
-    // Examples:
-    //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<i64>
-    //      -> idxs = [0, 0, SubIndexOp's index]
-    //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<array<1xi64>>
-    //      -> idxs = [0, SubIndexOp's index]
-    //
-    // Note: the (converted) result type that is requested is deemed illegal
-    // unless it is one of the source member types. For example assume:
-    //   - src ty: ptr<struct<array<1xi64>,i32>>
-    //   - res ty: ptr<i64>
-    // This is illegal because res ty can only be either ptr<i32> or
-    // ptr<array<1xi64>>
-    void computeIndices(const LLVM::LLVMStructType &srcElemType,
-                        const Type &resElemType,
-                        SmallVectorImpl<Value> &indices, SubIndexOp op,
-                        OpAdaptor transformed,
-                        ConversionPatternRewriter &rewriter) const {
-      assert(indices.empty() && "Expecting an empty vector");
+private:
+  // Compute the indices of the GEP operation we lower the SubIndexOp to.
+  // The indices are computed based on:
+  //   a) the (converted) source element type, and
+  //   b) the (converted) result element type that is requested
+  // Examples:
+  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<i64>
+  //      -> idxs = [0, 0, SubIndexOp's index]
+  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<array<1xi64>>
+  //      -> idxs = [0, SubIndexOp's index]
+  //
+  // Note: the (converted) result type that is requested is deemed illegal
+  // unless it is one of the source member types. For example assume:
+  //   - src ty: ptr<struct<array<1xi64>,i32>>
+  //   - res ty: ptr<i64>
+  // This is illegal because res ty can only be either ptr<i32> or
+  // ptr<array<1xi64>>
+  void computeIndices(const LLVM::LLVMStructType &srcElemType,
+                      const Type &resElemType, SmallVectorImpl<Value> &indices,
+                      SubIndexOp op, OpAdaptor transformed,
+                      ConversionPatternRewriter &rewriter) const {
+    assert(indices.empty() && "Expecting an empty vector");
 
-      ArrayRef<Type> memTypes = srcElemType.getBody();
-      unsigned numMembers = memTypes.size();
-      assert((numMembers == 1 ||
-              any_of(memTypes, [=](Type t) { return resElemType == t; })) &&
-             "The requested result memref element type is illegal");
+    ArrayRef<Type> memTypes = srcElemType.getBody();
+    unsigned numMembers = memTypes.size();
+    assert((numMembers == 1 ||
+            any_of(memTypes, [=](Type t) { return resElemType == t; })) &&
+           "The requested result memref element type is illegal");
 
-      Type indexType = transformed.index().getType();
-      Value zero = rewriter.create<LLVM::ConstantOp>(
-          op.getLoc(), indexType, rewriter.getIntegerAttr(indexType, 0));
-      indices.push_back(zero);
+    Type indexType = transformed.index().getType();
+    Value zero = rewriter.create<LLVM::ConstantOp>(
+        op.getLoc(), indexType, rewriter.getIntegerAttr(indexType, 0));
+    indices.push_back(zero);
 
-      if (numMembers == 1) {
-        Type currType = srcElemType.getBody()[0];
-        while (currType != resElemType) {
-          indices.push_back(zero);
+    if (numMembers == 1) {
+      Type currType = srcElemType.getBody()[0];
+      while (currType != resElemType) {
+        indices.push_back(zero);
 
-          TypeSwitch<Type>(currType)
-              .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
-                assert(t.getBody().size() == 1 &&
-                       "Expecting single member type");
-                currType = t.getBody()[0];
-              })
-              .Case<LLVM::LLVMArrayType>(
-                  [&](LLVM::LLVMArrayType t) { currType = t.getElementType(); })
-              .Case<LLVM::LLVMPointerType>([&](LLVM::LLVMPointerType t) {
-                currType = t.getElementType();
-              })
-              .Default([&](Type t) {
-                currType = t;
-                assert(currType == resElemType &&
-                       "requested result type is illegal");
-              });
-        }
+        TypeSwitch<Type>(currType)
+            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
+              assert(t.getBody().size() == 1 && "Expecting single member type");
+              currType = t.getBody()[0];
+            })
+            .Case<LLVM::LLVMArrayType>(
+                [&](LLVM::LLVMArrayType t) { currType = t.getElementType(); })
+            .Case<LLVM::LLVMPointerType>(
+                [&](LLVM::LLVMPointerType t) { currType = t.getElementType(); })
+            .Default([&](Type t) {
+              currType = t;
+              assert(currType == resElemType &&
+                     "requested result type is illegal");
+            });
       }
-
-      indices.push_back(transformed.index());
     }
+
+    indices.push_back(transformed.index());
+  }
 };
 
 struct Memref2PointerOpLowering
@@ -816,8 +813,8 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
   bool useAlignedAlloc =
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
-      options.useBarePtrCallConv, false,
-      options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
+      options.useBarePtrCallConv, false, options.getIndexBitwidth(),
+      useAlignedAlloc, options.dataLayout);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
