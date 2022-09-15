@@ -44,13 +44,6 @@ runs:
       cd khronos_sycl_cts
       git submodule update --init
     shell: bash
-  # Remove failed test case
-  - run: |
-      # TODO remove this step when host_task_interop_api.cpp fixed, CMPLRTST-17212
-      rm khronos_sycl_cts/tests/host_task/host_task_interop_api.cpp
-      # PI CUDA kernels only support images with channel types int32, uint32, float, and half.
-      rm khronos_sycl_cts/tests/accessor_legacy/accessor_api_image_core.cpp
-    shell: bash
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
     with:
@@ -67,10 +60,8 @@ runs:
     run: |
       echo "::group::CMake configuration"
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
-      export PATH=$PWD/toolchain/bin/:$PATH
       mkdir build
       cmake  -GNinja -B./build -S./khronos_sycl_cts -DSYCL_IMPLEMENTATION=DPCPP \
-      -DDPCPP_TARGET_TRIPLES=nvptx64-nvidia-cuda \
       -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/llvm/devops/cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
@@ -85,8 +76,8 @@ runs:
   - name: Run SYCL-CTS
     shell: bash
     run: |
+      echo "::group::Configure execution environment"
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
-      export PATH=$PWD/toolchain/bin/:$PATH
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
@@ -102,6 +93,7 @@ runs:
       echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
       echo /opt/runtimes/oclcpu/x64/libintelocl.so > icd/cpu2.icd
       export OCL_ICD_VENDORS=$PWD/icd
+      echo "::endgroup::"
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
@@ -112,6 +104,7 @@ runs:
       echo "::group::Run testing"
       export SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1
       export SYCL_DEVICE_FILTER=${{ matrix.sycl_device_filter }}
+      ./build/bin/test_all --list-devices
       ./build/bin/test_all
       echo "::endgroup::"
   - name: Cleanup

@@ -76,7 +76,7 @@
   "cts": [
     {
       "config": "cuda",
-      "name": "CUDA Khronos SYCL CTS",
+      "name": "CUDA SYCL CTS",
       "runs-on": [
         "Linux",
         "cuda"
@@ -84,7 +84,7 @@
       "image": "${{ inputs.cuda_image }}",
       "container_options": "--gpus all",
       "sycl_device_filter": "ext_oneapi_cuda:gpu,host",
-      "cmake_args": ""
+      "cmake_args": "-DDPCPP_TARGET_TRIPLES=nvptx64-nvidia-cuda"
     }
   ]
 }
