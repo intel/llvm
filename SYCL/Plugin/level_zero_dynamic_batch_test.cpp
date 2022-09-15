@@ -1,9 +1,13 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.ooo.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -DUSING_INORDER -o %t.ino.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -DUSING_DISCARD_EVENTS -o %t.discard_events.out
 
 // Check that dynamic batching raises/lowers batch size
-// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
 
 // level_zero_dynamic_batch_test.cpp
 //
@@ -58,7 +62,16 @@ int main(int argc, char *argv[]) {
   size_t N = 512 / 4;
   size_t AL = M * N * sizeof(uint32_t);
 
-  sycl::queue q(sycl::default_selector{});
+#ifdef USING_INORDER
+  sycl::property_list Props{sycl::property::queue::in_order{}};
+#elif USING_DISCARD_EVENTS
+  sycl::property_list Props{
+      sycl::property::queue::in_order{},
+      sycl::ext::oneapi::property::queue::discard_events{}};
+#else
+  sycl::property_list Props{};
+#endif
+  sycl::queue q(sycl::default_selector{}, Props);
   auto ctx = q.get_context();
   auto dev = q.get_device();
 
