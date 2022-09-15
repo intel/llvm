@@ -681,9 +681,10 @@ bool ToolChain::needsGCovInstrumentation(const llvm::opt::ArgList &Args) {
 Tool *ToolChain::SelectTool(const JobAction &JA) const {
   if (D.IsFlangMode() && getDriver().ShouldUseFlangCompiler(JA)) return getFlang();
   if (getDriver().ShouldUseClangCompiler(JA)) {
-    if (JA.getOffloadingToolChain() &&
-        JA.getOffloadingToolChain()->getTriple().getEnvironment() ==
-            llvm::Triple::SYCLMLIR) {
+    if (JA.getType() == types::TY_MLIR_IR ||
+        (JA.getOffloadingToolChain() &&
+         JA.getOffloadingToolChain()->getTriple().getEnvironment() ==
+             llvm::Triple::SYCLMLIR)) {
       return getCgeist();
     }
     return getClang();

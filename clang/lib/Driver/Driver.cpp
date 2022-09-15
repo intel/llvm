@@ -4794,10 +4794,7 @@ class OffloadingActionBuilder final {
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
             OutputType = types::TY_LLVM_IR;
-          if (SYCLDeviceOnly &&
-              TargetInfo.TC->getTriple().getEnvironment() ==
-                  llvm::Triple::SYCLMLIR &&
-              Args.hasArg(options::OPT_emit_mlir)) {
+          if (SYCLDeviceOnly && Args.hasArg(options::OPT_emit_mlir)) {
             OutputType = types::TY_MLIR_IR;
           }
           // Use of -fsycl-device-obj=spirv converts the original LLVM-IR

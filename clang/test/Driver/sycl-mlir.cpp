@@ -22,6 +22,16 @@
 // CHK-PHASES-MLIR: 3: offload, "device-sycl (spir64-unknown-unknown-syclmlir)" {2}, mlir
 
 
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
+// RUN: -fsycl-targets=spir64-unknown-unknown -emit-mlir %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-PHASES-MLIR-NO-TRIPLE %s
+//
+// CHK-PHASES-MLIR-NO-TRIPLE: 0: input, "{{.*}}.cpp", c++, (device-sycl)
+// CHK-PHASES-MLIR-NO-TRIPLE: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// CHK-PHASES-MLIR-NO-TRIPLE: 2: compiler, {1}, mlir, (device-sycl)
+// CHK-PHASES-MLIR-NO-TRIPLE: 3: offload, "device-sycl (spir64-unknown-unknown)" {2}, mlir
+
 // RUN: %clangxx -ccc-print-bindings --sysroot=%S/Inputs/SYCL           \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
