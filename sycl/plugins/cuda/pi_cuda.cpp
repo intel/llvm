@@ -25,6 +25,10 @@
 #include <mutex>
 #include <regex>
 
+// Forward declarations
+void enableCUDATracing();
+void disableCUDATracing();
+
 namespace {
 std::string getCudaVersionString() {
   int driver_version = 0;
@@ -2834,9 +2838,10 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
           arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_HALF &&
           arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
-        sycl::detail::pi::die(
-            "PI CUDA kernels only support images with channel types int32, "
-            "uint32, float, and half.");
+        setErrorMessage("PI CUDA kernels only support images with channel "
+                        "types int32, uint32, float, and half.",
+                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
       }
       CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
       kernel->set_kernel_arg(arg_index, sizeof(cuSurf), (void *)&cuSurf);
@@ -5308,7 +5313,10 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result cuda_piTearDown(void *) { return PI_SUCCESS; }
+pi_result cuda_piTearDown(void *) {
+  disableCUDATracing();
+  return PI_SUCCESS;
+}
 
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
@@ -5326,6 +5334,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // functions are not set up below.
   std::memset(&(PluginInit->PiFunctionTable), 0,
               sizeof(PluginInit->PiFunctionTable));
+
+  enableCUDATracing();
 
 // Forward calls to CUDA RT.
 #define _PI_CL(pi_api, cuda_api)                                               \

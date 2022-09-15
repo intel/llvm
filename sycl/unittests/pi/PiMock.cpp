@@ -25,9 +25,13 @@ pi_result piKernelCreateRedefine(pi_program, const char *, pi_kernel *) {
 }
 
 TEST(PiMockTest, ConstructFromQueue) {
+  sycl::unittest::PiMock Mock;
+  queue MockQ{Mock.getPlatform().get_devices()[0]};
   queue NormalQ;
-  queue MockQ;
-  unittest::PiMock Mock(MockQ);
+  if (NormalQ.is_host()) {
+    std::cerr << "Not run due to host-only environment\n";
+    return;
+  }
 
   const auto &NormalPiPlugin =
       detail::getSyclObjImpl(NormalQ)->getPlugin().getPiPlugin();
@@ -42,9 +46,9 @@ TEST(PiMockTest, ConstructFromQueue) {
 }
 
 TEST(PiMockTest, ConstructFromPlatform) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform MockPlatform = Mock.getPlatform();
   platform NormalPlatform(default_selector{});
-  platform MockPlatform(default_selector{});
-  unittest::PiMock Mock(MockPlatform);
 
   const auto &NormalPiPlugin =
       detail::getSyclObjImpl(NormalPlatform)->getPlugin().getPiPlugin();
@@ -59,8 +63,7 @@ TEST(PiMockTest, ConstructFromPlatform) {
 }
 
 TEST(PiMockTest, RedefineAPI) {
-  sycl::default_selector Selector{};
-  unittest::PiMock Mock(Selector);
+  sycl::unittest::PiMock Mock;
   const auto &MockPiPlugin =
       detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
   const auto &Table = MockPiPlugin.PiFunctionTable;

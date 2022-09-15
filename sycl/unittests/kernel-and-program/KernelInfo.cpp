@@ -87,28 +87,26 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
 
 class KernelInfoTest : public ::testing::Test {
 public:
-  KernelInfoTest() : Plt{default_selector()} {}
+  KernelInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    Mock->redefine<detail::PiApiKind::piKernelGetGroupInfo>(
+    Mock.redefine<detail::PiApiKind::piKernelGetGroupInfo>(
         redefinedKernelGetGroupInfo);
-    Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+    Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
-    Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-    Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock->redefine<detail::PiApiKind::piKernelSetExecInfo>(
+    Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+    Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
+    Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
+    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+    Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
         redefinedKernelSetExecInfo);
   }
 
 protected:
-  platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
+  unittest::PiMock Mock;
+  sycl::platform Plt;
 };
 
 TEST_F(KernelInfoTest, DISABLED_GetPrivateMemUsage) {

@@ -61,8 +61,8 @@ pi_result redefinedEventsWait(pi_uint32 /* num_events */,
 
 // Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
 TEST(USM, NoOpPreservesDependencyChain) {
-  platform Plt{default_selector()};
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piEnqueueEventsWait>(
       redefinedEnqueueEventsWait);
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(

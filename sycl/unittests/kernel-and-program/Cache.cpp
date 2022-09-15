@@ -15,7 +15,6 @@
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
 #include "sycl/detail/pi.h"
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
@@ -92,15 +91,6 @@ struct TestCtx {
 
 std::unique_ptr<TestCtx> globalCtx;
 
-static pi_result redefinedProgramCreateWithSource(pi_context context,
-                                                  pi_uint32 count,
-                                                  const char **strings,
-                                                  const size_t *lengths,
-                                                  pi_program *ret_program) {
-  *ret_program = reinterpret_cast<pi_program>(1);
-  return PI_SUCCESS;
-}
-
 static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,
                                         size_t param_value_size,
@@ -114,48 +104,22 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
-
 class KernelAndProgramCacheTest : public ::testing::Test {
 public:
-  KernelAndProgramCacheTest() : Plt{default_selector()} {}
+  KernelAndProgramCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.get_backend() != backend::opencl) {
-      std::clog << "This test is only supported on OpenCL devices\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-        redefinedProgramCreateWithSource);
-    Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
   }
 
 protected:
-  platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
+  unittest::PiMock Mock;
+  sycl::platform Plt;
 };
 
 // Check that programs built from source are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuild) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg{Ctx};
 
@@ -168,10 +132,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuild) {
 
 // Check that programs built from source with options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuildWithOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg{Ctx};
 
@@ -185,10 +145,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuildWithOpts) {
 // Check that programs compiled and linked from source are not cached.
 TEST_F(KernelAndProgramCacheTest,
        DISABLED_ProgramSourceNegativeCompileAndLink) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg{Ctx};
 
@@ -204,10 +160,6 @@ TEST_F(KernelAndProgramCacheTest,
 // cached.
 TEST_F(KernelAndProgramCacheTest,
        DISABLED_ProgramSourceNegativeCompileAndLinkWithOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg{Ctx};
 
@@ -221,10 +173,6 @@ TEST_F(KernelAndProgramCacheTest,
 
 // Check that programs built without options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositive) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg1{Ctx};
 //   program Prg2{Ctx};
@@ -239,10 +187,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositive) {
 
 // Check that programs built with options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositiveBuildOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg1{Ctx};
 //   program Prg2{Ctx};
@@ -268,10 +212,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositiveBuildOpts) {
 
 // Check that programs built with compile options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeCompileOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg{Ctx};
 
@@ -285,10 +225,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeCompileOpts) {
 
 // Check that programs built with link options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeLinkOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
 //   program Prg{Ctx};
 
@@ -302,10 +238,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeLinkOpts) {
 
 // Check that kernels built without options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositive) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -322,10 +254,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositive) {
 
 // Check that kernels built with options are cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositiveBuildOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -343,10 +271,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelPositiveBuildOpts) {
 
 // Check that kernels built with compile options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeCompileOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -364,10 +288,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeCompileOpts) {
 
 // Check that kernels built with link options are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -386,10 +306,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkOpts) {
 // Check that kernels are not cached if program is created from multiple
 // programs.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkedProgs) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -410,10 +326,6 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeLinkedProgs) {
 
 // Check that kernels created from source are not cached.
 TEST_F(KernelAndProgramCacheTest, DISABLED_KernelNegativeSource) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -445,10 +357,6 @@ public:
 
 // Check that kernels built without options are cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositive) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -465,10 +373,6 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositive) {
 
 // Check that kernels built with options are cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositiveBuildOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -486,10 +390,6 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositiveBuildOpts) {
 
 // Check that kernels built with compile options are not cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeCompileOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -507,10 +407,6 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeCompileOpts) {
 
 // Check that kernels built with link options are not cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkOpts) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -529,10 +425,6 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkOpts) {
 // Check that kernels are not cached if program is created from multiple
 // programs.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkedProgs) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
@@ -553,10 +445,6 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkedProgs) {
 
 // Check that kernels created from source are not cached.
 TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeSource) {
-  if (Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 

@@ -77,9 +77,8 @@ static pi_result redefinedEventsWait(pi_uint32 num_events,
 pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, InOrderQueueDeps) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
@@ -93,12 +92,13 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
 
   context Ctx{Plt.get_devices()[0]};
-  queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
   sycl::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);
 
+  device HostDevice{host_selector{}};
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
-      new detail::queue_impl(detail::device_impl::getHostDeviceImpl(), {}, {})};
+      new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
   MockScheduler MS;
 

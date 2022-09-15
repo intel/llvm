@@ -87,8 +87,8 @@ pi_result redefinedEventRelease(pi_event event) {
 }
 
 TEST(QueueWait, QueueWaitTest) {
-  platform Plt{default_selector()};
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
   Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
   Mock.redefine<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);

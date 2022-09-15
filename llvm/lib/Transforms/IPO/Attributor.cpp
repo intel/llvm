@@ -473,7 +473,7 @@ static bool getPotentialCopiesOfMemoryValue(
   // Only if we were successful collection all potential copies we record
   // dependences (on non-fix AAPointerInfo AAs). We also only then modify the
   // given PotentialCopies container.
-  for (auto *PI : PIs) {
+  for (const auto *PI : PIs) {
     if (!PI->getState().isAtFixpoint())
       UsedAssumedInformation = true;
     A.recordDependence(*PI, QueryingAA, DepClassTy::OPTIONAL);
@@ -977,7 +977,7 @@ bool IRPosition::getAttrsFromAssumes(Attribute::AttrKind AK,
   MustBeExecutedContextExplorer &Explorer =
       A.getInfoCache().getMustBeExecutedContextExplorer();
   auto EIt = Explorer.begin(getCtxI()), EEnd = Explorer.end(getCtxI());
-  for (auto &It : A2K)
+  for (const auto &It : A2K)
     if (Explorer.findInContextOf(It.first, EIt, EEnd))
       Attrs.push_back(Attribute::get(Ctx, AK, It.second.Max));
   return AttrsSize != Attrs.size();
@@ -1113,7 +1113,7 @@ bool Attributor::getAssumedSimplifiedValues(
   // a non-null value that is different from the associated value, or None, we
   // assume it's simplified.
   const auto &SimplificationCBs = SimplificationCallbacks.lookup(IRP);
-  for (auto &CB : SimplificationCBs) {
+  for (const auto &CB : SimplificationCBs) {
     Optional<Value *> CBResult = CB(IRP, AA, UsedAssumedInformation);
     if (!CBResult.has_value())
       continue;
@@ -2079,7 +2079,7 @@ ChangeStatus Attributor::cleanupIR() {
     }
   }
 
-  for (auto &V : InvokeWithDeadSuccessor)
+  for (const auto &V : InvokeWithDeadSuccessor)
     if (InvokeInst *II = dyn_cast_or_null<InvokeInst>(V)) {
       assert(isRunOn(*II->getFunction()) &&
              "Cannot replace an invoke outside the current SCC!");
@@ -2112,7 +2112,7 @@ ChangeStatus Attributor::cleanupIR() {
     CGModifiedFunctions.insert(I->getFunction());
     ConstantFoldTerminator(I->getParent());
   }
-  for (auto &V : ToBeChangedToUnreachableInsts)
+  for (const auto &V : ToBeChangedToUnreachableInsts)
     if (Instruction *I = dyn_cast_or_null<Instruction>(V)) {
       LLVM_DEBUG(dbgs() << "[Attributor] Change to unreachable: " << *I
                         << "\n");
@@ -2122,7 +2122,7 @@ ChangeStatus Attributor::cleanupIR() {
       changeToUnreachable(I);
     }
 
-  for (auto &V : ToBeDeletedInsts) {
+  for (const auto &V : ToBeDeletedInsts) {
     if (Instruction *I = dyn_cast_or_null<Instruction>(V)) {
       if (auto *CB = dyn_cast<CallBase>(I)) {
         assert(isRunOn(*I->getFunction()) &&
@@ -2803,7 +2803,7 @@ void InformationCache::initializeInformationCache(const Function &CF,
         if (const Function *Callee = cast<CallInst>(I).getCalledFunction())
           getFunctionInfo(*Callee).CalledViaMustTail = true;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Instruction::CallBr:
     case Instruction::Invoke:
     case Instruction::CleanupRet:
@@ -3190,7 +3190,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS,
   if (!S.isValidState())
     OS << "full-set";
   else {
-    for (auto &It : S.getAssumedSet())
+    for (const auto &It : S.getAssumedSet())
       OS << It << ", ";
     if (S.undefIsContained())
       OS << "undef ";
@@ -3206,7 +3206,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS,
   if (!S.isValidState())
     OS << "full-set";
   else {
-    for (auto &It : S.getAssumedSet()) {
+    for (const auto &It : S.getAssumedSet()) {
       if (auto *F = dyn_cast<Function>(It.first.getValue()))
         OS << "@" << F->getName() << "[" << int(It.second) << "], ";
       else
@@ -3298,7 +3298,7 @@ static bool runAttributorOnFunctions(InformationCache &InfoCache,
   // Internalize non-exact functions
   // TODO: for now we eagerly internalize functions without calculating the
   //       cost, we need a cost interface to determine whether internalizing
-  //       a function is "benefitial"
+  //       a function is "beneficial"
   if (AllowDeepWrapper) {
     unsigned FunSize = Functions.size();
     for (unsigned u = 0; u < FunSize; u++) {

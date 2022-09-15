@@ -205,21 +205,22 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   Plugin.setLastDeviceId(Platform, DeviceNum);
 }
 
+std::shared_ptr<device_impl>
+platform_impl::getDeviceImpl(RT::PiDevice PiDevice) {
+  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+  return getDeviceImplHelper(PiDevice);
+}
+
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
     RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
-
   // If we've already seen this device, return the impl
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == PiDevice)
-        return Device;
-    }
-  }
+  std::shared_ptr<device_impl> Result = getDeviceImplHelper(PiDevice);
+  if (Result)
+    return Result;
 
   // Otherwise make the impl
-  std::shared_ptr<device_impl> Result =
-      std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  Result = std::make_shared<device_impl>(PiDevice, PlatformImpl);
   MDeviceCache.emplace_back(Result);
 
   return Result;
@@ -310,6 +311,17 @@ bool platform_impl::has(aspect Aspect) const {
     }
   }
   return true;
+}
+
+std::shared_ptr<device_impl>
+platform_impl::getDeviceImplHelper(RT::PiDevice PiDevice) {
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
+  }
+  return nullptr;
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \

@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 
 using namespace sycl;
@@ -126,10 +125,8 @@ static void testEventStatusCheck(detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, QueueFlushing) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
@@ -143,9 +140,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
-  queue QueueA{Ctx, Selector};
+  queue QueueA{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplA = detail::getSyclObjImpl(QueueA);
-  queue QueueB{Ctx, Selector};
+  queue QueueB{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplB = detail::getSyclObjImpl(QueueB);
   ExpectedDepQueue = QueueImplB->getHandleRef();
 
@@ -167,8 +164,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                     QueueImplA};
     testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
 
-    detail::QueueImplPtr DefaultHostQueue{new detail::queue_impl(
-        detail::device_impl::getHostDeviceImpl(), {}, {})};
+    device HostDevice{host_selector{}};
+    detail::QueueImplPtr DefaultHostQueue{
+        new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
     detail::AllocaCommand HostAllocaCmd =
         detail::AllocaCommand(DefaultHostQueue, MockReq);
 
@@ -215,7 +213,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     detail::EventImplPtr DepEvent;
     {
-      queue TempQueue{Ctx, Selector};
+      queue TempQueue{Ctx, default_selector_v};
       detail::QueueImplPtr TempQueueImpl = detail::getSyclObjImpl(TempQueue);
       DepEvent.reset(new detail::event_impl(TempQueueImpl));
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());

@@ -15,6 +15,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -220,16 +221,29 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
     return replaceInstUsesWith(I, FoldedMul);
 
   // Simplify mul instructions with a constant RHS.
-  if (isa<Constant>(Op1)) {
-    // Canonicalize (X+C1)*CI -> X*CI+C1*CI.
+  Constant *MulC;
+  if (match(Op1, m_ImmConstant(MulC))) {
+    // Canonicalize (X+C1)*MulC -> X*MulC+C1*MulC.
+    // Canonicalize (X|C1)*MulC -> X*MulC+C1*MulC.
     Value *X;
     Constant *C1;
-    if (match(Op0, m_OneUse(m_Add(m_Value(X), m_Constant(C1))))) {
-      Value *Mul = Builder.CreateMul(C1, Op1);
-      // Only go forward with the transform if C1*CI simplifies to a tidier
-      // constant.
-      if (!match(Mul, m_Mul(m_Value(), m_Value())))
-        return BinaryOperator::CreateAdd(Builder.CreateMul(X, Op1), Mul);
+    if ((match(Op0, m_OneUse(m_Add(m_Value(X), m_ImmConstant(C1))))) ||
+        (match(Op0, m_OneUse(m_Or(m_Value(X), m_ImmConstant(C1)))) &&
+         haveNoCommonBitsSet(X, C1, DL, &AC, &I, &DT))) {
+      // C1*MulC simplifies to a tidier constant.
+      Value *NewC = Builder.CreateMul(C1, MulC);
+      auto *BOp0 = cast<BinaryOperator>(Op0);
+      bool Op0NUW =
+          (BOp0->getOpcode() == Instruction::Or || BOp0->hasNoUnsignedWrap());
+      Value *NewMul = Builder.CreateMul(X, MulC);
+      auto *BO = BinaryOperator::CreateAdd(NewMul, NewC);
+      if (I.hasNoUnsignedWrap() && Op0NUW) {
+        // If NewMulBO is constant we also can set BO to nuw.
+        if (auto *NewMulBO = dyn_cast<BinaryOperator>(NewMul))
+          NewMulBO->setHasNoUnsignedWrap();
+        BO->setHasNoUnsignedWrap();
+      }
+      return BO;
     }
   }
 
@@ -671,6 +685,15 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       return BinaryOperator::CreateFSubFMF(LogXTimesY, Y, &I);
     }
   }
+
+  // Simplify FMUL recurrences starting with 0.0 to 0.0 if nnan and nsz are set.
+  // Given a phi node with entry value as 0 and it used in fmul operation,
+  // we can replace fmul with 0 safely and eleminate loop operation.
+  PHINode *PN = nullptr;
+  Value *Start = nullptr, *Step = nullptr;
+  if (matchSimpleRecurrence(&I, PN, Start, Step) && I.hasNoNaNs() &&
+      I.hasNoSignedZeros() && match(Start, m_Zero()))
+    return replaceInstUsesWith(I, Start);
 
   return nullptr;
 }

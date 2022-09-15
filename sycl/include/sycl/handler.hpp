@@ -380,15 +380,9 @@ private:
     return Storage;
   }
 
-  void setType(detail::CG::CGTYPE Type) {
-    constexpr detail::CG::CG_VERSION Version = detail::CG::CG_VERSION::V1;
-    MCGType = static_cast<detail::CG::CGTYPE>(
-        getVersionedCGType(Type, static_cast<int>(Version)));
-  }
+  void setType(detail::CG::CGTYPE Type) { MCGType = Type; }
 
-  detail::CG::CGTYPE getType() {
-    return static_cast<detail::CG::CGTYPE>(getUnversionedCGType(MCGType));
-  }
+  detail::CG::CGTYPE getType() { return MCGType; }
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
@@ -519,7 +513,7 @@ private:
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
+    detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of requirements.
     MRequirements.push_back(Req);
     // Store copy of the accessor.
@@ -723,7 +717,11 @@ private:
         "unexpected layout. This is a limitation of the compiler."
         "In many cases the difference is related to capturing constexpr "
         "variables. In such cases removing constexpr specifier aligns the "
-        "captures between the host compiler and the device compiler.");
+        "captures between the host compiler and the device compiler."
+        "\n"
+        "In case of MSVC, passing "
+        "-fsycl-host-compiler-options='/std:c++latest' "
+        "might also help.");
 
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
@@ -2528,7 +2526,7 @@ private:
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// The list of requirements to the memory objects for the scheduling.
-  std::vector<detail::Requirement *> MRequirements;
+  std::vector<detail::AccessorImplHost *> MRequirements;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;

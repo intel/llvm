@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -71,37 +70,23 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() {}
+  BufferTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.get_backend() != sycl::backend::opencl) {
-      std::cout << "This test is only supported on OpenCL backend\n";
-      std::cout << "Current platform is "
-                << Plt.get_info<sycl::info::platform::name>();
-      return;
-    }
-
-    Mock = std::make_unique<sycl::unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
-    Mock->redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
+    Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
         redefinedDeviceGetInfo);
   }
 
 protected:
-  std::unique_ptr<sycl::unittest::PiMock> Mock;
+  sycl::unittest::PiMock Mock;
   sycl::platform Plt;
 };
 
 // Test that buffer_location was passed correctly
 TEST_F(BufferTest, BufferLocationOnly) {
-  if (Plt.get_backend() != sycl::backend::opencl) {
-    return;
-  }
-
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
@@ -128,10 +113,6 @@ TEST_F(BufferTest, BufferLocationOnly) {
 // Test that buffer_location was passed correcty if there is one more accessor
 // property and buffer_location is correctly chaned by creating new accessors
 TEST_F(BufferTest, BufferLocationWithAnotherProp) {
-  if (Plt.get_backend() != sycl::backend::opencl) {
-    return;
-  }
-
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
@@ -198,10 +179,6 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
 // Test that there is no buffer_location property
 TEST_F(BufferTest, WOBufferLocation) {
-  if (Plt.get_backend() != sycl::backend::opencl) {
-    return;
-  }
-
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 

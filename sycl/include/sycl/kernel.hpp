@@ -151,9 +151,9 @@ public:
   /// \param WGSize is the work-group size the sub-group size is requested for.
   /// \return depends on information being queried.
   template <typename Param>
-  typename detail::is_kernel_device_specific_info_desc<
-      Param>::with_input_return_type
-  get_info(const device &Device, const range<3> &WGSize) const;
+  __SYCL2020_DEPRECATED("Use the overload without the second parameter")
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+      get_info(const device &Device, const range<3> &WGSize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
