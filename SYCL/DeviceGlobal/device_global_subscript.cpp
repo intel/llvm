@@ -1,7 +1,7 @@
 // TODO: device_global without the device_image_scope property is not currently
 //       initialized on device. Enable the following test cases when it is
 //       supported.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUNx: %CPU_RUN_PLACEHOLDER %t.out
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
