@@ -1024,7 +1024,8 @@ table corresponds to all of the architecture names listed in the
 [8]: <../extensions/proposed/sycl_ext_intel_device_architecture.asciidoc>
 
 TODO: This table needs to be filled out for the CPU variants supported by the
-`opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.
+`opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.  We
+also need to figure out how CUDA fits in here.
 
 Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```

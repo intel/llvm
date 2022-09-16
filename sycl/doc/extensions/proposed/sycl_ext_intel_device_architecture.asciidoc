@@ -425,3 +425,6 @@ This property indicates that a kernel or non-kernel device function uses
 features that are available on devices with the given architecture list but
 may not be available on devices with other architectures.
 --
+
+* Additional enumerators in the `architecture` enumeration.  This could include
+  entries for different x86_64 architectures or entries for CUDA devices.
