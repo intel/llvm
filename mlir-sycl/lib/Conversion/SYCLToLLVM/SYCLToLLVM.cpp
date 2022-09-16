@@ -102,6 +102,18 @@ convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL accessor common type to LLVM type.
+static Optional<Type> convertAccessorCommonType(sycl::AccessorCommonType type,
+                                                LLVMTypeConverter &converter) {
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(), "class.sycl::_V1::detail::accessor_common");
+  if (!convertedTy.isInitialized())
+    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
+                                   /*isPacked=*/false)))
+      return llvm::None;
+  return convertedTy;
+}
+
 /// Converts SYCL accessor type to LLVM type.
 static Optional<Type> convertAccessorType(sycl::AccessorType type,
                                           LLVMTypeConverter &converter) {
@@ -365,6 +377,9 @@ private:
 
 void mlir::sycl::populateSYCLToLLVMTypeConversion(
     LLVMTypeConverter &typeConverter) {
+  typeConverter.addConversion([&](sycl::AccessorCommonType type) {
+    return convertAccessorCommonType(type, typeConverter);
+  });
   typeConverter.addConversion([&](sycl::AccessorImplDeviceType type) {
     return convertAccessorImplDeviceType(type, typeConverter);
   });
@@ -403,9 +418,9 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
 }
 
 bool mlir::sycl::isSYCLType(Type type) {
-  return type
-      .isa<mlir::sycl::IDType, mlir::sycl::AccessorType, mlir::sycl::RangeType,
-           mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-           mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-           mlir::sycl::NdItemType, mlir::sycl::GroupType>();
+  return type.isa<mlir::sycl::IDType, mlir::sycl::AccessorCommonType,
+                  mlir::sycl::AccessorType, mlir::sycl::RangeType,
+                  mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
+                  mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
+                  mlir::sycl::NdItemType, mlir::sycl::GroupType>();
 }

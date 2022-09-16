@@ -71,6 +71,20 @@ struct IDTypeStorage : public TypeStorage {
   unsigned int Dimension;
 };
 
+struct AccessorCommonTypeStorage : public TypeStorage {
+  using KeyTy = uint8_t;
+
+  AccessorCommonTypeStorage() = default;
+
+  bool operator==(const KeyTy &Key) const { return true; }
+
+  static AccessorCommonTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                              const KeyTy &Key) {
+    return new (Allocator.allocate<AccessorCommonTypeStorage>())
+        AccessorCommonTypeStorage();
+  }
+};
+
 struct AccessorTypeStorage : public TypeStorage {
   using KeyTy =
       std::tuple<mlir::Type, unsigned int, mlir::sycl::MemoryAccessMode,
@@ -310,9 +324,22 @@ public:
   unsigned int getDimension() const;
 };
 
+class AccessorCommonType
+    : public Type::TypeBase<AccessorCommonType, Type,
+                            detail::AccessorCommonTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::AccessorCommonType get(MLIRContext *Context);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+};
+
 class AccessorType
     : public Type::TypeBase<AccessorType, Type, detail::AccessorTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::sycl::SYCLInheritanceTypeInterface<
+                                mlir::sycl::AccessorCommonType>::Trait> {
 public:
   using Base::Base;
 
