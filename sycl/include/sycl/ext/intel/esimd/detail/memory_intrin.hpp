@@ -616,7 +616,7 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
 {
   // CM_EMU's 'cm_fence' is NOP. Disabled.
   // sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
-  __ESIMD_DNS::atomic_fence();
+  __ESIMD_DNS::atomic_fence<0>();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
