@@ -1812,7 +1812,7 @@ public:
     } else if (PointerStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
       assert(RD && "should not be null.");
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
         // Do not generate a new type if the record corresponds to a
         // lambda. Currently the fields/bases of the local clone
         // corresponding to these generated types are intialized using
@@ -1829,6 +1829,7 @@ public:
         else
           RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
               SemaRef.getASTContext()));
+      }
       PointerStack.back() = true;
     }
     return true;
