@@ -100,6 +100,20 @@ unsigned int mlir::sycl::IDType::getDimension() const {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// AccessorCommonType Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::AccessorCommonType
+mlir::sycl::AccessorCommonType::get(MLIRContext *Context) {
+  return Base::get(Context);
+}
+
+mlir::Type
+mlir::sycl::AccessorCommonType::parseType(mlir::DialectAsmParser &Parser) {
+  return mlir::sycl::AccessorCommonType::get(Parser.getContext());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // AccessorType Operations
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,20 +252,6 @@ mlir::StringRef mlir::sycl::AccessorType::getTargetModeAsString() const {
 
 llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorType::getBody() const {
   return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessorCommonType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::AccessorCommonType
-mlir::sycl::AccessorCommonType::get(MLIRContext *Context) {
-  return Base::get(Context);
-}
-
-mlir::Type
-mlir::sycl::AccessorCommonType::parseType(mlir::DialectAsmParser &Parser) {
-  return mlir::sycl::AccessorCommonType::get(Parser.getContext());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

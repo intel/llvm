@@ -25,8 +25,8 @@ void mlir::sycl::SYCLDialect::initialize() {
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
       >();
 
-  mlir::Dialect::addTypes<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                          mlir::sycl::AccessorCommonType, mlir::sycl::RangeType,
+  mlir::Dialect::addTypes<mlir::sycl::IDType, mlir::sycl::AccessorCommonType,
+                          mlir::sycl::AccessorType, mlir::sycl::RangeType,
                           mlir::sycl::AccessorImplDeviceType,
                           mlir::sycl::ArrayType, mlir::sycl::ItemType,
                           mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
@@ -45,11 +45,11 @@ mlir::sycl::SYCLDialect::parseType(mlir::DialectAsmParser &Parser) const {
   if (Keyword == "id") {
     return mlir::sycl::IDType::parseType(Parser);
   }
-  if (Keyword == "accessor") {
-    return mlir::sycl::AccessorType::parseType(Parser);
-  }
   if (Keyword == "accessor_common") {
     return mlir::sycl::AccessorCommonType::parseType(Parser);
+  }
+  if (Keyword == "accessor") {
+    return mlir::sycl::AccessorType::parseType(Parser);
   }
   if (Keyword == "range") {
     return mlir::sycl::RangeType::parseType(Parser);
@@ -82,15 +82,15 @@ void mlir::sycl::SYCLDialect::printType(
     mlir::Type Type, mlir::DialectAsmPrinter &Printer) const {
   if (const auto ID = Type.dyn_cast<mlir::sycl::IDType>()) {
     Printer << "id<" << ID.getDimension() << ">";
+  } else if (const auto AccCommon =
+                 Type.dyn_cast<mlir::sycl::AccessorCommonType>()) {
+    Printer << "accessor_common";
   } else if (const auto Acc = Type.dyn_cast<mlir::sycl::AccessorType>()) {
     Printer << "accessor<[" << Acc.getDimension() << ", " << Acc.getType()
             << ", " << Acc.getAccessModeAsString() << ", "
             << Acc.getTargetModeAsString() << "], (";
     llvm::interleaveComma(Acc.getBody(), Printer);
     Printer << ")>";
-  } else if (const auto AccCommon =
-                 Type.dyn_cast<mlir::sycl::AccessorCommonType>()) {
-    Printer << "accessor_common";
   } else if (const auto Range = Type.dyn_cast<mlir::sycl::RangeType>()) {
     Printer << "range<" << Range.getDimension() << ">";
   } else if (const auto AccDev =

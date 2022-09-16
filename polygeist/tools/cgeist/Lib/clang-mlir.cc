@@ -5251,7 +5251,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext())) {
       const auto TypeName = RD->getName();
       if (TypeName == "range" || TypeName == "array" || TypeName == "id" ||
-          TypeName == "accessor" || TypeName == "accessor_common" ||
+          TypeName == "accessor_common" || TypeName == "accessor" ||
           TypeName == "AccessorImplDevice" || TypeName == "item" ||
           TypeName == "ItemBase" || TypeName == "nd_item" ||
           TypeName == "group") {
@@ -5563,6 +5563,9 @@ mlir::Type MLIRASTConsumer::getSYCLType(const clang::RecordType *RT) {
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::IDType::get(module->getContext(), Dim);
     }
+    if (CTS->getName() == "accessor_common") {
+      return mlir::sycl::AccessorCommonType::get(module->getContext());
+    }
     if (CTS->getName() == "accessor") {
       const auto TypeInfo = RT->getDecl()->getASTContext().getTypeInfo(
           CTS->getTemplateArgs().get(0).getAsType());
@@ -5576,9 +5579,6 @@ mlir::Type MLIRASTConsumer::getSYCLType(const clang::RecordType *RT) {
           CTS->getTemplateArgs().get(3).getAsIntegral().getExtValue());
       return mlir::sycl::AccessorType::get(module->getContext(), Type, Dim,
                                            MemAccessMode, MemTargetMode, Body);
-    }
-    if (CTS->getName() == "accessor_common") {
-      return mlir::sycl::AccessorCommonType::get(module->getContext());
     }
     if (CTS->getName() == "AccessorImplDevice") {
       const auto Dim =
