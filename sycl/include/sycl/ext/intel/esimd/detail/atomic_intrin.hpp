@@ -204,6 +204,16 @@ template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty desired, Ty expected) {
   }
 #endif
 }
+
+void atomic_fence() {
+#ifdef _WIN32
+  // TODO: Windows will be supported soon
+  __ESIMD_UNSUPPORTED_ON_HOST;
+#else
+  __atomic_thread_fence(__ATOMIC_SEQ_CST);
+#endif
+}
+
 } // namespace __ESIMD_DNS
 
 /// @endcond ESIMD_DETAIL

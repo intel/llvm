@@ -1808,9 +1808,7 @@ __ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  // In ESIMD_EMULATOR device interface, write operations are applied
-  // directly to the read memory space. Therefore, fence() operation
-  // is NOP
+  __ESIMD_DNS::atomic_fence();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
