@@ -90,7 +90,11 @@ bool hltu(sycl::half x, sycl::half y) {
   return x < y;
 }
 
-bool hne(sycl::half x, sycl::half y) { return x != y; }
+bool hne(sycl::half x, sycl::half y) {
+  if (sycl::isnan(x) || sycl::isnan(y))
+    return false;
+  return x != y;
+}
 
 bool hneu(sycl::half x, sycl::half y) {
   if (sycl::isnan(x) || sycl::isnan(y))
@@ -307,7 +311,7 @@ sycl::half2 hfma2_relu(sycl::half2 x, sycl::half2 y, sycl::half2 z) {
 
 sycl::half habs(sycl::half x) { return sycl::fabs(x); }
 
-sycl::half2 habs2(sycl::half x) { return sycl::fabs(x); }
+sycl::half2 habs2(sycl::half2 x) { return sycl::fabs(x); }
 } // namespace math
 } // namespace intel
 } // namespace ext
