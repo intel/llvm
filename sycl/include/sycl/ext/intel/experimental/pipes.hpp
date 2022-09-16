@@ -17,9 +17,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace ext::intel::experimental {
 
 template <class Name, class DataT, int32_t MinCapacity = 0,
           class _propertiesT = decltype(oneapi::experimental::properties{}),
@@ -278,8 +276,6 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

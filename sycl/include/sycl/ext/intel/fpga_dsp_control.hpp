@@ -9,8 +9,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+
+namespace ext::intel {
 
 enum class Preference { DSP, Softlogic, Compiler_default };
 enum class Propagate { On, Off };
@@ -87,7 +87,6 @@ void math_dsp_control(Function f) {
   }
 }
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

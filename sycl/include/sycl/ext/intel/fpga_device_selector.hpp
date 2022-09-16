@@ -19,8 +19,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class platform;
 
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 class platform_selector : public device_selector {
 private:
@@ -68,8 +67,7 @@ public:
   }
 };
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

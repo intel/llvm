@@ -9,8 +9,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+
+namespace ext::intel {
 
 template <int N = 1, typename F>
 void fpga_loop_fuse [[intel::loop_fuse(N)]] (F f) {
@@ -22,7 +22,6 @@ void fpga_loop_fuse_independent [[intel::loop_fuse_independent(N)]] (F f) {
   f();
 }
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

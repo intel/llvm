@@ -17,9 +17,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace ext::intel::experimental {
 
 using byte = unsigned char;
 
@@ -216,8 +214,6 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
   return compile(src, std::vector<std::string>{});
 }
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

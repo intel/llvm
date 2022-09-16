@@ -30,9 +30,7 @@ _iml_half_internal __imf_copysignf16(_iml_half_internal, _iml_half_internal);
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace math {
+namespace ext::intel::math {
 
 #if __cplusplus >= 201703L
 template <typename Tp>
@@ -61,8 +59,6 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> copysign(Tp x,
 }
 
 #endif
-} // namespace math
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::math
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
