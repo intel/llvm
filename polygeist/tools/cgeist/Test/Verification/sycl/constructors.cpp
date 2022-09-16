@@ -71,6 +71,14 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 // CHECK-NEXT: }
 
 // CHECK-LLVM: define spir_func void @cons_2(i64 %0, i64 %1) {
+// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]
+// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]]* [[ID1]], [[ID_TYPE]]* [[ID1]], i64 0, i64 1, i64 1, i64 %0, i64 %1)
+
+extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
+  auto id = sycl::id<2>{a, b};
+}
+
+// CHECK: func.func @cons_3(%arg0: !sycl_item_2_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_item_2_1_>
