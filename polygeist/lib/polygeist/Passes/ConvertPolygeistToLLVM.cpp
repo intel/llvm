@@ -122,7 +122,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
            "Expecting the input and output MemRef ranks to be the same");
     // Note: in MLIRASTConsumer::getMLIRType(), a memref of struct type is
     // generated only for a struct that has at least one member of SYCL type,
-    // otherwise a llvm pointer type is generated instead of a memref).
+    // otherwise a llvm pointer type is generated instead of a memref.
     assert((sycl::isSYCLType(sourceElemType) ||
             (sourceElemType.isa<LLVM::LLVMStructType>() &&
              any_of(sourceElemType.cast<LLVM::LLVMStructType>().getBody(),
