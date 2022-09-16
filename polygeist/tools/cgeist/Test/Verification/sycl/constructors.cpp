@@ -71,14 +71,6 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 // CHECK-NEXT: }
 
 // CHECK-LLVM: define spir_func void @cons_2(i64 %0, i64 %1) {
-// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]
-// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]]* [[ID1]], [[ID_TYPE]]* [[ID1]], i64 0, i64 1, i64 1, i64 %0, i64 %1)
-
-extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
-  auto id = sycl::id<2>{a, b};
-}
- 
-// CHECK: func.func @cons_3(%arg0: !sycl_item_2_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_item_2_1_>
@@ -116,4 +108,16 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 
 extern "C"  SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
   auto id = sycl::id<2>{val};
+}
+
+// CHECK-LABEL: func.func @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev
+// CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_write_global_buffer>, index) -> memref<?x!sycl_accessor_impl_device_1_>
+// CHECK: sycl.constructor([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_, Type = @AccessorImplDevice} : (memref<?x!sycl_accessor_impl_device_1_>, !sycl_id_1_, !sycl_range_1_, !sycl_range_1_) -> ()
+
+// CHECK-LLVM-LABEL: define void @cons_5() {
+// CHECK-LLVM: [[ACCESSOR:%.*]] = alloca [[ACCESSOR_TYPE:%"class.cl::sycl::accessor.1"]], i64 ptrtoint ([[ACCESSOR_TYPE]]* getelementptr ([[ACCESSOR_TYPE]], [[ACCESSOR_TYPE]]* null, i32 1) to i64), align 8
+// CHECK-LLVM: call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev([[ACCESSOR_TYPE]]* [[ACCESSOR]], [[ACCESSOR_TYPE]]* [[ACCESSOR]], i64 0, i64 1, i64 1)
+extern "C" SYCL_EXTERNAL void cons_5() {
+  auto accessor = sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write>{};
+  return;
 }
