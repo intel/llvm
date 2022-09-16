@@ -14,6 +14,7 @@ add_library(sycl_pi_trace_collector SHARED
   collector.cpp
   pi_trace_collector.cpp
   ze_trace_collector.cpp
+  $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cuda_trace_collector.cpp>
 )
 
 find_package(Python3 REQUIRED)
@@ -56,6 +57,64 @@ target_include_directories(sycl_pi_trace_collector PRIVATE
 )
 
 add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers)
+
+if(SYCL_BUILD_PI_CUDA)
+
+  find_package(CUDA 10.1 REQUIRED)
+
+  target_compile_definitions(sycl_pi_trace_collector
+    PRIVATE
+      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
+  )
+
+  # The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
+  # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
+  include(FindCUDACupti)
+  if(NOT CUDA_CUPTI_INCLUDE_DIR)
+     find_cuda_cupti_include_dir()
+  endif()
+  # CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
+  if(NOT CUDA_cupti_LIBRARY)
+     find_cuda_cupti_library()
+  endif()
+
+  target_include_directories(sycl_pi_trace_collector
+    PRIVATE
+    ${CUDA_CUPTI_INCLUDE_DIR}
+  )
+
+  target_link_libraries(sycl_pi_trace_collector
+    PRIVATE
+      cudadrv
+      ${CUDA_cupti_LIBRARY}
+  )
+
+  find_path(GEN_CUDA_META_H_DIR generated_cuda_meta.h PATHS
+      "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+      "${CUDA_INCLUDE_DIRS}/../extras/CUPTI/include"
+      "${CUDA_INCLUDE_DIRS}"
+      NO_DEFAULT_PATH)
+
+  if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )
+  add_custom_target(cuda-pretty-printers
+    COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/generate_cuda_pretty_printers.py
+    ${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h
+    DEPENDS pi_cuda
+    BYPRODUCTS
+      ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def
+    )
+  else()
+    message(WARNING "generated_cuda_meta.h not FOUND!")
+    message(WARNING "CUDA printer definitions cannot be generated.")
+    file(TOUCH "${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def")
+    add_custom_target(cuda-pretty-printers)
+  endif()
+
+  add_dependencies(sycl_pi_trace_collector cuda-pretty-printers)
+
+endif()
+
 add_dependencies(sycl-trace sycl_pi_trace_collector)
 add_dependencies(sycl-toolchain sycl-trace)
 

@@ -496,13 +496,15 @@ using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
 class __SYCL_EXPORT LocalAccessorBaseHost {
 public:
-  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize);
+  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize,
+                        const property_list &PropertyList = {});
   sycl::range<3> &getSize();
   const sycl::range<3> &getSize() const;
   void *getPtr();
   void *getPtr() const;
   int getNumOfDims();
   int getElementSize();
+  const property_list &getPropList() const;
 
 protected:
   template <class Obj>
@@ -2377,8 +2379,8 @@ public:
     (void)propList;
   }
 #else
-      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
-    (void)propList;
+      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT),
+                              propList) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -2412,8 +2414,7 @@ public:
   }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
-                              AdjustedDim, sizeof(DataT)) {
-    (void)propList;
+                              AdjustedDim, sizeof(DataT), propList) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -2571,6 +2572,22 @@ public:
   }
 
   bool empty() const noexcept { return this->size() == 0; }
+
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return this->getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return this->getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 };
 
 /// Image accessors.

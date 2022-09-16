@@ -505,7 +505,8 @@ bool CallBase::hasReadingOperandBundles() const {
   // Implementation note: this is a conservative implementation of operand
   // bundle semantics, where *any* non-assume operand bundle (other than
   // ptrauth) forces a callsite to be at least readonly.
-  return hasOperandBundlesOtherThan(LLVMContext::OB_ptrauth) &&
+  return hasOperandBundlesOtherThan(
+             {LLVMContext::OB_ptrauth, LLVMContext::OB_kcfi}) &&
          getIntrinsicID() != Intrinsic::assume;
 }
 
@@ -958,12 +959,6 @@ void CallBrInst::init(FunctionType *FTy, Value *Fn, BasicBlock *Fallthrough,
   assert(It + 2 + IndirectDests.size() == op_end() && "Should add up!");
 
   setName(NameStr);
-}
-
-BlockAddress *
-CallBrInst::getBlockAddressForIndirectDest(unsigned DestNo) const {
-  return BlockAddress::get(const_cast<Function *>(getFunction()),
-                           getIndirectDest(DestNo));
 }
 
 CallBrInst::CallBrInst(const CallBrInst &CBI)
@@ -2067,7 +2062,7 @@ bool ShuffleVectorInst::isValidOperands(const Value *V1, const Value *V2,
       return false;
 
   if (isa<ScalableVectorType>(V1->getType()))
-    if ((Mask[0] != 0 && Mask[0] != UndefMaskElem) || !is_splat(Mask))
+    if ((Mask[0] != 0 && Mask[0] != UndefMaskElem) || !all_equal(Mask))
       return false;
 
   return true;
@@ -2158,7 +2153,7 @@ Constant *ShuffleVectorInst::convertShuffleMaskForBitcode(ArrayRef<int> Mask,
                                                           Type *ResultTy) {
   Type *Int32Ty = Type::getInt32Ty(ResultTy->getContext());
   if (isa<ScalableVectorType>(ResultTy)) {
-    assert(is_splat(Mask) && "Unexpected shuffle");
+    assert(all_equal(Mask) && "Unexpected shuffle");
     Type *VecTy = VectorType::get(Int32Ty, Mask.size(), true);
     if (Mask[0] == 0)
       return Constant::getNullValue(VecTy);
@@ -2290,6 +2285,37 @@ bool ShuffleVectorInst::isTransposeMask(ArrayRef<int> Mask) {
     if (MaskEltVal - MaskEltPrevVal != 2)
       return false;
   }
+  return true;
+}
+
+bool ShuffleVectorInst::isSpliceMask(ArrayRef<int> Mask, int &Index) {
+  // Example: shufflevector <4 x n> A, <4 x n> B, <1,2,3,4>
+  int StartIndex = -1;
+  for (int I = 0, E = Mask.size(); I != E; ++I) {
+    int MaskEltVal = Mask[I];
+    if (MaskEltVal == -1)
+      continue;
+
+    if (StartIndex == -1) {
+      // Don't support a StartIndex that begins in the second input, or if the
+      // first non-undef index would access below the StartIndex.
+      if (MaskEltVal < I || E <= (MaskEltVal - I))
+        return false;
+
+      StartIndex = MaskEltVal - I;
+      continue;
+    }
+
+    // Splice is sequential starting from StartIndex.
+    if (MaskEltVal != (StartIndex + I))
+      return false;
+  }
+
+  if (StartIndex == -1)
+    return false;
+
+  // NOTE: This accepts StartIndex == 0 (COPY).
+  Index = StartIndex;
   return true;
 }
 
@@ -2485,7 +2511,7 @@ static bool isReplicationMaskWithParams(ArrayRef<int> Mask,
 bool ShuffleVectorInst::isReplicationMask(ArrayRef<int> Mask,
                                           int &ReplicationFactor, int &VF) {
   // undef-less case is trivial.
-  if (none_of(Mask, [](int MaskElt) { return MaskElt == UndefMaskElem; })) {
+  if (!llvm::is_contained(Mask, UndefMaskElem)) {
     ReplicationFactor =
         Mask.take_while([](int MaskElt) { return MaskElt == 0; }).size();
     if (ReplicationFactor == 0 || Mask.size() % ReplicationFactor != 0)

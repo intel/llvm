@@ -354,7 +354,7 @@ bool HexagonDAGToDAGISel::SelectBrevLdIntrinsic(SDNode *IntN) {
   return false;
 }
 
-/// Generate a machine instruction node for the new circlar buffer intrinsics.
+/// Generate a machine instruction node for the new circular buffer intrinsics.
 /// The new versions use a CSx register instead of the K field.
 bool HexagonDAGToDAGISel::SelectNewCircIntrinsic(SDNode *IntN) {
   if (IntN->getOpcode() != ISD::INTRINSIC_W_CHAIN)
@@ -984,7 +984,7 @@ static bool isMemOPCandidate(SDNode *I, SDNode *U) {
 void HexagonDAGToDAGISel::ppSimplifyOrSelect0(std::vector<SDNode*> &&Nodes) {
   SelectionDAG &DAG = *CurDAG;
 
-  for (auto I : Nodes) {
+  for (auto *I : Nodes) {
     if (I->getOpcode() != ISD::OR)
       continue;
 
@@ -1032,7 +1032,7 @@ void HexagonDAGToDAGISel::ppSimplifyOrSelect0(std::vector<SDNode*> &&Nodes) {
 void HexagonDAGToDAGISel::ppAddrReorderAddShl(std::vector<SDNode*> &&Nodes) {
   SelectionDAG &DAG = *CurDAG;
 
-  for (auto I : Nodes) {
+  for (auto *I : Nodes) {
     if (I->getOpcode() != ISD::STORE)
       continue;
 

@@ -2,7 +2,7 @@
 // RUN: llvm-spirv -spirv-ext=+SPV_INTEL_inline_assembly %t.bc -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv -r %t.spv -o %t.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 // Excerpt from opencl-c-base.h
@@ -21,11 +21,11 @@ size_t __ovld __cnfn get_global_id(unsigned int dimindx);
 
 // CHECK-LLVM-LABEL: define spir_kernel void @mem_clobber
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} """~{cc},~{memory}"
-// CHECK-LLVM: [[VALUE:%[0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)**
-// CHECK-LLVM-NEXT: getelementptr inbounds i32, i32 addrspace(1)* [[VALUE]], i64 0
-// CHECK-LLVM-NEXT: store i32 1, i32 addrspace(1)*
+// CHECK-LLVM: [[VALUE:%[0-9]+]] = load ptr addrspace(1), ptr
+// CHECK-LLVM-NEXT: getelementptr inbounds i32, ptr addrspace(1) [[VALUE]], i64 0
+// CHECK-LLVM-NEXT: store i32 1, ptr addrspace(1)
 // CHECK-LLVM-NEXT: call void asm sideeffect "", "~{cc},~{memory}"()
-// CHECK-LLVM-NEXT: load i32 addrspace(1)*, i32 addrspace(1)**
+// CHECK-LLVM-NEXT: load ptr addrspace(1), ptr
 
 kernel void mem_clobber(global int *x) {
   x[0] = 1;
@@ -36,9 +36,9 @@ kernel void mem_clobber(global int *x) {
 // CHECK-LLVM-LABEL: define spir_kernel void @out_clobber
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "earlyclobber_instruction_out $0""=&r"
 // CHECK-LLVM: barrier
-// CHECK-LLVM: store i32 %{{[a-z0-9]+}}, i32* [[VALUE:%[a-z0-9]+]], align 4
+// CHECK-LLVM: store i32 %{{[a-z0-9]+}}, ptr [[VALUE:%[a-z0-9]+]], align 4
 // CHECK-LLVM-NEXT: [[STOREVAL:%[a-z0-9]+]] = call i32 asm "earlyclobber_instruction_out $0", "=&r"()
-// CHECK-LLVM: store i32 [[STOREVAL]], i32* [[VALUE]], align 4
+// CHECK-LLVM: store i32 [[STOREVAL]], ptr [[VALUE]], align 4
 
 kernel void out_clobber(global int *x) {
   int i = get_global_id(0);
@@ -57,10 +57,10 @@ kernel void out_clobber(global int *x) {
 // XCHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "earlyclobber_instruction_in $0""&r"
 // XCHECK-LLVM: barrier
 // XCHECK-LLVM: getelementptr
-// XCHECK-LLVM: store i32  %{{[a-z0-9]+}}, i32* [[LOADVAL:%[a-z0-9]+]], align 4
-// XCHECK-LLVM-NEXT: [[VALUE:%[a-z0-9]+]] = load i32, i32* [[LOADVAL]], align 4
+// XCHECK-LLVM: store i32  %{{[a-z0-9]+}}, ptr [[LOADVAL:%[a-z0-9]+]], align 4
+// XCHECK-LLVM-NEXT: [[VALUE:%[a-z0-9]+]] = load i32, ptr [[LOADVAL]], align 4
 // XCHECK-LLVM-NEXT: call void asm sideeffect "earlyclobber_instruction_in $0", "&r"(i32 [[VALUE]])
-// XCHECK-LLVM: %{{[a-z0-9]+}} = load i32, i32* [[LOADVAL]], align 4
+// XCHECK-LLVM: %{{[a-z0-9]+}} = load i32, ptr [[LOADVAL]], align 4
 
 #if 0
 kernel void in_clobber(global int *x) {

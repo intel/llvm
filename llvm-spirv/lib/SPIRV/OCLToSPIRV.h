@@ -247,6 +247,9 @@ public:
   void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
                                               StringRef DemangledName);
 
+  /// For cl_intel_split_work_group_barrier built-ins:
+  void visitCallSplitBarrierINTEL(CallInst *CI, StringRef DemangledName);
+
   void visitCallLdexp(CallInst *CI, StringRef MangledName,
                       StringRef DemangledName);
 

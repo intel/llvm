@@ -184,7 +184,7 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
       addAdaptedType(SamplerArg, getSamplerStructType(&M), SPIRAS_Constant);
       auto Caller = cast<Argument>(SamplerArg)->getParent();
       addWork(Caller);
-      TraceArg(Caller, Idx);
+      TraceArg(Caller, cast<Argument>(SamplerArg)->getArgNo());
     }
   };
 
@@ -208,7 +208,7 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
     return;
   bool Changed = false;
   auto Arg = F->arg_begin();
-  SmallVector<StructType *, 4> ParamTys;
+  SmallVector<Type *, 4> ParamTys;
   getParameterTypes(F, ParamTys);
 
   // If we couldn't get any information from demangling, there is nothing that
@@ -217,7 +217,7 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
     return;
 
   for (unsigned I = 0; I < F->arg_size(); ++I, ++Arg) {
-    StructType *NewTy = ParamTys[I];
+    StructType *NewTy = dyn_cast_or_null<StructType>(ParamTys[I]);
     if (NewTy && NewTy->isOpaque()) {
       auto STName = NewTy->getStructName();
       if (!hasAccessQualifiedName(STName))

@@ -42,16 +42,14 @@ static cl::opt<bool> PreferWholeRegisterMove(
     "riscv-prefer-whole-register-move", cl::init(false), cl::Hidden,
     cl::desc("Prefer whole register move for vector registers."));
 
-namespace llvm {
-namespace RISCVVPseudosTable {
+namespace llvm::RISCVVPseudosTable {
 
 using namespace RISCV;
 
 #define GET_RISCVVPseudosTable_IMPL
 #include "RISCVGenSearchableTables.inc"
 
-} // namespace RISCVVPseudosTable
-} // namespace llvm
+} // namespace llvm::RISCVVPseudosTable
 
 RISCVInstrInfo::RISCVInstrInfo(RISCVSubtarget &STI)
     : RISCVGenInstrInfo(RISCV::ADJCALLSTACKDOWN, RISCV::ADJCALLSTACKUP),
@@ -960,9 +958,13 @@ void RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   assert(MBB.empty() &&
          "new block should be inserted for expanding unconditional branch");
   assert(MBB.pred_size() == 1);
+  assert(RestoreBB.empty() &&
+         "restore block should be inserted for restoring clobbered registers");
 
   MachineFunction *MF = MBB.getParent();
   MachineRegisterInfo &MRI = MF->getRegInfo();
+  RISCVMachineFunctionInfo *RVFI = MF->getInfo<RISCVMachineFunctionInfo>();
+  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
 
   if (!isInt<32>(BrOffset))
     report_fatal_error(
@@ -973,19 +975,43 @@ void RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   // uses the same workaround).
   Register ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
   auto II = MBB.end();
-
+  // We may also update the jump target to RestoreBB later.
   MachineInstr &MI = *BuildMI(MBB, II, DL, get(RISCV::PseudoJump))
                           .addReg(ScratchReg, RegState::Define | RegState::Dead)
                           .addMBB(&DestBB, RISCVII::MO_CALL);
 
   RS->enterBasicBlockEnd(MBB);
-  Register Scav = RS->scavengeRegisterBackwards(RISCV::GPRRegClass,
-                                                MI.getIterator(), false, 0);
-  // TODO: The case when there is no scavenged register needs special handling.
-  assert(Scav != RISCV::NoRegister && "No register is scavenged!");
-  MRI.replaceRegWith(ScratchReg, Scav);
+  Register TmpGPR =
+      RS->scavengeRegisterBackwards(RISCV::GPRRegClass, MI.getIterator(),
+                                    /*RestoreAfter=*/false, /*SpAdj=*/0,
+                                    /*AllowSpill=*/false);
+  if (TmpGPR != RISCV::NoRegister)
+    RS->setRegUsed(TmpGPR);
+  else {
+    // The case when there is no scavenged register needs special handling.
+
+    // Pick s11 because it doesn't make a difference.
+    TmpGPR = RISCV::X27;
+
+    int FrameIndex = RVFI->getBranchRelaxationScratchFrameIndex();
+    if (FrameIndex == -1)
+      report_fatal_error("underestimated function size");
+
+    storeRegToStackSlot(MBB, MI, TmpGPR, /*IsKill=*/true, FrameIndex,
+                        &RISCV::GPRRegClass, TRI);
+    TRI->eliminateFrameIndex(std::prev(MI.getIterator()),
+                             /*SpAdj=*/0, /*FIOperandNum=*/1);
+
+    MI.getOperand(1).setMBB(&RestoreBB);
+
+    loadRegFromStackSlot(RestoreBB, RestoreBB.end(), TmpGPR, FrameIndex,
+                         &RISCV::GPRRegClass, TRI);
+    TRI->eliminateFrameIndex(RestoreBB.back(),
+                             /*SpAdj=*/0, /*FIOperandNum=*/1);
+  }
+
+  MRI.replaceRegWith(ScratchReg, TmpGPR);
   MRI.clearVirtRegs();
-  RS->setRegUsed(Scav);
 }
 
 bool RISCVInstrInfo::reverseBranchCondition(
@@ -1127,9 +1153,42 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         CASE_OPERAND_UIMM(4)
         CASE_OPERAND_UIMM(5)
         CASE_OPERAND_UIMM(7)
+        case RISCVOp::OPERAND_UIMM7_LSB00:
+          Ok = isShiftedUInt<5, 2>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM8_LSB00:
+          Ok = isShiftedUInt<6, 2>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM8_LSB000:
+          Ok = isShiftedUInt<5, 3>(Imm);
+          break;
         CASE_OPERAND_UIMM(12)
         CASE_OPERAND_UIMM(20)
           // clang-format on
+        case RISCVOp::OPERAND_SIMM10_LSB0000_NONZERO:
+          Ok = isShiftedInt<6, 4>(Imm) && (Imm != 0);
+          break;
+        case RISCVOp::OPERAND_ZERO:
+          Ok = Imm == 0;
+          break;
+        case RISCVOp::OPERAND_SIMM5:
+          Ok = isInt<5>(Imm);
+          break;
+        case RISCVOp::OPERAND_SIMM5_PLUS1:
+          Ok = (isInt<5>(Imm) && Imm != -16) || Imm == 16;
+          break;
+        case RISCVOp::OPERAND_SIMM6:
+          Ok = isInt<6>(Imm);
+          break;
+        case RISCVOp::OPERAND_SIMM6_NONZERO:
+          Ok = Imm != 0 && isInt<6>(Imm);
+          break;
+        case RISCVOp::OPERAND_VTYPEI10:
+          Ok = isUInt<10>(Imm);
+          break;
+        case RISCVOp::OPERAND_VTYPEI11:
+          Ok = isUInt<11>(Imm);
+          break;
         case RISCVOp::OPERAND_SIMM12:
           Ok = isInt<12>(Imm);
           break;
@@ -1137,10 +1196,17 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           Ok = isShiftedInt<7, 5>(Imm);
           break;
         case RISCVOp::OPERAND_UIMMLOG2XLEN:
-          if (STI.getTargetTriple().isArch64Bit())
-            Ok = isUInt<6>(Imm);
-          else
-            Ok = isUInt<5>(Imm);
+          Ok = STI.getTargetTriple().isArch64Bit() ? isUInt<6>(Imm)
+                                                   : isUInt<5>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMMLOG2XLEN_NONZERO:
+          Ok = STI.getTargetTriple().isArch64Bit() ? isUInt<6>(Imm)
+                                                   : isUInt<5>(Imm);
+          Ok = Ok && Imm != 0;
+          break;
+        case RISCVOp::OPERAND_UIMM_SHFL:
+          Ok = STI.getTargetTriple().isArch64Bit() ? isUInt<5>(Imm)
+                                                   : isUInt<4>(Imm);
           break;
         case RISCVOp::OPERAND_RVKRNUM:
           Ok = Imm >= 0 && Imm <= 10;
@@ -1315,6 +1381,7 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
   MachineBasicBlock *MBB = MI.getParent();
   const TargetRegisterInfo *TRI =
       MBB->getParent()->getSubtarget().getRegisterInfo();
+  const auto &F = MI.getMF()->getFunction();
 
   // Positions generally can't safely be outlined.
   if (MI.isPosition()) {
@@ -1323,9 +1390,8 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
       // If current function has exception handling code, we can't outline &
       // strip these CFI instructions since it may break .eh_frame section
       // needed in unwinding.
-      return MI.getMF()->getFunction().needsUnwindTableEntry()
-                 ? outliner::InstrType::Illegal
-                 : outliner::InstrType::Invisible;
+      return F.needsUnwindTableEntry() ? outliner::InstrType::Illegal
+                                       : outliner::InstrType::Invisible;
 
     return outliner::InstrType::Illegal;
   }
@@ -1350,9 +1416,17 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
     return outliner::InstrType::Illegal;
 
   // Make sure the operands don't reference something unsafe.
-  for (const auto &MO : MI.operands())
+  for (const auto &MO : MI.operands()) {
     if (MO.isMBB() || MO.isBlockAddress() || MO.isCPI() || MO.isJTI())
       return outliner::InstrType::Illegal;
+
+    // pcrel-hi and pcrel-lo can't put in separate sections, filter that out
+    // if any possible.
+    if (MO.getTargetFlags() == RISCVII::MO_PCREL_LO &&
+        (MI.getMF()->getTarget().getFunctionSections() || F.hasComdat() ||
+         F.hasSection()))
+      return outliner::InstrType::Illegal;
+  }
 
   // Don't allow instructions which won't be materialized to impact outlining
   // analysis.

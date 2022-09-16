@@ -2293,7 +2293,7 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::applyWorkshareLoop(
   case OMPScheduleType::BaseRuntimeSimd:
     assert(!ChunkSize &&
            "schedule type does not support user-defined chunk sizes");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case OMPScheduleType::BaseDynamicChunked:
   case OMPScheduleType::BaseGuidedChunked:
   case OMPScheduleType::BaseGuidedIterativeChunked:
@@ -2966,7 +2966,7 @@ void OpenMPIRBuilder::createIfVersion(CanonicalLoopInfo *CanonicalLoop,
 }
 
 void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
-                                ConstantInt *Simdlen) {
+                                ConstantInt *Simdlen, ConstantInt *Safelen) {
   LLVMContext &Ctx = Builder.getContext();
 
   Function *F = CanonicalLoop->getFunction();
@@ -3016,28 +3016,40 @@ void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
     Reachable.insert(Block);
   }
 
-  // Add access group metadata to memory-access instructions.
-  MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
-  for (BasicBlock *BB : Reachable)
-    addSimdMetadata(BB, AccessGroup, LI);
+  SmallVector<Metadata *> LoopMDList;
+
+  // In presence of finite 'safelen', it may be unsafe to mark all
+  // the memory instructions parallel, because loop-carried
+  // dependences of 'safelen' iterations are possible.
+  if (Safelen == nullptr) {
+    // Add access group metadata to memory-access instructions.
+    MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
+    for (BasicBlock *BB : Reachable)
+      addSimdMetadata(BB, AccessGroup, LI);
+    // TODO:  If the loop has existing parallel access metadata, have
+    // to combine two lists.
+    LoopMDList.push_back(MDNode::get(
+        Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"), AccessGroup}));
+  }
 
   // Use the above access group metadata to create loop level
   // metadata, which should be distinct for each loop.
   ConstantAsMetadata *BoolConst =
       ConstantAsMetadata::get(ConstantInt::getTrue(Type::getInt1Ty(Ctx)));
-  // TODO:  If the loop has existing parallel access metadata, have
-  // to combine two lists.
-  addLoopMetadata(
-      CanonicalLoop,
-      {MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"),
-                         AccessGroup}),
-       MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
-                         BoolConst})});
-  if (Simdlen != nullptr)
-    addLoopMetadata(
-        CanonicalLoop,
+  LoopMDList.push_back(MDNode::get(
+      Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"), BoolConst}));
+
+  if (Simdlen || Safelen) {
+    // If both simdlen and safelen clauses are specified, the value of the
+    // simdlen parameter must be less than or equal to the value of the safelen
+    // parameter. Therefore, use safelen only in the absence of simdlen.
+    ConstantInt *VectorizeWidth = Simdlen == nullptr ? Safelen : Simdlen;
+    LoopMDList.push_back(
         MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.width"),
-                          ConstantAsMetadata::get(Simdlen)}));
+                          ConstantAsMetadata::get(VectorizeWidth)}));
+  }
+
+  addLoopMetadata(CanonicalLoop, LoopMDList);
 }
 
 /// Create the TargetMachine object to query the backend for optimization
@@ -3382,9 +3394,10 @@ OpenMPIRBuilder::createOrderedDepend(const LocationDescription &Loc,
                                      InsertPointTy AllocaIP, unsigned NumLoops,
                                      ArrayRef<llvm::Value *> StoreValues,
                                      const Twine &Name, bool IsDependSource) {
-  for (size_t I = 0; I < StoreValues.size(); I++)
-    assert(StoreValues[I]->getType()->isIntegerTy(64) &&
-           "OpenMP runtime requires depend vec with i64 type");
+  assert(
+      llvm::all_of(StoreValues,
+                   [](Value *SV) { return SV->getType()->isIntegerTy(64); }) &&
+      "OpenMP runtime requires depend vec with i64 type");
 
   if (!updateToLocation(Loc))
     return Loc.IP;

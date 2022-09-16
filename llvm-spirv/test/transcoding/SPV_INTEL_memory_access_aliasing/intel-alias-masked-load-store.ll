@@ -32,7 +32,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.n.spv
 ; RUN: llvm-spirv %t.n.spv -to-text -o %t.n.spt
 ; RUN: FileCheck < %t.n.spt %s --check-prefix=CHECK-SPIRV-NEGATIVE
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
