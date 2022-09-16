@@ -18,7 +18,7 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.sqrtf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
 )
 
 add_fp_unittest(
@@ -33,7 +33,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.sinf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -50,7 +50,41 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.cosf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
+  LINK_LIBRARIES
+    -lpthread
+)
+
+add_fp_unittest(
+  sincosf_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    sincosf_test.cpp
+  DEPENDS
+    .exhaustive_test
+    libc.include.math
+    libc.src.math.sincosf
+    libc.src.__support.FPUtil.fp_bits
+  LINK_LIBRARIES
+    -lpthread
+)
+
+add_fp_unittest(
+  tanf_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    tanf_test.cpp
+  DEPENDS
+    .exhaustive_test
+    libc.include.math
+    libc.src.math.tanf
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -67,7 +101,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.expf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -84,7 +118,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.exp2f
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -101,7 +135,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.expm1f
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -118,7 +152,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.logf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -135,7 +169,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.log10f
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -152,7 +186,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.log1pf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -169,7 +203,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.log2f
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -188,7 +222,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.hypotf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -202,7 +236,7 @@ add_fp_unittest(
   SRCS
     fmod_generic_impl_test.cpp
   DEPENDS
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
     libc.src.__support.FPUtil.generic.fmod
 )
 
@@ -218,7 +252,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.coshf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -235,7 +269,7 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.sinhf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )
@@ -252,7 +286,41 @@ add_fp_unittest(
     .exhaustive_test
     libc.include.math
     libc.src.math.tanhf
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fp_bits
+  LINK_LIBRARIES
+    -lpthread
+)
+
+add_fp_unittest(
+  atanhf_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    atanhf_test.cpp
+  DEPENDS
+    .exhaustive_test
+    libc.include.math
+    libc.src.math.atanhf
+    libc.src.__support.FPUtil.fp_bits
+  LINK_LIBRARIES
+    -lpthread
+)
+
+add_fp_unittest(
+  atanf_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    atanf_test.cpp
+  DEPENDS
+    .exhaustive_test
+    libc.include.math
+    libc.src.math.atanf
+    libc.src.__support.FPUtil.fp_bits
   LINK_LIBRARIES
     -lpthread
 )

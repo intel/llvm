@@ -39,9 +39,9 @@ class AllocOp;
 /// Collects a set of patterns to rewrite ops within the memref dialect.
 void populateExpandOpsPatterns(RewritePatternSet &patterns);
 
-/// Appends patterns for folding memref.subview ops into consumer load/store ops
-/// into `patterns`.
-void populateFoldSubViewOpPatterns(RewritePatternSet &patterns);
+/// Appends patterns for folding memref aliasing ops into consumer load/store
+/// ops into `patterns`.
+void populateFoldMemRefAliasOpPatterns(RewritePatternSet &patterns);
 
 /// Appends patterns that resolve `memref.dim` operations with values that are
 /// defined by operations that implement the
@@ -86,14 +86,21 @@ LogicalResult multiBuffer(memref::AllocOp allocOp, unsigned multiplier);
 // Passes
 //===----------------------------------------------------------------------===//
 
+#define GEN_PASS_DECL_EXPANDOPS
+#define GEN_PASS_DECL_FOLDMEMREFALIASOPS
+#define GEN_PASS_DECL_NORMALIZEMEMREFS
+#define GEN_PASS_DECL_RESOLVERANKEDSHAPETYPERESULTDIMS
+#define GEN_PASS_DECL_RESOLVESHAPEDTYPERESULTDIMS
+#include "mlir/Dialect/MemRef/Transforms/Passes.h.inc"
+
 /// Creates an instance of the ExpandOps pass that legalizes memref dialect ops
 /// to be convertible to LLVM. For example, `memref.reshape` gets converted to
 /// `memref_reinterpret_cast`.
 std::unique_ptr<Pass> createExpandOpsPass();
 
-/// Creates an operation pass to fold memref.subview ops into consumer
+/// Creates an operation pass to fold memref aliasing ops into consumer
 /// load/store ops into `patterns`.
-std::unique_ptr<Pass> createFoldSubViewOpsPass();
+std::unique_ptr<Pass> createFoldMemRefAliasOpsPass();
 
 /// Creates an interprocedural pass to normalize memrefs to have a trivial
 /// (identity) layout map.

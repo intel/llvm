@@ -288,12 +288,11 @@ public:
   /// Create the analysis state at the given program point.
   AnalysisState(ProgramPoint point) : point(point) {}
 
+  /// Returns the program point this static is located at.
+  ProgramPoint getPoint() const { return point; }
+
   /// Returns true if the analysis state is uninitialized.
   virtual bool isUninitialized() const = 0;
-
-  /// Force an uninitialized analysis state to initialize itself with a default
-  /// value.
-  virtual ChangeResult defaultInitialize() = 0;
 
   /// Print the contents of the analysis state.
   virtual void print(raw_ostream &os) const = 0;

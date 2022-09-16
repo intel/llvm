@@ -27,12 +27,10 @@ include(SYCLUtils)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
-set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 7)
+set(SYCL_MAJOR_VERSION 6)
+set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
-# Don't forget to re-enable sycl_symbols_windows.dump once we leave ABI-breaking
-# window!
-set(SYCL_DEV_ABI_VERSION 17)
+set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()

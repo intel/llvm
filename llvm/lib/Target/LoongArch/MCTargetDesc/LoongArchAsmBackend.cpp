@@ -22,19 +22,93 @@
 
 using namespace llvm;
 
+Optional<MCFixupKind> LoongArchAsmBackend::getFixupKind(StringRef Name) const {
+  if (STI.getTargetTriple().isOSBinFormatELF()) {
+    auto Type = llvm::StringSwitch<unsigned>(Name)
+#define ELF_RELOC(X, Y) .Case(#X, Y)
+#include "llvm/BinaryFormat/ELFRelocs/LoongArch.def"
+#undef ELF_RELOC
+                    .Case("BFD_RELOC_NONE", ELF::R_LARCH_NONE)
+                    .Case("BFD_RELOC_32", ELF::R_LARCH_32)
+                    .Case("BFD_RELOC_64", ELF::R_LARCH_64)
+                    .Default(-1u);
+    if (Type != -1u)
+      return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
+  }
+  return None;
+}
+
+const MCFixupKindInfo &
+LoongArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+  const static MCFixupKindInfo Infos[] = {
+      // This table *must* be in the order that the fixup_* kinds are defined in
+      // LoongArchFixupKinds.h.
+      //
+      // {name, offset, bits, flags}
+      {"fixup_loongarch_b16", 10, 16, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_loongarch_b21", 0, 26, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_loongarch_b26", 0, 26, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_loongarch_abs_hi20", 5, 20, 0},
+      {"fixup_loongarch_abs_lo12", 10, 12, 0},
+      {"fixup_loongarch_abs64_lo20", 5, 20, 0},
+      {"fixup_loongarch_abs64_hi12", 10, 12, 0},
+      {"fixup_loongarch_tls_le_hi20", 5, 20, 0},
+      {"fixup_loongarch_tls_le_lo12", 10, 12, 0},
+      {"fixup_loongarch_tls_le64_lo20", 5, 20, 0},
+      {"fixup_loongarch_tls_le64_hi12", 10, 12, 0},
+      // TODO: Add more fixup kinds.
+  };
+
+  static_assert((array_lengthof(Infos)) == LoongArch::NumTargetFixupKinds,
+                "Not all fixup kinds added to Infos array");
+
+  // Fixup kinds from .reloc directive are like R_LARCH_NONE. They
+  // do not require any extra processing.
+  if (Kind >= FirstLiteralRelocationKind)
+    return MCAsmBackend::getFixupKindInfo(FK_NONE);
+
+  if (Kind < FirstTargetFixupKind)
+    return MCAsmBackend::getFixupKindInfo(Kind);
+
+  assert(unsigned(Kind - FirstTargetFixupKind) < getNumFixupKinds() &&
+         "Invalid kind!");
+  return Infos[Kind - FirstTargetFixupKind];
+}
+
 void LoongArchAsmBackend::applyFixup(const MCAssembler &Asm,
                                      const MCFixup &Fixup,
                                      const MCValue &Target,
                                      MutableArrayRef<char> Data, uint64_t Value,
                                      bool IsResolved,
                                      const MCSubtargetInfo *STI) const {
-  // TODO: Apply the Value for given Fixup into the provided data fragment.
-  return;
+  if (!Value)
+    return; // Doesn't change encoding.
+
+  MCFixupKind Kind = Fixup.getKind();
+  if (Kind >= FirstLiteralRelocationKind)
+    return;
+  MCFixupKindInfo Info = getFixupKindInfo(Kind);
+  // TODO: Apply any target-specific value adjustments.
+
+  // Shift the value into position.
+  Value <<= Info.TargetOffset;
+
+  unsigned Offset = Fixup.getOffset();
+  unsigned NumBytes = alignTo(Info.TargetSize + Info.TargetOffset, 8) / 8;
+
+  assert(Offset + NumBytes <= Data.size() && "Invalid fixup offset!");
+  // For each byte of the fragment that the fixup touches, mask in the
+  // bits from the fixup value.
+  for (unsigned I = 0; I != NumBytes; ++I) {
+    Data[Offset + I] |= uint8_t((Value >> (I * 8)) & 0xff);
+  }
 }
 
 bool LoongArchAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
                                                 const MCFixup &Fixup,
                                                 const MCValue &Target) {
+  if (Fixup.getKind() >= FirstLiteralRelocationKind)
+    return true;
   // TODO: Determine which relocation require special processing at linking
   // time.
   return false;
