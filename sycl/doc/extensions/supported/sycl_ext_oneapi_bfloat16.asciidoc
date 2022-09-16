@@ -102,10 +102,6 @@ public:
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
 
-  // Explicit conversion functions
-  static storage_t from_float(const float &a);
-  static float to_float(const storage_t &a);
-
   // Convert from float to bfloat16
   bfloat16(const float &a);
   bfloat16 &operator=(const float &a);

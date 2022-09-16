@@ -114,9 +114,6 @@ public:
   // Implicit conversion from bfloat16 to sycl::half
   operator sycl::half() const { return to_float(value); }
 
-  // Get raw bits representation of bfloat16
-  storage_t raw() const { return value; }
-
   // Logical operators (!,||,&&) are covered if we can cast to bool
   explicit operator bool() { return to_float(value) != 0.0f; }
 
