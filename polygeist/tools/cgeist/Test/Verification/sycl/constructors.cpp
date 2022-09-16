@@ -22,7 +22,7 @@
 // CHECK:      func.func @_ZN4sycl3_V15rangeILi1EEC1ERKS2_(%arg0: memref<?x!sycl_range_1_>, %arg1: memref<?x!sycl_range_1_>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_range_1_>) -> memref<?x!sycl_array_1_>
 
-// CHECK-LLVM: define void @cons_0([[ID_TYPE:%"class.cl::sycl::id.1"]] [[ARG0:%.*]], [[RANGE_TYPE:%"class.cl::sycl::range.1"]] [[ARG1:%.*]]) {
+// CHECK-LLVM: define spir_func void @cons_0([[ID_TYPE:%"class.cl::sycl::id.1"]] [[ARG0:%.*]], [[RANGE_TYPE:%"class.cl::sycl::range.1"]] [[ARG1:%.*]]) {
 // CHECK-LLVM-DAG: [[RANGE1:%.*]] = alloca [[RANGE_TYPE]]
 // CHECK-LLVM-DAG: [[ID1:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM-DAG: [[RANGE2:%.*]] = alloca [[RANGE_TYPE]]
@@ -37,7 +37,7 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
   auto range = sycl::range<1>{r};
 }
 
-// CHECK: func.func @cons_1() attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @cons_1() attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %false = arith.constant false
 // CHECK-NEXT: %c0_i8 = arith.constant 0 : i8
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
@@ -53,7 +53,7 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // Ensure declaration to have external linkage.
 // CHECK: func.func private @_ZN4sycl3_V12idILi2EEC1Ev(memref<?x!sycl_id_2_>) attributes {llvm.linkage = #llvm.linkage<external>}
 
-// CHECK-LLVM: define void @cons_1() {
+// CHECK-LLVM: define spir_func void @cons_1() {
 // CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]
 // CHECK-LLVM: [[CAST1:%.*]] = bitcast [[ID_TYPE]]* %1 to i8*
 // CHECK-LLVM: call void @llvm.memset.p0i8.i64(i8* %2, i8 0, i64 16, i1 false)
@@ -63,15 +63,14 @@ extern "C" SYCL_EXTERNAL void cons_1() {
   auto id = sycl::id<2>{};
 }
 
-// CHECK: func.func @cons_2(%arg0: i64, %arg1: i64) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @cons_2(%arg0: i64, %arg1: i64) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: sycl.constructor(%1, %arg0, %arg1) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl_id_2_>, i64, i64) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-
-// CHECK-LLVM: define void @cons_2(i64 %0, i64 %1) {
+// CHECK-LLVM: define spir_func void @cons_2(i64 %0, i64 %1) {
 // CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]
 // CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]]* [[ID1]], [[ID_TYPE]]* [[ID1]], i64 0, i64 1, i64 1, i64 %0, i64 %1)
 
@@ -79,7 +78,7 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
   auto id = sycl::id<2>{a, b};
 }
  
-// CHECK: func.func @cons_3(%arg0: !sycl_item_2_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @cons_3(%arg0: !sycl_item_2_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_item_2_1_>
@@ -89,7 +88,7 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-// CHECK-LLVM: define void @cons_3([[ITEM_TYPE:%"class.cl::sycl::item.2.true"]] [[ARG0:%.*]]) {
+// CHECK-LLVM: define spir_func void @cons_3([[ITEM_TYPE:%"class.cl::sycl::item.2.true"]] [[ARG0:%.*]]) {
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]  
 // CHECK-LLVM-DAG: [[ITEM:%.*]] = alloca [[ITEM_TYPE]]
 // CHECK-LLVM: store [[ITEM_TYPE]] [[ARG0]], [[ITEM_TYPE]]* [[ITEM]], align 8
@@ -99,7 +98,7 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
   auto id = sycl::id<2>{val};
 }
 
-// CHECK: func.func @cons_4(%arg0: !sycl_id_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @cons_4(%arg0: !sycl_id_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_id_2_>
@@ -109,7 +108,7 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-// CHECK-LLVM: define void @cons_4([[ID_TYPE:%"class.cl::sycl::id.2"]] [[ARG0:%.*]]) {
+// CHECK-LLVM: define spir_func void @cons_4([[ID_TYPE:%"class.cl::sycl::id.2"]] [[ARG0:%.*]]) {
 // CHECK-LLVM-DAG: [[ID1:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM-DAG: [[ID2:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM: store [[ID_TYPE]] [[ARG0]], [[ID_TYPE]]* [[ID2]], align 8

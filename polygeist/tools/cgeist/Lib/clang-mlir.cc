@@ -4898,12 +4898,19 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
   } else {
     SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
   }
+
   NamedAttrList attrs(function->getAttrDictionary());
   attrs.set("llvm.linkage",
             mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
-  if (/*FD->hasAttr<SYCLHalideAttr>() && */ FD->hasAttr<SYCLKernelAttr>()) {
-    attrs.set("SYCLKernel", mlir::StringAttr::get(builder.getContext(), name));
-  }
+  if (FD->hasAttr<SYCLKernelAttr>())
+    attrs.set("llvm.cconv",
+              mlir::LLVM::CConvAttr::get(
+                  builder.getContext(), mlir::LLVM::cconv::CConv::SPIR_KERNEL));
+  if (FD->hasAttr<SYCLDeviceAttr>())
+    attrs.set("llvm.cconv",
+              mlir::LLVM::CConvAttr::get(builder.getContext(),
+                                         mlir::LLVM::cconv::CConv::SPIR_FUNC));
+
   function->setAttrs(attrs.getDictionary(builder.getContext()));
 
   functions[name] = function;
