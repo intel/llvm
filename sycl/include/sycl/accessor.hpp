@@ -1875,7 +1875,7 @@ public:
   size_t byte_size() const noexcept { return size() * sizeof(DataT); }
 
   size_t max_size() const noexcept {
-    std::numeric_limits<difference_type>::max();
+    return std::numeric_limits<difference_type>::max();
   }
 
   bool empty() const noexcept { return size() == 0; }
@@ -2506,8 +2506,6 @@ class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
   // Use base classes constructors
   using local_acc::local_acc;
 
-  using difference_type = size_t;
-
 #ifdef __SYCL_DEVICE_ONLY__
 
   // __init needs to be defined within the class not through inheritance.
@@ -2562,6 +2560,8 @@ public:
 #endif
 
 public:
+  using difference_type = size_t;
+
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
   size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
