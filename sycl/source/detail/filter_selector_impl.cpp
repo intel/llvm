@@ -64,29 +64,21 @@ filter create_filter(const std::string &Input) {
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::cpu;
-      // Result.HasDeviceType = true;
     } else if (Token == "gpu" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::gpu;
-      // Result.HasDeviceType = true;
     } else if (Token == "accelerator" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::accelerator;
-      // Result.HasDeviceType = true;
     } else if (Token == "opencl" && !Result.Backend) {
       Result.Backend = backend::opencl;
-      // Result.HasBackend = true;
     } else if (Token == "level_zero" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_level_zero;
-      // Result.HasBackend = true;
     } else if (Token == "cuda" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_cuda;
-      // Result.HasBackend = true;
     } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
-      // Result.HasBackend = true;
     } else if (Token == "host") {
       if (!Result.Backend) {
         Result.Backend = backend::host;
-        // Result.HasBackend = true;
       } else if (!Result.DeviceType && Result.Backend != backend::host) {
         // We already set everything earlier or it's an error.
         throw sycl::runtime_error(
@@ -99,7 +91,6 @@ filter create_filter(const std::string &Input) {
       } catch (std::logic_error &) {
         throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
       }
-      // Result.HasDeviceNum = true;
     } else {
       throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
     }

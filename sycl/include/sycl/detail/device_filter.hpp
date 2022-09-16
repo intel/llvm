@@ -31,29 +31,16 @@ std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
 // will will match devices.
 struct ods_target {
 public:
-  // bool HasBackend = false;
-  // backend Backend = backend::all;
   std::optional<backend> Backend = {};
-
-  // bool HasDeviceType = false;
-  // info::device_type DeviceType = info::device_type::all;
   std::optional<info::device_type> DeviceType = {};
 
   bool HasDeviceWildCard = false;
-  // bool HasDeviceNum = false;
-  // int DeviceNum = 0;
   std::optional<int> DeviceNum = {};
 
   bool HasSubDeviceWildCard = false;
   std::optional<unsigned> SubDeviceNum = {};
-  // bool HasSubDeviceNum = false;
-  // unsigned SubDeviceNum = 0;
 
-  ods_target(backend be) {
-    // HasBackend = true;
-    // Backend = be;
-    Backend = be;
-  };
+  ods_target(backend be) { Backend = be; };
   ods_target(){};
   friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
 };
@@ -75,15 +62,9 @@ std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
 // SYCL_DEVICE_FILTER support
 
 struct device_filter {
-  // backend Backend = backend::all;
   std::optional<backend> Backend = {};
-  // info::device_type DeviceType = info::device_type::all;
   std::optional<info::device_type> DeviceType = {};
   std::optional<int> DeviceNum = {};
-  // int DeviceNum = 0;
-  // bool HasBackend = false;
-  // bool HasDeviceType = false;
-  // bool HasDeviceNum = false;
   int MatchesSeen = 0;
 
   device_filter(){};
