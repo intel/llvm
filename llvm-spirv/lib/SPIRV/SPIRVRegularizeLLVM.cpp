@@ -354,6 +354,10 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
   STName.consume_front("__spv::");
   StringRef MangledName = STName.substr(0, STName.find('.'));
 
+  // Older versions of clang will generate JointMatrixINTEL types using this
+  // representation. Newer versions will generate the correct struct name
+  // "%spirv.JointMatrixINTEL._{parameters}" directly, obviating the need for
+  // this check.
   // Representation in LLVM IR before the translator is a pointer array wrapped
   // in a structure:
   // %struct.__spirv_JointMatrixINTEL = type { [R x [C x [L x [S x type]]]]* }
@@ -370,12 +374,13 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
   // register by OpCompositeConstruct. And we can't claim, that the Result type
   // of OpCompositeConstruct instruction is always the joint matrix type, it's
   // simply not true.
-  if (MangledName == "__spirv_JointMatrixINTEL") {
+  if (MangledName == "__spirv_JointMatrixINTEL" && !ST->isOpaquePointerTy()) {
     auto *PtrTy = dyn_cast<PointerType>(ST->getElementType(0));
     assert(PtrTy &&
            "Expected a pointer to an array to represent joint matrix type");
     std::vector<size_t> TypeLayout;
-    ArrayType *ArrayTy = dyn_cast<ArrayType>(PtrTy->getPointerElementType());
+    ArrayType *ArrayTy =
+        dyn_cast<ArrayType>(PtrTy->getNonOpaquePointerElementType());
     assert(ArrayTy && "Expected a pointer element type of an array type to "
                       "represent joint matrix type");
     TypeLayout.push_back(ArrayTy->getNumElements());
@@ -544,11 +549,19 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         // Add an additional bitcast in case address space cast also changes
         // pointer element type.
         if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          PointerType *DestTy = cast<PointerType>(ASCast->getDestTy());
-          PointerType *SrcTy = cast<PointerType>(ASCast->getSrcTy());
-          if (!DestTy->hasSameElementTypeAs(SrcTy)) {
-            PointerType *InterTy = PointerType::getWithSamePointeeType(
-                DestTy, SrcTy->getPointerAddressSpace());
+          Type *DestTy = ASCast->getDestTy();
+          Type *SrcTy = ASCast->getSrcTy();
+          if (!II.getContext().supportsTypedPointers())
+            continue;
+          if (DestTy->getScalarType()->getNonOpaquePointerElementType() !=
+              SrcTy->getScalarType()->getNonOpaquePointerElementType()) {
+            Type *InterTy = PointerType::getWithSamePointeeType(
+                cast<PointerType>(DestTy->getScalarType()),
+                cast<PointerType>(SrcTy->getScalarType())
+                    ->getPointerAddressSpace());
+            if (DestTy->isVectorTy())
+              InterTy = VectorType::get(
+                  InterTy, cast<VectorType>(DestTy)->getElementCount());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =

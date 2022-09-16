@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/Linalg/Passes.h"
+
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -18,6 +19,11 @@
 #include <iterator>
 #include <memory>
 #include <utility>
+
+namespace mlir {
+#define GEN_PASS_DEF_LINALGDETENSORIZE
+#include "mlir/Dialect/Linalg/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -65,13 +71,13 @@ public:
     Block *originalBlock = op->getBlock();
 
     // Gather some information about the op before inling its region.
-    Block *opEntryBlock = &*op.region().begin();
-    YieldOp yieldOp = dyn_cast<YieldOp>(op.region().back().getTerminator());
+    Block *opEntryBlock = &*op.getRegion().begin();
+    YieldOp yieldOp = dyn_cast<YieldOp>(op.getRegion().back().getTerminator());
 
     // Split the op's region before the op. This way, we have a clear insertion
     // point in which the op can be inlined.
     Block *newBlock = rewriter.splitBlock(originalBlock, Block::iterator(op));
-    rewriter.inlineRegionBefore(op.region(), newBlock);
+    rewriter.inlineRegionBefore(op.getRegion(), newBlock);
     // Now that op's region is inlined, the operands of its YieldOp are mapped
     // to the materialized target values. Therefore, we can replace the op's
     // uses with those of its YielOp's operands.
@@ -158,7 +164,8 @@ public:
 };
 
 /// @see LinalgDetensorize in Linalg/Passes.td for more details.
-struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
+struct LinalgDetensorize
+    : public impl::LinalgDetensorizeBase<LinalgDetensorize> {
   LinalgDetensorize() = default;
 
   class CostModel {
@@ -379,7 +386,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
           }
 
           opsToDetensor.insert(genericOp);
-          llvm::append_range(workList, genericOp.inputs());
+          llvm::append_range(workList, genericOp.getInputs());
           continue;
         }
 

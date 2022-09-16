@@ -73,7 +73,11 @@ else:
     lit_config.warning("unable to inject shared library path on '{}'"
                        .format(platform.system()))
 
+# The mock plugin currently appears as an opencl plugin, but could be changed in
+# the future. To avoid it being filtered out we set the filter to use the *
+# wildcard.
+config.environment['SYCL_DEVICE_FILTER'] = "*"
+lit_config.note("Using Mock Plugin.")
+
 config.environment['SYCL_CACHE_DIR'] = config.llvm_obj_root + "/sycl_cache"
-config.environment['SYCL_DEVICE_FILTER'] = lit_config.params.get('SYCL_PLUGIN', "opencl") + ",host"
-lit_config.note("Backend: {}".format(config.environment['SYCL_DEVICE_FILTER']))
 lit_config.note("SYCL cache directory: {}".format(config.environment['SYCL_CACHE_DIR']))
