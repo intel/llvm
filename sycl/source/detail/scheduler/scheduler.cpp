@@ -258,7 +258,9 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
-void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
+void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
+                                   bool NotBlockingRelease) {
+  std::ignore = NotBlockingRelease;
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
   // objects, this is needed to guarantee that streamed data is printed and
@@ -442,8 +444,7 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  if (Cmds.empty())
-  {
+  if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
       return;

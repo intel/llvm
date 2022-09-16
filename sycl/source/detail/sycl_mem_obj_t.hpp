@@ -57,7 +57,8 @@ public:
         MInteropContext(nullptr), MInteropMemObject(nullptr),
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
-        MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
+        MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr),
+        MNotBlockingRelease(MAllocator->isDefault()) {}
 
   SYCLMemObjT(const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
@@ -287,6 +288,8 @@ protected:
   // Field which holds user's shared_ptr in case of memory object is created
   // using constructor with shared_ptr.
   std::shared_ptr<const void> MSharedPtrStorage;
+  // Field to identify if dtor is not necessarily blocking
+  bool MNotBlockingRelease;
 };
 
 } // namespace detail

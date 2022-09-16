@@ -397,7 +397,7 @@ public:
   /// This member function is used by \ref buffer and \ref image.
   ///
   /// \param MemObj is a memory object that points to the buffer being removed.
-  void removeMemoryObject(detail::SYCLMemObjI *MemObj);
+  void removeMemoryObject(detail::SYCLMemObjI *MemObj, bool NotBlockingRelease);
 
   /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
   /// that all its commands have been waited for).

@@ -31,6 +31,7 @@ public:
   template <typename AllocatorT> AllocatorT getAllocator() {
     return *reinterpret_cast<AllocatorT *>(getAllocatorImpl());
   }
+  virtual bool isDefault() { return false; };
 };
 
 template <typename AllocatorT, typename OwnerDataT>
@@ -61,6 +62,8 @@ public:
 
   virtual std::size_t getValueSize() const override { return MValueSize; }
 
+  bool isDefault() override { return isDefaultImpl(); }
+
 protected:
   virtual void *getAllocatorImpl() override { return &MAllocator; }
 
@@ -81,6 +84,11 @@ private:
   template <typename T = AllocatorT>
   EnableIfDefaultAllocator<T> setAlignImpl(std::size_t RequiredAlign) {
     MAllocator.setAlignment(std::max<size_t>(RequiredAlign, 64));
+  }
+
+  constexpr bool isDefaultImpl() {
+    return std::is_same<AllocatorT,
+                        sycl_memory_object_allocator<OwnerDataT>>::value;
   }
 
   AllocatorT MAllocator;
