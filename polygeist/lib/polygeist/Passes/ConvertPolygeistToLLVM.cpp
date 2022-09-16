@@ -120,15 +120,15 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     // SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
-    // Note:in MLIRASTConsumer::getMLIRType(), a memref of struct type is
+    // Note: in MLIRASTConsumer::getMLIRType(), a memref of struct type is
     // generated only for a struct that has at least one member of SYCL type,
     // otherwise a llvm pointer type is generated instead of a memref).
     assert((sycl::isSYCLType(sourceElemType) ||
-            sourceElemType.isa<LLVM::LLVMStructType>() &&
+            (sourceElemType.isa<LLVM::LLVMStructType>() &&
                 any_of(sourceElemType.cast<LLVM::LLVMStructType>().getBody(),
                        [](const Type &memType) {
                          return sycl::isSYCLType(memType);
-                       })) &&
+                       }))) &&
            "the source memref element type should be either a SYCL type, or "
            "a struct containing at least a member of SYCL type");
 
@@ -137,15 +137,15 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
                    convViewElemType, indices, subViewOp, transformed, rewriter);
     assert(!indices.empty() && "Expecting a least one index");
 
-    // According to MLIRScanner::InitializeValueByInitListExpr() in
-    // clang-mlir.cc, when a memref element type is a struct type, the return
-    // type of a polygeist.subindex operation should be a memref of the
-    // element type of the struct.
+    // Note: MLIRScanner::InitializeValueByInitListExpr() in clang-mlir.cc, when
+    // a memref element type is a struct type, the return type of a
+    // polygeist.subindex operation should be a memref of the element type of
+    // the struct.
     auto elemPtrTy = LLVM::LLVMPointerType::get(convViewElemType);
     auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, indices);
     auto memRefDesc = createMemRefDescriptor(loc, viewMemRefType, gep, gep,
                                              sizes, strides, rewriter);
-    LLVM_DEBUG(llvm::dbgs() << "gep: " << *gep << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "SubIndexOpLowering: gep: " << *gep << "\n");
 
     rewriter.replaceOp(subViewOp, {memRefDesc});
     return success();
@@ -162,8 +162,9 @@ private:
   //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<array<1xi64>>
   //      -> idxs = [0, SubIndexOp's index]
   //
-  // Note: the (converted) result type that is requested is deemed illegal
-  // unless it is one of the source member types. For example assume:
+  // Note: when the source element type is a struct with more than one member
+  // type, the result type that is requested is deemed illegal unless it is one
+  // of the source member types. For example assume:
   //   - src ty: ptr<struct<array<1xi64>,i32>>
   //   - res ty: ptr<i64>
   // This is illegal because res ty can only be either ptr<i32> or

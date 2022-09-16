@@ -90,8 +90,8 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-NEXT: }
 
 // CHECK-LLVM: define void @cons_3([[ITEM_TYPE:%"class.cl::sycl::item.2.true"]] [[ARG0:%.*]]) {
-// CHECK-LLVM: [[ID:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]  
-// CHECK-LLVM: [[ITEM:%.*]] = alloca [[ITEM_TYPE]]
+// CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]  
+// CHECK-LLVM-DAG: [[ITEM:%.*]] = alloca [[ITEM_TYPE]]
 // CHECK-LLVM: store [[ITEM_TYPE]] [[ARG0]], [[ITEM_TYPE]]* [[ITEM]], align 8
 // CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE([[ID_TYPE]]* [[ID]], [[ID_TYPE]]* [[ID]], i64 0, i64 1, i64 1, [[ITEM_TYPE]]* [[ITEM]], [[ITEM_TYPE]]* [[ITEM]], i64 0, i64 1, i64 1)
 
@@ -110,8 +110,8 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-NEXT: }
 
 // CHECK-LLVM: define void @cons_4([[ID_TYPE:%"class.cl::sycl::id.2"]] [[ARG0:%.*]]) {
-// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE]]
-// CHECK-LLVM: [[ID2:%.*]] = alloca [[ID_TYPE]]
+// CHECK-LLVM-DAG: [[ID1:%.*]] = alloca [[ID_TYPE]]
+// CHECK-LLVM-DAG: [[ID2:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM: store [[ID_TYPE]] [[ARG0]], [[ID_TYPE]]* [[ID2]], align 8
 // CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ERKS2_([[ID_TYPE]]* [[ID1]], [[ID_TYPE]]* [[ID1]], i64 0, i64 1, i64 1, [[ID_TYPE]]* [[ID2]], [[ID_TYPE]]* [[ID2]], i64 0, i64 1, i64 1)
 
