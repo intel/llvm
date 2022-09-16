@@ -1146,6 +1146,7 @@ public:
   using value_type = DataT;
   using reference = DataT &;
   using const_reference = const DataT &;
+  using difference_type = size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1873,7 +1874,9 @@ public:
 
   size_t byte_size() const noexcept { return size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept { return std::vector<DataT>().max_size(); }
+  size_t max_size() const noexcept {
+    std::numeric_limits<difference_type>::max();
+  }
 
   bool empty() const noexcept { return size() == 0; }
 
@@ -2503,6 +2506,8 @@ class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
   // Use base classes constructors
   using local_acc::local_acc;
 
+  using difference_type = size_t;
+
 #ifdef __SYCL_DEVICE_ONLY__
 
   // __init needs to be defined within the class not through inheritance.
@@ -2561,7 +2566,9 @@ public:
 
   size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept { return std::vector<DataT>().max_size(); }
+  size_t max_size() const noexcept {
+    return std::numeric_limits<difference_type>::max();
+  }
 
   bool empty() const noexcept { return this->size() == 0; }
 };
