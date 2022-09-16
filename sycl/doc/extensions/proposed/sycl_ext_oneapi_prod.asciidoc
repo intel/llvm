@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_flush
+= sycl_ext_oneapi_prod
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -50,11 +50,12 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension adds a mechanism to signal that a SYCL queue should begin
-executing submitted commands whose dependences have been satisfied.
+This extension adds a mechanism to signal that it is desirable for a SYCL queue
+to begin executing any previously submitted commands once their dependencies
+have been satisfied.
 
-This can be useful if a SYCL runtime or backend runtime batches
-several commands before passing them to the device for execution.
+This can be a useful performance hint if a SYCL runtime or backend runtime
+batches several commands before passing them to a device for execution.
 
 == Specification
 
@@ -62,7 +63,7 @@ several commands before passing them to the device for execution.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_FLUSH` to one of the values defined in the table
+macro `SYCL_EXT_ONEAPI_PROD` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -77,19 +78,37 @@ supports.
 |Initial version of this extension.
 |===
 
-=== Flush
+=== New member function
 
 This extension adds the following new member function to the SYCL `queue`
 class:
 
 ```
 class queue {
-  void ext_oneapi_flush();
+  void ext_oneapi_prod();
 };
 ```
 
-After calls to `ext_oneapi_flush` return, any previously submitted commands
-on the queue are guaranteed to begin executing once their prequisites have
-been satisfied. Note that this does not guarantee that the commands have
-finished executing when `ext_oneapi_flush` has returned.
+A call to `ext_oneapi_prod` provides a hint to the SYCL runtime that it
+should start executing any previously submitted commands once their
+prerequisites have been satisfied. Calls to `ext_oneapi_prod` are
+non-blocking. Calling `ext_oneapi_prod` does not guarantee that
+previously submitted commands will eventually begin executing, nor that any
+previously submitted commands will execute concurrently with the host thread.
 
+[NOTE]
+====
+Since commands submitted to a SYCL queue are not required to execute
+immediately, SYCL devices and backends may buffer commands until a
+blocking call is encountered (e.g. `queue::wait`) or until some
+implementation-specific threshold is met. `ext_oneapi_prod` can be used
+in such cases to override default behavior and encourage earlier execution.
+====
+
+[NOTE]
+====
+Although `ext_oneapi_prod` is a performance hint, its impact upon application
+performance will be highly dependent upon the combination of device, backend
+and application characteristics. In some cases, it may even degrade performance
+(e.g. by interfering with batching or fusion optimizations).
+====
