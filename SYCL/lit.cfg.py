@@ -348,6 +348,13 @@ if 'gpu' in config.target_devices.split(','):
         if lit_config.params.get('ze_debug'):
             gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} SYCL_DEVICE_FILTER=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
             config.available_features.add('ze_debug'+config.ze_debug)
+    elif config.sycl_be == "ext_intel_esimd_emulator":
+        # ESIMD_EMULATOR backend uses CM_EMU library package for
+        # multi-threaded execution on CPU, and the package emulates
+        # multiple target platforms. In case user does not specify
+        # what target platform to emulate, 'skl' is chosen by default.
+        if not "CM_RT_PLATFORM" in os.environ:
+            gpu_run_substitute += "CM_RT_PLATFORM=skl "
 
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
