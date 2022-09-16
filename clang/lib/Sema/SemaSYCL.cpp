@@ -1837,8 +1837,22 @@ public:
       RecordDecl *RD = Ty->getAsRecordDecl();
       assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
-        RD->addAttr(
-            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+        // Do not generate a new type if the record corresponds to a
+        // lambda. Currently the fields/bases of the local clone
+        // corresponding to these generated types are intialized using
+        // their default constructors(Actual initialization is done via
+        // memcpy in kernel body.) to maintain the integrity of the
+        // InitListExpr we generate for Kernel Object local clone.
+        // Records correspondng to lambdas which have captures do not have
+        // a default constructor and so current logic fails for lambdas.
+        // FIXME: Can/Should we stop triggering decomposition for lambdas
+        // with pointers?
+        if (!RD->isLambda())
+          RD->addAttr(
+              SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+        else
+          RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+              SemaRef.getASTContext()));
       PointerStack.back() = true;
     }
     return true;

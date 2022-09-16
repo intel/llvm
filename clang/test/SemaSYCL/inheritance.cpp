@@ -77,7 +77,7 @@ int main() {
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'second_base' 'void () noexcept'
 
 // third_base contains special type accessor. Therefore it is decomposed and it's
-// date members are copied from corrsponding ParamVar
+// data members are copied from corresponding ParamVar
 // CHECK-NEXT: InitListExpr {{.*}} 'third_base'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
@@ -88,7 +88,6 @@ int main() {
 // Initialize fields of 'derived'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_a' 'int'
-
 
 // Check kernel body for call to __builtin_memcpy to initialize second_base 
 // CHECK: CallExpr {{.*}} 'void *'
@@ -103,8 +102,6 @@ int main() {
 // CHECK-NEXT: UnaryOperator {{.*}} '_generated_second_base *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '_generated_second_base' lvalue ParmVar {{.*}} '_arg__base' '_generated_second_base'
 // CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 8
-
-
 
 // Check kernel body for call to __init function of accessor
 // CHECK: CXXMemberCallExpr
