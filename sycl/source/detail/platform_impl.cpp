@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <cstring>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -185,10 +184,13 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
-      backend FilterBackend = Filter.Backend ? Filter.Backend.value() : backend::all;
+      backend FilterBackend =
+          Filter.Backend ? Filter.Backend.value() : backend::all;
       // First, match the backend entry
       if (FilterBackend == Backend || FilterBackend == backend::all) {
-        info::device_type FilterDevType = Filter.DeviceType ? Filter.DeviceType.value() : info::device_type::all;
+        info::device_type FilterDevType = Filter.DeviceType
+                                              ? Filter.DeviceType.value()
+                                              : info::device_type::all;
         // Next, match the device_type entry
         if (FilterDevType == info::device_type::all) {
           // Last, match the device_num entry
@@ -269,16 +271,18 @@ static std::vector<device> amendDeviceAndSubDevices(
     device &dev = DeviceList[i];
     bool deviceAdded = false;
     for (ods_target target : OdsTargetList->get()) {
-      backend TargetBackend = target.Backend ? target.Backend.value() : backend::all;
+      backend TargetBackend =
+          target.Backend ? target.Backend.value() : backend::all;
       if (PlatformBackend == TargetBackend || TargetBackend == backend::all) {
         bool deviceMatch = target.HasDeviceWildCard; // opencl:*
-        if (target.DeviceType) {                    // opencl:gpu
+        if (target.DeviceType) {                     // opencl:gpu
           deviceMatch = ((target.DeviceType == info::device_type::all) ||
                          (dev.get_info<info::device::device_type>() ==
                           target.DeviceType));
 
         } else if (target.DeviceNum) { // opencl:0
-          deviceMatch = (target.DeviceNum.value() == PlatformDeviceIndex + (int)i);
+          deviceMatch =
+              (target.DeviceNum.value() == PlatformDeviceIndex + (int)i);
         }
 
         if (deviceMatch) {
@@ -294,22 +298,9 @@ static std::vector<device> amendDeviceAndSubDevices(
                 FinalResult.insert(FinalResult.end(), subDevices.begin(),
                                    subDevices.end());
               } else {
-                if (subDevices.size() > target.SubDeviceNum.value()) {
+                if (subDevices.size() > target.SubDeviceNum.value())
                   FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
-                } else {
-                  std::stringstream ss;
-                  ss << "subdevice index out of bounds: " << target;
-                  throw sycl::exception(sycl::make_error_code(errc::invalid),
-                                        ss.str());
-                }
               }
-            } else if (target.DeviceNum || (target.DeviceType && target.DeviceType.value() != info::device_type::all)) {
-              // this device was specifically requested and yet is not
-              // partitionable.
-              std::stringstream ss;
-              ss << "device is not partitionable: " << target;
-              throw sycl::exception(sycl::make_error_code(errc::invalid),
-                                    ss.str());
             }
           } else if (!deviceAdded) {
             FinalResult.push_back(dev);

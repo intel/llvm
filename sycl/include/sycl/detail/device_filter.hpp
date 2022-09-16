@@ -22,37 +22,36 @@ namespace detail {
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
 
-template<typename T>
-std::ostream& operator<<(std::ostream& os, std::optional<T> const& opt)
-{
-    return opt ? os << opt.value() : os << "not set ";
+template <typename T>
+std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
+  return opt ? os << opt.value() : os << "not set ";
 }
 
 // the ONEAPI_DEVICE_SELECTOR string gets broken down into these targets
 // will will match devices.
 struct ods_target {
 public:
-  //bool HasBackend = false;
-  //backend Backend = backend::all;
+  // bool HasBackend = false;
+  // backend Backend = backend::all;
   std::optional<backend> Backend = {};
 
-  //bool HasDeviceType = false;
-  //info::device_type DeviceType = info::device_type::all;
+  // bool HasDeviceType = false;
+  // info::device_type DeviceType = info::device_type::all;
   std::optional<info::device_type> DeviceType = {};
 
   bool HasDeviceWildCard = false;
-  //bool HasDeviceNum = false;
-  //int DeviceNum = 0;
+  // bool HasDeviceNum = false;
+  // int DeviceNum = 0;
   std::optional<int> DeviceNum = {};
 
   bool HasSubDeviceWildCard = false;
   std::optional<unsigned> SubDeviceNum = {};
-  //bool HasSubDeviceNum = false;
-  //unsigned SubDeviceNum = 0;
+  // bool HasSubDeviceNum = false;
+  // unsigned SubDeviceNum = 0;
 
   ods_target(backend be) {
-    //HasBackend = true;
-    //Backend = be;
+    // HasBackend = true;
+    // Backend = be;
     Backend = be;
   };
   ods_target(){};
@@ -76,15 +75,15 @@ std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
 // SYCL_DEVICE_FILTER support
 
 struct device_filter {
-  //backend Backend = backend::all;
+  // backend Backend = backend::all;
   std::optional<backend> Backend = {};
-  //info::device_type DeviceType = info::device_type::all;
+  // info::device_type DeviceType = info::device_type::all;
   std::optional<info::device_type> DeviceType = {};
   std::optional<int> DeviceNum = {};
-  //int DeviceNum = 0;
-  //bool HasBackend = false;
-  //bool HasDeviceType = false;
-  //bool HasDeviceNum = false;
+  // int DeviceNum = 0;
+  // bool HasBackend = false;
+  // bool HasDeviceType = false;
+  // bool HasDeviceNum = false;
   int MatchesSeen = 0;
 
   device_filter(){};
