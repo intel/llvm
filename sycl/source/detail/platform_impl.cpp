@@ -185,19 +185,19 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
-      backend FilterBackend = Filter.Backend;
+      backend FilterBackend = Filter.Backend ? Filter.Backend.value() : backend::all;
       // First, match the backend entry
       if (FilterBackend == Backend || FilterBackend == backend::all) {
-        info::device_type FilterDevType = Filter.DeviceType;
+        info::device_type FilterDevType = Filter.DeviceType ? Filter.DeviceType.value() : info::device_type::all;
         // Next, match the device_type entry
         if (FilterDevType == info::device_type::all) {
           // Last, match the device_num entry
-          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
+          if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
             PiDevices[InsertIDx++] = Device;
             break;
           }
         } else if (FilterDevType == DeviceType) {
-          if (!Filter.HasDeviceNum || DeviceNum == Filter.DeviceNum) {
+          if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
             PiDevices[InsertIDx++] = Device;
             break;
           }
@@ -269,21 +269,21 @@ static std::vector<device> amendDeviceAndSubDevices(
     device &dev = DeviceList[i];
     bool deviceAdded = false;
     for (ods_target target : OdsTargetList->get()) {
-      backend TargetBackend = target.Backend;
+      backend TargetBackend = target.Backend ? target.Backend.value() : backend::all;
       if (PlatformBackend == TargetBackend || TargetBackend == backend::all) {
         bool deviceMatch = target.HasDeviceWildCard; // opencl:*
-        if (target.HasDeviceType) {                  // opencl:gpu
+        if (target.DeviceType) {                    // opencl:gpu
           deviceMatch = ((target.DeviceType == info::device_type::all) ||
                          (dev.get_info<info::device::device_type>() ==
                           target.DeviceType));
 
-        } else if (target.HasDeviceNum) { // opencl:0
-          deviceMatch = (target.DeviceNum == PlatformDeviceIndex + (int)i);
+        } else if (target.DeviceNum) { // opencl:0
+          deviceMatch = (target.DeviceNum.value() == PlatformDeviceIndex + (int)i);
         }
 
         if (deviceMatch) {
           // Top level matches. Do we add it, or subdevices?
-          if (target.HasSubDeviceNum || target.HasSubDeviceWildCard) {
+          if (target.SubDeviceNum || target.HasSubDeviceWildCard) {
             if (supportsPartitionProperty(dev, partitionProperty) &&
                 supportsAffinityDomain(dev, partitionProperty,
                                        affinityDomain)) {
@@ -294,8 +294,8 @@ static std::vector<device> amendDeviceAndSubDevices(
                 FinalResult.insert(FinalResult.end(), subDevices.begin(),
                                    subDevices.end());
               } else {
-                if (subDevices.size() > target.SubDeviceNum) {
-                  FinalResult.push_back(subDevices[target.SubDeviceNum]);
+                if (subDevices.size() > target.SubDeviceNum.value()) {
+                  FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
                 } else {
                   std::stringstream ss;
                   ss << "subdevice index out of bounds: " << target;
@@ -303,9 +303,7 @@ static std::vector<device> amendDeviceAndSubDevices(
                                         ss.str());
                 }
               }
-            } else if (target.HasDeviceNum ||
-                       (target.HasDeviceType &&
-                        target.DeviceType != info::device_type::all)) {
+            } else if (target.DeviceNum || (target.DeviceType && target.DeviceType.value() != info::device_type::all)) {
               // this device was specifically requested and yet is not
               // partitionable.
               std::stringstream ss;

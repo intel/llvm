@@ -293,7 +293,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     bool EsimdCpuFound = false;
     bool HIPFound = false;
     for (const device_filter &Filter : Filters) {
-      backend Backend = Filter.Backend;
+      backend Backend = Filter.Backend ? Filter.Backend.value() : backend::all;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);

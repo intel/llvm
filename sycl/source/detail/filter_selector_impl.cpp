@@ -62,44 +62,44 @@ filter create_filter(const std::string &Input) {
     throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
-    if (Token == "cpu" && !Result.HasDeviceType) {
+    if (Token == "cpu" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::cpu;
-      Result.HasDeviceType = true;
-    } else if (Token == "gpu" && !Result.HasDeviceType) {
+      //Result.HasDeviceType = true;
+    } else if (Token == "gpu" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::gpu;
-      Result.HasDeviceType = true;
-    } else if (Token == "accelerator" && !Result.HasDeviceType) {
+      //Result.HasDeviceType = true;
+    } else if (Token == "accelerator" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::accelerator;
-      Result.HasDeviceType = true;
-    } else if (Token == "opencl" && !Result.HasBackend) {
+      //Result.HasDeviceType = true;
+    } else if (Token == "opencl" && !Result.Backend) {
       Result.Backend = backend::opencl;
-      Result.HasBackend = true;
-    } else if (Token == "level_zero" && !Result.HasBackend) {
+      //Result.HasBackend = true;
+    } else if (Token == "level_zero" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_level_zero;
-      Result.HasBackend = true;
-    } else if (Token == "cuda" && !Result.HasBackend) {
+      //Result.HasBackend = true;
+    } else if (Token == "cuda" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_cuda;
-      Result.HasBackend = true;
-    } else if (Token == "hip" && !Result.HasBackend) {
+      //Result.HasBackend = true;
+    } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
-      Result.HasBackend = true;
+      //Result.HasBackend = true;
     } else if (Token == "host") {
-      if (!Result.HasBackend) {
+      if (!Result.Backend) {
         Result.Backend = backend::host;
-        Result.HasBackend = true;
-      } else if (!Result.HasDeviceType && Result.Backend != backend::host) {
+        //Result.HasBackend = true;
+      } else if (!Result.DeviceType && Result.Backend != backend::host) {
         // We already set everything earlier or it's an error.
         throw sycl::runtime_error(
             "Cannot specify host device with non-host backend.",
             PI_ERROR_INVALID_VALUE);
       }
-    } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
+    } else if (std::regex_match(Token, IntegerExpr) && !Result.DeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
         throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
       }
-      Result.HasDeviceNum = true;
+      //Result.HasDeviceNum = true;
     } else {
       throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
     }
@@ -128,7 +128,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
     bool DeviceNumOK = true;
 
     // handle host device specially
-    if (Filter.HasBackend) {
+    if (Filter.Backend) {
       backend BE;
       if (Dev.is_host()) {
         BE = backend::host;
@@ -141,20 +141,19 @@ int filter_selector_impl::operator()(const device &Dev) const {
       else
         BackendOK = (BE == Filter.Backend);
     }
-    if (Filter.HasDeviceType) {
-      sycl::info::device_type DT =
-          Dev.get_info<sycl::info::device::device_type>();
+    if (Filter.DeviceType) {
+      sycl::info::device_type DT = Dev.get_info<sycl::info::device::device_type>();
       // DeviceType is okay if the filter is set 'all'.
       if (Filter.DeviceType == sycl::info::device_type::all)
         DeviceTypeOK = true;
       else
         DeviceTypeOK = (DT == Filter.DeviceType);
     }
-    if (Filter.HasDeviceNum) {
+    if (Filter.DeviceNum) {
       // Only check device number if we're good on the previous matches
       if (BackendOK && DeviceTypeOK) {
         // Do we match?
-        DeviceNumOK = (Filter.MatchesSeen == Filter.DeviceNum);
+        DeviceNumOK = (Filter.MatchesSeen == Filter.DeviceNum.value());
         // Safe to increment matches even if we find it
         Filter.MatchesSeen++;
       }

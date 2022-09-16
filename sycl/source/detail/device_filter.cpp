@@ -84,18 +84,19 @@ static void Parse_ODS_Device(ods_target &Target,
         return std::string::npos != TopDeviceStr.find(DtPair.first);
       });
   if (It != DeviceTypeMap.end()) {
-    Target.HasDeviceType = true;
+    //Target.HasDeviceType = true;
     Target.DeviceType = It->second;
     // Handle wildcard.
     if (TopDeviceStr[0] == '*') {
       Target.HasDeviceWildCard = true;
-      Target.HasDeviceType = false;
+      //Target.HasDeviceType = false;
+      Target.DeviceType = {};
     }
   } else { // Only thing left is a number.
     std::string TDS(TopDeviceStr);
     try {
       Target.DeviceNum = std::stoi(TDS);
-      Target.HasDeviceNum = true;
+      //Target.HasDeviceNum = true;
     } catch (...) {
       std::stringstream ss;
       ss << "error parsing device number: " << TDS;
@@ -113,7 +114,7 @@ static void Parse_ODS_Device(ods_target &Target,
       std::string SDS(SubDeviceStr);
       try {
         Target.SubDeviceNum = std::stoi(SDS);
-        Target.HasSubDeviceNum = true;
+        //Target.HasSubDeviceNum = true;
       } catch (...) {
         std::stringstream ss;
         ss << "error parsing sub-device index: " << SDS;
@@ -159,7 +160,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
 
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   Out << Target.Backend;
-  if (Target.HasDeviceType) {
+  if (Target.DeviceType) {
     auto DeviceTypeMap = getSyclDeviceTypeMap();
     auto Match = std::find_if(
         DeviceTypeMap.begin(), DeviceTypeMap.end(),
@@ -172,12 +173,12 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   }
   if (Target.HasDeviceWildCard)
     Out << ":*";
-  if (Target.HasDeviceNum)
-    Out << ":" << Target.DeviceNum;
+  if (Target.DeviceNum)
+    Out << ":" << Target.DeviceNum.value();
   if (Target.HasSubDeviceWildCard)
     Out << ".*";
-  if (Target.HasSubDeviceNum)
-    Out << "." << Target.SubDeviceNum;
+  if (Target.SubDeviceNum)
+    Out << "." << Target.SubDeviceNum.value();
 
   return Out;
 }
@@ -193,7 +194,7 @@ bool ods_target_list::containsHost() {
           Target.DeviceType == info::device_type::all)
         // SYCL RT never creates more than one HOST device.
         // All device numbers other than 0 are rejected.
-        if (!Target.HasDeviceNum || Target.DeviceNum == 0)
+        if (!Target.DeviceNum || Target.DeviceNum.value() == 0)
           return true;
   }
   return false;
@@ -246,7 +247,7 @@ device_filter::device_filter(const std::string &FilterString) {
   if (TripleValueID < Tokens.size()) {
     try {
       DeviceNum = std::stoi(Tokens[TripleValueID].data());
-      HasDeviceNum = true;
+      //HasDeviceNum = true;
     } catch (...) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
@@ -292,7 +293,7 @@ void device_filter_list::addFilter(device_filter &Filter) {
 // 2. Filter backend match exactly with the given 'Backend'
 bool device_filter_list::backendCompatible(backend Backend) {
   for (const device_filter &Filter : FilterList) {
-    backend FilterBackend = Filter.Backend;
+    backend FilterBackend = Filter.Backend ? Filter.Backend.value() : backend::all;
     if (FilterBackend == Backend || FilterBackend == backend::all)
       return true;
   }
@@ -301,7 +302,7 @@ bool device_filter_list::backendCompatible(backend Backend) {
 
 bool device_filter_list::deviceTypeCompatible(info::device_type DeviceType) {
   for (const device_filter &Filter : FilterList) {
-    info::device_type FilterDevType = Filter.DeviceType;
+    info::device_type FilterDevType = Filter.DeviceType ? Filter.DeviceType.value() : info::device_type::all;
     if (FilterDevType == DeviceType || FilterDevType == info::device_type::all)
       return true;
   }
@@ -310,8 +311,8 @@ bool device_filter_list::deviceTypeCompatible(info::device_type DeviceType) {
 
 bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
   for (const device_filter &Filter : FilterList) {
-    int FilterDevNum = Filter.DeviceNum;
-    if (!Filter.HasDeviceNum || FilterDevNum == DeviceNum)
+    //int FilterDevNum = Filter.DeviceNum;
+    if (!Filter.DeviceNum || Filter.DeviceNum.value() == DeviceNum)
       return true;
   }
   return false;
@@ -324,7 +325,7 @@ bool device_filter_list::containsHost() {
           Filter.DeviceType == info::device_type::all)
         // SYCL RT never creates more than one HOST device.
         // All device numbers other than 0 are rejected.
-        if (!Filter.HasDeviceNum || Filter.DeviceNum == 0)
+        if (!Filter.DeviceNum || Filter.DeviceNum.value() == 0)
           return true;
   }
   return false;
