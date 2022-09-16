@@ -91,11 +91,9 @@ bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
       if (m->isVirtualAsWritten() || m->isPure())
         return true;
     }
-    for (const auto &Base : CXRD->bases()) {
-      const CXXRecordDecl *BaseDecl = Base.getType()->getAsCXXRecordDecl();
-      if (BaseDecl->isEmpty())
+    for (const auto &Base : CXRD->bases())
+      if (Base.getType()->getAsCXXRecordDecl()->isEmpty())
         return true;
-    }
   }
   if (ST) {
     if (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
