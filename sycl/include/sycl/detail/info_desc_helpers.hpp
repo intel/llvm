@@ -81,20 +81,7 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(DescType, Desc, ReturnT, InputT,   \
-                                            PiCode)                            \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr                                                           \
-        typename std::conditional<IsSubGroupInfo<info::DescType::Desc>::value, \
-                                  pi_kernel_sub_group_info,                    \
-                                  pi_kernel_group_info>::type value = PiCode;  \
-  };                                                                           \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using with_input_return_type = info::DescType::Desc::return_type;          \
-  };
 #include <sycl/info/kernel_device_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 #undef __SYCL_PARAM_TRAITS_SPEC
 // Need a static_cast here since piDeviceGetInfo can also accept
 // pi_usm_capability_query values.

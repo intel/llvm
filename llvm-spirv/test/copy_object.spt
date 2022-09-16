@@ -40,10 +40,10 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM-NOT: CopyObject
 ; CHECK-LLVM: %[[char:[0-9]+]] = alloca i8
-; CHECK-LLVM: store i8 -20, i8* %[[char]]
-; CHECK-LLVM: %{{[0-9]*}} = load i8, i8* %[[char]]
+; CHECK-LLVM: store i8 -20, ptr %[[char]]
+; CHECK-LLVM: %{{[0-9]*}} = load i8, ptr %[[char]]

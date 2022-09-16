@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_INTEL_function_pointers -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 ;
@@ -29,7 +29,7 @@
 ; CHECK-SPIRV: ConvertUToPtr [[FOO_TYPE_PTR_ID]] [[FOO_PTR:[0-9]+]] [[FUNC_ADDR]]
 ; CHECK-SPIRV: FunctionPointerCallINTEL [[INT32_TYPE_ID]] {{[0-9]+}} [[FOO_PTR]]
 ;
-; CHECK-LLVM: define spir_kernel void @test(i32 addrspace(1)*
+; CHECK-LLVM: define spir_kernel void @test(ptr addrspace(1)
 ; CHECK-LLVM: %{{.*}} = call spir_func i32 %{{.*}}(i32
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

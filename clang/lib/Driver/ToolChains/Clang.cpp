@@ -8138,9 +8138,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
       if (RTOptionID == options::OPT__SLASH_MDd)
-        CmdArgs.push_back("--dependent-lib=sycld");
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       else
-        CmdArgs.push_back("--dependent-lib=sycl");
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }

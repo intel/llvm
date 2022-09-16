@@ -16,12 +16,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
-function(add_sycl_rt_library LIB_NAME)
+function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB" "COMPILE_OPTIONS;SOURCES" ${ARGN})
-
-  set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
   add_library(${LIB_NAME} SHARED
@@ -201,18 +199,29 @@ if (MSVC)
   endforeach()
 
   if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycld XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   else()
-    add_sycl_rt_library(sycld COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
+  add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
 
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+if (WIN32)
+set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
 else()
-  add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+set(LIB_NAME "sycl")
+endif()
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+else()
+  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+endif()
+
+if (WIN32)
+  add_library(sycl ALIAS ${LIB_NAME})
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}
