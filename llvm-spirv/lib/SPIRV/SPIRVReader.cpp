@@ -1183,32 +1183,27 @@ Value *SPIRVToLLVM::mapValue(SPIRVValue *BV, Value *V) {
 CallInst *
 SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
                                            const std::string &FuncName) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   if (!CI->getOperand(0)->getType()->isVectorTy() &&
       CI->getOperand(1)->getType()->isVectorTy()) {
-    return mutateCallInstOCL(
-        M, CI,
-        [=](CallInst *, std::vector<Value *> &Args) {
-          auto VecElemCount =
-              cast<VectorType>(CI->getOperand(1)->getType())->getElementCount();
-          Value *NewVec = nullptr;
-          if (auto CA = dyn_cast<Constant>(Args[0]))
-            NewVec = ConstantVector::getSplat(VecElemCount, CA);
-          else {
-            NewVec = ConstantVector::getSplat(
-                VecElemCount, Constant::getNullValue(Args[0]->getType()));
-            NewVec = InsertElementInst::Create(NewVec, Args[0], getInt32(M, 0),
-                                               "", CI);
-            NewVec = new ShuffleVectorInst(
-                NewVec, NewVec,
-                ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
-          }
-          NewVec->takeName(Args[0]);
-          Args[0] = NewVec;
-          return FuncName;
-        },
-        &Attrs);
+    auto VecElemCount =
+        cast<VectorType>(CI->getOperand(1)->getType())->getElementCount();
+    auto Mutator = mutateCallInst(CI, FuncName);
+    Mutator.mapArg(0, [=](Value *Arg) {
+      Value *NewVec = nullptr;
+      if (auto *CA = dyn_cast<Constant>(Arg))
+        NewVec = ConstantVector::getSplat(VecElemCount, CA);
+      else {
+        NewVec = ConstantVector::getSplat(
+            VecElemCount, Constant::getNullValue(Arg->getType()));
+        NewVec = InsertElementInst::Create(NewVec, Arg, getInt32(M, 0), "", CI);
+        NewVec = new ShuffleVectorInst(
+            NewVec, NewVec,
+            ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+      }
+      NewVec->takeName(Arg);
+      return NewVec;
+    });
+    return cast<CallInst>(Mutator.getMutated());
   }
   return CI;
 }
@@ -4454,49 +4449,26 @@ SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
 
 Instruction *SPIRVToLLVM::transAllAny(SPIRVInstruction *I, BasicBlock *BB) {
   CallInst *CI = cast<CallInst>(transSPIRVBuiltinFromInst(I, BB));
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  BuiltinFuncMangleInfo BtnInfo;
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return cast<Instruction>(mapValue(
-      I, ::mutateCallInst(
-             M, CI,
-             [=](CallInst *, std::vector<Value *> &Args) {
-               auto *OldArg = CI->getOperand(0);
-               auto *NewArgTy = FixedVectorType::get(
-                   Type::getInt8Ty(*Context),
-                   cast<FixedVectorType>(OldArg->getType())->getNumElements());
-               auto *NewArg =
-                   CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
-               Args[0] = NewArg;
-               return getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I));
-             },
-             &BtnInfo, &Attrs, /*TakeFuncName=*/true)));
+  auto Mutator = mutateCallInst(
+      CI, getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I)));
+  Mutator.mapArg(0, [](IRBuilder<> &Builder, Value *OldArg) {
+    auto *NewArgTy = OldArg->getType()->getWithNewBitWidth(8);
+    return Builder.CreateSExtOrBitCast(OldArg, NewArgTy);
+  });
+  return cast<Instruction>(Mutator.getMutated());
 }
 
 Instruction *SPIRVToLLVM::transRelational(SPIRVInstruction *I, BasicBlock *BB) {
   CallInst *CI = cast<CallInst>(transSPIRVBuiltinFromInst(I, BB));
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  BuiltinFuncMangleInfo BtnInfo;
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return cast<Instruction>(mapValue(
-      I, ::mutateCallInst(
-             M, CI,
-             [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
-               if (CI->getType()->isVectorTy()) {
-                 RetTy = FixedVectorType::get(
-                     Type::getInt8Ty(*Context),
-                     cast<FixedVectorType>(CI->getType())->getNumElements());
-               }
-               return getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I));
-             },
-             [=](CallInst *NewCI) -> Instruction * {
-               Type *RetTy = CI->getType();
-               if (RetTy == NewCI->getType())
-                 return NewCI;
-               return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
-                                                     NewCI->getNextNode());
-             },
-             &BtnInfo, &Attrs, /*TakeFuncName=*/true)));
+  auto Mutator = mutateCallInst(
+      CI, getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I)));
+  if (CI->getType()->isVectorTy()) {
+    Type *RetTy = CI->getType()->getWithNewBitWidth(8);
+    Mutator.changeReturnType(RetTy, [=](IRBuilder<> &Builder, CallInst *NewCI) {
+      return Builder.CreateTruncOrBitCast(NewCI, CI->getType());
+    });
+  }
+  return cast<Instruction>(Mutator.getMutated());
 }
 
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
