@@ -30,6 +30,7 @@ class SYCL_Op<string mnemonic, list<Trait> traits = []>
     : Op<SYCL_Dialect, mnemonic, traits>;
 
 def SYCL_IDType : DialectType<SYCL_Dialect, CPred<"$_self.isa<IDType>()">, "sycl::id type">;
+def SYCL_AccessorCommonType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorCommonType>()">, "sycl::accessor_common type">;
 def SYCL_AccessorType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorType>()">, "sycl::accessor type">;
 def SYCL_RangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<RangeType>()">, "sycl::range type">;
 def SYCL_AccessorImplType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorImplDeviceType>()">, "sycl::accessor_impl_device type">;
@@ -40,6 +41,7 @@ def SYCL_NdItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdItemType>()"
 def SYCL_GroupType : DialectType<SYCL_Dialect, CPred<"$_self.isa<GroupType>()">, "sycl::group type">;
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
+def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
 def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def AccessorImplMemRef : MemRefOf<[SYCL_AccessorImplType]>;
@@ -51,6 +53,7 @@ def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
+  AccessorCommonMemRef,
   AccessorMemRef,
   RangeMemRef,
   AccessorImplMemRef,

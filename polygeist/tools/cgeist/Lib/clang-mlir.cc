@@ -91,6 +91,9 @@ bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
       if (m->isVirtualAsWritten() || m->isPure())
         return true;
     }
+    for (const auto &Base : CXRD->bases())
+      if (Base.getType()->getAsCXXRecordDecl()->isEmpty())
+        return true;
   }
   if (ST) {
     if (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
@@ -5251,9 +5254,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext())) {
       const auto TypeName = RD->getName();
       if (TypeName == "range" || TypeName == "array" || TypeName == "id" ||
-          TypeName == "accessor" || TypeName == "AccessorImplDevice" ||
-          TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "nd_item" || TypeName == "group") {
+          TypeName == "accessor_common" || TypeName == "accessor" ||
+          TypeName == "AccessorImplDevice" || TypeName == "item" ||
+          TypeName == "ItemBase" || TypeName == "nd_item" ||
+          TypeName == "group") {
         return getSYCLType(RT);
       }
       llvm::errs() << "Warning: SYCL type '" << ST->getName()
@@ -5561,6 +5565,9 @@ mlir::Type MLIRASTConsumer::getSYCLType(const clang::RecordType *RT) {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::IDType::get(module->getContext(), Dim);
+    }
+    if (CTS->getName() == "accessor_common") {
+      return mlir::sycl::AccessorCommonType::get(module->getContext());
     }
     if (CTS->getName() == "accessor") {
       const auto TypeInfo = RT->getDecl()->getASTContext().getTypeInfo(
