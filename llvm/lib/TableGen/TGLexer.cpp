@@ -55,10 +55,8 @@ TGLexer::TGLexer(SourceMgr &SM, ArrayRef<std::string> Macros) : SrcMgr(SM) {
       std::make_unique<std::vector<PreprocessorControlDesc>>());
 
   // Put all macros defined in the command line into the DefinedMacros set.
-  std::for_each(Macros.begin(), Macros.end(),
-                [this](const std::string &MacroName) {
-                  DefinedMacros.insert(MacroName);
-                });
+  for (const std::string &MacroName : Macros)
+    DefinedMacros.insert(MacroName);
 }
 
 SMLoc TGLexer::getLoc() const {
@@ -241,7 +239,7 @@ tgtok::TokKind TGLexer::LexToken(bool FileOrLineStart) {
         case '0': case '1':
           if (NextChar == 'b')
             return LexNumber();
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
         case '2': case '3': case '4': case '5':
         case '6': case '7': case '8': case '9':
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
@@ -308,7 +306,7 @@ tgtok::TokKind TGLexer::LexString() {
     case '\0':
       if (CurPtr == CurBuf.end())
         return ReturnError(StrStart, "End of file in string literal");
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       return ReturnError(CurPtr, "invalid escape in string literal");
     }
@@ -586,6 +584,7 @@ tgtok::TokKind TGLexer::LexExclaim() {
     .Case("find", tgtok::XFind)
     .Cases("setdagop", "setop", tgtok::XSetDagOp) // !setop is deprecated.
     .Cases("getdagop", "getop", tgtok::XGetDagOp) // !getop is deprecated.
+    .Case("exists", tgtok::XExists)
     .Default(tgtok::Error);
 
   return Kind != tgtok::Error ? Kind : ReturnError(Start-1, "Unknown operator");

@@ -21,11 +21,12 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Dialect/SparseTensor/Utils/Merger.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TensorEncoding.h"
@@ -41,10 +42,15 @@ using namespace mlir::sparse_tensor;
 namespace {
 
 // Iteration graph sorting.
-enum SortMask { kSparseOnly = 0x0, kIncludeDense = 0x1, kIncludeUndef = 0x2 };
+enum SortMask {
+  kSparseOnly = 0x0,
+  kIncludeDense = 0x1,
+  kIncludeUndef = 0x2,
+  kIncludeAll = 0x3
+};
 
 // Reduction kinds.
-enum Reduction { kNoReduc, kSum, kProduct, kAnd, kOr, kXor };
+enum Reduction { kNoReduc, kSum, kProduct, kAnd, kOr, kXor, kCustom };
 
 // Code generation.
 struct CodeGen {
@@ -55,9 +61,8 @@ struct CodeGen {
         indices(numTensors, std::vector<Value>(numLoops)),
         highs(numTensors, std::vector<Value>(numLoops)),
         pidxs(numTensors, std::vector<Value>(numLoops)),
-        idxs(numTensors, std::vector<Value>(numLoops)), redVal(), sparseOut(op),
-        outerParNest(nest), lexIdx(), expValues(), expFilled(), expAdded(),
-        expCount(), curVecMask() {}
+        idxs(numTensors, std::vector<Value>(numLoops)), sparseOut(op),
+        outerParNest(nest) {}
   /// Sparsification options.
   SparsificationOptions options;
   /// Universal dense indices and upper bounds (by index). The loops array
@@ -82,6 +87,7 @@ struct CodeGen {
   unsigned redExp = -1u;
   Value redVal;
   Reduction redKind = kNoReduc;
+  unsigned redCustom = -1u;
   // Sparse tensor as output. Implemented either through direct injective
   // insertion in lexicographic index order (where indices are updated
   // in the temporary array `lexIdx`) or through access pattern expansion
@@ -89,6 +95,7 @@ struct CodeGen {
   OpOperand *sparseOut;
   unsigned outerParNest;
   Value lexIdx;
+  Value lexVal;
   Value expValues;
   Value expFilled;
   Value expAdded;
@@ -103,6 +110,24 @@ struct CodeGen {
 //===----------------------------------------------------------------------===//
 // Sparse compiler analysis methods.
 //===----------------------------------------------------------------------===//
+
+/// Helper method to construct a permuted dimension ordering
+/// that adheres to the given topological sort.
+static AffineMap permute(MLIRContext *context, AffineMap m,
+                         std::vector<unsigned> &topSort) {
+  unsigned sz = topSort.size();
+  assert(m.getNumResults() == sz && "TopoSort/AffineMap size mismatch");
+  // Construct the inverse of `m`; to avoid the asymptotic complexity
+  // of calling `m.getPermutedPosition` repeatedly.
+  SmallVector<unsigned, 4> inv(sz);
+  for (unsigned i = 0; i < sz; i++)
+    inv[i] = m.getDimPosition(i);
+  // Construct the permutation.
+  SmallVector<unsigned, 4> perm(sz);
+  for (unsigned i = 0; i < sz; i++)
+    perm[i] = inv[topSort[i]];
+  return AffineMap::getPermutationMap(perm, context);
+}
 
 /// Helper method to apply dimension ordering permutation.
 static unsigned perm(const SparseTensorEncodingAttr &enc, unsigned d) {
@@ -122,8 +147,6 @@ static Dim toDim(const SparseTensorEncodingAttr &enc, unsigned d) {
     SparseTensorEncodingAttr::DimLevelType tp = enc.getDimLevelType()[d];
     if (tp == SparseTensorEncodingAttr::DimLevelType::Compressed)
       return Dim::kSparse;
-    if (tp == SparseTensorEncodingAttr::DimLevelType::Singleton)
-      return Dim::kSingle;
   }
   return Dim::kDense;
 }
@@ -230,8 +253,8 @@ static void addAffineOrderings(std::vector<std::vector<bool>> &adjM,
 /// dimensions. Even for dense storage formats, however, the natural index
 /// order yields innermost unit-stride access with better spatial locality.
 static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
-                                  std::vector<unsigned> &topSort,
-                                  unsigned mask) {
+                                  std::vector<unsigned> &topSort, unsigned mask,
+                                  OpOperand *skip = nullptr) {
   // Set up an n x n from/to adjacency matrix of the iteration graph
   // for the implicit loop indices i_0 .. i_n-1.
   unsigned n = op.getNumLoops();
@@ -239,6 +262,10 @@ static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
 
   // Iterate over the indexing maps of every tensor in the tensor expression.
   for (OpOperand *t : op.getInputAndOutputOperands()) {
+    // Skip tensor during cycle resolution.
+    if (t == skip)
+      continue;
+    // Get map and encoding.
     auto map = op.getTiedIndexingMap(t);
     auto enc = getSparseTensorEncoding(t->get().getType());
     assert(map.getNumDims() == n);
@@ -279,17 +306,6 @@ static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
   return true;
 }
 
-/// Returns true if tensor has an in-place annotation.
-static bool isInPlace(Value val) {
-  if (auto arg = val.dyn_cast<BlockArgument>())
-    if (auto funcOp = dyn_cast<func::FuncOp>(arg.getOwner()->getParentOp()))
-      if (auto attr = funcOp.getArgAttrOfType<BoolAttr>(
-              arg.getArgNumber(),
-              bufferization::BufferizableOpInterface::kInplaceableAttrName))
-        return attr.getValue();
-  return false;
-}
-
 /// Returns true if tensor materializes uninitialized into the computation.
 static bool isMaterializing(Value val) {
   return val.getDefiningOp<linalg::InitTensorOp>() ||
@@ -326,9 +342,8 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
     return true;
   // A tensor expression with a sparse output tensor that changes its values
   // but not its nonzero structure, an operation called "simply dynamic" in
-  // [Bik96,Ch9], is also admissable without special codegen, provided
-  // the tensor's underlying sparse storage scheme can be modified in place.
-  if (merger.isSingleCondition(tensor, exp) && isInPlace(lhs->get()))
+  // [Bik96,Ch9], is also admissable without special codegen.
+  if (merger.isSingleCondition(tensor, exp))
     return true;
   // Accept "truly dynamic" if the output tensor materializes uninitialized
   // into the computation and insertions occur in lexicographic index order.
@@ -359,6 +374,7 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
 static vector::CombiningKind getCombiningKind(Reduction kind) {
   switch (kind) {
   case kNoReduc:
+  case kCustom:
     break;
   case kSum:
     return vector::CombiningKind::ADD;
@@ -394,6 +410,8 @@ static Reduction getReduction(Kind kind) {
     return kOr;
   case Kind::kXorI:
     return kXor;
+  case Kind::kReduce:
+    return kCustom;
   default:
     llvm_unreachable("unexpected reduction operator");
   }
@@ -408,6 +426,7 @@ static Value genVectorReducInit(CodeGen &codegen, OpBuilder &builder,
   Value r = codegen.redVal;
   switch (codegen.redKind) {
   case kNoReduc:
+  case kCustom:
     break;
   case kSum:
   case kXor:
@@ -440,6 +459,11 @@ static void updateReduc(Merger &merger, CodeGen &codegen, Value reduc) {
   codegen.redVal = merger.exp(codegen.redExp).val = reduc;
 }
 
+/// Extracts identity from custom reduce.
+static Value getCustomRedId(Operation *op) {
+  return dyn_cast<sparse_tensor::ReduceOp>(op).getIdentity();
+}
+
 //===----------------------------------------------------------------------===//
 // Sparse compiler synthesis methods (statements and expressions).
 //===----------------------------------------------------------------------===//
@@ -449,34 +473,27 @@ static void updateReduc(Merger &merger, CodeGen &codegen, Value reduc) {
 /// the output buffer is already initialized to all zeroes and only nonzeroes
 /// values are computed and written out. For updates (viz. x(i) += y(i) * z(i)),
 /// only nonzeroes values are used for the updates and no assumption on the
-/// original contents of the output buffer is necessary..
+/// original contents of the output buffer is necessary.
 static Value genOutputBuffer(CodeGen &codegen, OpBuilder &builder,
                              linalg::GenericOp op, MemRefType denseTp,
                              ArrayRef<Value> args) {
   Location loc = op.getLoc();
-  Value tensor = op.getOutputOperand(0)->get();
-  // The output tensor simply could materialize from the buffer that will
-  // be generated for the tensor present in the outs() clause. This has
-  // the major advantage that the sparse kernel only updates the nonzero
-  // positions for the output tensor.
-  if (isInPlace(tensor))
-    return builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
-  // By default, a new buffer is allocated which is initialized to the
-  // tensor defined in the outs() clause. This is always correct but
-  // introduces a dense initialization component that may negatively
-  // impact the running complexity of the sparse kernel. If the tensor
-  // materializes into the computation, we need to preserve the zero
-  // initialization assumption of all sparse output buffers.
-  Value alloc = builder.create<memref::AllocOp>(loc, denseTp, args);
-  if (isMaterializing(tensor)) {
+  OpOperand *lhs = op.getOutputOperand(0);
+  Value tensor = lhs->get();
+  bool isInit = op.isInitTensor(lhs);
+  // An output tensor can simply materialize from the buffer of the tensor that
+  // appears in the outs() clause. For updates, this has the advantage that only
+  // the nonzero value are involved in the computation, keeping the operation
+  // O(nnz). In all other cases, we are forced to zero out the buffer to enforce
+  // the assumption above, which may negatively impact running complexity
+  // (viz. O(n^2 + nnz) vs. O(nnz) for matrices).
+  // TODO: use better analysis to avoid zeroing out the buffer?
+  Value init = builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
+  if (!isInit) {
     Value zero = constantZero(builder, loc, denseTp.getElementType());
-    builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{alloc});
-  } else {
-    Value init =
-        builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
-    builder.create<memref::CopyOp>(loc, init, alloc);
+    builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{init});
   }
-  return alloc;
+  return init;
 }
 
 /// Local bufferization of all dense and sparse data structures.
@@ -543,6 +560,8 @@ static void genBuffers(Merger &merger, CodeGen &codegen, OpBuilder &builder,
       auto dynShape = {ShapedType::kDynamicSize};
       auto memTp = MemRefType::get(dynShape, builder.getIndexType());
       codegen.lexIdx = builder.create<memref::AllocaOp>(loc, memTp, rank);
+      codegen.lexVal = builder.create<memref::AllocaOp>(
+          loc, MemRefType::get({}, elementType));
     } else {
       // Annotated sparse tensors.
       auto dynShape = {ShapedType::kDynamicSize};
@@ -717,13 +736,33 @@ static Value genInsertionLoad(CodeGen &codegen, OpBuilder &builder,
   return builder.create<memref::LoadOp>(loc, codegen.expValues, index);
 }
 
+/// Generates insertion code to implement dynamic tensor load for reduction.
+static Value genInsertionLoadReduce(Merger &merger, CodeGen &codegen,
+                                    OpBuilder &builder, linalg::GenericOp op,
+                                    OpOperand *t) {
+  Location loc = op.getLoc();
+  Value identity = getCustomRedId(merger.exp(codegen.redCustom).op);
+  // Direct lexicographic index order, tensor loads as identity.
+  if (!codegen.expValues) {
+    return identity;
+  }
+  // Load from expanded access pattern if filled, identity otherwise.
+  Value index = genIndex(codegen, op, t);
+  Value isFilled =
+      builder.create<memref::LoadOp>(loc, codegen.expFilled, index);
+  Value valAtIndex =
+      builder.create<memref::LoadOp>(loc, codegen.expValues, index);
+  return builder.create<arith::SelectOp>(loc, isFilled, valAtIndex, identity);
+}
+
 /// Generates insertion code to implement dynamic tensor store.
 static void genInsertionStore(CodeGen &codegen, OpBuilder &builder,
                               linalg::GenericOp op, OpOperand *t, Value rhs) {
   Location loc = op.getLoc();
   // Direct insertion in lexicographic index order.
   if (!codegen.expValues) {
-    builder.create<LexInsertOp>(loc, t->get(), codegen.lexIdx, rhs);
+    builder.create<memref::StoreOp>(loc, rhs, codegen.lexVal);
+    builder.create<LexInsertOp>(loc, t->get(), codegen.lexIdx, codegen.lexVal);
     return;
   }
   // Generates insertion code along expanded access pattern.
@@ -770,8 +809,11 @@ static Value genTensorLoad(Merger &merger, CodeGen &codegen, OpBuilder &builder,
   }
   // Load during insertion.
   OpOperand *t = op.getInputAndOutputOperands()[merger.exp(exp).tensor];
-  if (t == codegen.sparseOut)
+  if (t == codegen.sparseOut) {
+    if (codegen.redCustom != -1u)
+      return genInsertionLoadReduce(merger, codegen, builder, op, t);
     return genInsertionLoad(codegen, builder, op, t);
+  }
   // Actual load.
   SmallVector<Value, 4> args;
   Value ptr = genSubscript(codegen, builder, op, t, args);
@@ -881,9 +923,8 @@ static Value genAddress(CodeGen &codegen, OpBuilder &builder, Location loc,
 }
 
 /// Generates an index value.
-static Value genIndexValue(Merger &merger, CodeGen &codegen, OpBuilder &builder,
-                           unsigned exp, unsigned ldx) {
-  unsigned idx = merger.exp(exp).index;
+static Value genIndexValue(CodeGen &codegen, OpBuilder &builder, unsigned idx,
+                           unsigned ldx) {
   Value ival = codegen.loops[idx];
   Type itype = ival.getType();
   // During vectorization, we either encounter:
@@ -913,6 +954,25 @@ static Value genIndexValue(Merger &merger, CodeGen &codegen, OpBuilder &builder,
   return ival;
 }
 
+/// Semi-ring branches are simply inlined by the sparse compiler. Prior
+/// analysis has verified that all computations are "local" to the inlined
+/// branch or otherwise invariantly defined outside the loop nest, with the
+/// exception of index computations, which need to be relinked to actual
+/// inlined cloned code.
+static Value relinkBranch(CodeGen &codegen, RewriterBase &rewriter,
+                          Block *block, Value e, unsigned ldx) {
+  if (Operation *def = e.getDefiningOp()) {
+    if (auto indexOp = dyn_cast<linalg::IndexOp>(def))
+      return genIndexValue(codegen, rewriter, indexOp.getDim(), ldx);
+    if (def->getBlock() == block) {
+      for (unsigned i = 0, n = def->getNumOperands(); i < n; i++)
+        def->setOperand(
+            i, relinkBranch(codegen, rewriter, block, def->getOperand(i), ldx));
+    }
+  }
+  return e;
+}
+
 /// Recursively generates tensor expression.
 static Value genExp(Merger &merger, CodeGen &codegen, RewriterBase &rewriter,
                     linalg::GenericOp op, unsigned exp, unsigned ldx) {
@@ -924,12 +984,25 @@ static Value genExp(Merger &merger, CodeGen &codegen, RewriterBase &rewriter,
   if (merger.exp(exp).kind == Kind::kInvariant)
     return genInvariantValue(merger, codegen, rewriter, exp);
   if (merger.exp(exp).kind == Kind::kIndex)
-    return genIndexValue(merger, codegen, rewriter, exp, ldx);
+    return genIndexValue(codegen, rewriter, merger.exp(exp).index, ldx);
+  if (merger.exp(exp).kind == Kind::kReduce) {
+    // Make custom reduction identity accessible for expanded access pattern.
+    assert(codegen.redCustom == -1u);
+    codegen.redCustom = exp;
+  }
   Value v0 =
       genExp(merger, codegen, rewriter, op, merger.exp(exp).children.e0, ldx);
   Value v1 =
       genExp(merger, codegen, rewriter, op, merger.exp(exp).children.e1, ldx);
-  return merger.buildExp(rewriter, loc, exp, v0, v1);
+  Value ee = merger.buildExp(rewriter, loc, exp, v0, v1);
+  if (ee && (merger.exp(exp).kind == Kind::kUnary ||
+             merger.exp(exp).kind == Kind::kBinary ||
+             merger.exp(exp).kind == Kind::kBinaryBranch ||
+             merger.exp(exp).kind == Kind::kReduce))
+    ee = relinkBranch(codegen, rewriter, ee.getParentBlock(), ee, ldx);
+  if (merger.exp(exp).kind == Kind::kReduce)
+    codegen.redCustom = -1u;
+  return ee;
 }
 
 /// Determines if affine expression is invariant.
@@ -956,7 +1029,7 @@ static bool isInvariantAffine(const CodeGen &codegen, AffineExpr a,
 /// Hoists loop invariant tensor loads for which indices have been exhausted.
 static void genInvariants(Merger &merger, CodeGen &codegen, OpBuilder &builder,
                           linalg::GenericOp op, unsigned exp, unsigned ldx,
-                          bool atStart, Kind last = Kind::kTensor) {
+                          bool atStart, unsigned last = 0) {
   if (exp == -1u)
     return;
   if (merger.exp(exp).kind == Kind::kTensor) {
@@ -977,8 +1050,11 @@ static void genInvariants(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     if (lhs == t) {
       // Start or end a scalarized reduction
       if (atStart) {
-        Value load = genTensorLoad(merger, codegen, builder, op, exp);
-        codegen.redKind = getReduction(last);
+        Kind kind = merger.exp(last).kind;
+        Value load = kind == Kind::kReduce
+                         ? getCustomRedId(merger.exp(last).op)
+                         : genTensorLoad(merger, codegen, builder, op, exp);
+        codegen.redKind = getReduction(kind);
         codegen.redExp = exp;
         updateReduc(merger, codegen, load);
       } else {
@@ -998,11 +1074,10 @@ static void genInvariants(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     // Traverse into the binary operations. Note that we only hoist
     // tensor loads, since subsequent MLIR/LLVM passes know how to
     // deal with all other kinds of derived loop invariants.
-    Kind last = merger.exp(exp).kind;
     unsigned e0 = merger.exp(exp).children.e0;
     unsigned e1 = merger.exp(exp).children.e1;
-    genInvariants(merger, codegen, builder, op, e0, ldx, atStart, last);
-    genInvariants(merger, codegen, builder, op, e1, ldx, atStart, last);
+    genInvariants(merger, codegen, builder, op, e0, ldx, atStart, exp);
+    genInvariants(merger, codegen, builder, op, e1, ldx, atStart, exp);
   }
 }
 
@@ -1687,24 +1762,24 @@ public:
     if (!findSparseAnnotations(merger, op))
       return failure();
 
-    // Computes a topologically sorted iteration graph to ensure
-    // tensors are visited in natural index order. Fails on cycles.
-    // This assumes that higher-level passes have already put the
-    // tensors in each tensor expression in a feasible order.
+    // Computes a topologically sorted iteration graph to ensure tensors
+    // are visited in natural index order. Gradually relaxes the considered
+    // constraints until an acyclic iteration graph results, such that sparse
+    // code generation can proceed. As a last resort, an attempt is made
+    // to resolve cycles by inserting a conversion.
     std::vector<unsigned> topSort;
-    if (!computeIterationGraph(merger, op, topSort,
-                               SortMask::kIncludeUndef |
-                                   SortMask::kIncludeDense) &&
+    if (!computeIterationGraph(merger, op, topSort, SortMask::kIncludeAll) &&
         !computeIterationGraph(merger, op, topSort, SortMask::kIncludeUndef) &&
         !computeIterationGraph(merger, op, topSort, SortMask::kIncludeDense) &&
-        !computeIterationGraph(merger, op, topSort, SortMask::kSparseOnly))
-      return failure();
+        !computeIterationGraph(merger, op, topSort, SortMask::kSparseOnly)) {
+      return resolveCycle(merger, rewriter, op);
+    }
 
     // Builds the tensor expression for the Linalg operation in SSA form.
     Optional<unsigned> optExp = merger.buildTensorExpFromLinalg(op);
-    if (!optExp.hasValue())
+    if (!optExp.has_value())
       return failure();
-    unsigned exp = optExp.getValue();
+    unsigned exp = optExp.value();
 
     // Rejects an inadmissable tensor expression.
     OpOperand *sparseOut = nullptr;
@@ -1723,6 +1798,45 @@ public:
   }
 
 private:
+  // Last resort cycle resolution.
+  LogicalResult resolveCycle(Merger &merger, PatternRewriter &rewriter,
+                             linalg::GenericOp op) const {
+    // Compute topological sort while leaving out every
+    // sparse input tensor in succession until an acylic
+    // iteration graph results.
+    std::vector<unsigned> topSort;
+    for (OpOperand *t : op.getInputOperands()) {
+      unsigned tensor = t->getOperandNumber();
+      Value tval = t->get();
+      auto srcEnc = getSparseTensorEncoding(tval.getType());
+      if (!srcEnc ||
+          !computeIterationGraph(merger, op, topSort, SortMask::kSparseOnly, t))
+        continue;
+      // Found an input tensor that resolves the cycle by inserting a
+      // conversion into a sparse tensor that adheres to the iteration
+      // graph order. Also releases the temporary sparse tensor.
+      //
+      // TODO: investigate fusing the conversion with computation,
+      //       especially if it is a direct yield!
+      //
+      auto srcTp = tval.getType().cast<RankedTensorType>();
+      auto dstEnc = SparseTensorEncodingAttr::get(
+          op->getContext(), srcEnc.getDimLevelType(),
+          permute(getContext(), op.getTiedIndexingMap(t), topSort), // new order
+          srcEnc.getPointerBitWidth(), srcEnc.getIndexBitWidth());
+      auto dstTp = RankedTensorType::get(srcTp.getShape(),
+                                         srcTp.getElementType(), dstEnc);
+      auto convert = rewriter.create<ConvertOp>(tval.getLoc(), dstTp, tval);
+      op->setOperand(tensor, convert);
+      rewriter.setInsertionPointAfter(op);
+      rewriter.create<bufferization::DeallocTensorOp>(tval.getLoc(), convert);
+      return success();
+    }
+    // Cannot be resolved with a single conversion.
+    // TODO: convert more than one?
+    return failure();
+  }
+
   /// Options to control sparse code generation.
   SparsificationOptions options;
 };

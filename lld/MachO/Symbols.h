@@ -132,6 +132,8 @@ public:
 
   uint64_t getVA() const override;
 
+  std::string getSourceLocation();
+
   // Ensure this symbol's pointers to InputSections point to their canonical
   // copies.
   void canonicalize();
@@ -183,6 +185,7 @@ public:
   uint64_t value;
   // size is only calculated for regular (non-bitcode) symbols.
   uint64_t size;
+  // This can be a subsection of either __compact_unwind or __eh_frame.
   ConcatInputSection *unwindEntry = nullptr;
 };
 
@@ -343,6 +346,14 @@ T *replaceSymbol(Symbol *s, ArgT &&...arg) {
   return sym;
 }
 
+// Can a symbol's address only be resolved at runtime?
+inline bool needsBinding(const Symbol *sym) {
+  if (isa<DylibSymbol>(sym))
+    return true;
+  if (const auto *defined = dyn_cast<Defined>(sym))
+    return defined->isExternalWeakDef() || defined->interposable;
+  return false;
+}
 } // namespace macho
 
 std::string toString(const macho::Symbol &);

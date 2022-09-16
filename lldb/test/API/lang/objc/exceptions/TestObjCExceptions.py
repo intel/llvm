@@ -13,8 +13,6 @@ from lldbsuite.test import lldbutil
 
 class ObjCExceptionsTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_objc_exceptions_at_throw(self):
         self.build()
 
@@ -66,7 +64,7 @@ class ObjCExceptionsTestCase(TestBase):
             ])
 
         self.expect(
-            'frame variable --dynamic-type no-run-target *e1',
+            'frame variable *e1',
             substrs=[
                 '(NSException) *e1 = ',
                 'name = ', '"ExceptionName"',
@@ -95,7 +93,7 @@ class ObjCExceptionsTestCase(TestBase):
             ])
 
         self.expect(
-            'frame variable --dynamic-type no-run-target *e2',
+            'frame variable *e2',
             substrs=[
                 '(NSException) *e2 = ',
                 'name = ', '"ThrownException"',

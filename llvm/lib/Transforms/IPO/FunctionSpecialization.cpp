@@ -550,7 +550,7 @@ private:
     // shouldn't specialize it. Set the specialization cost to Invalid.
     // Or if the lines of codes implies that this function is easy to get
     // inlined so that we shouldn't specialize it.
-    if (Metrics.notDuplicatable ||
+    if (Metrics.notDuplicatable || !Metrics.NumInsts.isValid() ||
         (!ForceFunctionSpecialization &&
          Metrics.NumInsts < SmallFunctionThreshold)) {
       InstructionCost C{};
@@ -561,7 +561,7 @@ private:
     // Otherwise, set the specialization cost to be the cost of all the
     // instructions in the function and penalty for specializing more functions.
     unsigned Penalty = NbFunctionsSpecialized + 1;
-    return Metrics.NumInsts * InlineConstants::InstrCost * Penalty;
+    return Metrics.NumInsts * InlineConstants::getInstrCost() * Penalty;
   }
 
   InstructionCost getUserBonus(User *U, llvm::TargetTransformInfo &TTI,
@@ -573,7 +573,8 @@ private:
     if (!I)
       return std::numeric_limits<unsigned>::min();
 
-    auto Cost = TTI.getUserCost(U, TargetTransformInfo::TCK_SizeAndLatency);
+    InstructionCost Cost =
+        TTI.getInstructionCost(U, TargetTransformInfo::TCK_SizeAndLatency);
 
     // Traverse recursively if there are more uses.
     // TODO: Any other instructions to be added here?
@@ -710,6 +711,11 @@ private:
                             SmallVectorImpl<CallArgBinding> &Constants) {
     Function *F = A->getParent();
 
+    // SCCP solver does not record an argument that will be constructed on
+    // stack.
+    if (A->hasByValAttr() && !F->onlyReadsMemory())
+      return;
+
     // Iterate over all the call sites of the argument's parent function.
     for (User *U : F->users()) {
       if (!isa<CallInst>(U) && !isa<InvokeInst>(U))
@@ -728,12 +734,6 @@ private:
       auto *V = CS.getArgOperand(A->getArgNo());
       if (isa<PoisonValue>(V))
         return;
-
-      // For now, constant expressions are fine but only if they are function
-      // calls.
-      if (auto *CE = dyn_cast<ConstantExpr>(V))
-        if (!isa<Function>(CE->getOperand(0)))
-          return;
 
       // TrackValueOfGlobalVariable only tracks scalar global variables.
       if (auto *GV = dyn_cast<GlobalVariable>(V)) {

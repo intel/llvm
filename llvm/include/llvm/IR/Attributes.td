@@ -102,6 +102,10 @@ def DisableSanitizerInstrumentation: EnumAttr<"disable_sanitizer_instrumentation
 /// Provide pointer element type to intrinsic.
 def ElementType : TypeAttr<"elementtype", [ParamAttr]>;
 
+/// Whether to keep return instructions, or replace with a jump to an external
+/// symbol.
+def FnRetThunkExtern : EnumAttr<"fn_ret_thunk_extern", [FnAttr]>;
+
 /// Function may only access memory that is inaccessible from IR.
 def InaccessibleMemOnly : EnumAttr<"inaccessiblememonly", [FnAttr]>;
 
@@ -181,6 +185,10 @@ def NoCfCheck : EnumAttr<"nocf_check", [FnAttr]>;
 
 /// Function should not be instrumented.
 def NoProfile : EnumAttr<"noprofile", [FnAttr]>;
+
+/// This function should not be instrumented but it is ok to inline profiled
+// functions into it.
+def SkipProfile : EnumAttr<"skipprofile", [FnAttr]>;
 
 /// Function doesn't unwind stack.
 def NoUnwind : EnumAttr<"nounwind", [FnAttr]>;
@@ -302,6 +310,9 @@ def ZExt : EnumAttr<"zeroext", [ParamAttr, RetAttr]>;
 
 /// Function is required to make Forward Progress.
 def MustProgress : EnumAttr<"mustprogress", [FnAttr]>;
+
+/// Function is a presplit coroutine.
+def PresplitCoroutine : EnumAttr<"presplitcoroutine", [FnAttr]>;
 
 /// Target-independent string attributes.
 def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;

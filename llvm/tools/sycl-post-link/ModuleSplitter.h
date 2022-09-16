@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Error.h"
@@ -34,27 +35,64 @@ enum IRSplitMode {
 };
 
 // A vector that contains all entry point functions in a split module.
-using EntryPointVec = std::vector<const Function *>;
+using EntryPointSet = SetVector<Function *>;
+
+enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
+
+// Describes scope covered by each entry in the module-entry points map
+// populated by the groupEntryPointsByScope function.
+enum EntryPointsGroupScope {
+  Scope_PerKernel, // one entry per kernel
+  Scope_PerModule, // one entry per module
+  Scope_Global     // single entry in the map for all kernels
+};
 
 // Represents a named group of device code entry points - kernels and
 // SYCL_EXTERNAL functions. There are special group names - "<SYCL>" and
 // "<ESIMD>" - which have effect on group processing.
-
 struct EntryPointGroup {
-  StringRef GroupId;
+  // Properties an entry point (EP) group
+  struct Properties {
+    // Whether all EPs are ESIMD, SYCL or there are both kinds.
+    SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+    // Whether any of the EPs use double GRF mode.
+    bool UsesDoubleGRF = false;
+    // Scope represented by EPs in a group
+    EntryPointsGroupScope Scope = Scope_Global;
 
-public:
-  EntryPointVec Functions;
+    Properties merge(const Properties &Other) const {
+      Properties Res;
+      Res.HasESIMD = HasESIMD == Other.HasESIMD
+                         ? HasESIMD
+                         : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+      Res.UsesDoubleGRF = UsesDoubleGRF || Other.UsesDoubleGRF;
+      // Scope remains global
+      return Res;
+    }
+  };
+
+  StringRef GroupId;
+  EntryPointSet Functions;
+  Properties Props;
 
   EntryPointGroup(StringRef GroupId = "") : GroupId(GroupId) {}
-  EntryPointGroup(StringRef GroupId, EntryPointVec &&Functions)
+  EntryPointGroup(StringRef GroupId, EntryPointSet &&Functions)
       : GroupId(GroupId), Functions(std::move(Functions)) {}
+  EntryPointGroup(StringRef GroupId, EntryPointSet &&Functions,
+                  const Properties &Props)
+      : GroupId(GroupId), Functions(std::move(Functions)), Props(Props) {}
 
-  const StringRef getId() const { return GroupId; }
-  // Tells if this group has only ESIMD entry points (based on GroupId).
-  bool isEsimd() const;
-  // Tells if this group has only SYCL entry points (based on GroupId).
-  bool isSycl() const;
+  // Tells if this group has only ESIMD entry points.
+  bool isEsimd() const {
+    return Props.HasESIMD == SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
+  // Tells if this group has only SYCL entry points.
+  bool isSycl() const {
+    return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY;
+  }
+  // Tells if some entry points use double GRF mode.
+  bool isDoubleGRF() const { return Props.UsesDoubleGRF; }
+
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
   void rebuild(const Module &M);
@@ -62,38 +100,57 @@ public:
 
 using EntryPointGroupVec = std::vector<EntryPointGroup>;
 
-enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
-
+// Annotates an llvm::Module with information necessary to perform and track
+// result of device code (llvm::Module instances) splitting:
+// - entry points of the module determined e.g. by a module splitter, as well
+//   as information about entry point origin (e.g. result of a scoped split)
+// - its properties, such as whether it has specialization constants uses
+// It also provides convenience functions for entry point set transformation
+// between llvm::Function object and string representations.
 class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
+  bool IsTopLevel = false;
 
 public:
   struct Properties {
-    SyclEsimdSplitStatus HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
-    bool SpecConstsMet = true;
+    bool SpecConstsMet = false;
   };
   std::string Name = "";
   Properties Props;
 
-  ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints)
-      : M(std::move(M)), EntryPoints(std::move(EntryPoints)) {
-    Name = this->EntryPoints.getId().str();
+  ModuleDesc(std::unique_ptr<Module> &&M, StringRef Name = "TOP-LEVEL")
+      : M(std::move(M)), IsTopLevel(true), Name(Name) {}
+
+  ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints,
+             const Properties &Props)
+      : M(std::move(M)), EntryPoints(std::move(EntryPoints)), Props(Props) {
+    Name = this->EntryPoints.GroupId.str();
   }
 
-  ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names)
-      : M(std::move(M)) {
+  ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names,
+             StringRef Name = "NoName")
+      : M(std::move(M)), Name(Name) {
     rebuildEntryPoints(Names);
   }
 
-  bool isESIMD() const {
-    return Props.HasEsimd == SyclEsimdSplitStatus::ESIMD_ONLY;
+  // Filters out functions which are not part of this module's entry point set.
+  bool isEntryPointCandidate(const Function &F) const {
+    if (EntryPoints.Functions.size() > 0) {
+      return EntryPoints.Functions.contains(const_cast<Function *>(&F));
+    }
+    return IsTopLevel; // Top level module does not limit entry points set.
   }
-  bool isSYCL() const {
-    return Props.HasEsimd == SyclEsimdSplitStatus::SYCL_ONLY;
-  }
-  const EntryPointVec &entries() const { return EntryPoints.Functions; }
-  EntryPointVec &entries() { return EntryPoints.Functions; }
+
+  void assignMergedProperties(const ModuleDesc &MD1, const ModuleDesc &MD2);
+
+  bool isESIMD() const { return EntryPoints.isEsimd(); }
+  bool isSYCL() const { return EntryPoints.isSycl(); }
+  bool isDoubleGRF() const { return EntryPoints.isDoubleGRF(); }
+
+  const EntryPointSet &entries() const { return EntryPoints.Functions; }
+  const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
+  EntryPointSet &entries() { return EntryPoints.Functions; }
   Module &getModule() { return *M; }
   const Module &getModule() const { return *M; }
   std::unique_ptr<Module> releaseModulePtr() { return std::move(M); }
@@ -103,6 +160,9 @@ public:
   // example, GenXSPIRVWriterAdaptor). Entry points need to be updated to
   // include the replacement function. save/rebuild pair of functions is
   // provided to automate this process.
+  // TODO: this scheme is unnecessarily complex. The simpler and easier
+  // maintainable one would be using a special function attribute for the
+  // duration of post-link transformations.
   void saveEntryPointNames(std::vector<std::string> &Dest) {
     EntryPoints.saveNames(Dest);
   }
@@ -115,25 +175,33 @@ public:
 
   void renameDuplicatesOf(const Module &M, StringRef Suff);
 
-  // Updates Props.HasEsimd to SyclEsimdSplitStatus::ESIMD_ONLY/SYCL_ONLY if
-  // this module descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split.
-  // Otherwise assumes the module has both SYCL and ESIMD.
-  void assignESIMDProperty();
-#ifndef _NDEBUG
-  void verifyESIMDProperty() const;
-#endif // _NDEBUG
+  // Fixups an invoke_simd target linkage so that it is not dropped by global
+  // DCE performed on an ESIMD module after it splits out. If SimdF can't be
+  // deduced, then we have real function pointer, and user code is assumed to
+  // define proper linkage for the potential target functions.
+  // Also saves old linkage into a function attribute.
+  void fixupLinkageOfDirectInvokeSimdTargets();
 
-#ifndef _NDEBUG
-  void dump();
-#endif // _NDEBUG
+  // Restores original linkage of invoke_simd targets. This effectively
+  // re-enables DCE on invoke_simd targets with linkonce linkage.
+  void restoreLinkageOfDirectInvokeSimdTargets();
+
+  // Cleans up module IR - removes dead globals, debug info etc.
+  void cleanup();
+
+#ifndef NDEBUG
+  void verifyESIMDProperty() const;
+  void dump() const;
+#endif // NDEBUG
 };
 
 // Module split support interface.
-// It gets a module and a collection of entry points groups. Each group
-// specifies subset entry points from input module that should be included in
-// a split module.
+// It gets a module (in a form of module descriptor, to get additional info) and
+// a collection of entry points groups. Each group specifies subset entry points
+// from input module that should be included in a split module.
 class ModuleSplitterBase {
-  std::unique_ptr<Module> InputModule{nullptr};
+protected:
+  ModuleDesc Input;
   EntryPointGroupVec Groups;
 
 protected:
@@ -144,19 +212,15 @@ protected:
     return Res;
   }
 
-  Module &getInputModule() {
-    assert(InputModule && "No module to access to.");
-    return *InputModule;
-  }
+  Module &getInputModule() { return Input.getModule(); }
+
   std::unique_ptr<Module> releaseInputModule() {
-    assert(InputModule && "No module to release.");
-    return std::move(InputModule);
+    return std::move(Input.releaseModulePtr());
   }
 
 public:
-  ModuleSplitterBase(std::unique_ptr<Module> M, EntryPointGroupVec &&GroupVec)
-      : InputModule(std::move(M)), Groups(std::move(GroupVec)) {
-    assert(InputModule && "Module is absent.");
+  ModuleSplitterBase(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
+      : Input(std::move(MD)), Groups(std::move(GroupVec)) {
     assert(!Groups.empty() && "Entry points groups collection is empty!");
   }
 
@@ -179,20 +243,21 @@ public:
 };
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(std::unique_ptr<Module> M,
-                        bool EmitOnlyKernelsAsEntryPoints,
-                        EntryPointVec *AllowedEntries = nullptr);
+getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
+getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
                   bool AutoSplitIsGlobalScope,
                   bool EmitOnlyKernelsAsEntryPoints);
 
-#ifndef _NDEBUG
-void dumpEntryPoints(const EntryPointVec &C, const char *msg = "", int Tab = 0);
+std::unique_ptr<ModuleSplitterBase>
+getESIMDDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+
+#ifndef NDEBUG
+void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
-#endif // _NDEBUG
+#endif // NDEBUG
 
 } // namespace module_split
 

@@ -398,7 +398,7 @@ struct FormatStyle {
   /// This option is **deprecated**. See ``NextLine`` of
   /// ``PackConstructorInitializers``.
   /// \version 9
-  bool AllowAllConstructorInitializersOnNextLine;
+  // bool AllowAllConstructorInitializersOnNextLine;
 
   /// If the function declaration doesn't fit on a line,
   /// allow putting all parameters of a function declaration onto
@@ -786,7 +786,7 @@ struct FormatStyle {
   };
 
   /// The template declaration breaking style to use.
-  /// \version 7
+  /// \version 3.4
   BreakTemplateDeclarationsStyle AlwaysBreakTemplateDeclarations;
 
   /// A vector of strings that should be interpreted as attributes/qualifiers
@@ -1423,11 +1423,11 @@ struct FormatStyle {
     /// Wrap class definitions.
     /// \code
     ///   true:
-    ///   class foo {};
-    ///
-    ///   false:
     ///   class foo
     ///   {};
+    ///
+    ///   false:
+    ///   class foo {};
     /// \endcode
     bool AfterClass;
 
@@ -1886,7 +1886,7 @@ struct FormatStyle {
   /// This option is **deprecated**. See ``CurrentLine`` of
   /// ``PackConstructorInitializers``.
   /// \version 3.7
-  bool ConstructorInitializerAllOnOneLineOrOnePerLine;
+  // bool ConstructorInitializerAllOnOneLineOrOnePerLine;
 
   /// The number of characters to use for indentation of constructor
   /// initializer lists as well as inheritance lists.
@@ -2589,12 +2589,17 @@ struct FormatStyle {
     LK_TableGen,
     /// Should be used for Protocol Buffer messages in text format
     /// (https://developers.google.com/protocol-buffers/).
-    LK_TextProto
+    LK_TextProto,
+    /// Should be used for Verilog and SystemVerilog.
+    /// https://standards.ieee.org/ieee/1800/6700/
+    /// https://sci-hub.st/10.1109/IEEESTD.2018.8299595
+    LK_Verilog
   };
   bool isCpp() const { return Language == LK_Cpp || Language == LK_ObjC; }
   bool isCSharp() const { return Language == LK_CSharp; }
   bool isJson() const { return Language == LK_Json; }
   bool isJavaScript() const { return Language == LK_JavaScript; }
+  bool isVerilog() const { return Language == LK_Verilog; }
 
   /// Language, this format style is targeted at.
   /// \version 3.5
@@ -2975,7 +2980,7 @@ struct FormatStyle {
   ///    /* second veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongComment with plenty of
   ///     * information */
   /// \endcode
-  /// \version 4
+  /// \version 3.8
   bool ReflowComments;
   // clang-format on
 
@@ -3231,7 +3236,7 @@ struct FormatStyle {
   /// insensitive fashion.
   /// If ``CaseSensitive``, includes are sorted in an alphabetical or case
   /// sensitive fashion.
-  /// \version 4
+  /// \version 3.8
   SortIncludesOptions SortIncludes;
 
   /// Position for Java Static imports.
@@ -4285,6 +4290,8 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
     return "TableGen";
   case FormatStyle::LK_TextProto:
     return "TextProto";
+  case FormatStyle::LK_Verilog:
+    return "Verilog";
   default:
     return "Unknown";
   }

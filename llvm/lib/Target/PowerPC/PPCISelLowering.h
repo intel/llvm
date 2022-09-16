@@ -790,11 +790,11 @@ namespace llvm {
       return MVT::i32;
     }
 
-    bool isCheapToSpeculateCttz() const override {
+    bool isCheapToSpeculateCttz(Type *Ty) const override {
       return true;
     }
 
-    bool isCheapToSpeculateCtlz() const override {
+    bool isCheapToSpeculateCtlz(Type *Ty) const override {
       return true;
     }
 
@@ -1293,6 +1293,7 @@ namespace llvm {
                                     SelectionDAG &DAG) const;
     bool isLowringToMASSFiniteSafe(SDValue Op) const;
     bool isLowringToMASSSafe(SDValue Op) const;
+    bool isScalarMASSConversionEnabled() const;
     SDValue lowerLibCallBase(const char *LibCallDoubleName,
                              const char *LibCallFloatName,
                              const char *LibCallDoubleNameFinite,

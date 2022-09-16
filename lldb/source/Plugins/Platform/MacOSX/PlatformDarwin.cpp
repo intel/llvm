@@ -63,7 +63,7 @@ static Status ExceptionMaskValidator(const char *string, void *unused) {
           || candidate == "EXC_ARITHMETIC"
           || candidate == "EXC_RESOURCE"
           || candidate == "EXC_GUARD")) {
-      error.SetErrorStringWithFormat("invalid exception type: '%s'", 
+      error.SetErrorStringWithFormat("invalid exception type: '%s'",
           candidate.str().c_str());
       return error;
     }
@@ -135,17 +135,17 @@ public:
   const char *GetIgnoredExceptions() const {
     const uint32_t idx = ePropertyIgnoredExceptions;
     const OptionValueString *option_value =
-        m_collection_sp->GetPropertyAtIndexAsOptionValueString(
-            NULL, false, idx);
+        m_collection_sp->GetPropertyAtIndexAsOptionValueString(nullptr, false,
+                                                               idx);
     assert(option_value);
     return option_value->GetCurrentValue();
   }
-    
+
   OptionValueString *GetIgnoredExceptionValue() {
     const uint32_t idx = ePropertyIgnoredExceptions;
     OptionValueString *option_value =
-        m_collection_sp->GetPropertyAtIndexAsOptionValueString(
-            NULL, false, idx);
+        m_collection_sp->GetPropertyAtIndexAsOptionValueString(nullptr, false,
+                                                               idx);
     assert(option_value);
     return option_value;
   }
@@ -172,7 +172,7 @@ void PlatformDarwin::DebuggerInitialize(
 
 Args
 PlatformDarwin::GetExtraStartupCommands() {
-  std::string ignored_exceptions 
+  std::string ignored_exceptions
       = GetGlobalProperties().GetIgnoredExceptions();
   if (ignored_exceptions.empty())
     return {};
@@ -308,7 +308,7 @@ FileSpecList PlatformDarwin::LocateExecutableScriptingResources(
               if (module_spec.GetFilename() == filename_no_extension)
                 break;
 
-              module_spec.GetFilename() = filename_no_extension;
+              module_spec.SetFilename(filename_no_extension);
             }
           }
         }
@@ -428,7 +428,7 @@ PlatformDarwin::GetSoftwareBreakpointTrapOpcode(Target &target,
 
   case llvm::Triple::thumb:
     bp_is_thumb = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case llvm::Triple::arm: {
     static const uint8_t g_arm_breakpoint_opcode[] = {0xFE, 0xDE, 0xFF, 0xE7};
     static const uint8_t g_thumb_breakpooint_opcode[] = {0xFE, 0xDE};
@@ -498,7 +498,7 @@ void PlatformDarwin::x86GetSupportedArchitectures(
 static llvm::ArrayRef<const char *> GetCompatibleArchs(ArchSpec::Core core) {
   switch (core) {
   default:
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ArchSpec::eCore_arm_arm64e: {
     static const char *g_arm64e_compatible_archs[] = {
         "arm64e",    "arm64",    "armv7",    "armv7f",   "armv7k",   "armv7s",
@@ -824,7 +824,7 @@ FileSpec PlatformDarwin::GetSDKDirectoryForModules(XcodeSDK::Type sdk_type) {
         FileSpec native_sdk_spec = sdks_spec;
         StreamString native_sdk_name;
         native_sdk_name.Printf("MacOSX%u.%u.sdk", version.getMajor(),
-                               version.getMinor().getValueOr(0));
+                               version.getMinor().value_or(0));
         native_sdk_spec.AppendPathComponent(native_sdk_name.GetString());
 
         if (FileSystem::Instance().Exists(native_sdk_spec)) {
@@ -1031,7 +1031,7 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     minimum_version_option << '-';
     switch (sdk_type) {
     case XcodeSDK::Type::MacOSX:
-      minimum_version_option << opt_mmacosx_version_min_EQ;
+      minimum_version_option << opt_mmacos_version_min_EQ;
       break;
     case XcodeSDK::Type::iPhoneSimulator:
       minimum_version_option << opt_mios_simulator_version_min_EQ;
@@ -1138,7 +1138,7 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
       xcode_lldb_resources.AppendPathComponent("Resources");
       if (FileSystem::Instance().Exists(xcode_lldb_resources)) {
         FileSpec dir;
-        dir.GetDirectory().SetCString(xcode_lldb_resources.GetPath().c_str());
+        dir.SetDirectory(xcode_lldb_resources.GetPathAsConstString());
         g_executable_dirs.push_back(dir);
       }
     }
@@ -1151,8 +1151,7 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
       cmd_line_lldb_resources.AppendPathComponent("Resources");
       if (FileSystem::Instance().Exists(cmd_line_lldb_resources)) {
         FileSpec dir;
-        dir.GetDirectory().SetCString(
-            cmd_line_lldb_resources.GetPath().c_str());
+        dir.SetDirectory(cmd_line_lldb_resources.GetPathAsConstString());
         g_executable_dirs.push_back(dir);
       }
     }
@@ -1162,8 +1161,8 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
   // are looking for
   for (const auto &executable_dir : g_executable_dirs) {
     FileSpec executable_file;
-    executable_file.GetDirectory() = executable_dir.GetDirectory();
-    executable_file.GetFilename().SetCString(basename);
+    executable_file.SetDirectory(executable_dir.GetDirectory());
+    executable_file.SetFilename(basename);
     if (FileSystem::Instance().Exists(executable_file))
       return executable_file;
   }

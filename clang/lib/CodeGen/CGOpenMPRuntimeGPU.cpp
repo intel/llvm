@@ -444,9 +444,8 @@ public:
       markAsEscaped(VD);
     if (isa<OMPCapturedExprDecl>(VD))
       VisitValueDecl(VD);
-    else if (const auto *VarD = dyn_cast<VarDecl>(VD))
-      if (VarD->isInitCapture())
-        VisitValueDecl(VD);
+    else if (VD->isInitCapture())
+      VisitValueDecl(VD);
   }
   void VisitUnaryOperator(const UnaryOperator *E) {
     if (!E)
@@ -1168,7 +1167,7 @@ void CGOpenMPRuntimeGPU::emitTargetOutlinedFunction(
 
 namespace {
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
-/// Enum for accesseing the reserved_2 field of the ident_t struct.
+/// Enum for accessing the reserved_2 field of the ident_t struct.
 enum ModeFlagsTy : unsigned {
   /// Bit set to 1 when in SPMD mode.
   KMP_IDENT_SPMD_MODE = 0x01,
@@ -1214,6 +1213,8 @@ CGOpenMPRuntimeGPU::CGOpenMPRuntimeGPU(CodeGenModule &CGM)
                               "__omp_rtl_assume_threads_oversubscription");
   OMPBuilder.createGlobalFlag(CGM.getLangOpts().OpenMPNoThreadState,
                               "__omp_rtl_assume_no_thread_state");
+  OMPBuilder.createGlobalFlag(CGM.getLangOpts().OpenMPNoNestedParallelism,
+                              "__omp_rtl_assume_no_nested_parallelism");
 }
 
 void CGOpenMPRuntimeGPU::emitProcBindClause(CodeGenFunction &CGF,
@@ -3663,7 +3664,7 @@ void CGOpenMPRuntimeGPU::emitFunctionProlog(CodeGenFunction &CGF,
     CheckVarsEscapingDeclContext VarChecker(CGF, llvm::None);
     VarChecker.Visit(Body);
     I->getSecond().SecondaryLocalVarData.emplace();
-    DeclToAddrMapTy &Data = I->getSecond().SecondaryLocalVarData.getValue();
+    DeclToAddrMapTy &Data = *I->getSecond().SecondaryLocalVarData;
     for (const ValueDecl *VD : VarChecker.getEscapedDecls()) {
       assert(VD->isCanonicalDecl() && "Expected canonical declaration");
       Data.insert(std::make_pair(VD, MappedVarData()));
@@ -3810,7 +3811,7 @@ void CGOpenMPRuntimeGPU::adjustTargetSpecificDataForLambdas(
     else
       VDLVal = CGF.MakeAddrLValue(
           VDAddr, VD->getType().getCanonicalType().getNonReferenceType());
-    llvm::DenseMap<const VarDecl *, FieldDecl *> Captures;
+    llvm::DenseMap<const ValueDecl *, FieldDecl *> Captures;
     FieldDecl *ThisCapture = nullptr;
     RD->getCaptureFields(Captures, ThisCapture);
     if (ThisCapture && CGF.CapturedStmtInfo->isCXXThisExprCaptured()) {
@@ -3822,13 +3823,15 @@ void CGOpenMPRuntimeGPU::adjustTargetSpecificDataForLambdas(
     for (const LambdaCapture &LC : RD->captures()) {
       if (LC.getCaptureKind() != LCK_ByRef)
         continue;
-      const VarDecl *VD = LC.getCapturedVar();
-      if (!CS->capturesVariable(VD))
+      const ValueDecl *VD = LC.getCapturedVar();
+      // FIXME: For now VD is always a VarDecl because OpenMP does not support
+      //  capturing structured bindings in lambdas yet.
+      if (!CS->capturesVariable(cast<VarDecl>(VD)))
         continue;
       auto It = Captures.find(VD);
       assert(It != Captures.end() && "Found lambda capture without field.");
       LValue VarLVal = CGF.EmitLValueForFieldInitialization(VDLVal, It->second);
-      Address VDAddr = CGF.GetAddrOfLocalVar(VD);
+      Address VDAddr = CGF.GetAddrOfLocalVar(cast<VarDecl>(VD));
       if (VD->getType().getCanonicalType()->isReferenceType())
         VDAddr = CGF.EmitLoadOfReferenceLValue(VDAddr,
                                                VD->getType().getCanonicalType())

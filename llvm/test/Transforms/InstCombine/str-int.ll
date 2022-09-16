@@ -13,8 +13,8 @@
 declare i32 @strtol(i8*, i8**, i32)
 declare i32 @atoi(i8*)
 declare i32 @atol(i8*)
-declare i32 @atoll(i8*)
-declare i32 @strtoll(i8*, i8**, i32)
+declare i64 @atoll(i8*)
+declare i64 @strtoll(i8*, i8**, i32)
 
 define i32 @strtol_dec() #0 {
 ; CHECK-LABEL: @strtol_dec(
@@ -40,14 +40,28 @@ define i32 @strtol_hex() #0 {
   ret i32 %call
 }
 
-define i32 @strtol_endptr_not_null() #0 {
+; Fold a call to strtol with an endptr known to be nonnull (the result
+; of pointer increment).
+
+define i32 @strtol_endptr_not_null(i8** %pend) {
 ; CHECK-LABEL: @strtol_endptr_not_null(
-; CHECK-NEXT:    [[END:%.*]] = alloca i8*, align 4
-; CHECK-NEXT:    [[CALL:%.*]] = call i32 @strtol(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.1, i64 0, i64 0), i8** nonnull [[END]], i32 10)
+; CHECK-NEXT:    [[ENDP1:%.*]] = getelementptr inbounds i8*, i8** [[PEND:%.*]], i64 1
+; CHECK-NEXT:    store i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 2), i8** [[ENDP1]], align 8
+; CHECK-NEXT:    ret i32 12
+;
+  %endp1 = getelementptr inbounds i8*, i8** %pend, i32 1
+  %call = call i32 @strtol(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i32 0, i32 0), i8** %endp1, i32 10)
+  ret i32 %call
+}
+
+; Don't fold a call to strtol with an endptr that's not known to be nonnull.
+
+define i32 @strtol_endptr_maybe_null(i8** %end) {
+; CHECK-LABEL: @strtol_endptr_maybe_null(
+; CHECK-NEXT:    [[CALL:%.*]] = call i32 @strtol(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.1, i64 0, i64 0), i8** [[END:%.*]], i32 10)
 ; CHECK-NEXT:    ret i32 [[CALL]]
 ;
-  %end = alloca i8*, align 4
-  %call = call i32 @strtol(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.1, i32 0, i32 0), i8** %end, i32 10) #2
+  %call = call i32 @strtol(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.1, i32 0, i32 0), i8** %end, i32 10)
   ret i32 %call
 }
 
@@ -70,7 +84,7 @@ define i32 @strtol_not_const_str(i8* %s) #0 {
 
 define i32 @atoi_not_const_str(i8* %s) #0 {
 ; CHECK-LABEL: @atoi_not_const_str(
-; CHECK-NEXT:    [[CALL:%.*]] = call i32 @atoi(i8* [[S:%.*]])
+; CHECK-NEXT:    [[CALL:%.*]] = call i32 @atoi(i8* nocapture [[S:%.*]])
 ; CHECK-NEXT:    ret i32 [[CALL]]
 ;
   %call = call i32 @atoi(i8* %s) #4
@@ -114,21 +128,19 @@ define i32 @atol_test() #0 {
   ret i32 %call
 }
 
-define i32 @atoll_test() #0 {
+define i64 @atoll_test() #0 {
 ; CHECK-LABEL: @atoll_test(
-; CHECK-NEXT:    [[CALL:%.*]] = call i32 @atoll(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.5, i64 0, i64 0))
-; CHECK-NEXT:    ret i32 [[CALL]]
+; CHECK-NEXT:    ret i64 4994967295
 ;
-  %call = call i32 @atoll(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.5, i32 0, i32 0)) #3
-  ret i32 %call
+  %call = call i64 @atoll(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.5, i32 0, i32 0)) #3
+  ret i64 %call
 }
 
-define i32 @strtoll_test() #0 {
+define i64 @strtoll_test() #0 {
 ; CHECK-LABEL: @strtoll_test(
-; CHECK-NEXT:    [[CALL:%.*]] = call i32 @strtoll(i8* nocapture getelementptr inbounds ([11 x i8], [11 x i8]* @.str.7, i64 0, i64 0), i8** null, i32 10)
-; CHECK-NEXT:    ret i32 [[CALL]]
+; CHECK-NEXT:    ret i64 4994967295
 ;
 ; CHECK-NEXT
-  %call = call i32 @strtoll(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.7, i32 0, i32 0), i8** null, i32 10) #5
-  ret i32 %call
+  %call = call i64 @strtoll(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.7, i32 0, i32 0), i8** null, i32 10) #5
+  ret i64 %call
 }

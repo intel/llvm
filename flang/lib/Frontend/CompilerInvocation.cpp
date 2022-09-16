@@ -12,6 +12,7 @@
 
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Common/Fortran-features.h"
+#include "flang/Frontend/CodeGenOptions.h"
 #include "flang/Frontend/PreprocessorOptions.h"
 #include "flang/Frontend/TargetOptions.h"
 #include "flang/Semantics/semantics.h"
@@ -20,6 +21,7 @@
 #include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/OptionUtils.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -53,10 +55,11 @@ CompilerInvocationBase::~CompilerInvocationBase() = default;
 //===----------------------------------------------------------------------===//
 // Deserialization (from args)
 //===----------------------------------------------------------------------===//
-static bool parseShowColorsArgs(
-    const llvm::opt::ArgList &args, bool defaultColor) {
-  // Color diagnostics default to auto ("on" if terminal supports) in the driver
-  // but default to off in cc1, needing an explicit OPT_fdiagnostics_color.
+static bool parseShowColorsArgs(const llvm::opt::ArgList &args,
+                                bool defaultColor = true) {
+  // Color diagnostics default to auto ("on" if terminal supports) in the
+  // compiler driver `flang-new` but default to off in the frontend driver
+  // `flang-new -fc1`, needing an explicit OPT_fdiagnostics_color.
   // Support both clang's -f[no-]color-diagnostics and gcc's
   // -f[no-]diagnostics-colors[=never|always|auto].
   enum {
@@ -87,12 +90,73 @@ static bool parseShowColorsArgs(
           llvm::sys::Process::StandardErrHasColors());
 }
 
+/// Extracts the optimisation level from \a args.
+static unsigned getOptimizationLevel(llvm::opt::ArgList &args,
+                                     clang::DiagnosticsEngine &diags) {
+  unsigned defaultOpt = llvm::CodeGenOpt::None;
+
+  if (llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_O_Group)) {
+    if (a->getOption().matches(clang::driver::options::OPT_O0))
+      return llvm::CodeGenOpt::None;
+
+    assert(a->getOption().matches(clang::driver::options::OPT_O));
+
+    return getLastArgIntValue(args, clang::driver::options::OPT_O, defaultOpt,
+                              diags);
+  }
+
+  return defaultOpt;
+}
+
 bool Fortran::frontend::parseDiagnosticArgs(clang::DiagnosticOptions &opts,
-                                            llvm::opt::ArgList &args,
-                                            bool defaultDiagColor) {
-  opts.ShowColors = parseShowColorsArgs(args, defaultDiagColor);
+                                            llvm::opt::ArgList &args) {
+  opts.ShowColors = parseShowColorsArgs(args);
 
   return true;
+}
+
+static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
+                             llvm::opt::ArgList &args,
+                             clang::DiagnosticsEngine &diags) {
+  opts.OptimizationLevel = getOptimizationLevel(args, diags);
+
+  if (args.hasFlag(clang::driver::options::OPT_fdebug_pass_manager,
+                   clang::driver::options::OPT_fno_debug_pass_manager, false))
+    opts.DebugPassManager = 1;
+
+  // -mrelocation-model option.
+  if (const llvm::opt::Arg *A =
+          args.getLastArg(clang::driver::options::OPT_mrelocation_model)) {
+    llvm::StringRef ModelName = A->getValue();
+    auto RM = llvm::StringSwitch<llvm::Optional<llvm::Reloc::Model>>(ModelName)
+                  .Case("static", llvm::Reloc::Static)
+                  .Case("pic", llvm::Reloc::PIC_)
+                  .Case("dynamic-no-pic", llvm::Reloc::DynamicNoPIC)
+                  .Case("ropi", llvm::Reloc::ROPI)
+                  .Case("rwpi", llvm::Reloc::RWPI)
+                  .Case("ropi-rwpi", llvm::Reloc::ROPI_RWPI)
+                  .Default(llvm::None);
+    if (RM.has_value())
+      opts.setRelocationModel(*RM);
+    else
+      diags.Report(clang::diag::err_drv_invalid_value)
+          << A->getAsString(args) << ModelName;
+  }
+
+  // -pic-level and -pic-is-pie option.
+  if (int PICLevel = getLastArgIntValue(
+          args, clang::driver::options::OPT_pic_level, 0, diags)) {
+    if (PICLevel > 2)
+      diags.Report(clang::diag::err_drv_invalid_value)
+          << args.getLastArg(clang::driver::options::OPT_pic_level)
+                 ->getAsString(args)
+          << PICLevel;
+
+    opts.PICLevel = PICLevel;
+    if (args.hasArg(clang::driver::options::OPT_pic_is_pie))
+      opts.IsPIE = 1;
+  }
 }
 
 /// Parses all target input arguments and populates the target
@@ -263,13 +327,18 @@ static bool parseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     llvm::StringRef xValue = a->getValue();
     // Principal languages.
     dashX = llvm::StringSwitch<InputKind>(xValue)
-                .Case("f90", Language::Fortran)
+                // Flang does not differentiate between pre-processed and not
+                // pre-processed inputs.
+                .Case("f95", Language::Fortran)
+                .Case("f95-cpp-input", Language::Fortran)
                 .Default(Language::Unknown);
 
-    // Some special cases cannot be combined with suffixes.
+    // Flang's intermediate representations.
     if (dashX.isUnknown())
       dashX = llvm::StringSwitch<InputKind>(xValue)
                   .Case("ir", Language::LLVM_IR)
+                  .Case("fir", Language::MLIR)
+                  .Case("mlir", Language::MLIR)
                   .Default(Language::Unknown);
 
     if (dashX.isUnknown())
@@ -497,6 +566,10 @@ static bool parseDiagArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
     }
   }
 
+  // Default to off for `flang-new -fc1`.
+  res.getFrontendOpts().showColors =
+      parseShowColorsArgs(args, /*defaultDiagColor=*/false);
+
   return diags.getNumErrors() == numErrorsBefore;
 }
 
@@ -607,6 +680,7 @@ bool CompilerInvocation::createFromArgs(
   success &= parseFrontendArgs(res.getFrontendOpts(), args, diags);
   parseTargetArgs(res.getTargetOpts(), args);
   parsePreprocessorArgs(res.getPreprocessorOpts(), args);
+  parseCodeGenArgs(res.getCodeGenOpts(), args, diags);
   success &= parseSemaArgs(res, args, diags);
   success &= parseDialectArgs(res, args, diags);
   success &= parseDiagArgs(res, args, diags);
@@ -722,11 +796,14 @@ void CompilerInvocation::setFortranOpts() {
 
   // Add the directory supplied through -J/-module-dir to the list of search
   // directories
-  if (moduleDirJ.compare(".") != 0)
+  if (moduleDirJ != ".")
     fortranOptions.searchDirectories.emplace_back(moduleDirJ);
 
   if (frontendOptions.instrumentedParse)
     fortranOptions.instrumentedParse = true;
+
+  if (frontendOptions.showColors)
+    fortranOptions.showColors = true;
 
   if (frontendOptions.needProvenanceRangeToCharBlockMappings)
     fortranOptions.needProvenanceRangeToCharBlockMappings = true;
@@ -749,4 +826,13 @@ void CompilerInvocation::setSemanticsOpts(
       .set_warnOnNonstandardUsage(getEnableConformanceChecks())
       .set_warningsAreErrors(getWarnAsErr())
       .set_moduleFileSuffix(getModuleFileSuffix());
+}
+
+/// Set \p loweringOptions controlling lowering behavior based
+/// on the \p optimizationLevel.
+void CompilerInvocation::setLoweringOptions() {
+  const auto &codegenOpts = getCodeGenOpts();
+
+  // Lower TRANSPOSE as a runtime call under -O0.
+  loweringOpts.setOptimizeTranspose(codegenOpts.OptimizationLevel > 0);
 }

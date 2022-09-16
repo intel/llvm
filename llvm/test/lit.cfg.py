@@ -139,6 +139,7 @@ config.substitutions.append(
 config.llvm_locstats_used = os.path.exists(llvm_locstats_tool)
 
 tools = [
+    ToolSubst('%llvm', FindTool('llvm'), unresolved='ignore'),
     ToolSubst('%lli', FindTool('lli'), post='.', extra_args=lli_args),
     ToolSubst('%llc_dwarf', FindTool('llc'), extra_args=llc_args),
     ToolSubst('%go', config.go_executable, unresolved='ignore'),
@@ -158,9 +159,9 @@ tools = [
 tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
     'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config',
-    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find',
-    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dlltool', 'llvm-exegesis',
-    'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find', 'llvm-debuginfod',
+    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dwarfutil', 'llvm-dlltool',
+    'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
@@ -350,6 +351,9 @@ if config.target_triple:
     if not config.target_triple.startswith(("nvptx", "xcore")):
         config.available_features.add('object-emission')
 
+if config.have_llvm_driver:
+  config.available_features.add('llvm-driver')
+
 import subprocess
 
 
@@ -475,3 +479,11 @@ if 'aix' in config.target_triple:
     for directory in ('/CodeGen/X86', '/DebugInfo', '/DebugInfo/X86', '/DebugInfo/Generic', '/LTO/X86', '/Linker'):
         exclude_unsupported_files_for_aix(config.test_source_root + directory)
 
+# Some tools support an environment variable "OBJECT_MODE" on AIX OS, which
+# controls the kind of objects they will support. If there is no "OBJECT_MODE"
+# environment variable specified, the default behaviour is to support 32-bit
+# objects only. In order to not affect most test cases, which expect to support
+# 32-bit and 64-bit objects by default, set the environment variable
+# "OBJECT_MODE" to 'any' by default on AIX OS.
+if 'system-aix' in config.available_features:
+    config.environment['OBJECT_MODE'] = 'any'

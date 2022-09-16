@@ -2,6 +2,11 @@
 
 cmake_minimum_required(VERSION 3.13.4)
 
+# CMP0114: ExternalProject step targets fully adopt their steps.
+# New in CMake 3.19: https://cmake.org/cmake/help/latest/policy/CMP0114.html
+if(POLICY CMP0114)
+  cmake_policy(SET CMP0114 OLD)
+endif()
 # CMP0116: Ninja generators transform `DEPFILE`s from `add_custom_command()`
 # New in CMake 3.20. https://cmake.org/cmake/help/latest/policy/CMP0116.html
 if(POLICY CMP0116)
@@ -11,7 +16,7 @@ endif()
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 15)
+  set(LLVM_VERSION_MAJOR 16)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -50,11 +55,36 @@ project(LLVM
   VERSION ${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}
   LANGUAGES C CXX ASM)
 
-# Must go after project(..)
+if (NOT DEFINED CMAKE_INSTALL_LIBDIR AND DEFINED LLVM_LIBDIR_SUFFIX)
+  # Must go before `include(GNUInstallDirs)`.
+  set(CMAKE_INSTALL_LIBDIR "lib${LLVM_LIBDIR_SUFFIX}")
+endif()
+
+# Must go after `DEFINED LLVM_LIBDIR_SUFFIX` check.
+set(LLVM_LIBDIR_SUFFIX "" CACHE STRING "Define suffix of library directory name (32/64)" )
+
+# Must go after `project(..)`.
 include(GNUInstallDirs)
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+# This C++ standard is required to build LLVM.
+set(LLVM_REQUIRED_CXX_STANDARD 17)
+
+# If we find that the cache contains CMAKE_CXX_STANDARD it means that it's a old CMakeCache.txt
+# and we can just inform the user and then reset it.
+if($CACHE{CMAKE_CXX_STANDARD} AND $CACHE{CMAKE_CXX_STANDARD} LESS ${LLVM_REQUIRED_CXX_STANDARD})
+  message(WARNING "Resetting cache value for CMAKE_CXX_STANDARD to ${LLVM_REQUIRED_CXX_STANDARD}")
+  unset(CMAKE_CXX_STANDARD CACHE)
+endif()
+
+# if CMAKE_CXX_STANDARD is still set after the cache unset above it means that the user requested it
+# and we allow it to be set to something newer than the required standard but otherwise we fail.
+if(DEFINED CMAKE_CXX_STANDARD AND CMAKE_CXX_STANDARD LESS ${LLVM_REQUIRED_CXX_STANDARD})
+  message(FATAL_ERROR "Requested CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD} which is less than the required ${LLVM_REQUIRED_CXX_STANDARD}.")
+endif()
+
+set(CMAKE_CXX_STANDARD ${LLVM_REQUIRED_CXX_STANDARD} CACHE STRING "C++ standard to conform to")
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
+
 if (CYGWIN)
   # Cygwin is a bit stricter and lack things like 'strdup', 'stricmp', etc in
   # c++xx mode.
@@ -88,8 +118,12 @@ set(LLVM_KNOWN_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTRA_PROJECTS}")
 message("TEST: ${LLVM_EXTRA_PROJECTS}")
 set(LLVM_ENABLE_PROJECTS "" CACHE STRING
     "Semicolon-separated list of projects to build (${LLVM_KNOWN_PROJECTS}), or \"all\".")
+# Make sure expansion happens first to not handle "all" in rest of the checks.
+if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
+  set( LLVM_ENABLE_PROJECTS ${LLVM_ALL_PROJECTS})
+endif()
 foreach(proj ${LLVM_ENABLE_PROJECTS})
-  if (NOT proj STREQUAL "all" AND NOT proj STREQUAL "llvm" AND NOT "${proj}" IN_LIST LLVM_KNOWN_PROJECTS)
+  if (NOT proj STREQUAL "llvm" AND NOT "${proj}" IN_LIST LLVM_KNOWN_PROJECTS)
      MESSAGE(FATAL_ERROR "${proj} isn't a known project: ${LLVM_KNOWN_PROJECTS}")
   endif()
 endforeach()
@@ -99,10 +133,6 @@ foreach(proj "libcxx" "libcxxabi" "libunwind")
                     "see the instructions at https://libcxx.llvm.org/BuildingLibcxx.html for building the runtimes.")
   endif()
 endforeach()
-
-if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
-  set( LLVM_ENABLE_PROJECTS ${LLVM_ALL_PROJECTS})
-endif()
 
 if ("flang" IN_LIST LLVM_ENABLE_PROJECTS)
   if (NOT "mlir" IN_LIST LLVM_ENABLE_PROJECTS)
@@ -114,6 +144,23 @@ if ("flang" IN_LIST LLVM_ENABLE_PROJECTS)
     message(FATAL_ERROR "Clang is not enabled, but is required for the Flang driver")
   endif()
 endif()
+
+# Select the runtimes to build
+#
+# As we migrate runtimes to using the bootstrapping build, the set of default runtimes
+# should grow as we remove those runtimes from LLVM_ENABLE_PROJECTS above.
+set(LLVM_DEFAULT_RUNTIMES "libcxx;libcxxabi;libunwind")
+set(LLVM_SUPPORTED_RUNTIMES "libc;libunwind;libcxxabi;pstl;libcxx;compiler-rt;openmp;llvm-libgcc")
+set(LLVM_ENABLE_RUNTIMES "" CACHE STRING
+  "Semicolon-separated list of runtimes to build, or \"all\" (${LLVM_DEFAULT_RUNTIMES}). Supported runtimes are ${LLVM_SUPPORTED_RUNTIMES}.")
+if(LLVM_ENABLE_RUNTIMES STREQUAL "all")
+  set(LLVM_ENABLE_RUNTIMES ${LLVM_DEFAULT_RUNTIMES})
+endif()
+foreach(proj IN LISTS LLVM_ENABLE_RUNTIMES)
+  if (NOT "${proj}" IN_LIST LLVM_SUPPORTED_RUNTIMES)
+    message(FATAL_ERROR "Runtime ${proj} is not a supported runtime. Supported runtimes are: ${LLVM_SUPPORTED_RUNTIMES}")
+  endif()
+endforeach()
 
 # LLVM_ENABLE_PROJECTS_USED is `ON` if the user has ever used the
 # `LLVM_ENABLE_PROJECTS` CMake cache variable.  This exists for
@@ -197,7 +244,7 @@ if(LLVM_CCACHE_BUILD)
       # RULE_LAUNCH_COMPILE should work with Ninja but currently has issues
       # with cmd.exe and some MSVC tools other than cl.exe
       set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-      set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})     
+      set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     endif()
   else()
     message(FATAL_ERROR "Unable to find the program ccache. Set LLVM_CCACHE_BUILD to OFF")
@@ -266,6 +313,8 @@ include(VersionFromVCS)
 option(LLVM_APPEND_VC_REV
   "Embed the version control system revision in LLVM" ON)
 
+option(LLVM_TOOL_LLVM_DRIVER_BUILD "Enables building the llvm multicall tool" OFF)
+
 set(PACKAGE_NAME LLVM)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 set(PACKAGE_BUGREPORT "https://github.com/llvm/llvm-project/issues/")
@@ -315,7 +364,11 @@ if (CMAKE_BUILD_TYPE AND
   message(FATAL_ERROR "Invalid value for CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 endif()
 
-set(LLVM_LIBDIR_SUFFIX "" CACHE STRING "Define suffix of library directory name (32/64)" )
+# LLVM_INSTALL_PACKAGE_DIR needs to be declared prior to adding the tools
+# subdirectory in order to have the value available for llvm-config.
+include(GNUInstallPackageDir)
+set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
+  "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
 
 set(LLVM_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE STRING
     "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
@@ -433,7 +486,13 @@ endif()
 
 set(LLVM_ENABLE_ZLIB "ON" CACHE STRING "Use zlib for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
 
+set(LLVM_ENABLE_ZSTD "ON" CACHE STRING "Use zstd for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
+
+set(LLVM_USE_STATIC_ZSTD FALSE CACHE BOOL "Use static version of zstd. Can be TRUE, FALSE")
+
 set(LLVM_ENABLE_CURL "OFF" CACHE STRING "Use libcurl for the HTTP client if available. Can be ON, OFF, or FORCE_ON")
+
+set(LLVM_ENABLE_HTTPLIB "OFF" CACHE STRING "Use cpp-httplib HTTP server library if available. Can be ON, OFF, or FORCE_ON")
 
 set(LLVM_Z3_INSTALL_DIR "" CACHE STRING "Install directory of the Z3 solver.")
 
@@ -741,11 +800,30 @@ endif()
 set(LLVM_TARGET_TRIPLE_ENV CACHE STRING "The name of environment variable to override default target. Disabled by blank.")
 mark_as_advanced(LLVM_TARGET_TRIPLE_ENV)
 
-set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR OFF CACHE BOOL
+# Per target dir not yet supported on Arm 32 bit due to arm vs armhf handling
+if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
+  set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default ON)
+else()
+  set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default OFF)
+endif()
+set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default} CACHE BOOL
   "Enable per-target runtimes directory")
 
 set(LLVM_PROFDATA_FILE "" CACHE FILEPATH
   "Profiling data file to use when compiling in order to improve runtime performance.")
+
+if(LLVM_INCLUDE_TESTS)
+  # Lit test suite requires at least python 3.6
+  set(LLVM_MINIMUM_PYTHON_VERSION 3.6)
+else()
+  # FIXME: it is unknown if this is the actual minimum bound
+  set(LLVM_MINIMUM_PYTHON_VERSION 3.0)
+endif()
+
+# Find python before including config-ix, since it needs to be able to search
+# for python modules.
+find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION} REQUIRED
+    COMPONENTS Interpreter)
 
 # All options referred to from HandleLLVMOptions have to be specified
 # BEFORE this include, otherwise options will not be correctly set on
@@ -791,10 +869,13 @@ if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
                       " no longer supported.")
 endif()
 
-include(HandleLLVMOptions)
+set(DPCPP_ENABLE_OPAQUE_POINTERS FALSE CACHE BOOL
+   "Enable opaque pointers by default.")
+if (DPCPP_ENABLE_OPAQUE_POINTERS)
+  add_definitions("-DENABLE_OPAQUE_POINTERS=1")
+endif(DPCPP_ENABLE_OPAQUE_POINTERS)
 
-find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION} REQUIRED
-    COMPONENTS Interpreter)
+include(HandleLLVMOptions)
 
 ######
 
@@ -876,15 +957,17 @@ if(LLVM_INCLUDE_TESTS)
   get_errc_messages(LLVM_LIT_ERRC_MESSAGES)
 endif()
 
-# For up-to-date instructions for installing the Tensorflow dependency, refer to
+# For up-to-date instructions for installing the TFLite dependency, refer to
 # the bot setup script: https://github.com/google/ml-compiler-opt/blob/main/buildbot/buildbot_init.sh
-# In this case, the latest C API library is available for download from
-# https://www.tensorflow.org/install/lang_c.
-# We will expose the conditional compilation variable,
-# LLVM_HAVE_TF_API, through llvm-config.h, so that a user of the LLVM library may
-# also leverage the dependency.
 set(TENSORFLOW_C_LIB_PATH "" CACHE PATH "Path to TensorFlow C library install")
-if (TENSORFLOW_C_LIB_PATH)
+set(LLVM_HAVE_TFLITE "" CACHE BOOL "Use tflite")
+if (LLVM_HAVE_TFLITE)
+  find_package(protobuf REQUIRED)
+  find_package(tensorflow-lite REQUIRED)
+  set(LLVM_HAVE_TF_API "ON" CACHE BOOL "Full Tensorflow API available")
+  set(LLVM_PROTOBUF_OUT_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/protobuf_gen)
+  include_directories(${LLVM_PROTOBUF_OUT_DIR})
+elseif (TENSORFLOW_C_LIB_PATH)
   find_library(tensorflow_c_api tensorflow PATHS ${TENSORFLOW_C_LIB_PATH}/lib NO_DEFAULT_PATH REQUIRED)
   # Currently, the protobuf headers are distributed with the pip package that corresponds to the version
   # of the C API library.
@@ -894,15 +977,13 @@ if (TENSORFLOW_C_LIB_PATH)
   if (NOT TF_PROTO_HEADERS)
     message(STATUS "TF_PROTO_HEADERS not defined. Looking for tensorflow pip package.")
     execute_process(COMMAND
-      ${Python3_EXECUTABLE} "-m" "pip" "show" "tensorflow"
-      OUTPUT_VARIABLE TF_PIP_OUT)
-    if ("${TF_PIP_OUT}" STREQUAL "")
+      ${Python3_EXECUTABLE} "-c" "import tensorflow as tf; import os; print(os.path.dirname(tf.__file__))"
+      OUTPUT_VARIABLE TF_PIP)
+    if ("${TF_PIP}" STREQUAL "")
       message(FATAL ERROR "Tensorflow pip package is also required for 'development' mode (protobuf headers)")
     endif()
-    string(REGEX MATCH "Location: ([^\n]*\n)" TF_PIP_LOC "${TF_PIP_OUT}")
-    string(REPLACE "Location: " "" TF_PIP ${TF_PIP_LOC})
     string(STRIP ${TF_PIP} TF_PIP)
-    set(TF_PROTO_HEADERS "${TF_PIP}/tensorflow/include")
+    set(TF_PROTO_HEADERS "${TF_PIP}/include")
   endif()
   message(STATUS "Using Tensorflow headers under: ${TF_PROTO_HEADERS}")
   include_directories(${TF_PROTO_HEADERS})
@@ -923,7 +1004,13 @@ if (NOT TENSORFLOW_AOT_PATH STREQUAL "")
   set(TENSORFLOW_AOT_COMPILER
     "${TENSORFLOW_AOT_PATH}/../../../../bin/saved_model_cli"
     CACHE PATH "Path to the Tensorflow AOT compiler")
-  include_directories(${TENSORFLOW_AOT_PATH}/include)
+  # This needs to happen to avoid clashing protobuf codegen when building both AOT and development mode.
+  # We plan to replace protobuf with a simpler alternative, so this will go away.
+  file(COPY ${TENSORFLOW_AOT_PATH}/include DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/tensorflow
+    NO_SOURCE_PERMISSIONS
+    PATTERN "google/*" EXCLUDE
+    PATTERN "*.pb.h" EXCLUDE) 
+  include_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/tensorflow/include)
   add_subdirectory(${TENSORFLOW_AOT_PATH}/xla_aot_runtime_src
     ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/tf_runtime)
   install(TARGETS tf_xla_runtime EXPORT LLVMExports
@@ -1096,7 +1183,12 @@ if( LLVM_INCLUDE_UTILS )
   add_subdirectory(utils/PerfectShuffle)
   add_subdirectory(utils/count)
   add_subdirectory(utils/not)
+  add_subdirectory(utils/UnicodeData)
   add_subdirectory(utils/yaml-bench)
+  add_subdirectory(utils/split-file)
+  if( LLVM_INCLUDE_TESTS )
+    add_subdirectory(utils/unittest)
+  endif()
 else()
   if ( LLVM_INCLUDE_TESTS )
     message(FATAL_ERROR "Including tests when not building utils will not work.
@@ -1141,9 +1233,6 @@ if( LLVM_INCLUDE_TESTS )
   add_subdirectory(utils/lit)
   add_subdirectory(test)
   add_subdirectory(unittests)
-  if( LLVM_INCLUDE_UTILS )
-    add_subdirectory(utils/unittest)
-  endif()
 
   if (WIN32)
     # This utility is used to prevent crashing tests from calling Dr. Watson on

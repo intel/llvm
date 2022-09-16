@@ -271,7 +271,7 @@ public:
   /// This method provides a convenient interface for creating and initializing
   /// derived rewrite patterns of the given type `T`.
   template <typename T, typename... Args>
-  static std::unique_ptr<T> create(Args &&... args) {
+  static std::unique_ptr<T> create(Args &&...args) {
     std::unique_ptr<T> pattern =
         std::make_unique<T>(std::forward<Args>(args)...);
     initializePattern<T>(*pattern);
@@ -1079,15 +1079,10 @@ LogicalResult verifyAsArgs(PatternRewriter &rewriter, ArrayRef<PDLValue> values,
   auto errorFn = [&](const Twine &msg) {
     return rewriter.notifyMatchFailure(rewriter.getUnknownLoc(), msg);
   };
-  LogicalResult result = success();
-  (void)std::initializer_list<int>{
-      (result =
-           succeeded(result)
-               ? ProcessPDLValue<typename FnTraitsT::template arg_t<I + 1>>::
-                     verifyAsArg(errorFn, values[I], I)
-               : failure(),
-       0)...};
-  return result;
+  return success(
+      (succeeded(ProcessPDLValue<typename FnTraitsT::template arg_t<I + 1>>::
+                     verifyAsArg(errorFn, values[I], I)) &&
+       ...));
 }
 
 /// Assert that the given PDLValues match the constraints defined by the
@@ -1102,10 +1097,10 @@ void assertArgs(PatternRewriter &rewriter, ArrayRef<PDLValue> values,
   auto errorFn = [&](const Twine &msg) -> LogicalResult {
     llvm::report_fatal_error(msg);
   };
-  (void)std::initializer_list<int>{
-      (assert(succeeded(ProcessPDLValue<typename FnTraitsT::template arg_t<
-                            I + 1>>::verifyAsArg(errorFn, values[I], I))),
-       0)...};
+  (void)errorFn;
+  assert((succeeded(ProcessPDLValue<typename FnTraitsT::template arg_t<I + 1>>::
+                        verifyAsArg(errorFn, values[I], I)) &&
+          ...));
 #endif
 }
 
@@ -1134,12 +1129,9 @@ template <typename... Ts>
 static void processResults(PatternRewriter &rewriter, PDLResultList &results,
                            std::tuple<Ts...> &&tuple) {
   auto applyFn = [&](auto &&...args) {
-    // TODO: Use proper fold expressions when we have C++17. For now we use a
-    // bogus std::initializer_list to work around C++14 limitations.
-    (void)std::initializer_list<int>{
-        (processResults(rewriter, results, std::move(args)), 0)...};
+    (processResults(rewriter, results, std::move(args)), ...);
   };
-  llvm::apply_tuple(applyFn, std::move(tuple));
+  std::apply(applyFn, std::move(tuple));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1410,13 +1402,12 @@ public:
   template <typename... Ts, typename ConstructorArg,
             typename... ConstructorArgs,
             typename = std::enable_if_t<sizeof...(Ts) != 0>>
-  RewritePatternSet &add(ConstructorArg &&arg, ConstructorArgs &&... args) {
+  RewritePatternSet &add(ConstructorArg &&arg, ConstructorArgs &&...args) {
     // The following expands a call to emplace_back for each of the pattern
-    // types 'Ts'. This magic is necessary due to a limitation in the places
-    // that a parameter pack can be expanded in c++11.
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{
-        0, (addImpl<Ts>(/*debugLabels=*/llvm::None, arg, args...), 0)...};
+    // types 'Ts'.
+    (addImpl<Ts>(/*debugLabels=*/llvm::None, std::forward<ConstructorArg>(arg),
+                 std::forward<ConstructorArgs>(args)...),
+     ...);
     return *this;
   }
   /// An overload of the above `add` method that allows for attaching a set
@@ -1428,13 +1419,10 @@ public:
             typename = std::enable_if_t<sizeof...(Ts) != 0>>
   RewritePatternSet &addWithLabel(ArrayRef<StringRef> debugLabels,
                                   ConstructorArg &&arg,
-                                  ConstructorArgs &&... args) {
+                                  ConstructorArgs &&...args) {
     // The following expands a call to emplace_back for each of the pattern
-    // types 'Ts'. This magic is necessary due to a limitation in the places
-    // that a parameter pack can be expanded in c++11.
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{
-        0, (addImpl<Ts>(debugLabels, arg, args...), 0)...};
+    // types 'Ts'.
+    (addImpl<Ts>(debugLabels, arg, args...), ...);
     return *this;
   }
 
@@ -1442,7 +1430,7 @@ public:
   /// `this` for chaining insertions.
   template <typename... Ts>
   RewritePatternSet &add() {
-    (void)std::initializer_list<int>{0, (addImpl<Ts>(), 0)...};
+    (addImpl<Ts>(), ...);
     return *this;
   }
 
@@ -1493,13 +1481,10 @@ public:
   template <typename... Ts, typename ConstructorArg,
             typename... ConstructorArgs,
             typename = std::enable_if_t<sizeof...(Ts) != 0>>
-  RewritePatternSet &insert(ConstructorArg &&arg, ConstructorArgs &&... args) {
+  RewritePatternSet &insert(ConstructorArg &&arg, ConstructorArgs &&...args) {
     // The following expands a call to emplace_back for each of the pattern
-    // types 'Ts'. This magic is necessary due to a limitation in the places
-    // that a parameter pack can be expanded in c++11.
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{
-        0, (addImpl<Ts>(/*debugLabels=*/llvm::None, arg, args...), 0)...};
+    // types 'Ts'.
+    (addImpl<Ts>(/*debugLabels=*/llvm::None, arg, args...), ...);
     return *this;
   }
 
@@ -1507,7 +1492,7 @@ public:
   /// `this` for chaining insertions.
   template <typename... Ts>
   RewritePatternSet &insert() {
-    (void)std::initializer_list<int>{0, (addImpl<Ts>(), 0)...};
+    (addImpl<Ts>(), ...);
     return *this;
   }
 
@@ -1553,7 +1538,7 @@ private:
   /// chaining insertions.
   template <typename T, typename... Args>
   std::enable_if_t<std::is_base_of<RewritePattern, T>::value>
-  addImpl(ArrayRef<StringRef> debugLabels, Args &&... args) {
+  addImpl(ArrayRef<StringRef> debugLabels, Args &&...args) {
     std::unique_ptr<T> pattern =
         RewritePattern::create<T>(std::forward<Args>(args)...);
     pattern->addDebugLabels(debugLabels);
@@ -1561,7 +1546,7 @@ private:
   }
   template <typename T, typename... Args>
   std::enable_if_t<std::is_base_of<PDLPatternModule, T>::value>
-  addImpl(ArrayRef<StringRef> debugLabels, Args &&... args) {
+  addImpl(ArrayRef<StringRef> debugLabels, Args &&...args) {
     // TODO: Add the provided labels to the PDL pattern when PDL supports
     // labels.
     pdlPatterns.mergeIn(T(std::forward<Args>(args)...));

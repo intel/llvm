@@ -49,7 +49,8 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-unnamed-lambda`**
 
     Enables/Disables unnamed SYCL lambda kernels support.
-    Disabled by default.
+    The default value depends on the SYCL language standard: it is enabled
+    by default for SYCL 2020, and disabled for SYCL 1.2.1.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -216,6 +217,22 @@ and not recommended to use in production environment.
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
 
+**`-f[no-]sycl-link-huge-device-code`**
+
+    Place device code later in the linked binary in order to avoid precluding
+    32-bit PC relative relocations between surrounding ELF sections when device
+    code is larger than 2GiB. This is disabled by default.
+
+    NOTE: This option is currently only supported on Linux.
+
+**`-fsycl-force-target=<T>`**
+
+    When used along with '-fsycl-targets', force the device object being
+    unbundled to match the target <T> given.  This allows the user to override
+    the expected unbundling type even though the target given does not match.
+    The forced target applies to all objects, archives and default device
+    libraries.
+
 ## Intel FPGA specific options
 
 **`-fintelfpga`**
@@ -289,6 +306,31 @@ and not recommended to use in production environment.
     ULP.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
+
+
+**`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
+
+    Enforces stateless memory access and enables the automatic conversion of
+    "stateful" memory access via SYCL accessors to "stateless" within ESIMD
+    (Explicit SIMD) kernels.
+
+    -fsycl-esimd-force-stateless-mem disables the intrinsics and methods
+    accepting SYCL accessors or "surface-index" which cannot be automatically
+    converted to their "stateless" equivalents.
+
+    -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
+    enforce usage of stateless memory accesses. This is the default behavior.
+
+    NOTE: "Stateful" access is the one that uses SYCL accessor or a pair
+    of "surface-index" + 32-bit byte-offset and uses specific memory access
+    data port messages to read/write/fetch.
+    "Stateless" memory access uses memory location represented with virtual
+    memory address pointer such as USM pointer.
+
+    The "stateless" memory may be beneficial as it does not have the limit
+    of 4Gb per surface.
+    Also, some of Intel GPUs or GPU run-time/drivers may support only
+    "stateless" memory accesses.
 
 # Example: SYCL device code compilation
 

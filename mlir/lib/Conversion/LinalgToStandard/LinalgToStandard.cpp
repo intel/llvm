@@ -8,13 +8,19 @@
 
 #include "mlir/Conversion/LinalgToStandard/LinalgToStandard.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Pass/Pass.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTLINALGTOSTANDARD
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -71,7 +77,8 @@ static FlatSymbolRefAttr getLibraryCallSymbolRef(Operation *op,
   // Insert a function attribute that will trigger the emission of the
   // corresponding `_mlir_ciface_xxx` interface so that external libraries see
   // a normalized ABI. This interface is added during std to llvm conversion.
-  funcOp->setAttr("llvm.emit_c_interface", UnitAttr::get(op->getContext()));
+  funcOp->setAttr(LLVM::LLVMDialect::getEmitCWrapperAttrName(),
+                  UnitAttr::get(op->getContext()));
   funcOp.setPrivate();
   return fnNameAttr;
 }
@@ -109,7 +116,6 @@ LogicalResult mlir::linalg::LinalgOpToLibraryCallRewrite::matchAndRewrite(
   return success();
 }
 
-
 /// Populate the given list with patterns that convert from Linalg to Standard.
 void mlir::linalg::populateLinalgToStandardConversionPatterns(
     RewritePatternSet &patterns) {
@@ -120,7 +126,7 @@ void mlir::linalg::populateLinalgToStandardConversionPatterns(
 
 namespace {
 struct ConvertLinalgToStandardPass
-    : public ConvertLinalgToStandardBase<ConvertLinalgToStandardPass> {
+    : public impl::ConvertLinalgToStandardBase<ConvertLinalgToStandardPass> {
   void runOnOperation() override;
 };
 } // namespace

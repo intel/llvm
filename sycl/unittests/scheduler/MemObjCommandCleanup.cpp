@@ -9,7 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-using namespace cl::sycl;
+#include <detail/buffer_impl.hpp>
+
+using namespace sycl;
 
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   MockScheduler MS;

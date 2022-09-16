@@ -23,13 +23,17 @@
 #include <__ranges/concepts.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
+#include <__utility/pair.h>
 #include <initializer_list>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#if _LIBCPP_STD_VER > 17
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -123,6 +127,8 @@ inline namespace __cpo {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+_LIBCPP_POP_MACROS
+
+#endif // _LIBCPP_STD_VER > 17
 
 #endif // _LIBCPP___ALGORITHM_RANGES_MINMAX_H

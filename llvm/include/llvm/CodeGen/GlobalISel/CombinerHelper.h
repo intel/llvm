@@ -431,6 +431,9 @@ public:
   /// Return true if a G_SELECT instruction \p MI has an undef comparison.
   bool matchUndefSelectCmp(MachineInstr &MI);
 
+  /// Return true if a G_{EXTRACT,INSERT}_VECTOR_ELT has an out of range index.
+  bool matchInsertExtractVecEltOutOfBounds(MachineInstr &MI);
+
   /// Return true if a G_SELECT instruction \p MI has a constant comparison. If
   /// true, \p OpIdx will store the operand index of the known selected value.
   bool matchConstantSelectCmp(MachineInstr &MI, unsigned &OpIdx);
@@ -647,6 +650,13 @@ public:
   bool matchUDivByConst(MachineInstr &MI);
   void applyUDivByConst(MachineInstr &MI);
 
+  /// Given an G_SDIV \p MI expressing a signed divide by constant, return an
+  /// expression that implements it by multiplying by a magic number.
+  /// Ref: "Hacker's Delight" or "The PowerPC Compiler Writer's Guide".
+  MachineInstr *buildSDivUsingMul(MachineInstr &MI);
+  bool matchSDivByConst(MachineInstr &MI);
+  void applySDivByConst(MachineInstr &MI);
+
   // G_UMULH x, (1 << c)) -> x >> (bitwidth - c)
   bool matchUMulHToLShr(MachineInstr &MI);
   void applyUMulHToLShr(MachineInstr &MI);
@@ -735,6 +745,10 @@ public:
   bool matchSelectToLogical(MachineInstr &MI, BuildFnTy &MatchInfo);
 
   bool matchCombineFMinMaxNaN(MachineInstr &MI, unsigned &Info);
+
+  /// Transform G_ADD(x, G_SUB(y, x)) to y.
+  /// Transform G_ADD(G_SUB(y, x), x) to y.
+  bool matchAddSubSameReg(MachineInstr &MI, Register &Src);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that

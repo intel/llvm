@@ -100,10 +100,10 @@ BreakpointResolverFileLine::SerializeToStructuredData() {
   options_dict_sp->AddStringItem(GetKey(OptionNames::FileName),
                                  m_location_spec.GetFileSpec().GetPath());
   options_dict_sp->AddIntegerItem(GetKey(OptionNames::LineNumber),
-                                  m_location_spec.GetLine().getValueOr(0));
+                                  m_location_spec.GetLine().value_or(0));
   options_dict_sp->AddIntegerItem(
       GetKey(OptionNames::Column),
-      m_location_spec.GetColumn().getValueOr(LLDB_INVALID_COLUMN_NUMBER));
+      m_location_spec.GetColumn().value_or(LLDB_INVALID_COLUMN_NUMBER));
   options_dict_sp->AddBooleanItem(GetKey(OptionNames::Inlines),
                                   m_location_spec.GetCheckInlines());
   options_dict_sp->AddBooleanItem(GetKey(OptionNames::ExactMatch),
@@ -119,34 +119,14 @@ BreakpointResolverFileLine::SerializeToStructuredData() {
 // handling inlined functions -- in this case we need to make sure we look at
 // the declaration line of the inlined function, NOT the function it was
 // inlined into.
-void BreakpointResolverFileLine::FilterContexts(SymbolContextList &sc_list,
-                                                bool is_relative) {
+void BreakpointResolverFileLine::FilterContexts(SymbolContextList &sc_list) {
   if (m_location_spec.GetExactMatch())
     return; // Nothing to do. Contexts are precise.
-
-  llvm::StringRef relative_path;
-  if (is_relative)
-    relative_path = m_location_spec.GetFileSpec().GetDirectory().GetStringRef();
 
   Log *log = GetLog(LLDBLog::Breakpoints);
   for(uint32_t i = 0; i < sc_list.GetSize(); ++i) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(i, sc);
-    if (is_relative) {
-      // If the path was relative, make sure any matches match as long as the
-      // relative parts of the path match the path from support files
-      auto sc_dir = sc.line_entry.file.GetDirectory().GetStringRef();
-      if (!sc_dir.endswith(relative_path)) {
-        // We had a relative path specified and the relative directory doesn't
-        // match so remove this one
-        LLDB_LOG(log, "removing not matching relative path {0} since it "
-                "doesn't end with {1}", sc_dir, relative_path);
-        sc_list.RemoveContextAtIndex(i);
-        --i;
-        continue;
-      }
-    }
-
     if (!sc.block)
       continue;
 
@@ -227,32 +207,20 @@ Searcher::CallbackReturn BreakpointResolverFileLine::SearchCallback(
   // file.  So we go through the match list and pull out the sets that have the
   // same file spec in their line_entry and treat each set separately.
 
-  const uint32_t line = m_location_spec.GetLine().getValueOr(0);
+  const uint32_t line = m_location_spec.GetLine().value_or(0);
   const llvm::Optional<uint16_t> column = m_location_spec.GetColumn();
-
-  // We'll create a new SourceLocationSpec that can take into account the
-  // relative path case, and we'll use it to resolve the symbol context
-  // of the CUs.
-  FileSpec search_file_spec = m_location_spec.GetFileSpec();
-  const bool is_relative = search_file_spec.IsRelative();
-  if (is_relative)
-    search_file_spec.GetDirectory().Clear();
-  SourceLocationSpec search_location_spec(
-      search_file_spec, m_location_spec.GetLine().getValueOr(0),
-      m_location_spec.GetColumn(), m_location_spec.GetCheckInlines(),
-      m_location_spec.GetExactMatch());
 
   const size_t num_comp_units = context.module_sp->GetNumCompileUnits();
   for (size_t i = 0; i < num_comp_units; i++) {
     CompUnitSP cu_sp(context.module_sp->GetCompileUnitAtIndex(i));
     if (cu_sp) {
       if (filter.CompUnitPasses(*cu_sp))
-        cu_sp->ResolveSymbolContext(search_location_spec,
-                                    eSymbolContextEverything, sc_list);
+        cu_sp->ResolveSymbolContext(m_location_spec, eSymbolContextEverything,
+                                    sc_list);
     }
   }
 
-  FilterContexts(sc_list, is_relative);
+  FilterContexts(sc_list);
 
   StreamString s;
   s.Printf("for %s:%d ",
@@ -272,7 +240,7 @@ lldb::SearchDepth BreakpointResolverFileLine::GetDepth() {
 void BreakpointResolverFileLine::GetDescription(Stream *s) {
   s->Printf("file = '%s', line = %u, ",
             m_location_spec.GetFileSpec().GetPath().c_str(),
-            m_location_spec.GetLine().getValueOr(0));
+            m_location_spec.GetLine().value_or(0));
   auto column = m_location_spec.GetColumn();
   if (column)
     s->Printf("column = %u, ", *column);

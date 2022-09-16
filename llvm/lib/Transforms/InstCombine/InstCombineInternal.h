@@ -152,7 +152,7 @@ public:
   Instruction *visitGEPOfBitcast(BitCastInst *BCI, GetElementPtrInst &GEP);
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
-  Instruction *visitFree(CallInst &FI);
+  Instruction *visitFree(CallInst &FI, Value *FreedOp);
   Instruction *visitLoadInst(LoadInst &LI);
   Instruction *visitStoreInst(StoreInst &SI);
   Instruction *visitAtomicRMWInst(AtomicRMWInst &SI);
@@ -173,6 +173,7 @@ public:
   Instruction *visitVAEndInst(VAEndInst &I);
   Value *pushFreezeToPreventPoisonFromPropagating(FreezeInst &FI);
   bool freezeOtherUses(FreezeInst &FI);
+  Instruction *foldFreezeIntoRecurrence(FreezeInst &I, PHINode *PN);
   Instruction *visitFreeze(FreezeInst &I);
 
   /// Specify what to return for unhandled instructions.
@@ -365,6 +366,7 @@ private:
   Value *matchSelectFromAndOr(Value *A, Value *B, Value *C, Value *D);
   Value *getSelectCondition(Value *A, Value *B);
 
+  Instruction *foldExtractOfOverflowIntrinsic(ExtractValueInst &EV);
   Instruction *foldIntrinsicWithOverflowCommon(IntrinsicInst *II);
   Instruction *foldFPSignBitOps(BinaryOperator &I);
 
@@ -411,7 +413,7 @@ public:
     // If we are replacing the instruction with itself, this must be in a
     // segment of unreachable code, so just clobber the instruction.
     if (&I == V)
-      V = UndefValue::get(I.getType());
+      V = PoisonValue::get(I.getType());
 
     LLVM_DEBUG(dbgs() << "IC: Replacing " << I << "\n"
                       << "    with " << *V << '\n');
@@ -439,7 +441,7 @@ public:
   void CreateNonTerminatorUnreachable(Instruction *InsertAt) {
     auto &Ctx = InsertAt->getContext();
     new StoreInst(ConstantInt::getTrue(Ctx),
-                  UndefValue::get(Type::getInt1PtrTy(Ctx)),
+                  PoisonValue::get(Type::getInt1PtrTy(Ctx)),
                   InsertAt);
   }
 
@@ -596,10 +598,9 @@ public:
   /// demanded bits.
   bool SimplifyDemandedInstructionBits(Instruction &Inst);
 
-  virtual Value *
-  SimplifyDemandedVectorElts(Value *V, APInt DemandedElts, APInt &UndefElts,
-                             unsigned Depth = 0,
-                             bool AllowMultipleUsers = false) override;
+  Value *SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
+                                    APInt &UndefElts, unsigned Depth = 0,
+                                    bool AllowMultipleUsers = false) override;
 
   /// Canonicalize the position of binops relative to shufflevector.
   Instruction *foldVectorBinop(BinaryOperator &Inst);
@@ -716,6 +717,8 @@ public:
                                      const APInt &C1);
   Instruction *foldICmpAndShift(ICmpInst &Cmp, BinaryOperator *And,
                                 const APInt &C1, const APInt &C2);
+  Instruction *foldICmpXorShiftConst(ICmpInst &Cmp, BinaryOperator *Xor,
+                                     const APInt &C);
   Instruction *foldICmpShrConstConst(ICmpInst &I, Value *ShAmt, const APInt &C1,
                                      const APInt &C2);
   Instruction *foldICmpShlConstConst(ICmpInst &I, Value *ShAmt, const APInt &C1,
@@ -790,13 +793,13 @@ class Negator final {
 
   std::array<Value *, 2> getSortedOperandsOfBinOp(Instruction *I);
 
-  LLVM_NODISCARD Value *visitImpl(Value *V, unsigned Depth);
+  [[nodiscard]] Value *visitImpl(Value *V, unsigned Depth);
 
-  LLVM_NODISCARD Value *negate(Value *V, unsigned Depth);
+  [[nodiscard]] Value *negate(Value *V, unsigned Depth);
 
   /// Recurse depth-first and attempt to sink the negation.
   /// FIXME: use worklist?
-  LLVM_NODISCARD Optional<Result> run(Value *Root);
+  [[nodiscard]] Optional<Result> run(Value *Root);
 
   Negator(const Negator &) = delete;
   Negator(Negator &&) = delete;
@@ -806,8 +809,8 @@ class Negator final {
 public:
   /// Attempt to negate \p Root. Retuns nullptr if negation can't be performed,
   /// otherwise returns negated value.
-  LLVM_NODISCARD static Value *Negate(bool LHSIsZero, Value *Root,
-                                      InstCombinerImpl &IC);
+  [[nodiscard]] static Value *Negate(bool LHSIsZero, Value *Root,
+                                     InstCombinerImpl &IC);
 };
 
 } // end namespace llvm

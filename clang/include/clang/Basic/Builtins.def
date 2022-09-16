@@ -97,7 +97,8 @@
 //  S:N: -> similar to the s:N: attribute, but the function is like vscanf
 //          in that it accepts its arguments as a va_list rather than
 //          through an ellipsis
-//  e -> const, but only when -fno-math-errno
+//  e -> const, but only when -fno-math-errno and FP exceptions are ignored
+//  g -> const when FP exceptions are ignored
 //  j -> returns_twice (like setjmp)
 //  u -> arguments are not evaluated for their side-effects
 //  V:N: -> requires vectors of at least N bits to be legal
@@ -142,10 +143,12 @@ BUILTIN(__builtin_frexpf128, "LLdLLdi*", "Fn")
 BUILTIN(__builtin_huge_val, "d", "nc")
 BUILTIN(__builtin_huge_valf, "f", "nc")
 BUILTIN(__builtin_huge_vall, "Ld", "nc")
+BUILTIN(__builtin_huge_valf16, "x", "nc")
 BUILTIN(__builtin_huge_valf128, "LLd", "nc")
 BUILTIN(__builtin_inf  , "d"   , "nc")
 BUILTIN(__builtin_inff , "f"   , "nc")
 BUILTIN(__builtin_infl , "Ld"  , "nc")
+BUILTIN(__builtin_inff16 , "x"  , "nc")
 BUILTIN(__builtin_inff128 , "LLd"  , "nc")
 BUILTIN(__builtin_labs , "LiLi"  , "Fnc")
 BUILTIN(__builtin_llabs, "LLiLLi", "Fnc")
@@ -160,10 +163,12 @@ BUILTIN(__builtin_modff128, "LLdLLdLLd*", "Fn")
 BUILTIN(__builtin_nan,  "dcC*" , "FnU")
 BUILTIN(__builtin_nanf, "fcC*" , "FnU")
 BUILTIN(__builtin_nanl, "LdcC*", "FnU")
+BUILTIN(__builtin_nanf16, "xcC*", "FnU")
 BUILTIN(__builtin_nanf128, "LLdcC*", "FnU")
 BUILTIN(__builtin_nans,  "dcC*" , "FnU")
 BUILTIN(__builtin_nansf, "fcC*" , "FnU")
 BUILTIN(__builtin_nansl, "LdcC*", "FnU")
+BUILTIN(__builtin_nansf16, "xcC*", "FnU")
 BUILTIN(__builtin_nansf128, "LLdcC*", "FnU")
 BUILTIN(__builtin_powi , "ddi"  , "Fnc")
 BUILTIN(__builtin_powif, "ffi"  , "Fnc")
@@ -551,10 +556,11 @@ BUILTIN(__builtin_malloc, "v*z", "nF")
 BUILTIN(__builtin_memchr, "v*vC*iz", "nF")
 BUILTIN(__builtin_memcmp, "ivC*vC*z", "nF")
 BUILTIN(__builtin_memcpy, "v*v*vC*z", "nF")
-BUILTIN(__builtin_memcpy_inline, "vv*vC*Iz", "nt")
+BUILTIN(__builtin_memcpy_inline, "vv*vC*Iz", "n")
 BUILTIN(__builtin_memmove, "v*v*vC*z", "nF")
 BUILTIN(__builtin_mempcpy, "v*v*vC*z", "nF")
 BUILTIN(__builtin_memset, "v*v*iz", "nF")
+BUILTIN(__builtin_memset_inline, "vv*iIz", "n")
 BUILTIN(__builtin_printf, "icC*.", "Fp:0:")
 BUILTIN(__builtin_stpcpy, "c*c*cC*", "nF")
 BUILTIN(__builtin_stpncpy, "c*c*cC*z", "nF")
@@ -1335,7 +1341,7 @@ LIBBUILTIN(ilogbf, "if", "fne", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(ilogbl, "iLd", "fne", "math.h", ALL_LANGUAGES)
 
 // POSIX math.h declares a global, signgam, that lgamma writes to, so these
-// shouldn't have "e" or "c" attributes
+// shouldn't have "e", "c" or "g" attributes
 LIBBUILTIN(lgamma, "dd", "fn", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(lgammaf, "ff", "fn", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(lgammal, "LdLd", "fn", "math.h", ALL_LANGUAGES)
@@ -1396,9 +1402,9 @@ LIBBUILTIN(remquo, "dddi*", "fn", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(remquof, "fffi*", "fn", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(remquol, "LdLdLdi*", "fn", "math.h", ALL_LANGUAGES)
 
-LIBBUILTIN(rint, "dd", "fnc", "math.h", ALL_LANGUAGES)
-LIBBUILTIN(rintf, "ff", "fnc", "math.h", ALL_LANGUAGES)
-LIBBUILTIN(rintl, "LdLd", "fnc", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(rint, "dd", "fng", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(rintf, "ff", "fng", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(rintl, "LdLd", "fng", "math.h", ALL_LANGUAGES)
 
 LIBBUILTIN(round, "dd", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(roundf, "ff", "fnc", "math.h", ALL_LANGUAGES)
@@ -1694,7 +1700,8 @@ BUILTIN(__builtin_os_log_format, "v*v*cC*.", "p:0:nt")
 LANGBUILTIN(__builtin_get_device_side_mangled_name, "cC*.", "ncT", CUDA_LANG)
 
 // HLSL
-LANGBUILTIN(WaveActiveCountBits, "Uib", "nc", HLSL_LANG)
+LANGBUILTIN(__builtin_hlsl_wave_active_count_bits, "Uib", "nc", HLSL_LANG)
+LANGBUILTIN(__builtin_hlsl_create_handle, "v*Uc", "nc", HLSL_LANG)
 
 // Builtins for XRay
 BUILTIN(__xray_customevent, "vcC*z", "")

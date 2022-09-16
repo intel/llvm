@@ -104,6 +104,10 @@ PrimaryType mlir::sparse_tensor::primaryTypeEncoding(Type elemTp) {
     return PrimaryType::kF64;
   if (elemTp.isF32())
     return PrimaryType::kF32;
+  if (elemTp.isF16())
+    return PrimaryType::kF16;
+  if (elemTp.isBF16())
+    return PrimaryType::kBF16;
   if (elemTp.isInteger(64))
     return PrimaryType::kI64;
   if (elemTp.isInteger(32))
@@ -144,8 +148,20 @@ DimLevelType mlir::sparse_tensor::dimLevelTypeEncoding(
     return DimLevelType::kDense;
   case SparseTensorEncodingAttr::DimLevelType::Compressed:
     return DimLevelType::kCompressed;
+  case SparseTensorEncodingAttr::DimLevelType::CompressedNu:
+    return DimLevelType::kCompressedNu;
+  case SparseTensorEncodingAttr::DimLevelType::CompressedNo:
+    return DimLevelType::kCompressedNo;
+  case SparseTensorEncodingAttr::DimLevelType::CompressedNuNo:
+    return DimLevelType::kCompressedNuNo;
   case SparseTensorEncodingAttr::DimLevelType::Singleton:
     return DimLevelType::kSingleton;
+  case SparseTensorEncodingAttr::DimLevelType::SingletonNu:
+    return DimLevelType::kSingletonNu;
+  case SparseTensorEncodingAttr::DimLevelType::SingletonNo:
+    return DimLevelType::kSingletonNo;
+  case SparseTensorEncodingAttr::DimLevelType::SingletonNuNo:
+    return DimLevelType::kSingletonNuNo;
   }
   llvm_unreachable("Unknown SparseTensorEncodingAttr::DimLevelType");
 }

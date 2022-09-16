@@ -220,7 +220,8 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
   // Fold a binop with constant operands.
   if (Constant *CLHS = dyn_cast<Constant>(LHS))
     if (Constant *CRHS = dyn_cast<Constant>(RHS))
-      return ConstantExpr::get(Opcode, CLHS, CRHS);
+      if (Constant *Res = ConstantFoldBinaryOpOperands(Opcode, CLHS, CRHS, DL))
+        return Res;
 
   // Do a quick scan to see if we have this binop nearby.  If so, reuse it.
   unsigned ScanLimit = 6;
@@ -273,7 +274,9 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
   }
 
   // If we haven't found this binop, insert it.
-  Instruction *BO = cast<Instruction>(Builder.CreateBinOp(Opcode, LHS, RHS));
+  // TODO: Use the Builder, which will make CreateBinOp below fold with
+  // InstSimplifyFolder.
+  Instruction *BO = Builder.Insert(BinaryOperator::Create(Opcode, LHS, RHS));
   BO->setDebugLoc(Loc);
   if (Flags & SCEV::FlagNUW)
     BO->setHasNoUnsignedWrap();
@@ -1505,7 +1508,7 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
 Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
   // In canonical mode we compute the addrec as an expression of a canonical IV
   // using evaluateAtIteration and expand the resulting SCEV expression. This
-  // way we avoid introducing new IVs to carry on the comutation of the addrec
+  // way we avoid introducing new IVs to carry on the computation of the addrec
   // throughout the loop.
   //
   // For nested addrecs evaluateAtIteration might need a canonical IV of a
@@ -1632,7 +1635,6 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
     NewS = Ext;
 
   const SCEV *V = cast<SCEVAddRecExpr>(NewS)->evaluateAtIteration(IH, SE);
-  //cerr << "Evaluated: " << *this << "\n     to: " << *V << "\n";
 
   // Truncate the result down to the original type, if needed.
   const SCEV *T = SE.getTruncateOrNoop(V, Ty);
@@ -1933,7 +1935,7 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
   // so narrow phis can reuse them.
   for (PHINode *Phi : Phis) {
     auto SimplifyPHINode = [&](PHINode *PN) -> Value * {
-      if (Value *V = SimplifyInstruction(PN, {DL, &SE.TLI, &SE.DT, &SE.AC}))
+      if (Value *V = simplifyInstruction(PN, {DL, &SE.TLI, &SE.DT, &SE.AC}))
         return V;
       if (!SE.isSCEVable(PN->getType()))
         return nullptr;
@@ -2189,7 +2191,7 @@ template<typename T> static InstructionCost costAndCollectOperands(
   }
   case scAddRecExpr: {
     // In this polynominal, we may have some zero operands, and we shouldn't
-    // really charge for those. So how many non-zero coeffients are there?
+    // really charge for those. So how many non-zero coefficients are there?
     int NumTerms = llvm::count_if(S->operands(), [](const SCEV *Op) {
                                     return !Op->isZero();
                                   });
@@ -2198,7 +2200,7 @@ template<typename T> static InstructionCost costAndCollectOperands(
     assert(!(*std::prev(S->operands().end()))->isZero() &&
            "Last operand should not be zero");
 
-    // Ignoring constant term (operand 0), how many of the coeffients are u> 1?
+    // Ignoring constant term (operand 0), how many of the coefficients are u> 1?
     int NumNonZeroDegreeNonOneTerms =
       llvm::count_if(S->operands(), [](const SCEV *Op) {
                       auto *SConst = dyn_cast<SCEVConstant>(Op);
@@ -2517,7 +2519,7 @@ Value *SCEVExpander::expandUnionPredicate(const SCEVUnionPredicate *Union,
                                           Instruction *IP) {
   // Loop over all checks in this set.
   SmallVector<Value *> Checks;
-  for (auto Pred : Union->getPredicates()) {
+  for (const auto *Pred : Union->getPredicates()) {
     Checks.push_back(expandCodeForPredicate(Pred, IP));
     Builder.SetInsertPoint(IP);
   }
@@ -2566,9 +2568,7 @@ namespace {
 // only needed when the expression includes some subexpression that is not IV
 // derived.
 //
-// Currently, we only allow division by a nonzero constant here. If this is
-// inadequate, we could easily allow division by SCEVUnknown by using
-// ValueTracking to check isKnownNonZero().
+// Currently, we only allow division by a value provably non-zero here.
 //
 // We cannot generally expand recurrences unless the step dominates the loop
 // header. The expander handles the special case of affine recurrences by
@@ -2586,8 +2586,7 @@ struct SCEVFindUnsafe {
 
   bool follow(const SCEV *S) {
     if (const SCEVUDivExpr *D = dyn_cast<SCEVUDivExpr>(S)) {
-      const SCEVConstant *SC = dyn_cast<SCEVConstant>(D->getRHS());
-      if (!SC || SC->getValue()->isZero()) {
+      if (!SE.isKnownNonZero(D->getRHS())) {
         IsUnsafe = true;
         return false;
       }
@@ -2611,18 +2610,17 @@ struct SCEVFindUnsafe {
   }
   bool isDone() const { return IsUnsafe; }
 };
-}
+} // namespace
 
-namespace llvm {
-bool isSafeToExpand(const SCEV *S, ScalarEvolution &SE, bool CanonicalMode) {
+bool SCEVExpander::isSafeToExpand(const SCEV *S) const {
   SCEVFindUnsafe Search(SE, CanonicalMode);
   visitAll(S, Search);
   return !Search.IsUnsafe;
 }
 
-bool isSafeToExpandAt(const SCEV *S, const Instruction *InsertionPoint,
-                      ScalarEvolution &SE) {
-  if (!isSafeToExpand(S, SE))
+bool SCEVExpander::isSafeToExpandAt(const SCEV *S,
+                                    const Instruction *InsertionPoint) const {
+  if (!isSafeToExpand(S))
     return false;
   // We have to prove that the expanded site of S dominates InsertionPoint.
   // This is easy when not in the same block, but hard when S is an instruction
@@ -2671,5 +2669,4 @@ void SCEVExpanderCleaner::cleanup() {
     I->replaceAllUsesWith(UndefValue::get(I->getType()));
     I->eraseFromParent();
   }
-}
 }

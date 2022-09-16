@@ -719,7 +719,7 @@ void CodeViewDebug::emitTypeInformation() {
     return;
 
   // Start the .debug$T or .debug$P section with 0x4.
-  OS.SwitchSection(Asm->getObjFileLowering().getCOFFDebugTypesSection());
+  OS.switchSection(Asm->getObjFileLowering().getCOFFDebugTypesSection());
   emitCodeViewMagicVersion();
 
   TypeTableCollection Table(TypeTable.records());
@@ -752,7 +752,7 @@ void CodeViewDebug::emitTypeGlobalHashes() {
 
   // Start the .debug$H section with the version and hash algorithm, currently
   // hardcoded to version 0, SHA1.
-  OS.SwitchSection(Asm->getObjFileLowering().getCOFFGlobalTypeHashesSection());
+  OS.switchSection(Asm->getObjFileLowering().getCOFFGlobalTypeHashesSection());
 
   OS.emitValueToAlignment(4);
   OS.AddComment("Magic");
@@ -978,11 +978,11 @@ void CodeViewDebug::emitInlineeLinesSubsection() {
     assert(TypeIndices.count({SP, nullptr}));
     TypeIndex InlineeIdx = TypeIndices[{SP, nullptr}];
 
-    OS.AddBlankLine();
+    OS.addBlankLine();
     unsigned FileId = maybeRecordFile(SP->getFile());
     OS.AddComment("Inlined function " + SP->getName() + " starts at " +
                   SP->getFilename() + Twine(':') + Twine(SP->getLine()));
-    OS.AddBlankLine();
+    OS.addBlankLine();
     OS.AddComment("Type index of inlined function");
     OS.emitInt32(InlineeIdx.getIndex());
     OS.AddComment("Offset into filechecksum table");
@@ -1044,7 +1044,7 @@ void CodeViewDebug::switchToDebugSectionForSymbol(const MCSymbol *GVSym) {
       Asm->getObjFileLowering().getCOFFDebugSymbolsSection());
   DebugSec = OS.getContext().getAssociativeCOFFSection(DebugSec, KeySym);
 
-  OS.SwitchSection(DebugSec);
+  OS.switchSection(DebugSec);
 
   // Emit the magic version number if this is the first time we've switched to
   // this section.
@@ -1620,7 +1620,7 @@ TypeIndex CodeViewDebug::lowerType(const DIType *Ty, const DIType *ClassTy) {
   case dwarf::DW_TAG_pointer_type:
     if (cast<DIDerivedType>(Ty)->getName() == "__vtbl_ptr_type")
       return lowerTypeVFTableShape(cast<DIDerivedType>(Ty));
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case dwarf::DW_TAG_reference_type:
   case dwarf::DW_TAG_rvalue_reference_type:
     return lowerTypePointer(cast<DIDerivedType>(Ty));
@@ -3350,11 +3350,13 @@ void CodeViewDebug::emitDebugInfoForGlobal(const CVGlobalVariable &CVGV) {
   if (const auto *MemberDecl = dyn_cast_or_null<DIDerivedType>(
           DIGV->getRawStaticDataMemberDeclaration()))
     Scope = MemberDecl->getScope();
-  // For Fortran, the scoping portion is elided in its name so that we can
-  // reference the variable in the command line of the VS debugger.
+  // For static local variables and Fortran, the scoping portion is elided
+  // in its name so that we can reference the variable in the command line
+  // of the VS debugger.
   std::string QualifiedName =
-      (moduleIsInFortran()) ? std::string(DIGV->getName())
-                            : getFullyQualifiedName(Scope, DIGV->getName());
+      (moduleIsInFortran() || isa<DILocalScope>(Scope))
+          ? std::string(DIGV->getName())
+          : getFullyQualifiedName(Scope, DIGV->getName());
 
   if (const GlobalVariable *GV =
           CVGV.GVInfo.dyn_cast<const GlobalVariable *>()) {

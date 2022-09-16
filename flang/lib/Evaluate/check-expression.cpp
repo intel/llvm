@@ -98,7 +98,7 @@ template <bool INVARIANT>
 bool IsConstantExprHelper<INVARIANT>::IsConstantStructureConstructorComponent(
     const Symbol &component, const Expr<SomeType> &expr) const {
   if (IsAllocatable(component)) {
-    return IsNullPointer(expr);
+    return IsNullObjectPointer(expr);
   } else if (IsPointer(component)) {
     return IsNullPointer(expr) || IsInitialDataTarget(expr) ||
         IsInitialProcedureTarget(expr);
@@ -358,7 +358,7 @@ bool IsInitialProcedureTarget(const Expr<SomeType> &expr) {
   if (const auto *proc{std::get_if<ProcedureDesignator>(&expr.u)}) {
     return IsInitialProcedureTarget(*proc);
   } else {
-    return IsNullPointer(expr);
+    return IsNullProcedurePointer(expr);
   }
 }
 
@@ -418,7 +418,10 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
         int symRank{GetRank(symTS->shape())};
         if (IsImpliedShape(symbol)) {
           if (folded.Rank() == symRank) {
-            return {std::move(folded)};
+            return ArrayConstantBoundChanger{
+                std::move(*AsConstantExtents(
+                    context, GetRawLowerBounds(context, NamedEntity{symbol})))}
+                .ChangeLbounds(std::move(folded));
           } else {
             context.messages().Say(
                 "Implied-shape parameter '%s' has rank %d but its initializer has rank %d"_err_en_US,

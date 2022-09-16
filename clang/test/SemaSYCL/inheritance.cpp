@@ -35,9 +35,9 @@ struct derived : base, second_base, third_base{
 };
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     derived f{};
     cgh.single_task(f);
   });
@@ -62,7 +62,7 @@ int main() {
 // Check initializers for derived and base classes.
 // Each class has it's own initializer list
 // Base classes should be initialized first.
-// CHECK: VarDecl {{.*}} derived 'derived' cinit
+// CHECK: VarDecl {{.*}} used derived 'derived' cinit
 // CHECK-NEXT: InitListExpr {{.*}} 'derived'
 
 // base is a simple class with no corresponding generated type. Therefore

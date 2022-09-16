@@ -128,6 +128,19 @@ struct UnrollVectorOptions {
     };
     return *this;
   }
+
+  /// Function that returns the traversal order (in terms of "for loop order",
+  /// i.e. slowest varying dimension to fastest varying dimension) that shoudl
+  /// be used when unrolling the given operation into units of the native vector
+  /// size.
+  using UnrollTraversalOrderFnType =
+      std::function<Optional<SmallVector<int64_t>>(Operation *op)>;
+  UnrollTraversalOrderFnType traversalOrderCallback = nullptr;
+  UnrollVectorOptions &
+  setUnrollTraversalOrderFn(UnrollTraversalOrderFnType traversalOrderFn) {
+    traversalOrderCallback = std::move(traversalOrderFn);
+    return *this;
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -514,11 +527,12 @@ private:
   vector::VectorTransformsOptions vectorTransformOptions;
   FilterConstraintType filter;
   // Lower one parallel dimension.
-  Value lowerParallel(vector::ContractionOp op, int64_t lhsIndex,
-                      int64_t rhsIndex, PatternRewriter &rewriter) const;
+  FailureOr<Value> lowerParallel(vector::ContractionOp op, int64_t lhsIndex,
+                                 int64_t rhsIndex,
+                                 PatternRewriter &rewriter) const;
   // Lower one reduction dimension.
-  Value lowerReduction(vector::ContractionOp op,
-                       PatternRewriter &rewriter) const;
+  FailureOr<Value> lowerReduction(vector::ContractionOp op,
+                                  PatternRewriter &rewriter) const;
 };
 
 } // namespace vector

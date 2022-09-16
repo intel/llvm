@@ -138,6 +138,7 @@ interesting areas to contribute to lldb.
    use/remote
    use/qemu-testing
    use/intel_pt
+   use/ondemand
    use/troubleshooting
    use/links
 
@@ -149,6 +150,7 @@ interesting areas to contribute to lldb.
    resources/contributing
    resources/build
    resources/test
+   resources/fuzzing
    resources/bots
    resources/caveats
 

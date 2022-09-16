@@ -34,12 +34,10 @@ void full_size() {
   assert(wstr.max_size() == std::numeric_limits<size_t>::max() / sizeof(wchar_t) - alignment);
 #endif
 
-#ifndef TEST_HAS_NO_UNICODE_CHARS
   std::u16string u16str;
   std::u32string u32str;
   assert(u16str.max_size() == std::numeric_limits<size_t>::max() / 2 - alignment);
   assert(u32str.max_size() == std::numeric_limits<size_t>::max() / 4 - alignment);
-#endif
 }
 
 void half_size() {
@@ -56,19 +54,17 @@ void half_size() {
   assert(wstr.max_size() == std::numeric_limits<size_t>::max() / std::max<size_t>(2ul, sizeof(wchar_t)) - alignment);
 #endif
 
-#ifndef TEST_HAS_NO_UNICODE_CHARS
   std::u16string u16str;
   std::u32string u32str;
   assert(u16str.max_size() == std::numeric_limits<size_t>::max() / 2 - alignment);
   assert(u32str.max_size() == std::numeric_limits<size_t>::max() / 4 - alignment);
-#endif
 }
 
 bool test() {
 
 #if _LIBCPP_ABI_VERSION == 1
 
-# if defined(__x86_64__)
+# if defined(__x86_64__) || defined(__i386__)
   full_size();
 # elif defined(__APPLE__) && defined(__aarch64__)
   half_size();
@@ -79,6 +75,12 @@ bool test() {
   full_size();
 #   endif
 # elif defined(__powerpc__) || defined(__powerpc64__)
+#   ifdef __BIG_ENDIAN__
+  half_size();
+#   else
+  full_size();
+#   endif
+# elif defined(__sparc64__)
   half_size();
 # elif defined(_WIN32)
   full_size();

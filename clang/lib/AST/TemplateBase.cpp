@@ -321,26 +321,15 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
 
   case Declaration:
     getParamTypeForDecl().Profile(ID);
-    ID.AddPointer(getAsDecl()? getAsDecl()->getCanonicalDecl() : nullptr);
+    ID.AddPointer(getAsDecl());
     break;
 
+  case TemplateExpansion:
+    ID.AddInteger(TemplateArg.NumExpansions);
+    LLVM_FALLTHROUGH;
   case Template:
-  case TemplateExpansion: {
-    TemplateName Template = getAsTemplateOrTemplatePattern();
-    if (TemplateTemplateParmDecl *TTP
-          = dyn_cast_or_null<TemplateTemplateParmDecl>(
-                                                Template.getAsTemplateDecl())) {
-      ID.AddBoolean(true);
-      ID.AddInteger(TTP->getDepth());
-      ID.AddInteger(TTP->getPosition());
-      ID.AddBoolean(TTP->isParameterPack());
-    } else {
-      ID.AddBoolean(false);
-      ID.AddPointer(Context.getCanonicalTemplateName(Template)
-                                                          .getAsVoidPointer());
-    }
+    getAsTemplateOrTemplatePattern().Profile(ID);
     break;
-  }
 
   case Integral:
     getAsIntegral().Profile(ID);
@@ -617,6 +606,17 @@ ASTTemplateArgumentListInfo::Create(const ASTContext &C,
   return new (Mem) ASTTemplateArgumentListInfo(List);
 }
 
+const ASTTemplateArgumentListInfo *
+ASTTemplateArgumentListInfo::Create(const ASTContext &C,
+                                    const ASTTemplateArgumentListInfo *List) {
+  if (!List)
+    return nullptr;
+  std::size_t size =
+      totalSizeToAlloc<TemplateArgumentLoc>(List->getNumTemplateArgs());
+  void *Mem = C.Allocate(size, alignof(ASTTemplateArgumentListInfo));
+  return new (Mem) ASTTemplateArgumentListInfo(List);
+}
+
 ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
     const TemplateArgumentListInfo &Info) {
   LAngleLoc = Info.getLAngleLoc();
@@ -626,6 +626,17 @@ ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
   TemplateArgumentLoc *ArgBuffer = getTrailingObjects<TemplateArgumentLoc>();
   for (unsigned i = 0; i != NumTemplateArgs; ++i)
     new (&ArgBuffer[i]) TemplateArgumentLoc(Info[i]);
+}
+
+ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
+    const ASTTemplateArgumentListInfo *Info) {
+  LAngleLoc = Info->getLAngleLoc();
+  RAngleLoc = Info->getRAngleLoc();
+  NumTemplateArgs = Info->getNumTemplateArgs();
+
+  TemplateArgumentLoc *ArgBuffer = getTrailingObjects<TemplateArgumentLoc>();
+  for (unsigned i = 0; i != NumTemplateArgs; ++i)
+    new (&ArgBuffer[i]) TemplateArgumentLoc((*Info)[i]);
 }
 
 void ASTTemplateKWAndArgsInfo::initializeFrom(

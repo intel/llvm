@@ -1183,7 +1183,7 @@ class ElementRegion : public TypedValueRegion {
   ElementRegion(QualType elementType, NonLoc Idx, const SubRegion *sReg)
       : TypedValueRegion(sReg, ElementRegionKind), ElementType(elementType),
         Index(Idx) {
-    assert((!Idx.getAs<nonloc::ConcreteInt>() ||
+    assert((!isa<nonloc::ConcreteInt>(Idx) ||
             Idx.castAs<nonloc::ConcreteInt>().getValue().isSigned()) &&
            "The index must be signed");
     assert(!elementType.isNull() && !elementType->isVoidType() &&
@@ -1364,6 +1364,7 @@ public:
   ~MemRegionManager();
 
   ASTContext &getContext() { return Ctx; }
+  const ASTContext &getContext() const { return Ctx; }
 
   llvm::BumpPtrAllocator &getAllocator() { return A; }
 

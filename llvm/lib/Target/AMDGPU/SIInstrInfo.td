@@ -193,43 +193,32 @@ def SIbuffer_atomic_fadd : SDBufferAtomic <"AMDGPUISD::BUFFER_ATOMIC_FADD">;
 def SIbuffer_atomic_fmin : SDBufferAtomic <"AMDGPUISD::BUFFER_ATOMIC_FMIN">;
 def SIbuffer_atomic_fmax : SDBufferAtomic <"AMDGPUISD::BUFFER_ATOMIC_FMAX">;
 
-multiclass SDBufferAtomicRetNoRet {
-  def "_ret" : PatFrag<
-    (ops node:$vdata_in, node:$rsrc, node:$vindex, node:$voffset, node:$soffset,
-      node:$offset, node:$cachepolicy, node:$idxen),
-    (!cast<SDNode>(NAME) node:$vdata_in, node:$rsrc, node:$vindex,
-      node:$voffset, node:$soffset, node:$offset, node:$cachepolicy,
-      node:$idxen)> {
-    let PredicateCode = [{ return !(SDValue(N, 0).use_empty()); }];
-    let GISelPredicateCode = [{ return true; }];
-  }
-
+multiclass SDBufferAtomicNoRet {
   def "_noret" : PatFrag<
     (ops node:$vdata_in, node:$rsrc, node:$vindex, node:$voffset, node:$soffset,
       node:$offset, node:$cachepolicy, node:$idxen),
     (!cast<SDNode>(NAME) node:$vdata_in, node:$rsrc, node:$vindex,
       node:$voffset, node:$soffset, node:$offset, node:$cachepolicy,
       node:$idxen)> {
-    let PredicateCode = [{ return SDValue(N, 0).use_empty(); }];
-    let GISelPredicateCode = [{ return false; }];
+    let HasNoUse = true;
   }
 }
 
-defm SIbuffer_atomic_swap : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_add : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_sub : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_smin : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_umin : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_smax : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_umax : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_and : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_or : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_xor : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_inc : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_dec : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_fadd : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_fmin : SDBufferAtomicRetNoRet;
-defm SIbuffer_atomic_fmax : SDBufferAtomicRetNoRet;
+defm SIbuffer_atomic_swap : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_add : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_sub : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_smin : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_umin : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_smax : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_umax : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_and : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_or : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_xor : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_inc : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_dec : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_fadd : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_fmin : SDBufferAtomicNoRet;
+defm SIbuffer_atomic_fmax : SDBufferAtomicNoRet;
 
 def SIbuffer_atomic_cmpswap : SDNode <"AMDGPUISD::BUFFER_ATOMIC_CMPSWAP",
   SDTypeProfile<1, 9,
@@ -246,24 +235,13 @@ def SIbuffer_atomic_cmpswap : SDNode <"AMDGPUISD::BUFFER_ATOMIC_CMPSWAP",
   [SDNPMemOperand, SDNPHasChain, SDNPMayLoad, SDNPMayStore]
 >;
 
-def SIbuffer_atomic_cmpswap_ret : PatFrag<
-  (ops node:$src, node:$cmp, node:$rsrc, node:$vindex, node:$voffset,
-    node:$soffset, node:$offset, node:$cachepolicy, node:$idxen),
-  (SIbuffer_atomic_cmpswap node:$src, node:$cmp, node:$rsrc, node:$vindex,
-    node:$voffset, node:$soffset, node:$offset, node:$cachepolicy,
-    node:$idxen)> {
-  let PredicateCode = [{ return !(SDValue(N, 0).use_empty()); }];
-  let GISelPredicateCode = [{ return true; }];
-}
-
 def SIbuffer_atomic_cmpswap_noret : PatFrag<
   (ops node:$src, node:$cmp, node:$rsrc, node:$vindex, node:$voffset,
     node:$soffset, node:$offset, node:$cachepolicy, node:$idxen),
   (SIbuffer_atomic_cmpswap node:$src, node:$cmp, node:$rsrc, node:$vindex,
     node:$voffset, node:$soffset, node:$offset, node:$cachepolicy,
     node:$idxen)> {
-  let PredicateCode = [{ return SDValue(N, 0).use_empty(); }];
-  let GISelPredicateCode = [{ return false; }];
+  let HasNoUse = true;
 }
 
 class SDGlobalAtomicNoRtn<string opcode, ValueType ty> : SDNode <opcode,
@@ -329,13 +307,14 @@ def SIfptrunc_round_downward : SDNode<"AMDGPUISD::FPTRUNC_ROUND_DOWNWARD",
 //===----------------------------------------------------------------------===//
 
 // Returns 1 if the source arguments have modifiers, 0 if they do not.
-// XXX - do f16 instructions?
 class isFloatType<ValueType SrcVT> {
   bit ret = !or(!eq(SrcVT.Value, f16.Value),
                 !eq(SrcVT.Value, f32.Value),
                 !eq(SrcVT.Value, f64.Value),
                 !eq(SrcVT.Value, v2f16.Value),
                 !eq(SrcVT.Value, v4f16.Value),
+                !eq(SrcVT.Value, v8f16.Value),
+                !eq(SrcVT.Value, v16f16.Value),
                 !eq(SrcVT.Value, v2f32.Value),
                 !eq(SrcVT.Value, v4f32.Value),
                 !eq(SrcVT.Value, v8f32.Value),
@@ -343,10 +322,15 @@ class isFloatType<ValueType SrcVT> {
                 !eq(SrcVT.Value, v4f64.Value));
 }
 
+// XXX - do v2i16 instructions?
 class isIntType<ValueType SrcVT> {
-  bit ret = !or(!eq(SrcVT.Value, i16.Value),
+  bit ret = !or(!eq(SrcVT.Value, i8.Value),
+                !eq(SrcVT.Value, i16.Value),
                 !eq(SrcVT.Value, i32.Value),
                 !eq(SrcVT.Value, i64.Value),
+                !eq(SrcVT.Value, v4i16.Value),
+                !eq(SrcVT.Value, v8i16.Value),
+                !eq(SrcVT.Value, v16i16.Value),
                 !eq(SrcVT.Value, v2i32.Value),
                 !eq(SrcVT.Value, v4i32.Value),
                 !eq(SrcVT.Value, v8i32.Value));
@@ -769,13 +753,13 @@ multiclass SIAtomicM0Glue2 <string op_name, bit is_amdgpu = 0,
 
   let AddressSpaces = StoreAddress_local.AddrSpaces in {
     defm _local_m0 : binary_atomic_op <!cast<SDNode>(NAME#"_glue"), IsInt>;
-    defm _local_m0 : ret_noret_binary_atomic_op <!cast<SDNode>(NAME#"_glue"),
+    defm _local_m0 : noret_binary_atomic_op <!cast<SDNode>(NAME#"_glue"),
                                                  IsInt>;
   }
 
   let AddressSpaces = StoreAddress_region.AddrSpaces in {
     defm _region_m0 : binary_atomic_op <!cast<SDNode>(NAME#"_glue"), IsInt>;
-    defm _region_m0 : ret_noret_binary_atomic_op <!cast<SDNode>(NAME#"_glue"),
+    defm _region_m0 : noret_binary_atomic_op <!cast<SDNode>(NAME#"_glue"),
                                                   IsInt>;
   }
 }
@@ -1272,14 +1256,6 @@ def FORMAT : NamedOperandU8<"FORMAT", NamedMatchClass<"FORMAT", 0>>;
 def DMask : NamedOperandU16<"DMask", NamedMatchClass<"DMask">>;
 def Dim : NamedOperandU8<"Dim", NamedMatchClass<"Dim", 0>>;
 
-def dpp8 : NamedOperandU32<"DPP8", NamedMatchClass<"DPP8", 0>>;
-
-def dpp_ctrl : NamedOperandU32<"DPPCtrl", NamedMatchClass<"DPPCtrl", 0>>;
-def row_mask : NamedOperandU32<"RowMask", NamedMatchClass<"RowMask">>;
-def bank_mask : NamedOperandU32<"BankMask", NamedMatchClass<"BankMask">>;
-def bound_ctrl : NamedOperandBit<"BoundCtrl", NamedMatchClass<"BoundCtrl">>;
-def FI : NamedOperandU32<"FI", NamedMatchClass<"FI">>;
-
 def dst_sel : NamedOperandU32<"SDWADstSel", NamedMatchClass<"SDWADstSel">>;
 def src0_sel : NamedOperandU32<"SDWASrc0Sel", NamedMatchClass<"SDWASrc0Sel">>;
 def src1_sel : NamedOperandU32<"SDWASrc1Sel", NamedMatchClass<"SDWASrc1Sel">>;
@@ -1289,6 +1265,14 @@ def op_sel0 : NamedOperandU32Default0<"OpSel", NamedMatchClass<"OpSel">>;
 def op_sel_hi0 : NamedOperandU32Default0<"OpSelHi", NamedMatchClass<"OpSelHi">>;
 def neg_lo0 : NamedOperandU32Default0<"NegLo", NamedMatchClass<"NegLo">>;
 def neg_hi0 : NamedOperandU32Default0<"NegHi", NamedMatchClass<"NegHi">>;
+
+def dpp8 : NamedOperandU32<"DPP8", NamedMatchClass<"DPP8", 0>>;
+def dpp_ctrl : NamedOperandU32<"DPPCtrl", NamedMatchClass<"DPPCtrl", 0>>;
+
+def row_mask : NamedOperandU32<"RowMask", NamedMatchClass<"RowMask">>;
+def bank_mask : NamedOperandU32<"BankMask", NamedMatchClass<"BankMask">>;
+def bound_ctrl : NamedOperandBit<"BoundCtrl", NamedMatchClass<"BoundCtrl">>;
+def FI : NamedOperandU32<"FI", NamedMatchClass<"FI">>;
 
 def blgp : NamedOperandU32<"BLGP", NamedMatchClass<"BLGP">>;
 def cbsz : NamedOperandU32<"CBSZ", NamedMatchClass<"CBSZ">>;
@@ -1335,9 +1319,17 @@ class FPInputModsMatchClass <int opSize> : AsmOperandClass {
   let PredicateMethod = "isRegOrImmWithFP"#opSize#"InputMods";
 }
 
+class FPVCSrcInputModsMatchClass <int opSize> : FPInputModsMatchClass <opSize> {
+  let Name = "RegOrInlineImmWithFP"#opSize#"InputMods";
+  let PredicateMethod = "isRegOrInlineImmWithFP"#opSize#"InputMods";
+}
+
 def FP16InputModsMatchClass : FPInputModsMatchClass<16>;
 def FP32InputModsMatchClass : FPInputModsMatchClass<32>;
 def FP64InputModsMatchClass : FPInputModsMatchClass<64>;
+
+def FP16VCSrcInputModsMatchClass : FPVCSrcInputModsMatchClass<16>;
+def FP32VCSrcInputModsMatchClass : FPVCSrcInputModsMatchClass<32>;
 
 class InputMods <AsmOperandClass matchClass> : Operand <i32> {
   let OperandNamespace = "AMDGPU";
@@ -1353,19 +1345,28 @@ def FP16InputMods : FPInputMods<FP16InputModsMatchClass>;
 def FP32InputMods : FPInputMods<FP32InputModsMatchClass>;
 def FP64InputMods : FPInputMods<FP64InputModsMatchClass>;
 
+def FP16VCSrcInputMods : FPInputMods<FP16VCSrcInputModsMatchClass>;
+def FP32VCSrcInputMods : FPInputMods<FP32VCSrcInputModsMatchClass>;
+
 class IntInputModsMatchClass <int opSize> : AsmOperandClass {
   let Name = "RegOrImmWithInt"#opSize#"InputMods";
   let ParserMethod = "parseRegOrImmWithIntInputMods";
   let PredicateMethod = "isRegOrImmWithInt"#opSize#"InputMods";
 }
+class IntVCSrcInputModsMatchClass <int opSize> : IntInputModsMatchClass <opSize> {
+  let Name = "RegOrInlineImmWithInt"#opSize#"InputMods";
+  let PredicateMethod = "isRegOrInlineImmWithInt"#opSize#"InputMods";
+}
 def Int32InputModsMatchClass : IntInputModsMatchClass<32>;
 def Int64InputModsMatchClass : IntInputModsMatchClass<64>;
+def Int32VCSrcInputModsMatchClass : IntVCSrcInputModsMatchClass<32>;
 
 class IntInputMods <IntInputModsMatchClass matchClass> : InputMods <matchClass> {
   let PrintMethod = "printOperandAndIntInputMods";
 }
 def Int32InputMods : IntInputMods<Int32InputModsMatchClass>;
 def Int64InputMods : IntInputMods<Int64InputModsMatchClass>;
+def Int32VCSrcInputMods : IntInputMods<Int32VCSrcInputModsMatchClass>;
 
 class OpSelModsMatchClass : AsmOperandClass {
   let Name = "OpSelMods";
@@ -1411,6 +1412,10 @@ class IntSDWAInputModsMatchClass <int opSize> : AsmOperandClass {
 
 def Int16SDWAInputModsMatchClass : IntSDWAInputModsMatchClass<16>;
 def Int32SDWAInputModsMatchClass : IntSDWAInputModsMatchClass<32>;
+def Bin32SDWAInputModsMatchClass : IntSDWAInputModsMatchClass<32> {
+  let Name = "SDWAWithBin32InputMods";
+  let ParserMethod = "parseRegOrImm";
+}
 
 class IntSDWAInputMods <IntSDWAInputModsMatchClass matchClass> :
   InputMods <matchClass> {
@@ -1419,6 +1424,7 @@ class IntSDWAInputMods <IntSDWAInputModsMatchClass matchClass> :
 
 def Int16SDWAInputMods : IntSDWAInputMods<Int16SDWAInputModsMatchClass>;
 def Int32SDWAInputMods : IntSDWAInputMods<Int32SDWAInputModsMatchClass>;
+def Bin32SDWAInputMods : IntSDWAInputMods<Bin32SDWAInputModsMatchClass>;
 
 def IntVRegInputModsMatchClass : AsmOperandClass {
   let Name = "VRegWithIntInputMods";
@@ -1479,6 +1485,8 @@ def VOP3OMods : ComplexPattern<untyped, 3, "SelectVOP3OMods">;
 def VOP3PMods  : ComplexPattern<untyped, 2, "SelectVOP3PMods">;
 
 def VOP3PModsDOT  : ComplexPattern<untyped, 2, "SelectVOP3PModsDOT">;
+def DotIUVOP3PMods  : ComplexPattern<untyped, 1, "SelectDotIUVOP3PMods">;
+def WMMAOpSelVOP3PMods  : ComplexPattern<untyped, 1, "SelectWMMAOpSelVOP3PMods">;
 
 def VOP3OpSel  : ComplexPattern<untyped, 2, "SelectVOP3OpSel">;
 
@@ -1692,6 +1700,19 @@ class getVOP3SrcForVT<ValueType VT> {
   );
 }
 
+// Src2 of VOP3 DPP instructions cannot be a literal
+class getVOP3DPPSrcForVT<ValueType VT> {
+  bit isFP = isFloatType<VT>.ret;
+  RegisterOperand ret =
+      !if (!eq(VT.Value, i1.Value), SSrc_i1,
+           !if (isFP,
+                !if (!eq(VT.Value, f16.Value), VCSrc_f16,
+                     !if (!eq(VT.Value, v2f16.Value), VCSrc_v2f16, VCSrc_f32)),
+                !if (!eq(VT.Value, i16.Value), VCSrc_b16,
+                     !if (!eq(VT.Value, v2i16.Value), VCSrc_v2b16,
+                          VCSrc_b32))));
+}
+
 // Float or packed int
 class isModifierType<ValueType SrcVT> {
   bit ret = !or(!eq(SrcVT.Value, f16.Value),
@@ -1701,10 +1722,16 @@ class isModifierType<ValueType SrcVT> {
                 !eq(SrcVT.Value, v2i16.Value),
                 !eq(SrcVT.Value, v2f32.Value),
                 !eq(SrcVT.Value, v2i32.Value),
+                !eq(SrcVT.Value, v4f16.Value),
+                !eq(SrcVT.Value, v4i16.Value),
                 !eq(SrcVT.Value, v4f32.Value),
                 !eq(SrcVT.Value, v4i32.Value),
+                !eq(SrcVT.Value, v8f16.Value),
+                !eq(SrcVT.Value, v8i16.Value),
                 !eq(SrcVT.Value, v8f32.Value),
-                !eq(SrcVT.Value, v8i32.Value));
+                !eq(SrcVT.Value, v8i32.Value),
+                !eq(SrcVT.Value, v16f16.Value),
+                !eq(SrcVT.Value, v16i16.Value));
 }
 
 // Return type of input modifiers operand for specified input operand
@@ -1730,6 +1757,17 @@ class getOpSelMod <ValueType VT> {
 class getSrcModDPP <ValueType VT> {
   bit isFP = isFloatType<VT>.ret;
   Operand ret = !if(isFP, FPVRegInputMods, IntVRegInputMods);
+}
+
+// Return type of input modifiers operand for specified input operand for DPP
+class getSrcModVOP3DPP <ValueType VT, bit EnableF32SrcMods> {
+  bit isFP = isFloatType<VT>.ret;
+  bit isPacked = isPackedType<VT>.ret;
+  Operand ret =
+      !if (isFP,
+           !if (!eq(VT.Value, f16.Value), FP16VCSrcInputMods,
+                FP32VCSrcInputMods),
+           !if (EnableF32SrcMods, FP32VCSrcInputMods, Int32VCSrcInputMods));
 }
 
 // Return type of input modifiers operand specified input operand for SDWA
@@ -1864,58 +1902,97 @@ class getInsVOP3OpSel <RegisterOperand Src0RC, RegisterOperand Src1RC,
 }
 
 class getInsDPPBase <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
-                 int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod> {
+                 RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld> {
 
-  dag ret = !if (!eq(NumSrcArgs, 0),
+  dag ret = !if(!eq(NumSrcArgs, 0),
                 // VOP1 without input operands (V_NOP)
                 (ins ),
-            !if (!eq(NumSrcArgs, 1),
-              !if (HasModifiers,
-                // VOP1_DPP with modifiers
-                (ins OldRC:$old, Src0Mod:$src0_modifiers,
-                     Src0RC:$src0)
-              /* else */,
-                // VOP1_DPP without modifiers
-                (ins OldRC:$old, Src0RC:$src0)
-              /* endif */),
-              !if (HasModifiers,
-                // VOP2_DPP with modifiers
-                (ins OldRC:$old,
-                     Src0Mod:$src0_modifiers, Src0RC:$src0,
-                     Src1Mod:$src1_modifiers, Src1RC:$src1)
-              /* else */,
-                // VOP2_DPP without modifiers
-                (ins OldRC:$old,
-                     Src0RC:$src0, Src1RC:$src1)
-                )));
+                !con(
+                  !if(HasOld ,(ins OldRC:$old), (ins)),
+                  !if (!eq(NumSrcArgs, 1),
+                    !if (HasModifiers,
+                      // VOP1_DPP with modifiers
+                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0)
+                    /* else */,
+                      // VOP1_DPP without modifiers
+                      (ins Src0RC:$src0)
+                    /* endif */),
+                  !if (!eq(NumSrcArgs, 2),
+                    !if (HasModifiers,
+                      // VOP2_DPP with modifiers
+                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
+                       Src1Mod:$src1_modifiers, Src1RC:$src1)
+                    /* else */,
+                      // VOP2_DPP without modifiers
+                      (ins Src0RC:$src0, Src1RC:$src1)
+                    )
+                    /* NumSrcArgs == 3, VOP3 */,
+                    !if (HasModifiers,
+                      // VOP3_DPP with modifiers
+                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
+                       Src1Mod:$src1_modifiers, Src1RC:$src1,
+                       Src2Mod:$src2_modifiers, Src2RC:$src2)
+                    /* else */,
+                      // VOP3_DPP without modifiers
+                      (ins Src0RC:$src0, Src1RC:$src1,
+                       Src2RC:$src2)
+                      )
+                    )
+                  )
+                )
+            );
 }
 
 class getInsDPP <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
-                 int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod> {
-  dag ret = !con(getInsDPPBase<OldRC, Src0RC, Src1RC, NumSrcArgs,
-                               HasModifiers, Src0Mod, Src1Mod>.ret,
+                 RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld = 1> {
+  dag ret = !con(getInsDPPBase<OldRC, Src0RC, Src1RC, Src2RC, NumSrcArgs,
+                           HasModifiers, Src0Mod, Src1Mod, Src2Mod, HasOld>.ret,
                  (ins dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
-                  bank_mask:$bank_mask, bound_ctrl:$bound_ctrl));
+                     bank_mask:$bank_mask, bound_ctrl:$bound_ctrl));
 }
 
 class getInsDPP16 <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
-                 int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod> {
-  dag ret = !con(getInsDPP<OldRC, Src0RC, Src1RC, NumSrcArgs,
-                           HasModifiers, Src0Mod, Src1Mod>.ret,
+                 RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld = 1> {
+  dag ret = !con(getInsDPP<OldRC, Src0RC, Src1RC, Src2RC, NumSrcArgs,
+                           HasModifiers, Src0Mod, Src1Mod, Src2Mod, HasOld>.ret,
                  (ins FI:$fi));
 }
 
 class getInsDPP8 <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
-                 int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod> {
-  dag ret = !con(getInsDPPBase<OldRC, Src0RC, Src1RC, NumSrcArgs,
-                               HasModifiers, Src0Mod, Src1Mod>.ret,
+                 RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld = 1> {
+  dag ret = !con(getInsDPPBase<OldRC, Src0RC, Src1RC, Src2RC, NumSrcArgs,
+                           HasModifiers, Src0Mod, Src1Mod, Src2Mod, HasOld>.ret,
                  (ins dpp8:$dpp8, FI:$fi));
 }
 
+class getInsVOP3DPPBase<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld> {
+  dag old = ( ins OldRC:$old );
+  dag base = VOP3Base;
+  dag ret =  !con(
+                !if(!and(HasOld,!ne(NumSrcArgs, 0)), old, (ins)),
+                base
+              );
+}
+
+class getInsVOP3DPP<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld = 1> {
+  dag ret = !con(getInsVOP3DPPBase<VOP3Base,OldRC,NumSrcArgs,HasOld>.ret,
+                 (ins dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
+                     bank_mask:$bank_mask, bound_ctrl:$bound_ctrl));
+}
+
+class getInsVOP3DPP16<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld = 1> {
+  dag ret = !con(getInsVOP3DPP<VOP3Base,OldRC,NumSrcArgs,HasOld>.ret,
+                 (ins FI:$fi));
+}
+
+class getInsVOP3DPP8<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld = 1> {
+  dag ret = !con(getInsVOP3DPPBase<VOP3Base,OldRC,NumSrcArgs,HasOld>.ret,
+                 (ins dpp8:$dpp8, FI:$fi));
+}
 
 // Ins for SDWA
 class getInsSDWA <RegisterOperand Src0RC, RegisterOperand Src1RC, int NumSrcArgs,
@@ -1991,6 +2068,15 @@ class getAsm32 <bit HasDst, int NumSrcArgs, ValueType DstVT = i32> {
                !if(!eq(NumSrcArgs, 1), src0, "") #
                !if(!eq(NumSrcArgs, 2), src0#src1, "") #
                !if(!eq(NumSrcArgs, 3), src0#src1#src2, "");
+}
+
+class getAsmVOPDPart <int NumSrcArgs, string XorY> {
+  string dst = "$vdst" # XorY;
+  string src0 = ", $src0" # XorY;
+  string src1 = ", $vsrc1" # XorY;
+  string ret = dst #
+               !if(!ge(NumSrcArgs, 1), src0, "") #
+               !if(!ge(NumSrcArgs, 2), src1, "");
 }
 
 // Returns the assembly string for the inputs and outputs of a VOP3
@@ -2079,8 +2165,56 @@ class getAsmDPP16 <bit HasDst, int NumSrcArgs, bit HasModifiers, ValueType DstVT
 }
 
 class getAsmDPP8 <bit HasDst, int NumSrcArgs, bit HasModifiers, ValueType DstVT = i32>
-  : getAsmDPP<HasDst, NumSrcArgs, HasModifiers, DstVT> {
+  : getAsmDPP<HasDst, NumSrcArgs, HasModifiers, DstVT>{
   let ret = dst#args#" $dpp8$fi";
+}
+
+class getAsmVOP3DPPBase <int NumSrcArgs, bit HasDst, bit HasClamp,
+                       bit HasOpSel, bit HasOMod, bit IsVOP3P,
+                       bit HasModifiers, bit Src0HasMods,
+                       bit Src1HasMods, bit Src2HasMods, ValueType DstVT = i32> {
+  string dst = !if(HasDst,
+                   !if(!eq(DstVT.Size, 1),
+                       "$sdst",
+                       "$vdst"),
+                    ""); // use $sdst for VOPC
+  string src0nomods = !if(!eq(NumSrcArgs, 1), "$src0", "$src0,");
+  string src1nomods = !if(!eq(NumSrcArgs, 1), "",
+                    !if(!eq(NumSrcArgs, 2), " $src1",
+                                            " $src1,"));
+  string src2nomods = !if(!eq(NumSrcArgs, 3), " $src2", "");
+
+  string src0mods = !if(!eq(NumSrcArgs, 1), "$src0_modifiers", "$src0_modifiers,");
+  string src1mods = !if(!eq(NumSrcArgs, 1), "",
+                    !if(!eq(NumSrcArgs, 2), " $src1_modifiers",
+                                            " $src1_modifiers,"));
+  string src2mods = !if(!eq(NumSrcArgs, 3), " $src2_modifiers", "");
+
+  string src0 = !if(Src0HasMods, src0mods, src0nomods);
+  string src1 = !if(Src1HasMods, src1mods, src1nomods);
+  string src2 = !if(Src2HasMods, src2mods, src2nomods);
+  string opsel = !if(HasOpSel, "$op_sel", "");
+  string 3PMods = !if(IsVOP3P,
+                      !if(HasOpSel, "$op_sel_hi", "")
+                        #!if(HasModifiers, "$neg_lo$neg_hi", ""),
+                      "");
+  string clamp = !if(HasClamp, "$clamp", "");
+  string omod = !if(HasOMod, "$omod", "");
+
+  string ret = dst#", "#src0#src1#src2#opsel#3PMods#clamp#omod;
+
+}
+
+class getAsmVOP3DPP<string base> {
+  string ret = base # " $dpp_ctrl$row_mask$bank_mask$bound_ctrl";
+}
+
+class getAsmVOP3DPP16<string base> {
+  string ret = getAsmVOP3DPP<base>.ret # "$fi";
+}
+
+class getAsmVOP3DPP8<string base> {
+  string ret = base # " $dpp8$fi";
 }
 
 
@@ -2219,6 +2353,24 @@ class BitAnd<bit a, bit b> {
   bit ret = !if(a, !if(b, 1, 0), 0);
 }
 
+class getHasVOP3DPP <ValueType DstVT = i32, ValueType Src0VT = i32,
+                 ValueType Src1VT = i32, ValueType Src2VT = i32> {
+  bit ret =    !if(!eq(DstVT.Size, 64),
+                    0, // 64-bit dst No DPP for 64-bit operands
+                    !if(!eq(Src0VT.Size, 64),
+                        0, // 64-bit src0
+                        !if(!eq(Src1VT.Size, 64),
+                            0, // 64-bit src1
+                            !if(!eq(Src2VT.Size, 64),
+                                0, // 64-bit src2
+                                1
+                            )
+                        )
+                    )
+                );
+}
+
+
 def PatGenMode {
   int NoPattern = 0;
   int Pattern   = 1;
@@ -2236,8 +2388,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field ValueType Src1VT = ArgVT[2];
   field ValueType Src2VT = ArgVT[3];
   field RegisterOperand DstRC = getVALUDstForVT<DstVT>.ret;
+  field RegisterOperand DstRCDPP = DstRC;
   field RegisterOperand DstRC64 = DstRC;
-  field RegisterOperand DstRCDPP = getVALUDstForVT<DstVT>.ret;
+  field RegisterOperand DstRCVOP3DPP = DstRC64;
   field RegisterOperand DstRCSDWA = getSDWADstForVT<DstVT>.ret;
   field RegisterOperand Src0RC32 = getVOPSrc0ForVT<Src0VT>.ret;
   field RegisterOperand Src1RC32 = RegisterOperand<getVregSrcForVT<Src1VT>.ret>;
@@ -2246,6 +2399,10 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field RegisterOperand Src2RC64 = getVOP3SrcForVT<Src2VT>.ret;
   field RegisterClass Src0DPP = getVregSrcForVT<Src0VT>.ret;
   field RegisterClass Src1DPP = getVregSrcForVT<Src1VT>.ret;
+  field RegisterClass Src2DPP = getVregSrcForVT<Src2VT>.ret;
+  field RegisterOperand Src0VOP3DPP = VGPRSrc_32;
+  field RegisterOperand Src1VOP3DPP = VGPRSrc_32;
+  field RegisterOperand Src2VOP3DPP = getVOP3DPPSrcForVT<Src2VT>.ret;
   field RegisterOperand Src0SDWA = getSDWASrcForVT<Src0VT>.ret;
   field RegisterOperand Src1SDWA = getSDWASrcForVT<Src0VT>.ret;
   field Operand Src0Mod = getSrcMod<Src0VT, EnableF32SrcMods>.ret;
@@ -2253,6 +2410,8 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field Operand Src2Mod = getSrcMod<Src2VT, EnableF32SrcMods>.ret;
   field Operand Src0ModDPP = getSrcModDPP<Src0VT>.ret;
   field Operand Src1ModDPP = getSrcModDPP<Src1VT>.ret;
+  field Operand Src2ModDPP = getSrcModDPP<Src2VT>.ret;
+  field Operand Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, EnableF32SrcMods>.ret;
   field Operand Src0ModSDWA = getSrcModSDWA<Src0VT>.ret;
   field Operand Src1ModSDWA = getSrcModSDWA<Src1VT>.ret;
 
@@ -2300,7 +2459,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field bit HasSrc2Mods = !if(HasModifiers, !or(HasSrc2FloatMods, HasSrc2IntMods), 0);
 
   field bit HasExt = getHasExt<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
-  field bit HasExtDPP = getHasDPP<NumSrcArgs>.ret;
+  field bit HasExtVOP3DPP = getHasVOP3DPP<DstVT, Src0VT, Src1VT, Src2VT>.ret;
+  field bit HasExtDPP = !if(!or(getHasDPP<NumSrcArgs>.ret,
+                HasExtVOP3DPP), 1, 0);
   field bit HasExt32BitDPP = getHasExt32BitDPP<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExt64BitDPP = getHasExt64BitDPP<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExtSDWA = getHasSDWA<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
@@ -2311,6 +2472,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field bit IsVOP3P = 0;
   field bit IsDOT = 0;
   field bit IsSingle = 0;
+  field bit IsWMMA = 0;
 
   field Operand Src0PackedMod = !if(HasSrc0FloatMods, PackedF16InputMods, PackedI16InputMods);
   field Operand Src1PackedMod = !if(HasSrc1FloatMods, PackedF16InputMods, PackedI16InputMods);
@@ -2323,7 +2485,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field dag Outs32 = Outs;
   field dag Outs64 = !if(HasDst,(outs DstRC64:$vdst),(outs));
   field dag OutsDPP = getOutsDPP<HasDst, DstVT, DstRCDPP>.ret;
-  field dag OutsDPP8 = getOutsDPP<HasDst, DstVT, DstRCDPP>.ret;
+  field dag OutsDPP8 = OutsDPP;
+  field dag OutsVOP3DPP = getOutsDPP<HasDst, DstVT, DstRCVOP3DPP>.ret;
+  field dag OutsVOP3DPP8 = OutsVOP3DPP;
   field dag OutsSDWA = getOutsSDWA<HasDst, DstVT, DstRCSDWA>.ret;
 
   field dag Ins32 = getIns32<Src0RC32, Src1RC32, NumSrcArgs>.ret;
@@ -2339,16 +2503,30 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
                                 getOpSelMod<Src1VT>.ret,
                                 getOpSelMod<Src2VT>.ret>.ret;
   field dag InsDPP = !if(HasExtDPP,
-                         getInsDPP<DstRCDPP, Src0DPP, Src1DPP, NumSrcArgs,
-                                   HasModifiers, Src0ModDPP, Src1ModDPP>.ret,
+                         getInsDPP<DstRCDPP, Src0DPP, Src1DPP, Src2DPP, NumSrcArgs,
+                                   HasModifiers, Src0ModDPP, Src1ModDPP, Src2ModDPP>.ret,
                          (ins));
-  field dag InsDPP16 = getInsDPP16<DstRCDPP, Src0DPP, Src1DPP, NumSrcArgs,
-                                   HasModifiers, Src0ModDPP, Src1ModDPP>.ret;
-  field dag InsDPP8 = getInsDPP8<DstRCDPP, Src0DPP, Src1DPP, NumSrcArgs, 0,
-                                 Src0ModDPP, Src1ModDPP>.ret;
+  field dag InsDPP16 = getInsDPP16<DstRCDPP, Src0DPP, Src1DPP, Src2DPP, NumSrcArgs,
+                                   HasModifiers, Src0ModDPP, Src1ModDPP, Src2ModDPP>.ret;
+  field dag InsDPP8 = getInsDPP8<DstRCDPP, Src0DPP, Src1DPP, Src2DPP,
+                                 NumSrcArgs, HasModifiers,
+                                 Src0ModDPP, Src1ModDPP, Src2ModDPP>.ret;
+  field dag InsVOP3Base = getInsVOP3Base<Src0VOP3DPP, Src1VOP3DPP,
+                  Src2VOP3DPP, NumSrcArgs, HasClamp, HasModifiers, HasSrc2Mods, HasOMod,
+                  Src0ModDPP, Src1ModDPP, Src2ModVOP3DPP, HasOpSel, IsVOP3P>.ret;
+  field dag InsVOP3DPP = getInsVOP3DPP<InsVOP3Base, DstRCVOP3DPP, NumSrcArgs>.ret;
+  field dag InsVOP3DPP16 = getInsVOP3DPP16<InsVOP3Base, DstRCVOP3DPP, NumSrcArgs>.ret;
+  field dag InsVOP3DPP8 = getInsVOP3DPP8<InsVOP3Base, DstRCVOP3DPP, NumSrcArgs>.ret;
   field dag InsSDWA = getInsSDWA<Src0SDWA, Src1SDWA, NumSrcArgs,
                                  HasSDWAOMod, Src0ModSDWA, Src1ModSDWA,
                                  DstVT>.ret;
+  field dag InsVOPDX = (ins Src0RC32:$src0X, Src1RC32:$vsrc1X);
+  // It is a slight misnomer to use the deferred f32 operand type for non-float
+  // operands, but this operand type will only be used if the other dual
+  // component is FMAAK or FMAMK
+  field dag InsVOPDXDeferred = (ins !if(!eq(Src0VT.Size, 32), VSrc_f32_Deferred, VSrc_f16_Deferred):$src0X, VGPR_32:$vsrc1X);
+  field dag InsVOPDY = (ins Src0RC32:$src0Y, Src1RC32:$vsrc1Y);
+  field dag InsVOPDYDeferred = (ins !if(!eq(Src1VT.Size, 32), VSrc_f32_Deferred, VSrc_f16_Deferred):$src0Y, VGPR_32:$vsrc1Y);
 
 
   field string Asm32 = getAsm32<HasDst, NumSrcArgs, DstVT>.ret;
@@ -2365,15 +2543,23 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   // DPP8 encoding has no fields for modifiers, and it is enforced by setting
   // the asm operand name via this HasModifiers flag
   field string AsmDPP8 = getAsmDPP8<HasDst, NumSrcArgs, 0 /*HasModifiers*/, DstVT>.ret;
+  field string AsmVOP3DPPBase = getAsmVOP3DPPBase<NumSrcArgs, HasDst, HasClamp,
+   HasOpSel, HasOMod, IsVOP3P, HasModifiers, HasModifiers, HasModifiers,
+   HasModifiers, DstVT>.ret;
+  field string AsmVOP3DPP = getAsmVOP3DPP<AsmVOP3DPPBase>.ret;
+  field string AsmVOP3DPP16 = getAsmVOP3DPP16<AsmVOP3DPPBase>.ret;
+  field string AsmVOP3DPP8 = getAsmVOP3DPP8<AsmVOP3DPPBase>.ret;
   field string AsmSDWA = getAsmSDWA<HasDst, NumSrcArgs, DstVT>.ret;
   field string AsmSDWA9 = getAsmSDWA9<HasDst, HasSDWAOMod, NumSrcArgs, DstVT>.ret;
-
+  field string AsmVOPDX = getAsmVOPDPart<NumSrcArgs, "X">.ret;
+  field string AsmVOPDY = getAsmVOPDPart<NumSrcArgs, "Y">.ret;
   field string TieRegDPP = "$old";
 }
 
-class VOP_NO_EXT <VOPProfile p> : VOPProfile <p.ArgVT> {
+  class VOP_NO_EXT <VOPProfile p> : VOPProfile <p.ArgVT> {
   let HasExt = 0;
   let HasExtDPP = 0;
+  let HasExtVOP3DPP = 0;
   let HasExt32BitDPP = 0;
   let HasExt64BitDPP = 0;
   let HasExtSDWA = 0;
@@ -2383,10 +2569,10 @@ class VOP_NO_EXT <VOPProfile p> : VOPProfile <p.ArgVT> {
 class VOP_PAT_GEN <VOPProfile p, int mode=PatGenMode.NoPattern> : VOPProfile <p.ArgVT> {
   let NeedPatGen = mode;
 }
-
 def VOP_F16_F16 : VOPProfile <[f16, f16, untyped, untyped]>;
 def VOP_F16_I16 : VOPProfile <[f16, i16, untyped, untyped]>;
 def VOP_I16_F16 : VOPProfile <[i16, f16, untyped, untyped]>;
+def VOP_I16_I16 : VOPProfile <[i16, i16, untyped, untyped]>;
 
 def VOP_F16_F16_F16 : VOPProfile <[f16, f16, f16, untyped]>;
 def VOP_F16_F16_I16 : VOPProfile <[f16, f16, i16, untyped]>;
@@ -2398,6 +2584,7 @@ def VOP_I16_I16_I16_I16 : VOPProfile <[i16, i16, i16, i16, untyped]>;
 def VOP_F16_F16_F16_F16 : VOPProfile <[f16, f16, f16, f16, untyped]>;
 
 def VOP_I32_I16_I16_I32 : VOPProfile <[i32, i16, i16, i32, untyped]>;
+def VOP_I32_I16 : VOPProfile <[i32, i16, untyped, untyped]>;
 
 def VOP_V2F16_V2F16_V2F16 : VOPProfile <[v2f16, v2f16, v2f16, untyped]>;
 def VOP_V2I16_V2I16_V2I16 : VOPProfile <[v2i16, v2i16, v2i16, untyped]>;
@@ -2485,6 +2672,8 @@ def VOP_V4I32_I64_I64_V4I32       : VOPProfile <[v4i32,  i64,   i64,   v4i32]>;
 def VOP_V16I32_I64_I64_V16I32     : VOPProfile <[v16i32, i64,   i64,   v16i32]>;
 def VOP_V4F32_V2F32_V2F32_V4F32   : VOPProfile <[v4f32,  v2f32, v2f32, v4f32]>;
 def VOP_V16F32_V2F32_V2F32_V16F32 : VOPProfile <[v16f32, v2f32, v2f32, v16f32]>;
+def VOP_V4F32_I64_I64_V4F32       : VOPProfile <[v4f32,  i64,   i64,   v4f32]>;
+def VOP_V16F32_I64_I64_V16F32     : VOPProfile <[v16f32, i64,   i64,   v16f32]>;
 
 def VOP_V4F32_V4F16_V8F16_I32     : VOPProfile <[v4f32,  v4f16, v8f16, i32]>;
 def VOP_V16F32_V4F16_V8F16_I32    : VOPProfile <[v16f32, v4f16, v8f16, i32]>;
@@ -2492,6 +2681,8 @@ def VOP_V4F32_V4I16_V8I16_I32     : VOPProfile <[v4f32,  v4i16, v8i16, i32]>;
 def VOP_V16F32_V4I16_V8I16_I32    : VOPProfile <[v16f32, v4i16, v8i16, i32]>;
 def VOP_V4I32_V2I32_V4I32_I32     : VOPProfile <[v4i32,  v2i32, v4i32, i32]>;
 def VOP_V16I32_V2I32_V4I32_I32    : VOPProfile <[v16i32, v2i32, v4i32, i32]>;
+def VOP_V4F32_V2I32_V4I32_I32     : VOPProfile <[v4f32,  v2i32, v4i32, i32]>;
+def VOP_V16F32_V2I32_V4I32_I32    : VOPProfile <[v16f32, v2i32, v4i32, i32]>;
 
 class Commutable_REV <string revOp, bit isOrig> {
   string RevOp = revOp;
@@ -2596,6 +2787,14 @@ def getDPPOp32 : InstrMapping {
   let ColFields = ["AsmVariantName"];
   let KeyCol = ["Default"];
   let ValueCols = [["DPP"]];
+}
+
+def getDPPOp64 : InstrMapping {
+  let FilterClass = "VOP";
+  let RowFields = ["OpName"];
+  let ColFields = ["AsmVariantName"];
+  let KeyCol = ["VOP3"];
+  let ValueCols = [["VOP3_DPP"]];
 }
 
 // Maps an commuted opcode to its original version
@@ -2757,6 +2956,27 @@ def getVCMPXOpFromVCMP : InstrMapping {
   let ColFields = ["IsVCMPX"];
   let KeyCol = ["0"];
   let ValueCols = [["1"]];
+}
+
+def VOPDComponentTable : GenericTable {
+  let FilterClass = "VOPD_Component";
+  let CppTypeName = "VOPDComponentInfo";
+  let Fields = ["BaseVOP", "VOPDOp", "CanBeVOPDX"];
+  let PrimaryKey = ["BaseVOP"];
+  let PrimaryKeyName = "getVOPDComponentHelper";
+}
+
+def VOPDPairs : GenericTable {
+  let FilterClass = "VOPD_Base";
+  let CppTypeName = "VOPDInfo";
+  let Fields = ["Opcode", "OpX", "OpY"];
+  let PrimaryKey = ["Opcode"];
+  let PrimaryKeyName = "getVOPDOpcodeHelper";
+}
+
+def getVOPDInfoFromComponentOpcodes : SearchIndex {
+  let Table = VOPDPairs;
+  let Key = ["OpX", "OpY"];
 }
 
 include "SIInstructions.td"

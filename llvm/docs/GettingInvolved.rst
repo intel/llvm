@@ -107,6 +107,7 @@ Forums & Mailing Lists
 
 If you can't find what you need in these docs, try consulting the
 Discourse forums. There are also commit mailing lists for all commits to the LLVM Project.
+The :doc:`CodeOfConduct` applies to all these forums and mailing lists.
 
 `LLVM Discourse`__
   The forums for all things LLVM and related sub-projects. There are categories and subcategories for a wide variety of areas within LLVM. You can also view tags or search for a specific topic. 
@@ -140,7 +141,14 @@ Online Sync-Ups
 
 A number of regular calls are organized on specific topics. It should be
 expected that the range of topics will change over time. At the time of
-writing, the following sync-ups are organized:
+writing, the following sync-ups are organized.
+The :doc:`CodeOfConduct` applies to all online sync-ups.
+
+If you'd like to organize a new sync-up, please add the info in the table
+below. Please also create a calendar event for it and invite calendar@llvm.org
+to the event, so that it'll show up on the :ref:`llvm-community-calendar`. 
+Please see :ref:`llvm-community-calendar-host-guidance` for more guidance on
+what to add to your calendar invite.
 
 .. list-table:: LLVM regular sync-up calls
    :widths: 25 25 25 25
@@ -220,6 +228,7 @@ writing, the following sync-ups are organized:
      - `gcal <https://calendar.google.com/calendar/u/0?cid=cW1lZGg0ZXNpMnIyZDN2aTVydGVrdWF1YzRAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ>`__
      - `Minutes/docs <https://docs.google.com/document/d/1x5-RbOC6-jnI_NcJ9Dp4pSmGhhNe7lUevuWUIB46TeM/edit?usp=sharing>`__
 
+.. _office-hours:
 
 Office hours
 ------------
@@ -228,6 +237,8 @@ A number of experienced LLVM contributors make themselves available for a chat
 on a regular schedule, to anyone who is looking for some guidance. Please find
 the list of who is available when, through which medium, and what their area of
 expertise is. Don't be too shy to dial in!
+
+The :doc:`CodeOfConduct` applies to all office hours.
 
 Of course, people take time off from time to time, so if you dial in and you
 don't find anyone present, chances are they happen to be off that day.
@@ -280,13 +291,32 @@ don't find anyone present, chances are they happen to be off that day.
     - Monthly, 2nd Thursday of the month at 17:00 BST - London time (9:00am PT except for 2 weeks in spring), 1 hour slot.
     - `GoogleMeet <https://meet.google.com/kdy-fdbv-nuk>`__
     - English, Russian, German (not fluently)
+  * - Alexey Bader
+    - SYCL compiler, offload tools, OpenCL and SPIR-V, how to contribute.
+    - Monthly, 2nd Monday of the month at 9:30am PT, for 30 minutes.
+    - `GoogleMeet <https://meet.google.com/pdz-xhns-uus>`__
+    - English, Russian
+  * - Maksim Panchenko
+    - BOLT internals, IR, new passes, proposals, etc.
+    - Monthly, 2nd Wednesday of the month at 11:00am PT, for 30 minutes.
+    - `Zoom <https://fb.zoom.us/j/97065697120?pwd=NTFaUWJjZW9uVkJuaVlPTE9qclE3dz09>`__
+    - English, Russian
+  * - Michal Paszkowski
+    - SPIR-V backend, IGC, OpenCL, and IR transformations
+    - Monthly, 3rd Thursday of the month at 21:00 Warsaw/Poland time, 1 hour slot.
+    - `MS Teams <https://teams.microsoft.com/l/meetup-join/19%3ameeting_ODRmN2UwYTgtODdiOS00N2VkLTgxZjgtNDUxYjI3YmNkM2Ri%40thread.v2/0?context=%7b%22Tid%22%3a%2246c98d88-e344-4ed4-8496-4ed7712e255d%22%2c%22Oid%22%3a%220c2b140d-8412-4963-a118-0f7534426b65%22%7d>`__
+    - English, Polish
 
 
 Guidance for office hours hosts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * If you're interested in becoming an office hours host, please add your
-  information to the list above.
+  information to the list above. Please create a calendar event for it and
+  invite calendar@llvm.org to the event so that it'll show up on the 
+  :ref:`llvm-community-calendar`.
+  Please see :ref:`llvm-community-calendar-host-guidance` for more guidance on
+  what to add to your calendar invite.
 * When starting an office hours session, consider typing something like "*Hi,
   I'm available for chats in the next half hour at* video chat URL. *I'm
   looking forward to having conversations on the video chat or here.*" on the
@@ -311,19 +341,16 @@ IRC
 ---
 
 Users and developers of the LLVM project (including subprojects such as Clang)
-can be found in #llvm on `irc.oftc.net <irc://irc.oftc.net/llvm>`_.
+can be found in #llvm on `irc.oftc.net <irc://irc.oftc.net/llvm>`_. The channel
+is actively moderated.
 
-This channel has several bots.
-
-* Buildbot reporters
-
-  * llvmbb - Bot for the main LLVM buildbot master.
-    http://lab.llvm.org/buildbot/#/console
-
-* robot - Bugzilla linker. %bug <number>
-
-* clang-bot - A `geordi <http://www.eelis.net/geordi/>`_ instance running
-  near-trunk clang instead of gcc.
+The #llvm-build channel has a bot for
+`LLVM buildbot <http://lab.llvm.org/buildbot/#/console>`_ status changes. The
+bot will post a message with a link to a build bot and a blamelist when a build
+goes from passing to failing and again (without the blamelist) when the build
+goes from failing back to passing. It is a good channel for actively monitoring
+build statuses, but it is a noisy channel due to the automated messages. The
+channel is not actively moderated.
 
 In addition to the traditional IRC there is a
 `Discord <https://discord.com/channels/636084430946959380/636725486533345280>`_
@@ -359,17 +386,12 @@ can be better.
 .. toctree::
    :hidden:
 
-   CodeOfConduct
    Proposals/GitHubMove
    BugpointRedesign
    Proposals/TestSuite
    Proposals/VariableNames
    Proposals/VectorizationPlan
    Proposals/VectorPredication
-
-:doc:`CodeOfConduct`
-   Proposal to adopt a code of conduct on the LLVM social spaces (lists, events,
-   IRC, etc).
 
 :doc:`Proposals/GitHubMove`
    Proposal to move from SVN/Git to GitHub.
@@ -388,3 +410,54 @@ can be better.
 
 :doc:`Proposals/VectorPredication`
    Proposal for predicated vector instructions in LLVM.
+
+.. _llvm-community-calendar:
+
+LLVM community calendar
+-----------------------
+
+We aim to maintain a public calendar view of all events happening in the LLVM
+community such as :ref:`online-sync-ups` and :ref:`office-hours`. The calendar
+can be found at
+https://calendar.google.com/calendar/u/0/embed?src=calendar@llvm.org and can
+also be seen inline below:
+
+.. raw:: html
+
+    <iframe src="https://calendar.google.com/calendar/embed?height=600&wkst=1&bgcolor=%23ffffff&ctz=UTC&showCalendars=0&showDate=1&showNav=1&src=Y2FsZW5kYXJAbGx2bS5vcmc&color=%23039BE5" style="border:solid 1px #777" width="800" height="600" frameborder="0" scrolling="no"></iframe>
+
+.. _llvm-community-calendar-host-guidance:
+
+Guidance on what to put into LLVM community calendar invites
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Please put the following pieces of information in your calendar invite:
+
+* Write a single paragraph describing what the event is about. Include things
+  such as who the event is for and what sort of topics are discussed.
+* State explicitly that the :doc:`CodeOfConduct` applies to this event.
+* Make it clear who:
+
+  * the organizer is.
+
+  * the person to contact is in case of any code-of-conduct issues.  Typically,
+    this would be the organizer.
+
+* If you have meeting minutes for your event, add a pointer to where those live.
+  A good place for meeting minutes could be as a post on LLVM Discourse.
+
+An example invite looks as follows
+
+.. code-block:: none
+
+  This event is a meetup for all developers of LLDB. Meeting agendas are posted
+  on discourse before the event.
+
+  Attendees are required to adhere to the LLVM Code of Conduct
+  (https://llvm.org/docs/CodeOfConduct.html). For any Code of Conduct reports,
+  please contact the organizers, and also email conduct@llvm.org.
+
+  Agenda/Meeting Minutes: Link to minutes
+
+  Organizer(s): First Surname (name@email.com)
+

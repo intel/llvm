@@ -1337,7 +1337,7 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertBlockSignature(
                                                  argReplacements);
   if (failed(result))
     return failure();
-  if (Block *newBlock = result.getValue()) {
+  if (Block *newBlock = *result) {
     if (newBlock != block)
       blockActions.push_back(BlockAction::getTypeConversion(newBlock));
   }
@@ -1407,9 +1407,7 @@ void ConversionPatternRewriterImpl::notifyOpReplaced(Operation *op,
   bool resultChanged = false;
 
   // Create mappings for each of the new result values.
-  Value newValue, result;
-  for (auto it : llvm::zip(newValues, op->getResults())) {
-    std::tie(newValue, result) = it;
+  for (auto [newValue, result] : llvm::zip(newValues, op->getResults())) {
     if (!newValue) {
       resultChanged = true;
       continue;
@@ -2554,9 +2552,7 @@ replaceMaterialization(ConversionPatternRewriterImpl &rewriterImpl,
 
   // For each of the materialization results, update the inverse mappings to
   // point to the replacement values.
-  for (auto it : llvm::zip(matResults, values)) {
-    Value matResult, newValue;
-    std::tie(matResult, newValue) = it;
+  for (auto [matResult, newValue] : llvm::zip(matResults, values)) {
     auto inverseMapIt = inverseMapping.find(matResult);
     if (inverseMapIt == inverseMapping.end())
       continue;
@@ -2782,7 +2778,7 @@ static LogicalResult legalizeUnresolvedMaterialization(
 
       // If an argument materialization failed, fallback to trying a target
       // materialization.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case UnresolvedMaterialization::Target:
       newMaterialization = converter->materializeTargetConversion(
           rewriter, op->getLoc(), outputType, inputOperands);
@@ -3044,7 +3040,7 @@ Value TypeConverter::materializeConversion(
     OpBuilder &builder, Location loc, Type resultType, ValueRange inputs) {
   for (MaterializationCallbackFn &fn : llvm::reverse(materializations))
     if (Optional<Value> result = fn(builder, resultType, inputs, loc))
-      return result.getValue();
+      return *result;
   return nullptr;
 }
 
@@ -3151,7 +3147,7 @@ auto ConversionTarget::isLegal(Operation *op) const
     auto legalityFnIt = opRecursiveLegalityFns.find(op->getName());
     if (legalityFnIt != opRecursiveLegalityFns.end()) {
       legalityDetails.isRecursivelyLegal =
-          legalityFnIt->second(op).getValueOr(true);
+          legalityFnIt->second(op).value_or(true);
     } else {
       legalityDetails.isRecursivelyLegal = true;
     }

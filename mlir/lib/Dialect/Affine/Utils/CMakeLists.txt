@@ -7,9 +7,10 @@ add_mlir_dialect_library(MLIRAffineUtils
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
 
   LINK_LIBS PUBLIC
-  MLIRAffine
+  MLIRAffineDialect
   MLIRAffineAnalysis
   MLIRAnalysis
-  MLIRMemRef
+  MLIRArithmeticUtils
+  MLIRMemRefDialect
   MLIRTransformUtils
   )

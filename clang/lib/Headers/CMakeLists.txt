@@ -65,6 +65,7 @@ set(hip_files
 set(hlsl_files
   hlsl.h
   hlsl/hlsl_basic_types.h
+  hlsl/hlsl_intrinsics.h
   )
 
 set(mips_msa_files
@@ -169,6 +170,7 @@ set(x86_files
   popcntintrin.h
   prfchwintrin.h
   ptwriteintrin.h
+  rdpruintrin.h
   rdseedintrin.h
   rtmintrin.h
   serializeintrin.h
@@ -378,6 +380,7 @@ add_dependencies("clang-resource-headers"
                  "cuda-resource-headers"
                  "hexagon-resource-headers"
                  "hip-resource-headers"
+                 "hlsl-resource-headers"
                  "mips-resource-headers"
                  "ppc-resource-headers"
                  "ppc-htm-resource-headers"

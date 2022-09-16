@@ -80,10 +80,10 @@ enum GDBErrno {
 
 class ProcessGDBRemote;
 
-class GDBRemoteCommunication : public Communication {
+class GDBRemoteCommunication : public Communication, public Broadcaster {
 public:
   enum {
-    eBroadcastBitRunPacketSent = kLoUserBroadcastBit,
+    eBroadcastBitRunPacketSent = (1u << 0),
   };
 
   enum class PacketType { Invalid = 0, Standard, Notify };
@@ -180,9 +180,14 @@ protected:
                       // false if this class represents a debug session for
                       // a single process
 
+  std::string m_bytes;
+  std::recursive_mutex m_bytes_mutex;
   CompressionType m_compression_type;
 
   PacketResult SendPacketNoLock(llvm::StringRef payload);
+  PacketResult SendNotificationPacketNoLock(llvm::StringRef notify_type,
+                                            std::deque<std::string>& queue,
+                                            llvm::StringRef payload);
   PacketResult SendRawPacketNoLock(llvm::StringRef payload,
                                    bool skip_ack = false);
 

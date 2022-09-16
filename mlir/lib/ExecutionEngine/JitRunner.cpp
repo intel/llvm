@@ -26,6 +26,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassNameParser.h"
@@ -75,8 +76,7 @@ struct Options {
   llvm::cl::OptionCategory clOptionsCategory{"linking options"};
   llvm::cl::list<std::string> clSharedLibs{
       "shared-libs", llvm::cl::desc("Libraries to link dynamically"),
-      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated,
-      llvm::cl::cat(clOptionsCategory)};
+      llvm::cl::MiscFlags::CommaSeparated, llvm::cl::cat(clOptionsCategory)};
 
   /// CLI variables for debugging.
   llvm::cl::opt<bool> dumpObjectFile{
@@ -87,6 +87,10 @@ struct Options {
   llvm::cl::opt<std::string> objectFilename{
       "object-filename",
       llvm::cl::desc("Dump JITted-compiled object to file <input file>.o")};
+
+  llvm::cl::opt<bool> hostSupportsJit{"host-supports-jit",
+                                      llvm::cl::desc("Report host JIT support"),
+                                      llvm::cl::Hidden};
 };
 
 struct CompileAndExecuteConfig {
@@ -149,8 +153,7 @@ static Error compileAndExecute(Options &options, ModuleOp module,
                                CompileAndExecuteConfig config, void **args) {
   Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel;
   if (auto clOptLevel = getCommandLineOptLevel(options))
-    jitCodeGenOptLevel =
-        static_cast<llvm::CodeGenOpt::Level>(clOptLevel.getValue());
+    jitCodeGenOptLevel = static_cast<llvm::CodeGenOpt::Level>(*clOptLevel);
 
   // If shared library implements custom mlir-runner library init and destroy
   // functions, we'll use them to register the library with the execution
@@ -231,7 +234,8 @@ static Error compileAndExecute(Options &options, ModuleOp module,
   (*fptr)(args);
 
   // Run all dynamic library destroy callbacks to prepare for the shutdown.
-  llvm::for_each(destroyFns, [](MlirRunnerDestroyFn destroy) { destroy(); });
+  for (MlirRunnerDestroyFn destroy : destroyFns)
+    destroy();
 
   return Error::success();
 }
@@ -317,6 +321,17 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
   // runner. This must come before the command line options are parsed.
   Options options;
   llvm::cl::ParseCommandLineOptions(argc, argv, "MLIR CPU execution driver\n");
+
+  if (options.hostSupportsJit) {
+    auto J = llvm::orc::LLJITBuilder().create();
+    if (J)
+      llvm::outs() << "true\n";
+    else {
+      llvm::consumeError(J.takeError());
+      llvm::outs() << "false\n";
+    }
+    return 0;
+  }
 
   Optional<unsigned> optLevel = getCommandLineOptLevel(options);
   SmallVector<std::reference_wrapper<llvm::cl::opt<bool>>, 4> optFlags{

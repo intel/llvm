@@ -32,6 +32,7 @@
 #include "clang/Lex/Token.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -290,7 +291,9 @@ public:
   static const TST TST_typeofExpr = clang::TST_typeofExpr;
   static const TST TST_decltype = clang::TST_decltype;
   static const TST TST_decltype_auto = clang::TST_decltype_auto;
-  static const TST TST_underlyingType = clang::TST_underlyingType;
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait)                                     \
+  static const TST TST_##Trait = clang::TST_##Trait;
+#include "clang/Basic/TransformTypeTraits.def"
   static const TST TST_auto = clang::TST_auto;
   static const TST TST_auto_type = clang::TST_auto_type;
   static const TST TST_unknown_anytype = clang::TST_unknown_anytype;
@@ -333,7 +336,7 @@ private:
   /*TypeSpecifierWidth*/ unsigned TypeSpecWidth : 2;
   /*TSC*/unsigned TypeSpecComplex : 2;
   /*TSS*/unsigned TypeSpecSign : 2;
-  /*TST*/unsigned TypeSpecType : 6;
+  /*TST*/unsigned TypeSpecType : 7;
   unsigned TypeAltiVecVector : 1;
   unsigned TypeAltiVecPixel : 1;
   unsigned TypeAltiVecBool : 1;
@@ -400,8 +403,8 @@ private:
   ObjCDeclSpec *ObjCQualifiers;
 
   static bool isTypeRep(TST T) {
-    return (T == TST_typename || T == TST_typeofType ||
-            T == TST_underlyingType || T == TST_atomic);
+    return T == TST_atomic || T == TST_typename || T == TST_typeofType ||
+           isTransformTypeTrait(T);
   }
   static bool isExprRep(TST T) {
     return (T == TST_typeofExpr || T == TST_decltype || T == TST_bitint);
@@ -417,6 +420,14 @@ public:
     return (T == TST_enum || T == TST_struct ||
             T == TST_interface || T == TST_union ||
             T == TST_class);
+  }
+  static bool isTransformTypeTrait(TST T) {
+    constexpr std::array<TST, 16> Traits = {
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) TST_##Trait,
+#include "clang/Basic/TransformTypeTraits.def"
+    };
+
+    return T >= Traits.front() && T <= Traits.back();
   }
 
   DeclSpec(AttributeFactory &attrFactory)
@@ -522,7 +533,7 @@ public:
   }
 
   SourceRange getTypeofParensRange() const { return TypeofParensRange; }
-  void setTypeofParensRange(SourceRange range) { TypeofParensRange = range; }
+  void setTypeArgumentRange(SourceRange range) { TypeofParensRange = range; }
 
   bool hasAutoTypeSpec() const {
     return (TypeSpecType == TST_auto || TypeSpecType == TST_auto_type ||
@@ -1343,7 +1354,7 @@ struct DeclaratorChunk {
     /// DeclSpec for the function with the qualifier related info.
     DeclSpec *MethodQualifiers;
 
-    /// AtttibuteFactory for the MethodQualifiers.
+    /// AttributeFactory for the MethodQualifiers.
     AttributeFactory *QualAttrFactory;
 
     union {
@@ -1786,7 +1797,8 @@ enum class DeclaratorContext {
   TemplateTypeArg,     // Template type argument (in default argument).
   AliasDecl,           // C++11 alias-declaration.
   AliasTemplate,       // C++11 alias-declaration template.
-  RequiresExpr         // C++2a requires-expression.
+  RequiresExpr,        // C++2a requires-expression.
+  Association          // C11 _Generic selection expression association.
 };
 
 /// Information about one declarator, including the parsed type
@@ -1851,8 +1863,12 @@ private:
   /// Indicates whether this declarator has an initializer.
   unsigned HasInitializer : 1;
 
-  /// Attrs - Attributes.
+  /// Attributes attached to the declarator.
   ParsedAttributes Attrs;
+
+  /// Attributes attached to the declaration. See also documentation for the
+  /// corresponding constructor parameter.
+  const ParsedAttributesView &DeclarationAttrs;
 
   /// The asm label, if specified.
   Expr *AsmLabel;
@@ -1892,16 +1908,40 @@ private:
   friend struct DeclaratorChunk;
 
 public:
-  Declarator(const DeclSpec &ds, DeclaratorContext C)
-      : DS(ds), Range(ds.getSourceRange()), Context(C),
+  /// `DS` and `DeclarationAttrs` must outlive the `Declarator`. In particular,
+  /// take care not to pass temporary objects for these parameters.
+  ///
+  /// `DeclarationAttrs` contains [[]] attributes from the
+  /// attribute-specifier-seq at the beginning of a declaration, which appertain
+  /// to the declared entity itself. Attributes with other syntax (e.g. GNU)
+  /// should not be placed in this attribute list; if they occur at the
+  /// beginning of a declaration, they apply to the `DeclSpec` and should be
+  /// attached to that instead.
+  ///
+  /// Here is an example of an attribute associated with a declaration:
+  ///
+  ///  [[deprecated]] int x, y;
+  ///
+  /// This attribute appertains to all of the entities declared in the
+  /// declaration, i.e. `x` and `y` in this case.
+  Declarator(const DeclSpec &DS, const ParsedAttributesView &DeclarationAttrs,
+             DeclaratorContext C)
+      : DS(DS), Range(DS.getSourceRange()), Context(C),
         InvalidType(DS.getTypeSpecType() == DeclSpec::TST_error),
         GroupingParens(false), FunctionDefinition(static_cast<unsigned>(
                                    FunctionDefinitionKind::Declaration)),
         Redeclaration(false), Extension(false), ObjCIvar(false),
         ObjCWeakProperty(false), InlineStorageUsed(false),
-        HasInitializer(false), Attrs(ds.getAttributePool().getFactory()),
-        AsmLabel(nullptr), TrailingRequiresClause(nullptr),
-        InventedTemplateParameterList(nullptr) {}
+        HasInitializer(false), Attrs(DS.getAttributePool().getFactory()),
+        DeclarationAttrs(DeclarationAttrs), AsmLabel(nullptr),
+        TrailingRequiresClause(nullptr),
+        InventedTemplateParameterList(nullptr) {
+    assert(llvm::all_of(DeclarationAttrs,
+                        [](const ParsedAttr &AL) {
+                          return AL.isStandardAttributeSyntax();
+                        }) &&
+           "DeclarationAttrs may only contain [[]] attributes");
+  }
 
   ~Declarator() {
     clear();
@@ -2024,6 +2064,7 @@ public:
     case DeclaratorContext::TrailingReturn:
     case DeclaratorContext::TrailingReturnVar:
     case DeclaratorContext::RequiresExpr:
+    case DeclaratorContext::Association:
       return true;
     }
     llvm_unreachable("unknown context kind!");
@@ -2063,6 +2104,7 @@ public:
     case DeclaratorContext::TemplateTypeArg:
     case DeclaratorContext::TrailingReturn:
     case DeclaratorContext::TrailingReturnVar:
+    case DeclaratorContext::Association:
       return false;
     }
     llvm_unreachable("unknown context kind!");
@@ -2106,6 +2148,7 @@ public:
     case DeclaratorContext::TemplateTypeArg:
     case DeclaratorContext::TrailingReturn:
     case DeclaratorContext::TrailingReturnVar:
+    case DeclaratorContext::Association:
       return false;
     }
     llvm_unreachable("unknown context kind!");
@@ -2162,6 +2205,7 @@ public:
     case DeclaratorContext::TemplateTypeArg:
     case DeclaratorContext::TrailingReturn:
     case DeclaratorContext::RequiresExpr:
+    case DeclaratorContext::Association:
       return false;
     }
     llvm_unreachable("unknown context kind!");
@@ -2384,6 +2428,7 @@ public:
     case DeclaratorContext::TrailingReturn:
     case DeclaratorContext::TrailingReturnVar:
     case DeclaratorContext::RequiresExpr:
+    case DeclaratorContext::Association:
       return false;
     }
     llvm_unreachable("unknown context kind!");
@@ -2418,6 +2463,7 @@ public:
     case DeclaratorContext::TrailingReturnVar:
     case DeclaratorContext::TemplateTypeArg:
     case DeclaratorContext::RequiresExpr:
+    case DeclaratorContext::Association:
       return false;
 
     case DeclaratorContext::Block:
@@ -2524,9 +2570,14 @@ public:
   const ParsedAttributes &getAttributes() const { return Attrs; }
   ParsedAttributes &getAttributes() { return Attrs; }
 
+  const ParsedAttributesView &getDeclarationAttributes() const {
+    return DeclarationAttrs;
+  }
+
   /// hasAttributes - do we contain any attributes?
   bool hasAttributes() const {
-    if (!getAttributes().empty() || getDeclSpec().hasAttributes())
+    if (!getAttributes().empty() || !getDeclarationAttributes().empty() ||
+        getDeclSpec().hasAttributes())
       return true;
     for (unsigned i = 0, e = getNumTypeObjects(); i != e; ++i)
       if (!getTypeObject(i).getAttrs().empty())
@@ -2608,8 +2659,10 @@ public:
 struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
-  explicit FieldDeclarator(const DeclSpec &DS)
-      : D(DS, DeclaratorContext::Member), BitfieldSize(nullptr) {}
+  explicit FieldDeclarator(const DeclSpec &DS,
+                           const ParsedAttributes &DeclarationAttrs)
+      : D(DS, DeclarationAttrs, DeclaratorContext::Member),
+        BitfieldSize(nullptr) {}
 };
 
 /// Represents a C++11 virt-specifier-seq.

@@ -202,7 +202,8 @@ public:
                  isa<ReturnedValueConstructionContext>(C) ||
                  isa<VariableConstructionContext>(C) ||
                  isa<ConstructorInitializerConstructionContext>(C) ||
-                 isa<ArgumentConstructionContext>(C)));
+                 isa<ArgumentConstructionContext>(C) ||
+                 isa<LambdaCaptureConstructionContext>(C)));
     Data2.setPointer(const_cast<ConstructionContext *>(C));
   }
 
@@ -1464,6 +1465,8 @@ private:
   /// source DeclStmt.
   llvm::DenseMap<const DeclStmt *, const DeclStmt *> SyntheticDeclStmts;
 };
+
+Expr *extractElementInitializerFromNestedAILE(const ArrayInitLoopExpr *AILE);
 
 } // namespace clang
 

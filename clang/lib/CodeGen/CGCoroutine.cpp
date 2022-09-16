@@ -238,8 +238,8 @@ static LValueOrRValue emitSuspendExpression(CodeGenFunction &CGF, CGCoroData &Co
     auto Loc = S.getResumeExpr()->getExprLoc();
     auto *Catch = new (CGF.getContext())
         CXXCatchStmt(Loc, /*exDecl=*/nullptr, Coro.ExceptionHandler);
-    auto *TryBody =
-        CompoundStmt::Create(CGF.getContext(), S.getResumeExpr(), Loc, Loc);
+    auto *TryBody = CompoundStmt::Create(CGF.getContext(), S.getResumeExpr(),
+                                         FPOptionsOverride(), Loc, Loc);
     TryStmt = CXXTryStmt::Create(CGF.getContext(), Loc, TryBody, Catch);
     CGF.EnterCXXTryStmt(*TryStmt);
   }
@@ -654,9 +654,8 @@ void CodeGenFunction::EmitCoroutineBody(const CoroutineBodyStmt &S) {
     EmitStmt(Ret);
   }
 
-  // LLVM require the frontend to add the function attribute. See
-  // Coroutines.rst.
-  CurFn->addFnAttr("coroutine.presplit", "0");
+  // LLVM require the frontend to mark the coroutine.
+  CurFn->setPresplitCoroutine();
 }
 
 // Emit coroutine intrinsic and patch up arguments of the token type.
@@ -677,6 +676,13 @@ RValue CodeGenFunction::EmitCoroutineIntrinsic(const CallExpr *E,
     auto NullPtr = llvm::ConstantPointerNull::get(Builder.getInt8PtrTy());
     return RValue::get(NullPtr);
   }
+  case llvm::Intrinsic::coro_size: {
+    auto &Context = getContext();
+    auto SizeTy = Context.getSizeType();
+    auto T = Builder.getIntNTy(Context.getTypeSize(SizeTy));
+    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::coro_size, T);
+    return RValue::get(Builder.CreateCall(F));
+  }
   // The following three intrinsics take a token parameter referring to a token
   // returned by earlier call to @llvm.coro.id. Since we cannot represent it in
   // builtins, we patch it up here.
@@ -690,7 +696,7 @@ RValue CodeGenFunction::EmitCoroutineIntrinsic(const CallExpr *E,
     CGM.Error(E->getBeginLoc(), "this builtin expect that __builtin_coro_id has"
                                 " been used earlier in this function");
     // Fallthrough to the next case to add TokenNone as the first argument.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   // @llvm.coro.suspend takes a token parameter. Add token 'none' as the first
   // argument.

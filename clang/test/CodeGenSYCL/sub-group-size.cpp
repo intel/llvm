@@ -6,7 +6,7 @@
 // on sycl-kernel and sycl-external functions.
 
 #include "Inputs/sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 
 [[intel::named_sub_group_size(primary)]] SYCL_EXTERNAL void external_primary() {}
 // ALL-DAG: define {{.*}}spir_func void @{{.*}}external_primary{{.*}}() #{{[0-9]+}} !intel_reqd_sub_group_size ![[PRIMARY:[0-9]+]]

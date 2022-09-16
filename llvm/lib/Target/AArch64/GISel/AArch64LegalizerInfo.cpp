@@ -42,7 +42,6 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
     : ST(&ST) {
   using namespace TargetOpcode;
   const LLT p0 = LLT::pointer(0, 64);
-  const LLT s1 = LLT::scalar(1);
   const LLT s8 = LLT::scalar(8);
   const LLT s16 = LLT::scalar(16);
   const LLT s32 = LLT::scalar(32);
@@ -80,7 +79,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   const LLT &MinFPScalar = HasFP16 ? s16 : s32;
 
   getActionDefinitionsBuilder({G_IMPLICIT_DEF, G_FREEZE})
-      .legalFor({p0, s1, s8, s16, s32, s64})
+      .legalFor({p0, s8, s16, s32, s64})
       .legalFor(PackedVectorAllTypeList)
       .widenScalarToNextPow2(0)
       .clampScalar(0, s8, s64)
@@ -198,8 +197,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(
       {G_SADDE, G_SSUBE, G_UADDE, G_USUBE, G_SADDO, G_SSUBO, G_UADDO, G_USUBO})
-      .legalFor({{s32, s1}, {s64, s1}})
+      .legalFor({{s32, s32}, {s64, s32}})
       .clampScalar(0, s32, s64)
+       .clampScalar(1, s32, s64)
       .widenScalarToNextPow2(0);
 
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FNEG})
@@ -241,7 +241,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(G_INSERT)
       .legalIf(all(typeInSet(0, {s32, s64, p0}),
-                   typeInSet(1, {s1, s8, s16, s32}), smallerThan(1, 0)))
+                   typeInSet(1, {s8, s16, s32}), smallerThan(1, 0)))
       .widenScalarToNextPow2(0)
       .clampScalar(0, s32, s64)
       .widenScalarToNextPow2(1)
@@ -260,8 +260,15 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .maxScalarIf(typeInSet(1, {s64, p0}), 0, s32)
       .maxScalarIf(typeInSet(1, {s128}), 0, s64);
 
-  getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
-      .lowerIf(atomicOrderingAtLeastOrStrongerThan(0, AtomicOrdering::Unordered))
+
+  for (unsigned Op : {G_SEXTLOAD, G_ZEXTLOAD}) {
+    auto &Actions =  getActionDefinitionsBuilder(Op);
+
+    if (Op == G_SEXTLOAD)
+      Actions.lowerIf(atomicOrderingAtLeastOrStrongerThan(0, AtomicOrdering::Unordered));
+
+    // Atomics have zero extending behavior.
+    Actions
       .legalForTypesWithMemDesc({{s32, p0, s8, 8},
                                  {s32, p0, s16, 8},
                                  {s32, p0, s32, 8},
@@ -278,6 +285,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .unsupportedIfMemSizeNotPow2()
       // Lower anything left over into G_*EXT and G_LOAD
       .lower();
+  }
 
   auto IsPtrVecPred = [=](const LegalityQuery &Query) {
     const LLT &ValTy = Query.Types[0];
@@ -425,10 +433,6 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
     const LLT &SrcTy = Query.Types[1];
 
-    // Special case for s1.
-    if (SrcTy == s1)
-      return true;
-
     // Make sure we fit in a register otherwise. Don't bother checking that
     // the source type is below 128 bits. We shouldn't be allowing anything
     // through which is wider than the destination in the first place.
@@ -481,13 +485,16 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .widenScalarToNextPow2(0);
 
   // Control-flow
-  getActionDefinitionsBuilder(G_BRCOND).legalFor({s1, s8, s16, s32});
+  getActionDefinitionsBuilder(G_BRCOND)
+    .legalFor({s32})
+    .clampScalar(0, s32, s32);
   getActionDefinitionsBuilder(G_BRINDIRECT).legalFor({p0});
 
   getActionDefinitionsBuilder(G_SELECT)
-      .legalFor({{s32, s1}, {s64, s1}, {p0, s1}})
+      .legalFor({{s32, s32}, {s64, s32}, {p0, s32}})
       .widenScalarToNextPow2(0)
       .clampScalar(0, s32, s64)
+      .clampScalar(1, s32, s32)
       .minScalarEltSameAsIf(all(isVector(0), isVector(1)), 1, 0)
       .lowerIf(isVector(0));
 
@@ -500,7 +507,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
     getActionDefinitionsBuilder(G_GLOBAL_VALUE).legalFor({p0});
 
   getActionDefinitionsBuilder(G_PTRTOINT)
-      .legalForCartesianProduct({s1, s8, s16, s32, s64}, {p0})
+      .legalForCartesianProduct({s8, s16, s32, s64}, {p0})
       .legalFor({{v2s64, v2p0}})
       .maxScalar(0, s64)
       .widenScalarToNextPow2(0, /*Min*/ 8);
@@ -517,7 +524,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       // FIXME: This is wrong since G_BITCAST is not allowed to change the
       // number of bits but it's what the previous code described and fixing
       // it breaks tests.
-      .legalForCartesianProduct({s1, s8, s16, s32, s64, s128, v16s8, v8s8, v4s8,
+      .legalForCartesianProduct({s8, s16, s32, s64, s128, v16s8, v8s8, v4s8,
                                  v8s16, v4s16, v2s16, v4s32, v2s32, v2s64,
                                  v2p0});
 
@@ -655,8 +662,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(G_CTTZ_ZERO_UNDEF).lower();
 
-  // TODO: Handle vector types.
   getActionDefinitionsBuilder(G_CTTZ)
+      .lowerIf(isVector(0))
       .clampScalar(0, s32, s64)
       .scalarSameSizeAs(1, 0)
       .customFor({s32, s64});
@@ -669,11 +676,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         // to be the same size as the dest.
         if (DstTy != SrcTy)
           return false;
-        for (auto &Ty : {v2s32, v4s32, v2s64, v2p0, v16s8, v8s16}) {
-          if (DstTy == Ty)
-            return true;
-        }
-        return false;
+        return llvm::is_contained({v2s32, v4s32, v2s64, v2p0, v16s8, v8s16},
+                                  DstTy);
       })
       // G_SHUFFLE_VECTOR can have scalar sources (from 1 x s vectors), we
       // just want those lowered into G_BUILD_VECTOR
@@ -775,7 +779,6 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   getActionDefinitionsBuilder({G_SBFX, G_UBFX})
       .customFor({{s32, s32}, {s64, s64}});
 
-  // TODO: Use generic lowering when custom lowering is not possible.
   auto always = [=](const LegalityQuery &Q) { return true; };
   getActionDefinitionsBuilder(G_CTPOP)
       .legalFor({{v8s8, v8s8}, {v16s8, v16s8}})
@@ -868,7 +871,7 @@ bool AArch64LegalizerInfo::legalizeRotate(MachineInstr &MI,
   (void)AmtTy;
   assert(AmtTy.isScalar() && "Expected a scalar rotate");
   assert(AmtTy.getSizeInBits() < 64 && "Expected this rotate to be legal");
-  auto NewAmt = Helper.MIRBuilder.buildSExt(LLT::scalar(64), AmtReg);
+  auto NewAmt = Helper.MIRBuilder.buildZExt(LLT::scalar(64), AmtReg);
   Helper.Observer.changingInstr(MI);
   MI.getOperand(2).setReg(NewAmt.getReg(0));
   Helper.Observer.changedInstr(MI);
@@ -1017,6 +1020,30 @@ bool AArch64LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
     auto &Value = MI.getOperand(3);
     Register ZExtValueReg = MIB.buildAnyExt(LLT::scalar(64), Value).getReg(0);
     Value.setReg(ZExtValueReg);
+    return true;
+  }
+  case Intrinsic::prefetch: {
+    MachineIRBuilder MIB(MI);
+    auto &AddrVal = MI.getOperand(1);
+
+    int64_t IsWrite = MI.getOperand(2).getImm();
+    int64_t Locality = MI.getOperand(3).getImm();
+    int64_t IsData = MI.getOperand(4).getImm();
+
+    bool IsStream = Locality == 0;
+    if (Locality != 0) {
+      assert(Locality <= 3 && "Prefetch locality out-of-range");
+      // The locality degree is the opposite of the cache speed.
+      // Put the number the other way around.
+      // The encoding starts at 0 for level 1
+      Locality = 3 - Locality;
+    }
+
+    unsigned PrfOp =
+        (IsWrite << 4) | (!IsData << 3) | (Locality << 1) | IsStream;
+
+    MIB.buildInstr(AArch64::G_PREFETCH).addImm(PrfOp).add(AddrVal);
+    MI.eraseFromParent();
     return true;
   }
   }
@@ -1211,9 +1238,6 @@ bool AArch64LegalizerInfo::legalizeCTPOP(MachineInstr &MI,
   //  uaddlp.4h v0, v0  // v4s16, v2s32
   //  uaddlp.2s v0, v0  //        v2s32
 
-  if (!ST->hasNEON() ||
-      MI.getMF()->getFunction().hasFnAttribute(Attribute::NoImplicitFloat))
-    return false;
   MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
   Register Dst = MI.getOperand(0).getReg();
   Register Val = MI.getOperand(1).getReg();
@@ -1222,6 +1246,14 @@ bool AArch64LegalizerInfo::legalizeCTPOP(MachineInstr &MI,
   assert(Ty == MRI.getType(Dst) &&
          "Expected src and dst to have the same type!");
   unsigned Size = Ty.getSizeInBits();
+
+  if (!ST->hasNEON() ||
+      MI.getMF()->getFunction().hasFnAttribute(Attribute::NoImplicitFloat)) {
+    // Use generic lowering when custom lowering is not possible.
+    return Ty.isScalar() && (Size == 32 || Size == 64) &&
+           Helper.lowerBitCount(MI) ==
+               LegalizerHelper::LegalizeResult::Legalized;
+  }
 
   // Pre-conditioning: widen Val up to the nearest vector type.
   // s32,s64,v4s16,v2s32 -> v8i8

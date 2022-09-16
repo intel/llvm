@@ -13,35 +13,6 @@
 # CHECK-NEXT:        "automaticReload": true
 # CHECK-NEXT:      },
 # CHECK-NEXT:      "completionProvider": {
-# CHECK-NEXT:        "allCommitCharacters": [
-# CHECK-NEXT:          " ",
-# CHECK-NEXT:          "\t",
-# CHECK-NEXT:          "(",
-# CHECK-NEXT:          ")",
-# CHECK-NEXT:          "[",
-# CHECK-NEXT:          "]",
-# CHECK-NEXT:          "{",
-# CHECK-NEXT:          "}",
-# CHECK-NEXT:          "<",
-# CHECK-NEXT:          ">",
-# CHECK-NEXT:          ":",
-# CHECK-NEXT:          ";",
-# CHECK-NEXT:          ",",
-# CHECK-NEXT:          "+",
-# CHECK-NEXT:          "-",
-# CHECK-NEXT:          "/",
-# CHECK-NEXT:          "*",
-# CHECK-NEXT:          "%",
-# CHECK-NEXT:          "^",
-# CHECK-NEXT:          "&",
-# CHECK-NEXT:          "#",
-# CHECK-NEXT:          "?",
-# CHECK-NEXT:          ".",
-# CHECK-NEXT:          "=",
-# CHECK-NEXT:          "\"",
-# CHECK-NEXT:          "'",
-# CHECK-NEXT:          "|"
-# CHECK-NEXT:        ],
 # CHECK-NEXT:        "resolveProvider": false,
 # CHECK-NEXT:        "triggerCharacters": [
 # CHECK-NEXT:          ".",
@@ -72,6 +43,7 @@
 # CHECK-NEXT:          "clangd.applyTweak"
 # CHECK-NEXT:        ]
 # CHECK-NEXT:      },
+# CHECK-NEXT:      "foldingRangeProvider": true,
 # CHECK-NEXT:      "hoverProvider": true,
 # CHECK-NEXT:      "implementationProvider": true,
 # CHECK-NEXT:      "inlayHintProvider": true,
@@ -117,6 +89,7 @@
 # CHECK-NEXT:          ","
 # CHECK-NEXT:        ]
 # CHECK-NEXT:      },
+# CHECK-NEXT:      "standardTypeHierarchyProvider": true,
 # CHECK-NEXT:      "textDocumentSync": {
 # CHECK-NEXT:        "change": 2,
 # CHECK-NEXT:        "openClose": true,

@@ -70,6 +70,8 @@ public:
   Expr<T> TRANSPOSE(FunctionRef<T> &&);
   Expr<T> UNPACK(FunctionRef<T> &&);
 
+  Expr<T> TRANSFER(FunctionRef<T> &&);
+
 private:
   FoldingContext &context_;
 };
@@ -340,11 +342,9 @@ template <typename T> Expr<T> Folder<T>::Folding(Designator<T> &&designator) {
           return std::move(*specific);
         }
       }
-      if (auto length{ToInt64(Fold(context_, substring->LEN()))}) {
-        if (*length == 0) {
-          return Expr<T>{Constant<T>{Scalar<T>{}}};
-        }
-      }
+      // We used to fold zero-length substrings into zero-length
+      // constants here, but that led to problems in variable
+      // definition contexts.
     }
   } else if constexpr (T::category == TypeCategory::Real) {
     if (auto *zPart{std::get_if<ComplexPart>(&designator.u)}) {
@@ -613,26 +613,33 @@ template <typename T> Expr<T> Folder<T>::CSHIFT(FunctionRef<T> &&funcRef) {
     }
     if (ok) {
       std::vector<Scalar<T>> resultElements;
-      ConstantSubscripts arrayAt{array->lbounds()};
-      ConstantSubscript dimLB{arrayAt[zbDim]};
+      ConstantSubscripts arrayLB{array->lbounds()};
+      ConstantSubscripts arrayAt{arrayLB};
+      ConstantSubscript &dimIndex{arrayAt[zbDim]};
+      ConstantSubscript dimLB{dimIndex}; // initial value
       ConstantSubscript dimExtent{array->shape()[zbDim]};
-      ConstantSubscripts shiftAt{shift->lbounds()};
-      for (auto n{GetSize(array->shape())}; n > 0; n -= dimExtent) {
-        ConstantSubscript shiftCount{shift->At(shiftAt).ToInt64()};
-        ConstantSubscript zbDimIndex{shiftCount % dimExtent};
-        if (zbDimIndex < 0) {
-          zbDimIndex += dimExtent;
-        }
-        for (ConstantSubscript j{0}; j < dimExtent; ++j) {
-          arrayAt[zbDim] = dimLB + zbDimIndex;
-          resultElements.push_back(array->At(arrayAt));
-          if (++zbDimIndex == dimExtent) {
-            zbDimIndex = 0;
+      ConstantSubscripts shiftLB{shift->lbounds()};
+      for (auto n{GetSize(array->shape())}; n > 0; --n) {
+        ConstantSubscript origDimIndex{dimIndex};
+        ConstantSubscripts shiftAt;
+        if (shift->Rank() > 0) {
+          int k{0};
+          for (int j{0}; j < rank; ++j) {
+            if (j != zbDim) {
+              shiftAt.emplace_back(shiftLB[k++] + arrayAt[j] - arrayLB[j]);
+            }
           }
         }
-        arrayAt[zbDim] = dimLB + std::max<ConstantSubscript>(dimExtent, 1) - 1;
+        ConstantSubscript shiftCount{shift->At(shiftAt).ToInt64()};
+        dimIndex = dimLB + ((dimIndex - dimLB + shiftCount) % dimExtent);
+        if (dimIndex < dimLB) {
+          dimIndex += dimExtent;
+        } else if (dimIndex >= dimLB + dimExtent) {
+          dimIndex -= dimExtent;
+        }
+        resultElements.push_back(array->At(arrayAt));
+        dimIndex = origDimIndex;
         array->IncrementSubscripts(arrayAt);
-        shift->IncrementSubscripts(shiftAt);
       }
       return Expr<T>{PackageConstant<T>(
           std::move(resultElements), *array, array->shape())};
@@ -714,42 +721,57 @@ template <typename T> Expr<T> Folder<T>::EOSHIFT(FunctionRef<T> &&funcRef) {
     }
     if (ok) {
       std::vector<Scalar<T>> resultElements;
-      ConstantSubscripts arrayAt{array->lbounds()};
-      ConstantSubscript dimLB{arrayAt[zbDim]};
+      ConstantSubscripts arrayLB{array->lbounds()};
+      ConstantSubscripts arrayAt{arrayLB};
+      ConstantSubscript &dimIndex{arrayAt[zbDim]};
+      ConstantSubscript dimLB{dimIndex}; // initial value
       ConstantSubscript dimExtent{array->shape()[zbDim]};
-      ConstantSubscripts shiftAt{shift->lbounds()};
-      ConstantSubscripts boundaryAt;
+      ConstantSubscripts shiftLB{shift->lbounds()};
+      ConstantSubscripts boundaryLB;
       if (boundary) {
-        boundaryAt = boundary->lbounds();
+        boundaryLB = boundary->lbounds();
       }
-      for (auto n{GetSize(array->shape())}; n > 0; n -= dimExtent) {
-        ConstantSubscript shiftCount{shift->At(shiftAt).ToInt64()};
-        for (ConstantSubscript j{0}; j < dimExtent; ++j) {
-          ConstantSubscript zbAt{shiftCount + j};
-          if (zbAt >= 0 && zbAt < dimExtent) {
-            arrayAt[zbDim] = dimLB + zbAt;
-            resultElements.push_back(array->At(arrayAt));
-          } else if (boundary) {
-            resultElements.push_back(boundary->At(boundaryAt));
-          } else if constexpr (T::category == TypeCategory::Integer ||
-              T::category == TypeCategory::Real ||
-              T::category == TypeCategory::Complex ||
-              T::category == TypeCategory::Logical) {
-            resultElements.emplace_back();
-          } else if constexpr (T::category == TypeCategory::Character) {
-            auto len{static_cast<std::size_t>(array->LEN())};
-            typename Scalar<T>::value_type space{' '};
-            resultElements.emplace_back(len, space);
-          } else {
-            DIE("no derived type boundary");
+      for (auto n{GetSize(array->shape())}; n > 0; --n) {
+        ConstantSubscript origDimIndex{dimIndex};
+        ConstantSubscripts shiftAt;
+        if (shift->Rank() > 0) {
+          int k{0};
+          for (int j{0}; j < rank; ++j) {
+            if (j != zbDim) {
+              shiftAt.emplace_back(shiftLB[k++] + arrayAt[j] - arrayLB[j]);
+            }
           }
         }
-        arrayAt[zbDim] = dimLB + std::max<ConstantSubscript>(dimExtent, 1) - 1;
-        array->IncrementSubscripts(arrayAt);
-        shift->IncrementSubscripts(shiftAt);
-        if (boundary) {
-          boundary->IncrementSubscripts(boundaryAt);
+        ConstantSubscript shiftCount{shift->At(shiftAt).ToInt64()};
+        dimIndex += shiftCount;
+        if (dimIndex >= dimLB && dimIndex < dimLB + dimExtent) {
+          resultElements.push_back(array->At(arrayAt));
+        } else if (boundary) {
+          ConstantSubscripts boundaryAt;
+          if (boundary->Rank() > 0) {
+            for (int j{0}; j < rank; ++j) {
+              int k{0};
+              if (j != zbDim) {
+                boundaryAt.emplace_back(
+                    boundaryLB[k++] + arrayAt[j] - arrayLB[j]);
+              }
+            }
+          }
+          resultElements.push_back(boundary->At(boundaryAt));
+        } else if constexpr (T::category == TypeCategory::Integer ||
+            T::category == TypeCategory::Real ||
+            T::category == TypeCategory::Complex ||
+            T::category == TypeCategory::Logical) {
+          resultElements.emplace_back();
+        } else if constexpr (T::category == TypeCategory::Character) {
+          auto len{static_cast<std::size_t>(array->LEN())};
+          typename Scalar<T>::value_type space{' '};
+          resultElements.emplace_back(len, space);
+        } else {
+          DIE("no derived type boundary");
         }
+        dimIndex = origDimIndex;
+        array->IncrementSubscripts(arrayAt);
       }
       return Expr<T>{PackageConstant<T>(
           std::move(resultElements), *array, array->shape())};
@@ -991,6 +1013,17 @@ template <typename T> Expr<T> Folder<T>::UNPACK(FunctionRef<T> &&funcRef) {
       PackageConstant<T>(std::move(resultElements), *vector, mask->shape())};
 }
 
+std::optional<Expr<SomeType>> FoldTransfer(
+    FoldingContext &, const ActualArguments &);
+
+template <typename T> Expr<T> Folder<T>::TRANSFER(FunctionRef<T> &&funcRef) {
+  if (auto folded{FoldTransfer(context_, funcRef.arguments())}) {
+    return DEREF(UnwrapExpr<Expr<T>>(*folded));
+  } else {
+    return Expr<T>{std::move(funcRef)};
+  }
+}
+
 template <typename T>
 Expr<T> FoldMINorMAX(
     FoldingContext &context, FunctionRef<T> &&funcRef, Ordering order) {
@@ -1097,6 +1130,8 @@ Expr<T> FoldOperation(FoldingContext &context, FunctionRef<T> &&funcRef) {
       return Folder<T>{context}.RESHAPE(std::move(funcRef));
     } else if (name == "spread") {
       return Folder<T>{context}.SPREAD(std::move(funcRef));
+    } else if (name == "transfer") {
+      return Folder<T>{context}.TRANSFER(std::move(funcRef));
     } else if (name == "transpose") {
       return Folder<T>{context}.TRANSPOSE(std::move(funcRef));
     } else if (name == "unpack") {
@@ -1600,7 +1635,7 @@ Expr<TO> FoldOperation(
                     "REAL(%d) to REAL(%d) conversion", Operand::kind, TO::kind);
                 RealFlagWarnings(ctx, converted.flags, buffer);
               }
-              if (ctx.flushSubnormalsToZero()) {
+              if (ctx.targetCharacteristics().areSubnormalsFlushedToZero()) {
                 converted.value = converted.value.FlushSubnormalToZero();
               }
               return ScalarConstantToExpr(std::move(converted.value));
@@ -1727,9 +1762,10 @@ Expr<T> FoldOperation(FoldingContext &context, Add<T> &&x) {
       }
       return Expr<T>{Constant<T>{sum.value}};
     } else {
-      auto sum{folded->first.Add(folded->second, context.rounding())};
+      auto sum{folded->first.Add(
+          folded->second, context.targetCharacteristics().roundingMode())};
       RealFlagWarnings(context, sum.flags, "addition");
-      if (context.flushSubnormalsToZero()) {
+      if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
         sum.value = sum.value.FlushSubnormalToZero();
       }
       return Expr<T>{Constant<T>{sum.value}};
@@ -1752,10 +1788,10 @@ Expr<T> FoldOperation(FoldingContext &context, Subtract<T> &&x) {
       }
       return Expr<T>{Constant<T>{difference.value}};
     } else {
-      auto difference{
-          folded->first.Subtract(folded->second, context.rounding())};
+      auto difference{folded->first.Subtract(
+          folded->second, context.targetCharacteristics().roundingMode())};
       RealFlagWarnings(context, difference.flags, "subtraction");
-      if (context.flushSubnormalsToZero()) {
+      if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
         difference.value = difference.value.FlushSubnormalToZero();
       }
       return Expr<T>{Constant<T>{difference.value}};
@@ -1778,9 +1814,10 @@ Expr<T> FoldOperation(FoldingContext &context, Multiply<T> &&x) {
       }
       return Expr<T>{Constant<T>{product.lower}};
     } else {
-      auto product{folded->first.Multiply(folded->second, context.rounding())};
+      auto product{folded->first.Multiply(
+          folded->second, context.targetCharacteristics().roundingMode())};
       RealFlagWarnings(context, product.flags, "multiplication");
-      if (context.flushSubnormalsToZero()) {
+      if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
         product.value = product.value.FlushSubnormalToZero();
       }
       return Expr<T>{Constant<T>{product.value}};
@@ -1822,7 +1859,8 @@ Expr<T> FoldOperation(FoldingContext &context, Divide<T> &&x) {
       }
       return Expr<T>{Constant<T>{quotAndRem.quotient}};
     } else {
-      auto quotient{folded->first.Divide(folded->second, context.rounding())};
+      auto quotient{folded->first.Divide(
+          folded->second, context.targetCharacteristics().roundingMode())};
       // Don't warn about -1./0., 0./0., or 1./0. from a module file
       // they are interpreted as canonical Fortran representations of -Inf,
       // NaN, and Inf respectively.
@@ -1839,7 +1877,7 @@ Expr<T> FoldOperation(FoldingContext &context, Divide<T> &&x) {
       if (!isCanonicalNaNOrInf) {
         RealFlagWarnings(context, quotient.flags, "division");
       }
-      if (context.flushSubnormalsToZero()) {
+      if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
         quotient.value = quotient.value.FlushSubnormalToZero();
       }
       return Expr<T>{Constant<T>{quotient.value}};
@@ -1891,7 +1929,7 @@ Expr<T> FoldOperation(FoldingContext &context, RealToIntPower<T> &&x) {
         if (auto folded{OperandsAreConstants(x.left(), y)}) {
           auto power{evaluate::IntPower(folded->first, folded->second)};
           RealFlagWarnings(context, power.flags, "power with INTEGER exponent");
-          if (context.flushSubnormalsToZero()) {
+          if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
             power.value = power.value.FlushSubnormalToZero();
           }
           return Expr<T>{Constant<T>{power.value}};

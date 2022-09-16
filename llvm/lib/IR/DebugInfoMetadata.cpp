@@ -27,7 +27,7 @@ using namespace llvm;
 namespace llvm {
 // Use FS-AFDO discriminator.
 cl::opt<bool> EnableFSDiscriminator(
-    "enable-fs-discriminator", cl::Hidden, cl::init(false), cl::ZeroOrMore,
+    "enable-fs-discriminator", cl::Hidden,
     cl::desc("Enable adding flow sensitive discriminators"));
 } // namespace llvm
 
@@ -807,7 +807,7 @@ DIFile *DIFile::getImpl(LLVMContext &Context, MDString *Filename,
   assert((!Source || isCanonical(*Source)) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DIFile, (Filename, Directory, CS, Source));
   Metadata *Ops[] = {Filename, Directory, CS ? CS->Value : nullptr,
-                     Source.getValueOr(nullptr)};
+                     Source.value_or(nullptr)};
   DEFINE_GETIMPL_STORE(DIFile, (CS, Source), Ops);
 }
 DICompileUnit::DICompileUnit(LLVMContext &C, StorageType Storage,
@@ -1387,7 +1387,10 @@ void DIExpression::appendOffset(SmallVectorImpl<uint64_t> &Ops,
     Ops.push_back(Offset);
   } else if (Offset < 0) {
     Ops.push_back(dwarf::DW_OP_constu);
-    Ops.push_back(-Offset);
+    // Avoid UB when encountering LLONG_MIN, because in 2's complement
+    // abs(LLONG_MIN) is LLONG_MAX+1.
+    uint64_t AbsMinusOne = -(Offset+1);
+    Ops.push_back(AbsMinusOne + 1);
     Ops.push_back(dwarf::DW_OP_minus);
   }
 }
@@ -1582,7 +1585,7 @@ DIExpression *DIExpression::appendToStack(const DIExpression *Expr,
   //
   // Match .* DW_OP_stack_value (DW_OP_LLVM_fragment A B)?.
   Optional<FragmentInfo> FI = Expr->getFragmentInfo();
-  unsigned DropUntilStackValue = FI.hasValue() ? 3 : 0;
+  unsigned DropUntilStackValue = FI ? 3 : 0;
   ArrayRef<uint64_t> ExprOpsBeforeFragment =
       Expr->getElements().drop_back(DropUntilStackValue);
   bool NeedsDeref = (Expr->getNumElements() > DropUntilStackValue) &&

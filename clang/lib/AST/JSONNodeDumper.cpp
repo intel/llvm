@@ -1,4 +1,5 @@
 #include "clang/AST/JSONNodeDumper.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Lex/Lexer.h"
@@ -662,9 +663,11 @@ void JSONNodeDumper::VisitUnresolvedUsingType(const UnresolvedUsingType *UUT) {
 
 void JSONNodeDumper::VisitUnaryTransformType(const UnaryTransformType *UTT) {
   switch (UTT->getUTTKind()) {
-  case UnaryTransformType::EnumUnderlyingType:
-    JOS.attribute("transformKind", "underlying_type");
+#define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
+  case UnaryTransformType::Enum:                                               \
+    JOS.attribute("transformKind", #Trait);                                    \
     break;
+#include "clang/Basic/TransformTypeTraits.def"
   }
 }
 
@@ -1694,4 +1697,19 @@ void JSONNodeDumper::visitVerbatimBlockLineComment(
 void JSONNodeDumper::visitVerbatimLineComment(
     const comments::VerbatimLineComment *C, const comments::FullComment *) {
   JOS.attribute("text", C->getText());
+}
+
+llvm::json::Object JSONNodeDumper::createFPOptions(FPOptionsOverride FPO) {
+  llvm::json::Object Ret;
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  if (FPO.has##NAME##Override())                                               \
+    Ret.try_emplace(#NAME, static_cast<unsigned>(FPO.get##NAME##Override()));
+#include "clang/Basic/FPOptions.def"
+  return Ret;
+}
+
+void JSONNodeDumper::VisitCompoundStmt(const CompoundStmt *S) {
+  VisitStmt(S);
+  if (S->hasStoredFPFeatures())
+    JOS.attribute("fpoptions", createFPOptions(S->getStoredFPFeatures()));
 }

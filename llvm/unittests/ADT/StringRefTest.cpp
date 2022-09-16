@@ -59,16 +59,12 @@ TEST(StringRefTest, Construction) {
   EXPECT_EQ("hello", StringRef("hello"));
   EXPECT_EQ("hello", StringRef("hello world", 5));
   EXPECT_EQ("hello", StringRef(std::string("hello")));
-#if __cplusplus > 201402L
   EXPECT_EQ("hello", StringRef(std::string_view("hello")));
-#endif
 }
 
 TEST(StringRefTest, Conversion) {
   EXPECT_EQ("hello", std::string(StringRef("hello")));
-#if __cplusplus > 201402L
   EXPECT_EQ("hello", std::string_view(StringRef("hello")));
-#endif
 }
 
 TEST(StringRefTest, EmptyInitializerList) {
@@ -582,6 +578,15 @@ TEST(StringRefTest, EditDistance) {
   EXPECT_EQ(53U, Soylent.edit_distance("people soiled our green "
                                        "people soiled our green "
                                        "people soiled our green "));
+}
+
+TEST(StringRefTest, EditDistanceInsensitive) {
+  StringRef Hello("HELLO");
+  EXPECT_EQ(2U, Hello.edit_distance_insensitive("hill"));
+  EXPECT_EQ(0U, Hello.edit_distance_insensitive("hello"));
+
+  StringRef Industry("InDuStRy");
+  EXPECT_EQ(6U, Industry.edit_distance_insensitive("iNtErEsT"));
 }
 
 TEST(StringRefTest, Misc) {

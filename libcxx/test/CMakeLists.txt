@@ -93,16 +93,8 @@ if (NOT LIBCXX_ENABLE_EXCEPTIONS)
   serialize_lit_param(enable_exceptions False)
 endif()
 
-if (NOT LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY)
-  serialize_lit_param(enable_experimental False)
-endif()
-
 if (NOT LIBCXX_ENABLE_RTTI)
   serialize_lit_param(enable_rtti False)
-endif()
-
-if (NOT LIBCXX_ENABLE_DEBUG_MODE_SUPPORT)
-  serialize_lit_param(enable_debug_tests False)
 endif()
 
 if (LIBCXX_ENABLE_ASSERTIONS)

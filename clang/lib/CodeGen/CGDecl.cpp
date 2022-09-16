@@ -505,7 +505,7 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   LocalDeclMap.find(&D)->second = Address(castedAddr, elemTy, alignment);
   CGM.setStaticLocalDeclAddress(&D, castedAddr);
 
-  CGM.getSanitizerMetadata()->reportGlobalToASan(var, D);
+  CGM.getSanitizerMetadata()->reportGlobal(var, D);
 
   // Emit global variable debug descriptor for static vars.
   CGDebugInfo *DI = getDebugInfo();
@@ -871,7 +871,7 @@ void CodeGenFunction::EmitScalarInit(const Expr *init, const ValueDecl *D,
     // If D is pseudo-strong, treat it like __unsafe_unretained here. This means
     // that we omit the retain, and causes non-autoreleased return values to be
     // immediately released.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
 
   case Qualifiers::OCL_ExplicitNone:

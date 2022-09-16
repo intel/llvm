@@ -22,6 +22,7 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
+#include "clang/AST/TextNodeDumper.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
@@ -32,6 +33,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -77,6 +79,21 @@ namespace {
 
     ~ParamPolicyRAII() {
       Policy.SuppressSpecifiers = Old;
+    }
+  };
+
+  class DefaultTemplateArgsPolicyRAII {
+    PrintingPolicy &Policy;
+    bool Old;
+
+  public:
+    explicit DefaultTemplateArgsPolicyRAII(PrintingPolicy &Policy)
+        : Policy(Policy), Old(Policy.SuppressDefaultTemplateArgs) {
+      Policy.SuppressDefaultTemplateArgs = false;
+    }
+
+    ~DefaultTemplateArgsPolicyRAII() {
+      Policy.SuppressDefaultTemplateArgs = Old;
     }
   };
 
@@ -249,7 +266,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::VariableArray:
     case Type::DependentSizedArray:
       NeedARCStrongQualifier = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     case Type::ConstantArray:
     case Type::IncompleteArray:
@@ -1134,29 +1151,19 @@ void TypePrinter::printUnaryTransformBefore(const UnaryTransformType *T,
                                             raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
 
-  switch (T->getUTTKind()) {
-    case UnaryTransformType::EnumUnderlyingType:
-      OS << "__underlying_type(";
-      print(T->getBaseType(), OS, StringRef());
-      OS << ')';
-      spaceBeforePlaceHolder(OS);
-      return;
-  }
-
-  printBefore(T->getBaseType(), OS);
+  static llvm::DenseMap<int, const char *> Transformation = {{
+#define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
+  {UnaryTransformType::Enum, "__" #Trait},
+#include "clang/Basic/TransformTypeTraits.def"
+  }};
+  OS << Transformation[T->getUTTKind()] << '(';
+  print(T->getBaseType(), OS, StringRef());
+  OS << ')';
+  spaceBeforePlaceHolder(OS);
 }
 
 void TypePrinter::printUnaryTransformAfter(const UnaryTransformType *T,
-                                           raw_ostream &OS) {
-  IncludeStrongLifetimeRAII Strong(Policy);
-
-  switch (T->getUTTKind()) {
-    case UnaryTransformType::EnumUnderlyingType:
-      return;
-  }
-
-  printAfter(T->getBaseType(), OS);
-}
+                                           raw_ostream &OS) {}
 
 void TypePrinter::printAutoBefore(const AutoType *T, raw_ostream &OS) {
   // If the type has been deduced, do not print 'auto'.
@@ -1479,6 +1486,7 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
 
   TemplateDecl *TD = T->getTemplateName().getAsTemplateDecl();
+  // FIXME: Null TD never excercised in test suite.
   if (FullyQualify && TD) {
     if (!Policy.SuppressScope)
       AppendScope(TD->getDeclContext(), OS, TD->getDeclName());
@@ -1488,7 +1496,9 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
     T->getTemplateName().print(OS, Policy);
   }
 
-  printTemplateArgumentList(OS, T->template_arguments(), Policy);
+  DefaultTemplateArgsPolicyRAII TemplateArgs(Policy);
+  const TemplateParameterList *TPL = TD ? TD->getTemplateParameters() : nullptr;
+  printTemplateArgumentList(OS, T->template_arguments(), Policy, TPL);
   spaceBeforePlaceHolder(OS);
 }
 
@@ -1703,6 +1713,15 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   if (T->getAttrKind() == attr::AddressSpace)
     return;
 
+  if (T->getAttrKind() == attr::AnnotateType) {
+    // FIXME: Print the attribute arguments once we have a way to retrieve these
+    // here. For the meantime, we just print `[[clang::annotate_type(...)]]`
+    // without the arguments so that we know at least that we had _some_
+    // annotation on the type.
+    OS << " [[clang::annotate_type(...)]]";
+    return;
+  }
+
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
 #define TYPE_ATTR(NAME)
@@ -1744,6 +1763,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::UPtr:
   case attr::AddressSpace:
   case attr::CmseNSCall:
+  case attr::AnnotateType:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

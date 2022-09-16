@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/spinlock.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -17,6 +14,9 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/spinlock.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -24,8 +24,8 @@
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 using LockGuard = std::lock_guard<SpinLock>;
 
@@ -87,10 +87,6 @@ XPTIRegistry &GlobalHandler::getXPTIRegistry() {
   return getOrCreate(MXPTIRegistry);
 }
 
-std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
-  return getOrCreate(MHandlerExtendedMembersMutex);
-}
-
 ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
   ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
@@ -120,6 +116,24 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
   static DefaultContextReleaseHandler handler{};
 }
 
+// Note: Split from shutdown so it is available to the unittests for ensuring
+//       that the mock plugin is the lone plugin.
+void GlobalHandler::unloadPlugins() {
+  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
+  // user application has loaded SYCL runtime, and never called any APIs,
+  // there's no need to load and unload plugins.
+  if (GlobalHandler::instance().MPlugins.Inst) {
+    for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
+      // PluginParameter is reserved for future use that can control
+      // some parameters in the plugin tear-down process.
+      // Currently, it is not used.
+      void *PluginParameter = nullptr;
+      Plugin.call<PiApiKind::piTearDown>(PluginParameter);
+      Plugin.unload();
+    }
+  }
+}
+
 void shutdown() {
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
@@ -138,20 +152,10 @@ void shutdown() {
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 
-  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
-  // user application has loaded SYCL runtime, and never called any APIs,
-  // there's no need to load and unload plugins.
-  if (GlobalHandler::instance().MPlugins.Inst) {
-    for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
-      // PluginParameter is reserved for future use that can control
-      // some parameters in the plugin tear-down process.
-      // Currently, it is not used.
-      void *PluginParameter = nullptr;
-      Plugin.call<PiApiKind::piTearDown>(PluginParameter);
-      Plugin.unload();
-    }
+  // Clear the plugins and reset the instance if it was there.
+  GlobalHandler::instance().unloadPlugins();
+  if (GlobalHandler::instance().MPlugins.Inst)
     GlobalHandler::instance().MPlugins.Inst.reset(nullptr);
-  }
 
   // Release the rest of global resources.
   delete &GlobalHandler::instance();
@@ -182,5 +186,5 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 __attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

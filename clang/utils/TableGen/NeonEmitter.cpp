@@ -441,7 +441,7 @@ public:
   /// Return the index that parameter PIndex will sit at
   /// in a generated function call. This is often just PIndex,
   /// but may not be as things such as multiple-vector operands
-  /// and sret parameters need to be taken into accont.
+  /// and sret parameters need to be taken into account.
   unsigned getGeneratedParamIdx(unsigned PIndex) {
     unsigned Idx = 0;
     if (getReturnType().getNumVectors() > 1)
@@ -817,19 +817,19 @@ void Type::applyTypespec(bool &Quad) {
       break;
     case 'h':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 's':
       ElementBitwidth = 16;
       break;
     case 'f':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'i':
       ElementBitwidth = 32;
       break;
     case 'd':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'l':
       ElementBitwidth = 64;
       break;

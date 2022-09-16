@@ -57,6 +57,8 @@ def Linalg_Dialect : Dialect {
     private:
       llvm::StringMap<RegionBuilderFunType> namedStructuredOpRegionBuilders;
   }];
+
+  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
 }
 
 // Define the function attribute enums matching the OpDSL functions.

@@ -11,14 +11,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/SPIRV/Transforms/Passes.h"
+
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
-#include "mlir/Dialect/SPIRV/Transforms/Passes.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/SetVector.h"
+
+namespace mlir {
+namespace spirv {
+#define GEN_PASS_DEF_SPIRVLOWERABIATTRIBUTES
+#include "mlir/Dialect/SPIRV/Transforms/Passes.h.inc"
+} // namespace spirv
+} // namespace mlir
 
 using namespace mlir;
 
@@ -131,11 +138,11 @@ static LogicalResult lowerEntryPointABIAttr(spirv::FuncOp funcOp,
     return funcOp.emitRemark("lower entry point failure: could not select "
                              "execution model based on 'spv.target_env'");
 
-  builder.create<spirv::EntryPointOp>(
-      funcOp.getLoc(), executionModel.getValue(), funcOp, interfaceVars);
+  builder.create<spirv::EntryPointOp>(funcOp.getLoc(), executionModel.value(),
+                                      funcOp, interfaceVars);
 
   // Specifies the spv.ExecutionModeOp.
-  auto localSizeAttr = entryPointAttr.local_size();
+  auto localSizeAttr = entryPointAttr.getLocalSize();
   if (localSizeAttr) {
     auto values = localSizeAttr.getValues<int32_t>();
     SmallVector<int32_t, 3> localSize(values);
@@ -165,7 +172,7 @@ public:
 
 /// Pass to implement the ABI information specified as attributes.
 class LowerABIAttributesPass final
-    : public SPIRVLowerABIAttributesBase<LowerABIAttributesPass> {
+    : public spirv::impl::SPIRVLowerABIAttributesBase<LowerABIAttributesPass> {
   void runOnOperation() override;
 };
 } // namespace

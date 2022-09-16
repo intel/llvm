@@ -18,7 +18,14 @@
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
 
-#include "CL/sycl/detail/pi.h"
+// This version should be incremented for any change made to this file or its
+// corresponding .cpp file.
+#define _PI_CUDA_PLUGIN_VERSION 1
+
+#define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
+  _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
+
+#include "sycl/detail/pi.h"
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -26,6 +33,7 @@
 #include <cuda.h>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <numeric>
 #include <stdint.h>
@@ -54,6 +62,8 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                     size_t *param_value_size_ret);
 /// \endcond
 }
+
+using _pi_stream_guard = std::unique_lock<std::mutex>;
 
 /// A PI platform stores all known PI devices,
 ///  in the CUDA plugin this is just a vector of
@@ -163,8 +173,10 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  _pi_context(kind k, CUcontext ctxt, _pi_device *devId)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1} {
+  _pi_context(kind k, CUcontext ctxt, _pi_device *devId,
+              bool backend_owns = true)
+      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
+        has_ownership{backend_owns} {
     cuda_piDeviceRetain(deviceId_);
   };
 
@@ -195,9 +207,12 @@ struct _pi_context {
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
+  bool backend_has_ownership() const noexcept { return has_ownership; }
+
 private:
   std::mutex mutex_;
   std::vector<deleter_data> extended_deleters_;
+  const bool has_ownership;
 };
 
 /// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
@@ -382,6 +397,11 @@ struct _pi_queue {
 
   std::vector<native_type> compute_streams_;
   std::vector<native_type> transfer_streams_;
+  // delay_compute_ keeps track of which streams have been recently reused and
+  // their next use should be delayed. If a stream has been recently reused it
+  // will be skipped the next time it would be selected round-robin style. When
+  // skipped, its delay flag is cleared.
+  std::vector<bool> delay_compute_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
@@ -394,20 +414,26 @@ struct _pi_queue {
   unsigned int last_sync_compute_streams_;
   unsigned int last_sync_transfer_streams_;
   unsigned int flags_;
+  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be
+  // locked at the same time, compute_stream_sync_mutex_ should be locked first
+  // to avoid deadlocks
+  std::mutex compute_stream_sync_mutex_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
+  bool has_ownership_;
 
   _pi_queue(std::vector<CUstream> &&compute_streams,
             std::vector<CUstream> &&transfer_streams, _pi_context *context,
             _pi_device *device, pi_queue_properties properties,
-            unsigned int flags)
+            unsigned int flags, bool backend_owns = true)
       : compute_streams_{std::move(compute_streams)},
-        transfer_streams_{std::move(transfer_streams)}, context_{context},
+        transfer_streams_{std::move(transfer_streams)},
+        delay_compute_(compute_streams_.size(), false), context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
         num_compute_streams_{0}, num_transfer_streams_{0},
         last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
-        flags_(flags) {
+        flags_(flags), has_ownership_{backend_owns} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -419,9 +445,46 @@ struct _pi_queue {
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
-  native_type get_next_compute_stream();
+  native_type get_next_compute_stream(pi_uint32 *stream_token = nullptr);
+  // this overload tries select a stream that was used by one of dependancies.
+  // If that is not possible returns a new stream. If a stream is reused it
+  // returns a lock that needs to remain locked as long as the stream is in use
+  native_type get_next_compute_stream(pi_uint32 num_events_in_wait_list,
+                                      const pi_event *event_wait_list,
+                                      _pi_stream_guard &guard,
+                                      pi_uint32 *stream_token = nullptr);
   native_type get_next_transfer_stream();
   native_type get() { return get_next_compute_stream(); };
+
+  bool has_been_synchronized(pi_uint32 stream_token) {
+    // stream token not associated with one of the compute streams
+    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
+      return false;
+    }
+    return last_sync_compute_streams_ >= stream_token;
+  }
+
+  bool can_reuse_stream(pi_uint32 stream_token) {
+    // stream token not associated with one of the compute streams
+    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
+      return false;
+    }
+    // If the command represented by the stream token was not the last command
+    // enqueued to the stream we can not reuse the stream - we need to allow for
+    // commands enqueued after it and the one we are about to enqueue to run
+    // concurrently
+    bool is_last_command =
+        (compute_stream_idx_ - stream_token) <= compute_streams_.size();
+    // If there was a barrier enqueued to the queue after the command
+    // represented by the stream token we should not reuse the stream, as we can
+    // not take that stream into account for the bookkeeping for the next
+    // barrier - such a stream would not be synchronized with. Performance-wise
+    // it does not matter that we do not reuse the stream, as the work
+    // represented by the stream token is guaranteed to be complete by the
+    // barrier before any work we are about to enqueue to the stream will start,
+    // so the event does not need to be synchronized with.
+    return is_last_command && !has_been_synchronized(stream_token);
+  }
 
   template <typename T> void for_each_stream(T &&f) {
     {
@@ -445,14 +508,23 @@ struct _pi_queue {
   }
 
   template <typename T> void sync_streams(T &&f) {
-    auto sync = [&f](const std::vector<CUstream> &streams, unsigned int start,
-                     unsigned int stop) {
+    auto sync_compute = [&f, &streams = compute_streams_,
+                         &delay = delay_compute_](unsigned int start,
+                                                  unsigned int stop) {
+      for (unsigned int i = start; i < stop; i++) {
+        f(streams[i]);
+        delay[i] = false;
+      }
+    };
+    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start,
+                                                            unsigned int stop) {
       for (unsigned int i = start; i < stop; i++) {
         f(streams[i]);
       }
     };
     {
       unsigned int size = static_cast<unsigned int>(compute_streams_.size());
+      std::lock_guard compute_sync_guard(compute_stream_sync_mutex_);
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
       unsigned int start = last_sync_compute_streams_;
       unsigned int end = num_compute_streams_ < size
@@ -460,15 +532,15 @@ struct _pi_queue {
                              : compute_stream_idx_.load();
       last_sync_compute_streams_ = end;
       if (end - start >= size) {
-        sync(compute_streams_, 0, size);
+        sync_compute(0, size);
       } else {
         start %= size;
         end %= size;
-        if (start < end) {
-          sync(compute_streams_, start, end);
+        if (start <= end) {
+          sync_compute(start, end);
         } else {
-          sync(compute_streams_, start, size);
-          sync(compute_streams_, 0, end);
+          sync_compute(start, size);
+          sync_compute(0, end);
         }
       }
     }
@@ -482,15 +554,15 @@ struct _pi_queue {
                                : transfer_stream_idx_.load();
         last_sync_transfer_streams_ = end;
         if (end - start >= size) {
-          sync(transfer_streams_, 0, size);
+          sync_transfer(0, size);
         } else {
           start %= size;
           end %= size;
-          if (start < end) {
-            sync(transfer_streams_, start, end);
+          if (start <= end) {
+            sync_transfer(start, end);
           } else {
-            sync(transfer_streams_, start, size);
-            sync(transfer_streams_, 0, end);
+            sync_transfer(start, size);
+            sync_transfer(0, end);
           }
         }
       }
@@ -508,6 +580,8 @@ struct _pi_queue {
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_uint32 get_next_event_id() noexcept { return ++eventCount_; }
+
+  bool backend_has_ownership() const noexcept { return has_ownership_; }
 };
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
@@ -529,6 +603,8 @@ public:
   pi_queue get_queue() const noexcept { return queue_; }
 
   CUstream get_stream() const noexcept { return stream_; }
+
+  pi_uint32 get_stream_token() const noexcept { return streamToken_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
 
@@ -560,6 +636,8 @@ public:
 
   pi_uint32 get_event_id() const noexcept { return eventId_; }
 
+  bool backend_has_ownership() const noexcept { return has_ownership_; }
+
   // Returns the counter time when the associated command(s) were enqueued
   //
   pi_uint64 get_queued_time() const;
@@ -573,9 +651,15 @@ public:
   pi_uint64 get_end_time() const;
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
-  static pi_event make_native(pi_command_type type, pi_queue queue,
-                              CUstream stream) {
-    return new _pi_event(type, queue->get_context(), queue, stream);
+  static pi_event
+  make_native(pi_command_type type, pi_queue queue, CUstream stream,
+              pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
+    return new _pi_event(type, queue->get_context(), queue, stream,
+                         stream_token);
+  }
+
+  static pi_event make_with_native(pi_context context, CUevent eventNative) {
+    return new _pi_event(context, eventNative);
   }
 
   pi_result release();
@@ -586,11 +670,17 @@ private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
   _pi_event(pi_command_type type, pi_context context, pi_queue queue,
-            CUstream stream);
+            CUstream stream, pi_uint32 stream_token);
+
+  // This constructor is private to force programmers to use the
+  // make_with_native for event introp
+  _pi_event(pi_context context, CUevent eventNative);
 
   pi_command_type commandType_; // The type of command associated with event.
 
   std::atomic_uint32_t refCount_; // Event reference count.
+
+  bool has_ownership_; // Signifies if event owns the native type.
 
   bool hasBeenWaitedOn_; // Signifies whether the event has been waited
                          // on through a call to wait(), which implies
@@ -602,6 +692,7 @@ private:
                     // PI event has started or not
                     //
 
+  pi_uint32 streamToken_;
   pi_uint32 eventId_; // Queue identifier of the event.
 
   native_type evEnd_; // CUDA event handle. If this _pi_event represents a user

@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <dlfcn.h>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -29,7 +29,13 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return so;
 }
 
-int unloadOsLibrary(void *Library) { return dlclose(Library); }
+int unloadOsLibrary(void *Library) {
+  // The mock plugin does not have an associated library, so we allow nullptr
+  // here to avoid it trying to free a non-existent library.
+  if (!Library)
+    return 0;
+  return dlclose(Library);
+}
 
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
@@ -37,5 +43,5 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -400,7 +400,7 @@ Builtin Macros
 Vectors and Extended Vectors
 ============================
 
-Supports the GCC, OpenCL, AltiVec and NEON vector extensions.
+Supports the GCC, OpenCL, AltiVec, NEON and SVE vector extensions.
 
 OpenCL vector types are created using the ``ext_vector_type`` attribute.  It
 supports the ``V.xyzw`` syntax and other tidbits as seen in OpenCL.  An example
@@ -539,34 +539,36 @@ The table below shows the support for each operation by vector extension.  A
 dash indicates that an operation is not accepted according to a corresponding
 specification.
 
-============================== ======= ======= ============= =======
-         Operator              OpenCL  AltiVec     GCC        NEON
-============================== ======= ======= ============= =======
-[]                               yes     yes       yes         --
-unary operators +, --            yes     yes       yes         --
-++, -- --                        yes     yes       yes         --
-+,--,*,/,%                       yes     yes       yes         --
-bitwise operators &,|,^,~        yes     yes       yes         --
->>,<<                            yes     yes       yes         --
-!, &&, ||                        yes     --        yes         --
-==, !=, >, <, >=, <=             yes     yes       yes         --
-=                                yes     yes       yes         yes
-?: [#]_                          yes     --        yes         --
-sizeof                           yes     yes       yes         yes
-C-style cast                     yes     yes       yes         no
-reinterpret_cast                 yes     no        yes         no
-static_cast                      yes     no        yes         no
-const_cast                       no      no        no          no
-address &v[i]                    no      no        no [#]_     no
-============================== ======= ======= ============= =======
+============================== ======= ======= ============= ======= =====
+         Operator              OpenCL  AltiVec     GCC        NEON    SVE
+============================== ======= ======= ============= ======= =====
+[]                               yes     yes       yes         yes    yes
+unary operators +, --            yes     yes       yes         yes    yes
+++, -- --                        yes     yes       yes         no     no
++,--,*,/,%                       yes     yes       yes         yes    yes
+bitwise operators &,|,^,~        yes     yes       yes         yes    yes
+>>,<<                            yes     yes       yes         yes    yes
+!, &&, ||                        yes     --        yes         yes    yes
+==, !=, >, <, >=, <=             yes     yes       yes         yes    yes
+=                                yes     yes       yes         yes    yes
+?: [#]_                          yes     --        yes         yes    yes
+sizeof                           yes     yes       yes         yes    yes [#]_
+C-style cast                     yes     yes       yes         no     no
+reinterpret_cast                 yes     no        yes         no     no
+static_cast                      yes     no        yes         no     no
+const_cast                       no      no        no          no     no
+address &v[i]                    no      no        no [#]_     no     no
+============================== ======= ======= ============= ======= =====
 
 See also :ref:`langext-__builtin_shufflevector`, :ref:`langext-__builtin_convertvector`.
 
 .. [#] ternary operator(?:) has different behaviors depending on condition
   operand's vector type. If the condition is a GNU vector (i.e. __vector_size__),
-  it's only available in C++ and uses normal bool conversions (that is, != 0).
+  a NEON vector or an SVE vector, it's only available in C++ and uses normal bool
+  conversions (that is, != 0).
   If it's an extension (OpenCL) vector, it's only available in C and OpenCL C.
   And it selects base on signedness of the condition operands (OpenCL v1.1 s6.3.9).
+.. [#] sizeof can only be used on vector length specific SVE types.
 .. [#] Clang does not allow the address of an element to be taken while GCC
    allows this. This is intentional for vectors with a boolean element type and
    not implemented otherwise.
@@ -743,15 +745,27 @@ targets pending ABI standardization:
 * 64-bit ARM (AArch64)
 * AMDGPU
 * SPIR
-* X86 (Only available under feature AVX512-FP16)
+* X86 (see below)
+
+On X86 targets, ``_Float16`` is supported as long as SSE2 is available, which
+includes all 64-bit and all recent 32-bit processors. When the target supports
+AVX512-FP16, ``_Float16`` arithmetic is performed using that native support.
+Otherwise, ``_Float16`` arithmetic is performed by promoting to ``float``,
+performing the operation, and then truncating to ``_Float16``. When doing this
+emulation, Clang defaults to following the C standard's rules for excess
+precision arithmetic, which avoids intermediate truncations within statements
+and may generate different results from a strict operation-by-operation
+emulation.
 
 ``_Float16`` will be supported on more targets as they define ABIs for it.
 
 ``__bf16`` is purely a storage format; it is currently only supported on the following targets:
 * 32-bit ARM
 * 64-bit ARM (AArch64)
+* X86 (see below)
 
-The ``__bf16`` type is only available when supported in hardware.
+On X86 targets, ``__bf16`` is supported as long as SSE2 is available, which
+includes all 64-bit and all recent 32-bit processors.
 
 ``__fp16`` is a storage and interchange format only.  This means that values of
 ``__fp16`` are immediately promoted to (at least) ``float`` when used in arithmetic
@@ -1363,7 +1377,7 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__has_trivial_move_assign`` (GNU, Microsoft):
   Deprecated, use ``__is_trivially_assignable`` instead.
 * ``__has_trivial_copy`` (GNU, Microsoft):
-  Deprecated, use ``__is_trivially_constructible`` instead.
+  Deprecated, use ``__is_trivially_copyable`` instead.
 * ``__has_trivial_constructor`` (GNU, Microsoft):
   Deprecated, use ``__is_trivially_constructible`` instead.
 * ``__has_trivial_move_constructor`` (GNU, Microsoft):
@@ -3000,7 +3014,7 @@ stable numbering order in which they appear in their local declaration contexts.
 Once this builtin is evaluated in a constexpr context, it is erroneous to use
 it in an instantiation which changes its value.
 
-In order to produce the unique name, the current implementation of the bultin
+In order to produce the unique name, the current implementation of the builtin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
 the SYCL kernel and emits a stable local ordering of the respective lambdas.
@@ -3239,6 +3253,26 @@ Note that the `size` argument must be a compile time constant.
 
 Note that this intrinsic cannot yet be called in a ``constexpr`` context.
 
+Guaranteed inlined memset
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: c
+
+  void __builtin_memset_inline(void *dst, int value, size_t size);
+
+
+``__builtin_memset_inline`` has been designed as a building block for efficient
+``memset`` implementations. It is identical to ``__builtin_memset`` but also
+guarantees not to call any external functions. See LLVM IR `llvm.memset.inline
+<https://llvm.org/docs/LangRef.html#llvm-memset-inline-intrinsic>`_ intrinsic
+for more information.
+
+This is useful to implement a custom version of ``memset``, implement a
+``libc`` memset or work around the absence of a ``libc``.
+
+Note that the `size` argument must be a compile time constant.
+
+Note that this intrinsic cannot yet be called in a ``constexpr`` context.
 
 Atomic Min/Max builtins with memory ordering
 --------------------------------------------
@@ -3813,6 +3847,44 @@ The ``container`` function is also in the region and will not be optimized, but
 it causes the instantiation of ``twice`` and ``thrice`` with an ``int`` type; of
 these two instantiations, ``twice`` will be optimized (because its definition
 was outside the region) and ``thrice`` will not be optimized.
+
+Clang also implements MSVC's range-based pragma,
+``#pragma optimize("[optimization-list]", on | off)``. At the moment, Clang only
+supports an empty optimization list, whereas MSVC supports the arguments, ``s``,
+``g``, ``t``, and ``y``. Currently, the implementation of ``pragma optimize`` behaves
+the same as ``#pragma clang optimize``. All functions
+between ``off`` and ``on`` will be decorated with the ``optnone`` attribute.
+
+.. code-block:: c++
+
+  #pragma optimize("", off)
+  // This function will be decorated with optnone.
+  void f1() {}
+
+  #pragma optimize("", on)
+  // This function will be optimized with whatever was specified on
+  // the commandline.
+  void f2() {}
+
+  // This will warn with Clang's current implementation.
+  #pragma optimize("g", on)
+  void f3() {}
+
+For MSVC, an empty optimization list and ``off`` parameter will turn off
+all optimizations, ``s``, ``g``, ``t``, and ``y``. An empty optimization and
+``on`` parameter will reset the optimizations to the ones specified on the
+commandline.
+
+.. list-table:: Parameters (unsupported by Clang)
+
+   * - Parameter
+     - Type of optimization
+   * - g
+     - Deprecated
+   * - s or t
+     - Short or fast sequences of machine code
+   * - y
+     - Enable frame pointers
 
 Extensions for loop hint optimizations
 ======================================

@@ -15,6 +15,7 @@
 #include "bolt/Core/BinaryContext.h"
 #include "bolt/Core/BinaryFunction.h"
 #include "bolt/Core/DebugData.h"
+#include "bolt/Core/FunctionLayout.h"
 #include "bolt/Utils/CommandLineOpts.h"
 #include "bolt/Utils/Utils.h"
 #include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
@@ -34,12 +35,8 @@ namespace opts {
 extern cl::opt<JumpTableSupportLevel> JumpTables;
 extern cl::opt<bool> PreserveBlocksAlignment;
 
-cl::opt<bool>
-AlignBlocks("align-blocks",
-  cl::desc("align basic blocks"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+cl::opt<bool> AlignBlocks("align-blocks", cl::desc("align basic blocks"),
+                          cl::cat(BoltOptCategory));
 
 cl::opt<MacroFusionType>
 AlignMacroOpFusion("align-macro-fusion",
@@ -70,20 +67,15 @@ FunctionPadSpec("pad-funcs",
   cl::Hidden,
   cl::cat(BoltCategory));
 
-static cl::opt<bool>
-MarkFuncs("mark-funcs",
-  cl::desc("mark function boundaries with break instruction to make "
-           "sure we accidentally don't cross them"),
-  cl::ReallyHidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+static cl::opt<bool> MarkFuncs(
+    "mark-funcs",
+    cl::desc("mark function boundaries with break instruction to make "
+             "sure we accidentally don't cross them"),
+    cl::ReallyHidden, cl::cat(BoltCategory));
 
-static cl::opt<bool>
-PrintJumpTables("print-jump-tables",
-  cl::desc("print jump tables"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static cl::opt<bool> PrintJumpTables("print-jump-tables",
+                                     cl::desc("print jump tables"), cl::Hidden,
+                                     cl::cat(BoltCategory));
 
 static cl::opt<bool>
 X86AlignBranchBoundaryHotOnly("x86-align-branch-boundary-hot-only",
@@ -137,7 +129,7 @@ public:
 
   /// Emit function code. The caller is responsible for emitting function
   /// symbol(s) and setting the section to emit the code to.
-  void emitFunctionBody(BinaryFunction &BF, bool EmitColdPart,
+  void emitFunctionBody(BinaryFunction &BF, FunctionFragment &FF,
                         bool EmitCodeOnly = false);
 
 private:
@@ -145,7 +137,7 @@ private:
   void emitFunctions();
 
   /// Emit a single function.
-  bool emitFunction(BinaryFunction &BF, bool EmitColdPart);
+  bool emitFunction(BinaryFunction &BF, FunctionFragment &FF);
 
   /// Helper for emitFunctionBody to write data inside a function
   /// (used for AArch64)
@@ -242,13 +234,24 @@ void BinaryEmitter::emitFunctions() {
           !Function->hasValidProfile())
         Streamer.setAllowAutoPadding(false);
 
-      Emitted |= emitFunction(*Function, /*EmitColdPart=*/false);
+      FunctionLayout &Layout = Function->getLayout();
+      Emitted |= emitFunction(*Function, Layout.getMainFragment());
 
       if (Function->isSplit()) {
         if (opts::X86AlignBranchBoundaryHotOnly)
           Streamer.setAllowAutoPadding(false);
-        Emitted |= emitFunction(*Function, /*EmitColdPart=*/true);
+
+        assert((Layout.fragment_size() == 1 || Function->isSimple()) &&
+               "Only simple functions can have fragments");
+        for (FunctionFragment &FF : Layout.getSplitFragments()) {
+          // Skip empty fragments so no symbols and sections for empty fragments
+          // are generated
+          if (FF.empty() && !Function->hasConstantIsland())
+            continue;
+          Emitted |= emitFunction(*Function, FF);
+        }
       }
+
       Streamer.setAllowAutoPadding(OriginalAllowAutoPadding);
 
       if (Emitted)
@@ -258,7 +261,7 @@ void BinaryEmitter::emitFunctions() {
 
   // Mark the start of hot text.
   if (opts::HotText) {
-    Streamer.SwitchSection(BC.getTextSection());
+    Streamer.switchSection(BC.getTextSection());
     Streamer.emitLabel(BC.getHotTextStartSymbol());
   }
 
@@ -271,12 +274,13 @@ void BinaryEmitter::emitFunctions() {
 
   // Mark the end of hot text.
   if (opts::HotText) {
-    Streamer.SwitchSection(BC.getTextSection());
+    Streamer.switchSection(BC.getTextSection());
     Streamer.emitLabel(BC.getHotTextEndSymbol());
   }
 }
 
-bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
+bool BinaryEmitter::emitFunction(BinaryFunction &Function,
+                                 FunctionFragment &FF) {
   if (Function.size() == 0 && !Function.hasIslandsInfo())
     return false;
 
@@ -284,9 +288,8 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
     return false;
 
   MCSection *Section =
-      BC.getCodeSection(EmitColdPart ? Function.getColdCodeSectionName()
-                                     : Function.getCodeSectionName());
-  Streamer.SwitchSection(Section);
+      BC.getCodeSection(Function.getCodeSectionName(FF.getFragmentNum()));
+  Streamer.switchSection(Section);
   Section->setHasInstructions(true);
   BC.Ctx->addGenDwarfSection(Section);
 
@@ -298,8 +301,9 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
       Section->setAlignment(Align(opts::AlignFunctions));
 
     Streamer.emitCodeAlignment(BinaryFunction::MinAlign, &*BC.STI);
-    uint16_t MaxAlignBytes = EmitColdPart ? Function.getMaxColdAlignmentBytes()
-                                          : Function.getMaxAlignmentBytes();
+    uint16_t MaxAlignBytes = FF.isSplitFragment()
+                                 ? Function.getMaxColdAlignmentBytes()
+                                 : Function.getMaxAlignmentBytes();
     if (MaxAlignBytes > 0)
       Streamer.emitCodeAlignment(Function.getAlignment(), &*BC.STI,
                                  MaxAlignBytes);
@@ -310,17 +314,15 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
   MCContext &Context = Streamer.getContext();
   const MCAsmInfo *MAI = Context.getAsmInfo();
 
-  MCSymbol *StartSymbol = nullptr;
+  MCSymbol *const StartSymbol = Function.getSymbol(FF.getFragmentNum());
 
   // Emit all symbols associated with the main function entry.
-  if (!EmitColdPart) {
-    StartSymbol = Function.getSymbol();
+  if (FF.isMainFragment()) {
     for (MCSymbol *Symbol : Function.getSymbols()) {
       Streamer.emitSymbolAttribute(Symbol, MCSA_ELF_TypeFunction);
       Streamer.emitLabel(Symbol);
     }
   } else {
-    StartSymbol = Function.getColdSymbol();
     Streamer.emitSymbolAttribute(StartSymbol, MCSA_ELF_TypeFunction);
     Streamer.emitLabel(StartSymbol);
   }
@@ -331,8 +333,9 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
     if (Function.getPersonalityFunction() != nullptr)
       Streamer.emitCFIPersonality(Function.getPersonalityFunction(),
                                   Function.getPersonalityEncoding());
-    MCSymbol *LSDASymbol =
-        EmitColdPart ? Function.getColdLSDASymbol() : Function.getLSDASymbol();
+    MCSymbol *LSDASymbol = FF.isSplitFragment()
+                               ? Function.getColdLSDASymbol(FF.getFragmentNum())
+                               : Function.getLSDASymbol();
     if (LSDASymbol)
       Streamer.emitCFILsda(LSDASymbol, BC.LSDAEncoding);
     else
@@ -342,8 +345,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
       // Only write CIE CFI insns that LLVM will not already emit
       const std::vector<MCCFIInstruction> &FrameInstrs =
           MAI->getInitialFrameState();
-      if (std::find(FrameInstrs.begin(), FrameInstrs.end(), CFIInstr) ==
-          FrameInstrs.end())
+      if (!llvm::is_contained(FrameInstrs, CFIInstr))
         emitCFIInstruction(CFIInstr);
     }
   }
@@ -362,7 +364,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
   }
 
   // Emit code.
-  emitFunctionBody(Function, EmitColdPart, /*EmitCodeOnly=*/false);
+  emitFunctionBody(Function, FF, /*EmitCodeOnly=*/false);
 
   // Emit padding if requested.
   if (size_t Padding = opts::padFunction(Function)) {
@@ -378,8 +380,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
   if (Function.hasCFI())
     Streamer.emitCFIEndProc();
 
-  MCSymbol *EndSymbol = EmitColdPart ? Function.getFunctionColdEndLabel()
-                                     : Function.getFunctionEndLabel();
+  MCSymbol *EndSymbol = Function.getFunctionEndLabel(FF.getFragmentNum());
   Streamer.emitLabel(EndSymbol);
 
   if (MAI->hasDotTypeDotSizeDirective()) {
@@ -393,25 +394,36 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
     emitLineInfoEnd(Function, EndSymbol);
 
   // Exception handling info for the function.
-  emitLSDA(Function, EmitColdPart);
+  emitLSDA(Function, FF.isSplitFragment());
 
-  if (!EmitColdPart && opts::JumpTables > JTS_NONE)
+  if (FF.isMainFragment() && opts::JumpTables > JTS_NONE)
     emitJumpTables(Function);
 
   return true;
 }
 
-void BinaryEmitter::emitFunctionBody(BinaryFunction &BF, bool EmitColdPart,
+void BinaryEmitter::emitFunctionBody(BinaryFunction &BF, FunctionFragment &FF,
                                      bool EmitCodeOnly) {
-  if (!EmitCodeOnly && EmitColdPart && BF.hasConstantIsland())
+  if (!EmitCodeOnly && FF.isSplitFragment() && BF.hasConstantIsland()) {
+    assert(BF.getLayout().isHotColdSplit() &&
+           "Constant island support only with hot/cold split");
     BF.duplicateConstantIslands();
+  }
+
+  if (!FF.empty() && FF.front()->isLandingPad()) {
+    assert(!FF.front()->isEntryPoint() &&
+           "Landing pad cannot be entry point of function");
+    // If the first block of the fragment is a landing pad, it's offset from the
+    // start of the area that the corresponding LSDA describes is zero. In this
+    // case, the call site entries in that LSDA have 0 as offset to the landing
+    // pad, which the runtime interprets as "no handler". To prevent this,
+    // insert some padding.
+    Streamer.emitIntValue(BC.MIB->getTrapFillValue(), 1);
+  }
 
   // Track the first emitted instruction with debug info.
   bool FirstInstr = true;
-  for (BinaryBasicBlock *BB : BF.layout()) {
-    if (EmitColdPart != BB->isCold())
-      continue;
-
+  for (BinaryBasicBlock *const BB : FF) {
     if ((opts::AlignBlocks || opts::PreserveBlocksAlignment) &&
         BB->getAlignment() > 1)
       Streamer.emitCodeAlignment(BB->getAlignment(), &*BC.STI,
@@ -486,7 +498,7 @@ void BinaryEmitter::emitFunctionBody(BinaryFunction &BF, bool EmitColdPart,
   }
 
   if (!EmitCodeOnly)
-    emitConstantIslands(BF, EmitColdPart);
+    emitConstantIslands(BF, FF.isSplitFragment());
 }
 
 void BinaryEmitter::emitConstantIslands(BinaryFunction &BF, bool EmitColdPart,
@@ -780,7 +792,7 @@ void BinaryEmitter::emitJumpTable(const JumpTable &JT, MCSection *HotSection,
     }
     LabelCounts[CurrentLabel] = CurrentLabelCount;
   } else {
-    Streamer.SwitchSection(JT.Count > 0 ? HotSection : ColdSection);
+    Streamer.switchSection(JT.Count > 0 ? HotSection : ColdSection);
     Streamer.emitValueToAlignment(JT.EntrySize);
   }
   MCSymbol *LastLabel = nullptr;
@@ -797,9 +809,9 @@ void BinaryEmitter::emitJumpTable(const JumpTable &JT, MCSection *HotSection,
         LLVM_DEBUG(dbgs() << "BOLT-DEBUG: jump table count: "
                           << LabelCounts[LI->second] << '\n');
         if (LabelCounts[LI->second] > 0)
-          Streamer.SwitchSection(HotSection);
+          Streamer.switchSection(HotSection);
         else
-          Streamer.SwitchSection(ColdSection);
+          Streamer.switchSection(ColdSection);
         Streamer.emitValueToAlignment(JT.EntrySize);
       }
       Streamer.emitLabel(LI->second);
@@ -885,7 +897,7 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   for (const BinaryFunction::CallSite &CallSite : *Sites)
     CallSiteTableLength += getULEB128Size(CallSite.Action);
 
-  Streamer.SwitchSection(BC.MOFI->getLSDASection());
+  Streamer.switchSection(BC.MOFI->getLSDASection());
 
   const unsigned TTypeEncoding = BC.TTypeEncoding;
   const unsigned TTypeEncodingSize = BC.getDWARFEncodingSize(TTypeEncoding);
@@ -895,14 +907,15 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   Streamer.emitValueToAlignment(TTypeAlignment);
 
   // Emit the LSDA label.
-  MCSymbol *LSDASymbol =
-      EmitColdPart ? BF.getColdLSDASymbol() : BF.getLSDASymbol();
+  MCSymbol *LSDASymbol = EmitColdPart
+                             ? BF.getColdLSDASymbol(FragmentNum::cold())
+                             : BF.getLSDASymbol();
   assert(LSDASymbol && "no LSDA symbol set");
   Streamer.emitLabel(LSDASymbol);
 
   // Corresponding FDE start.
   const MCSymbol *StartSymbol =
-      EmitColdPart ? BF.getColdSymbol() : BF.getSymbol();
+      BF.getSymbol(EmitColdPart ? FragmentNum::cold() : FragmentNum::main());
 
   // Emit the LSDA header.
 
@@ -921,8 +934,8 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   // defined in the same section and hence cannot place the landing pad into a
   // cold fragment when the corresponding call site is in the hot fragment.
   // Because of this issue and the previously described issue of possible
-  // zero-offset landing pad we disable splitting of exception-handling
-  // code for shared objects.
+  // zero-offset landing pad we have to place landing pads in the same section
+  // as the corresponding invokes for shared objects.
   std::function<void(const MCSymbol *)> emitLandingPad;
   if (BC.HasFixedLoadAddress) {
     Streamer.emitIntValue(dwarf::DW_EH_PE_udata4, 1); // LPStart format
@@ -934,8 +947,6 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
         Streamer.emitSymbolValue(LPSymbol, 4);
     };
   } else {
-    assert(!EmitColdPart &&
-           "cannot have exceptions in cold fragment for shared object");
     Streamer.emitIntValue(dwarf::DW_EH_PE_omit, 1); // LPStart format
     emitLandingPad = [&](const MCSymbol *LPSymbol) {
       if (!LPSymbol)
@@ -1098,7 +1109,7 @@ void BinaryEmitter::emitDebugLineInfoForUnprocessedCUs() {
 
     StmtListOffsets.push_back(*StmtList);
   }
-  std::sort(StmtListOffsets.begin(), StmtListOffsets.end());
+  llvm::sort(StmtListOffsets);
 
   // For each CU that was not processed, emit its line info as a binary blob.
   for (const std::unique_ptr<DWARFUnit> &CU : BC.DwCtx->compile_units()) {
@@ -1116,8 +1127,7 @@ void BinaryEmitter::emitDebugLineInfoForUnprocessedCUs() {
 
     // Statement list ends where the next unit contribution begins, or at the
     // end of the section.
-    auto It =
-        std::upper_bound(StmtListOffsets.begin(), StmtListOffsets.end(), Begin);
+    auto It = llvm::upper_bound(StmtListOffsets, Begin);
     const uint64_t End =
         It == StmtListOffsets.end() ? DebugLineContents.size() : *It;
 
@@ -1149,9 +1159,9 @@ void emitBinaryContext(MCStreamer &Streamer, BinaryContext &BC,
 }
 
 void emitFunctionBody(MCStreamer &Streamer, BinaryFunction &BF,
-                      bool EmitColdPart, bool EmitCodeOnly) {
+                      FunctionFragment &FF, bool EmitCodeOnly) {
   BinaryEmitter(Streamer, BF.getBinaryContext())
-      .emitFunctionBody(BF, EmitColdPart, EmitCodeOnly);
+      .emitFunctionBody(BF, FF, EmitCodeOnly);
 }
 
 } // namespace bolt

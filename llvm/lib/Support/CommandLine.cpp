@@ -166,9 +166,9 @@ public:
   // This collects the different subcommands that have been registered.
   SmallPtrSet<SubCommand *, 4> RegisteredSubCommands;
 
-  CommandLineParser() : ActiveSubCommand(nullptr) {
-    registerSubCommand(&*TopLevelSubCommand);
-    registerSubCommand(&*AllSubCommands);
+  CommandLineParser() {
+    registerSubCommand(&SubCommand::getTopLevel());
+    registerSubCommand(&SubCommand::getAll());
   }
 
   void ResetAllOptionOccurrences();
@@ -188,7 +188,7 @@ public:
 
     // If we're adding this to all sub-commands, add it to the ones that have
     // already been registered.
-    if (SC == &*AllSubCommands) {
+    if (SC == &SubCommand::getAll()) {
       for (auto *Sub : RegisteredSubCommands) {
         if (SC == Sub)
           continue;
@@ -199,7 +199,7 @@ public:
 
   void addLiteralOption(Option &Opt, StringRef Name) {
     if (Opt.Subs.empty())
-      addLiteralOption(Opt, &*TopLevelSubCommand, Name);
+      addLiteralOption(Opt, &SubCommand::getTopLevel(), Name);
     else {
       for (auto *SC : Opt.Subs)
         addLiteralOption(Opt, SC, Name);
@@ -244,7 +244,7 @@ public:
 
     // If we're adding this to all sub-commands, add it to the ones that have
     // already been registered.
-    if (SC == &*AllSubCommands) {
+    if (SC == &SubCommand::getAll()) {
       for (auto *Sub : RegisteredSubCommands) {
         if (SC == Sub)
           continue;
@@ -260,7 +260,7 @@ public:
     }
 
     if (O->Subs.empty()) {
-      addOption(O, &*TopLevelSubCommand);
+      addOption(O, &SubCommand::getTopLevel());
     } else {
       for (auto *SC : O->Subs)
         addOption(O, SC);
@@ -302,7 +302,7 @@ public:
 
   void removeOption(Option *O) {
     if (O->Subs.empty())
-      removeOption(O, &*TopLevelSubCommand);
+      removeOption(O, &SubCommand::getTopLevel());
     else {
       if (O->isInAllSubCommands()) {
         for (auto *SC : RegisteredSubCommands)
@@ -341,7 +341,7 @@ public:
 
   void updateArgStr(Option *O, StringRef NewName) {
     if (O->Subs.empty())
-      updateArgStr(O, NewName, &*TopLevelSubCommand);
+      updateArgStr(O, NewName, &SubCommand::getTopLevel());
     else {
       if (O->isInAllSubCommands()) {
         for (auto *SC : RegisteredSubCommands)
@@ -376,8 +376,8 @@ public:
 
     // For all options that have been registered for all subcommands, add the
     // option to this subcommand now.
-    if (sub != &*AllSubCommands) {
-      for (auto &E : AllSubCommands->OptionsMap) {
+    if (sub != &SubCommand::getAll()) {
+      for (auto &E : SubCommand::getAll().OptionsMap) {
         Option *O = E.second;
         if ((O->isPositional() || O->isSink() || O->isConsumeAfter()) ||
             O->hasArgStr())
@@ -409,16 +409,16 @@ public:
     ResetAllOptionOccurrences();
     RegisteredSubCommands.clear();
 
-    TopLevelSubCommand->reset();
-    AllSubCommands->reset();
-    registerSubCommand(&*TopLevelSubCommand);
-    registerSubCommand(&*AllSubCommands);
+    SubCommand::getTopLevel().reset();
+    SubCommand::getAll().reset();
+    registerSubCommand(&SubCommand::getTopLevel());
+    registerSubCommand(&SubCommand::getAll());
 
     DefaultOptions.clear();
   }
 
 private:
-  SubCommand *ActiveSubCommand;
+  SubCommand *ActiveSubCommand = nullptr;
 
   Option *LookupOption(SubCommand &Sub, StringRef &Arg, StringRef &Value);
   Option *LookupLongOption(SubCommand &Sub, StringRef &Arg, StringRef &Value,
@@ -491,6 +491,10 @@ ManagedStatic<SubCommand> llvm::cl::TopLevelSubCommand;
 // A special subcommand that can be used to put an option into all subcommands.
 ManagedStatic<SubCommand> llvm::cl::AllSubCommands;
 
+SubCommand &SubCommand::getTopLevel() { return *TopLevelSubCommand; }
+
+SubCommand &SubCommand::getAll() { return *AllSubCommands; }
+
 void SubCommand::registerSubCommand() {
   GlobalParser->registerSubCommand(this);
 }
@@ -523,7 +527,7 @@ Option *CommandLineParser::LookupOption(SubCommand &Sub, StringRef &Arg,
   // Reject all dashes.
   if (Arg.empty())
     return nullptr;
-  assert(&Sub != &*AllSubCommands);
+  assert(&Sub != &SubCommand::getAll());
 
   size_t EqualPos = Arg.find('=');
 
@@ -551,9 +555,9 @@ Option *CommandLineParser::LookupOption(SubCommand &Sub, StringRef &Arg,
 
 SubCommand *CommandLineParser::LookupSubCommand(StringRef Name) {
   if (Name.empty())
-    return &*TopLevelSubCommand;
+    return &SubCommand::getTopLevel();
   for (auto *S : RegisteredSubCommands) {
-    if (S == &*AllSubCommands)
+    if (S == &SubCommand::getAll())
       continue;
     if (S->getName().empty())
       continue;
@@ -561,7 +565,7 @@ SubCommand *CommandLineParser::LookupSubCommand(StringRef Name) {
     if (StringRef(S->getName()) == StringRef(Name))
       return S;
   }
-  return &*TopLevelSubCommand;
+  return &SubCommand::getTopLevel();
 }
 
 /// LookupNearestOption - Lookup the closest match to the option specified by
@@ -1452,12 +1456,12 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
   bool HasUnlimitedPositionals = false;
 
   int FirstArg = 1;
-  SubCommand *ChosenSubCommand = &*TopLevelSubCommand;
+  SubCommand *ChosenSubCommand = &SubCommand::getTopLevel();
   if (argc >= 2 && argv[FirstArg][0] != '-') {
     // If the first argument specifies a valid subcommand, start processing
     // options from the second argument.
     ChosenSubCommand = LookupSubCommand(StringRef(argv[FirstArg]));
-    if (ChosenSubCommand != &*TopLevelSubCommand)
+    if (ChosenSubCommand != &SubCommand::getTopLevel())
       FirstArg = 2;
   }
   GlobalParser->ActiveSubCommand = ChosenSubCommand;
@@ -1675,7 +1679,7 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
         switch (PositionalOpts[i]->getNumOccurrencesFlag()) {
         case cl::Optional:
           Done = true; // Optional arguments want _at most_ one value
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
         case cl::ZeroOrMore: // Zero or more will take all they can get...
         case cl::OneOrMore:  // One or more will take all they can get...
           ProvidePositionalOption(PositionalOpts[i],
@@ -1729,7 +1733,7 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
         Opt.second->error("must be specified at least once!");
         ErrorParsing = true;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       break;
     }
@@ -1862,8 +1866,10 @@ void basic_parser_impl::printOptionInfo(const Option &O,
       outs() << " <" << getValueStr(O, ValName) << ">...";
     } else if (O.getValueExpectedFlag() == ValueOptional)
       outs() << "[=<" << getValueStr(O, ValName) << ">]";
-    else
-      outs() << "=<" << getValueStr(O, ValName) << '>';
+    else {
+      outs() << (O.ArgStr.size() == 1 ? " <" : "=<") << getValueStr(O, ValName)
+             << '>';
+    }
   }
 
   Option::printHelpStr(O.HelpStr, GlobalWidth, getOptionWidth(O));
@@ -2287,7 +2293,7 @@ public:
     if (!GlobalParser->ProgramOverview.empty())
       outs() << "OVERVIEW: " << GlobalParser->ProgramOverview << "\n";
 
-    if (Sub == &*TopLevelSubCommand) {
+    if (Sub == &SubCommand::getTopLevel()) {
       outs() << "USAGE: " << GlobalParser->ProgramName;
       if (Subs.size() > 2)
         outs() << " [subcommand]";
@@ -2311,7 +2317,7 @@ public:
     if (ConsumeAfterOpt)
       outs() << " " << ConsumeAfterOpt->HelpStr;
 
-    if (Sub == &*TopLevelSubCommand && !Subs.empty()) {
+    if (Sub == &SubCommand::getTopLevel() && !Subs.empty()) {
       // Compute the maximum subcommand length...
       size_t MaxSubLen = 0;
       for (size_t i = 0, e = Subs.size(); i != e; ++i)
@@ -2380,7 +2386,7 @@ protected:
     for (size_t I = 0, E = Opts.size(); I != E; ++I) {
       Option *Opt = Opts[I].second;
       for (auto &Cat : Opt->Categories) {
-        assert(find(SortedCategories, Cat) != SortedCategories.end() &&
+        assert(llvm::is_contained(SortedCategories, Cat) &&
                "Option has an unregistered category");
         CategorizedOptions[Cat].push_back(Opt);
       }
@@ -2468,11 +2474,7 @@ public:
 #else
     OS << "LLVM (http://llvm.org/):\n  ";
 #endif
-    OS << PACKAGE_NAME << " version " << PACKAGE_VERSION;
-#ifdef LLVM_VERSION_INFO
-    OS << " " << LLVM_VERSION_INFO;
-#endif
-    OS << "\n  ";
+    OS << PACKAGE_NAME << " version " << PACKAGE_VERSION << "\n  ";
 #if LLVM_IS_DEBUG_BUILD
     OS << "DEBUG build";
 #else
@@ -2521,7 +2523,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::opt<HelpPrinter, true, parser<bool>> HLHOp{
       "help-list-hidden",
@@ -2530,7 +2532,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   // Define uncategorized/categorized help printers. These printers change their
   // behaviour at runtime depending on whether one or more Option categories
@@ -2541,7 +2543,7 @@ struct CommandLineCommonOptions {
       cl::location(WrappedNormalPrinter),
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::alias HOpA{"h", cl::desc("Alias for --help"), cl::aliasopt(HOp),
                  cl::DefaultOption};
@@ -2553,7 +2555,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::ValueDisallowed,
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::opt<bool> PrintOptions{
       "print-options",
@@ -2561,7 +2563,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::init(false),
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   cl::opt<bool> PrintAllOptions{
       "print-all-options",
@@ -2569,7 +2571,7 @@ struct CommandLineCommonOptions {
       cl::Hidden,
       cl::init(false),
       cl::cat(GenericCategory),
-      cl::sub(*AllSubCommands)};
+      cl::sub(SubCommand::getAll())};
 
   VersionPrinterTy OverrideVersionPrinter = nullptr;
 

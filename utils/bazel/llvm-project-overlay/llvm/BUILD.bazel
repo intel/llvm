@@ -9,10 +9,9 @@ load(":targets.bzl", "llvm_targets")
 load(":enum_targets_gen.bzl", "enum_targets_gen")
 load(":binary_alias.bzl", "binary_alias")
 
-package(
-    default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
-)
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])
 
 exports_files(["LICENSE.TXT"])
 
@@ -93,14 +92,6 @@ enum_targets_gen(
     targets = llvm_target_mcas,
 )
 
-# TODO: Need to replace this with something that actually extracts the git
-# commit from the LLVM source (submodule or http_archive).
-genrule(
-    name = "version_info_gen",
-    outs = ["include/llvm/Config/VersionInfo.h"],
-    cmd = "echo '#define LLVM_VERSION_INFO \"git\"' > $@",
-)
-
 template_rule(
     name = "abi_breaking_h_gen",
     src = "include/llvm/Config/abi-breaking.h.cmake",
@@ -124,7 +115,6 @@ exports_files([
 cc_library(
     name = "config",
     hdrs = [
-        "include/llvm/Config/VersionInfo.h",
         "include/llvm/Config/abi-breaking.h",
         "include/llvm/Config/llvm-config.h",
     ],
@@ -204,7 +194,7 @@ cc_library(
             "lib/Support/BLAKE3/blake3_avx512_x86-64_unix.S",
         ],
         "//conditions:default": [
-        ]
+        ],
     }),
     hdrs = glob([
         "include/llvm/Support/**/*.h",
@@ -230,7 +220,7 @@ cc_library(
         ],
         "//conditions:default": [
             "BLAKE3_USE_NEON=0",
-        ]
+        ],
     }) + select({
         "@platforms//cpu:x86_64": [
         ],
@@ -239,7 +229,7 @@ cc_library(
             "BLAKE3_NO_AVX512",
             "BLAKE3_NO_SSE2",
             "BLAKE3_NO_SSE41",
-        ]
+        ],
     }),
     includes = ["include"],
     linkopts = select({
@@ -444,6 +434,9 @@ cc_library(
     ]),
     copts = llvm_copts,
     deps = [
+        ":BinaryFormat",
+        ":DebugInfoDWARF",
+        ":Object",
         ":Support",
         ":Symbolize",
     ],
@@ -493,7 +486,10 @@ cc_library(
         "lib/DebugInfo/Symbolize/*.cpp",
         "lib/DebugInfo/Symbolize/*.h",
     ]),
-    hdrs = glob(["include/llvm/DebugInfo/Symbolize/*.h"]),
+    hdrs = glob([
+        "include/llvm/DebugInfo/Symbolize/*.h",
+        "include/llvm/Debuginfod/*.h",
+    ]),
     copts = llvm_copts,
     deps = [
         ":BinaryFormat",
@@ -588,6 +584,10 @@ llvm_target_intrinsics_list = [
     {
         "name": "BPF",
         "intrinsic_prefix": "bpf",
+    },
+    {
+        "name": "DirectX",
+        "intrinsic_prefix": "dx",
     },
     {
         "name": "Hexagon",
@@ -859,6 +859,7 @@ cc_library(
         ":BinaryFormat",
         ":BitReader",
         ":Core",
+        ":IRReader",
         ":MC",
         ":MCParser",
         ":Support",
@@ -2256,6 +2257,18 @@ cc_library(
     ],
 )
 
+gentbl(
+    name = "JITLinkTableGen",
+    strip_include_prefix = "lib/ExecutionEngine/JITLink",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "lib/ExecutionEngine/JITLink/COFFOptions.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "lib/ExecutionEngine/JITLink/COFFOptions.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
 cc_library(
     name = "JITLink",
     srcs = glob([
@@ -2268,7 +2281,9 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":ExecutionEngine",
+        ":JITLinkTableGen",
         ":Object",
+        ":Option",
         ":OrcTargetProcess",
         ":Support",
         ":config",
@@ -2310,6 +2325,14 @@ cc_library(
         "include/llvm-c/OrcEE.h",
     ],
     copts = llvm_copts,
+    linkopts = select({
+        "@bazel_tools//src/conditions:windows": [],
+        "@bazel_tools//src/conditions:freebsd": [],
+        "@bazel_tools//src/conditions:darwin": [],
+        "//conditions:default": [
+            "-lrt",
+        ],
+    }),
     deps = [
         ":BitReader",
         ":BitWriter",
@@ -2323,6 +2346,7 @@ cc_library(
         ":Support",
         ":Target",
         ":TransformUtils",
+        ":WindowsDriver",
         ":config",
     ],
 )
@@ -2361,6 +2385,14 @@ cc_library(
         "include/llvm/ExecutionEngine/Orc/TargetProcess/*.h",
     ]),
     copts = llvm_copts,
+    linkopts = select({
+        "@bazel_tools//src/conditions:windows": [],
+        "@bazel_tools//src/conditions:freebsd": [],
+        "@bazel_tools//src/conditions:darwin": [],
+        "//conditions:default": [
+            "-lrt",
+        ],
+    }),
     deps = [
         ":BinaryFormat",
         ":CodeGen",
@@ -2594,12 +2626,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+template_rule(
+    name = "dsymutil_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "dsymutil-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "dsymutil",
+    },
+)
+
 cc_binary(
     name = "dsymutil",
     srcs = glob([
         "tools/dsymutil/*.cpp",
         "tools/dsymutil/*.h",
-    ]),
+    ]) + ["dsymutil-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2689,12 +2730,21 @@ cc_binary(
     ],
 )
 
+template_rule(
+    name = "ar_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "llvm-ar-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_ar",
+    },
+)
+
 cc_binary(
     name = "llvm-ar",
     srcs = glob([
         "tools/llvm-ar/*.cpp",
         "tools/llvm-ar/*.h",
-    ]),
+    ]) + ["llvm-ar-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2882,12 +2932,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+template_rule(
+    name = "cxxfilt_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "llvm-cxxfilt-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_cxxfilt",
+    },
+)
+
 cc_binary(
     name = "llvm-cxxfilt",
     srcs = glob([
         "tools/llvm-cxxfilt/*.cpp",
         "tools/llvm-cxxfilt/*.h",
-    ]),
+    ]) + ["llvm-cxxfilt-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2907,11 +2966,11 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
-        ":Symbolize",
         ":BitReader",
         ":Core",
-        ":Support",
         ":Debuginfod",
+        ":Support",
+        ":Symbolize",
     ],
 )
 
@@ -2947,6 +3006,40 @@ cc_binary(
         ":MC",
         ":Object",
         ":Support",
+    ],
+)
+
+gentbl(
+    name = "DwarfutilOptionsTableGen",
+    strip_include_prefix = "tools/llvm-dwarfutil",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-dwarfutil/Options.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-dwarfutil/Options.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+cc_binary(
+    name = "llvm-dwarfutil",
+    srcs = glob([
+        "tools/llvm-dwarfutil/*.cpp",
+        "tools/llvm-dwarfutil/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":AllTargetsAsmParsers",
+        ":AllTargetsCodeGens",
+        ":DWARFLinker",
+        ":DwarfutilOptionsTableGen",
+        ":MC",
+        ":ObjCopy",
+        ":Object",
+        ":Option",
+        ":Support",
+        ":Target",
     ],
 )
 
@@ -3416,12 +3509,21 @@ cc_binary(
     ],
 )
 
+template_rule(
+    name = "objcopy_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "llvm-objcopy-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_objcopy",
+    },
+)
+
 cc_binary(
     name = "llvm-objcopy",
     srcs = glob([
         "tools/llvm-objcopy/*.cpp",
         "tools/llvm-objcopy/*.h",
-    ]),
+    ]) + ["llvm-objcopy-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3941,8 +4043,8 @@ cc_binary(
 cc_binary(
     name = "split-file",
     srcs = glob([
-        "tools/split-file/*.cpp",
-        "tools/split-file/*.h",
+        "utils/split-file/*.cpp",
+        "utils/split-file/*.h",
     ]),
     copts = llvm_copts,
     stamp = 0,
@@ -4077,6 +4179,19 @@ py_binary(
     name = "lit",
     testonly = True,
     srcs = ["utils/lit/lit.py"] + glob(["utils/lit/lit/**/*.py"]),
+)
+
+cc_library(
+    name = "TestingADT",
+    testonly = True,
+    hdrs = glob([
+        "include/llvm/Testing/ADT/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Support",
+        ":gmock",
+    ],
 )
 
 cc_library(

@@ -6,21 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/stl.hpp>
 
 #include <cctype>
 #include <regex>
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -59,17 +59,17 @@ filter create_filter(const std::string &Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+    throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.HasDeviceType) {
-      Result.DeviceType = info::device_type::cpu;
+      Result.DeviceType = sycl::info::device_type::cpu;
       Result.HasDeviceType = true;
     } else if (Token == "gpu" && !Result.HasDeviceType) {
-      Result.DeviceType = info::device_type::gpu;
+      Result.DeviceType = sycl::info::device_type::gpu;
       Result.HasDeviceType = true;
     } else if (Token == "accelerator" && !Result.HasDeviceType) {
-      Result.DeviceType = info::device_type::accelerator;
+      Result.DeviceType = sycl::info::device_type::accelerator;
       Result.HasDeviceType = true;
     } else if (Token == "opencl" && !Result.HasBackend) {
       Result.Backend = backend::opencl;
@@ -91,17 +91,17 @@ filter create_filter(const std::string &Input) {
         // We already set everything earlier or it's an error.
         throw sycl::runtime_error(
             "Cannot specify host device with non-host backend.",
-            PI_INVALID_VALUE);
+            PI_ERROR_INVALID_VALUE);
       }
     } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
-        throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+        throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
       }
       Result.HasDeviceNum = true;
     } else {
-      throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+      throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
     }
   }
 
@@ -142,9 +142,10 @@ int filter_selector_impl::operator()(const device &Dev) const {
         BackendOK = (BE == Filter.Backend);
     }
     if (Filter.HasDeviceType) {
-      info::device_type DT = Dev.get_info<info::device::device_type>();
+      sycl::info::device_type DT =
+          Dev.get_info<sycl::info::device::device_type>();
       // DeviceType is okay if the filter is set 'all'.
-      if (Filter.DeviceType == info::device_type::all)
+      if (Filter.DeviceType == sycl::info::device_type::all)
         DeviceTypeOK = true;
       else
         DeviceTypeOK = (DT == Filter.DeviceType);
@@ -169,7 +170,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
     throw sycl::runtime_error(
         "Could not find a device that matches the specified filter(s)!",
-        PI_DEVICE_NOT_FOUND);
+        PI_ERROR_DEVICE_NOT_FOUND);
   }
 
   return Score;
@@ -190,7 +191,7 @@ void filter_selector_impl::reset() const {
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
+using namespace ext::oneapi;
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

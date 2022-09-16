@@ -69,6 +69,10 @@ public:
   bool VisitIntegerLiteral(const IntegerLiteral *E);
   bool VisitParenExpr(const ParenExpr *E);
   bool VisitBinaryOperator(const BinaryOperator *E);
+  bool VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr *E);
+  bool VisitCXXNullPtrLiteralExpr(const CXXNullPtrLiteralExpr *E);
+  bool VisitUnaryOperator(const UnaryOperator *E);
+  bool VisitDeclRefExpr(const DeclRefExpr *E);
 
 protected:
   bool visitExpr(const Expr *E) override;
@@ -284,7 +288,7 @@ public:
   ~LocalScope() override { this->emitDestruction(); }
 
   void addLocal(const Scope::Local &Local) override {
-    if (!Idx.hasValue()) {
+    if (!Idx) {
       Idx = this->Ctx->Descriptors.size();
       this->Ctx->Descriptors.emplace_back();
     }
@@ -293,7 +297,7 @@ public:
   }
 
   void emitDestruction() override {
-    if (!Idx.hasValue())
+    if (!Idx)
       return;
     this->Ctx->emitDestroy(*Idx, SourceInfo{});
   }

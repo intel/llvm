@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/device.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 device_impl::device_impl()
@@ -95,7 +95,7 @@ cl_device_id device_impl::get() const {
   if (MIsHostDevice) {
     throw invalid_object_error(
         "This instance of device doesn't support OpenCL interoperability.",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piDeviceRetain>(MDevice);
@@ -111,9 +111,9 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
     // TODO: implement extension management for host device;
     return false;
 
-  std::string AllExtensionNames =
-      get_device_info<std::string, info::device::extensions>::get(
-          this->getHandleRef(), this->getPlugin());
+  std::string AllExtensionNames = get_device_info_string(
+      this->getHandleRef(), PiInfoCode<info::device::extensions>::value,
+      this->getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -158,10 +158,13 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::partition_equally.",
+        PI_ERROR_INVALID_OPERATION);
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -171,8 +174,8 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
                           "Total counts exceed max compute units");
 
   size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)ComputeUnits,
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_EQUALLY, (pi_device_partition_property)ComputeUnits,
       0};
   return create_sub_devices(Properties, SubDevicesCount);
 }
@@ -184,14 +187,17 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::partition_by_counts.",
+        PI_ERROR_INVALID_OPERATION);
   }
-  static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  std::vector<cl_device_partition_property> Properties(P, P + 3);
+  static const pi_device_partition_property P[] = {
+      PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
+  std::vector<pi_device_partition_property> Properties(P, P + 3);
 
   // Fill the properties vector with counts and validate it
   auto It = Properties.begin() + 1;
@@ -229,12 +235,20 @@ std::vector<device> device_impl::create_sub_devices(
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(
-          info::partition_property::partition_by_affinity_domain) ||
-      !is_affinity_supported(AffinityDomain)) {
-    throw cl::sycl::feature_not_supported();
+          info::partition_property::partition_by_affinity_domain)) {
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::partition_by_affinity_domain.",
+        PI_ERROR_INVALID_OPERATION);
+  }
+  if (!is_affinity_supported(AffinityDomain)) {
+    throw sycl::feature_not_supported(
+        "Device does not support " + affinityDomainToString(AffinityDomain) +
+            ".",
+        PI_ERROR_INVALID_VALUE);
   }
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -276,6 +290,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
     return has_extension("cl_khr_fp64");
+  case aspect::ext_oneapi_bfloat16:
+    return get_info<info::device::ext_oneapi_bfloat16>();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
@@ -296,7 +312,7 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_host_allocations>();
   case aspect::usm_atomic_host_allocations:
     return is_host() ||
-           (get_device_info<
+           (get_device_info_impl<
                 pi_usm_capabilities,
                 info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
             PI_USM_CONCURRENT_ATOMIC_ACCESS);
@@ -304,7 +320,7 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
     return is_host() ||
-           (get_device_info<
+           (get_device_info_impl<
                 pi_usm_capabilities,
                 info::device::usm_shared_allocations>::get(MDevice,
                                                            getPlugin()) &
@@ -345,6 +361,11 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_free_memory:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
     auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
         MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
@@ -376,7 +397,7 @@ bool device_impl::has(aspect Aspect) const {
   }
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
   }
 }
 
@@ -399,5 +420,5 @@ std::string device_impl::getDeviceName() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

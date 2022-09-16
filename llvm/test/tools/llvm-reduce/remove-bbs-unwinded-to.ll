@@ -9,7 +9,7 @@ declare void @did_not_throw(i32)
 declare void @thrown()
 
 ; CHECK-ALL: define void @caller()
-define void @caller() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define void @caller() personality ptr @__gxx_personality_v0 {
 ; CHECK-ALL: bb:
 bb:
 ; CHECK-INTERESTINGNESS: label %bb3
@@ -18,14 +18,14 @@ bb:
           to label %bb3 unwind label %bb1
 
 bb1:
-  landingpad { i8*, i32 } catch i8* null
+  landingpad { ptr, i32 } catch ptr null
   call void @thrown()
   br label %bb4
 
 ; CHECK-ALL: bb3:
 bb3:
 ; CHECK-INTERESTINGNESS: call void @did_not_throw(i32
-; CHECK-FINAL: call void @did_not_throw(i32 undef)
+; CHECK-FINAL: call void @did_not_throw(i32 0)
 ; CHECK-ALL: br label %bb4
   call void @did_not_throw(i32 %i0)
   br label %bb4

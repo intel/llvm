@@ -828,9 +828,19 @@ private:
         });
         return false;
       }
+
+      if (!Metrics.NumInsts.isValid()) {
+        LLVM_DEBUG(dbgs() << "DFA Jump Threading: Not jump threading, contains "
+                          << "instructions with invalid cost.\n");
+        ORE->emit([&]() {
+          return OptimizationRemarkMissed(DEBUG_TYPE, "ConvergentInst", Switch)
+                 << "Contains instructions with invalid cost.";
+        });
+        return false;
+      }
     }
 
-    unsigned DuplicationCost = 0;
+    InstructionCost DuplicationCost = 0;
 
     unsigned JumpTableSize = 0;
     TTI->getEstimatedNumberOfCaseClusters(*Switch, JumpTableSize, nullptr,
@@ -1202,7 +1212,7 @@ private:
         PhiToRemove.push_back(Phi);
       }
       for (PHINode *PN : PhiToRemove) {
-        PN->replaceAllUsesWith(UndefValue::get(PN->getType()));
+        PN->replaceAllUsesWith(PoisonValue::get(PN->getType()));
         PN->eraseFromParent();
       }
       return;
@@ -1251,7 +1261,7 @@ private:
 
   /// Returns true if IncomingBB is a predecessor of BB.
   bool isPredecessor(BasicBlock *BB, BasicBlock *IncomingBB) {
-    return llvm::find(predecessors(BB), IncomingBB) != pred_end(BB);
+    return llvm::is_contained(predecessors(BB), IncomingBB);
   }
 
   AllSwitchPaths *SwitchPaths;

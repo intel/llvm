@@ -294,6 +294,10 @@ def : Pat<(any_fma (fneg FPR64:$rs1), FPR64:$rs2, FPR64:$rs3),
 def : Pat<(any_fma (fneg FPR64:$rs1), FPR64:$rs2, (fneg FPR64:$rs3)),
           (FNMADD_D FPR64:$rs1, FPR64:$rs2, FPR64:$rs3, 0b111)>;
 
+// fnmadd: -(rs1 * rs2 + rs3) (the nsz flag on the FMA)
+def : Pat<(fneg (any_fma_nsz FPR64:$rs1, FPR64:$rs2, FPR64:$rs3)),
+          (FNMADD_D FPR64:$rs1, FPR64:$rs2, FPR64:$rs3, 0b111)>;
+
 // The ratified 20191213 ISA spec defines fmin and fmax in a way that matches
 // LLVM's fminnum and fmaxnum.
 // <https://github.com/riscv/riscv-isa-manual/commit/cd20cee7efd9bac7c5aa127ec3b451749d2b3cce>.
@@ -330,7 +334,7 @@ def : PatSetCC<FPR64, any_fsetccs, SETOLT, FLT_D>;
 def : PatSetCC<FPR64, any_fsetccs, SETLE, FLE_D>;
 def : PatSetCC<FPR64, any_fsetccs, SETOLE, FLE_D>;
 
-def Select_FPR64_Using_CC_GPR : SelectCC_rrirr<FPR64, GPR>;
+defm Select_FPR64 : SelectCC_GPR_rrirr<FPR64>;
 
 /// Loads
 

@@ -748,6 +748,23 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     break;
   }
   case 'e': {
+    if (Name.startswith("experimental.vector.extract.")) {
+      rename(F);
+      Type *Tys[] = {F->getReturnType(), F->arg_begin()->getType()};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_extract, Tys);
+      return true;
+    }
+
+    if (Name.startswith("experimental.vector.insert.")) {
+      rename(F);
+      auto Args = F->getFunctionType()->params();
+      Type *Tys[] = {Args[0], Args[1]};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_insert, Tys);
+      return true;
+    }
+
     SmallVector<StringRef, 2> Groups;
     static const Regex R("^experimental.vector.reduce.([a-z]+)\\.[a-z][0-9]+");
     if (R.match(Name, &Groups)) {
@@ -1032,7 +1049,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   // Remangle our intrinsic since we upgrade the mangling
   auto Result = llvm::Intrinsic::remangleIntrinsicFunction(F);
   if (Result != None) {
-    NewFn = Result.getValue();
+    NewFn = *Result;
     return true;
   }
 
@@ -4162,7 +4179,7 @@ Instruction *llvm::UpgradeBitCastInst(unsigned Opc, Value *V, Type *DestTy,
   return nullptr;
 }
 
-Value *llvm::UpgradeBitCastExpr(unsigned Opc, Constant *C, Type *DestTy) {
+Constant *llvm::UpgradeBitCastExpr(unsigned Opc, Constant *C, Type *DestTy) {
   if (Opc != Instruction::BitCast)
     return nullptr;
 
@@ -4374,26 +4391,34 @@ bool llvm::UpgradeModuleFlags(Module &M) {
     MDString *ID = dyn_cast_or_null<MDString>(Op->getOperand(1));
     if (!ID)
       continue;
+    auto SetBehavior = [&](Module::ModFlagBehavior B) {
+      Metadata *Ops[3] = {ConstantAsMetadata::get(ConstantInt::get(
+                              Type::getInt32Ty(M.getContext()), B)),
+                          MDString::get(M.getContext(), ID->getString()),
+                          Op->getOperand(2)};
+      ModFlags->setOperand(I, MDNode::get(M.getContext(), Ops));
+      Changed = true;
+    };
+
     if (ID->getString() == "Objective-C Image Info Version")
       HasObjCFlag = true;
     if (ID->getString() == "Objective-C Class Properties")
       HasClassProperties = true;
-    // Upgrade PIC/PIE Module Flags. The module flag behavior for these two
-    // field was Error and now they are Max.
-    if (ID->getString() == "PIC Level" || ID->getString() == "PIE Level") {
+    // Upgrade PIC from Error/Max to Min.
+    if (ID->getString() == "PIC Level") {
       if (auto *Behavior =
               mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(0))) {
-        if (Behavior->getLimitedValue() == Module::Error) {
-          Type *Int32Ty = Type::getInt32Ty(M.getContext());
-          Metadata *Ops[3] = {
-              ConstantAsMetadata::get(ConstantInt::get(Int32Ty, Module::Max)),
-              MDString::get(M.getContext(), ID->getString()),
-              Op->getOperand(2)};
-          ModFlags->setOperand(I, MDNode::get(M.getContext(), Ops));
-          Changed = true;
-        }
+        uint64_t V = Behavior->getLimitedValue();
+        if (V == Module::Error || V == Module::Max)
+          SetBehavior(Module::Min);
       }
     }
+    // Upgrade "PIE Level" from Error to Max.
+    if (ID->getString() == "PIE Level")
+      if (auto *Behavior =
+              mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(0)))
+        if (Behavior->getLimitedValue() == Module::Error)
+          SetBehavior(Module::Max);
 
     // Upgrade branch protection and return address signing module flags. The
     // module flag behavior for these fields were Error and now they are Min.

@@ -674,6 +674,171 @@ define i64 @test_roundeven_ui64(float %x) {
   ret i64 %b
 }
 
+define float @test_floor_float(float %x) {
+; RV32IFD-LABEL: test_floor_float:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    .cfi_offset ra, -4
+; RV32IFD-NEXT:    call floor@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: test_floor_float:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    addi sp, sp, -16
+; RV64IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV64IFD-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IFD-NEXT:    .cfi_offset ra, -8
+; RV64IFD-NEXT:    call floor@plt
+; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IFD-NEXT:    addi sp, sp, 16
+; RV64IFD-NEXT:    ret
+; RV32IF-LABEL: test_floor_float:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    tail floorf@plt
+;
+; RV64IF-LABEL: test_floor_float:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    tail floorf@plt
+  %a = call float @llvm.floor.f32(float %x)
+  ret float %a
+}
+
+define float @test_ceil_float(float %x) {
+; RV32IFD-LABEL: test_ceil_float:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    .cfi_offset ra, -4
+; RV32IFD-NEXT:    call ceil@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: test_ceil_float:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    addi sp, sp, -16
+; RV64IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV64IFD-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IFD-NEXT:    .cfi_offset ra, -8
+; RV64IFD-NEXT:    call ceil@plt
+; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IFD-NEXT:    addi sp, sp, 16
+; RV64IFD-NEXT:    ret
+; RV32IF-LABEL: test_ceil_float:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    tail ceilf@plt
+;
+; RV64IF-LABEL: test_ceil_float:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    tail ceilf@plt
+  %a = call float @llvm.ceil.f32(float %x)
+  ret float %a
+}
+
+define float @test_trunc_float(float %x) {
+; RV32IFD-LABEL: test_trunc_float:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    .cfi_offset ra, -4
+; RV32IFD-NEXT:    call trunc@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: test_trunc_float:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    addi sp, sp, -16
+; RV64IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV64IFD-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IFD-NEXT:    .cfi_offset ra, -8
+; RV64IFD-NEXT:    call trunc@plt
+; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IFD-NEXT:    addi sp, sp, 16
+; RV64IFD-NEXT:    ret
+; RV32IF-LABEL: test_trunc_float:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    tail truncf@plt
+;
+; RV64IF-LABEL: test_trunc_float:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    tail truncf@plt
+  %a = call float @llvm.trunc.f32(float %x)
+  ret float %a
+}
+
+define float @test_round_float(float %x) {
+; RV32IFD-LABEL: test_round_float:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    .cfi_offset ra, -4
+; RV32IFD-NEXT:    call round@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: test_round_float:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    addi sp, sp, -16
+; RV64IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV64IFD-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IFD-NEXT:    .cfi_offset ra, -8
+; RV64IFD-NEXT:    call round@plt
+; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IFD-NEXT:    addi sp, sp, 16
+; RV64IFD-NEXT:    ret
+; RV32IF-LABEL: test_round_float:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    tail roundf@plt
+;
+; RV64IF-LABEL: test_round_float:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    tail roundf@plt
+  %a = call float @llvm.round.f32(float %x)
+  ret float %a
+}
+
+define float @test_roundeven_float(float %x) {
+; RV32IFD-LABEL: test_roundeven_float:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    .cfi_offset ra, -4
+; RV32IFD-NEXT:    call roundeven@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: test_roundeven_float:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    addi sp, sp, -16
+; RV64IFD-NEXT:    .cfi_def_cfa_offset 16
+; RV64IFD-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IFD-NEXT:    .cfi_offset ra, -8
+; RV64IFD-NEXT:    call roundeven@plt
+; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IFD-NEXT:    addi sp, sp, 16
+; RV64IFD-NEXT:    ret
+; RV32IF-LABEL: test_roundeven_float:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    tail roundevenf@plt
+;
+; RV64IF-LABEL: test_roundeven_float:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    tail roundevenf@plt
+  %a = call float @llvm.roundeven.f32(float %x)
+  ret float %a
+}
+
 declare float @llvm.floor.f32(float)
 declare float @llvm.ceil.f32(float)
 declare float @llvm.trunc.f32(float)

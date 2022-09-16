@@ -794,7 +794,11 @@ DefinedOrUnknownSVal MemRegionManager::getStaticSize(const MemRegion *MR,
         if (Size.isZero())
           return true;
 
+        if (getContext().getLangOpts().StrictFlexArrays >= 2)
+          return false;
+
         const AnalyzerOptions &Opts = SVB.getAnalyzerOptions();
+        // FIXME: this option is probably redundant with -fstrict-flex-arrays=1.
         if (Opts.ShouldConsiderSingleElementArraysAsFlexibleArrayMembers &&
             Size.isOne())
           return true;
@@ -973,26 +977,14 @@ const VarRegion *MemRegionManager::getVarRegion(const VarDecl *D,
   const MemRegion *sReg = nullptr;
 
   if (D->hasGlobalStorage() && !D->isStaticLocal()) {
-
-    // First handle the globals defined in system headers.
-    if (Ctx.getSourceManager().isInSystemHeader(D->getLocation())) {
-      //  Allow the system globals which often DO GET modified, assume the
-      // rest are immutable.
-      if (D->getName().contains("errno"))
-        sReg = getGlobalsRegion(MemRegion::GlobalSystemSpaceRegionKind);
-      else
-        sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
-
-    // Treat other globals as GlobalInternal unless they are constants.
+    QualType Ty = D->getType();
+    assert(!Ty.isNull());
+    if (Ty.isConstQualified()) {
+      sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
+    } else if (Ctx.getSourceManager().isInSystemHeader(D->getLocation())) {
+      sReg = getGlobalsRegion(MemRegion::GlobalSystemSpaceRegionKind);
     } else {
-      QualType GQT = D->getType();
-      const Type *GT = GQT.getTypePtrOrNull();
-      // TODO: We could walk the complex types here and see if everything is
-      // constified.
-      if (GT && GQT.isConstQualified() && GT->isArithmeticType())
-        sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
-      else
-        sReg = getGlobalsRegion();
+      sReg = getGlobalsRegion(MemRegion::GlobalInternalSpaceRegionKind);
     }
 
   // Finally handle static locals.
@@ -1084,14 +1076,18 @@ MemRegionManager::getBlockDataRegion(const BlockCodeRegion *BC,
     sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
   }
   else {
-    if (LC) {
+    bool IsArcManagedBlock = Ctx.getLangOpts().ObjCAutoRefCount;
+
+    // ARC managed blocks can be initialized on stack or directly in heap
+    // depending on the implementations.  So we initialize them with
+    // UnknownRegion.
+    if (!IsArcManagedBlock && LC) {
       // FIXME: Once we implement scope handling, we want the parent region
       // to be the scope.
       const StackFrameContext *STC = LC->getStackFrame();
       assert(STC);
       sReg = getStackLocalsRegion(STC);
-    }
-    else {
+    } else {
       // We allow 'LC' to be NULL for cases where want BlockDataRegions
       // without context-sensitivity.
       sReg = getUnknownRegion();
@@ -1294,8 +1290,8 @@ bool MemRegion::hasGlobalsOrParametersStorage() const {
   return isa<StackArgumentsSpaceRegion, GlobalsSpaceRegion>(getMemorySpace());
 }
 
-// getBaseRegion strips away all elements and fields, and get the base region
-// of them.
+// Strips away all elements and fields.
+// Returns the base region of them.
 const MemRegion *MemRegion::getBaseRegion() const {
   const MemRegion *R = this;
   while (true) {
@@ -1315,8 +1311,7 @@ const MemRegion *MemRegion::getBaseRegion() const {
   return R;
 }
 
-// getgetMostDerivedObjectRegion gets the region of the root class of a C++
-// class hierarchy.
+// Returns the region of the root class of a C++ class hierarchy.
 const MemRegion *MemRegion::getMostDerivedObjectRegion() const {
   const MemRegion *R = this;
   while (const auto *BR = dyn_cast<CXXBaseObjectRegion>(R))

@@ -127,6 +127,41 @@ func.func @cmpi_equal_vector_operands(%arg0: vector<1x8xi64>)
 
 // -----
 
+// Test case: Move constant to the right side.
+// CHECK-LABEL: @cmpi_const_right(
+//  CHECK-SAME: %[[ARG:.*]]:
+//       CHECK:   %[[C:.*]] = arith.constant 1 : i64
+//       CHECK:   %[[R0:.*]] = arith.cmpi eq, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R1:.*]] = arith.cmpi sge, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R2:.*]] = arith.cmpi sle, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R3:.*]] = arith.cmpi uge, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R4:.*]] = arith.cmpi ule, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R5:.*]] = arith.cmpi ne, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R6:.*]] = arith.cmpi sgt, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R7:.*]] = arith.cmpi slt, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R8:.*]] = arith.cmpi ugt, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R9:.*]] = arith.cmpi ult, %[[ARG]], %[[C]] : i64
+//       CHECK:   return %[[R0]], %[[R1]], %[[R2]], %[[R3]], %[[R4]],
+//  CHECK-SAME:          %[[R5]], %[[R6]], %[[R7]], %[[R8]], %[[R9]]
+func.func @cmpi_const_right(%arg0: i64)
+    -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
+  %c1 = arith.constant 1 : i64
+  %0 = arith.cmpi eq, %c1, %arg0 : i64
+  %1 = arith.cmpi sle, %c1, %arg0 : i64
+  %2 = arith.cmpi sge, %c1, %arg0 : i64
+  %3 = arith.cmpi ule, %c1, %arg0 : i64
+  %4 = arith.cmpi uge, %c1, %arg0 : i64
+  %5 = arith.cmpi ne, %c1, %arg0 : i64
+  %6 = arith.cmpi slt, %c1, %arg0 : i64
+  %7 = arith.cmpi sgt, %c1, %arg0 : i64
+  %8 = arith.cmpi ult, %c1, %arg0 : i64
+  %9 = arith.cmpi ugt, %c1, %arg0 : i64
+  return %0, %1, %2, %3, %4, %5, %6, %7, %8, %9
+      : i1, i1, i1, i1, i1, i1, i1, i1, i1, i1
+}
+
+// -----
+
 // CHECK-LABEL: @cmpOfExtSI
 //  CHECK-NEXT:   return %arg0
 func.func @cmpOfExtSI(%arg0: i1) -> i1 {
@@ -507,6 +542,87 @@ func.func @doubleAddSub2(%arg0: index, %arg1 : index) -> index {
   %sub = arith.subi %arg0, %arg1 : index
   %add = arith.addi %arg1, %sub : index
   return %add : index
+}
+
+// CHECK-LABEL: @addiCarryZeroRhs
+//  CHECK-NEXT:   %[[false:.+]] = arith.constant false
+//  CHECK-NEXT:   return %arg0, %[[false]]
+func.func @addiCarryZeroRhs(%arg0: i32) -> (i32, i1) {
+  %zero = arith.constant 0 : i32
+  %sum, %carry = arith.addui_carry %arg0, %zero: i32, i1
+  return %sum, %carry : i32, i1
+}
+
+// CHECK-LABEL: @addiCarryZeroRhsSplat
+//  CHECK-NEXT:   %[[false:.+]] = arith.constant dense<false> : vector<4xi1>
+//  CHECK-NEXT:   return %arg0, %[[false]]
+func.func @addiCarryZeroRhsSplat(%arg0: vector<4xi32>) -> (vector<4xi32>, vector<4xi1>) {
+  %zero = arith.constant dense<0> : vector<4xi32>
+  %sum, %carry = arith.addui_carry %arg0, %zero: vector<4xi32>, vector<4xi1>
+  return %sum, %carry : vector<4xi32>, vector<4xi1>
+}
+
+// CHECK-LABEL: @addiCarryZeroLhs
+//  CHECK-NEXT:   %[[false:.+]] = arith.constant false
+//  CHECK-NEXT:   return %arg0, %[[false]]
+func.func @addiCarryZeroLhs(%arg0: i32) -> (i32, i1) {
+  %zero = arith.constant 0 : i32
+  %sum, %carry = arith.addui_carry %zero, %arg0: i32, i1
+  return %sum, %carry : i32, i1
+}
+
+// CHECK-LABEL: @addiCarryConstants
+//  CHECK-DAG:    %[[false:.+]] = arith.constant false
+//  CHECK-DAG:    %[[c50:.+]] = arith.constant 50 : i32
+//  CHECK-NEXT:   return %[[c50]], %[[false]]
+func.func @addiCarryConstants() -> (i32, i1) {
+  %c13 = arith.constant 13 : i32
+  %c37 = arith.constant 37 : i32
+  %sum, %carry = arith.addui_carry %c13, %c37: i32, i1
+  return %sum, %carry : i32, i1
+}
+
+// CHECK-LABEL: @addiCarryConstantsOverflow1
+//  CHECK-DAG:    %[[true:.+]] = arith.constant true
+//  CHECK-DAG:    %[[c0:.+]] = arith.constant 0 : i32
+//  CHECK-NEXT:   return %[[c0]], %[[true]]
+func.func @addiCarryConstantsOverflow1() -> (i32, i1) {
+  %max = arith.constant 4294967295 : i32
+  %c1 = arith.constant 1 : i32
+  %sum, %carry = arith.addui_carry %max, %c1: i32, i1
+  return %sum, %carry : i32, i1
+}
+
+// CHECK-LABEL: @addiCarryConstantsOverflow2
+//  CHECK-DAG:    %[[true:.+]] = arith.constant true
+//  CHECK-DAG:    %[[c_2:.+]] = arith.constant -2 : i32
+// CHECK-NEXT:    return %[[c_2]], %[[true]]
+func.func @addiCarryConstantsOverflow2() -> (i32, i1) {
+  %max = arith.constant 4294967295 : i32
+  %sum, %carry = arith.addui_carry %max, %max: i32, i1
+  return %sum, %carry : i32, i1
+}
+
+// CHECK-LABEL: @addiCarryConstantsOverflowVector
+//  CHECK-DAG:    %[[sum:.+]] = arith.constant dense<[1, 6, 2, 14]> : vector<4xi32>
+//  CHECK-DAG:    %[[carry:.+]] = arith.constant dense<[false, false, true, false]> : vector<4xi1>
+// CHECK-NEXT:    return %[[sum]], %[[carry]]
+func.func @addiCarryConstantsOverflowVector() -> (vector<4xi32>, vector<4xi1>) {
+  %v1 = arith.constant dense<[1, 3, 3, 7]> : vector<4xi32>
+  %v2 = arith.constant dense<[0, 3, 4294967295, 7]> : vector<4xi32>
+  %sum, %carry = arith.addui_carry %v1, %v2 : vector<4xi32>, vector<4xi1>
+  return %sum, %carry : vector<4xi32>, vector<4xi1>
+}
+
+// CHECK-LABEL: @addiCarryConstantsSplatVector
+//   CHECK-DAG:   %[[sum:.+]] = arith.constant dense<3> : vector<4xi32>
+//   CHECK-DAG:   %[[carry:.+]] = arith.constant dense<false> : vector<4xi1>
+//  CHECK-NEXT:   return %[[sum]], %[[carry]]
+func.func @addiCarryConstantsSplatVector() -> (vector<4xi32>, vector<4xi1>) {
+  %v1 = arith.constant dense<1> : vector<4xi32>
+  %v2 = arith.constant dense<2> : vector<4xi32>
+  %sum, %carry = arith.addui_carry %v1, %v2 : vector<4xi32>, vector<4xi1>
+  return %sum, %carry : vector<4xi32>, vector<4xi1>
 }
 
 // CHECK-LABEL: @notCmpEQ
@@ -948,6 +1064,16 @@ func.func @test_mulf(%arg0 : f32) -> (f32, f32, f32, f32) {
   return %0, %1, %2, %3 : f32, f32, f32, f32
 }
 
+// CHECK-LABEL: @test_mulf1(
+func.func @test_mulf1(%arg0 : f32, %arg1 : f32) -> (f32) {
+  // CHECK-NEXT:  %[[X:.+]] = arith.mulf %arg0, %arg1 : f32
+  // CHECK-NEXT:  return %[[X]]
+  %0 = arith.negf %arg0 : f32
+  %1 = arith.negf %arg1 : f32
+  %2 = arith.mulf %0, %1 : f32
+  return %2 : f32
+}
+
 // -----
 
 // CHECK-LABEL: @test_divf(
@@ -959,6 +1085,16 @@ func.func @test_divf(%arg0 : f64) -> (f64, f64) {
   %0 = arith.divf %arg0, %c1 : f64
   %1 = arith.divf %c1, %c2 : f64
   return %0, %1 : f64, f64
+}
+
+// CHECK-LABEL: @test_divf1(
+func.func @test_divf1(%arg0 : f32, %arg1 : f32) -> (f32) {
+  // CHECK-NEXT:  %[[X:.+]] = arith.divf %arg0, %arg1 : f32
+  // CHECK-NEXT:  return %[[X]]
+  %0 = arith.negf %arg0 : f32
+  %1 = arith.negf %arg1 : f32
+  %2 = arith.divf %0, %1 : f32
+  return %2 : f32
 }
 
 // -----
@@ -1395,4 +1531,31 @@ func.func @test_remf_vec() -> (vector<4xf32>) {
   %v2 = arith.constant dense<[2.0, 2.0, 2.0, 2.0]> : vector<4xf32>
   %0 = arith.remf %v1, %v2 : vector<4xf32>
   return %0 : vector<4xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_andi_not_fold_rhs(
+// CHECK-SAME: %[[ARG0:[[:alnum:]]+]]
+// CHECK: %[[C:.*]] = arith.constant 0 : index
+// CHECK: return %[[C]]
+
+func.func @test_andi_not_fold_rhs(%arg0 : index) -> index {
+    %0 = arith.constant -1 : index
+    %1 = arith.xori %arg0, %0 : index
+    %2 = arith.andi %arg0, %1 : index
+    return %2 : index
+}
+
+
+// CHECK-LABEL: @test_andi_not_fold_lhs(
+// CHECK-SAME: %[[ARG0:[[:alnum:]]+]]
+// CHECK: %[[C:.*]] = arith.constant 0 : index
+// CHECK: return %[[C]]
+
+func.func @test_andi_not_fold_lhs(%arg0 : index) -> index {
+    %0 = arith.constant -1 : index
+    %1 = arith.xori %arg0, %0 : index
+    %2 = arith.andi %1, %arg0 : index
+    return %2 : index
 }

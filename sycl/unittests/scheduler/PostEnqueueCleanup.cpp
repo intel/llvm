@@ -9,9 +9,10 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+
+#include <detail/buffer_impl.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -198,19 +199,12 @@ static void checkCleanupOnLeafUpdate(
 }
 
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   // Enforce creation of linked commands to test all sites of calling cleanup.
   unittest::ScopedEnvVar HostUnifiedMemoryVar{
       HostUnifiedMemoryName, "1",
       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
       redefinedEnqueueMemBufferMap);
   Mock.redefine<detail::PiApiKind::piEnqueueMemUnmap>(redefinedEnqueueMemUnmap);
@@ -218,7 +212,7 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
-  queue Queue{Ctx, Selector};
+  queue Queue{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
   MockScheduler MS;
 
@@ -249,7 +243,7 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
         MS.addEmptyCmd(Leaf, {&MockReq}, QueueImpl,
                        detail::Command::BlockReason::HostTask, ToEnqueue);
       });
-  device HostDevice;
+  device HostDevice{host_selector{}};
   detail::QueueImplPtr DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
   checkCleanupOnLeafUpdate(

@@ -148,8 +148,7 @@ private:
   /// computed in an SSE register, not on the X87 floating point stack.
   bool isScalarFPTypeInSSEReg(EVT VT) const {
     return (VT == MVT::f64 && Subtarget->hasSSE2()) ||
-           (VT == MVT::f32 && Subtarget->hasSSE1()) ||
-           (VT == MVT::f16 && Subtarget->hasFP16());
+           (VT == MVT::f32 && Subtarget->hasSSE1()) || VT == MVT::f16;
   }
 
   bool isTypeLegal(Type *Ty, MVT &VT, bool AllowI1 = false);
@@ -189,15 +188,15 @@ getX86SSEConditionCode(CmpInst::Predicate Predicate) {
   switch (Predicate) {
   default: llvm_unreachable("Unexpected predicate");
   case CmpInst::FCMP_OEQ: CC = 0;          break;
-  case CmpInst::FCMP_OGT: NeedSwap = true; LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_OGT: NeedSwap = true; [[fallthrough]];
   case CmpInst::FCMP_OLT: CC = 1;          break;
-  case CmpInst::FCMP_OGE: NeedSwap = true; LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_OGE: NeedSwap = true; [[fallthrough]];
   case CmpInst::FCMP_OLE: CC = 2;          break;
   case CmpInst::FCMP_UNO: CC = 3;          break;
   case CmpInst::FCMP_UNE: CC = 4;          break;
-  case CmpInst::FCMP_ULE: NeedSwap = true; LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_ULE: NeedSwap = true; [[fallthrough]];
   case CmpInst::FCMP_UGE: CC = 5;          break;
-  case CmpInst::FCMP_ULT: NeedSwap = true; LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_ULT: NeedSwap = true; [[fallthrough]];
   case CmpInst::FCMP_UGT: CC = 6;          break;
   case CmpInst::FCMP_ORD: CC = 7;          break;
   case CmpInst::FCMP_UEQ: CC = 8;          break;
@@ -501,7 +500,7 @@ bool X86FastISel::X86FastEmitStore(EVT VT, unsigned ValReg, X86AddressMode &AM,
             TII.get(X86::AND8ri), AndResult)
       .addReg(ValReg).addImm(1);
     ValReg = AndResult;
-    LLVM_FALLTHROUGH; // handle i1 as i8.
+    [[fallthrough]]; // handle i1 as i8.
   }
   case MVT::i8:  Opc = X86::MOV8mr;  break;
   case MVT::i16: Opc = X86::MOV16mr; break;
@@ -667,7 +666,7 @@ bool X86FastISel::X86FastEmitStore(EVT VT, const Value *Val,
     default: break;
     case MVT::i1:
       Signed = false;
-      LLVM_FALLTHROUGH; // Handle as i8.
+      [[fallthrough]]; // Handle as i8.
     case MVT::i8:  Opc = X86::MOV8mi;  break;
     case MVT::i16: Opc = X86::MOV16mi; break;
     case MVT::i32: Opc = X86::MOV32mi; break;
@@ -1689,7 +1688,7 @@ bool X86FastISel::X86SelectBranch(const Instruction *I) {
       default: break;
       case CmpInst::FCMP_OEQ:
         std::swap(TrueMBB, FalseMBB);
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case CmpInst::FCMP_UNE:
         NeedExtraBranch = true;
         Predicate = CmpInst::FCMP_ONE;
@@ -2281,12 +2280,13 @@ bool X86FastISel::X86FastEmitPseudoSelect(MVT RetVT, const Instruction *I) {
   default: return false;
   case MVT::i8:  Opc = X86::CMOV_GR8;   break;
   case MVT::i16: Opc = X86::CMOV_GR16;  break;
-  case MVT::f16: Opc = X86::CMOV_FR16X; break;
   case MVT::i32: Opc = X86::CMOV_GR32;  break;
-  case MVT::f32: Opc = Subtarget->hasAVX512() ? X86::CMOV_FR32X
-                                              : X86::CMOV_FR32; break;
-  case MVT::f64: Opc = Subtarget->hasAVX512() ? X86::CMOV_FR64X
-                                              : X86::CMOV_FR64; break;
+  case MVT::f16:
+    Opc = Subtarget->hasAVX512() ? X86::CMOV_FR16X : X86::CMOV_FR16; break;
+  case MVT::f32:
+    Opc = Subtarget->hasAVX512() ? X86::CMOV_FR32X : X86::CMOV_FR32; break;
+  case MVT::f64:
+    Opc = Subtarget->hasAVX512() ? X86::CMOV_FR64X : X86::CMOV_FR64; break;
   }
 
   const Value *Cond = I->getOperand(0);
@@ -3117,7 +3117,7 @@ bool X86FastISel::fastLowerArguments() {
     default: llvm_unreachable("Unexpected value type.");
     case MVT::i32: SrcReg = GPR32ArgRegs[GPRIdx++]; break;
     case MVT::i64: SrcReg = GPR64ArgRegs[GPRIdx++]; break;
-    case MVT::f32: LLVM_FALLTHROUGH;
+    case MVT::f32: [[fallthrough]];
     case MVT::f64: SrcReg = XMMArgRegs[FPRIdx++]; break;
     }
     Register DstReg = FuncInfo.MF->addLiveIn(SrcReg, RC);
@@ -3180,6 +3180,10 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   // Functions with no_callee_saved_registers that need special handling.
   if ((CB && CB->hasFnAttr("no_callee_saved_registers")))
+    return false;
+
+  // Indirect calls with CFI checks need special handling.
+  if (CB && CB->isIndirectCall() && CB->getOperandBundle(LLVMContext::OB_kcfi))
     return false;
 
   // Functions using thunks for indirect calls need to use SDISel.
@@ -3697,7 +3701,7 @@ unsigned X86FastISel::X86MaterializeInt(const ConstantInt *CI, MVT VT) {
   default: llvm_unreachable("Unexpected value type");
   case MVT::i1:
     VT = MVT::i8;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case MVT::i8:  Opc = X86::MOV8ri;  break;
   case MVT::i16: Opc = X86::MOV16ri; break;
   case MVT::i32: Opc = X86::MOV32ri; break;
@@ -3903,6 +3907,9 @@ unsigned X86FastISel::fastMaterializeFloatZero(const ConstantFP *CF) {
   unsigned Opc = 0;
   switch (VT.SimpleTy) {
   default: return 0;
+  case MVT::f16:
+    Opc = HasAVX512 ? X86::AVX512_FsFLD0SH : X86::FsFLD0SH;
+    break;
   case MVT::f32:
     Opc = HasAVX512 ? X86::AVX512_FsFLD0SS
           : HasSSE1 ? X86::FsFLD0SS

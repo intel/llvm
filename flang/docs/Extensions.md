@@ -140,7 +140,7 @@ end
   for the default kind of INTEGER are assumed to have the least larger kind
   that can hold them, if one exists.
 * BOZ literals can be used as INTEGER values in contexts where the type is
-  unambiguous: the right hand sides of assigments and initializations
+  unambiguous: the right hand sides of assignments and initializations
   of INTEGER entities, as actual arguments to a few intrinsic functions
   (ACHAR, BTEST, CHAR), and as actual arguments of references to
   procedures with explicit interfaces whose corresponding dummy
@@ -233,6 +233,13 @@ end
 * Legacy names `AND`, `OR`, and `XOR` are accepted as aliases for
   the standard intrinsic functions `IAND`, `IOR`, and `IEOR`
   respectively.
+* A digit count of d=0 is accepted in Ew.0, Dw.0, and Gw.0 output
+  editing if no nonzero scale factor (kP) is in effect.
+* The name `IMAG` is accepted as an alias for the generic intrinsic
+  function `AIMAG`.
+* The legacy extension intrinsic functions `IZEXT` and `JZEXT`
+  are supported; `ZEXT` has different behavior with various older
+  compilers, so it is not supported.
 
 ### Extensions supported when enabled by options
 
@@ -285,7 +292,7 @@ end
 * Use of INTEGER data with the intrinsic logical operators `.NOT.`, `.AND.`, `.OR.`,
   and `.XOR.`.
 * IF (integer expression) THEN ... END IF  (PGI/Intel)
-* Comparsion of LOGICAL with ==/.EQ. rather than .EQV. (also .NEQV.) (PGI/Intel)
+* Comparison of LOGICAL with ==/.EQ. rather than .EQV. (also .NEQV.) (PGI/Intel)
 * Procedure pointers in COMMON blocks (PGI/Intel)
 * Underindexing multi-dimensional arrays (e.g., A(1) rather than A(1,1)) (PGI only)
 * Legacy PGI `NCHARACTER` type and `NC` Kanji character literals
@@ -304,6 +311,9 @@ end
   related generics. Some accepted exceptions are listed above in the allowed extensions.
   PGI, Intel, and XLF support this in ways that are not numerically equivalent.
   PGI converts the arguments while Intel and XLF replace the specific by the related generic.
+* VMS listing control directives (`%LIST`, `%NOLIST`, `%EJECT`)
+* Continuation lines on `INCLUDE` lines
+* `NULL()` actual argument corresponding to an `ALLOCATABLE` dummy data object
 
 ## Preprocessing behavior
 

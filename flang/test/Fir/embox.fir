@@ -1,4 +1,5 @@
 // RUN: tco %s | FileCheck %s
+// RUN: %flang_fc1 -mmlir -disable-external-name-interop  -emit-llvm %s -o -| FileCheck %s
 
 
 // CHECK-LABEL: define void @_QPtest_callee(ptr %0)
@@ -41,7 +42,7 @@ func.func @_QPtest_dt_slice() {
 // CHECK: %[[a5:.*]] = insertvalue { ptr, i64, i32, i8, i8, i8, i8, [1 x [3 x i64]] }
 // CHECK-SAME: { ptr undef, i64 4, i32 20180515, i8 1, i8 9, i8 0, i8 0, [1 x [3 x i64]]
 // CHECK-SAME: [i64 1, i64 5, i64 mul
-// CHECK-SAME: (i64 ptrtoint (ptr getelementptr (%_QFtest_dt_sliceTt, ptr null, i64 1) to i64), i64 2)]] }
+// CHECK-SAME: (i64 ptrtoint (ptr getelementptr (%_QFtest_dt_sliceTt, ptr null, i32 1) to i64), i64 2)]] }
 // CHECK-SAME: , ptr %[[a4]], 0
 
 // CHECK: store { ptr, i64, i32, i8, i8, i8, i8, [1 x [3 x i64]] } %[[a5]], ptr %[[a1]], align 8,
@@ -57,6 +58,28 @@ func.func @_QPtest_dt_slice() {
   %4 = fir.slice %c1_i64, %c10_i64, %c2_i64 path %2 : (i64, i64, i64, !fir.field) -> !fir.slice<1>
   %5 = fir.embox %1(%3) [%4] : (!fir.ref<!fir.array<20x!fir.type<_QFtest_dt_sliceTt{i:i32,j:i32}>>>, !fir.shape<1>, !fir.slice<1>) -> !fir.box<!fir.array<?xi32>>
   fir.call @_QPtest_dt_callee(%5) : (!fir.box<!fir.array<?xi32>>) -> ()
+  return
+}
+
+func.func private @takesRank2CharBox(!fir.box<!fir.array<?x?x!fir.char<1,?>>>)
+
+// CHECK-LABEL: define void @emboxSubstring(
+// CHECK-SAME: ptr %[[arg0:.*]])
+func.func @emboxSubstring(%arg0: !fir.ref<!fir.array<2x3x!fir.char<1,4>>>) {
+  %c2 = arith.constant 2 : index
+  %c3 = arith.constant 3 : index
+  %c1 = arith.constant 1 : index
+  %c1_i64 = arith.constant 1 : i64
+  %c2_i64 = arith.constant 2 : i64
+  %0 = fir.shape %c2, %c3 : (index, index) -> !fir.shape<2>
+  %1 = fir.slice %c1, %c2, %c1, %c1, %c3, %c1 substr %c1_i64, %c2_i64 : (index, index, index, index, index, index, i64, i64) -> !fir.slice<2>
+  %2 = fir.embox %arg0(%0) [%1] : (!fir.ref<!fir.array<2x3x!fir.char<1,4>>>, !fir.shape<2>, !fir.slice<2>) -> !fir.box<!fir.array<?x?x!fir.char<1,?>>>
+  // CHECK: %[[addr:.*]] = getelementptr [3 x [2 x [4 x i8]]], ptr %[[arg0]], i64 0, i64 0, i64 0, i64 1
+  // CHECK: insertvalue {[[descriptorType:.*]]} { ptr undef, i64 2, i32 20180515, i8 2, i8 40, i8 0, i8 0,
+  // CHECK-SAME: [2 x [3 x i64]] [{{\[}}3 x i64] [i64 1, i64 2, i64 4], [3 x i64] [i64 1, i64 3, i64 8]] },
+  // CHECK-SAME: ptr %[[addr]], 0
+
+  fir.call @takesRank2CharBox(%2) : (!fir.box<!fir.array<?x?x!fir.char<1,?>>>) -> ()
   return
 }
 

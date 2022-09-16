@@ -1,4 +1,3 @@
-from __future__ import print_function
 import lldb
 import os
 from lldbsuite.test.lldbtest import *
@@ -7,8 +6,6 @@ from lldbsuite.test.decorators import *
 
 @skipIfRemote
 class TestQemuAPI(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def test_file_api(self):

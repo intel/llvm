@@ -71,14 +71,14 @@ static cl::opt<bool> sched4reg(
     "nvptx-sched4reg",
     cl::desc("NVPTX Specific: schedule for register pressue"), cl::init(false));
 
-static cl::opt<unsigned>
-FMAContractLevelOpt("nvptx-fma-level", cl::ZeroOrMore, cl::Hidden,
-                    cl::desc("NVPTX Specific: FMA contraction (0: don't do it"
-                             " 1: do it  2: do it aggressively"),
-                    cl::init(2));
+static cl::opt<unsigned> FMAContractLevelOpt(
+    "nvptx-fma-level", cl::Hidden,
+    cl::desc("NVPTX Specific: FMA contraction (0: don't do it"
+             " 1: do it  2: do it aggressively"),
+    cl::init(2));
 
 static cl::opt<int> UsePrecDivF32(
-    "nvptx-prec-divf32", cl::ZeroOrMore, cl::Hidden,
+    "nvptx-prec-divf32", cl::Hidden,
     cl::desc("NVPTX Specifies: 0 use div.approx, 1 use div.full, 2 use"
              " IEEE Compliant F32 div.rnd if available."),
     cl::init(2));
@@ -204,6 +204,40 @@ static void ComputePTXValueVTs(const TargetLowering &TLI, const DataLayout &DL,
         Offsets->push_back(Off);
     }
   }
+}
+
+/// PromoteScalarIntegerPTX
+/// Used to make sure the arguments/returns are suitable for passing
+/// and promote them to a larger size if they're not.
+///
+/// The promoted type is placed in \p PromoteVT if the function returns true.
+static bool PromoteScalarIntegerPTX(const EVT &VT, MVT *PromotedVT) {
+  if (VT.isScalarInteger()) {
+    switch (PowerOf2Ceil(VT.getFixedSizeInBits())) {
+    default:
+      llvm_unreachable(
+          "Promotion is not suitable for scalars of size larger than 64-bits");
+    case 1:
+      *PromotedVT = MVT::i1;
+      break;
+    case 2:
+    case 4:
+    case 8:
+      *PromotedVT = MVT::i8;
+      break;
+    case 16:
+      *PromotedVT = MVT::i16;
+      break;
+    case 32:
+      *PromotedVT = MVT::i32;
+      break;
+    case 64:
+      *PromotedVT = MVT::i64;
+      break;
+    }
+    return EVT(*PromotedVT) != VT;
+  }
+  return false;
 }
 
 // Check whether we can merge loads/stores of some of the pieces of a
@@ -537,7 +571,7 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
 
   // These map to conversion instructions for scalar FP types.
   for (const auto &Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FNEARBYINT, ISD::FRINT,
-                         ISD::FTRUNC}) {
+                         ISD::FROUNDEVEN, ISD::FTRUNC}) {
     setOperationAction(Op, MVT::f16, Legal);
     setOperationAction(Op, MVT::f32, Legal);
     setOperationAction(Op, MVT::f64, Legal);
@@ -1291,8 +1325,7 @@ std::string NVPTXTargetLowering::getPrototype(
       // PTX ABI requires all scalar return values to be at least 32
       // bits in size.  fp16 normally uses .b16 as its storage type in
       // PTX, so its size must be adjusted here, too.
-      if (size < 32)
-        size = 32;
+      size = promoteScalarArgumentSize(size);
 
       O << ".param .b" << size << " _";
     } else if (isa<PointerType>(retTy)) {
@@ -1343,8 +1376,7 @@ std::string NVPTXTargetLowering::getPrototype(
       unsigned sz = 0;
       if (isa<IntegerType>(Ty)) {
         sz = cast<IntegerType>(Ty)->getBitWidth();
-        if (sz < 32)
-          sz = 32;
+        sz = promoteScalarArgumentSize(sz);
       } else if (isa<PointerType>(Ty)) {
         sz = PtrVT.getSizeInBits();
       } else if (Ty->isHalfTy())
@@ -1515,11 +1547,11 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       NeedAlign = true;
     } else {
       // declare .param .b<size> .param<n>;
-      if ((VT.isInteger() || VT.isFloatingPoint()) && TypeSize < 4) {
+      if (VT.isInteger() || VT.isFloatingPoint()) {
         // PTX ABI requires integral types to be at least 32 bits in
         // size. FP16 is loaded/stored using i16, so it's handled
         // here as well.
-        TypeSize = 4;
+        TypeSize = promoteScalarArgumentSize(TypeSize * 8) / 8;
       }
       SDValue DeclareScalarParamOps[] = {
           Chain, DAG.getConstant(ParamCount, dl, MVT::i32),
@@ -1556,6 +1588,17 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       }
 
       SDValue StVal = OutVals[OIdx];
+
+      MVT PromotedVT;
+      if (PromoteScalarIntegerPTX(EltVT, &PromotedVT)) {
+        EltVT = EVT(PromotedVT);
+      }
+      if (PromoteScalarIntegerPTX(StVal.getValueType(), &PromotedVT)) {
+        llvm::ISD::NodeType Ext =
+            Outs[OIdx].Flags.isSExt() ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+        StVal = DAG.getNode(Ext, dl, PromotedVT, StVal);
+      }
+
       if (IsByVal) {
         auto PtrVT = getPointerTy(DL);
         SDValue srcAddr = DAG.getNode(ISD::ADD, dl, PtrVT, StVal,
@@ -1638,9 +1681,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // Plus, this behavior is consistent with nvcc's.
     if (RetTy->isFloatingPointTy() || RetTy->isPointerTy() ||
         (RetTy->isIntegerTy() && !RetTy->isIntegerTy(128))) {
-      // Scalar needs to be at least 32bit wide
-      if (resultsz < 32)
-        resultsz = 32;
+      resultsz = promoteScalarArgumentSize(resultsz);
       SDVTList DeclareRetVTs = DAG.getVTList(MVT::Other, MVT::Glue);
       SDValue DeclareRetOps[] = { Chain, DAG.getConstant(1, dl, MVT::i32),
                                   DAG.getConstant(resultsz, dl, MVT::i32),
@@ -1778,6 +1819,14 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       EVT TheLoadType = VTs[i];
       EVT EltType = Ins[i].VT;
       Align EltAlign = commonAlignment(RetAlign, Offsets[i]);
+      MVT PromotedVT;
+
+      if (PromoteScalarIntegerPTX(TheLoadType, &PromotedVT)) {
+        TheLoadType = EVT(PromotedVT);
+        EltType = EVT(PromotedVT);
+        needTruncate = true;
+      }
+
       if (ExtendIntegerRetVal) {
         TheLoadType = MVT::i32;
         EltType = MVT::i32;
@@ -1860,8 +1909,8 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     Chain = Ret.getValue(1);
     InFlag = Ret.getValue(2);
 
-    if (ProxyRegTruncates[i].hasValue()) {
-      Ret = DAG.getNode(ISD::TRUNCATE, dl, ProxyRegTruncates[i].getValue(), Ret);
+    if (ProxyRegTruncates[i]) {
+      Ret = DAG.getNode(ISD::TRUNCATE, dl, ProxyRegTruncates[i].value(), Ret);
     }
 
     InVals.push_back(Ret);
@@ -2244,7 +2293,7 @@ SDValue NVPTXTargetLowering::LowerLOADi1(SDValue Op, SelectionDAG &DAG) const {
   assert(Node->getValueType(0) == MVT::i1 &&
          "Custom lowering for i1 load only");
   SDValue newLD = DAG.getLoad(MVT::i16, dl, LD->getChain(), LD->getBasePtr(),
-                              LD->getPointerInfo(), LD->getAlignment(),
+                              LD->getPointerInfo(), LD->getAlign(),
                               LD->getMemOperand()->getFlags());
   SDValue result = DAG.getNode(ISD::TRUNCATE, dl, MVT::i1, newLD);
   // The legalizer (the caller) is expecting two values from the legalized
@@ -2409,7 +2458,7 @@ SDValue NVPTXTargetLowering::LowerSTOREi1(SDValue Op, SelectionDAG &DAG) const {
   Tmp3 = DAG.getNode(ISD::ZERO_EXTEND, dl, MVT::i16, Tmp3);
   SDValue Result =
       DAG.getTruncStore(Tmp1, dl, Tmp3, Tmp2, ST->getPointerInfo(), MVT::i8,
-                        ST->getAlignment(), ST->getMemOperand()->getFlags());
+                        ST->getAlign(), ST->getMemOperand()->getFlags());
   return Result;
 }
 
@@ -2558,6 +2607,13 @@ SDValue NVPTXTargetLowering::LowerFormalArguments(
             // v2f16 was loaded as an i32. Now we must bitcast it back.
             else if (EltVT == MVT::v2f16)
               Elt = DAG.getNode(ISD::BITCAST, dl, MVT::v2f16, Elt);
+
+            // If a promoted integer type is used, truncate down to the original
+            MVT PromotedVT;
+            if (PromoteScalarIntegerPTX(EltVT, &PromotedVT)) {
+              Elt = DAG.getNode(ISD::TRUNCATE, dl, EltVT, Elt);
+            }
+
             // Extend the element if necessary (e.g. an i8 is loaded
             // into an i16 register)
             if (Ins[InsIdx].VT.isInteger() &&
@@ -2627,10 +2683,25 @@ NVPTXTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
     return Chain;
 
   const DataLayout &DL = DAG.getDataLayout();
+  SmallVector<SDValue, 16> PromotedOutVals;
   SmallVector<EVT, 16> VTs;
   SmallVector<uint64_t, 16> Offsets;
   ComputePTXValueVTs(*this, DL, RetTy, VTs, &Offsets);
   assert(VTs.size() == OutVals.size() && "Bad return value decomposition");
+
+  for (unsigned i = 0, e = VTs.size(); i != e; ++i) {
+    SDValue PromotedOutVal = OutVals[i];
+    MVT PromotedVT;
+    if (PromoteScalarIntegerPTX(VTs[i], &PromotedVT)) {
+      VTs[i] = EVT(PromotedVT);
+    }
+    if (PromoteScalarIntegerPTX(PromotedOutVal.getValueType(), &PromotedVT)) {
+      llvm::ISD::NodeType Ext =
+          Outs[i].Flags.isSExt() ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+      PromotedOutVal = DAG.getNode(Ext, dl, PromotedVT, PromotedOutVal);
+    }
+    PromotedOutVals.push_back(PromotedOutVal);
+  }
 
   auto VectorInfo = VectorizePTXValueVTs(
       VTs, Offsets,
@@ -2652,12 +2723,14 @@ NVPTXTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
       StoreOperands.push_back(DAG.getConstant(Offsets[i], dl, MVT::i32));
     }
 
-    SDValue RetVal = OutVals[i];
+    SDValue OutVal = OutVals[i];
+    SDValue RetVal = PromotedOutVals[i];
+
     if (ExtendIntegerRetVal) {
       RetVal = DAG.getNode(Outs[i].Flags.isSExt() ? ISD::SIGN_EXTEND
                                                   : ISD::ZERO_EXTEND,
                            dl, MVT::i32, RetVal);
-    } else if (RetVal.getValueSizeInBits() < 16) {
+    } else if (OutVal.getValueSizeInBits() < 16) {
       // Use 16-bit registers for small load-stores as it's the
       // smallest general purpose register size supported by NVPTX.
       RetVal = DAG.getNode(ISD::ANY_EXTEND, dl, MVT::i16, RetVal);

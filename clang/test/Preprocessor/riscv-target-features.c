@@ -18,6 +18,7 @@
 // CHECK-NOT: __riscv_compressed
 // CHECK-NOT: __riscv_b
 // CHECK-NOT: __riscv_bitmanip
+// CHECK-NOT: __riscv_zihintntl
 // CHECK-NOT: __riscv_zba
 // CHECK-NOT: __riscv_zbb
 // CHECK-NOT: __riscv_zbc
@@ -42,6 +43,8 @@
 // CHECK-NOT: __riscv_zkr
 // CHECK-NOT: __riscv_zkt
 // CHECK-NOT: __riscv_zk
+// CHECK-NOT: __riscv_zicbom
+// CHECK-NOT: __riscv_zicboz
 
 // RUN: %clang -target riscv32-unknown-linux-gnu -march=rv32im -x c -E -dM %s \
 // RUN: -o - | FileCheck --check-prefix=CHECK-M-EXT %s
@@ -107,6 +110,14 @@
 // RUN: -o - | FileCheck --check-prefix=CHECK-C-EXT %s
 // CHECK-C-EXT: __riscv_c 2000000{{$}}
 // CHECK-C-EXT: __riscv_compressed 1
+
+// RUN: %clang -target riscv32-unknown-linux-gnu -menable-experimental-extensions \
+// RUN: -march=rv32izihintntl0p2 -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZIHINTNTL-EXT %s
+// RUN: %clang -target riscv64-unknown-linux-gnu -menable-experimental-extensions \
+// RUN: -march=rv64izihintntl0p2 -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZIHINTNTL-EXT %s
+// CHECK-ZIHINTNTL-EXT: __riscv_zihintntl 2000{{$}}
 
 // RUN: %clang -target riscv32-unknown-linux-gnu \
 // RUN: -march=rv32izba1p0 -x c -E -dM %s \
@@ -433,3 +444,21 @@
 // RUN: -march=rv64i_zbkb_zbkc_zbkx_zksed_zksh -x c -E -dM %s -o - \
 // RUN: | FileCheck --check-prefix=CHECK-COMBINE-INTO-ZKS %s
 // CHECK-COMBINE-INTO-ZKS: __riscv_zks 1
+
+// RUN: %clang -target riscv32 -march=rv32izicbom -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZICBOM-EXT %s
+// RUN: %clang -target riscv64 -march=rv64izicbom -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZICBOM-EXT %s
+// CHECK-ZICBOM-EXT: __riscv_zicbom 1000000{{$}}
+
+// RUN: %clang -target riscv32 -march=rv32izicboz -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZICBOZ-EXT %s
+// RUN: %clang -target riscv64 -march=rv64izicboz -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZICBOZ-EXT %s
+// CHECK-ZICBOZ-EXT: __riscv_zicboz 1000000{{$}}
+
+// RUN: %clang -target riscv32 -march=rv32izicbop -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZICBOP-EXT %s
+// RUN: %clang -target riscv64 -march=rv64izicbop -x c -E -dM %s \
+// RUN: -o - | FileCheck --check-prefix=CHECK-ZICBOP-EXT %s
+// CHECK-ZICBOP-EXT: __riscv_zicbop 1000000{{$}}

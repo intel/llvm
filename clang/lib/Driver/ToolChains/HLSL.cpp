@@ -118,7 +118,7 @@ bool isLegalValidatorVersion(StringRef ValVersionStr, const Driver &D) {
   }
 
   uint64_t Major = Version.getMajor();
-  uint64_t Minor = Version.getMinor().getValue();
+  uint64_t Minor = *Version.getMinor();
   if (Major == 0 && Minor != 0) {
     D.Diag(diag::err_drv_invalid_empty_dxil_validator_version) << ValVersionStr;
     return false;
@@ -158,6 +158,12 @@ HLSLToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
       if (!isLegalValidatorVersion(ValVerStr, getDriver()))
         continue;
     }
+    if (A->getOption().getID() == options::OPT_dxc_entrypoint) {
+      DAL->AddSeparateArg(nullptr, Opts.getOption(options::OPT_hlsl_entrypoint),
+                          A->getValue());
+      A->claim();
+      continue;
+    }
     if (A->getOption().getID() == options::OPT_emit_pristine_llvm) {
       // Translate fcgl into -S -emit-llvm and -disable-llvm-passes.
       DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_S));
@@ -169,6 +175,15 @@ HLSLToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
     }
     DAL->append(A);
   }
+
+  if (DAL->hasArg(options::OPT_o)) {
+    // When run the whole pipeline.
+    if (!DAL->hasArg(options::OPT_emit_llvm))
+      // Emit obj if write to file.
+      DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_emit_obj));
+  } else
+    DAL->AddSeparateArg(nullptr, Opts.getOption(options::OPT_o), "-");
+
   // Add default validator version if not set.
   // TODO: remove this once read validator version from validator.
   if (!DAL->hasArg(options::OPT_dxil_validator_version)) {
@@ -177,5 +192,7 @@ HLSLToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
                         Opts.getOption(options::OPT_dxil_validator_version),
                         DefaultValidatorVer);
   }
+  // FIXME: add validation for enable_16bit_types should be after HLSL 2018 and
+  // shader model 6.2.
   return DAL;
 }

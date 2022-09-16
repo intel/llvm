@@ -7,17 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_binary_image.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/stl.hpp>
+#include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/stl.hpp>
 
 #include <cstdint>
 #include <map>
@@ -40,8 +40,8 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
@@ -63,7 +63,9 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_math_fp64,
   cl_intel_devicelib_complex,
   cl_intel_devicelib_complex_fp64,
-  cl_intel_devicelib_cstring
+  cl_intel_devicelib_cstring,
+  cl_intel_devicelib_imf,
+  cl_intel_devicelib_imf_fp64,
 };
 
 // Provides single loading and building OpenCL programs with unique contexts
@@ -399,5 +401,5 @@ private:
   std::mutex m_DeviceGlobalsMutex;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

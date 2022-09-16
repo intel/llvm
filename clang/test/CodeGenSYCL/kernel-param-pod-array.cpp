@@ -4,7 +4,7 @@
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {
@@ -49,8 +49,8 @@ int main() {
 // CHECK-SAME:(ptr noundef byval(%struct{{.*}}.__wrapper_class) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon, align 4
-// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
+// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon, align 4
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
 // CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
@@ -74,8 +74,8 @@ int main() {
 // CHECK-SAME:(ptr noundef byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
-// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
+// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
 // CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
@@ -98,8 +98,8 @@ int main() {
 // CHECK-SAME:(ptr noundef byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
-// CHECK: %[[LOCAL_OBJECT:[0-9]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
+// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
 // CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0

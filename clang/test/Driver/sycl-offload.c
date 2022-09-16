@@ -86,6 +86,12 @@
 
 /// ###########################################################################
 
+/// Check that -aux-triple is passed with -fsycl -fintelfpga
+// RUN:    %clang -### -fsycl -fintelfpga %s 2>&1 \
+// RUN:    | FileCheck -DARCH=spir64_fpga -check-prefix=CHK-SYCL-FPGA-AUX-TRIPLE %s
+// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple" "{{.*}}"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"{{.*}} "-fsycl-is-host"
+/// ###########################################################################
+
 /// Validate SYCL option values
 // RUN:   %clang -### -fsycl-device-code-split=bad_value -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE -Doption=-fsycl-device-code-split %s
@@ -628,24 +634,40 @@
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
 
-/// Check for default linking of sycl.lib with -fsycl usage
+/// Check no SYCL runtime is linked with -nostdlib
+// RUN: %clang -fsycl -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
+// CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
+// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+
+/// Check for default linking of syclN.lib with -fsycl usage
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
-// CHECK-LINK-SYCL-CL: "--dependent-lib=sycl"
-// CHECK-LINK-SYCL-CL-NOT: "-defaultlib:sycl.lib"
-// CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
+// CHECK-LINK-SYCL-CL: "--dependent-lib=sycl{{[0-9]*}}"
+// CHECK-LINK-SYCL-CL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
+// CHECK-LINK-SYCL: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl -nolibsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
-// RUN: %clang_cl -fsycl -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
-// CHECK-LINK-NOLIBSYCL-NOT: "--dependent-lib=sycl"
+// RUN: %clang_cl -fsycl -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL-CL %s
+// CHECK-LINK-NOLIBSYCL-CL-NOT: "--dependent-lib=sycl{{[0-9]*}}"
 // CHECK-LINK-NOLIBSYCL: "{{.*}}link{{(.exe)?}}"
-// CHECK-LINK-NOLIBSYCL-NOT: "-defaultlib:sycl.lib"
+// CHECK-LINK-NOLIBSYCL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 
-/// Check sycld.lib is chosen with /MDd
-// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
-// CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycld"
-// CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycld.lib"
+/// Check SYCL runtime is linked despite -nostdlib on Windows, this is
+/// necessary for the Windows Clang CMake to work
+// RUN: %clang -fsycl -nostdlib -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB %s
+// RUN: %clang_cl -fsycl -nostdlib %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB-CL %s
+// CHECK-LINK-NOSTDLIB-CL: "--dependent-lib=sycl{{[0-9]*}}"
+// CHECK-LINK-NOSTDLIB: "{{.*}}link{{(.exe)?}}"
+// CHECK-LINK-NOSTDLIB: "-defaultlib:sycl{{[0-9]*}}.lib"
+
+/// Check sycld.lib is chosen with /MDd or -g
+// RUN:  %clang -fsycl -g -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG-CL %s
+// CHECK-LINK-SYCL-DEBUG-CL: "--dependent-lib=sycl{{[0-9]*}}d"
+// CHECK-LINK-SYCL-DEBUG-CL-NOT: "-defaultlib:sycl{{[0-9]*}}d.lib"
+// CHECK-LINK-SYCL-DEBUG: "-defaultlib:sycl{{[0-9]*}}d.lib"
+// CHECK-LINK-SYCL-DEBUG-NOT: "--dependent-lib=sycl{{[0-9]*}}d"
 
 /// Check "-spirv-allow-unknown-intrinsics=llvm.genx." option is emitted for llvm-spirv tool
 // RUN: %clangxx %s -fsycl -### 2>&1 | FileCheck %s --check-prefix=CHK-ALLOW-INTRIN

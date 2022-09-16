@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_AMDGPU_SIINSTRINFO_H
 
 #include "AMDGPUMIRFormatter.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIRegisterInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SetVector.h"
@@ -183,8 +184,7 @@ public:
     return ST;
   }
 
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 
   bool isIgnorableUse(const MachineOperand &MO) const override;
 
@@ -553,6 +553,14 @@ public:
     return MI.getDesc().TSFlags & SIInstrFlags::EXP;
   }
 
+  static bool isDualSourceBlendEXP(const MachineInstr &MI) {
+    if (!isEXP(MI))
+      return false;
+    unsigned Target = MI.getOperand(0).getImm();
+    return Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND0 ||
+           Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND1;
+  }
+
   bool isEXP(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::EXP;
   }
@@ -655,8 +663,21 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::IsMAI;
   }
 
+  static bool isMFMA(const MachineInstr &MI) {
+    return isMAI(MI) && MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
+           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
+  }
+
   static bool isDOT(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::IsDOT;
+  }
+
+  static bool isWMMA(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsWMMA;
+  }
+
+  bool isWMMA(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsWMMA;
   }
 
   bool isDOT(uint16_t Opcode) const {
@@ -1218,6 +1239,9 @@ namespace AMDGPU {
 
   LLVM_READONLY
   int getDPPOp32(uint16_t Opcode);
+
+  LLVM_READONLY
+  int getDPPOp64(uint16_t Opcode);
 
   LLVM_READONLY
   int getBasicFromSDWAOp(uint16_t Opcode);

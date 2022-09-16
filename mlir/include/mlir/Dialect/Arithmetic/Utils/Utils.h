@@ -65,7 +65,7 @@ public:
     if (!resultType)
       return failure();
     auto newOp =
-        rewriter.create<OpType>(op.getLoc(), resultType, op.source(),
+        rewriter.create<OpType>(op.getLoc(), resultType, op.getSource(),
                                 mixedOffsets, mixedSizes, mixedStrides);
     CastOpFunc func;
     func(rewriter, op, newOp);
@@ -99,6 +99,7 @@ struct ArithBuilder {
 
   Value _and(Value lhs, Value rhs);
   Value add(Value lhs, Value rhs);
+  Value sub(Value lhs, Value rhs);
   Value mul(Value lhs, Value rhs);
   Value select(Value cmp, Value lhs, Value rhs);
   Value sgt(Value lhs, Value rhs);

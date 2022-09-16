@@ -29,9 +29,9 @@ struct derived : base, second_base {
 };
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     derived f{};
     cgh.single_task(f);
   });

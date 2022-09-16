@@ -9,14 +9,13 @@
 #include "gtest/internal/gtest-internal.h"
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -31,7 +30,7 @@ static constexpr auto WarningLevelEnvVar = "SYCL_RT_WARNING_LEVEL";
 static bool LogRequested = false;
 
 static pi_result redefinedProgramGetBuildInfo(
-    pi_program program, pi_device device, cl_program_build_info param_name,
+    pi_program program, pi_device device, pi_program_build_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
 
   if (param_value_size_ret) {
@@ -87,15 +86,8 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   ScopedEnvVar var(WarningLevelEnvVar, "1",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -120,15 +112,8 @@ TEST(BuildLog, OutputLogOnLevel2) {
   ScopedEnvVar var(WarningLevelEnvVar, "2",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];

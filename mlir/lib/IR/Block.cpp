@@ -186,11 +186,13 @@ void Block::eraseArgument(unsigned index) {
     arg.setArgNumber(index++);
 }
 
-void Block::eraseArguments(ArrayRef<unsigned> argIndices) {
-  BitVector eraseIndices(getNumArguments());
-  for (unsigned i : argIndices)
-    eraseIndices.set(i);
-  eraseArguments(eraseIndices);
+void Block::eraseArguments(unsigned start, unsigned num) {
+  assert(start + num <= arguments.size());
+  for (unsigned i = 0; i < num; ++i)
+    arguments[start + i].destroy();
+  arguments.erase(arguments.begin() + start, arguments.begin() + start + num);
+  for (BlockArgument arg : llvm::drop_begin(arguments, start))
+    arg.setArgNumber(start++);
 }
 
 void Block::eraseArguments(const BitVector &eraseIndices) {
@@ -319,11 +321,11 @@ unsigned PredecessorIterator::getSuccessorIndex() const {
 SuccessorRange::SuccessorRange() : SuccessorRange(nullptr, 0) {}
 
 SuccessorRange::SuccessorRange(Block *block) : SuccessorRange() {
- if (block->empty() || llvm::hasSingleElement(*block->getParent()))
-  return;
- Operation *term = &block->back();
- if ((count = term->getNumSuccessors()))
-   base = term->getBlockOperands().data();
+  if (block->empty() || llvm::hasSingleElement(*block->getParent()))
+    return;
+  Operation *term = &block->back();
+  if ((count = term->getNumSuccessors()))
+    base = term->getBlockOperands().data();
 }
 
 SuccessorRange::SuccessorRange(Operation *term) : SuccessorRange() {

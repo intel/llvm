@@ -120,6 +120,12 @@ class Builder:
                 configuration.clang_module_cache_dir)]
         return []
 
+    def getLibCxxArgs(self):
+        if configuration.libcxx_include_dir and configuration.libcxx_library_dir:
+            return ["LIBCPP_INCLUDE_DIR={}".format(configuration.libcxx_include_dir),
+                    "LIBCPP_LIBRARY_DIR={}".format(configuration.libcxx_library_dir)]
+        return []
+
     def _getDebugInfoArgs(self, debug_info):
         if debug_info is None:
             return []
@@ -142,7 +148,7 @@ class Builder:
             self.getArchCFlags(architecture), self.getArchSpec(architecture),
             self.getCCSpec(compiler), self.getExtraMakeArgs(),
             self.getSDKRootSpec(), self.getModuleCacheSpec(),
-            self.getCmdLine(dictionary)]
+            self.getLibCxxArgs(), self.getCmdLine(dictionary)]
         command = list(itertools.chain(*command_parts))
 
         return command

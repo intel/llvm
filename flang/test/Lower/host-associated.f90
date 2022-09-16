@@ -540,7 +540,7 @@ end subroutine test_proc_dummy_other
 ! CHECK:         %[[VAL_10:.*]] = fir.load %[[VAL_9]] : !fir.ref<!fir.boxchar<1>>
 ! CHECK:         %[[VAL_11:.*]]:2 = fir.unboxchar %[[VAL_10]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
 ! CHECK:         %[[VAL_12:.*]] = fir.convert %[[VAL_0]] : (!fir.ref<!fir.char<1,10>>) -> !fir.ref<!fir.char<1,?>>
-! CHECK:         %[[VAL_13:.*]] = arith.cmpi slt, %[[VAL_4]], %[[VAL_11]]#1 : index
+! CHECK:         %[[VAL_13:.*]] = arith.cmpi sgt, %[[VAL_11]]#1, %[[VAL_4]] : index
 ! CHECK:         %[[VAL_14:.*]] = arith.select %[[VAL_13]], %[[VAL_4]], %[[VAL_11]]#1 : index
 ! CHECK:         %[[VAL_15:.*]] = fir.convert %[[VAL_14]] : (index) -> i64
 ! CHECK:         %[[VAL_16:.*]] = fir.convert %[[VAL_12]] : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<i8>
@@ -607,7 +607,7 @@ end subroutine test_proc_dummy_other
 ! CHECK:         %[[VAL_34:.*]] = arith.subi %[[VAL_25]], %[[VAL_6]] : index
 ! CHECK:         br ^bb1(%[[VAL_33]], %[[VAL_34]] : index, index)
 ! CHECK:       ^bb3:
-! CHECK:         %[[VAL_35:.*]] = arith.cmpi slt, %[[VAL_3]], %[[VAL_19]] : index
+! CHECK:         %[[VAL_35:.*]] = arith.cmpi sgt, %[[VAL_19]], %[[VAL_3]] : index
 ! CHECK:         %[[VAL_36:.*]] = arith.select %[[VAL_35]], %[[VAL_3]], %[[VAL_19]] : index
 ! CHECK:         %[[VAL_37:.*]] = fir.convert %[[VAL_36]] : (index) -> i64
 ! CHECK:         %[[VAL_38:.*]] = fir.convert %[[VAL_9]] : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<i8>
@@ -661,3 +661,25 @@ subroutine test_11a
   external test_11b
   call test_11c(test_11b, 3)
 end subroutine test_11a
+
+subroutine test_PDT_with_init_do_not_crash_host_symbol_analysis()
+  integer :: i
+  call sub()
+contains
+  subroutine sub()
+    ! PDT definition symbols maps to un-analyzed expression,
+    ! check this does not crash the visit of the internal procedure
+    ! parse-tree to get the list of captured host variables.
+    type type1 (k)
+      integer, KIND :: k
+      integer :: x = k
+    end type
+    type type2 (k, l)
+      integer, KIND :: k = 4
+      integer, LEN :: l = 2
+      integer :: x = 10
+      real :: y = 20
+    end type
+    print *, i
+  end subroutine
+end subroutine

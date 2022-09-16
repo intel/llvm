@@ -285,10 +285,10 @@ void raw_ostream::copy_to_buffer(const char *Ptr, size_t Size) {
   // Handle short strings specially, memcpy isn't very good at very short
   // strings.
   switch (Size) {
-  case 4: OutBufCur[3] = Ptr[3]; LLVM_FALLTHROUGH;
-  case 3: OutBufCur[2] = Ptr[2]; LLVM_FALLTHROUGH;
-  case 2: OutBufCur[1] = Ptr[1]; LLVM_FALLTHROUGH;
-  case 1: OutBufCur[0] = Ptr[0]; LLVM_FALLTHROUGH;
+  case 4: OutBufCur[3] = Ptr[3]; [[fallthrough]];
+  case 3: OutBufCur[2] = Ptr[2]; [[fallthrough]];
+  case 2: OutBufCur[1] = Ptr[1]; [[fallthrough]];
+  case 1: OutBufCur[0] = Ptr[0]; [[fallthrough]];
   case 0: break;
   default:
     memcpy(OutBufCur, Ptr, Size);
@@ -408,7 +408,7 @@ raw_ostream &raw_ostream::operator<<(const FormattedBytes &FB) {
   const size_t Size = Bytes.size();
   HexPrintStyle HPS = FB.Upper ? HexPrintStyle::Upper : HexPrintStyle::Lower;
   uint64_t OffsetWidth = 0;
-  if (FB.FirstByteOffset.hasValue()) {
+  if (FB.FirstByteOffset) {
     // Figure out how many nibbles are needed to print the largest offset
     // represented by this data set, so that we can align the offset field
     // to the right width.
@@ -428,8 +428,8 @@ raw_ostream &raw_ostream::operator<<(const FormattedBytes &FB) {
   while (!Bytes.empty()) {
     indent(FB.IndentLevel);
 
-    if (FB.FirstByteOffset.hasValue()) {
-      uint64_t Offset = FB.FirstByteOffset.getValue();
+    if (FB.FirstByteOffset) {
+      uint64_t Offset = FB.FirstByteOffset.value();
       llvm::write_hex(*this, Offset + LineIndex, HPS, OffsetWidth);
       *this << ": ";
     }

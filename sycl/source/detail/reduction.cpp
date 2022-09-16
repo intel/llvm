@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/config.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/ext/oneapi/reduction.hpp>
+#include <sycl/reduction.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO: The algorithm of choosing the work-group size is definitely
@@ -54,12 +53,10 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
     std::shared_ptr<sycl::detail::queue_impl> Queue) {
   device Dev = Queue->get_device();
-  uint32_t NumThreads = Dev.get_info<info::device::max_compute_units>();
+  uint32_t NumThreads = Dev.get_info<sycl::info::device::max_compute_units>();
   // TODO: The heuristics here require additional tuning for various devices
-  // and vendors. For now this code assumes that execution units have about
-  // 8 working threads, which gives good results on some known/supported
-  // GPU devices.
-  if (Dev.is_gpu())
+  // and vendors. Also, it would be better to check vendor/generation/etc.
+  if (Dev.is_gpu() && Dev.get_info<sycl::info::device::host_unified_memory>())
     NumThreads *= 8;
   return NumThreads;
 }
@@ -68,11 +65,12 @@ __SYCL_EXPORT size_t
 reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
                  size_t LocalMemBytesPerWorkItem) {
   device Dev = Queue->get_device();
-  size_t MaxWGSize = Dev.get_info<info::device::max_work_group_size>();
+  size_t MaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
+
   size_t WGSizePerMem = MaxWGSize * 2;
   size_t WGSize = MaxWGSize;
   if (LocalMemBytesPerWorkItem != 0) {
-    size_t MemSize = Dev.get_info<info::device::local_mem_size>();
+    size_t MemSize = Dev.get_info<sycl::info::device::local_mem_size>();
     WGSizePerMem = MemSize / LocalMemBytesPerWorkItem;
 
     // If the work group size is NOT power of two, then an additional element
@@ -95,41 +93,58 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   // the local memory assigned to one work-group by code in another work-group.
   // It seems the only good solution for this work-group detection problem is
   // kernel precompilation and querying the kernel properties.
-  if (WGSize >= 4) {
+  if (WGSize >= 4 && WGSizePerMem < MaxWGSize * 2) {
     // Let's return a twice smaller number, but... do that only if the kernel
-    // is limited by memory, or the kernel uses opencl:cpu backend, which
-    // surprisingly uses lots of resources to run the kernels with reductions
-    // and often causes CL_OUT_OF_RESOURCES error even when reduction
-    // does not use local accessors.
-    if (WGSizePerMem < MaxWGSize * 2 ||
-        (Queue->get_device().is_cpu() &&
-         Queue->get_device().get_platform().get_backend() == backend::opencl))
-      WGSize /= 2;
+    // is limited by memory.
+    WGSize /= 2;
   }
 
   return WGSize;
 }
 
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem) {
+  device Dev = Queue->get_device();
+
+  // The maximum WGSize returned by CPU devices is very large and does not
+  // help the reduction implementation: since all work associated with a
+  // work-group is typically assigned to one CPU thread, selecting a large
+  // work-group size unnecessarily increases the number of accumulators.
+  // The default of 16 was chosen based on empirical benchmarking results;
+  // an environment variable is provided to allow users to override this
+  // behavior.
+  using PrefWGConfig = sycl::detail::SYCLConfig<
+      sycl::detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE>;
+  if (Dev.is_cpu()) {
+    size_t CPUMaxWGSize = PrefWGConfig::get(sycl::info::device_type::cpu);
+    if (CPUMaxWGSize == 0)
+      return 16;
+    size_t DevMaxWGSize =
+        Dev.get_info<sycl::info::device::max_work_group_size>();
+    return std::min(CPUMaxWGSize, DevMaxWGSize);
+  }
+
+  // If the user has specified an explicit preferred work-group size we use
+  // that.
+  if (Dev.is_gpu() && PrefWGConfig::get(sycl::info::device_type::gpu)) {
+    size_t DevMaxWGSize =
+        Dev.get_info<sycl::info::device::max_work_group_size>();
+    return std::min(PrefWGConfig::get(sycl::info::device_type::gpu),
+                    DevMaxWGSize);
+  }
+
+  if (Dev.is_accelerator() &&
+      PrefWGConfig::get(sycl::info::device_type::accelerator)) {
+    size_t DevMaxWGSize =
+        Dev.get_info<sycl::info::device::max_work_group_size>();
+    return std::min(PrefWGConfig::get(sycl::info::device_type::accelerator),
+                    DevMaxWGSize);
+  }
+
+  // Use the maximum work-group size otherwise.
+  return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
+}
+
 } // namespace detail
-} // namespace oneapi
-} // namespace ext
-
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  namespace detail {
-  __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
-                                         size_t &NWorkGroups) {
-    return ext::oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
-                                                  NWorkGroups);
-  }
-
-  __SYCL_EXPORT size_t
-  reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                   size_t LocalMemBytesPerWorkItem) {
-    return ext::oneapi::detail::reduGetMaxWGSize(Queue,
-                                                 LocalMemBytesPerWorkItem);
-  }
-  } // namespace detail
-} // namespace ONEAPI
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

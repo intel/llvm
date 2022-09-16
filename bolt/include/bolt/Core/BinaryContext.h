@@ -39,6 +39,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include <functional>
+#include <list>
 #include <map>
 #include <set>
 #include <shared_mutex>
@@ -199,7 +200,7 @@ class BinaryContext {
   uint32_t DuplicatedJumpTables{0x10000000};
 
   /// Function fragments to skip.
-  std::vector<BinaryFunction *> FragmentsToSkip;
+  std::unordered_set<BinaryFunction *> FragmentsToSkip;
 
   /// The runtime library.
   std::unique_ptr<RuntimeLibrary> RtLibrary;
@@ -235,11 +236,23 @@ public:
     MIB = std::move(TargetBuilder);
   }
 
+  /// Return function fragments to skip.
+  const std::unordered_set<BinaryFunction *> &getFragmentsToSkip() {
+    return FragmentsToSkip;
+  }
+
+  /// Add function fragment to skip
+  void addFragmentsToSkip(BinaryFunction *Function) {
+    FragmentsToSkip.insert(Function);
+  }
+
+  void clearFragmentsToSkip() { FragmentsToSkip.clear(); }
+
   /// Given DWOId returns CU if it exists in DWOCUs.
   Optional<DWARFUnit *> getDWOCU(uint64_t DWOId);
 
   /// Returns DWOContext if it exists.
-  DWARFContext *getDWOContext();
+  DWARFContext *getDWOContext() const;
 
   /// Get Number of DWOCUs in a map.
   uint32_t getNumDWOCUs() { return DWOCUs.size(); }
@@ -475,15 +488,15 @@ public:
   /// If \p NextJTAddress is different from zero, it is used as an upper
   /// bound for jump table memory layout.
   ///
-  /// Optionally, populate \p Offsets with jump table entries. The entries
+  /// Optionally, populate \p Address from jump table entries. The entries
   /// could be partially populated if the jump table detection fails.
   bool analyzeJumpTable(const uint64_t Address,
                         const JumpTable::JumpTableType Type, BinaryFunction &BF,
                         const uint64_t NextJTAddress = 0,
-                        JumpTable::OffsetsType *Offsets = nullptr);
+                        JumpTable::AddressesType *EntriesAsAddress = nullptr);
 
   /// After jump table locations are established, this function will populate
-  /// their OffsetEntries based on memory contents.
+  /// their EntriesAsAddress based on memory contents.
   void populateJumpTables();
 
   /// Returns a jump table ID and label pointing to the duplicated jump table.
@@ -498,6 +511,14 @@ public:
   /// to function \p BF.
   std::string generateJumpTableName(const BinaryFunction &BF, uint64_t Address);
 
+  /// Free memory used by JumpTable's EntriesAsAddress
+  void clearJumpTableTempData() {
+    for (auto &JTI : JumpTables) {
+      JumpTable &JT = *JTI.second;
+      JumpTable::AddressesType Temp;
+      Temp.swap(JT.EntriesAsAddress);
+    }
+  }
   /// Return true if the array of bytes represents a valid code padding.
   bool hasValidCodePadding(const BinaryFunction &BF);
 
@@ -563,6 +584,9 @@ public:
 
   /// Indicates if relocations are available for usage.
   bool HasRelocations{false};
+
+  /// Indicates if the binary is stripped
+  bool IsStripped{false};
 
   /// Is the binary always loaded at a fixed address. Shared objects and
   /// position-independent executables (PIEs) are examples of binaries that
@@ -632,6 +656,10 @@ public:
   /// Map linux kernel program locations/instructions to their pointers in
   /// special linux kernel sections
   std::unordered_map<uint64_t, std::vector<LKInstructionMarkerInfo>> LKMarkers;
+
+  /// List of external addresses in the code that are not a function start
+  /// and are referenced from BinaryFunction.
+  std::list<std::pair<BinaryFunction *, uint64_t>> InterproceduralReferences;
 
   /// PseudoProbe decoder
   MCPseudoProbeDecoder ProbeDecoder;
@@ -876,8 +904,23 @@ public:
   bool registerFragment(BinaryFunction &TargetFunction,
                         BinaryFunction &Function) const;
 
-  /// Resolve inter-procedural dependencies from \p Function.
-  void processInterproceduralReferences(BinaryFunction &Function);
+  /// Add unterprocedural reference for \p Function to \p Address
+  void addInterproceduralReference(BinaryFunction *Function, uint64_t Address) {
+    InterproceduralReferences.push_back({Function, Address});
+  }
+
+  /// Used to fix the target of linker-generated AArch64 adrp + add
+  /// sequence with no relocation info.
+  void addAdrpAddRelocAArch64(BinaryFunction &BF, MCInst &LoadLowBits,
+                              MCInst &LoadHiBits, uint64_t Target);
+
+  /// Return true if AARch64 veneer was successfully matched at a given
+  /// \p Address and register veneer binary function if \p MatchOnly
+  /// argument is false.
+  bool handleAArch64Veneer(uint64_t Address, bool MatchOnly = false);
+
+  /// Resolve inter-procedural dependencies from
+  void processInterproceduralReferences();
 
   /// Skip functions with all parent and child fragments transitively.
   void skipMarkedFragments();

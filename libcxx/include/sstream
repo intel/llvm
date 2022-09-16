@@ -250,14 +250,14 @@ public:
 
 protected:
     // 27.8.1.4 Overridden virtual functions:
-    virtual int_type underflow();
-    virtual int_type pbackfail(int_type __c = traits_type::eof());
-    virtual int_type overflow (int_type __c = traits_type::eof());
-    virtual pos_type seekoff(off_type __off, ios_base::seekdir __way,
-                             ios_base::openmode __wch = ios_base::in | ios_base::out);
+    int_type underflow() override;
+    int_type pbackfail(int_type __c = traits_type::eof()) override;
+    int_type overflow (int_type __c = traits_type::eof()) override;
+    pos_type seekoff(off_type __off, ios_base::seekdir __way,
+                     ios_base::openmode __wch = ios_base::in | ios_base::out) override;
     _LIBCPP_INLINE_VISIBILITY
-    virtual pos_type seekpos(pos_type __sp,
-                             ios_base::openmode __wch = ios_base::in | ios_base::out) {
+    pos_type seekpos(pos_type __sp,
+                     ios_base::openmode __wch = ios_base::in | ios_base::out) override {
         return seekoff(__sp, ios_base::beg, __wch);
     }
 };
@@ -861,10 +861,10 @@ swap(basic_stringstream<_CharT, _Traits, _Allocator>& __x,
 }
 
 #if defined(_LIBCPP_ABI_ENABLE_ADDITIONAL_IOSTREAM_EXPLICIT_INSTANTIATIONS_1)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_stringbuf<char>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_stringstream<char>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ostringstream<char>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_istringstream<char>)
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_stringbuf<char>;
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_stringstream<char>;
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ostringstream<char>;
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_istringstream<char>;
 #endif
 
 _LIBCPP_END_NAMESPACE_STD

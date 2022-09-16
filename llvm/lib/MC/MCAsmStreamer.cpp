@@ -126,7 +126,7 @@ public:
   /// Return a raw_ostream that comments can be written to.
   /// Unlike AddComment, you are required to terminate comments with \n if you
   /// use this method.
-  raw_ostream &GetCommentOS() override {
+  raw_ostream &getCommentOS() override {
     if (!IsVerboseAsm)
       return nulls();  // Discard comments unless in verbose asm mode.
     return CommentStream;
@@ -138,9 +138,7 @@ public:
   void emitExplicitComments() override;
 
   /// Emit a blank line to a .s file to pretty it up.
-  void AddBlankLine() override {
-    EmitEOL();
-  }
+  void addBlankLine() override { EmitEOL(); }
 
   /// @name MCStreamer Interface
   /// @{
@@ -179,10 +177,10 @@ public:
   bool emitSymbolAttribute(MCSymbol *Symbol, MCSymbolAttr Attribute) override;
 
   void emitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) override;
-  void BeginCOFFSymbolDef(const MCSymbol *Symbol) override;
+  void beginCOFFSymbolDef(const MCSymbol *Symbol) override;
   void emitCOFFSymbolStorageClass(int StorageClass) override;
   void emitCOFFSymbolType(int Type) override;
-  void EndCOFFSymbolDef() override;
+  void endCOFFSymbolDef() override;
   void emitCOFFSafeSEH(MCSymbol const *Symbol) override;
   void emitCOFFSymbolIndex(MCSymbol const *Symbol) override;
   void emitCOFFSectionIndex(MCSymbol const *Symbol) override;
@@ -246,6 +244,9 @@ public:
 
   void emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                 SMLoc Loc = SMLoc()) override;
+
+  void emitAlignmentDirective(unsigned ByteAlignment, Optional<int64_t> Value,
+                              unsigned ValueSize, unsigned MaxBytesToEmit);
 
   void emitValueToAlignment(unsigned ByteAlignment, int64_t Value = 0,
                             unsigned ValueSize = 1,
@@ -321,6 +322,7 @@ public:
 
   void emitIdent(StringRef IdentString) override;
   void emitCFIBKeyFrame() override;
+  void emitCFIMTETaggedFrame() override;
   void emitCFISections(bool EH, bool Debug) override;
   void emitCFIDefCfa(int64_t Register, int64_t Offset) override;
   void emitCFIDefCfaOffset(int64_t Offset) override;
@@ -566,10 +568,8 @@ void MCAsmStreamer::emitAssemblerFlag(MCAssemblerFlag Flag) {
 void MCAsmStreamer::emitLinkerOptions(ArrayRef<std::string> Options) {
   assert(!Options.empty() && "At least one option is required!");
   OS << "\t.linker_option \"" << Options[0] << '"';
-  for (ArrayRef<std::string>::iterator it = Options.begin() + 1,
-         ie = Options.end(); it != ie; ++it) {
-    OS << ", " << '"' << *it << '"';
-  }
+  for (const std::string &Opt : llvm::drop_begin(Options))
+    OS << ", " << '"' << Opt << '"';
   EmitEOL();
 }
 
@@ -790,7 +790,7 @@ void MCAsmStreamer::emitSyntaxDirective() {
   // with may have a value of prefix or noprefix.
 }
 
-void MCAsmStreamer::BeginCOFFSymbolDef(const MCSymbol *Symbol) {
+void MCAsmStreamer::beginCOFFSymbolDef(const MCSymbol *Symbol) {
   OS << "\t.def\t";
   Symbol->print(OS, MAI);
   OS << ';';
@@ -807,7 +807,7 @@ void MCAsmStreamer::emitCOFFSymbolType(int Type) {
   EmitEOL();
 }
 
-void MCAsmStreamer::EndCOFFSymbolDef() {
+void MCAsmStreamer::endCOFFSymbolDef() {
   OS << "\t.endef";
   EmitEOL();
 }
@@ -999,7 +999,7 @@ void MCAsmStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
                                  uint64_t Size, unsigned ByteAlignment,
                                  SMLoc Loc) {
   if (Symbol)
-    AssignFragment(Symbol, &Section->getDummyFragment());
+    assignFragment(Symbol, &Section->getDummyFragment());
 
   // Note: a .zerofill directive does not switch sections.
   OS << ".zerofill ";
@@ -1026,7 +1026,7 @@ void MCAsmStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
 // e.g. _a.
 void MCAsmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
                                    uint64_t Size, unsigned ByteAlignment) {
-  AssignFragment(Symbol, &Section->getDummyFragment());
+  assignFragment(Symbol, &Section->getDummyFragment());
 
   assert(Symbol && "Symbol shouldn't be NULL!");
   // Instead of using the Section we'll just use the shortcut.
@@ -1397,9 +1397,10 @@ void MCAsmStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
   EmitEOL();
 }
 
-void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
-                                         unsigned ValueSize,
-                                         unsigned MaxBytesToEmit) {
+void MCAsmStreamer::emitAlignmentDirective(unsigned ByteAlignment,
+                                           Optional<int64_t> Value,
+                                           unsigned ValueSize,
+                                           unsigned MaxBytesToEmit) {
   if (MAI->useDotAlignForAlignment()) {
     if (!isPowerOf2_32(ByteAlignment))
       report_fatal_error("Only power-of-two alignments are supported "
@@ -1431,9 +1432,13 @@ void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
 
     OS << Log2_32(ByteAlignment);
 
-    if (Value || MaxBytesToEmit) {
-      OS << ", 0x";
-      OS.write_hex(truncateToSize(Value, ValueSize));
+    if (Value.has_value() || MaxBytesToEmit) {
+      if (Value.has_value()) {
+        OS << ", 0x";
+        OS.write_hex(truncateToSize(Value.value(), ValueSize));
+      } else {
+        OS << ", ";
+      }
 
       if (MaxBytesToEmit)
         OS << ", " << MaxBytesToEmit;
@@ -1453,18 +1458,30 @@ void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
   }
 
   OS << ' ' << ByteAlignment;
-  OS << ", " << truncateToSize(Value, ValueSize);
+  if (Value.has_value())
+    OS << ", " << truncateToSize(Value.value(), ValueSize);
+  else if (MaxBytesToEmit)
+    OS << ", ";
   if (MaxBytesToEmit)
     OS << ", " << MaxBytesToEmit;
   EmitEOL();
+}
+
+void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
+                                         unsigned ValueSize,
+                                         unsigned MaxBytesToEmit) {
+  emitAlignmentDirective(ByteAlignment, Value, ValueSize, MaxBytesToEmit);
 }
 
 void MCAsmStreamer::emitCodeAlignment(unsigned ByteAlignment,
                                       const MCSubtargetInfo *STI,
                                       unsigned MaxBytesToEmit) {
   // Emit with a text fill value.
-  emitValueToAlignment(ByteAlignment, MAI->getTextAlignFillValue(),
-                       1, MaxBytesToEmit);
+  if (MAI->getTextAlignFillValue())
+    emitAlignmentDirective(ByteAlignment, MAI->getTextAlignFillValue(), 1,
+                           MaxBytesToEmit);
+  else
+    emitAlignmentDirective(ByteAlignment, None, 1, MaxBytesToEmit);
 }
 
 void MCAsmStreamer::emitValueToOffset(const MCExpr *Offset,
@@ -2027,6 +2044,12 @@ void MCAsmStreamer::emitCFIBKeyFrame() {
   EmitEOL();
 }
 
+void MCAsmStreamer::emitCFIMTETaggedFrame() {
+  MCStreamer::emitCFIMTETaggedFrame();
+  OS << "\t.cfi_mte_tagged_frame";
+  EmitEOL();
+}
+
 void MCAsmStreamer::emitWinCFIStartProc(const MCSymbol *Symbol, SMLoc Loc) {
   MCStreamer::emitWinCFIStartProc(Symbol, Loc);
 
@@ -2083,7 +2106,7 @@ void MCAsmStreamer::emitWinEHHandler(const MCSymbol *Sym, bool Unwind,
 void MCAsmStreamer::emitWinEHHandlerData(SMLoc Loc) {
   MCStreamer::emitWinEHHandlerData(Loc);
 
-  // Switch sections. Don't call SwitchSection directly, because that will
+  // Switch sections. Don't call switchSection directly, because that will
   // cause the section switch to be visible in the emitted assembly.
   // We only do this so the section switch that terminates the handler
   // data block is visible.
@@ -2096,7 +2119,7 @@ void MCAsmStreamer::emitWinEHHandlerData(SMLoc Loc) {
 
   MCSection *TextSec = &CurFrame->Function->getSection();
   MCSection *XData = getAssociatedXDataSection(TextSec);
-  SwitchSectionNoChange(XData);
+  switchSectionNoChange(XData);
 
   OS << "\t.seh_handlerdata";
   EmitEOL();
@@ -2176,7 +2199,7 @@ void MCAsmStreamer::emitCGProfileEntry(const MCSymbolRefExpr *From,
 
 void MCAsmStreamer::AddEncodingComment(const MCInst &Inst,
                                        const MCSubtargetInfo &STI) {
-  raw_ostream &OS = GetCommentOS();
+  raw_ostream &OS = getCommentOS();
   SmallString<256> Code;
   SmallVector<MCFixup, 4> Fixups;
   raw_svector_ostream VecOS(Code);
@@ -2282,8 +2305,8 @@ void MCAsmStreamer::emitInstruction(const MCInst &Inst,
 
   // Show the MCInst if enabled.
   if (ShowInst) {
-    Inst.dump_pretty(GetCommentOS(), InstPrinter.get(), "\n ");
-    GetCommentOS() << "\n";
+    Inst.dump_pretty(getCommentOS(), InstPrinter.get(), "\n ");
+    getCommentOS() << "\n";
   }
 
   if(getTargetStreamer())
@@ -2293,7 +2316,7 @@ void MCAsmStreamer::emitInstruction(const MCInst &Inst,
 
   StringRef Comments = CommentToEmit;
   if (Comments.size() && Comments.back() != '\n')
-    GetCommentOS() << "\n";
+    getCommentOS() << "\n";
 
   EmitEOL();
 }
@@ -2382,7 +2405,7 @@ void MCAsmStreamer::finishImpl() {
   if (!Tables.empty()) {
     assert(Tables.size() == 1 && "asm output only supports one line table");
     if (auto *Label = Tables.begin()->second.getLabel()) {
-      SwitchSection(getContext().getObjectFileInfo()->getDwarfLineSection());
+      switchSection(getContext().getObjectFileInfo()->getDwarfLineSection());
       emitLabel(Label);
     }
   }
@@ -2509,7 +2532,7 @@ void MCAsmStreamer::doFinalizationAtSectionEnd(MCSection *Section) {
   if (MAI->usesDwarfFileAndLocDirectives())
     return;
 
-  SwitchSectionNoChange(Section);
+  switchSectionNoChange(Section);
 
   MCSymbol *Sym = getCurrentSectionOnly()->getEndSymbol(getContext());
 

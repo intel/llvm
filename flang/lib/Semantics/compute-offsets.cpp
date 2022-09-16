@@ -118,9 +118,12 @@ void ComputeOffsetsHelper::Compute(Scope &scope) {
   }
   scope.set_size(offset_);
   scope.SetAlignment(alignment_);
-  // Assign offsets in COMMON blocks.
-  for (auto &pair : scope.commonBlocks()) {
-    DoCommonBlock(*pair.second);
+  // Assign offsets in COMMON blocks, unless this scope is a BLOCK construct,
+  // where COMMON blocks are illegal (C1107 and C1108).
+  if (scope.kind() != Scope::Kind::BlockConstruct) {
+    for (auto &pair : scope.commonBlocks()) {
+      DoCommonBlock(*pair.second);
+    }
   }
   for (auto &[symbol, dep] : dependents_) {
     symbol->set_offset(dep.symbol->offset() + dep.offset);
@@ -313,33 +316,35 @@ std::size_t ComputeOffsetsHelper::DoSymbol(Symbol &symbol) {
 
 auto ComputeOffsetsHelper::GetSizeAndAlignment(
     const Symbol &symbol, bool entire) -> SizeAndAlignment {
-  // TODO: The size of procedure pointers is not yet known
-  // and is independent of rank (and probably also the number
-  // of length type parameters).
-  auto &foldingContext{context_.foldingContext()};
-  if (IsDescriptor(symbol) || IsProcedurePointer(symbol)) {
+  auto &targetCharacteristics{context_.targetCharacteristics()};
+  if (IsDescriptor(symbol)) {
     const auto *derived{
         evaluate::GetDerivedTypeSpec(evaluate::DynamicType::From(symbol))};
     int lenParams{derived ? CountLenParameters(*derived) : 0};
     std::size_t size{runtime::Descriptor::SizeInBytes(
         symbol.Rank(), derived != nullptr, lenParams)};
-    return {size, foldingContext.maxAlignment()};
+    return {size, targetCharacteristics.descriptorAlignment()};
+  }
+  if (IsProcedurePointer(symbol)) {
+    return {targetCharacteristics.procedurePointerByteSize(),
+        targetCharacteristics.procedurePointerAlignment()};
   }
   if (IsProcedure(symbol)) {
     return {};
   }
+  auto &foldingContext{context_.foldingContext()};
   if (auto chars{evaluate::characteristics::TypeAndShape::Characterize(
           symbol, foldingContext)}) {
     if (entire) {
       if (auto size{ToInt64(chars->MeasureSizeInBytes(foldingContext))}) {
         return {static_cast<std::size_t>(*size),
-            chars->type().GetAlignment(foldingContext)};
+            chars->type().GetAlignment(targetCharacteristics)};
       }
     } else { // element size only
       if (auto size{ToInt64(chars->MeasureElementSizeInBytes(
               foldingContext, true /*aligned*/))}) {
         return {static_cast<std::size_t>(*size),
-            chars->type().GetAlignment(foldingContext)};
+            chars->type().GetAlignment(targetCharacteristics)};
       }
     }
   }
@@ -348,7 +353,8 @@ auto ComputeOffsetsHelper::GetSizeAndAlignment(
 
 // Align a size to its natural alignment, up to maxAlignment.
 std::size_t ComputeOffsetsHelper::Align(std::size_t x, std::size_t alignment) {
-  alignment = std::min(alignment, context_.foldingContext().maxAlignment());
+  alignment =
+      std::min(alignment, context_.targetCharacteristics().maxAlignment());
   return (x + alignment - 1) & -alignment;
 }
 

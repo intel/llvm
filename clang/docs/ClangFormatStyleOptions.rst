@@ -1256,7 +1256,7 @@ the configuration (without a prefix: ``Auto``).
          "bbbb"                                    "cccc";
          "cccc";
 
-**AlwaysBreakTemplateDeclarations** (``BreakTemplateDeclarationsStyle``) :versionbadge:`clang-format 7`
+**AlwaysBreakTemplateDeclarations** (``BreakTemplateDeclarationsStyle``) :versionbadge:`clang-format 3.4`
   The template declaration breaking style to use.
 
   Possible values:
@@ -1439,11 +1439,11 @@ the configuration (without a prefix: ``Auto``).
     .. code-block:: c++
 
       true:
-      class foo {};
-
-      false:
       class foo
       {};
+
+      false:
+      class foo {};
 
   * ``BraceWrappingAfterControlStatementStyle AfterControlStatement``
     Wrap control statements (``if``/``for``/``while``/``switch``/..).
@@ -2623,7 +2623,7 @@ the configuration (without a prefix: ``Auto``).
   For example: `KJ_IF_MAYBE
   <https://github.com/capnproto/capnproto/blob/master/kjdoc/tour.md#maybes>`_
 
-**IncludeBlocks** (``IncludeBlocksStyle``) :versionbadge:`clang-format 7`
+**IncludeBlocks** (``IncludeBlocksStyle``) :versionbadge:`clang-format 6`
   Dependent on the value, multiple ``#include`` blocks can be sorted
   as one and divided based on category.
 
@@ -2663,7 +2663,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**IncludeCategories** (``List of IncludeCategories``) :versionbadge:`clang-format 7`
+**IncludeCategories** (``List of IncludeCategories``) :versionbadge:`clang-format 3.8`
   Regular expressions denoting the different ``#include`` categories
   used for ordering ``#includes``.
 
@@ -2711,7 +2711,7 @@ the configuration (without a prefix: ``Auto``).
         Priority:        1
         SortPriority:    0
 
-**IncludeIsMainRegex** (``String``) :versionbadge:`clang-format 7`
+**IncludeIsMainRegex** (``String``) :versionbadge:`clang-format 3.9`
   Specify a regular expression of suffixes that are allowed in the
   file-to-main-include mapping.
 
@@ -2724,7 +2724,7 @@ the configuration (without a prefix: ``Auto``).
   For example, if configured to "(_test)?$", then a header a.h would be seen
   as the "main" include in both a.cc and a_test.cc.
 
-**IncludeIsMainSourceRegex** (``String``) :versionbadge:`clang-format 7`
+**IncludeIsMainSourceRegex** (``String``) :versionbadge:`clang-format 10`
   Specify a regular expression for files being formatted
   that are allowed to be considered "main" in the
   file-to-main-include mapping.
@@ -3196,6 +3196,11 @@ the configuration (without a prefix: ``Auto``).
     Should be used for Protocol Buffer messages in text format
     (https://developers.google.com/protocol-buffers/).
 
+  * ``LK_Verilog`` (in configuration: ``Verilog``)
+    Should be used for Verilog and SystemVerilog.
+    https://standards.ieee.org/ieee/1800/6700/
+    https://sci-hub.st/10.1109/IEEESTD.2018.8299595
+
 
 
 **MacroBlockBegin** (``String``) :versionbadge:`clang-format 3.7`
@@ -3562,7 +3567,7 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: yaml
 
-      QualifierOrder: ['inline', 'static' , 'type', 'const']
+      QualifierOrder: ['inline', 'static', 'type', 'const']
 
 
     .. code-block:: c++
@@ -3665,7 +3670,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**ReflowComments** (``Boolean``) :versionbadge:`clang-format 4`
+**ReflowComments** (``Boolean``) :versionbadge:`clang-format 3.8`
   If ``true``, clang-format will attempt to re-flow comments.
 
   .. code-block:: c++
@@ -3905,7 +3910,7 @@ the configuration (without a prefix: ``Auto``).
        int bar;                           int bar;
      } // namespace b                   } // namespace b
 
-**SortIncludes** (``SortIncludesOptions``) :versionbadge:`clang-format 4`
+**SortIncludes** (``SortIncludesOptions``) :versionbadge:`clang-format 3.8`
   Controls if and how clang-format will sort ``#includes``.
   If ``Never``, includes are never sorted.
   If ``CaseInsensitive``, includes are sorted in an ASCIIbetical or case

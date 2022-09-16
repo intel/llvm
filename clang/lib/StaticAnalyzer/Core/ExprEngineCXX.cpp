@@ -94,15 +94,17 @@ void ExprEngine::performTrivialCopy(NodeBuilder &Bldr, ExplodedNode *Pred,
   }
 }
 
-
-SVal ExprEngine::makeZeroElementRegion(ProgramStateRef State, SVal LValue,
-                                       QualType &Ty, bool &IsArray) {
+SVal ExprEngine::makeElementRegion(ProgramStateRef State, SVal LValue,
+                                   QualType &Ty, bool &IsArray, unsigned Idx) {
   SValBuilder &SVB = State->getStateManager().getSValBuilder();
   ASTContext &Ctx = SVB.getContext();
 
-  while (const ArrayType *AT = Ctx.getAsArrayType(Ty)) {
-    Ty = AT->getElementType();
-    LValue = State->getLValue(Ty, SVB.makeZeroArrayIndex(), LValue);
+  if (const ArrayType *AT = Ctx.getAsArrayType(Ty)) {
+    while (AT) {
+      Ty = AT->getElementType();
+      AT = dyn_cast<ArrayType>(AT->getElementType());
+    }
+    LValue = State->getLValue(Ty, SVB.makeArrayIndex(Idx), LValue);
     IsArray = true;
   }
 
@@ -111,7 +113,7 @@ SVal ExprEngine::makeZeroElementRegion(ProgramStateRef State, SVal LValue,
 
 SVal ExprEngine::computeObjectUnderConstruction(
     const Expr *E, ProgramStateRef State, const LocationContext *LCtx,
-    const ConstructionContext *CC, EvalCallOptions &CallOpts) {
+    const ConstructionContext *CC, EvalCallOptions &CallOpts, unsigned Idx) {
   SValBuilder &SVB = getSValBuilder();
   MemRegionManager &MRMgr = SVB.getRegionManager();
   ASTContext &ACtx = SVB.getContext();
@@ -125,8 +127,8 @@ SVal ExprEngine::computeObjectUnderConstruction(
       const auto *DS = DSCC->getDeclStmt();
       const auto *Var = cast<VarDecl>(DS->getSingleDecl());
       QualType Ty = Var->getType();
-      return makeZeroElementRegion(State, State->getLValue(Var, LCtx), Ty,
-                                   CallOpts.IsArrayCtorOrDtor);
+      return makeElementRegion(State, State->getLValue(Var, LCtx), Ty,
+                               CallOpts.IsArrayCtorOrDtor, Idx);
     }
     case ConstructionContext::CXX17ElidedCopyConstructorInitializerKind:
     case ConstructionContext::SimpleConstructorInitializerKind: {
@@ -158,8 +160,8 @@ SVal ExprEngine::computeObjectUnderConstruction(
       }
 
       QualType Ty = Field->getType();
-      return makeZeroElementRegion(State, FieldVal, Ty,
-                                   CallOpts.IsArrayCtorOrDtor);
+      return makeElementRegion(State, FieldVal, Ty, CallOpts.IsArrayCtorOrDtor,
+                               Idx);
     }
     case ConstructionContext::NewAllocatedObjectKind: {
       if (AMgr.getAnalyzerOptions().MayInlineCXXAllocator) {
@@ -169,11 +171,16 @@ SVal ExprEngine::computeObjectUnderConstruction(
         if (const SubRegion *MR =
                 dyn_cast_or_null<SubRegion>(V.getAsRegion())) {
           if (NE->isArray()) {
-            // TODO: In fact, we need to call the constructor for every
-            // allocated element, not just the first one!
             CallOpts.IsArrayCtorOrDtor = true;
-            return loc::MemRegionVal(getStoreManager().GetElementZeroRegion(
-                MR, NE->getType()->getPointeeType()));
+
+            auto Ty = NE->getType()->getPointeeType();
+            while (const auto *AT = getContext().getAsArrayType(Ty))
+              Ty = AT->getElementType();
+
+            auto R = MRMgr.getElementRegion(Ty, svalBuilder.makeArrayIndex(Idx),
+                                            MR, SVB.getContext());
+
+            return loc::MemRegionVal(R);
           }
           return  V;
         }
@@ -257,7 +264,7 @@ SVal ExprEngine::computeObjectUnderConstruction(
       // a simple temporary.
       CallOpts = PreElideCallOpts;
       CallOpts.IsElidableCtorThatHasNotBeenElided = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case ConstructionContext::SimpleTemporaryObjectKind: {
       const auto *TCC = cast<TemporaryObjectConstructionContext>(CC);
@@ -283,6 +290,23 @@ SVal ExprEngine::computeObjectUnderConstruction(
       }
 
       return loc::MemRegionVal(MRMgr.getCXXTempObjectRegion(E, LCtx));
+    }
+    case ConstructionContext::LambdaCaptureKind: {
+      CallOpts.IsTemporaryCtorOrDtor = true;
+
+      const auto *LCC = cast<LambdaCaptureConstructionContext>(CC);
+
+      SVal Base = loc::MemRegionVal(
+          MRMgr.getCXXTempObjectRegion(LCC->getInitializer(), LCtx));
+
+      const auto *CE = dyn_cast_or_null<CXXConstructExpr>(E);
+      if (getIndexOfElementToConstruct(State, CE, LCtx)) {
+        CallOpts.IsArrayCtorOrDtor = true;
+        Base = State->getLValue(E->getType(), svalBuilder.makeArrayIndex(Idx),
+                                Base);
+      }
+
+      return Base;
     }
     case ConstructionContext::ArgumentKind: {
       // Arguments are technically temporaries.
@@ -432,7 +456,7 @@ ProgramStateRef ExprEngine::updateObjectsUnderConstruction(
       }
       // If we decided not to elide the constructor, proceed as if
       // it's a simple temporary.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case ConstructionContext::SimpleTemporaryObjectKind: {
       const auto *TCC = cast<TemporaryObjectConstructionContext>(CC);
@@ -444,6 +468,17 @@ ProgramStateRef ExprEngine::updateObjectsUnderConstruction(
 
       return State;
     }
+    case ConstructionContext::LambdaCaptureKind: {
+      const auto *LCC = cast<LambdaCaptureConstructionContext>(CC);
+
+      // If we capture and array, we want to store the super region, not a
+      // sub-region.
+      if (const auto *EL = dyn_cast_or_null<ElementRegion>(V.getAsRegion()))
+        V = loc::MemRegionVal(EL->getSuperRegion());
+
+      return addObjectUnderConstruction(
+          State, {LCC->getLambdaExpr(), LCC->getIndex()}, LCtx, V);
+    }
     case ConstructionContext::ArgumentKind: {
       const auto *ACC = cast<ArgumentConstructionContext>(CC);
       if (const auto *BTE = ACC->getCXXBindTemporaryExpr())
@@ -454,6 +489,75 @@ ProgramStateRef ExprEngine::updateObjectsUnderConstruction(
     }
   }
   llvm_unreachable("Unhandled construction context!");
+}
+
+static ProgramStateRef
+bindRequiredArrayElementToEnvironment(ProgramStateRef State,
+                                      const ArrayInitLoopExpr *AILE,
+                                      const LocationContext *LCtx, SVal Idx) {
+  // The ctor in this case is guaranteed to be a copy ctor, otherwise we hit a
+  // compile time error.
+  //
+  //  -ArrayInitLoopExpr                <-- we're here
+  //   |-OpaqueValueExpr
+  //   | `-DeclRefExpr                  <-- match this
+  //   `-CXXConstructExpr
+  //     `-ImplicitCastExpr
+  //       `-ArraySubscriptExpr
+  //         |-ImplicitCastExpr
+  //         | `-OpaqueValueExpr
+  //         |   `-DeclRefExpr
+  //         `-ArrayInitIndexExpr
+  //
+  // The resulting expression might look like the one below in an implicit
+  // copy/move ctor.
+  //
+  //   ArrayInitLoopExpr                <-- we're here
+  //   |-OpaqueValueExpr
+  //   | `-MemberExpr                   <-- match this
+  //   |  (`-CXXStaticCastExpr)         <-- move ctor only
+  //   |     `-DeclRefExpr
+  //   `-CXXConstructExpr
+  //     `-ArraySubscriptExpr
+  //       |-ImplicitCastExpr
+  //       | `-OpaqueValueExpr
+  //       |   `-MemberExpr
+  //       |     `-DeclRefExpr
+  //       `-ArrayInitIndexExpr
+  //
+  // The resulting expression for a multidimensional array.
+  // ArrayInitLoopExpr                  <-- we're here
+  // |-OpaqueValueExpr
+  // | `-DeclRefExpr                    <-- match this
+  // `-ArrayInitLoopExpr
+  //   |-OpaqueValueExpr
+  //   | `-ArraySubscriptExpr
+  //   |   |-ImplicitCastExpr
+  //   |   | `-OpaqueValueExpr
+  //   |   |   `-DeclRefExpr
+  //   |   `-ArrayInitIndexExpr
+  //   `-CXXConstructExpr             <-- extract this
+  //     ` ...
+
+  const auto *OVESrc = AILE->getCommonExpr()->getSourceExpr();
+
+  // HACK: There is no way we can put the index of the array element into the
+  // CFG unless we unroll the loop, so we manually select and bind the required
+  // parameter to the environment.
+  const auto *CE =
+      cast<CXXConstructExpr>(extractElementInitializerFromNestedAILE(AILE));
+
+  SVal Base = UnknownVal();
+  if (const auto *ME = dyn_cast<MemberExpr>(OVESrc))
+    Base = State->getSVal(ME, LCtx);
+  else if (const auto *DRE = dyn_cast<DeclRefExpr>(OVESrc))
+    Base = State->getLValue(cast<VarDecl>(DRE->getDecl()), LCtx);
+  else
+    llvm_unreachable("ArrayInitLoopExpr contains unexpected source expression");
+
+  SVal NthElem = State->getLValue(CE->getType(), Idx, Base);
+
+  return State->BindExpr(CE->getArg(0), LCtx, NthElem);
 }
 
 void ExprEngine::handleConstructor(const Expr *E,
@@ -484,10 +588,6 @@ void ExprEngine::handleConstructor(const Expr *E,
     }
   }
 
-  // FIXME: Handle arrays, which run the same constructor for every element.
-  // For now, we just run the first constructor (which should still invalidate
-  // the entire array).
-
   EvalCallOptions CallOpts;
   auto C = getCurrentCFGElement().getAs<CFGConstructor>();
   assert(C || getCurrentCFGElement().getAs<CFGStmt>());
@@ -500,9 +600,51 @@ void ExprEngine::handleConstructor(const Expr *E,
     // Inherited constructors are always base class constructors.
     assert(CE && !CIE && "A complete constructor is inherited?!");
 
+    // If the ctor is part of an ArrayInitLoopExpr, we want to handle it
+    // differently.
+    auto *AILE = CC ? CC->getArrayInitLoop() : nullptr;
+
+    unsigned Idx = 0;
+    if (CE->getType()->isArrayType() || AILE) {
+
+      auto isZeroSizeArray = [&] {
+        uint64_t Size = 1;
+
+        if (const auto *CAT = dyn_cast<ConstantArrayType>(CE->getType()))
+          Size = getContext().getConstantArrayElementCount(CAT);
+        else if (AILE)
+          Size = getContext().getArrayInitLoopExprElementCount(AILE);
+
+        return Size == 0;
+      };
+
+      // No element construction will happen in a 0 size array.
+      if (isZeroSizeArray()) {
+        StmtNodeBuilder Bldr(Pred, destNodes, *currBldrCtx);
+        static SimpleProgramPointTag T{"ExprEngine",
+                                       "Skipping 0 size array construction"};
+        Bldr.generateNode(CE, Pred, State, &T);
+        return;
+      }
+
+      Idx = getIndexOfElementToConstruct(State, CE, LCtx).value_or(0u);
+      State = setIndexOfElementToConstruct(State, CE, LCtx, Idx + 1);
+    }
+
+    if (AILE) {
+      // Only set this once even though we loop through it multiple times.
+      if (!getPendingInitLoop(State, CE, LCtx))
+        State = setPendingInitLoop(
+            State, CE, LCtx,
+            getContext().getArrayInitLoopExprElementCount(AILE));
+
+      State = bindRequiredArrayElementToEnvironment(
+          State, AILE, LCtx, svalBuilder.makeArrayIndex(Idx));
+    }
+
     // The target region is found from construction context.
     std::tie(State, Target) =
-        handleConstructionContext(CE, State, LCtx, CC, CallOpts);
+        handleConstructionContext(CE, State, LCtx, CC, CallOpts, Idx);
     break;
   }
   case CXXConstructExpr::CK_VirtualBase: {
@@ -517,7 +659,7 @@ void ExprEngine::handleConstructor(const Expr *E,
         ("This virtual base should have already been initialized by "
          "the most derived class!"));
     (void)OuterCtor;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case CXXConstructExpr::CK_NonVirtualBase:
     // In C++17, classes with non-virtual bases may be aggregates, so they would
@@ -537,7 +679,7 @@ void ExprEngine::handleConstructor(const Expr *E,
       CallOpts.IsCtorOrDtorWithImproperlyModeledTargetRegion = true;
       break;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case CXXConstructExpr::CK_Delegating: {
     const CXXMethodDecl *CurCtor = cast<CXXMethodDecl>(LCtx->getDecl());
     Loc ThisPtr = getSValBuilder().getCXXThis(CurCtor,
@@ -894,14 +1036,39 @@ void ExprEngine::VisitCXXNewExpr(const CXXNewExpr *CNE, ExplodedNode *Pred,
   SVal Result = symVal;
 
   if (CNE->isArray()) {
-    // FIXME: allocating an array requires simulating the constructors.
-    // For now, just return a symbolicated region.
+
     if (const auto *NewReg = cast_or_null<SubRegion>(symVal.getAsRegion())) {
-      QualType ObjTy = CNE->getType()->getPointeeType();
+      // If each element is initialized by their default constructor, the field
+      // values are properly placed inside the required region, however if an
+      // initializer list is used, this doesn't happen automatically.
+      auto *Init = CNE->getInitializer();
+      bool isInitList = isa_and_nonnull<InitListExpr>(Init);
+
+      QualType ObjTy =
+          isInitList ? Init->getType() : CNE->getType()->getPointeeType();
       const ElementRegion *EleReg =
-          getStoreManager().GetElementZeroRegion(NewReg, ObjTy);
+          MRMgr.getElementRegion(ObjTy, svalBuilder.makeArrayIndex(0), NewReg,
+                                 svalBuilder.getContext());
       Result = loc::MemRegionVal(EleReg);
+
+      // If the array is list initialized, we bind the initializer list to the
+      // memory region here, otherwise we would lose it.
+      if (isInitList) {
+        Bldr.takeNodes(Pred);
+        Pred = Bldr.generateNode(CNE, Pred, State);
+
+        SVal V = State->getSVal(Init, LCtx);
+        ExplodedNodeSet evaluated;
+        evalBind(evaluated, CNE, Pred, Result, V, true);
+
+        Bldr.takeNodes(Pred);
+        Bldr.addNodes(evaluated);
+
+        Pred = *evaluated.begin();
+        State = Pred->getState();
+      }
     }
+
     State = State->BindExpr(CNE, Pred->getLocationContext(), Result);
     Bldr.generateNode(CNE, Pred, State);
     return;
@@ -1005,19 +1172,46 @@ void ExprEngine::VisitLambdaExpr(const LambdaExpr *LE, ExplodedNode *Pred,
 
   // If we created a new MemRegion for the lambda, we should explicitly bind
   // the captures.
+  unsigned Idx = 0;
   CXXRecordDecl::field_iterator CurField = LE->getLambdaClass()->field_begin();
   for (LambdaExpr::const_capture_init_iterator i = LE->capture_init_begin(),
                                                e = LE->capture_init_end();
-       i != e; ++i, ++CurField) {
+       i != e; ++i, ++CurField, ++Idx) {
     FieldDecl *FieldForCapture = *CurField;
     SVal FieldLoc = State->getLValue(FieldForCapture, V);
 
     SVal InitVal;
     if (!FieldForCapture->hasCapturedVLAType()) {
-      Expr *InitExpr = *i;
+      const Expr *InitExpr = *i;
+
       assert(InitExpr && "Capture missing initialization expression");
-      InitVal = State->getSVal(InitExpr, LocCtxt);
+
+      // Capturing a 0 length array is a no-op, so we ignore it to get a more
+      // accurate analysis. If it's not ignored, it would set the default
+      // binding of the lambda to 'Unknown', which can lead to falsely detecting
+      // 'Uninitialized' values as 'Unknown' and not reporting a warning.
+      const auto FTy = FieldForCapture->getType();
+      if (FTy->isConstantArrayType() &&
+          getContext().getConstantArrayElementCount(
+              getContext().getAsConstantArrayType(FTy)) == 0)
+        continue;
+
+      // With C++17 copy elision the InitExpr can be anything, so instead of
+      // pattern matching all cases, we simple check if the current field is
+      // under construction or not, regardless what it's InitExpr is.
+      if (const auto OUC =
+              getObjectUnderConstruction(State, {LE, Idx}, LocCtxt)) {
+        InitVal = State->getSVal(OUC->getAsRegion());
+
+        State = finishObjectConstruction(State, {LE, Idx}, LocCtxt);
+      } else
+        InitVal = State->getSVal(InitExpr, LocCtxt);
+
     } else {
+
+      assert(!getObjectUnderConstruction(State, {LE, Idx}, LocCtxt) &&
+             "VLA capture by value is a compile time error!");
+
       // The field stores the length of a captured variable-length array.
       // These captures don't have initialization expressions; instead we
       // get the length from the VLAType size expression.

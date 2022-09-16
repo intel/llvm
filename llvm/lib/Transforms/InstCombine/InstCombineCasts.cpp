@@ -36,8 +36,10 @@ static Value *decomposeSimpleLinearExpr(Value *Val, unsigned &Scale,
 
   if (BinaryOperator *I = dyn_cast<BinaryOperator>(Val)) {
     // Cannot look past anything that might overflow.
+    // We specifically require nuw because we store the Scale in an unsigned
+    // and perform an unsigned divide on it.
     OverflowingBinaryOperator *OBI = dyn_cast<OverflowingBinaryOperator>(Val);
-    if (OBI && !OBI->hasNoUnsignedWrap() && !OBI->hasNoSignedWrap()) {
+    if (OBI && !OBI->hasNoUnsignedWrap()) {
       Scale = 1;
       Offset = 0;
       return Val;
@@ -724,7 +726,7 @@ static Instruction *shrinkSplatShuffle(TruncInst &Trunc,
                                        InstCombiner::BuilderTy &Builder) {
   auto *Shuf = dyn_cast<ShuffleVectorInst>(Trunc.getOperand(0));
   if (Shuf && Shuf->hasOneUse() && match(Shuf->getOperand(1), m_Undef()) &&
-      is_splat(Shuf->getShuffleMask()) &&
+      all_equal(Shuf->getShuffleMask()) &&
       Shuf->getType() == Shuf->getOperand(0)->getType()) {
     // trunc (shuf X, Undef, SplatMask) --> shuf (trunc X), Poison, SplatMask
     // trunc (shuf X, Poison, SplatMask) --> shuf (trunc X), Poison, SplatMask
@@ -987,7 +989,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
       Attribute Attr =
           Trunc.getFunction()->getFnAttribute(Attribute::VScaleRange);
       if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
-        if (Log2_32(MaxVScale.getValue()) < DestWidth) {
+        if (Log2_32(*MaxVScale) < DestWidth) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(Trunc, VScale);
         }
@@ -1041,13 +1043,6 @@ Instruction *InstCombinerImpl::transformZExtICmp(ICmpInst *Cmp, ZExtInst &Zext) 
       APInt KnownZeroMask(~Known.Zero);
       if (KnownZeroMask.isPowerOf2()) { // Exactly 1 possible 1?
         bool isNE = Cmp->getPredicate() == ICmpInst::ICMP_NE;
-        if (!Op1CV->isZero() && (*Op1CV != KnownZeroMask)) {
-          // (X&4) == 2 --> false
-          // (X&4) != 2 --> true
-          Constant *Res = ConstantInt::get(Zext.getType(), isNE);
-          return replaceInstUsesWith(Zext, Res);
-        }
-
         uint32_t ShAmt = KnownZeroMask.logBase2();
         Value *In = Cmp->getOperand(0);
         if (ShAmt) {
@@ -1359,7 +1354,7 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &CI) {
       Attribute Attr = CI.getFunction()->getFnAttribute(Attribute::VScaleRange);
       if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
         unsigned TypeWidth = Src->getType()->getScalarSizeInBits();
-        if (Log2_32(MaxVScale.getValue()) < TypeWidth) {
+        if (Log2_32(*MaxVScale) < TypeWidth) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(CI, VScale);
         }
@@ -1632,7 +1627,7 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
         CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       Attribute Attr = CI.getFunction()->getFnAttribute(Attribute::VScaleRange);
       if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
-        if (Log2_32(MaxVScale.getValue()) < (SrcBitSize - 1)) {
+        if (Log2_32(*MaxVScale) < (SrcBitSize - 1)) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(CI, VScale);
         }
@@ -1671,7 +1666,6 @@ static Type *shrinkFPConstant(ConstantFP *CFP) {
 
 // Determine if this is a vector of ConstantFPs and if so, return the minimal
 // type we can safely truncate all elements to.
-// TODO: Make these support undef elements.
 static Type *shrinkFPConstantVector(Value *V) {
   auto *CV = dyn_cast<Constant>(V);
   auto *CVVTy = dyn_cast<FixedVectorType>(V->getType());
@@ -1685,6 +1679,9 @@ static Type *shrinkFPConstantVector(Value *V) {
   // For fixed-width vectors we find the minimal type by looking
   // through the constant values of the vector.
   for (unsigned i = 0; i != NumElts; ++i) {
+    if (isa<UndefValue>(CV->getAggregateElement(i)))
+      continue;
+
     auto *CFP = dyn_cast_or_null<ConstantFP>(CV->getAggregateElement(i));
     if (!CFP)
       return nullptr;
@@ -1700,7 +1697,7 @@ static Type *shrinkFPConstantVector(Value *V) {
   }
 
   // Make a vector type from the minimal type.
-  return FixedVectorType::get(MinType, NumElts);
+  return MinType ? FixedVectorType::get(MinType, NumElts) : nullptr;
 }
 
 /// Find the minimum FP type we can safely truncate to.
@@ -1732,7 +1729,7 @@ static Type *getMinimumFPType(Value *V) {
 
 /// Return true if the cast from integer to FP can be proven to be exact for all
 /// possible inputs (the conversion does not lose any precision).
-static bool isKnownExactCastIntToFP(CastInst &I) {
+static bool isKnownExactCastIntToFP(CastInst &I, InstCombinerImpl &IC) {
   CastInst::CastOps Opcode = I.getOpcode();
   assert((Opcode == CastInst::SIToFP || Opcode == CastInst::UIToFP) &&
          "Unexpected cast");
@@ -1768,7 +1765,14 @@ static bool isKnownExactCastIntToFP(CastInst &I) {
 
   // TODO:
   // Try harder to find if the source integer type has less significant bits.
-  // For example, compute number of sign bits or compute low bit mask.
+  // For example, compute number of sign bits.
+  KnownBits SrcKnown = IC.computeKnownBits(Src, 0, &I);
+  int SigBits = (int)SrcTy->getScalarSizeInBits() -
+                SrcKnown.countMinLeadingZeros() -
+                SrcKnown.countMinTrailingZeros();
+  if (SigBits <= DestNumSigBits)
+    return true;
+
   return false;
 }
 
@@ -1949,7 +1953,7 @@ Instruction *InstCombinerImpl::visitFPTrunc(FPTruncInst &FPT) {
   Value *Src = FPT.getOperand(0);
   if (isa<SIToFPInst>(Src) || isa<UIToFPInst>(Src)) {
     auto *FPCast = cast<CastInst>(Src);
-    if (isKnownExactCastIntToFP(*FPCast))
+    if (isKnownExactCastIntToFP(*FPCast, *this))
       return CastInst::Create(FPCast->getOpcode(), FPCast->getOperand(0), Ty);
   }
 
@@ -1963,7 +1967,7 @@ Instruction *InstCombinerImpl::visitFPExt(CastInst &FPExt) {
   Value *Src = FPExt.getOperand(0);
   if (isa<SIToFPInst>(Src) || isa<UIToFPInst>(Src)) {
     auto *FPCast = cast<CastInst>(Src);
-    if (isKnownExactCastIntToFP(*FPCast))
+    if (isKnownExactCastIntToFP(*FPCast, *this))
       return CastInst::Create(FPCast->getOpcode(), FPCast->getOperand(0), Ty);
   }
 
@@ -1990,7 +1994,7 @@ Instruction *InstCombinerImpl::foldItoFPtoI(CastInst &FI) {
 
   // This means this is also safe for a signed input and unsigned output, since
   // a negative input would lead to undefined behavior.
-  if (!isKnownExactCastIntToFP(*OpI)) {
+  if (!isKnownExactCastIntToFP(*OpI, *this)) {
     // The first cast may not round exactly based on the source integer width
     // and FP width, but the overflow UB rules can still allow this to fold.
     // If the destination type is narrow, that means the intermediate FP value
@@ -2867,21 +2871,27 @@ Instruction *InstCombinerImpl::visitBitCast(BitCastInst &CI) {
       }
     }
 
-    // A bitcasted-to-scalar and byte-reversing shuffle is better recognized as
-    // a byte-swap:
-    // bitcast <N x i8> (shuf X, undef, <N, N-1,...0>) --> bswap (bitcast X)
-    // TODO: We should match the related pattern for bitreverse.
-    if (DestTy->isIntegerTy() &&
-        DL.isLegalInteger(DestTy->getScalarSizeInBits()) &&
-        SrcTy->getScalarSizeInBits() == 8 &&
-        ShufElts.getKnownMinValue() % 2 == 0 && Shuf->hasOneUse() &&
-        Shuf->isReverse()) {
-      assert(ShufOp0->getType() == SrcTy && "Unexpected shuffle mask");
-      assert(match(ShufOp1, m_Undef()) && "Unexpected shuffle op");
-      Function *Bswap =
-          Intrinsic::getDeclaration(CI.getModule(), Intrinsic::bswap, DestTy);
-      Value *ScalarX = Builder.CreateBitCast(ShufOp0, DestTy);
-      return CallInst::Create(Bswap, { ScalarX });
+    // A bitcasted-to-scalar and byte/bit reversing shuffle is better recognized
+    // as a byte/bit swap:
+    // bitcast <N x i8> (shuf X, undef, <N, N-1,...0>) -> bswap (bitcast X)
+    // bitcast <N x i1> (shuf X, undef, <N, N-1,...0>) -> bitreverse (bitcast X)
+    if (DestTy->isIntegerTy() && ShufElts.getKnownMinValue() % 2 == 0 &&
+        Shuf->hasOneUse() && Shuf->isReverse()) {
+      unsigned IntrinsicNum = 0;
+      if (DL.isLegalInteger(DestTy->getScalarSizeInBits()) &&
+          SrcTy->getScalarSizeInBits() == 8) {
+        IntrinsicNum = Intrinsic::bswap;
+      } else if (SrcTy->getScalarSizeInBits() == 1) {
+        IntrinsicNum = Intrinsic::bitreverse;
+      }
+      if (IntrinsicNum != 0) {
+        assert(ShufOp0->getType() == SrcTy && "Unexpected shuffle mask");
+        assert(match(ShufOp1, m_Undef()) && "Unexpected shuffle op");
+        Function *BswapOrBitreverse =
+            Intrinsic::getDeclaration(CI.getModule(), IntrinsicNum, DestTy);
+        Value *ScalarX = Builder.CreateBitCast(ShufOp0, DestTy);
+        return CallInst::Create(BswapOrBitreverse, {ScalarX});
+      }
     }
   }
 

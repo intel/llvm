@@ -33,6 +33,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include <numeric>
 
 #define DEBUG_TYPE "legalizer"
 
@@ -497,6 +498,8 @@ static RTLIB::Libcall getRTLibDesc(unsigned Opcode, unsigned Size) {
   } while (0)
 
   switch (Opcode) {
+  case TargetOpcode::G_MUL:
+    RTLIBCASE_INT(MUL_I);
   case TargetOpcode::G_SDIV:
     RTLIBCASE_INT(SDIV_I);
   case TargetOpcode::G_UDIV:
@@ -795,6 +798,7 @@ LegalizerHelper::libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver) {
   switch (MI.getOpcode()) {
   default:
     return UnableToLegalize;
+  case TargetOpcode::G_MUL:
   case TargetOpcode::G_SDIV:
   case TargetOpcode::G_UDIV:
   case TargetOpcode::G_SREM:
@@ -1565,7 +1569,7 @@ LegalizerHelper::widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx,
   // %9:_(s6) = G_MERGE_VALUES %6, %7, %7
   // %10:_(s12) = G_MERGE_VALUES %8, %9
 
-  const int GCD = greatestCommonDivisor(SrcSize, WideSize);
+  const int GCD = std::gcd(SrcSize, WideSize);
   LLT GCDTy = LLT::scalar(GCD);
 
   SmallVector<Register, 8> Parts;
@@ -1612,40 +1616,6 @@ LegalizerHelper::widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx,
 
   MI.eraseFromParent();
   return Legalized;
-}
-
-Register LegalizerHelper::widenWithUnmerge(LLT WideTy, Register OrigReg) {
-  Register WideReg = MRI.createGenericVirtualRegister(WideTy);
-  LLT OrigTy = MRI.getType(OrigReg);
-  LLT LCMTy = getLCMType(WideTy, OrigTy);
-
-  const int NumMergeParts = LCMTy.getSizeInBits() / WideTy.getSizeInBits();
-  const int NumUnmergeParts = LCMTy.getSizeInBits() / OrigTy.getSizeInBits();
-
-  Register UnmergeSrc = WideReg;
-
-  // Create a merge to the LCM type, padding with undef
-  // %0:_(<3 x s32>) = G_FOO => <4 x s32>
-  // =>
-  // %1:_(<4 x s32>) = G_FOO
-  // %2:_(<4 x s32>) = G_IMPLICIT_DEF
-  // %3:_(<12 x s32>) = G_CONCAT_VECTORS %1, %2, %2
-  // %0:_(<3 x s32>), %4:_, %5:_, %6:_ = G_UNMERGE_VALUES %3
-  if (NumMergeParts > 1) {
-    Register Undef = MIRBuilder.buildUndef(WideTy).getReg(0);
-    SmallVector<Register, 8> MergeParts(NumMergeParts, Undef);
-    MergeParts[0] = WideReg;
-    UnmergeSrc = MIRBuilder.buildMerge(LCMTy, MergeParts).getReg(0);
-  }
-
-  // Unmerge to the original register and pad with dead defs.
-  SmallVector<Register, 8> UnmergeResults(NumUnmergeParts);
-  UnmergeResults[0] = OrigReg;
-  for (int I = 1; I != NumUnmergeParts; ++I)
-    UnmergeResults[I] = MRI.createGenericVirtualRegister(OrigTy);
-
-  MIRBuilder.buildUnmerge(UnmergeResults, UnmergeSrc);
-  return WideReg;
 }
 
 LegalizerHelper::LegalizeResult
@@ -1872,7 +1842,7 @@ LegalizerHelper::widenScalarAddSubOverflow(MachineInstr &MI, unsigned TypeIdx,
                                            LLT WideTy) {
   unsigned Opcode;
   unsigned ExtOpcode;
-  Optional<Register> CarryIn = None;
+  Optional<Register> CarryIn;
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Unexpected opcode!");
@@ -1918,9 +1888,9 @@ LegalizerHelper::widenScalarAddSubOverflow(MachineInstr &MI, unsigned TypeIdx,
     unsigned BoolExtOp = MIRBuilder.getBoolExtOp(WideTy.isVector(), false);
 
     Observer.changingInstr(MI);
-    widenScalarDst(MI, WideTy, 1);
     if (CarryIn)
       widenScalarSrc(MI, WideTy, 4, BoolExtOp);
+    widenScalarDst(MI, WideTy, 1);
 
     Observer.changedInstr(MI);
     return Legalized;
@@ -2427,30 +2397,14 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     return Legalized;
   }
   case TargetOpcode::G_FCONSTANT: {
+    // To avoid changing the bits of the constant due to extension to a larger
+    // type and then using G_FPTRUNC, we simply convert to a G_CONSTANT.
     MachineOperand &SrcMO = MI.getOperand(1);
-    LLVMContext &Ctx = MIRBuilder.getMF().getFunction().getContext();
-    APFloat Val = SrcMO.getFPImm()->getValueAPF();
-    bool LosesInfo;
-    switch (WideTy.getSizeInBits()) {
-    case 32:
-      Val.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven,
-                  &LosesInfo);
-      break;
-    case 64:
-      Val.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven,
-                  &LosesInfo);
-      break;
-    default:
-      return UnableToLegalize;
-    }
-
-    assert(!LosesInfo && "extend should always be lossless");
-
-    Observer.changingInstr(MI);
-    SrcMO.setFPImm(ConstantFP::get(Ctx, Val));
-
-    widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
-    Observer.changedInstr(MI);
+    APInt Val = SrcMO.getFPImm()->getValueAPF().bitcastToAPInt();
+    MIRBuilder.setInstrAndDebugLoc(MI);
+    auto IntCst = MIRBuilder.buildConstant(MI.getOperand(0).getReg(), Val);
+    widenScalarDst(*IntCst, WideTy, 0, TargetOpcode::G_TRUNC);
+    MI.eraseFromParent();
     return Legalized;
   }
   case TargetOpcode::G_IMPLICIT_DEF: {
@@ -7621,7 +7575,7 @@ LegalizerHelper::lowerMemcpyInline(MachineInstr &MI) {
   // See if this is a constant length copy
   auto LenVRegAndVal = getIConstantVRegValWithLookThrough(Len, MRI);
   // FIXME: support dynamically sized G_MEMCPY_INLINE
-  assert(LenVRegAndVal.hasValue() &&
+  assert(LenVRegAndVal &&
          "inline memcpy with dynamic size is not yet supported");
   uint64_t KnownLen = LenVRegAndVal->Value.getZExtValue();
   if (KnownLen == 0) {
@@ -7661,7 +7615,7 @@ LegalizerHelper::lowerMemcpy(MachineInstr &MI, Register Dst, Register Src,
 
   bool DstAlignCanChange = false;
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  Align Alignment = commonAlignment(DstAlign, SrcAlign);
+  Align Alignment = std::min(DstAlign, SrcAlign);
 
   MachineInstr *FIDef = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, Dst, MRI);
   if (FIDef && !MFI.isFixedObjectIndex(FIDef->getOperand(1).getIndex()))
@@ -7696,7 +7650,7 @@ LegalizerHelper::lowerMemcpy(MachineInstr &MI, Register Dst, Register Src,
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
     if (!TRI->hasStackRealignment(MF))
       while (NewAlign > Alignment && DL.exceedsNaturalStackAlignment(NewAlign))
-        NewAlign = NewAlign / 2;
+        NewAlign = NewAlign.previous();
 
     if (NewAlign > Alignment) {
       Alignment = NewAlign;
@@ -7769,7 +7723,7 @@ LegalizerHelper::lowerMemmove(MachineInstr &MI, Register Dst, Register Src,
   bool DstAlignCanChange = false;
   MachineFrameInfo &MFI = MF.getFrameInfo();
   bool OptSize = shouldLowerMemFuncForSize(MF);
-  Align Alignment = commonAlignment(DstAlign, SrcAlign);
+  Align Alignment = std::min(DstAlign, SrcAlign);
 
   MachineInstr *FIDef = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, Dst, MRI);
   if (FIDef && !MFI.isFixedObjectIndex(FIDef->getOperand(1).getIndex()))
@@ -7804,7 +7758,7 @@ LegalizerHelper::lowerMemmove(MachineInstr &MI, Register Dst, Register Src,
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
     if (!TRI->hasStackRealignment(MF))
       while (NewAlign > Alignment && DL.exceedsNaturalStackAlignment(NewAlign))
-        NewAlign = NewAlign / 2;
+        NewAlign = NewAlign.previous();
 
     if (NewAlign > Alignment) {
       Alignment = NewAlign;

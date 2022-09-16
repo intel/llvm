@@ -113,8 +113,8 @@ using namespace llvm::opt;
 
 // Parse misexpect tolerance argument value.
 // Valid option values are integers in the range [0, 100)
-inline Expected<Optional<uint64_t>> parseToleranceOption(StringRef Arg) {
-  int64_t Val;
+inline Expected<Optional<uint32_t>> parseToleranceOption(StringRef Arg) {
+  uint32_t Val;
   if (Arg.getAsInteger(10, Val))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "Not an integer: %s", Arg.data());
@@ -517,6 +517,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fgnu89-inline" << GetInputKindName(IK);
 
+  if (Args.hasArg(OPT_hlsl_entrypoint) && !LangOpts.HLSL)
+    Diags.Report(diag::err_drv_argument_not_allowed_with)
+        << "-hlsl-entry" << GetInputKindName(IK);
+
   if (Args.hasArg(OPT_fgpu_allow_device_init) && !LangOpts.HIP)
     Diags.Report(diag::warn_ignored_hip_only_option)
         << Args.getLastArg(OPT_fgpu_allow_device_init)->getAsString(Args);
@@ -824,18 +828,6 @@ static void GenerateAnalyzerArgs(AnalyzerOptions &Opts,
 #include "clang/Driver/Options.inc"
 #undef ANALYZER_OPTION_WITH_MARSHALLING
 
-  if (Opts.AnalysisStoreOpt != RegionStoreModel) {
-    switch (Opts.AnalysisStoreOpt) {
-#define ANALYSIS_STORE(NAME, CMDFLAG, DESC, CREATFN)                           \
-  case NAME##Model:                                                            \
-    GenerateArg(Args, OPT_analyzer_store, CMDFLAG, SA);                        \
-    break;
-#include "clang/StaticAnalyzer/Core/Analyses.def"
-    default:
-      llvm_unreachable("Tried to generate unknown analysis store.");
-    }
-  }
-
   if (Opts.AnalysisConstraintsOpt != RangeConstraintsModel) {
     switch (Opts.AnalysisConstraintsOpt) {
 #define ANALYSIS_CONSTRAINTS(NAME, CMDFLAG, DESC, CREATFN)                     \
@@ -922,21 +914,6 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
       IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, MERGER, TABLE_INDEX)
 #include "clang/Driver/Options.inc"
 #undef ANALYZER_OPTION_WITH_MARSHALLING
-
-  if (Arg *A = Args.getLastArg(OPT_analyzer_store)) {
-    StringRef Name = A->getValue();
-    AnalysisStores Value = llvm::StringSwitch<AnalysisStores>(Name)
-#define ANALYSIS_STORE(NAME, CMDFLAG, DESC, CREATFN) \
-      .Case(CMDFLAG, NAME##Model)
-#include "clang/StaticAnalyzer/Core/Analyses.def"
-      .Default(NumStores);
-    if (Value == NumStores) {
-      Diags.Report(diag::err_drv_invalid_value)
-        << A->getAsString(Args) << Name;
-    } else {
-      Opts.AnalysisStoreOpt = Value;
-    }
-  }
 
   if (Arg *A = Args.getLastArg(OPT_analyzer_constraints)) {
     StringRef Name = A->getValue();
@@ -1101,7 +1078,7 @@ static void initOption(AnalyzerOptions::ConfigTable &Config,
     else
       OptionField = DefaultVal;
   } else
-    OptionField = PossiblyInvalidVal.getValue();
+    OptionField = *PossiblyInvalidVal;
 }
 
 static void initOption(AnalyzerOptions::ConfigTable &Config,
@@ -1120,25 +1097,22 @@ static void initOption(AnalyzerOptions::ConfigTable &Config,
 static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
                                  DiagnosticsEngine *Diags) {
   // TODO: There's no need to store the entire configtable, it'd be plenty
-  // enough tostore checker options.
+  // enough to store checker options.
 
 #define ANALYZER_OPTION(TYPE, NAME, CMDFLAG, DESC, DEFAULT_VAL)                \
   initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG, DEFAULT_VAL);
-
-#define ANALYZER_OPTION_DEPENDS_ON_USER_MODE(TYPE, NAME, CMDFLAG, DESC,        \
-                                           SHALLOW_VAL, DEEP_VAL)              \
-  switch (AnOpts.getUserMode()) {                                              \
-  case UMK_Shallow:                                                            \
-    initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG, SHALLOW_VAL);       \
-    break;                                                                     \
-  case UMK_Deep:                                                               \
-    initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG, DEEP_VAL);          \
-    break;                                                                     \
-  }                                                                            \
-
+#define ANALYZER_OPTION_DEPENDS_ON_USER_MODE(...)
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.def"
-#undef ANALYZER_OPTION
-#undef ANALYZER_OPTION_DEPENDS_ON_USER_MODE
+
+  assert(AnOpts.UserMode == "shallow" || AnOpts.UserMode == "deep");
+  const bool InShallowMode = AnOpts.UserMode == "shallow";
+
+#define ANALYZER_OPTION(...)
+#define ANALYZER_OPTION_DEPENDS_ON_USER_MODE(TYPE, NAME, CMDFLAG, DESC,        \
+                                             SHALLOW_VAL, DEEP_VAL)            \
+  initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG,                       \
+             InShallowMode ? SHALLOW_VAL : DEEP_VAL);
+#include "clang/StaticAnalyzer/Core/AnalyzerOptions.def"
 
   // At this point, AnalyzerOptions is configured. Let's validate some options.
 
@@ -1515,6 +1489,9 @@ void CompilerInvocation::GenerateCodeGenArgs(
   if (Opts.IBTSeal)
     GenerateArg(Args, OPT_mibt_seal, SA);
 
+  if (Opts.FunctionReturnThunks)
+    GenerateArg(Args, OPT_mfunction_return_EQ, "thunk-extern", SA);
+
   for (const auto &F : Opts.LinkBitcodeFiles) {
     bool Builtint = F.LinkFlags == llvm::Linker::Flags::LinkOnlyNeeded &&
                     F.PropagateAttrs && F.Internalize;
@@ -1860,6 +1837,27 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Name;
   }
 
+  if (const Arg *A = Args.getLastArg(OPT_mfunction_return_EQ)) {
+    auto Val = llvm::StringSwitch<llvm::FunctionReturnThunksKind>(A->getValue())
+                   .Case("keep", llvm::FunctionReturnThunksKind::Keep)
+                   .Case("thunk-extern", llvm::FunctionReturnThunksKind::Extern)
+                   .Default(llvm::FunctionReturnThunksKind::Invalid);
+    // SystemZ might want to add support for "expolines."
+    if (!T.isX86())
+      Diags.Report(diag::err_drv_argument_not_allowed_with)
+          << A->getSpelling() << T.getTriple();
+    else if (Val == llvm::FunctionReturnThunksKind::Invalid)
+      Diags.Report(diag::err_drv_invalid_value)
+          << A->getAsString(Args) << A->getValue();
+    else if (Val == llvm::FunctionReturnThunksKind::Extern &&
+             Args.getLastArgValue(OPT_mcmodel_EQ).equals("large"))
+      Diags.Report(diag::err_drv_argument_not_allowed_with)
+          << A->getAsString(Args)
+          << Args.getLastArg(OPT_mcmodel_EQ)->getAsString(Args);
+    else
+      Opts.FunctionReturnThunks = static_cast<unsigned>(Val);
+  }
+
   if (Opts.PrepareForLTO && Args.hasArg(OPT_mibt_seal))
     Opts.IBTSeal = 1;
 
@@ -1944,6 +1942,12 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.SPIRITTAnnotations = true;
   }
 
+  if (Arg *A = Args.getLastArg(OPT_mabi_EQ_quadword_atomics)) {
+    if (!T.isOSAIX() || T.isPPC32())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+        << A->getSpelling() << T.str();
+  }
+
   bool NeedLocTracking = false;
 
   Opts.OptRecordFile = LangOpts->OptRecordFile;
@@ -1995,8 +1999,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
           << "-fdiagnostics-hotness-threshold=";
     } else {
       Opts.DiagnosticsHotnessThreshold = *ResultOrErr;
-      if ((!Opts.DiagnosticsHotnessThreshold.hasValue() ||
-           Opts.DiagnosticsHotnessThreshold.getValue() > 0) &&
+      if ((!Opts.DiagnosticsHotnessThreshold ||
+           Opts.DiagnosticsHotnessThreshold.value() > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_hotness_requires_pgo)
             << "-fdiagnostics-hotness-threshold=";
@@ -2012,8 +2016,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
           << "-fdiagnostics-misexpect-tolerance=";
     } else {
       Opts.DiagnosticsMisExpectTolerance = *ResultOrErr;
-      if ((!Opts.DiagnosticsMisExpectTolerance.hasValue() ||
-           Opts.DiagnosticsMisExpectTolerance.getValue() > 0) &&
+      if ((!Opts.DiagnosticsMisExpectTolerance ||
+           Opts.DiagnosticsMisExpectTolerance.value() > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_misexpect_requires_pgo)
             << "-fdiagnostics-misexpect-tolerance=";
@@ -2622,10 +2626,10 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
   for (const auto &ModuleFile : Opts.ModuleFiles)
     GenerateArg(Args, OPT_fmodule_file, ModuleFile, SA);
 
-  if (Opts.AuxTargetCPU.hasValue())
+  if (Opts.AuxTargetCPU)
     GenerateArg(Args, OPT_aux_target_cpu, *Opts.AuxTargetCPU, SA);
 
-  if (Opts.AuxTargetFeatures.hasValue())
+  if (Opts.AuxTargetFeatures)
     for (const auto &Feature : *Opts.AuxTargetFeatures)
       GenerateArg(Args, OPT_aux_target_feature, Feature, SA);
 
@@ -3542,6 +3546,8 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Args, OPT_fclang_abi_compat_EQ, "12.0", SA);
   else if (Opts.getClangABICompat() == LangOptions::ClangABI::Ver14)
     GenerateArg(Args, OPT_fclang_abi_compat_EQ, "14.0", SA);
+  else if (Opts.getClangABICompat() == LangOptions::ClangABI::Ver15)
+    GenerateArg(Args, OPT_fclang_abi_compat_EQ, "15.0", SA);
 
   if (Opts.getSignReturnAddressScope() ==
       LangOptions::SignReturnAddressScopeKind::All)
@@ -3825,8 +3831,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     VersionTuple GNUCVer;
     bool Invalid = GNUCVer.tryParse(A->getValue());
     unsigned Major = GNUCVer.getMajor();
-    unsigned Minor = GNUCVer.getMinor().getValueOr(0);
-    unsigned Patch = GNUCVer.getSubminor().getValueOr(0);
+    unsigned Minor = GNUCVer.getMinor().value_or(0);
+    unsigned Patch = GNUCVer.getSubminor().value_or(0);
     if (Invalid || GNUCVer.getBuild() || Minor >= 100 || Patch >= 100) {
       Diags.Report(diag::err_drv_invalid_value)
           << A->getAsString(Args) << A->getValue();
@@ -3853,8 +3859,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args)
                                                 << A->getValue();
     Opts.MSCompatibilityVersion = VT.getMajor() * 10000000 +
-                                  VT.getMinor().getValueOr(0) * 100000 +
-                                  VT.getSubminor().getValueOr(0);
+                                  VT.getMinor().value_or(0) * 100000 +
+                                  VT.getSubminor().value_or(0);
   }
 
   // Mimicking gcc's behavior, trigraphs are only enabled if -trigraphs
@@ -4102,6 +4108,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         Opts.setClangABICompat(LangOptions::ClangABI::Ver12);
       else if (Major <= 14)
         Opts.setClangABICompat(LangOptions::ClangABI::Ver14);
+      else if (Major <= 15)
+        Opts.setClangABICompat(LangOptions::ClangABI::Ver15);
     } else if (Ver != "latest") {
       Diags.Report(diag::err_drv_invalid_value)
           << A->getAsString(Args) << A->getValue();
@@ -4190,6 +4198,14 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   if (const Arg *A = Args.getLastArg(OPT_frandomize_layout_seed_EQ))
     Opts.RandstructSeed = A->getValue(0);
+
+  // Validate options for HLSL
+  if (Opts.HLSL) {
+    bool SupportedTarget = T.getArch() == llvm::Triple::dxil &&
+                           T.getOS() == llvm::Triple::ShaderModel;
+    if (!SupportedTarget)
+      Diags.Report(diag::err_drv_hlsl_unsupported_target) << T.str();
+  }
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }
@@ -4652,7 +4668,10 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
         return CreateFromArgsImpl(Invocation, CommandLineArgs, Diags, Argv0);
       },
       [](CompilerInvocation &Invocation, SmallVectorImpl<const char *> &Args,
-         StringAllocator SA) { Invocation.generateCC1CommandLine(Args, SA); },
+         StringAllocator SA) {
+        Args.push_back("-cc1");
+        Invocation.generateCC1CommandLine(Args, SA);
+      },
       Invocation, DummyInvocation, CommandLineArgs, Diags, Argv0);
 }
 
@@ -4771,6 +4790,37 @@ void CompilerInvocation::generateCC1CommandLine(
   GeneratePreprocessorOutputArgs(PreprocessorOutputOpts, Args, SA,
                                  FrontendOpts.ProgramAction);
   GenerateDependencyOutputArgs(DependencyOutputOpts, Args, SA);
+}
+
+std::vector<std::string> CompilerInvocation::getCC1CommandLine() const {
+  // Set up string allocator.
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Strings(Alloc);
+  auto SA = [&Strings](const Twine &Arg) { return Strings.save(Arg).data(); };
+
+  // Synthesize full command line from the CompilerInvocation, including "-cc1".
+  SmallVector<const char *, 32> Args{"-cc1"};
+  generateCC1CommandLine(Args, SA);
+
+  // Convert arguments to the return type.
+  return std::vector<std::string>{Args.begin(), Args.end()};
+}
+
+void CompilerInvocation::resetNonModularOptions() {
+  getLangOpts()->resetNonModularOptions();
+  getPreprocessorOpts().resetNonModularOptions();
+}
+
+void CompilerInvocation::clearImplicitModuleBuildOptions() {
+  getLangOpts()->ImplicitModules = false;
+  getHeaderSearchOpts().ImplicitModuleMaps = false;
+  getHeaderSearchOpts().ModuleCachePath.clear();
+  getHeaderSearchOpts().ModulesValidateOncePerBuildSession = false;
+  getHeaderSearchOpts().BuildSessionTimestamp = 0;
+  // The specific values we canonicalize to for pruning don't affect behaviour,
+  /// so use the default values so they may be dropped from the command-line.
+  getHeaderSearchOpts().ModuleCachePruneInterval = 7 * 24 * 60 * 60;
+  getHeaderSearchOpts().ModuleCachePruneAfter = 31 * 24 * 60 * 60;
 }
 
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>

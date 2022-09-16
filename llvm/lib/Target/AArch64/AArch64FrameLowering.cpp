@@ -192,6 +192,7 @@
 #include "AArch64Subtarget.h"
 #include "AArch64TargetMachine.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
+#include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -252,7 +253,7 @@ static cl::opt<bool> OrderFrameObjects("aarch64-order-frame-objects",
                                        cl::init(true), cl::Hidden);
 
 cl::opt<bool> EnableHomogeneousPrologEpilog(
-    "homogeneous-prolog-epilog", cl::init(false), cl::ZeroOrMore, cl::Hidden,
+    "homogeneous-prolog-epilog", cl::Hidden,
     cl::desc("Emit homogeneous prologue and epilogue for the size "
              "optimization (default = off)"));
 
@@ -992,7 +993,7 @@ static MachineBasicBlock::iterator InsertSEH(MachineBasicBlock::iterator MBBI,
     llvm_unreachable("No SEH Opcode for this instruction");
   case AArch64::LDPDpost:
     Imm = -Imm;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AArch64::STPDpre: {
     unsigned Reg0 = RegInfo->getSEHRegNum(MBBI->getOperand(1).getReg());
     unsigned Reg1 = RegInfo->getSEHRegNum(MBBI->getOperand(2).getReg());
@@ -1005,7 +1006,7 @@ static MachineBasicBlock::iterator InsertSEH(MachineBasicBlock::iterator MBBI,
   }
   case AArch64::LDPXpost:
     Imm = -Imm;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AArch64::STPXpre: {
     Register Reg0 = MBBI->getOperand(1).getReg();
     Register Reg1 = MBBI->getOperand(2).getReg();
@@ -1023,7 +1024,7 @@ static MachineBasicBlock::iterator InsertSEH(MachineBasicBlock::iterator MBBI,
   }
   case AArch64::LDRDpost:
     Imm = -Imm;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AArch64::STRDpre: {
     unsigned Reg = RegInfo->getSEHRegNum(MBBI->getOperand(1).getReg());
     MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveFReg_X))
@@ -1034,7 +1035,7 @@ static MachineBasicBlock::iterator InsertSEH(MachineBasicBlock::iterator MBBI,
   }
   case AArch64::LDRXpost:
     Imm = -Imm;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AArch64::STRXpre: {
     unsigned Reg =  RegInfo->getSEHRegNum(MBBI->getOperand(1).getReg());
     MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveReg_X))
@@ -1427,6 +1428,10 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
           .setMIFlags(MachineInstr::FrameSetup);
     }
   }
+  if (EmitCFI && MFnI.isMTETagged()) {
+    BuildMI(MBB, MBBI, DL, TII->get(AArch64::EMITMTETAGGED))
+        .setMIFlag(MachineInstr::FrameSetup);
+  }
 
   // We signal the presence of a Swift extended frame to external tools by
   // storing FP with 0b0001 in bits 63:60. In normal userland operation a simple
@@ -1447,7 +1452,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
             .addImm(Subtarget.isTargetILP32() ? 32 : 0);
         break;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     case SwiftAsyncFramePointerMode::Always:
       // ORR x29, x29, #0x1000_0000_0000_0000
@@ -1655,13 +1660,14 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
           .setMIFlags(MachineInstr::FrameSetup);
     }
 
+    const char* ChkStk = Subtarget.getChkStkName();
     switch (MF.getTarget().getCodeModel()) {
     case CodeModel::Tiny:
     case CodeModel::Small:
     case CodeModel::Medium:
     case CodeModel::Kernel:
       BuildMI(MBB, MBBI, DL, TII->get(AArch64::BL))
-          .addExternalSymbol("__chkstk")
+          .addExternalSymbol(ChkStk)
           .addReg(AArch64::X15, RegState::Implicit)
           .addReg(AArch64::X16, RegState::Implicit | RegState::Define | RegState::Dead)
           .addReg(AArch64::X17, RegState::Implicit | RegState::Define | RegState::Dead)
@@ -1676,8 +1682,8 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
     case CodeModel::Large:
       BuildMI(MBB, MBBI, DL, TII->get(AArch64::MOVaddrEXT))
           .addReg(AArch64::X16, RegState::Define)
-          .addExternalSymbol("__chkstk")
-          .addExternalSymbol("__chkstk")
+          .addExternalSymbol(ChkStk)
+          .addExternalSymbol(ChkStk)
           .setMIFlags(MachineInstr::FrameSetup);
       if (NeedsWinCFI) {
         HasWinCFI = true;
@@ -2020,7 +2026,7 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
       // Avoid the reload as it is GOT relative, and instead fall back to the
       // hardcoded value below.  This allows a mismatch between the OS and
       // application without immediately terminating on the difference.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case SwiftAsyncFramePointerMode::Always:
       // We need to reset FP to its untagged state on return. Bit 60 is
       // currently used to show the presence of an extended frame.
@@ -2517,8 +2523,8 @@ static void computeCalleeSaveRegisterPairs(
   (void)CC;
   // MachO's compact unwind format relies on all registers being stored in
   // pairs.
-  assert((!produceCompactUnwindFrame(MF) ||
-          CC == CallingConv::PreserveMost || CC == CallingConv::CXX_FAST_TLS ||
+  assert((!produceCompactUnwindFrame(MF) || CC == CallingConv::PreserveMost ||
+          CC == CallingConv::CXX_FAST_TLS || CC == CallingConv::Win64 ||
           (Count & 1) == 0) &&
          "Odd number of callee-saved regs to spill!");
   int ByteOffset = AFI->getCalleeSavedStackSize();
@@ -2603,8 +2609,8 @@ static void computeCalleeSaveRegisterPairs(
 
     // MachO's compact unwind format relies on all registers being stored in
     // adjacent register pairs.
-    assert((!produceCompactUnwindFrame(MF) ||
-            CC == CallingConv::PreserveMost || CC == CallingConv::CXX_FAST_TLS ||
+    assert((!produceCompactUnwindFrame(MF) || CC == CallingConv::PreserveMost ||
+            CC == CallingConv::CXX_FAST_TLS || CC == CallingConv::Win64 ||
             (RPI.isPaired() &&
              ((RPI.Reg1 == AArch64::LR && RPI.Reg2 == AArch64::FP) ||
               RPI.Reg1 + 1 == RPI.Reg2))) &&

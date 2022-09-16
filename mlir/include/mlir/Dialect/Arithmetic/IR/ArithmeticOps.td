@@ -11,9 +11,11 @@
 
 include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
+include "mlir/Interfaces/InferIntRangeInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
+include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 
 // Base class for Arithmetic dialect ops. Ops in this dialect have no side
@@ -49,7 +51,8 @@ class Arith_TernaryOp<string mnemonic, list<Trait> traits = []> :
 
 // Base class for integer binary operations.
 class Arith_IntBinaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_BinaryOp<mnemonic, traits>,
+    Arith_BinaryOp<mnemonic, traits #
+      [DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs)>,
     Results<(outs SignlessIntegerLike:$result)>;
 
@@ -70,7 +73,7 @@ class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
 class Arith_CastOp<string mnemonic, TypeConstraint From, TypeConstraint To,
                    list<Trait> traits = []> :
     Arith_Op<mnemonic, traits # [SameOperandsAndResultShape,
-    DeclareOpInterfaceMethods<CastOpInterface>]>,
+      DeclareOpInterfaceMethods<CastOpInterface>]>,
     Arguments<(ins From:$in)>,
     Results<(outs To:$out)> {
   let assemblyFormat = "$in attr-dict `:` type($in) `to` type($out)";
@@ -87,7 +90,9 @@ def SignlessFixedWidthIntegerLike : TypeConstraint<Or<[
 // Cast from an integer type to another integer type.
 class Arith_IToICastOp<string mnemonic, list<Trait> traits = []> :
     Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike,
-                           SignlessFixedWidthIntegerLike, traits>;
+                           SignlessFixedWidthIntegerLike,
+                           traits #
+                           [DeclareOpInterfaceMethods<InferIntRangeInterface>]>;
 // Cast from an integer type to a floating point type.
 class Arith_IToFCastOp<string mnemonic, list<Trait> traits = []> :
     Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike, FloatLike, traits>;
@@ -124,7 +129,8 @@ class Arith_CompareOpOfAnyRank<string mnemonic, list<Trait> traits = []> :
 def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
     [ConstantLike, NoSideEffect,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-     AllTypesMatch<["value", "result"]>]> {
+     AllTypesMatch<["value", "result"]>,
+     DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
   let summary = "integer or floating point constant";
   let description = [{
     The `constant` operation produces an SSA value equal to some integer or
@@ -142,7 +148,7 @@ def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
     ```
   }];
 
-  let arguments = (ins AnyAttr:$value);
+  let arguments = (ins TypedAttrInterface:$value);
   // TODO: Disallow arith.constant to return anything other than a signless
   // integer or float like. Downstream users of Arithmetic should only be
   // working with signless integers, floats, or vectors/tensors thereof.
@@ -194,6 +200,50 @@ def Arith_AddIOp : Arith_IntBinaryOp<"addi", [Commutative]> {
   }];
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+}
+
+
+def Arith_AddUICarryOp : Arith_Op<"addui_carry", [Commutative,
+    AllTypesMatch<["lhs", "rhs", "sum"]>]> {
+  let summary = "unsigned integer addition operation returning sum and carry";
+  let description = [{
+    The `addui_carry` operation takes two operands and returns two results: the
+    sum (same type as both operands), and the carry (boolean-like). The carry
+    value `1` indicates unsigned addition overflow, while indicates `0` no
+    overflow.
+
+    Example:
+
+    ```mlir
+    // Scalar addition.
+    %sum, %carry = arith.addui_carry %b, %c : i64, i1
+
+    // Vector element-wise addition.
+    %b:2 = arith.addui_carry %g, %h : vector<4xi32>, vector<4xi1>
+
+    // Tensor element-wise addition.
+    %c:2 = arith.addui_carry %y, %z : tensor<4x?xi8>, tensor<4x?xi1>
+    ```
+  }];
+
+  let arguments = (ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs);
+  let results = (outs SignlessIntegerLike:$sum, BoolLike:$carry);
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($sum) `,` type($carry)
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs), [{
+      build($_builder, $_state, lhs.getType(), ::getI1SameShape(lhs.getType()),
+            lhs, rhs);
+    }]>
+  ];
+
+  let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    ::llvm::Optional<::llvm::SmallVector<int64_t, 4>> getShapeForUnroll();
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -764,6 +814,7 @@ def Arith_MulFOp : Arith_FloatBinaryOp<"mulf", [Commutative]> {
     math, contraction, rounding mode, and other controls.
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -773,6 +824,7 @@ def Arith_MulFOp : Arith_FloatBinaryOp<"mulf", [Commutative]> {
 def Arith_DivFOp : Arith_FloatBinaryOp<"divf"> {
   let summary = "floating point division operation";
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -969,8 +1021,9 @@ def IndexCastTypeConstraint : TypeConstraint<Or<[
         MemRefOf<[AnySignlessInteger, Index]>.predicate]>,
     "signless-integer-like or memref of signless-integer">;
 
-def Arith_IndexCastOp : Arith_CastOp<"index_cast", IndexCastTypeConstraint,
-                                                   IndexCastTypeConstraint> {
+def Arith_IndexCastOp
+  : Arith_CastOp<"index_cast", IndexCastTypeConstraint, IndexCastTypeConstraint,
+                 [DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
   let summary = "cast between index and integer types";
   let description = [{
     Casts between scalar or vector integers and corresponding 'index' scalar or
@@ -1022,7 +1075,9 @@ def Arith_BitcastOp : Arith_CastOp<"bitcast", BitcastTypeConstraint,
 // CmpIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_CmpIOp : Arith_CompareOpOfAnyRank<"cmpi"> {
+def Arith_CmpIOp
+  : Arith_CompareOpOfAnyRank<"cmpi",
+                             [DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
   let summary = "integer comparison operation";
   let description = [{
     The `cmpi` operation is a generic comparison for integer-like types. Its two
@@ -1074,13 +1129,13 @@ def Arith_CmpIOp : Arith_CompareOpOfAnyRank<"cmpi"> {
 
     ```mlir
     // Custom form of scalar "signed less than" comparison.
-    %x = arith.cmpi "slt", %lhs, %rhs : i32
+    %x = arith.cmpi slt, %lhs, %rhs : i32
 
     // Generic form of the same operation.
     %x = "arith.cmpi"(%lhs, %rhs) {predicate = 2 : i64} : (i32, i32) -> i1
 
     // Custom form of vector equality comparison.
-    %x = arith.cmpi "eq", %lhs, %rhs : vector<4xi64>
+    %x = arith.cmpi eq, %lhs, %rhs : vector<4xi64>
 
     // Generic form of the same operation.
     %x = "arith.cmpi"(%lhs, %rhs) {predicate = 0 : i64}
@@ -1133,8 +1188,8 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
     Example:
 
     ```mlir
-    %r1 = arith.cmpf "oeq" %0, %1 : f32
-    %r2 = arith.cmpf "ult" %0, %1 : tensor<42x42xf64>
+    %r1 = arith.cmpf oeq, %0, %1 : f32
+    %r2 = arith.cmpf ult, %0, %1 : tensor<42x42xf64>
     %r3 = "arith.cmpf"(%0, %1) {predicate: 0} : (f8, f8) -> i1
     ```
   }];
@@ -1163,7 +1218,8 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
 //===----------------------------------------------------------------------===//
 
 def SelectOp : Arith_Op<"select", [
-    AllTypesMatch<["true_value", "false_value", "result"]>
+    AllTypesMatch<["true_value", "false_value", "result"]>,
+    DeclareOpInterfaceMethods<InferIntRangeInterface>,
   ] # ElementwiseMappable.traits> {
   let summary = "select operation";
   let description = [{
@@ -1203,7 +1259,7 @@ def SelectOp : Arith_Op<"select", [
   let hasCanonicalizer = 1;
   let hasFolder = 1;
   let hasVerifier = 1;
-  
+
   // FIXME: Switch this to use the declarative assembly format.
   let hasCustomAssemblyFormat = 1;
 }

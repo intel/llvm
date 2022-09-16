@@ -14,6 +14,7 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_X86_H
 
 #include "OSTargets.h"
+#include "clang/Basic/BitmaskEnum.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
@@ -124,6 +125,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasMOVBE = false;
   bool HasPREFETCHWT1 = false;
   bool HasRDPID = false;
+  bool HasRDPRU = false;
   bool HasRetpolineExternalThunk = false;
   bool HasLAHFSAHF = false;
   bool HasWBNOINVD = false;
@@ -154,6 +156,8 @@ protected:
 public:
   X86TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
+    BFloat16Width = BFloat16Align = 16;
+    BFloat16Format = &llvm::APFloat::BFloat();
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
     AddrSpaceMap = &X86AddrSpaceMap;
     HasStrictFP = true;
@@ -227,12 +231,12 @@ public:
   bool validateInputSize(const llvm::StringMap<bool> &FeatureMap,
                          StringRef Constraint, unsigned Size) const override;
 
-  virtual bool
+  bool
   checkCFProtectionReturnSupported(DiagnosticsEngine &Diags) const override {
     return true;
   };
 
-  virtual bool
+  bool
   checkCFProtectionBranchSupported(DiagnosticsEngine &Diags) const override {
     return true;
   };
@@ -284,6 +288,10 @@ public:
 
   bool useFP16ConversionIntrinsics() const override {
     return false;
+  }
+
+  bool shouldEmitFloat16WithExcessPrecision() const override {
+    return HasFloat16 && !hasLegalHalfType();
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -394,6 +402,8 @@ public:
   uint64_t getPointerAlignV(unsigned AddrSpace) const override {
     return getPointerWidthV(AddrSpace);
   }
+
+  const char *getBFloat16Mangling() const override { return "u6__bf16"; };
 };
 
 // X86-32 generic target
@@ -418,9 +428,9 @@ public:
     RegParmMax = 3;
 
     // Use fpret for all types.
-    RealTypeUsesObjCFPRet =
-        ((1 << (int)FloatModeKind::Float) | (1 << (int)FloatModeKind::Double) |
-         (1 << (int)FloatModeKind::LongDouble));
+    RealTypeUsesObjCFPRetMask =
+        (unsigned)(FloatModeKind::Float | FloatModeKind::Double |
+                   FloatModeKind::LongDouble);
 
     // x86-32 has atomics up to 8 bytes
     MaxAtomicPromoteWidth = 64;
@@ -699,7 +709,7 @@ public:
                                         "64-i64:64-f80:128-n8:16:32:64-S128");
 
     // Use fpret only for long double.
-    RealTypeUsesObjCFPRet = (1 << (int)FloatModeKind::LongDouble);
+    RealTypeUsesObjCFPRetMask = (unsigned)FloatModeKind::LongDouble;
 
     // Use fp2ret for _Complex long double.
     ComplexLongDoubleUsesFP2Ret = true;

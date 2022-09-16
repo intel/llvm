@@ -811,6 +811,20 @@ def : Pat<(vec.vt (or (and (vec.vt V128:$c), (vec.vt V128:$v1)),
             (and (vnot V128:$c), (vec.vt V128:$v2)))),
           (BITSELECT $v1, $v2, $c)>;
 
+// Bitselect is also equivalent to ((v1 ^ v2) & c) ^ v2
+foreach vec = IntVecs in
+def : Pat<(vec.vt (xor (and (xor (vec.vt V128:$v1), (vec.vt V128:$v2)),
+                            (vec.vt V128:$c)),
+                       (vec.vt V128:$v2))),
+          (BITSELECT $v1, $v2, $c)>;
+
+// Same pattern with `c` negated so `a` and `b` get swapped.
+foreach vec = IntVecs in
+def : Pat<(vec.vt (xor (and (xor (vec.vt V128:$v1), (vec.vt V128:$v2)),
+                            (vnot (vec.vt V128:$c))),
+                       (vec.vt V128:$v2))),
+          (BITSELECT $v2, $v1, $c)>;
+
 // Also implement vselect in terms of bitselect
 foreach vec = AllVecs in
 def : Pat<(vec.vt (vselect
@@ -1347,21 +1361,21 @@ defm RELAXED_SWIZZLE :
 // Relaxed floating-point to int conversions
 //===----------------------------------------------------------------------===//
 
-multiclass SIMD_RELAXED_CONVERT<Vec vec, Vec arg, SDPatternOperator op, string name, bits<32> simdop> {
+multiclass RelaxedConvert<Vec vec, Vec arg, SDPatternOperator op, string name, bits<32> simdop> {
   defm op#_#vec :
     RELAXED_I<(outs V128:$dst), (ins V128:$vec), (outs), (ins),
               [(set (vec.vt V128:$dst), (vec.vt (op (arg.vt V128:$vec))))],
               vec.prefix#"."#name#"\t$dst, $vec", vec.prefix#"."#name, simdop>;
 }
 
-defm "" : SIMD_RELAXED_CONVERT<I32x4, F32x4, int_wasm_relaxed_trunc_signed,
-                               "relaxed_trunc_f32x4_s", 0x101>;
-defm "" : SIMD_RELAXED_CONVERT<I32x4, F32x4, int_wasm_relaxed_trunc_unsigned,
-                               "relaxed_trunc_f32x4_u", 0x102>;
-defm "" : SIMD_RELAXED_CONVERT<I32x4, F64x2, int_wasm_relaxed_trunc_signed_zero,
-                               "relaxed_trunc_f64x2_s_zero", 0x103>;
-defm "" : SIMD_RELAXED_CONVERT<I32x4, F64x2, int_wasm_relaxed_trunc_unsigned_zero,
-                               "relaxed_trunc_f64x2_u_zero", 0x104>;
+defm "" : RelaxedConvert<I32x4, F32x4, int_wasm_relaxed_trunc_signed,
+                         "relaxed_trunc_f32x4_s", 0x101>;
+defm "" : RelaxedConvert<I32x4, F32x4, int_wasm_relaxed_trunc_unsigned,
+                         "relaxed_trunc_f32x4_u", 0x102>;
+defm "" : RelaxedConvert<I32x4, F64x2, int_wasm_relaxed_trunc_signed_zero,
+                         "relaxed_trunc_f64x2_s_zero", 0x103>;
+defm "" : RelaxedConvert<I32x4, F64x2, int_wasm_relaxed_trunc_unsigned_zero,
+                         "relaxed_trunc_f64x2_u_zero", 0x104>;
 
 //===----------------------------------------------------------------------===//
 // Relaxed Fused Multiply- Add and Subtract (FMA/FMS)
@@ -1403,23 +1417,52 @@ defm "" : SIMDLANESELECT<I16x8, 0x10a>;
 defm "" : SIMDLANESELECT<I32x4, 0x10b>;
 defm "" : SIMDLANESELECT<I64x2, 0x10c>;
 
-
 //===----------------------------------------------------------------------===//
 // Relaxed floating-point min and max.
 //===----------------------------------------------------------------------===//
 
-multiclass SIMD_RELAXED_FMINMAX<Vec vec, bits<32> simdopMin, bits<32> simdopMax> {
-  defm RELAXED_FMIN_#vec :
-    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b), (outs), (ins),
-              [(set (vec.vt V128:$dst), (int_wasm_relaxed_min
-                (vec.vt V128:$a), (vec.vt V128:$b)))],
-              vec.prefix#".relaxed_min\t$dst, $a, $b", vec.prefix#".relaxed_min", simdopMin>;
-  defm RELAXED_FMAX_#vec :
-    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b), (outs), (ins),
-              [(set (vec.vt V128:$dst), (int_wasm_relaxed_max
-                (vec.vt V128:$a), (vec.vt V128:$b)))],
-              vec.prefix#".relaxed_max\t$dst, $a, $b", vec.prefix#".relaxed_max", simdopMax>;
+multiclass RelaxedBinary<Vec vec, SDPatternOperator node, string name,
+                         bits<32> simdop> {
+  defm _#vec : RELAXED_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs),
+                         (outs), (ins),
+                         [(set (vec.vt V128:$dst),
+                           (node (vec.vt V128:$lhs), (vec.vt V128:$rhs)))],
+                         vec.prefix#"."#name#"\t$dst, $lhs, $rhs",
+                         vec.prefix#"."#name, simdop>;
 }
 
-defm "" : SIMD_RELAXED_FMINMAX<F32x4, 0x10d, 0x10e>;
-defm "" : SIMD_RELAXED_FMINMAX<F64x2, 0x10f, 0x110>;
+defm SIMD_RELAXED_FMIN :
+   RelaxedBinary<F32x4, int_wasm_relaxed_min, "relaxed_min", 0x10d>;
+defm SIMD_RELAXED_FMAX :
+   RelaxedBinary<F32x4, int_wasm_relaxed_max, "relaxed_max", 0x10e>;
+defm SIMD_RELAXED_FMIN :
+   RelaxedBinary<F64x2, int_wasm_relaxed_min, "relaxed_min", 0x10f>;
+defm SIMD_RELAXED_FMAX :
+   RelaxedBinary<F64x2, int_wasm_relaxed_max, "relaxed_max", 0x110>;
+
+//===----------------------------------------------------------------------===//
+// Relaxed rounding q15 multiplication
+//===----------------------------------------------------------------------===//
+
+defm RELAXED_Q15MULR_S :
+  RelaxedBinary<I16x8, int_wasm_relaxed_q15mulr_signed, "relaxed_q15mulr_s",
+                0x111>;
+
+//===----------------------------------------------------------------------===//
+// Relaxed integer dot product
+//===----------------------------------------------------------------------===//
+
+defm RELAXED_DOT :
+  RELAXED_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs), (outs), (ins),
+            [(set (v8i16 V128:$dst), (int_wasm_dot_i8x16_i7x16_signed
+               (v16i8 V128:$lhs), (v16i8 V128:$rhs)))],
+            "i16x8.dot_i8x16_i7x16_s\t$dst, $lhs, $rhs",
+            "i16x8.dot_i8x16_i7x16_s", 0x112>;
+
+defm RELAXED_DOT_ADD :
+  RELAXED_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs, V128:$acc),
+            (outs), (ins),
+            [(set (v4i32 V128:$dst), (int_wasm_dot_i8x16_i7x16_add_signed
+               (v16i8 V128:$lhs), (v16i8 V128:$rhs), (v4i32 V128:$acc)))],
+            "i32x4.dot_i8x16_i7x16_add_s\t$dst, $lhs, $rhs, $acc",
+            "i32x4.dot_i8x16_i7x16_add_s", 0x113>;

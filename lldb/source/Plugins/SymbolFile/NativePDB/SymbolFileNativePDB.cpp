@@ -120,7 +120,7 @@ loadMatchingPDBFile(std::string exe_path, llvm::BumpPtrAllocator &allocator) {
   if (!FileSystem::Instance().Exists(pdb_file)) {
     const auto exe_dir = FileSpec(exe_path).CopyByRemovingLastPathComponent();
     const auto pdb_name = FileSpec(pdb_file).GetFilename().GetCString();
-    pdb_file = exe_dir.CopyByAppendingPathComponent(pdb_name).GetCString();
+    pdb_file = exe_dir.CopyByAppendingPathComponent(pdb_name).GetPathAsConstString().GetStringRef();
   }
 
   // If the file is not a PDB or if it doesn't have a matching GUID, fail.
@@ -345,10 +345,13 @@ Block &SymbolFileNativePDB::CreateBlock(PdbCompilandSymId block_id) {
     // This is a function.  It must be global.  Creating the Function entry
     // for it automatically creates a block for it.
     FunctionSP func = GetOrCreateFunction(block_id, *comp_unit);
-    Block &block = func->GetBlock(false);
-    if (block.GetNumRanges() == 0)
-      block.AddRange(Block::Range(0, func->GetAddressRange().GetByteSize()));
-    return block;
+    if (func) {
+      Block &block = func->GetBlock(false);
+      if (block.GetNumRanges() == 0)
+        block.AddRange(Block::Range(0, func->GetAddressRange().GetByteSize()));
+      return block;
+    }
+    break;
   }
   case S_BLOCK32: {
     // This is a block.  Its parent is either a function or another block.  In
@@ -407,7 +410,8 @@ lldb::FunctionSP SymbolFileNativePDB::CreateFunction(PdbCompilandSymId func_id,
   lldbassert(sym_record.kind() == S_LPROC32 || sym_record.kind() == S_GPROC32);
   SegmentOffsetLength sol = GetSegmentOffsetAndLength(sym_record);
 
-  auto file_vm_addr = m_index->MakeVirtualAddress(sol.so);
+  auto file_vm_addr =
+      m_index->MakeVirtualAddress(sol.so.segment, sol.so.offset);
   if (file_vm_addr == LLDB_INVALID_ADDRESS || file_vm_addr == 0)
     return nullptr;
 
@@ -449,7 +453,8 @@ SymbolFileNativePDB::CreateCompileUnit(const CompilandIndexItem &cci) {
 
   llvm::SmallString<64> source_file_name =
       m_index->compilands().GetMainSourceFile(cci);
-  FileSpec fs(source_file_name);
+  FileSpec fs(llvm::sys::path::convert_to_slash(
+      source_file_name, llvm::sys::path::Style::windows_backslash));
 
   CompUnitSP cu_sp =
       std::make_shared<CompileUnit>(m_objfile_sp->GetModule(), nullptr, fs,
@@ -772,7 +777,7 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
   switch (sym.kind()) {
   case S_GDATA32:
     is_external = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case S_LDATA32: {
     DataSym ds(sym.kind());
     llvm::cantFail(SymbolDeserializer::deserializeAs<DataSym>(sym, ds));
@@ -787,7 +792,7 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
   }
   case S_GTHREAD32:
     is_external = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case S_LTHREAD32: {
     ThreadLocalDataSym tlds(sym.kind());
     llvm::cantFail(
@@ -806,10 +811,12 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
 
   CompUnitSP comp_unit;
   llvm::Optional<uint16_t> modi = m_index->GetModuleIndexForVa(addr);
-  if (modi) {
-    CompilandIndexItem &cci = m_index->compilands().GetOrCreateCompiland(*modi);
-    comp_unit = GetOrCreateCompileUnit(cci);
+  if (!modi) {
+    return nullptr;
   }
+
+  CompilandIndexItem &cci = m_index->compilands().GetOrCreateCompiland(*modi);
+  comp_unit = GetOrCreateCompileUnit(cci);
 
   Declaration decl;
   PdbTypeSymId tid(ti, false);
@@ -819,8 +826,10 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
 
   m_ast->GetOrCreateVariableDecl(var_id);
 
-  DWARFExpression location = MakeGlobalLocationExpression(
-      section, offset, GetObjectFile()->GetModule());
+  ModuleSP module_sp = GetObjectFile()->GetModule();
+  DWARFExpressionList location(
+      module_sp, MakeGlobalLocationExpression(section, offset, module_sp),
+      nullptr);
 
   std::string global_name("::");
   global_name += name;
@@ -851,8 +860,10 @@ SymbolFileNativePDB::CreateConstantSymbol(PdbGlobalSymId var_id,
   Declaration decl;
   Variable::RangeList ranges;
   ModuleSP module = GetObjectFile()->GetModule();
-  DWARFExpression location = MakeConstantLocationExpression(
-      constant.Type, tpi, constant.Value, module);
+  DWARFExpressionList location(module,
+                               MakeConstantLocationExpression(
+                                   constant.Type, tpi, constant.Value, module),
+                               nullptr);
 
   bool external = false;
   bool artificial = false;
@@ -868,8 +879,12 @@ SymbolFileNativePDB::CreateConstantSymbol(PdbGlobalSymId var_id,
 VariableSP
 SymbolFileNativePDB::GetOrCreateGlobalVariable(PdbGlobalSymId var_id) {
   auto emplace_result = m_global_vars.try_emplace(toOpaqueUid(var_id), nullptr);
-  if (emplace_result.second)
-    emplace_result.first->second = CreateGlobalVariable(var_id);
+  if (emplace_result.second) {
+    if (VariableSP var_sp = CreateGlobalVariable(var_id))
+      emplace_result.first->second = var_sp;
+    else
+      return nullptr;
+  }
 
   return emplace_result.first->second;
 }
@@ -986,7 +1001,7 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
     llvm::Optional<uint16_t> modi = m_index->GetModuleIndexForVa(file_addr);
     if (!modi)
       return 0;
-    CompUnitSP cu_sp = GetCompileUnitAtIndex(modi.getValue());
+    CompUnitSP cu_sp = GetCompileUnitAtIndex(*modi);
     if (!cu_sp)
       return 0;
 
@@ -1012,11 +1027,13 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
         continue;
       if (type == PDB_SymType::Function) {
         sc.function = GetOrCreateFunction(csid, *sc.comp_unit).get();
-        Block &block = sc.function->GetBlock(true);
-        addr_t func_base =
-            sc.function->GetAddressRange().GetBaseAddress().GetFileAddress();
-        addr_t offset = file_addr - func_base;
-        sc.block = block.FindInnermostBlockByOffset(offset);
+        if (sc.function) {
+          Block &block = sc.function->GetBlock(true);
+          addr_t func_base =
+              sc.function->GetAddressRange().GetBaseAddress().GetFileAddress();
+          addr_t offset = file_addr - func_base;
+          sc.block = block.FindInnermostBlockByOffset(offset);
+        }
       }
 
       if (type == PDB_SymType::Block) {
@@ -1101,6 +1118,8 @@ bool SymbolFileNativePDB::ParseLineTable(CompileUnit &comp_unit) {
     const LineFragmentHeader *lfh = lines.header();
     uint64_t virtual_addr =
         m_index->MakeVirtualAddress(lfh->RelocSegment, lfh->RelocOffset);
+    if (virtual_addr == LLDB_INVALID_ADDRESS)
+      continue;
 
     for (const LineColumnEntry &group : lines) {
       llvm::Expected<uint32_t> file_index_or_err =
@@ -1165,7 +1184,11 @@ bool SymbolFileNativePDB::ParseLineTable(CompileUnit &comp_unit) {
     CVSymbol func_record =
         cii->m_debug_stream.readSymbolAtOffset(record_offset);
     SegmentOffsetLength sol = GetSegmentOffsetAndLength(func_record);
-    addr_t file_vm_addr = m_index->MakeVirtualAddress(sol.so);
+    addr_t file_vm_addr =
+        m_index->MakeVirtualAddress(sol.so.segment, sol.so.offset);
+    if (file_vm_addr == LLDB_INVALID_ADDRESS)
+      continue;
+
     AddressRange func_range(file_vm_addr, sol.length,
                             comp_unit.GetModule()->GetSectionList());
     Address func_base = func_range.GetBaseAddress();
@@ -1527,7 +1550,6 @@ void SymbolFileNativePDB::FindGlobalVariables(
   std::vector<SymbolAndOffset> results = m_index->globals().findRecordsByName(
       name.GetStringRef(), m_index->symrecords());
   for (const SymbolAndOffset &result : results) {
-    VariableSP var;
     switch (result.second.kind()) {
     case SymbolKind::S_GDATA32:
     case SymbolKind::S_LDATA32:
@@ -1535,8 +1557,8 @@ void SymbolFileNativePDB::FindGlobalVariables(
     case SymbolKind::S_LTHREAD32:
     case SymbolKind::S_CONSTANT: {
       PdbGlobalSymId global(result.first, false);
-      var = GetOrCreateGlobalVariable(global);
-      variables.AddVariable(var);
+      if (VariableSP var = GetOrCreateGlobalVariable(global))
+        variables.AddVariable(var);
       break;
     }
     default:
@@ -1546,10 +1568,15 @@ void SymbolFileNativePDB::FindGlobalVariables(
 }
 
 void SymbolFileNativePDB::FindFunctions(
-    ConstString name, const CompilerDeclContext &parent_decl_ctx,
-    FunctionNameType name_type_mask, bool include_inlines,
+    const Module::LookupInfo &lookup_info,
+    const CompilerDeclContext &parent_decl_ctx, bool include_inlines,
     SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  ConstString name = lookup_info.GetLookupName();
+  FunctionNameType name_type_mask = lookup_info.GetNameTypeMask();
+  if (name_type_mask & eFunctionNameTypeFull)
+    name = lookup_info.GetName();
+
   // For now we only support lookup by method name or full name.
   if (!(name_type_mask & eFunctionNameTypeFull ||
         name_type_mask & eFunctionNameTypeMethod))
@@ -1676,14 +1703,27 @@ VariableSP SymbolFileNativePDB::CreateLocalVariable(PdbCompilandSymId scope_id,
                                                     bool is_param) {
   ModuleSP module = GetObjectFile()->GetModule();
   Block &block = GetOrCreateBlock(scope_id);
+  // Get function block.
+  Block *func_block = &block;
+  while (func_block->GetParent()) {
+    func_block = func_block->GetParent();
+  }
+  Address addr;
+  func_block->GetStartAddress(addr);
   VariableInfo var_info =
-      GetVariableLocationInfo(*m_index, var_id, block, module);
-  if (!var_info.location || !var_info.ranges)
+      GetVariableLocationInfo(*m_index, var_id, *func_block, module);
+  if (!var_info.location || var_info.location->GetSize() == 0)
     return nullptr;
-
+  Function *func = func_block->CalculateSymbolContextFunction();
+  if (!func)
+    return VariableSP();
+  var_info.location->SetFuncFileAddress(
+      func->GetAddressRange().GetBaseAddress().GetFileAddress());
   CompilandIndexItem *cii = m_index->compilands().GetCompiland(var_id.modi);
   CompUnitSP comp_unit_sp = GetOrCreateCompileUnit(*cii);
   TypeSP type_sp = GetOrCreateType(var_info.type);
+  if (!type_sp)
+    return nullptr;
   std::string name = var_info.name.str();
   Declaration decl;
   SymbolFileTypeSP sftype =
@@ -1696,11 +1736,11 @@ VariableSP SymbolFileNativePDB::CreateLocalVariable(PdbCompilandSymId scope_id,
   bool artificial = false;
   bool location_is_constant_data = false;
   bool static_member = false;
+  Variable::RangeList scope_ranges;
   VariableSP var_sp = std::make_shared<Variable>(
       toOpaqueUid(var_id), name.c_str(), name.c_str(), sftype, var_scope,
-      &block, *var_info.ranges, &decl, *var_info.location, external,
-      artificial, location_is_constant_data, static_member);
-
+      &block, scope_ranges, &decl, *var_info.location, external, artificial,
+      location_is_constant_data, static_member);
   if (!is_param)
     m_ast->GetOrCreateVariableDecl(scope_id, var_id);
 
@@ -1860,7 +1900,7 @@ size_t SymbolFileNativePDB::ParseVariablesForContext(const SymbolContext &sc) {
 
 CompilerDecl SymbolFileNativePDB::GetDeclForUID(lldb::user_id_t uid) {
   if (auto decl = m_ast->GetOrCreateDeclForUid(uid))
-    return decl.getValue();
+    return *decl;
   else
     return CompilerDecl();
 }
@@ -1878,6 +1918,8 @@ SymbolFileNativePDB::GetDeclContextForUID(lldb::user_id_t uid) {
 CompilerDeclContext
 SymbolFileNativePDB::GetDeclContextContainingUID(lldb::user_id_t uid) {
   clang::DeclContext *context = m_ast->GetParentDeclContext(PdbSymUid(uid));
+  if (!context)
+    return CompilerDeclContext();
   return m_ast->ToCompilerDeclContext(*context);
 }
 
@@ -1899,6 +1941,8 @@ Type *SymbolFileNativePDB::ResolveTypeUID(lldb::user_id_t type_uid) {
     return nullptr;
 
   TypeSP type_sp = CreateAndCacheType(type_id);
+  if (!type_sp)
+    return nullptr;
   return &*type_sp;
 }
 

@@ -181,6 +181,13 @@ RUN: ld.lld -### -m i386pe foo.o -disable-tsaware -tsaware 2>&1 | FileCheck -che
 RUN: ld.lld -### -m i386pe foo.o --disable-tsaware --tsaware 2>&1 | FileCheck -check-prefix NO-DISABLE-TSAWARE %s
 NO-DISABLE-TSAWARE-NOT: -tsaware:no
 
+RUN: ld.lld -### -m i386pe foo.o -enable-reloc-section -disable-reloc-section 2>&1 | FileCheck -check-prefix DISABLE-RELOC-SECTION %s
+RUN: ld.lld -### -m i386pe foo.o --enable-reloc-section --disable-reloc-section 2>&1 | FileCheck -check-prefix DISABLE-RELOC-SECTION %s
+DISABLE-RELOC-SECTION: -fixed{{ }}
+RUN: ld.lld -### -m i386pe foo.o -disable-reloc-section -enable-reloc-section 2>&1 | FileCheck -check-prefix NO-DISABLE-RELOC-SECTION %s
+RUN: ld.lld -### -m i386pe foo.o --disable-reloc-section --enable-reloc-section 2>&1 | FileCheck -check-prefix NO-DISABLE-RELOC-SECTION %s
+NO-DISABLE-RELOC-SECTION-NOT: -fixed
+
 RUN: ld.lld -### -m i386pep foo.o --image-base 0x1230000 2>&1 | FileCheck -check-prefix IMAGE-BASE %s
 RUN: ld.lld -### -m i386pep foo.o -image-base 0x1230000 2>&1 | FileCheck -check-prefix IMAGE-BASE %s
 RUN: ld.lld -### -m i386pep foo.o --image-base=0x1230000 2>&1 | FileCheck -check-prefix IMAGE-BASE %s
@@ -313,6 +320,10 @@ NO_ALLOW_MULTIPLE_DEFINITION-NOT: -force:multiple
 RUN: ld.lld -### -m i386pep foo.o -wrap foo1 --wrap foo2 2>&1 | FileCheck -check-prefix WRAP %s
 RUN: ld.lld -### -m i386pep foo.o -wrap=foo1 --wrap=foo2 2>&1 | FileCheck -check-prefix WRAP %s
 WRAP: -wrap:foo1 -wrap:foo2
+
+RUN: ld.lld -### -m i386pep foo.o -exclude-symbols sym1,sym2 --exclude-symbols sym3 2>&1 | FileCheck -check-prefix EXCLUDE_SYMBOLS %s
+RUN: ld.lld -### -m i386pep foo.o -exclude-symbols=sym1,sym2 --exclude-symbols=sym3 2>&1 | FileCheck -check-prefix EXCLUDE_SYMBOLS %s
+EXCLUDE_SYMBOLS: -exclude-symbols:sym1,sym2 -exclude-symbols:sym3
 
 RUN: ld.lld -### -m i386pep foo.o 2>&1 | FileCheck -check-prefix DEMANGLE %s
 RUN: ld.lld -### -m i386pep foo.o -demangle 2>&1 | FileCheck -check-prefix DEMANGLE %s

@@ -134,8 +134,12 @@ struct AssemblerInvocation {
   unsigned NoExecStack : 1;
   unsigned FatalWarnings : 1;
   unsigned NoWarn : 1;
+  unsigned NoTypeCheck : 1;
   unsigned IncrementalLinkerCompatible : 1;
   unsigned EmbedBitcode : 1;
+
+  /// Whether to emit DWARF unwind info.
+  EmitDwarfUnwindType EmitDwarfUnwind;
 
   /// The name of the relocation model to use.
   std::string RelocationModel;
@@ -163,10 +167,12 @@ public:
     NoExecStack = 0;
     FatalWarnings = 0;
     NoWarn = 0;
+    NoTypeCheck = 0;
     IncrementalLinkerCompatible = 0;
     Dwarf64 = 0;
     DwarfVersion = 0;
     EmbedBitcode = 0;
+    EmitDwarfUnwind = EmitDwarfUnwindType::Default;
   }
 
   static bool CreateFromArgs(AssemblerInvocation &Res,
@@ -300,6 +306,7 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
   Opts.NoExecStack = Args.hasArg(OPT_mno_exec_stack);
   Opts.FatalWarnings = Args.hasArg(OPT_massembler_fatal_warnings);
   Opts.NoWarn = Args.hasArg(OPT_massembler_no_warn);
+  Opts.NoTypeCheck = Args.hasArg(OPT_mno_type_check);
   Opts.RelocationModel =
       std::string(Args.getLastArgValue(OPT_mrelocation_model, "pic"));
   Opts.TargetABI = std::string(Args.getLastArgValue(OPT_target_abi));
@@ -315,6 +322,14 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
                             .Case("bitcode", 1)
                             .Case("marker", 1)
                             .Default(0);
+  }
+
+  if (auto *A = Args.getLastArg(OPT_femit_dwarf_unwind_EQ)) {
+    Opts.EmitDwarfUnwind =
+        llvm::StringSwitch<EmitDwarfUnwindType>(A->getValue())
+            .Case("always", EmitDwarfUnwindType::Always)
+            .Case("no-compact-unwind", EmitDwarfUnwindType::NoCompactUnwind)
+            .Case("default", EmitDwarfUnwindType::Default);
   }
 
   return Success;
@@ -367,6 +382,8 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   assert(MRI && "Unable to create target register info!");
 
   MCTargetOptions MCOptions;
+  MCOptions.EmitDwarfUnwind = Opts.EmitDwarfUnwind;
+
   std::unique_ptr<MCAsmInfo> MAI(
       TheTarget->createMCAsmInfo(*MRI, Opts.Triple, MCOptions));
   assert(MAI && "Unable to create target asm info!");
@@ -454,6 +471,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
 
   MCOptions.MCNoWarn = Opts.NoWarn;
   MCOptions.MCFatalWarnings = Opts.FatalWarnings;
+  MCOptions.MCNoTypeCheck = Opts.NoTypeCheck;
   MCOptions.ABIName = Opts.TargetABI;
 
   // FIXME: There is a bit of code duplication with addPassesToEmitFile.
@@ -505,7 +523,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   if (Opts.EmbedBitcode && Ctx.getObjectFileType() == MCContext::IsMachO) {
     MCSection *AsmLabel = Ctx.getMachOSection(
         "__LLVM", "__asm", MachO::S_REGULAR, 4, SectionKind::getReadOnly());
-    Str.get()->SwitchSection(AsmLabel);
+    Str.get()->switchSection(AsmLabel);
     Str.get()->emitZeros(1);
   }
 

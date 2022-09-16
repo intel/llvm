@@ -16,12 +16,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
-function(add_sycl_rt_library LIB_NAME)
+function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB" "COMPILE_OPTIONS;SOURCES" ${ARGN})
-
-  set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
   add_library(${LIB_NAME} SHARED
@@ -66,10 +64,6 @@ function(add_sycl_rt_library LIB_NAME)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
-    target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
     target_link_libraries(
         ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
     set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
@@ -86,7 +80,7 @@ function(add_sycl_rt_library LIB_NAME)
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
   )
-  #TODO: Remove dependency on icd loader and opencl headers.
+  #TODO: Remove dependency on opencl headers.
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
@@ -95,7 +89,6 @@ function(add_sycl_rt_library LIB_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -169,21 +162,20 @@ set(SYCL_SOURCES
     "detail/util.cpp"
     "detail/xpti_registry.cpp"
     "accessor.cpp"
+    "buffer.cpp"
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
-    "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
+    "image.cpp"
     "interop_handle.cpp"
     "interop_handler.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "platform.cpp"
-    "program.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
@@ -191,7 +183,6 @@ set(SYCL_SOURCES
     "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
-    "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
 if (MSVC)
@@ -208,18 +199,29 @@ if (MSVC)
   endforeach()
 
   if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycld XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   else()
-    add_sycl_rt_library(sycld COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
+  add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
 
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+if (WIN32)
+set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
 else()
-  add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+set(LIB_NAME "sycl")
+endif()
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+else()
+  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+endif()
+
+if (WIN32)
+  add_library(sycl ALIAS ${LIB_NAME})
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

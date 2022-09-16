@@ -14,6 +14,11 @@
 namespace mlir {
 namespace arith {
 
+#define GEN_PASS_DECL_ARITHMETICBUFFERIZE
+#define GEN_PASS_DECL_ARITHMETICEXPANDOPS
+#define GEN_PASS_DECL_ARITHMETICUNSIGNEDWHENEQUIVALENT
+#include "mlir/Dialect/Arithmetic/Transforms/Passes.h.inc"
+
 /// Create a pass to bufferize Arithmetic ops.
 std::unique_ptr<Pass> createArithmeticBufferizePass();
 
@@ -25,6 +30,10 @@ void populateArithmeticExpandOpsPatterns(RewritePatternSet &patterns);
 
 /// Create a pass to legalize Arithmetic ops for LLVM lowering.
 std::unique_ptr<Pass> createArithmeticExpandOpsPass();
+
+/// Create a pass to replace signed ops with unsigned ones where they are proven
+/// equivalent.
+std::unique_ptr<Pass> createArithmeticUnsignedWhenEquivalentPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

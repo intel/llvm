@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #define SYCL_SIMPLE_SWIZZLES
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 void check_vectors(sycl::int4 a, sycl::int4 b, sycl::int4 c, sycl::int4 gold) {
   sycl::int4 result = a * (sycl::int4)b.y() + c;

@@ -19,6 +19,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Config/config.h"
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
+#include "llvm/DebugInfo/Symbolize/Markup.h"
+#include "llvm/DebugInfo/Symbolize/MarkupFilter.h"
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/Debuginfod/DIFetcher.h"
@@ -337,6 +339,17 @@ static FunctionNameKind decideHowToPrintFunctions(const opt::InputArgList &Args,
   return IsAddr2Line ? FunctionNameKind::None : FunctionNameKind::LinkageName;
 }
 
+static Optional<bool> parseColorArg(const opt::InputArgList &Args) {
+  if (Args.hasArg(OPT_color))
+    return true;
+  if (const opt::Arg *A = Args.getLastArg(OPT_color_EQ))
+    return StringSwitch<Optional<bool>>(A->getValue())
+        .Case("always", true)
+        .Case("never", false)
+        .Case("auto", None);
+  return None;
+}
+
 static SmallVector<uint8_t> parseBuildIDArg(const opt::InputArgList &Args,
                                             int ID) {
   const opt::Arg *A = Args.getLastArg(ID);
@@ -350,6 +363,17 @@ static SmallVector<uint8_t> parseBuildIDArg(const opt::InputArgList &Args,
     exit(1);
   }
   return BuildID;
+}
+
+// Symbolize markup from stdin and write the result to stdout.
+static void filterMarkup(const opt::InputArgList &Args, LLVMSymbolizer &Symbolizer) {
+  MarkupFilter Filter(outs(), Symbolizer, parseColorArg(Args));
+  std::string InputString;
+  while (std::getline(std::cin, InputString)) {
+    InputString += '\n';
+    Filter.filter(InputString);
+  }
+  Filter.finish();
 }
 
 ExitOnError ExitOnErr;
@@ -413,6 +437,22 @@ int main(int argc, char **argv) {
     }
   }
 
+  LLVMSymbolizer Symbolizer(Opts);
+
+  // A debuginfod lookup could succeed if a HTTP client is available and at
+  // least one backing URL is configured.
+  bool ShouldUseDebuginfodByDefault =
+      HTTPClient::isAvailable() &&
+      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
+  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
+                   ShouldUseDebuginfodByDefault))
+    enableDebuginfod(Symbolizer);
+
+  if (Args.hasArg(OPT_filter_markup)) {
+    filterMarkup(Args, Symbolizer);
+    return 0;
+  }
+
   auto Style = IsAddr2Line ? OutputStyle::GNU : OutputStyle::LLVM;
   if (const opt::Arg *A = Args.getLastArg(OPT_output_style_EQ)) {
     if (strcmp(A->getValue(), "GNU") == 0)
@@ -428,17 +468,6 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
   SmallVector<uint8_t> BuildID = parseBuildIDArg(Args, OPT_build_id_EQ);
-
-  LLVMSymbolizer Symbolizer(Opts);
-
-  // A debuginfod lookup could succeed if a HTTP client is available and at
-  // least one backing URL is configured.
-  bool ShouldUseDebuginfodByDefault =
-      HTTPClient::isAvailable() &&
-      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
-  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
-                   ShouldUseDebuginfodByDefault))
-    enableDebuginfod(Symbolizer);
 
   std::unique_ptr<DIPrinter> Printer;
   if (Style == OutputStyle::GNU)

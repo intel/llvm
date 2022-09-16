@@ -9,6 +9,7 @@ try:
 except ImportError as e:
   raise RuntimeError("Error loading imports from extension module") from e
 
+from argparse import SUPPRESS
 from typing import Optional, overload, Sequence, Union
 
 
@@ -24,6 +25,21 @@ class GetClosestIsolatedParentOp:
     super().__init__(
         pdl.OperationType.get(),
         _get_op_result_or_value(target),
+        loc=loc,
+        ip=ip)
+
+
+class MergeHandlesOp:
+
+  def __init__(self,
+               handles: Sequence[Union[Operation, Value]],
+               *,
+               deduplicate: bool = False,
+               loc=None,
+               ip=None):
+    super().__init__(
+        pdl.OperationType.get(), [_get_op_result_or_value(h) for h in handles],
+        deduplicate=deduplicate,
         loc=loc,
         ip=ip)
 
@@ -44,25 +60,50 @@ class PDLMatchOp:
         ip=ip)
 
 
+class ReplicateOp:
+
+  def __init__(self,
+               pattern: Union[Operation, Value],
+               handles: Sequence[Union[Operation, Value]],
+               *,
+               loc=None,
+               ip=None):
+    super().__init__(
+        [pdl.OperationType.get()] * len(handles),
+        _get_op_result_or_value(pattern),
+        [_get_op_result_or_value(h) for h in handles],
+        loc=loc,
+        ip=ip)
+
+
 class SequenceOp:
 
   @overload
-  def __init__(self, resultsOrRoot: Sequence[Type],
+  def __init__(self, failure_propagation_mode,
+               resultsOrRoot: Sequence[Type],
                optionalRoot: Optional[Union[Operation, Value]]):
     ...
 
   @overload
-  def __init__(self, resultsOrRoot: Optional[Union[Operation, Value]],
-               optionalRoot: NoneType):
+  def __init__(self, failure_propagation_mode,
+               resultsOrRoot: Optional[Union[Operation,
+                                             Value]], optionalRoot: NoneType):
     ...
 
-  def __init__(self, resultsOrRoot=None, optionalRoot=None):
+  def __init__(self, failure_propagation_mode, resultsOrRoot=None, optionalRoot=None):
     results = resultsOrRoot if isinstance(resultsOrRoot, Sequence) else []
     root = (
         resultsOrRoot
         if not isinstance(resultsOrRoot, Sequence) else optionalRoot)
     root = _get_op_result_or_value(root) if root else None
-    super().__init__(results_=results, root=root)
+    if not isinstance(failure_propagation_mode, Attribute):
+      failure_propagation_mode_attr = IntegerAttr.get(
+          IntegerType.get_signless(32), failure_propagation_mode._as_int())
+    else:
+      failure_propagation_mode = failure_propagation_mode
+    super().__init__(results_=results,
+                     failure_propagation_mode=failure_propagation_mode_attr,
+                     root=root)
     self.regions[0].blocks.append(pdl.OperationType.get())
 
   @property

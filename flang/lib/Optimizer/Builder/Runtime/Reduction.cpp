@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Optimizer/Builder/Runtime/Reduction.h"
-#include "flang/Lower/Todo.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
+#include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Runtime/reduction.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 
@@ -471,6 +471,18 @@ void fir::runtime::genAnyDescriptor(fir::FirOpBuilder &builder,
   genReduction2Args(anyFunc, builder, loc, resultBox, maskBox, dim);
 }
 
+/// Generate call to `ParityDim` runtime routine.
+/// This calls the descriptor based runtime call implementation of the `parity`
+/// intrinsic.
+void fir::runtime::genParityDescriptor(fir::FirOpBuilder &builder,
+                                       mlir::Location loc,
+                                       mlir::Value resultBox,
+                                       mlir::Value maskBox, mlir::Value dim) {
+  auto parityFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(ParityDim)>(loc, builder);
+  genReduction2Args(parityFunc, builder, loc, resultBox, maskBox, dim);
+}
+
 /// Generate call to `All` intrinsic runtime routine. This routine is
 /// specialized for mask arguments with rank == 1.
 mlir::Value fir::runtime::genAll(fir::FirOpBuilder &builder, mlir::Location loc,
@@ -545,7 +557,9 @@ mlir::Value fir::runtime::genMaxval(fir::FirOpBuilder &builder,
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
   auto dim = builder.createIntegerConstant(loc, builder.getIndexType(), 0);
 
-  if (eleTy.isF32())
+  if (eleTy.isF16() || eleTy.isBF16())
+    TODO(loc, "half-precision MAXVAL");
+  else if (eleTy.isF32())
     func = fir::runtime::getRuntimeFunc<mkRTKey(MaxvalReal4)>(loc, builder);
   else if (eleTy.isF64())
     func = fir::runtime::getRuntimeFunc<mkRTKey(MaxvalReal8)>(loc, builder);
@@ -553,23 +567,18 @@ mlir::Value fir::runtime::genMaxval(fir::FirOpBuilder &builder,
     func = fir::runtime::getRuntimeFunc<ForcedMaxvalReal10>(loc, builder);
   else if (eleTy.isF128())
     func = fir::runtime::getRuntimeFunc<ForcedMaxvalReal16>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(1)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(1)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MaxvalInteger1)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(2)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(2)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MaxvalInteger2)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(4)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(4)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MaxvalInteger4)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(8)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(8)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MaxvalInteger8)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(16)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(16)))
     func = fir::runtime::getRuntimeFunc<ForcedMaxvalInteger16>(loc, builder);
   else
-    fir::emitFatalError(loc, "invalid type in Maxval lowering");
+    fir::emitFatalError(loc, "invalid type in MAXVAL");
 
   auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
@@ -664,7 +673,9 @@ mlir::Value fir::runtime::genMinval(fir::FirOpBuilder &builder,
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
   auto dim = builder.createIntegerConstant(loc, builder.getIndexType(), 0);
 
-  if (eleTy.isF32())
+  if (eleTy.isF16() || eleTy.isBF16())
+    TODO(loc, "half-precision MINVAL");
+  else if (eleTy.isF32())
     func = fir::runtime::getRuntimeFunc<mkRTKey(MinvalReal4)>(loc, builder);
   else if (eleTy.isF64())
     func = fir::runtime::getRuntimeFunc<mkRTKey(MinvalReal8)>(loc, builder);
@@ -672,23 +683,18 @@ mlir::Value fir::runtime::genMinval(fir::FirOpBuilder &builder,
     func = fir::runtime::getRuntimeFunc<ForcedMinvalReal10>(loc, builder);
   else if (eleTy.isF128())
     func = fir::runtime::getRuntimeFunc<ForcedMinvalReal16>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(1)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(1)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MinvalInteger1)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(2)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(2)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MinvalInteger2)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(4)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(4)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MinvalInteger4)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(8)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(8)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(MinvalInteger8)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(16)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(16)))
     func = fir::runtime::getRuntimeFunc<ForcedMinvalInteger16>(loc, builder);
   else
-    fir::emitFatalError(loc, "invalid type in Minval lowering");
+    fir::emitFatalError(loc, "invalid type in MINVAL");
 
   auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
@@ -698,6 +704,15 @@ mlir::Value fir::runtime::genMinval(fir::FirOpBuilder &builder,
       builder, loc, fTy, arrayBox, sourceFile, sourceLine, dim, maskBox);
 
   return builder.create<fir::CallOp>(loc, func, args).getResult(0);
+}
+
+/// Generate call to `Parity` intrinsic runtime routine. This routine is
+/// specialized for mask arguments with rank == 1.
+mlir::Value fir::runtime::genParity(fir::FirOpBuilder &builder,
+                                    mlir::Location loc, mlir::Value maskBox,
+                                    mlir::Value dim) {
+  auto parityFunc = fir::runtime::getRuntimeFunc<mkRTKey(Parity)>(loc, builder);
+  return genSpecial2Args(parityFunc, builder, loc, maskBox, dim);
 }
 
 /// Generate call to `ProductDim` intrinsic runtime routine. This is the version
@@ -721,7 +736,9 @@ mlir::Value fir::runtime::genProduct(fir::FirOpBuilder &builder,
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
   auto dim = builder.createIntegerConstant(loc, builder.getIndexType(), 0);
 
-  if (eleTy.isF32())
+  if (eleTy.isF16() || eleTy.isBF16())
+    TODO(loc, "half-precision PRODUCT");
+  else if (eleTy.isF32())
     func = fir::runtime::getRuntimeFunc<mkRTKey(ProductReal4)>(loc, builder);
   else if (eleTy.isF64())
     func = fir::runtime::getRuntimeFunc<mkRTKey(ProductReal8)>(loc, builder);
@@ -729,20 +746,15 @@ mlir::Value fir::runtime::genProduct(fir::FirOpBuilder &builder,
     func = fir::runtime::getRuntimeFunc<ForcedProductReal10>(loc, builder);
   else if (eleTy.isF128())
     func = fir::runtime::getRuntimeFunc<ForcedProductReal16>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(1)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(1)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(ProductInteger1)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(2)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(2)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(ProductInteger2)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(4)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(4)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(ProductInteger4)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(8)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(8)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(ProductInteger8)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(16)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(16)))
     func = fir::runtime::getRuntimeFunc<ForcedProductInteger16>(loc, builder);
   else if (eleTy == fir::ComplexType::get(builder.getContext(), 4))
     func =
@@ -754,8 +766,11 @@ mlir::Value fir::runtime::genProduct(fir::FirOpBuilder &builder,
     func = fir::runtime::getRuntimeFunc<ForcedProductComplex10>(loc, builder);
   else if (eleTy == fir::ComplexType::get(builder.getContext(), 16))
     func = fir::runtime::getRuntimeFunc<ForcedProductComplex16>(loc, builder);
+  else if (eleTy == fir::ComplexType::get(builder.getContext(), 2) ||
+           eleTy == fir::ComplexType::get(builder.getContext(), 3))
+    TODO(loc, "half-precision PRODUCT");
   else
-    fir::emitFatalError(loc, "invalid type in Product lowering");
+    fir::emitFatalError(loc, "invalid type in PRODUCT");
 
   auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
@@ -784,11 +799,14 @@ mlir::Value fir::runtime::genDotProduct(fir::FirOpBuilder &builder,
                                         mlir::Value vectorBBox,
                                         mlir::Value resultBox) {
   mlir::func::FuncOp func;
-  auto ty = vectorABox.getType();
-  auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
-  auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
+  // For complex data types, resultBox is !fir.ref<!fir.complex<N>>,
+  // otherwise it is !fir.box<T>.
+  auto ty = resultBox.getType();
+  auto eleTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
 
-  if (eleTy.isF32())
+  if (eleTy.isF16() || eleTy.isBF16())
+    TODO(loc, "half-precision DOTPRODUCT");
+  else if (eleTy.isF32())
     func = fir::runtime::getRuntimeFunc<mkRTKey(DotProductReal4)>(loc, builder);
   else if (eleTy.isF64())
     func = fir::runtime::getRuntimeFunc<mkRTKey(DotProductReal8)>(loc, builder);
@@ -808,31 +826,29 @@ mlir::Value fir::runtime::genDotProduct(fir::FirOpBuilder &builder,
   else if (eleTy == fir::ComplexType::get(builder.getContext(), 16))
     func =
         fir::runtime::getRuntimeFunc<ForcedDotProductComplex16>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(1)))
+  else if (eleTy == fir::ComplexType::get(builder.getContext(), 2) ||
+           eleTy == fir::ComplexType::get(builder.getContext(), 3))
+    TODO(loc, "half-precision DOTPRODUCT");
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(1)))
     func =
         fir::runtime::getRuntimeFunc<mkRTKey(DotProductInteger1)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(2)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(2)))
     func =
         fir::runtime::getRuntimeFunc<mkRTKey(DotProductInteger2)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(4)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(4)))
     func =
         fir::runtime::getRuntimeFunc<mkRTKey(DotProductInteger4)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(8)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(8)))
     func =
         fir::runtime::getRuntimeFunc<mkRTKey(DotProductInteger8)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(16)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(16)))
     func =
         fir::runtime::getRuntimeFunc<ForcedDotProductInteger16>(loc, builder);
   else if (eleTy.isa<fir::LogicalType>())
     func =
         fir::runtime::getRuntimeFunc<mkRTKey(DotProductLogical)>(loc, builder);
   else
-    fir::emitFatalError(loc, "invalid type in DotProduct lowering");
+    fir::emitFatalError(loc, "invalid type in DOTPRODUCT");
 
   auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);
@@ -873,7 +889,9 @@ mlir::Value fir::runtime::genSum(fir::FirOpBuilder &builder, mlir::Location loc,
   auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
   auto dim = builder.createIntegerConstant(loc, builder.getIndexType(), 0);
 
-  if (eleTy.isF32())
+  if (eleTy.isF16() || eleTy.isBF16())
+    TODO(loc, "half-precision SUM");
+  else if (eleTy.isF32())
     func = fir::runtime::getRuntimeFunc<mkRTKey(SumReal4)>(loc, builder);
   else if (eleTy.isF64())
     func = fir::runtime::getRuntimeFunc<mkRTKey(SumReal8)>(loc, builder);
@@ -881,20 +899,15 @@ mlir::Value fir::runtime::genSum(fir::FirOpBuilder &builder, mlir::Location loc,
     func = fir::runtime::getRuntimeFunc<ForcedSumReal10>(loc, builder);
   else if (eleTy.isF128())
     func = fir::runtime::getRuntimeFunc<ForcedSumReal16>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(1)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(1)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(SumInteger1)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(2)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(2)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(SumInteger2)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(4)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(4)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(SumInteger4)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(8)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(8)))
     func = fir::runtime::getRuntimeFunc<mkRTKey(SumInteger8)>(loc, builder);
-  else if (eleTy ==
-           builder.getIntegerType(builder.getKindMap().getIntegerBitsize(16)))
+  else if (eleTy.isInteger(builder.getKindMap().getIntegerBitsize(16)))
     func = fir::runtime::getRuntimeFunc<ForcedSumInteger16>(loc, builder);
   else if (eleTy == fir::ComplexType::get(builder.getContext(), 4))
     func = fir::runtime::getRuntimeFunc<mkRTKey(CppSumComplex4)>(loc, builder);
@@ -904,8 +917,11 @@ mlir::Value fir::runtime::genSum(fir::FirOpBuilder &builder, mlir::Location loc,
     func = fir::runtime::getRuntimeFunc<ForcedSumComplex10>(loc, builder);
   else if (eleTy == fir::ComplexType::get(builder.getContext(), 16))
     func = fir::runtime::getRuntimeFunc<ForcedSumComplex16>(loc, builder);
+  else if (eleTy == fir::ComplexType::get(builder.getContext(), 2) ||
+           eleTy == fir::ComplexType::get(builder.getContext(), 3))
+    TODO(loc, "half-precision SUM");
   else
-    fir::emitFatalError(loc, "invalid type in Sum lowering");
+    fir::emitFatalError(loc, "invalid type in SUM");
 
   auto fTy = func.getFunctionType();
   auto sourceFile = fir::factory::locationToFilename(builder, loc);

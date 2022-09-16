@@ -97,6 +97,14 @@ TYPE_PARSER(construct<OmpScheduleClause>(maybe(Parser<OmpScheduleModifier>{}),
         "RUNTIME" >> pure(OmpScheduleClause::ScheduleType::Runtime),
     maybe("," >> scalarIntExpr)))
 
+// device([ device-modifier :] scalar-integer-expression)
+TYPE_PARSER(construct<OmpDeviceClause>(
+    maybe(
+        ("ANCESTOR" >> pure(OmpDeviceClause::DeviceModifier::Ancestor) ||
+            "DEVICE_NUM" >> pure(OmpDeviceClause::DeviceModifier::Device_Num)) /
+        ":"),
+    scalarIntExpr))
+
 // 2.12 IF (directive-name-modifier: scalar-logical-expr)
 TYPE_PARSER(construct<OmpIfClause>(
     maybe(
@@ -120,6 +128,10 @@ TYPE_PARSER(construct<OmpReductionOperator>(Parser<DefinedOperator>{}) ||
     construct<OmpReductionOperator>(Parser<ProcedureDesignator>{}))
 
 TYPE_PARSER(construct<OmpReductionClause>(
+    Parser<OmpReductionOperator>{} / ":", Parser<OmpObjectList>{}))
+
+// OMP 5.0 2.19.5.6 IN_REDUCTION (reduction-identifier: variable-name-list)
+TYPE_PARSER(construct<OmpInReductionClause>(
     Parser<OmpReductionOperator>{} / ":", Parser<OmpObjectList>{}))
 
 // OMP 5.0 2.11.4  ALLOCATE ([allocator:] variable-name-list)
@@ -192,7 +204,7 @@ TYPE_PARSER(
     "DEPEND" >> construct<OmpClause>(construct<OmpClause::Depend>(
                     parenthesized(Parser<OmpDependClause>{}))) ||
     "DEVICE" >> construct<OmpClause>(construct<OmpClause::Device>(
-                    parenthesized(scalarIntExpr))) ||
+                    parenthesized(Parser<OmpDeviceClause>{}))) ||
     "DIST_SCHEDULE" >>
         construct<OmpClause>(construct<OmpClause::DistSchedule>(
             parenthesized("STATIC" >> maybe("," >> scalarIntExpr)))) ||
@@ -242,6 +254,8 @@ TYPE_PARSER(
                        parenthesized(Parser<OmpProcBindClause>{}))) ||
     "REDUCTION" >> construct<OmpClause>(construct<OmpClause::Reduction>(
                        parenthesized(Parser<OmpReductionClause>{}))) ||
+    "IN_REDUCTION" >> construct<OmpClause>(construct<OmpClause::InReduction>(
+                          parenthesized(Parser<OmpInReductionClause>{}))) ||
     "TASK_REDUCTION" >>
         construct<OmpClause>(construct<OmpClause::TaskReduction>(
             parenthesized(Parser<OmpReductionClause>{}))) ||

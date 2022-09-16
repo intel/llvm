@@ -44,7 +44,7 @@ static void emitDXILValidatorVersion(Module &M, VersionTuple &ValidatorVer) {
   auto &Ctx = M.getContext();
   Metadata *MDVals[DXILVersionNumFields];
   MDVals[0] = Uint32ToConstMD(ValidatorVer.getMajor(), Ctx);
-  MDVals[1] = Uint32ToConstMD(ValidatorVer.getMinor().getValueOr(0), Ctx);
+  MDVals[1] = Uint32ToConstMD(ValidatorVer.getMinor().value_or(0), Ctx);
 
   DXILValidatorVersionMD->addOperand(MDNode::get(Ctx, MDVals));
 }
@@ -57,32 +57,6 @@ static VersionTuple loadDXILValidatorVersion(MDNode *ValVerMD) {
   unsigned Minor = ConstMDToUint32(ValVerMD->getOperand(1));
   return VersionTuple(Major, Minor);
 }
-
-static void cleanModuleFlags(Module &M) {
-  constexpr StringLiteral DeadKeys[] = {ValVerKey};
-  // Collect DeadKeys in ModuleFlags.
-  StringSet<> DeadKeySet;
-  for (auto &Key : DeadKeys) {
-    if (M.getModuleFlag(Key))
-      DeadKeySet.insert(Key);
-  }
-  if (DeadKeySet.empty())
-    return;
-
-  SmallVector<Module::ModuleFlagEntry, 8> ModuleFlags;
-  M.getModuleFlagsMetadata(ModuleFlags);
-  NamedMDNode *MDFlags = M.getModuleFlagsMetadata();
-  MDFlags->eraseFromParent();
-  // Add ModuleFlag which not dead.
-  for (auto &Flag : ModuleFlags) {
-    StringRef Key = Flag.Key->getString();
-    if (DeadKeySet.contains(Key))
-      continue;
-    M.addModuleFlag(Flag.Behavior, Key, Flag.Val);
-  }
-}
-
-static void cleanModule(Module &M) { cleanModuleFlags(M); }
 
 namespace {
 class DXILTranslateMetadata : public ModulePass {
@@ -101,13 +75,12 @@ private:
 } // namespace
 
 bool DXILTranslateMetadata::runOnModule(Module &M) {
-  if (MDNode *ValVerMD = cast_or_null<MDNode>(M.getModuleFlag(ValVerKey))) {
-    auto ValVer = loadDXILValidatorVersion(ValVerMD);
+  if (NamedMDNode *ValVerMD = M.getNamedMetadata(ValVerKey)) {
+    VersionTuple ValVer = loadDXILValidatorVersion(ValVerMD->getOperand(0));
     if (!ValVer.empty())
       ValidatorVer = ValVer;
   }
   emitDXILValidatorVersion(M, ValidatorVer);
-  cleanModule(M);
   return false;
 }
 

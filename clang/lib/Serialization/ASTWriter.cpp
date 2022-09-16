@@ -786,7 +786,6 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(MODULE_MAP_FILE);
   RECORD(IMPORTS);
   RECORD(ORIGINAL_FILE);
-  RECORD(ORIGINAL_PCH_DIR);
   RECORD(ORIGINAL_FILE_ID);
   RECORD(INPUT_FILE_OFFSETS);
 
@@ -884,6 +883,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(SUBMODULE_TOPHEADER);
   RECORD(SUBMODULE_UMBRELLA_DIR);
   RECORD(SUBMODULE_IMPORTS);
+  RECORD(SUBMODULE_AFFECTING_MODULES);
   RECORD(SUBMODULE_EXPORTS);
   RECORD(SUBMODULE_REQUIRES);
   RECORD(SUBMODULE_EXCLUDED_HEADER);
@@ -1187,8 +1187,7 @@ ASTFileSignature ASTWriter::writeUnhashedControlBlock(Preprocessor &PP,
 
 /// Write the control block.
 void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
-                                  StringRef isysroot,
-                                  const std::string &OutputFile) {
+                                  StringRef isysroot) {
   using namespace llvm;
 
   Stream.EnterSubblock(CONTROL_BLOCK_ID, 5);
@@ -1470,21 +1469,6 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   Record.clear();
   Record.push_back(SM.getMainFileID().getOpaqueValue());
   Stream.EmitRecord(ORIGINAL_FILE_ID, Record);
-
-  // Original PCH directory
-  if (!OutputFile.empty() && OutputFile != "-") {
-    auto Abbrev = std::make_shared<BitCodeAbbrev>();
-    Abbrev->Add(BitCodeAbbrevOp(ORIGINAL_PCH_DIR));
-    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // File name
-    unsigned AbbrevCode = Stream.EmitAbbrev(std::move(Abbrev));
-
-    SmallString<128> OutputPath(OutputFile);
-    PreparePathForOutput(OutputPath);
-    StringRef origDir = llvm::sys::path::parent_path(OutputPath);
-
-    RecordData::value_type Record[] = {ORIGINAL_PCH_DIR};
-    Stream.EmitRecordWithBlob(AbbrevCode, Record, origDir);
-  }
 
   std::set<const FileEntry *> AffectingModuleMaps;
   if (WritingModule) {
@@ -1888,8 +1872,8 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
         // without this file existing on disk.
         if (!U.Size || (!U.ModTime && IncludeTimestamps)) {
           PP->Diag(U.FileNameLoc, diag::err_module_no_size_mtime_for_header)
-            << WritingModule->getFullModuleName() << U.Size.hasValue()
-            << U.FileName;
+              << WritingModule->getFullModuleName() << U.Size.has_value()
+              << U.FileName;
           continue;
         }
 
@@ -2000,12 +1984,13 @@ static void emitBlob(llvm::BitstreamWriter &Stream, StringRef Blob,
 
   // Compress the buffer if possible. We expect that almost all PCM
   // consumers will not want its contents.
-  SmallString<0> CompressedBuffer;
-  if (llvm::zlib::isAvailable()) {
-    llvm::zlib::compress(Blob.drop_back(1), CompressedBuffer);
+  SmallVector<uint8_t, 0> CompressedBuffer;
+  if (llvm::compression::zlib::isAvailable()) {
+    llvm::compression::zlib::compress(
+        llvm::arrayRefFromStringRef(Blob.drop_back(1)), CompressedBuffer);
     RecordDataType Record[] = {SM_SLOC_BUFFER_BLOB_COMPRESSED, Blob.size() - 1};
     Stream.EmitRecordWithBlob(SLocBufferBlobCompressedAbbrv, Record,
-                              CompressedBuffer);
+                              llvm::toStringRef(CompressedBuffer));
     return;
   }
 
@@ -2306,7 +2291,7 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
   if (PP.isRecordingPreamble() && PP.hasRecordedPreamble()) {
     assert(!IsModule);
     auto SkipInfo = PP.getPreambleSkipInfo();
-    if (SkipInfo.hasValue()) {
+    if (SkipInfo) {
       Record.push_back(true);
       AddSourceLocation(SkipInfo->HashTokenLoc, Record);
       AddSourceLocation(SkipInfo->IfTokenLoc, Record);
@@ -2879,6 +2864,14 @@ void ASTWriter::WriteSubmodules(Module *WritingModule) {
       for (auto *I : Mod->Imports)
         Record.push_back(getSubmoduleID(I));
       Stream.EmitRecord(SUBMODULE_IMPORTS, Record);
+    }
+
+    // Emit the modules affecting compilation that were not imported.
+    if (!Mod->AffectingModules.empty()) {
+      RecordData Record;
+      for (auto *I : Mod->AffectingModules)
+        Record.push_back(getSubmoduleID(I));
+      Stream.EmitRecord(SUBMODULE_AFFECTING_MODULES, Record);
     }
 
     // Emit the exports.
@@ -4346,8 +4339,12 @@ void ASTWriter::WriteModuleFileExtension(Sema &SemaRef,
 
 void ASTRecordWriter::AddAttr(const Attr *A) {
   auto &Record = *this;
-  if (!A)
+  // FIXME: Clang can't handle the serialization/deserialization of
+  // preferred_name properly now. See
+  // https://github.com/llvm/llvm-project/issues/56490 for example.
+  if (!A || (isa<PreferredNameAttr>(A) && Writer->isWritingNamedModules()))
     return Record.push_back(0);
+
   Record.push_back(A->getKind() + 1); // FIXME: stable encoding, target attrs
 
   Record.AddIdentifierRef(A->getAttrName());
@@ -4476,8 +4473,7 @@ time_t ASTWriter::getTimestampForOutput(const FileEntry *E) const {
   return IncludeTimestamps ? E->getModificationTime() : 0;
 }
 
-ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef,
-                                     const std::string &OutputFile,
+ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef, StringRef OutputFile,
                                      Module *WritingModule, StringRef isysroot,
                                      bool hasErrors,
                                      bool ShouldCacheASTInMemory) {
@@ -4496,8 +4492,7 @@ ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef,
   Context = &SemaRef.Context;
   PP = &SemaRef.PP;
   this->WritingModule = WritingModule;
-  ASTFileSignature Signature =
-      WriteASTCore(SemaRef, isysroot, OutputFile, WritingModule);
+  ASTFileSignature Signature = WriteASTCore(SemaRef, isysroot, WritingModule);
   Context = nullptr;
   PP = nullptr;
   this->WritingModule = nullptr;
@@ -4523,7 +4518,6 @@ static void AddLazyVectorDecls(ASTWriter &Writer, Vector &Vec,
 }
 
 ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
-                                         const std::string &OutputFile,
                                          Module *WritingModule) {
   using namespace llvm;
 
@@ -4677,7 +4671,7 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
   }
 
   // Write the control block
-  WriteControlBlock(PP, Context, isysroot, OutputFile);
+  WriteControlBlock(PP, Context, isysroot);
 
   // Write the remaining AST contents.
   Stream.FlushToWord();
@@ -5781,7 +5775,7 @@ void ASTRecordWriter::AddCXXDefinitionData(const CXXRecordDecl *D) {
         break;
       case LCK_ByCopy:
       case LCK_ByRef:
-        VarDecl *Var =
+        ValueDecl *Var =
             Capture.capturesVariable() ? Capture.getCapturedVar() : nullptr;
         AddDeclRef(Var);
         AddSourceLocation(Capture.isPackExpansion() ? Capture.getEllipsisLoc()

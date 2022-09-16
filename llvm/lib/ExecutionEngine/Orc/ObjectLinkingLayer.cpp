@@ -78,9 +78,12 @@ private:
   }
 
   static bool hasELFInitSection(LinkGraph &G) {
-    for (auto &Sec : G.sections())
-      if (Sec.getName() == ".init_array")
+    for (auto &Sec : G.sections()) {
+      auto SecName = Sec.getName();
+      if (SecName.consume_front(".init_array") &&
+          (SecName.empty() || SecName[0] == '.'))
         return true;
+    }
     return false;
   }
 
@@ -534,7 +537,8 @@ private:
     for (auto *B : G.blocks()) {
       auto &BI = BlockInfos[B];
       for (auto &E : B->edges()) {
-        if (E.getTarget().getScope() == Scope::Local) {
+        if (E.getTarget().getScope() == Scope::Local &&
+            !E.getTarget().isAbsolute()) {
           auto &TgtB = E.getTarget().getBlock();
           if (&TgtB != B) {
             BI.Dependencies.insert(&TgtB);

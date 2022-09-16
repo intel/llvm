@@ -13,6 +13,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
@@ -32,6 +33,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
+#include <numeric>
 
 #define DEBUG_TYPE "globalisel-utils"
 
@@ -228,7 +230,7 @@ bool llvm::isTriviallyDead(const MachineInstr &MI,
     return false;
 
   // Instructions without side-effects are dead iff they only define dead vregs.
-  for (auto &MO : MI.operands()) {
+  for (const auto &MO : MI.operands()) {
     if (!MO.isReg() || !MO.isDef())
       continue;
 
@@ -320,7 +322,7 @@ Optional<ValueAndVReg> getConstantVRegValWithLookThrough(
     case TargetOpcode::G_ANYEXT:
       if (!LookThroughAnyExt)
         return None;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case TargetOpcode::G_TRUNC:
     case TargetOpcode::G_SEXT:
     case TargetOpcode::G_ZEXT:
@@ -879,12 +881,6 @@ void llvm::getSelectionDAGFallbackAnalysisUsage(AnalysisUsage &AU) {
   AU.addPreserved<StackProtector>();
 }
 
-static unsigned getLCMSize(unsigned OrigSize, unsigned TargetSize) {
-  unsigned Mul = OrigSize * TargetSize;
-  unsigned GCDSize = greatestCommonDivisor(OrigSize, TargetSize);
-  return Mul / GCDSize;
-}
-
 LLT llvm::getLCMType(LLT OrigTy, LLT TargetTy) {
   const unsigned OrigSize = OrigTy.getSizeInBits();
   const unsigned TargetSize = TargetTy.getSizeInBits();
@@ -899,8 +895,8 @@ LLT llvm::getLCMType(LLT OrigTy, LLT TargetTy) {
       const LLT TargetElt = TargetTy.getElementType();
 
       if (OrigElt.getSizeInBits() == TargetElt.getSizeInBits()) {
-        int GCDElts = greatestCommonDivisor(OrigTy.getNumElements(),
-                                            TargetTy.getNumElements());
+        int GCDElts =
+            std::gcd(OrigTy.getNumElements(), TargetTy.getNumElements());
         // Prefer the original element type.
         ElementCount Mul = OrigTy.getElementCount() * TargetTy.getNumElements();
         return LLT::vector(Mul.divideCoefficientBy(GCDElts),
@@ -911,16 +907,16 @@ LLT llvm::getLCMType(LLT OrigTy, LLT TargetTy) {
         return OrigTy;
     }
 
-    unsigned LCMSize = getLCMSize(OrigSize, TargetSize);
+    unsigned LCMSize = std::lcm(OrigSize, TargetSize);
     return LLT::fixed_vector(LCMSize / OrigElt.getSizeInBits(), OrigElt);
   }
 
   if (TargetTy.isVector()) {
-    unsigned LCMSize = getLCMSize(OrigSize, TargetSize);
+    unsigned LCMSize = std::lcm(OrigSize, TargetSize);
     return LLT::fixed_vector(LCMSize / OrigSize, OrigTy);
   }
 
-  unsigned LCMSize = getLCMSize(OrigSize, TargetSize);
+  unsigned LCMSize = std::lcm(OrigSize, TargetSize);
 
   // Preserve pointer types.
   if (LCMSize == OrigSize)
@@ -958,8 +954,7 @@ LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
     if (TargetTy.isVector()) {
       LLT TargetElt = TargetTy.getElementType();
       if (OrigElt.getSizeInBits() == TargetElt.getSizeInBits()) {
-        int GCD = greatestCommonDivisor(OrigTy.getNumElements(),
-                                        TargetTy.getNumElements());
+        int GCD = std::gcd(OrigTy.getNumElements(), TargetTy.getNumElements());
         return LLT::scalarOrVector(ElementCount::getFixed(GCD), OrigElt);
       }
     } else {
@@ -968,7 +963,7 @@ LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
         return OrigElt;
     }
 
-    unsigned GCD = greatestCommonDivisor(OrigSize, TargetSize);
+    unsigned GCD = std::gcd(OrigSize, TargetSize);
     if (GCD == OrigElt.getSizeInBits())
       return OrigElt;
 
@@ -986,7 +981,7 @@ LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
       return OrigTy;
   }
 
-  unsigned GCD = greatestCommonDivisor(OrigSize, TargetSize);
+  unsigned GCD = std::gcd(OrigSize, TargetSize);
   return LLT::scalar(GCD);
 }
 
@@ -1028,7 +1023,7 @@ Optional<ValueAndVReg> getAnyConstantSplat(Register VReg,
   if (!isBuildVectorOp(MI->getOpcode()))
     return None;
 
-  Optional<ValueAndVReg> SplatValAndReg = None;
+  Optional<ValueAndVReg> SplatValAndReg;
   for (MachineOperand &Op : MI->uses()) {
     Register Element = Op.getReg();
     auto ElementValAndReg =
@@ -1082,8 +1077,8 @@ Optional<APInt> llvm::getIConstantSplatVal(const Register Reg,
   return None;
 }
 
-Optional<APInt> getIConstantSplatVal(const MachineInstr &MI,
-                                     const MachineRegisterInfo &MRI) {
+Optional<APInt> llvm::getIConstantSplatVal(const MachineInstr &MI,
+                                           const MachineRegisterInfo &MRI) {
   return getIConstantSplatVal(MI.getOperand(0).getReg(), MRI);
 }
 
@@ -1334,4 +1329,23 @@ void llvm::eraseInstrs(ArrayRef<MachineInstr *> DeadInstrs,
 void llvm::eraseInstr(MachineInstr &MI, MachineRegisterInfo &MRI,
                       LostDebugLocObserver *LocObserver) {
   return eraseInstrs({&MI}, MRI, LocObserver);
+}
+
+void llvm::salvageDebugInfo(const MachineRegisterInfo &MRI, MachineInstr &MI) {
+  for (auto &Def : MI.defs()) {
+    assert(Def.isReg() && "Must be a reg");
+
+    SmallVector<MachineOperand *, 16> DbgUsers;
+    for (auto &MOUse : MRI.use_operands(Def.getReg())) {
+      MachineInstr *DbgValue = MOUse.getParent();
+      // Ignore partially formed DBG_VALUEs.
+      if (DbgValue->isNonListDebugValue() && DbgValue->getNumOperands() == 4) {
+        DbgUsers.push_back(&MOUse);
+      }
+    }
+
+    if (!DbgUsers.empty()) {
+      salvageDebugInfoForDbgValue(MRI, MI, DbgUsers);
+    }
+  }
 }

@@ -1347,10 +1347,19 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.WhitespaceSensitiveMacros.push_back("CF_SWIFT_NAME");
 
   // Defaults that differ when not C++.
-  if (Language == FormatStyle::LK_TableGen)
+  switch (Language) {
+  case FormatStyle::LK_TableGen:
     LLVMStyle.SpacesInContainerLiterals = false;
-  if (LLVMStyle.isJson())
+    break;
+  case FormatStyle::LK_Json:
     LLVMStyle.ColumnLimit = 0;
+    break;
+  case FormatStyle::LK_Verilog:
+    LLVMStyle.IndentCaseLabels = true;
+    break;
+  default:
+    break;
+  }
 
   return LLVMStyle;
 }
@@ -1710,9 +1719,7 @@ ParseError validateQualifierOrder(FormatStyle *Style) {
   }
 
   // Ensure the list has 'type' in it.
-  auto type = std::find(Style->QualifierOrder.begin(),
-                        Style->QualifierOrder.end(), "type");
-  if (type == Style->QualifierOrder.end())
+  if (!llvm::is_contained(Style->QualifierOrder, "type"))
     return ParseError::MissingQualifierType;
 
   return ParseError::Success;
@@ -1833,7 +1840,9 @@ namespace {
 class BracesInserter : public TokenAnalyzer {
 public:
   BracesInserter(const Environment &Env, const FormatStyle &Style)
-      : TokenAnalyzer(Env, Style) {}
+      : TokenAnalyzer(Env, Style) {
+    this->Style.RemoveBracesLLVM = false;
+  }
 
   std::pair<tooling::Replacements, unsigned>
   analyze(TokenAnnotator &Annotator,
@@ -1860,7 +1869,7 @@ private:
         std::string Brace;
         if (Token->BraceCount < 0) {
           assert(Token->BraceCount == -1);
-          Brace = '{';
+          Brace = "\n{";
         } else {
           Brace = '\n' + std::string(Token->BraceCount, '}');
         }
@@ -1875,7 +1884,9 @@ private:
 class BracesRemover : public TokenAnalyzer {
 public:
   BracesRemover(const Environment &Env, const FormatStyle &Style)
-      : TokenAnalyzer(Env, Style) {}
+      : TokenAnalyzer(Env, Style) {
+    this->Style.InsertBraces = false;
+  }
 
   std::pair<tooling::Replacements, unsigned>
   analyze(TokenAnnotator &Annotator,
@@ -1891,22 +1902,26 @@ private:
   void removeBraces(SmallVectorImpl<AnnotatedLine *> &Lines,
                     tooling::Replacements &Result) {
     const auto &SourceMgr = Env.getSourceManager();
-    for (AnnotatedLine *Line : Lines) {
+    const auto End = Lines.end();
+    for (auto I = Lines.begin(); I != End; ++I) {
+      const auto Line = *I;
       removeBraces(Line->Children, Result);
       if (!Line->Affected)
         continue;
-      for (FormatToken *Token = Line->First; Token && !Token->Finalized;
+      const auto NextLine = I + 1 == End ? nullptr : I[1];
+      for (auto Token = Line->First; Token && !Token->Finalized;
            Token = Token->Next) {
         if (!Token->Optional)
           continue;
         assert(Token->isOneOf(tok::l_brace, tok::r_brace));
-        assert(Token->Next || Token == Line->Last);
+        auto Next = Token->Next;
+        assert(Next || Token == Line->Last);
+        if (!Next && NextLine)
+          Next = NextLine->First;
         const auto Start =
-            Token == Line->Last ||
-                    (Token->Next->isOneOf(tok::kw_else, tok::comment) &&
-                     Token->Next->NewlinesBefore > 0)
-                ? Token->WhitespaceRange.getBegin()
-                : Token->Tok.getLocation();
+            Next && Next->NewlinesBefore == 0 && Next->isNot(tok::eof)
+                ? Token->Tok.getLocation()
+                : Token->WhitespaceRange.getBegin();
         const auto Range =
             CharSourceRange::getCharRange(Start, Token->Tok.getEndLoc());
         cantFail(Result.add(tooling::Replacement(SourceMgr, Range, "")));
@@ -2382,7 +2397,7 @@ private:
 
   tooling::Replacements generateFixes() {
     tooling::Replacements Fixes;
-    std::vector<FormatToken *> Tokens;
+    SmallVector<FormatToken *> Tokens;
     std::copy(DeletedTokens.begin(), DeletedTokens.end(),
               std::back_inserter(Tokens));
 
@@ -2524,7 +2539,7 @@ private:
         "UIView",
     };
 
-    for (auto Line : AnnotatedLines) {
+    for (auto *Line : AnnotatedLines) {
       if (Line->First && (Line->First->TokenText.startswith("#") ||
                           Line->First->TokenText == "__pragma" ||
                           Line->First->TokenText == "_Pragma")) {
@@ -2576,7 +2591,7 @@ struct JavaImportDirective {
   StringRef Identifier;
   StringRef Text;
   unsigned Offset;
-  std::vector<StringRef> AssociatedCommentLines;
+  SmallVector<StringRef> AssociatedCommentLines;
   bool IsStatic;
 };
 
@@ -2979,7 +2994,7 @@ tooling::Replacements sortJavaImports(const FormatStyle &Style, StringRef Code,
   llvm::Regex ImportRegex(JavaImportRegexPattern);
   SmallVector<StringRef, 4> Matches;
   SmallVector<JavaImportDirective, 16> ImportsInBlock;
-  std::vector<StringRef> AssociatedCommentLines;
+  SmallVector<StringRef> AssociatedCommentLines;
 
   bool FormattingOff = false;
 
@@ -3309,7 +3324,7 @@ reformat(const FormatStyle &Style, StringRef Code,
                                NextStartColumn, LastStartColumn);
   if (!Env)
     return {};
-  llvm::Optional<std::string> CurrentCode = None;
+  llvm::Optional<std::string> CurrentCode;
   tooling::Replacements Fixes;
   unsigned Penalty = 0;
   for (size_t I = 0, E = Passes.size(); I < E; ++I) {
@@ -3429,17 +3444,19 @@ LangOptions getFormattingLangOpts(const FormatStyle &Style) {
 }
 
 const char *StyleOptionHelpDescription =
-    "Coding style, currently supports:\n"
-    "  LLVM, GNU, Google, Chromium, Microsoft, Mozilla, WebKit.\n"
-    "Use -style=file to load style configuration from\n"
-    ".clang-format file located in one of the parent\n"
-    "directories of the source file (or current\n"
-    "directory for stdin).\n"
-    "Use -style=file:<format_file_path> to explicitly specify\n"
-    "the configuration file.\n"
-    "Use -style=\"{key: value, ...}\" to set specific\n"
-    "parameters, e.g.:\n"
-    "  -style=\"{BasedOnStyle: llvm, IndentWidth: 8}\"";
+    "Set coding style. <string> can be:\n"
+    "1. A preset: LLVM, GNU, Google, Chromium, Microsoft,\n"
+    "   Mozilla, WebKit.\n"
+    "2. 'file' to load style configuration from a\n"
+    "   .clang-format file in one of the parent directories\n"
+    "   of the source file (for stdin, see --assume-filename).\n"
+    "   If no .clang-format file is found, falls back to\n"
+    "   --fallback-style.\n"
+    "   --style=file is the default.\n"
+    "3. 'file:<format_file_path>' to explicitly specify\n"
+    "   the configuration file.\n"
+    "4. \"{key: value, ...}\" to set specific parameters, e.g.:\n"
+    "   --style=\"{BasedOnStyle: llvm, IndentWidth: 8}\"";
 
 static FormatStyle::LanguageKind getLanguageByFileName(StringRef FileName) {
   if (FileName.endswith(".java"))
@@ -3467,6 +3484,12 @@ static FormatStyle::LanguageKind getLanguageByFileName(StringRef FileName) {
     return FormatStyle::LK_CSharp;
   if (FileName.endswith_insensitive(".json"))
     return FormatStyle::LK_Json;
+  if (FileName.endswith_insensitive(".sv") ||
+      FileName.endswith_insensitive(".svh") ||
+      FileName.endswith_insensitive(".v") ||
+      FileName.endswith_insensitive(".vh")) {
+    return FormatStyle::LK_Verilog;
+  }
   return FormatStyle::LK_Cpp;
 }
 
@@ -3488,6 +3511,7 @@ FormatStyle::LanguageKind guessLanguage(StringRef FileName, StringRef Code) {
   return GuessedLanguage;
 }
 
+// Update StyleOptionHelpDescription above when changing this.
 const char *DefaultFormatStyle = "file";
 
 const char *DefaultFallbackStyle = "LLVM";

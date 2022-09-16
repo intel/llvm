@@ -37,7 +37,8 @@ static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
 static const SanitizerMask NotAllowedWithMinimalRuntime =
     SanitizerKind::Function | SanitizerKind::Vptr;
 static const SanitizerMask RequiresPIE =
-    SanitizerKind::DataFlow | SanitizerKind::HWAddress | SanitizerKind::Scudo;
+    SanitizerKind::DataFlow | SanitizerKind::HWAddress | SanitizerKind::Scudo |
+    SanitizerKind::KCFI;
 static const SanitizerMask NeedsUnwindTables =
     SanitizerKind::Address | SanitizerKind::HWAddress | SanitizerKind::Thread |
     SanitizerKind::Memory | SanitizerKind::DataFlow;
@@ -45,7 +46,8 @@ static const SanitizerMask SupportsCoverage =
     SanitizerKind::Address | SanitizerKind::HWAddress |
     SanitizerKind::KernelAddress | SanitizerKind::KernelHWAddress |
     SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap |
-    SanitizerKind::Memory | SanitizerKind::KernelMemory | SanitizerKind::Leak |
+    SanitizerKind::MemtagGlobals | SanitizerKind::Memory |
+    SanitizerKind::KernelMemory | SanitizerKind::Leak |
     SanitizerKind::Undefined | SanitizerKind::Integer | SanitizerKind::Bounds |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
     SanitizerKind::DataFlow | SanitizerKind::Fuzzer |
@@ -58,8 +60,9 @@ static const SanitizerMask RecoverableByDefault =
     SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast;
 static const SanitizerMask Unrecoverable =
     SanitizerKind::Unreachable | SanitizerKind::Return;
-static const SanitizerMask AlwaysRecoverable =
-    SanitizerKind::KernelAddress | SanitizerKind::KernelHWAddress;
+static const SanitizerMask AlwaysRecoverable = SanitizerKind::KernelAddress |
+                                               SanitizerKind::KernelHWAddress |
+                                               SanitizerKind::KCFI;
 static const SanitizerMask NeedsLTO = SanitizerKind::CFI;
 static const SanitizerMask TrappingSupported =
     (SanitizerKind::Undefined & ~SanitizerKind::Vptr) | SanitizerKind::Integer |
@@ -73,7 +76,8 @@ static const SanitizerMask CFIClasses =
     SanitizerKind::CFIUnrelatedCast;
 static const SanitizerMask CompatibleWithMinimalRuntime =
     TrappingSupported | SanitizerKind::Scudo | SanitizerKind::ShadowCallStack |
-    SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap;
+    SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap |
+    SanitizerKind::MemtagGlobals;
 
 enum CoverageFeature {
   CoverageFunc = 1 << 0,
@@ -175,7 +179,7 @@ static void addDefaultIgnorelists(const Driver &D, SanitizerMask Kinds,
       DiagnoseErrors);
 }
 
-/// Parse -f(no-)?sanitize-(coverage-)?(white|ignore)list argument's values,
+/// Parse -f(no-)?sanitize-(coverage-)?(allow|ignore)list argument's values,
 /// diagnosing any invalid file paths and validating special case list format.
 static void parseSpecialCaseListArg(const Driver &D,
                                     const llvm::opt::ArgList &Args,
@@ -185,7 +189,7 @@ static void parseSpecialCaseListArg(const Driver &D,
                                     unsigned MalformedSCLErrorDiagID,
                                     bool DiagnoseErrors) {
   for (const auto *Arg : Args) {
-    // Match -fsanitize-(coverage-)?(white|ignore)list.
+    // Match -fsanitize-(coverage-)?(allow|ignore)list.
     if (Arg->getOption().matches(SCLOptionID)) {
       Arg->claim();
       std::string SCLPath = Arg->getValue();
@@ -365,6 +369,19 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
           DiagnosedKinds |= KindsToDiagnose;
         }
         Add &= ~NotAllowedWithMinimalRuntime;
+      }
+
+      if (llvm::opt::Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ)) {
+        StringRef CM = A->getValue();
+        if (CM != "small" &&
+            (Add & SanitizerKind::Function & ~DiagnosedKinds)) {
+          if (DiagnoseErrors)
+            D.Diag(diag::err_drv_argument_only_allowed_with)
+                << "-fsanitize=function"
+                << "-mcmodel=small";
+          Add &= ~SanitizerKind::Function;
+          DiagnosedKinds |= SanitizerKind::Function;
+        }
       }
 
       // FIXME: Make CFI on member function calls compatible with cross-DSO CFI.
@@ -646,6 +663,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         options::OPT_fno_sanitize_memory_param_retval, MsanParamRetval);
     NeedPIE |= !(TC.getTriple().isOSLinux() &&
                  TC.getTriple().getArch() == llvm::Triple::x86_64);
+  } else if (AllAddedKinds & SanitizerKind::KernelMemory) {
+    MsanUseAfterDtor = false;
+    MsanParamRetval = Args.hasFlag(
+        options::OPT_fsanitize_memory_param_retval,
+        options::OPT_fno_sanitize_memory_param_retval, MsanParamRetval);
   } else {
     MsanUseAfterDtor = false;
     MsanParamRetval = false;
@@ -690,6 +712,13 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     CfiCanonicalJumpTables =
         Args.hasFlag(options::OPT_fsanitize_cfi_canonical_jump_tables,
                      options::OPT_fno_sanitize_cfi_canonical_jump_tables, true);
+  }
+
+  if (AllAddedKinds & SanitizerKind::KCFI && DiagnoseErrors) {
+    if (AllAddedKinds & SanitizerKind::CFI)
+      D.Diag(diag::err_drv_argument_not_allowed_with)
+          << "-fsanitize=kcfi"
+          << lastArgumentForMask(D, Args, SanitizerKind::CFI);
   }
 
   Stats = Args.hasFlag(options::OPT_fsanitize_stats,
@@ -788,7 +817,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       CoverageFeatures |= CoverageFunc;
   }
 
-  // Parse -fsanitize-coverage-(ignore|white)list options if coverage enabled.
+  // Parse -fsanitize-coverage-(allow|ignore)list options if coverage enabled.
   // This also validates special case lists format.
   // Here, OptSpecifier() acts as a never-matching command-line argument.
   // So, there is no way to clear coverage lists but you can append to them.

@@ -289,9 +289,8 @@ def Tosa_TransposeConv2DOp : Tosa_Op<"transpose_conv2d", [
     Tosa_Tensor4D:$filter,
     Tosa_Tensor1D:$bias,
 
-    Tosa_IntArrayAttr2:$out_pad,
+    Tosa_IntArrayAttr4:$out_pad,
     Tosa_IntArrayAttr2:$stride,
-    Tosa_IntArrayAttr2:$dilation,
     Tosa_IntArrayAttrUpto4:$out_shape,
     OptionalAttr<Tosa_ConvOpQuantizationAttr>:$quantization_info
   );
@@ -338,30 +337,6 @@ def Tosa_ClampOp : Tosa_Op<"clamp", [
   );
 
   let hasCanonicalizer = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// Operator: reluN
-//===----------------------------------------------------------------------===//
-def Tosa_ReluNOp : Tosa_Op<"reluN", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    NoSideEffect]> {
-  let summary = "Computes rectified linear: `max(features, N)`.";
-
-  let description = [{
-     ReLU with a scalar maximum value.
-  }];
-
-  let arguments = (ins
-    Tosa_Tensor:$input,
-    I64Attr:$max_int,
-    F32Attr:$max_fp
-  );
-
-  let results = (outs
-    Tosa_Tensor:$output
-  );
 }
 
 //===----------------------------------------------------------------------===//
@@ -445,6 +420,7 @@ def Tosa_AddOp : Tosa_Op<"add", [
   );
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -566,6 +542,8 @@ def Tosa_DivOp : Tosa_Op<"div", [
   let results = (outs
     Tosa_Int32Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -761,6 +739,7 @@ def Tosa_MulOp : Tosa_Op<"mul", [
   );
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -809,6 +788,8 @@ def Tosa_SubOp : Tosa_Op<"sub", [
   let results = (outs
     Tosa_Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1014,7 +995,7 @@ def Tosa_LogOp : Tosa_Op<"log", [
 def Tosa_LogicalNotOp : Tosa_Op<"logical_not", [
     DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
                               ["inferReturnTypeComponents"]>,
-    NoSideEffect]> {
+    NoSideEffect, SameOperandsAndResultType]> {
   let summary = "Returns the truth value of NOT x element-wise.";
 
   let description = [{
@@ -1140,10 +1121,8 @@ def Tosa_SelectOp : Tosa_Op<"select", [
 //===----------------------------------------------------------------------===//
 // Operator: equal
 //===----------------------------------------------------------------------===//
-def Tosa_EqualOp : Tosa_Op<"equal", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
-    ResultsBroadcastableShape, Commutative, NoSideEffect]> {
+def Tosa_EqualOp : Tosa_Op<"equal", [InferTensorType, ResultsBroadcastableShape,
+    Commutative, NoSideEffect]> {
   let summary = "Returns the truth value of (x == y) element-wise.";
 
   let description = [{
@@ -1158,6 +1137,14 @@ def Tosa_EqualOp : Tosa_Op<"equal", [
   let results = (outs
     I1Tensor:$output
   );
+
+  let extraClassDeclaration = [{
+    /// Returns when two result types are compatible for this op; method used by
+    /// InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1181,6 +1168,8 @@ def Tosa_GreaterOp : Tosa_Op<"greater", [
   let results = (outs
     I1Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1204,6 +1193,8 @@ def Tosa_GreaterEqualOp : Tosa_Op<"greater_equal", [
   let results = (outs
     I1Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//

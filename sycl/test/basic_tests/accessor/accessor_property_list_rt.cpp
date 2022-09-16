@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 

@@ -1490,8 +1490,8 @@ define i8 @sub_add_sub_reassoc_use2(i8 %w, i8 %x, i8 %y, i8 %z) {
 
 define i8 @sub_mask_lowbits(i8 %x) {
 ; CHECK-LABEL: @sub_mask_lowbits(
-; CHECK-NEXT:    [[A1:%.*]] = add i8 [[X:%.*]], -108
-; CHECK-NEXT:    [[R:%.*]] = and i8 [[A1]], -4
+; CHECK-NEXT:    [[TMP1:%.*]] = and i8 [[X:%.*]], -4
+; CHECK-NEXT:    [[R:%.*]] = add i8 [[TMP1]], -108
 ; CHECK-NEXT:    ret i8 [[R]]
 ;
   %a1 = add i8 %x, 148 ; 0x94
@@ -1517,10 +1517,10 @@ define i8 @sub_not_mask_lowbits(i8 %x) {
 
 define <2 x i8> @sub_mask_lowbits_splat_extra_use(<2 x i8> %x, <2 x i8>* %p) {
 ; CHECK-LABEL: @sub_mask_lowbits_splat_extra_use(
-; CHECK-NEXT:    [[A1:%.*]] = add <2 x i8> [[X:%.*]], <i8 -64, i8 -64>
-; CHECK-NEXT:    [[A2:%.*]] = and <2 x i8> [[X]], <i8 10, i8 10>
+; CHECK-NEXT:    [[A2:%.*]] = and <2 x i8> [[X:%.*]], <i8 10, i8 10>
 ; CHECK-NEXT:    store <2 x i8> [[A2]], <2 x i8>* [[P:%.*]], align 2
-; CHECK-NEXT:    [[R:%.*]] = and <2 x i8> [[A1]], <i8 -11, i8 -11>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i8> [[X]], <i8 -11, i8 -11>
+; CHECK-NEXT:    [[R:%.*]] = add <2 x i8> [[TMP1]], <i8 -64, i8 -64>
 ; CHECK-NEXT:    ret <2 x i8> [[R]]
 ;
   %a1 = add <2 x i8> %x, <i8 192, i8 192> ; 0xc0
@@ -1722,4 +1722,349 @@ define <2 x i5> @sub_urem(<2 x i5> noundef %x, <2 x i5> %y) {
   %rem = urem <2 x i5> %x, %y
   %sub = sub <2 x i5> %x, %rem
   ret <2 x i5> %sub
+}
+
+define <3 x i32> @nuw_const_zext(<3 x i8> %y) {
+; CHECK-LABEL: @nuw_const_zext(
+; CHECK-NEXT:    [[ZY:%.*]] = zext <3 x i8> [[Y:%.*]] to <3 x i32>
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw <3 x i32> <i32 255, i32 128, i32 0>, [[ZY]]
+; CHECK-NEXT:    ret <3 x i32> [[S]]
+;
+  %zy = zext <3 x i8> %y to <3 x i32>
+  %s = sub nuw <3 x i32> <i32 255, i32 128, i32 0>, %zy
+  ret <3 x i32> %s
+}
+
+define i32 @nuw_const_zext_big(i8 %y) {
+; CHECK-LABEL: @nuw_const_zext_big(
+; CHECK-NEXT:    [[ZY:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i32 257, [[ZY]]
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %zy = zext i8 %y to i32
+  %s = sub nuw i32 257, %zy
+  ret i32 %s
+}
+
+define i32 @nuw_zext_zext(i8 %x, i8 %y) {
+; CHECK-LABEL: @nuw_zext_zext(
+; CHECK-NEXT:    [[ZX:%.*]] = zext i8 [[X:%.*]] to i32
+; CHECK-NEXT:    [[ZY:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i32 [[ZX]], [[ZY]]
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %zx = zext i8 %x to i32
+  %zy = zext i8 %y to i32
+  %s = sub nuw i32 %zx, %zy
+  ret i32 %s
+}
+
+define <2 x i16> @nuw_zext_sext(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @nuw_zext_sext(
+; CHECK-NEXT:    [[ZX:%.*]] = zext <2 x i8> [[X:%.*]] to <2 x i16>
+; CHECK-NEXT:    [[SY:%.*]] = sext <2 x i8> [[Y:%.*]] to <2 x i16>
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw <2 x i16> [[ZX]], [[SY]]
+; CHECK-NEXT:    ret <2 x i16> [[S]]
+;
+  %zx = zext <2 x i8> %x to <2 x i16>
+  %sy = sext <2 x i8> %y to <2 x i16>
+  %s = sub nuw <2 x i16> %zx, %sy
+  ret <2 x i16> %s
+}
+
+define i32 @nuw_sext_zext(i8 %x, i8 %y) {
+; CHECK-LABEL: @nuw_sext_zext(
+; CHECK-NEXT:    [[SX:%.*]] = sext i8 [[X:%.*]] to i32
+; CHECK-NEXT:    [[ZY:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i32 [[SX]], [[ZY]]
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %sx = sext i8 %x to i32
+  %zy = zext i8 %y to i32
+  %s = sub nuw i32 %sx, %zy
+  ret i32 %s
+}
+
+define i8 @nuw_zext_zext_use1(i5 %x, i5 %y) {
+; CHECK-LABEL: @nuw_zext_zext_use1(
+; CHECK-NEXT:    [[ZX:%.*]] = zext i5 [[X:%.*]] to i8
+; CHECK-NEXT:    call void @use8(i8 [[ZX]])
+; CHECK-NEXT:    [[ZY:%.*]] = zext i5 [[Y:%.*]] to i8
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i8 [[ZX]], [[ZY]]
+; CHECK-NEXT:    ret i8 [[S]]
+;
+  %zx = zext i5 %x to i8
+  call void @use8(i8 %zx)
+  %zy = zext i5 %y to i8
+  %s = sub nuw i8 %zx, %zy
+  ret i8 %s
+}
+
+define i8 @nuw_zext_zext_use2(i5 %x, i5 %y) {
+; CHECK-LABEL: @nuw_zext_zext_use2(
+; CHECK-NEXT:    [[ZX:%.*]] = zext i5 [[X:%.*]] to i8
+; CHECK-NEXT:    [[ZY:%.*]] = zext i5 [[Y:%.*]] to i8
+; CHECK-NEXT:    call void @use8(i8 [[ZY]])
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i8 [[ZX]], [[ZY]]
+; CHECK-NEXT:    ret i8 [[S]]
+;
+  %zx = zext i5 %x to i8
+  %zy = zext i5 %y to i8
+  call void @use8(i8 %zy)
+  %s = sub nuw i8 %zx, %zy
+  ret i8 %s
+}
+
+define i8 @nuw_zext_zext_use3(i5 %x, i5 %y) {
+; CHECK-LABEL: @nuw_zext_zext_use3(
+; CHECK-NEXT:    [[ZX:%.*]] = zext i5 [[X:%.*]] to i8
+; CHECK-NEXT:    call void @use8(i8 [[ZX]])
+; CHECK-NEXT:    [[ZY:%.*]] = zext i5 [[Y:%.*]] to i8
+; CHECK-NEXT:    call void @use8(i8 [[ZY]])
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i8 [[ZX]], [[ZY]]
+; CHECK-NEXT:    ret i8 [[S]]
+;
+  %zx = zext i5 %x to i8
+  call void @use8(i8 %zx)
+  %zy = zext i5 %y to i8
+  call void @use8(i8 %zy)
+  %s = sub nuw i8 %zx, %zy
+  ret i8 %s
+}
+
+define i32 @nuw_zext_zext_different_width(i8 %x, i7 %y) {
+; CHECK-LABEL: @nuw_zext_zext_different_width(
+; CHECK-NEXT:    [[ZX:%.*]] = zext i8 [[X:%.*]] to i32
+; CHECK-NEXT:    [[ZY:%.*]] = zext i7 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[S:%.*]] = sub nuw nsw i32 [[ZX]], [[ZY]]
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %zx = zext i8 %x to i32
+  %zy = zext i7 %y to i32
+  %s = sub nuw i32 %zx, %zy
+  ret i32 %s
+}
+
+define i16 @sext_nsw_noundef(i8 noundef %x, i8 %y) {
+; CHECK-LABEL: @sext_nsw_noundef(
+; CHECK-NEXT:    [[Z:%.*]] = sext i8 [[Y:%.*]] to i16
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub nsw i8 %x, %y
+  %ex = sext i8 %x to i16
+  %ed = sext i8 %d to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; negative test - requires noundef
+
+define i16 @sext_nsw(i8 %x, i8 %y) {
+; CHECK-LABEL: @sext_nsw(
+; CHECK-NEXT:    [[D:%.*]] = sub nsw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[EX:%.*]] = sext i8 [[X]] to i16
+; CHECK-NEXT:    [[ED:%.*]] = sext i8 [[D]] to i16
+; CHECK-NEXT:    [[Z:%.*]] = sub nsw i16 [[EX]], [[ED]]
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub nsw i8 %x, %y
+  %ex = sext i8 %x to i16
+  %ed = sext i8 %d to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; negative test - requires nsw
+
+define i16 @sext_noundef(i8 noundef %x, i8 %y) {
+; CHECK-LABEL: @sext_noundef(
+; CHECK-NEXT:    [[D:%.*]] = sub i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[EX:%.*]] = sext i8 [[X]] to i16
+; CHECK-NEXT:    [[ED:%.*]] = sext i8 [[D]] to i16
+; CHECK-NEXT:    [[Z:%.*]] = sub nsw i16 [[EX]], [[ED]]
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub i8 %x, %y
+  %ex = sext i8 %x to i16
+  %ed = sext i8 %d to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; negative test - must have common operand
+
+define i16 @sext_nsw_noundef_wrong_val(i8 noundef %x, i8 noundef %y, i8 noundef %q) {
+; CHECK-LABEL: @sext_nsw_noundef_wrong_val(
+; CHECK-NEXT:    [[D:%.*]] = sub nsw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[EQ:%.*]] = sext i8 [[Q:%.*]] to i16
+; CHECK-NEXT:    [[ED:%.*]] = sext i8 [[D]] to i16
+; CHECK-NEXT:    [[Z:%.*]] = sub nsw i16 [[EQ]], [[ED]]
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub nsw i8 %x, %y
+  %eq = sext i8 %q to i16
+  %ed = sext i8 %d to i16
+  %z = sub i16 %eq, %ed
+  ret i16 %z
+}
+
+; two no-wrap analyses combine to allow reduction
+
+define i16 @srem_sext_noundef(i8 noundef %x, i8 %y) {
+; CHECK-LABEL: @srem_sext_noundef(
+; CHECK-NEXT:    [[R:%.*]] = srem i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[Z:%.*]] = sext i8 [[R]] to i16
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %r = srem i8 %x, %y
+  %d = sub i8 %x, %r
+  %sd = sext i8 %d to i16
+  %sx = sext i8 %x to i16
+  %z = sub i16 %sx, %sd
+  ret i16 %z
+}
+
+define i16 @zext_nuw_noundef(i8 noundef %x, i8 %y) {
+; CHECK-LABEL: @zext_nuw_noundef(
+; CHECK-NEXT:    [[Z:%.*]] = zext i8 [[Y:%.*]] to i16
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub nuw i8 %x, %y
+  %ex = zext i8 %x to i16
+  %ed = zext i8 %d to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; negative test - requires noundef
+
+define i16 @zext_nuw(i8 %x, i8 %y) {
+; CHECK-LABEL: @zext_nuw(
+; CHECK-NEXT:    [[D:%.*]] = sub nuw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[EX:%.*]] = zext i8 [[X]] to i16
+; CHECK-NEXT:    [[ED:%.*]] = zext i8 [[D]] to i16
+; CHECK-NEXT:    [[Z:%.*]] = sub nsw i16 [[EX]], [[ED]]
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub nuw i8 %x, %y
+  %ex = zext i8 %x to i16
+  %ed = zext i8 %d to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; negative test - requires nuw
+
+define i16 @zext_noundef(i8 noundef %x, i8 %y) {
+; CHECK-LABEL: @zext_noundef(
+; CHECK-NEXT:    [[D:%.*]] = sub i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[EX:%.*]] = zext i8 [[X]] to i16
+; CHECK-NEXT:    [[ED:%.*]] = zext i8 [[D]] to i16
+; CHECK-NEXT:    [[Z:%.*]] = sub nsw i16 [[EX]], [[ED]]
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub i8 %x, %y
+  %ex = zext i8 %x to i16
+  %ed = zext i8 %d to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; negative test - must have common operand
+
+define i16 @zext_nsw_noundef_wrong_val(i8 noundef %x, i8 noundef %y, i8 noundef %q) {
+; CHECK-LABEL: @zext_nsw_noundef_wrong_val(
+; CHECK-NEXT:    [[D:%.*]] = sub nuw i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[EQ:%.*]] = zext i8 [[Q:%.*]] to i16
+; CHECK-NEXT:    [[ED:%.*]] = zext i8 [[D]] to i16
+; CHECK-NEXT:    [[Z:%.*]] = sub nsw i16 [[EQ]], [[ED]]
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %d = sub nuw i8 %x, %y
+  %eq = zext i8 %q to i16
+  %ed = zext i8 %d to i16
+  %z = sub i16 %eq, %ed
+  ret i16 %z
+}
+
+; two no-wrap analyses combine to allow reduction
+
+define i16 @urem_zext_noundef(i8 noundef %x, i8 %y) {
+; CHECK-LABEL: @urem_zext_noundef(
+; CHECK-NEXT:    [[R:%.*]] = urem i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[Z:%.*]] = zext i8 [[R]] to i16
+; CHECK-NEXT:    ret i16 [[Z]]
+;
+  %r = urem i8 %x, %y
+  %d = sub i8 %x, %r
+  %ed = zext i8 %d to i16
+  %ex = zext i8 %x to i16
+  %z = sub i16 %ex, %ed
+  ret i16 %z
+}
+
+; x * y - x --> (y - 1) * x
+; TODO: The mul could retain nsw.
+
+define i8 @mul_sub_common_factor_commute1(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute1(
+; CHECK-NEXT:    [[X1:%.*]] = add i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[X1]], [[X:%.*]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul nsw i8 %x, %y
+  %a = sub nsw i8 %m, %x
+  ret i8 %a
+}
+
+; TODO: The mul could retain nuw.
+
+define <2 x i8> @mul_sub_common_factor_commute2(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute2(
+; CHECK-NEXT:    [[M1:%.*]] = add <2 x i8> [[Y:%.*]], <i8 -1, i8 -1>
+; CHECK-NEXT:    [[A:%.*]] = mul <2 x i8> [[M1]], [[X:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[A]]
+;
+  %m = mul nuw <2 x i8> %y, %x
+  %a = sub nuw <2 x i8> %m, %x
+  ret <2 x i8> %a
+}
+
+; x - (x * y) --> (1 - y) * x
+
+define i8 @mul_sub_common_factor_commute3(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute3(
+; CHECK-NEXT:    [[M1:%.*]] = sub i8 1, [[Y:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[M1]], [[X:%.*]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul nuw i8 %x, %y
+  %a = sub nsw i8 %x, %m
+  ret i8 %a
+}
+
+define i8 @mul_sub_common_factor_commute4(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute4(
+; CHECK-NEXT:    [[M1:%.*]] = sub i8 1, [[Y:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[M1]], [[X:%.*]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul nsw i8 %y, %x
+  %a = sub nuw i8 %x, %m
+  ret i8 %a
+}
+
+; negative test - uses
+
+define i8 @mul_sub_common_factor_use(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_use(
+; CHECK-NEXT:    [[M:%.*]] = mul i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @use8(i8 [[M]])
+; CHECK-NEXT:    [[A:%.*]] = sub i8 [[M]], [[X]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul i8 %x, %y
+  call void @use8(i8 %m)
+  %a = sub i8 %m, %x
+  ret i8 %a
 }

@@ -37,7 +37,7 @@ define <vscale x 1 x i8> @ctlz_nxv1i8(<vscale x 1 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, mf4, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v9, v9, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, mf8, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v9, v9
+; CHECK-D-NEXT:    vnsrl.wi v9, v9, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-D-NEXT:    vrsub.vx v8, v9, a0
@@ -81,7 +81,7 @@ define <vscale x 2 x i8> @ctlz_nxv2i8(<vscale x 2 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, mf2, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v9, v9, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, mf4, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v9, v9
+; CHECK-D-NEXT:    vnsrl.wi v9, v9, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-D-NEXT:    vrsub.vx v8, v9, a0
@@ -125,7 +125,7 @@ define <vscale x 4 x i8> @ctlz_nxv4i8(<vscale x 4 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, m1, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v9, v10, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, mf2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v9, v9
+; CHECK-D-NEXT:    vnsrl.wi v9, v9, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-D-NEXT:    vrsub.vx v8, v9, a0
@@ -169,7 +169,7 @@ define <vscale x 8 x i8> @ctlz_nxv8i8(<vscale x 8 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, m2, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v10, v12, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, m1, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v9, v10
+; CHECK-D-NEXT:    vnsrl.wi v9, v10, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-D-NEXT:    vrsub.vx v8, v9, a0
@@ -213,7 +213,7 @@ define <vscale x 16 x i8> @ctlz_nxv16i8(<vscale x 16 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, m4, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v12, v16, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, m2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v10, v12
+; CHECK-D-NEXT:    vnsrl.wi v10, v12, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-D-NEXT:    vrsub.vx v8, v10, a0
@@ -849,7 +849,7 @@ define <vscale x 1 x i32> @ctlz_nxv1i32(<vscale x 1 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v9, v9, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, mf2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v9, v9
+; CHECK-D-NEXT:    vnsrl.wi v9, v9, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v9, v9, a0
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
@@ -942,7 +942,7 @@ define <vscale x 2 x i32> @ctlz_nxv2i32(<vscale x 2 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m2, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v10, v10, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, m1, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v9, v10
+; CHECK-D-NEXT:    vnsrl.wi v9, v10, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v9, v9, a0
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
@@ -1035,7 +1035,7 @@ define <vscale x 4 x i32> @ctlz_nxv4i32(<vscale x 4 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m4, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v12, v12, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, m2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v10, v12
+; CHECK-D-NEXT:    vnsrl.wi v10, v12, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v10, v10, a0
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
@@ -1128,7 +1128,7 @@ define <vscale x 8 x i32> @ctlz_nxv8i32(<vscale x 8 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m8, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v16, v16, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, m4, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v12, v16
+; CHECK-D-NEXT:    vnsrl.wi v12, v16, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v12, v12, a0
 ; CHECK-D-NEXT:    vmseq.vi v0, v8, 0
@@ -1255,7 +1255,6 @@ define <vscale x 1 x i64> @ctlz_nxv1i64(<vscale x 1 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v9, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsrl.vi v11, v8, 1
 ; RV32-NEXT:    vand.vv v9, v11, v9
@@ -1264,9 +1263,7 @@ define <vscale x 1 x i64> @ctlz_nxv1i64(<vscale x 1 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v10
 ; RV32-NEXT:    vadd.vv v8, v9, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v9, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsrl.vi v11, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v11
@@ -1359,7 +1356,6 @@ define <vscale x 2 x i64> @ctlz_nxv2i64(<vscale x 2 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsrl.vi v14, v8, 1
 ; RV32-NEXT:    vand.vv v10, v14, v10
@@ -1368,9 +1364,7 @@ define <vscale x 2 x i64> @ctlz_nxv2i64(<vscale x 2 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v12
 ; RV32-NEXT:    vadd.vv v8, v10, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsrl.vi v14, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v14
@@ -1463,7 +1457,6 @@ define <vscale x 4 x i64> @ctlz_nxv4i64(<vscale x 4 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
 ; RV32-NEXT:    vsrl.vi v20, v8, 1
 ; RV32-NEXT:    vand.vv v12, v20, v12
@@ -1472,9 +1465,7 @@ define <vscale x 4 x i64> @ctlz_nxv4i64(<vscale x 4 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v16
 ; RV32-NEXT:    vadd.vv v8, v12, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
 ; RV32-NEXT:    vsrl.vi v20, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v20
@@ -1567,7 +1558,6 @@ define <vscale x 8 x i64> @ctlz_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v24, (a0), zero
 ; RV32-NEXT:    vsrl.vi v0, v8, 1
 ; RV32-NEXT:    vand.vv v16, v0, v16
@@ -1576,9 +1566,7 @@ define <vscale x 8 x i64> @ctlz_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v24
 ; RV32-NEXT:    vadd.vv v8, v16, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v24, (a0), zero
 ; RV32-NEXT:    vsrl.vi v0, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v0
@@ -1666,7 +1654,7 @@ define <vscale x 1 x i8> @ctlz_zero_undef_nxv1i8(<vscale x 1 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, mf4, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v8, v8, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, mf8, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v8, v8
+; CHECK-D-NEXT:    vnsrl.wi v8, v8, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vrsub.vx v8, v8, a0
 ; CHECK-D-NEXT:    ret
@@ -1707,7 +1695,7 @@ define <vscale x 2 x i8> @ctlz_zero_undef_nxv2i8(<vscale x 2 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, mf2, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v8, v8, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, mf4, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v8, v8
+; CHECK-D-NEXT:    vnsrl.wi v8, v8, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vrsub.vx v8, v8, a0
 ; CHECK-D-NEXT:    ret
@@ -1748,7 +1736,7 @@ define <vscale x 4 x i8> @ctlz_zero_undef_nxv4i8(<vscale x 4 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, m1, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v10, v8, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, mf2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v8, v10
+; CHECK-D-NEXT:    vnsrl.wi v8, v10, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vrsub.vx v8, v8, a0
 ; CHECK-D-NEXT:    ret
@@ -1789,7 +1777,7 @@ define <vscale x 8 x i8> @ctlz_zero_undef_nxv8i8(<vscale x 8 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, m2, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v12, v8, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, m1, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v8, v12
+; CHECK-D-NEXT:    vnsrl.wi v8, v12, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vrsub.vx v8, v8, a0
 ; CHECK-D-NEXT:    ret
@@ -1830,7 +1818,7 @@ define <vscale x 16 x i8> @ctlz_zero_undef_nxv16i8(<vscale x 16 x i8> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e16, m4, ta, mu
 ; CHECK-D-NEXT:    vnsrl.wi v16, v8, 23
 ; CHECK-D-NEXT:    vsetvli zero, zero, e8, m2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v8, v16
+; CHECK-D-NEXT:    vnsrl.wi v8, v16, 0
 ; CHECK-D-NEXT:    li a0, 134
 ; CHECK-D-NEXT:    vrsub.vx v8, v8, a0
 ; CHECK-D-NEXT:    ret
@@ -2440,7 +2428,7 @@ define <vscale x 1 x i32> @ctlz_zero_undef_nxv1i32(<vscale x 1 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v8, v9, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, mf2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v8, v8
+; CHECK-D-NEXT:    vnsrl.wi v8, v8, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v8, v8, a0
 ; CHECK-D-NEXT:    ret
@@ -2529,7 +2517,7 @@ define <vscale x 2 x i32> @ctlz_zero_undef_nxv2i32(<vscale x 2 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m2, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v8, v10, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, m1, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v10, v8
+; CHECK-D-NEXT:    vnsrl.wi v10, v8, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v8, v10, a0
 ; CHECK-D-NEXT:    ret
@@ -2618,7 +2606,7 @@ define <vscale x 4 x i32> @ctlz_zero_undef_nxv4i32(<vscale x 4 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m4, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v8, v12, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, m2, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v12, v8
+; CHECK-D-NEXT:    vnsrl.wi v12, v8, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v8, v12, a0
 ; CHECK-D-NEXT:    ret
@@ -2707,7 +2695,7 @@ define <vscale x 8 x i32> @ctlz_zero_undef_nxv8i32(<vscale x 8 x i32> %va) {
 ; CHECK-D-NEXT:    vsetvli zero, zero, e64, m8, ta, mu
 ; CHECK-D-NEXT:    vsrl.vx v8, v16, a0
 ; CHECK-D-NEXT:    vsetvli zero, zero, e32, m4, ta, mu
-; CHECK-D-NEXT:    vncvt.x.x.w v16, v8
+; CHECK-D-NEXT:    vnsrl.wi v16, v8, 0
 ; CHECK-D-NEXT:    li a0, 1054
 ; CHECK-D-NEXT:    vrsub.vx v8, v16, a0
 ; CHECK-D-NEXT:    ret
@@ -2829,7 +2817,6 @@ define <vscale x 1 x i64> @ctlz_zero_undef_nxv1i64(<vscale x 1 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v9, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsrl.vi v11, v8, 1
 ; RV32-NEXT:    vand.vv v9, v11, v9
@@ -2838,9 +2825,7 @@ define <vscale x 1 x i64> @ctlz_zero_undef_nxv1i64(<vscale x 1 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v10
 ; RV32-NEXT:    vadd.vv v8, v9, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v9, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsrl.vi v11, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v11
@@ -2932,7 +2917,6 @@ define <vscale x 2 x i64> @ctlz_zero_undef_nxv2i64(<vscale x 2 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsrl.vi v14, v8, 1
 ; RV32-NEXT:    vand.vv v10, v14, v10
@@ -2941,9 +2925,7 @@ define <vscale x 2 x i64> @ctlz_zero_undef_nxv2i64(<vscale x 2 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v12
 ; RV32-NEXT:    vadd.vv v8, v10, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v10, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsrl.vi v14, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v14
@@ -3035,7 +3017,6 @@ define <vscale x 4 x i64> @ctlz_zero_undef_nxv4i64(<vscale x 4 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
 ; RV32-NEXT:    vsrl.vi v20, v8, 1
 ; RV32-NEXT:    vand.vv v12, v20, v12
@@ -3044,9 +3025,7 @@ define <vscale x 4 x i64> @ctlz_zero_undef_nxv4i64(<vscale x 4 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v16
 ; RV32-NEXT:    vadd.vv v8, v12, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v12, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
 ; RV32-NEXT:    vsrl.vi v20, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v20
@@ -3138,7 +3117,6 @@ define <vscale x 8 x i64> @ctlz_zero_undef_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
 ; RV32-NEXT:    vnot.v v8, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v24, (a0), zero
 ; RV32-NEXT:    vsrl.vi v0, v8, 1
 ; RV32-NEXT:    vand.vv v16, v0, v16
@@ -3147,9 +3125,7 @@ define <vscale x 8 x i64> @ctlz_zero_undef_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    vsrl.vi v8, v8, 2
 ; RV32-NEXT:    vand.vv v8, v8, v24
 ; RV32-NEXT:    vadd.vv v8, v16, v8
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v16, (a0), zero
-; RV32-NEXT:    addi a0, sp, 8
 ; RV32-NEXT:    vlse64.v v24, (a0), zero
 ; RV32-NEXT:    vsrl.vi v0, v8, 4
 ; RV32-NEXT:    vadd.vv v8, v8, v0

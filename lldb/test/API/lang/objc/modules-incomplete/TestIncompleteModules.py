@@ -2,16 +2,12 @@
 
 
 
-import unittest2
-
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
 class IncompleteModulesTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         # Call super's setUp().

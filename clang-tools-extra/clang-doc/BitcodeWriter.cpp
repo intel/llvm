@@ -426,6 +426,8 @@ void ClangDocBitcodeWriter::emitBlock(const MemberTypeInfo &T) {
   emitBlock(T.Type, FieldId::F_type);
   emitRecord(T.Name, MEMBER_TYPE_NAME);
   emitRecord(T.Access, MEMBER_TYPE_ACCESS);
+  for (const auto &CI : T.Description)
+    emitBlock(CI);
 }
 
 void ClangDocBitcodeWriter::emitBlock(const CommentInfo &I) {
@@ -478,7 +480,7 @@ void ClangDocBitcodeWriter::emitBlock(const EnumInfo &I) {
   for (const auto &CI : I.Description)
     emitBlock(CI);
   if (I.DefLoc)
-    emitRecord(I.DefLoc.getValue(), ENUM_DEFLOCATION);
+    emitRecord(*I.DefLoc, ENUM_DEFLOCATION);
   for (const auto &L : I.Loc)
     emitRecord(L, ENUM_LOCATION);
   emitRecord(I.Scoped, ENUM_SCOPED);
@@ -496,7 +498,7 @@ void ClangDocBitcodeWriter::emitBlock(const RecordInfo &I) {
   for (const auto &CI : I.Description)
     emitBlock(CI);
   if (I.DefLoc)
-    emitRecord(I.DefLoc.getValue(), RECORD_DEFLOCATION);
+    emitRecord(*I.DefLoc, RECORD_DEFLOCATION);
   for (const auto &L : I.Loc)
     emitRecord(L, RECORD_LOCATION);
   emitRecord(I.TagType, RECORD_TAG_TYPE);
@@ -543,7 +545,7 @@ void ClangDocBitcodeWriter::emitBlock(const FunctionInfo &I) {
   emitRecord(I.Access, FUNCTION_ACCESS);
   emitRecord(I.IsMethod, FUNCTION_IS_METHOD);
   if (I.DefLoc)
-    emitRecord(I.DefLoc.getValue(), FUNCTION_DEFLOCATION);
+    emitRecord(*I.DefLoc, FUNCTION_DEFLOCATION);
   for (const auto &L : I.Loc)
     emitRecord(L, FUNCTION_LOCATION);
   emitBlock(I.Parent, FieldId::F_parent);

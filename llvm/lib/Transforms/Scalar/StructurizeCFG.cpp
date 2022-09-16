@@ -395,7 +395,7 @@ void StructurizeCFG::orderNodes() {
         WorkList.emplace_back(I, I + Size);
 
       // Add the SCC nodes to the Order array.
-      for (auto &N : SCC) {
+      for (const auto &N : SCC) {
         assert(I < E && "SCC size mismatch!");
         Order[I++] = N.first;
       }
@@ -681,7 +681,7 @@ void StructurizeCFG::simplifyAffectedPhis() {
     Q.DT = DT;
     for (WeakVH VH : AffectedPhis) {
       if (auto Phi = dyn_cast_or_null<PHINode>(VH)) {
-        if (auto NewValue = SimplifyInstruction(Phi, Q)) {
+        if (auto NewValue = simplifyInstruction(Phi, Q)) {
           Phi->replaceAllUsesWith(NewValue);
           Phi->eraseFromParent();
           Changed = true;
@@ -974,7 +974,7 @@ static bool hasOnlyUniformBranches(Region *R, unsigned UniformMDKindID,
   // Count of how many direct children are conditional.
   unsigned ConditionalDirectChildren = 0;
 
-  for (auto E : R->elements()) {
+  for (auto *E : R->elements()) {
     if (!E->isSubRegion()) {
       auto Br = dyn_cast<BranchInst>(E->getEntry()->getTerminator());
       if (!Br || !Br->isConditional())
@@ -998,7 +998,7 @@ static bool hasOnlyUniformBranches(Region *R, unsigned UniformMDKindID,
       // their direct child basic blocks' terminators, regardless of whether
       // subregions are uniform or not. However, this requires a very careful
       // look at SIAnnotateControlFlow to make sure nothing breaks there.
-      for (auto BB : E->getNodeAs<Region>()->blocks()) {
+      for (auto *BB : E->getNodeAs<Region>()->blocks()) {
         auto Br = dyn_cast<BranchInst>(BB->getTerminator());
         if (!Br || !Br->isConditional())
           continue;

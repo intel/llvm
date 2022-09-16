@@ -66,14 +66,6 @@ bool AArch64RegisterInfo::regNeedsCFI(unsigned Reg,
   return true;
 }
 
-bool AArch64RegisterInfo::hasSVEArgsOrReturn(const MachineFunction *MF) {
-  const Function &F = MF->getFunction();
-  return isa<ScalableVectorType>(F.getReturnType()) ||
-         any_of(F.args(), [](const Argument &Arg) {
-           return isa<ScalableVectorType>(Arg.getType());
-         });
-}
-
 const MCPhysReg *
 AArch64RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   assert(MF && "Invalid MachineFunction pointer.");
@@ -111,7 +103,7 @@ AArch64RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     // This is for OSes other than Windows; Windows is a separate case further
     // above.
     return CSR_AArch64_AAPCS_X18_SaveList;
-  if (hasSVEArgsOrReturn(MF))
+  if (MF->getInfo<AArch64FunctionInfo>()->isSVECC())
     return CSR_AArch64_SVE_AAPCS_SaveList;
   return CSR_AArch64_AAPCS_SaveList;
 }
@@ -143,6 +135,8 @@ AArch64RegisterInfo::getDarwinCalleeSavedRegs(const MachineFunction *MF) const {
     return CSR_Darwin_AArch64_AAPCS_SwiftTail_SaveList;
   if (MF->getFunction().getCallingConv() == CallingConv::PreserveMost)
     return CSR_Darwin_AArch64_RT_MostRegs_SaveList;
+  if (MF->getFunction().getCallingConv() == CallingConv::Win64)
+    return CSR_Darwin_AArch64_AAPCS_Win64_SaveList;
   return CSR_Darwin_AArch64_AAPCS_SaveList;
 }
 
@@ -315,7 +309,7 @@ const uint32_t *AArch64RegisterInfo::getWindowsStackProbePreservedMask() const {
 }
 
 BitVector
-AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+AArch64RegisterInfo::getStrictlyReservedRegs(const MachineFunction &MF) const {
   const AArch64FrameLowering *TFI = getFrameLowering(MF);
 
   // FIXME: avoid re-calculating this every time.
@@ -325,6 +319,18 @@ AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   if (TFI->hasFP(MF) || TT.isOSDarwin())
     markSuperRegs(Reserved, AArch64::W29);
+
+  if (MF.getSubtarget<AArch64Subtarget>().isWindowsArm64EC()) {
+    // x13, x14, x23, x24, x28, and v16-v31 are clobbered by asynchronous
+    // signals, so we can't ever use them.
+    markSuperRegs(Reserved, AArch64::W13);
+    markSuperRegs(Reserved, AArch64::W14);
+    markSuperRegs(Reserved, AArch64::W23);
+    markSuperRegs(Reserved, AArch64::W24);
+    markSuperRegs(Reserved, AArch64::W28);
+    for (unsigned i = AArch64::B16; i <= AArch64::B31; ++i)
+      markSuperRegs(Reserved, i);
+  }
 
   for (size_t i = 0; i < AArch64::GPR32commonRegClass.getNumRegs(); ++i) {
     if (MF.getSubtarget<AArch64Subtarget>().isXRegisterReserved(i))
@@ -338,6 +344,26 @@ AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   if (MF.getFunction().hasFnAttribute(Attribute::SpeculativeLoadHardening))
     markSuperRegs(Reserved, AArch64::W16);
 
+  // SME tiles are not allocatable.
+  if (MF.getSubtarget<AArch64Subtarget>().hasSME()) {
+    for (MCSubRegIterator SubReg(AArch64::ZA, this, /*self=*/true);
+         SubReg.isValid(); ++SubReg)
+      Reserved.set(*SubReg);
+  }
+
+  assert(checkAllSuperRegsMarked(Reserved));
+  return Reserved;
+}
+
+BitVector
+AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+  BitVector Reserved = getStrictlyReservedRegs(MF);
+
+  for (size_t i = 0; i < AArch64::GPR32commonRegClass.getNumRegs(); ++i) {
+    if (MF.getSubtarget<AArch64Subtarget>().isXRegisterReservedForRA(i))
+      markSuperRegs(Reserved, AArch64::GPR32commonRegClass.getRegister(i));
+  }
+
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
 }
@@ -347,9 +373,14 @@ bool AArch64RegisterInfo::isReservedReg(const MachineFunction &MF,
   return getReservedRegs(MF)[Reg];
 }
 
+bool AArch64RegisterInfo::isStrictlyReservedReg(const MachineFunction &MF,
+                                                MCRegister Reg) const {
+  return getStrictlyReservedRegs(MF)[Reg];
+}
+
 bool AArch64RegisterInfo::isAnyArgRegReserved(const MachineFunction &MF) const {
   return llvm::any_of(*AArch64::GPR64argRegClass.MC, [this, &MF](MCPhysReg r) {
-    return isReservedReg(MF, r);
+    return isStrictlyReservedReg(MF, r);
   });
 }
 
@@ -363,10 +394,6 @@ void AArch64RegisterInfo::emitReservedArgRegCallError(
 bool AArch64RegisterInfo::isAsmClobberable(const MachineFunction &MF,
                                           MCRegister PhysReg) const {
   return !isReservedReg(MF, PhysReg);
-}
-
-bool AArch64RegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
-  return PhysReg == AArch64::WZR || PhysReg == AArch64::XZR;
 }
 
 const TargetRegisterClass *
@@ -427,8 +454,7 @@ bool AArch64RegisterInfo::isArgumentRegister(const MachineFunction &MF,
   bool IsVarArg = STI.isCallingConvWin64(MF.getFunction().getCallingConv());
 
   auto HasReg = [](ArrayRef<MCRegister> RegList, MCRegister Reg) {
-    return llvm::any_of(RegList,
-                        [Reg](const MCRegister R) { return R == Reg; });
+    return llvm::is_contained(RegList, Reg);
   };
 
   switch (CC) {

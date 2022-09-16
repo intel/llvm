@@ -266,6 +266,8 @@ def FeatureWBNOINVD    : SubtargetFeature<"wbnoinvd", "HasWBNOINVD", "true",
                                       "Write Back No Invalidate">;
 def FeatureRDPID : SubtargetFeature<"rdpid", "HasRDPID", "true",
                                     "Support RDPID instructions">;
+def FeatureRDPRU : SubtargetFeature<"rdpru", "HasRDPRU", "true",
+                                    "Support RDPRU instructions">;
 def FeatureWAITPKG  : SubtargetFeature<"waitpkg", "HasWAITPKG", "true",
                                       "Wait and pause enhancements">;
 def FeatureENQCMD : SubtargetFeature<"enqcmd", "HasENQCMD", "true",
@@ -673,6 +675,7 @@ include "X86ScheduleBtVer2.td"
 include "X86SchedSkylakeClient.td"
 include "X86SchedSkylakeServer.td"
 include "X86SchedIceLake.td"
+include "X86SchedAlderlakeP.td"
 
 //===----------------------------------------------------------------------===//
 // X86 Processor Feature Lists
@@ -1238,6 +1241,7 @@ def ProcessorFeatures {
                                      TuningInsertVZEROUPPER];
   list<SubtargetFeature> ZN2AdditionalFeatures = [FeatureCLWB,
                                                   FeatureRDPID,
+                                                  FeatureRDPRU,
                                                   FeatureWBNOINVD];
   list<SubtargetFeature> ZN2Tuning = ZNTuning;
   list<SubtargetFeature> ZN2Features =
@@ -1274,7 +1278,7 @@ class ProcModel<string Name, SchedMachineModel Model,
 // enabled. It has no effect on code generation.
 // NOTE: As a default tuning, "generic" aims to produce code optimized for the
 // most common X86 processors. The tunings might be changed over time. It is
-// recommended to use "x86-64" in lit tests for consistency.
+// recommended to use "tune-cpu"="x86-64" in function attribute for consistency.
 def : ProcModel<"generic", SandyBridgeModel,
                 [FeatureX87, FeatureCX8, FeatureX86_64],
                 [TuningSlow3OpsLEA,
@@ -1476,7 +1480,7 @@ def : ProcModel<"tigerlake", IceLakeModel,
                 ProcessorFeatures.TGLFeatures, ProcessorFeatures.TGLTuning>;
 def : ProcModel<"sapphirerapids", SkylakeServerModel,
                 ProcessorFeatures.SPRFeatures, ProcessorFeatures.SPRTuning>;
-def : ProcModel<"alderlake", SkylakeClientModel,
+def : ProcModel<"alderlake", AlderlakePModel,
                 ProcessorFeatures.ADLFeatures, ProcessorFeatures.ADLTuning>;
 
 // AMD CPUs.

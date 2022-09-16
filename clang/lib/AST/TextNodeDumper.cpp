@@ -1554,9 +1554,11 @@ void TextNodeDumper::VisitTypedefType(const TypedefType *T) {
 
 void TextNodeDumper::VisitUnaryTransformType(const UnaryTransformType *T) {
   switch (T->getUTTKind()) {
-  case UnaryTransformType::EnumUnderlyingType:
-    OS << " underlying_type";
+#define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
+  case UnaryTransformType::Enum:                                               \
+    OS << " " #Trait;                                                          \
     break;
+#include "clang/Basic/TransformTypeTraits.def"
   }
 }
 
@@ -1684,6 +1686,9 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->isTrivial())
     OS << " trivial";
 
+  if (D->isIneligibleOrNotSelected())
+    OS << (isa<CXXDestructorDecl>(D) ? " not_selected" : " ineligible");
+
   if (const auto *FPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
     switch (EPI.ExceptionSpec.Type) {
@@ -1720,6 +1725,9 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
     }
   }
 
+  if (!D->isInlineSpecified() && D->isInlined()) {
+    OS << " implicit-inline";
+  }
   // Since NumParams comes from the FunctionProtoType of the FunctionDecl and
   // the Params are set later, it is possible for a dump during debugging to
   // encounter a FunctionDecl that has been created but hasn't been assigned
@@ -2370,4 +2378,10 @@ void TextNodeDumper::VisitBlockDecl(const BlockDecl *D) {
 
 void TextNodeDumper::VisitConceptDecl(const ConceptDecl *D) {
   dumpName(D);
+}
+
+void TextNodeDumper::VisitCompoundStmt(const CompoundStmt *S) {
+  VisitStmt(S);
+  if (S->hasStoredFPFeatures())
+    printFPOptions(S->getStoredFPFeatures());
 }

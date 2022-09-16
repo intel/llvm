@@ -10,4 +10,4 @@
 #define SUCCESS 0
 class distance;
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>

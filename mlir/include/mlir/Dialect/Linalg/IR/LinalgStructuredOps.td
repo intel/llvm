@@ -28,6 +28,7 @@ class LinalgStructuredBase_Op<string mnemonic, list<Trait> props>
   : Op<Linalg_Dialect, mnemonic, !listconcat([
        SingleBlockImplicitTerminator<"YieldOp">,
        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+       DestinationStyleOpInterface,
        LinalgStructuredInterface,
        RegionBranchOpInterface,
        ReifyRankedShapedTypeOpInterface], props)> {
@@ -202,8 +203,8 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [AttrSizedOperandSegments]> {
       };
     }
     std::string getLibraryCallName() {
-      return library_call().hasValue() ?
-        library_call()->str() : "op_has_no_registered_library_name";
+      return getLibraryCall() ?
+        getLibraryCall()->str() : "op_has_no_registered_library_name";
     }
 
     static std::function<void(ImplicitLocOpBuilder &,

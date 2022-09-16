@@ -11,7 +11,7 @@ func.func @parallel_loop_bidy_bidx(%arg0 : index, %arg1 : index, %arg2 : index,
                                           step (%arg4, %step)  {
     %val = memref.load %buf[%i0, %i1] : memref<?x?xf32>
     memref.store %val, %res[%i1, %i0] : memref<?x?xf32>
-  } { mapping = [{processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}, {processor = 0, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}] }
+  } { mapping = [#gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>, #gpu.loop_dim_map<processor = block_x, map = (d0) -> (d0), bound = (d0) -> (d0)>] }
   return
 }
 
@@ -56,12 +56,12 @@ func.func @parallel_loop_tiled(%arg0 : index, %arg1 : index, %arg2 : index,
       %val = memref.load %buf[%idx0, %idx1] : memref<?x?xf32>
       memref.store %val, %res[%idx1, %idx0] : memref<?x?xf32>
     } { mapping = [
-        {processor = 4, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-        {processor = 3, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+        #gpu.loop_dim_map<processor = thread_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+        #gpu.loop_dim_map<processor = thread_x, map = (d0) -> (d0), bound = (d0) -> (d0)>
      ] }
   } { mapping = [
-      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-      {processor = 0, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+      #gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+      #gpu.loop_dim_map<processor = block_x, map = (d0) -> (d0), bound = (d0) -> (d0)>
     ] }
   return
 }
@@ -109,8 +109,8 @@ func.func @parallel_loop_bidy_seq(%arg0 : index, %arg1 : index, %arg2 : index,
     %val = memref.load %buf[%i0, %i1] : memref<?x?xf32>
     memref.store %val, %res[%i1, %i0] : memref<?x?xf32>
   } { mapping = [
-      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-      {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+      #gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+      #gpu.loop_dim_map<processor = sequential, map = (d0) -> (d0), bound = (d0) -> (d0)>
     ] }
   return
 }
@@ -156,12 +156,12 @@ func.func @parallel_loop_tiled_seq(%arg0 : index, %arg1 : index, %arg2 : index,
       %val = memref.load %buf[%idx0, %idx1] : memref<?x?xf32>
       memref.store %val, %res[%idx1, %idx0] : memref<?x?xf32>
     } { mapping = [
-        {processor = 4, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-        {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+        #gpu.loop_dim_map<processor = thread_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+        #gpu.loop_dim_map<processor = sequential, map = (d0) -> (d0), bound = (d0) -> (d0)>
       ] }
   } { mapping = [
-      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-      {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+      #gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+      #gpu.loop_dim_map<processor = sequential, map = (d0) -> (d0), bound = (d0) -> (d0)>
     ] }
   return
 }
@@ -215,7 +215,8 @@ module {
       %3 = affine.min #map1(%arg3)[%2]
       %squared_min = arith.muli %3, %3 : index
       %4 = memref.dim %arg0, %c1 : memref<?x?xf32, #map0>
-      %5 = affine.min #map2(%arg4)[%4]
+      %d = arith.subi %4, %arg4 : index
+      %5 = arith.minsi %c3, %d : index
       %6 = memref.subview %arg0[%arg3, %arg4][%squared_min, %5][%c1, %c1] : memref<?x?xf32, #map0> to memref<?x?xf32, #map3>
       %7 = memref.dim %arg1, %c0 : memref<?x?xf32, #map0>
       %8 = affine.min #map1(%arg3)[%7]
@@ -234,19 +235,19 @@ module {
         %20 = arith.addf %17, %18 : f32
         memref.store %20, %16[%arg5, %arg6] : memref<?x?xf32, #map3>
         scf.yield
-      } {mapping = [{bound = affine_map<(d0) -> (d0)>, map = affine_map<(d0) -> (d0)>, processor = 3 : i64}, {bound = affine_map<(d0) -> (d0)>, map = affine_map<(d0) -> (d0)>, processor = 4 : i64}]}
+      } {mapping = [#gpu.loop_dim_map<bound = (d0) -> (d0), map = (d0) -> (d0), processor = thread_x>, #gpu.loop_dim_map<bound = (d0) -> (d0), map = (d0) -> (d0), processor = thread_y>]}
       scf.yield
-    } {mapping = [{bound = affine_map<(d0) -> (d0)>, map = affine_map<(d0) -> (d0)>, processor = 0 : i64}, {bound = affine_map<(d0) -> (d0)>, map = affine_map<(d0) -> (d0)>, processor = 1 : i64}]}
+    } {mapping = [#gpu.loop_dim_map<bound = (d0) -> (d0), map = (d0) -> (d0), processor = block_x>, #gpu.loop_dim_map<bound = (d0) -> (d0), map = (d0) -> (d0), processor = block_y>]}
     return
   }
 }
 
-// CHECK:       #[[$MAP0:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
-// CHECK:       #[[$MAP1:.*]] = affine_map<(d0)[s0, s1] -> ((d0 - s0) ceildiv s1)>
-// CHECK:       #[[$MAP2:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
-// CHECK:       #[[$MAP3:.*]] = affine_map<(d0)[s0] -> (2, -d0 + s0)>
-// CHECK:       #[[$MAP4:.*]] = affine_map<(d0)[s0] -> (3, -d0 + s0)>
-// CHECK:       #[[$MAP5:.*]] = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
+// CHECK-DAG:       #[[$MAP0:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
+// CHECK-DAG:       #[[$MAP1:.*]] = affine_map<(d0)[s0, s1] -> ((d0 - s0) ceildiv s1)>
+// CHECK-DAG:       #[[$MAP2:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
+// CHECK-DAG:       #[[$MAP3:.*]] = affine_map<(d0)[s0] -> (2, -d0 + s0)>
+// CHECK-DAG:       #[[$MAP4:.*]] = affine_map<(d0)[s0] -> (3, -d0 + s0)>
+// CHECK-DAG:       #[[$MAP5:.*]] = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
 
 // CHECK:       module {
 // CHECK-LABEL:   func @sum(
@@ -262,8 +263,7 @@ module {
 // CHECK:           [[VAL_11:%.*]] = affine.apply #[[$MAP1]]([[VAL_8]]){{\[}}%[[C0]], %[[C3]]]
 // CHECK:           [[VAL_12:%.*]] = arith.constant 4 : index
 // CHECK:           [[VAL_13:%.*]] = affine.apply #[[$MAP1]]([[VAL_12]]){{\[}}%[[C0]], %[[C1]]]
-// CHECK:           [[VAL_14:%.*]] = arith.constant 3 : index
-// CHECK:           [[VAL_15:%.*]] = affine.apply #[[$MAP1]]([[VAL_14]]){{\[}}%[[C0]], %[[C1]]]
+// CHECK:           [[VAL_15:%.*]] = affine.apply #[[$MAP1]](%[[C3]]){{\[}}%[[C0]], %[[C1]]]
 // CHECK:           gpu.launch blocks([[VAL_16:%.*]], [[VAL_17:%.*]], [[VAL_18:%.*]]) in ([[VAL_19:%.*]] = [[VAL_10]], [[VAL_20:%.*]] = [[VAL_11]], [[VAL_21:%.*]] = [[VAL_9]]) threads([[VAL_22:%.*]], [[VAL_23:%.*]], [[VAL_24:%.*]]) in ([[VAL_25:%.*]] = [[VAL_13]], [[VAL_26:%.*]] = [[VAL_15]], [[VAL_27:%.*]] = [[VAL_9]]) {
 // CHECK:             [[VAL_28:%.*]] = affine.apply #[[$MAP2]]([[VAL_16]]){{\[}}%[[C2]], %[[C0]]]
 // CHECK:             [[VAL_29:%.*]] = affine.apply #[[$MAP2]]([[VAL_17]]){{\[}}%[[C3]], %[[C0]]]
@@ -271,7 +271,8 @@ module {
 // CHECK:             [[VAL_31:%.*]] = affine.min #[[$MAP3]]([[VAL_28]]){{\[}}[[VAL_30]]]
 // CHECK:             [[VAL_31_SQUARED:%.*]] = arith.muli [[VAL_31]], [[VAL_31]] : index
 // CHECK:             [[VAL_32:%.*]] = memref.dim [[VAL_0]], %[[C1]] : memref<?x?xf32, #[[$MAP0]]>
-// CHECK:             [[VAL_33:%.*]] = affine.min #[[$MAP4]]([[VAL_29]]){{\[}}[[VAL_32]]]
+// CHECK:             [[VAL_D:%.*]] = arith.subi [[VAL_32]], [[VAL_29]] : index
+// CHECK:             [[VAL_33:%.*]] = arith.minsi %[[C3]], [[VAL_D]] : index
 // CHECK:             [[VAL_34:%.*]] = memref.subview [[VAL_0]]{{\[}}[[VAL_28]], [[VAL_29]]] {{\[}}[[VAL_31_SQUARED]], [[VAL_33]]] {{\[}}%[[C1]], %[[C1]]] : memref<?x?xf32, #[[$MAP0]]> to memref<?x?xf32, #[[$MAP5]]>
 // CHECK:             [[VAL_35:%.*]] = memref.dim [[VAL_1]], %[[C0]] : memref<?x?xf32, #[[$MAP0]]>
 // CHECK:             [[VAL_36:%.*]] = affine.min #[[$MAP3]]([[VAL_28]]){{\[}}[[VAL_35]]]
@@ -310,7 +311,7 @@ func.func @parallel_loop_optional_attr() {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   scf.parallel (%i0) = (%c0) to (%c1) step (%c1) {
-  } { mapping = [{processor = 0, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}], optional_attr = 1 }
+  } { mapping = [#gpu.loop_dim_map<processor = block_x, map = (d0) -> (d0), bound = (d0) -> (d0)>], optional_attr = 1 }
   // CHECK: optional_attr = 1
   return
 }
@@ -327,8 +328,8 @@ func.func @parallel_double_map(%arg0 : index, %arg1 : index, %arg2 : index,
   scf.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
                                           step (%four, %four)  {
   } { mapping = [
-      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+      #gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+      #gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>
     ] }
   return
 }
@@ -356,12 +357,12 @@ func.func @parallel_loop_loop_variant_bound(%arg0 : index, %arg1 : index, %arg2 
       %val = memref.load %buf[%idx0, %idx1] : memref<?x?xf32>
       memref.store %val, %res[%idx1, %idx0] : memref<?x?xf32>
     } { mapping = [
-        {processor = 4, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-        {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+        #gpu.loop_dim_map<processor = thread_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+        #gpu.loop_dim_map<processor = sequential, map = (d0) -> (d0), bound = (d0) -> (d0)>
       ] }
   } { mapping = [
-      {processor = 1, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>},
-      {processor = 6, map = affine_map<(d0) -> (d0)>, bound = affine_map<(d0) -> (d0)>}
+      #gpu.loop_dim_map<processor = block_y, map = (d0) -> (d0), bound = (d0) -> (d0)>,
+      #gpu.loop_dim_map<processor = sequential, map = (d0) -> (d0), bound = (d0) -> (d0)>
     ] }
   return
 }

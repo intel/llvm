@@ -58,7 +58,7 @@ std::string REPL::GetSourcePath() {
   ConstString file_basename = GetSourceFileBasename();
   FileSpec tmpdir_file_spec = HostInfo::GetProcessTempDir();
   if (tmpdir_file_spec) {
-    tmpdir_file_spec.GetFilename() = file_basename;
+    tmpdir_file_spec.SetFilename(file_basename);
     m_repl_source_path = tmpdir_file_spec.GetPath();
   } else {
     tmpdir_file_spec = FileSpec("/tmp");
@@ -378,7 +378,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
           case lldb::eExpressionSetupError:
           case lldb::eExpressionParseError:
             add_to_code = false;
-            LLVM_FALLTHROUGH;
+            [[fallthrough]];
           case lldb::eExpressionDiscarded:
             error_sp->Printf("%s\n", error.AsCString());
             break;

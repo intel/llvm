@@ -27,10 +27,18 @@ class ModuleOp;
 // Passes
 //===----------------------------------------------------------------------===//
 
-/// Creates a pass to run canoncalization patterns that involve GLSL ops.
-/// These patterns cannot be run in default canonicalization because GLSL ops
+#define GEN_PASS_DECL_SPIRVCOMPOSITETYPELAYOUT
+#define GEN_PASS_DECL_SPIRVCANONICALIZEGL
+#define GEN_PASS_DECL_SPIRVLOWERABIATTRIBUTES
+#define GEN_PASS_DECL_SPIRVREWRITEINSERTSPASS
+#define GEN_PASS_DECL_SPIRVUNIFYALIASEDRESOURCEPASS
+#define GEN_PASS_DECL_SPIRVUPDATEVCE
+#include "mlir/Dialect/SPIRV/Transforms/Passes.h.inc"
+
+/// Creates a pass to run canoncalization patterns that involve GL ops.
+/// These patterns cannot be run in default canonicalization because GL ops
 /// aren't always available. So they should be involed specifically when needed.
-std::unique_ptr<OperationPass<>> createCanonicalizeGLSLPass();
+std::unique_ptr<OperationPass<>> createCanonicalizeGLPass();
 
 /// Creates a module pass that converts composite types used by objects in the
 /// StorageBuffer, PhysicalStorageBuffer, Uniform, and PushConstant storage

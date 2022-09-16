@@ -113,16 +113,41 @@ bool ByteCodeExprGen<Emitter>::VisitCastExpr(const CastExpr *CE) {
   case CK_NonAtomicToAtomic:
   case CK_NoOp:
   case CK_UserDefinedConversion:
+  case CK_NullToPointer:
     return this->Visit(SubExpr);
+
+  case CK_IntegralCast: {
+    Optional<PrimType> FromT = classify(SubExpr->getType());
+    Optional<PrimType> ToT = classify(CE->getType());
+    if (!FromT || !ToT)
+      return false;
+
+    if (!this->Visit(SubExpr))
+      return false;
+
+    return this->emitCast(*FromT, *ToT, CE);
+  }
 
   case CK_ToVoid:
     return discard(SubExpr);
 
-  default: {
-    // TODO: implement other casts.
-    return this->bail(CE);
+  case CK_IntegralToBoolean:
+    // Compare integral from Subexpr with 0
+    if (Optional<PrimType> T = classify(SubExpr->getType())) {
+      if (!this->Visit(SubExpr))
+        return false;
+
+      if (!this->emitConst(SubExpr, 0))
+        return false;
+
+      return this->emitNE(*T, SubExpr);
+    }
+    return false;
+
+  default:
+    assert(false && "Cast not implemented");
   }
-  }
+  llvm_unreachable("Unhandled clang::CastKind enum");
 }
 
 template <class Emitter>
@@ -197,6 +222,10 @@ bool ByteCodeExprGen<Emitter>::VisitBinaryOperator(const BinaryOperator *BO) {
       return Discard(this->emitAdd(*T, BO));
     case BO_Mul:
       return Discard(this->emitMul(*T, BO));
+    case BO_Assign:
+      if (!this->emitStore(*T, BO))
+        return false;
+      return DiscardResult ? this->emitPopPtr(BO) : true;
     default:
       return this->bail(BO);
     }
@@ -496,7 +525,7 @@ ByteCodeExprGen<Emitter>::getGlobalIdx(const VarDecl *VD) {
 
 template <class Emitter>
 const RecordType *ByteCodeExprGen<Emitter>::getRecordTy(QualType Ty) {
-  if (auto *PT = dyn_cast<PointerType>(Ty))
+  if (const PointerType *PT = dyn_cast<PointerType>(Ty))
     return PT->getPointeeType()->getAs<RecordType>();
   else
     return Ty->getAs<RecordType>();
@@ -562,6 +591,90 @@ bool ByteCodeExprGen<Emitter>::visitDecl(const VarDecl *VD) {
   }
 
   return this->bail(VD);
+}
+
+template <class Emitter>
+bool ByteCodeExprGen<Emitter>::VisitCXXBoolLiteralExpr(
+    const CXXBoolLiteralExpr *E) {
+  if (DiscardResult)
+    return true;
+
+  return this->emitConstBool(E->getValue(), E);
+}
+
+template <class Emitter>
+bool ByteCodeExprGen<Emitter>::VisitCXXNullPtrLiteralExpr(
+    const CXXNullPtrLiteralExpr *E) {
+  if (DiscardResult)
+    return true;
+
+  return this->emitNullPtr(E);
+}
+
+template <class Emitter>
+bool ByteCodeExprGen<Emitter>::VisitUnaryOperator(const UnaryOperator *E) {
+  const Expr *SubExpr = E->getSubExpr();
+
+  switch (E->getOpcode()) {
+  case UO_PostInc: // x++
+  case UO_PostDec: // x--
+  case UO_PreInc:  // --x
+  case UO_PreDec:  // ++x
+    return false;
+
+  case UO_LNot: // !x
+    if (!this->Visit(SubExpr))
+      return false;
+    return this->emitInvBool(E);
+  case UO_Minus: // -x
+    if (!this->Visit(SubExpr))
+      return false;
+    if (Optional<PrimType> T = classify(E->getType()))
+      return this->emitNeg(*T, E);
+    return false;
+  case UO_Plus:  // +x
+    return this->Visit(SubExpr); // noop
+
+  case UO_AddrOf: // &x
+    // We should already have a pointer when we get here.
+    return this->Visit(SubExpr);
+
+  case UO_Deref:  // *x
+    return dereference(
+        SubExpr, DerefKind::Read,
+        [](PrimType) {
+          llvm_unreachable("Dereferencing requires a pointer");
+          return false;
+        },
+        [this, E](PrimType T) {
+          return DiscardResult ? this->emitPop(T, E) : true;
+        });
+  case UO_Not:    // ~x
+  case UO_Real:   // __real x
+  case UO_Imag:   // __imag x
+  case UO_Extension:
+  case UO_Coawait:
+    assert(false && "Unhandled opcode");
+  }
+
+  return false;
+}
+
+template <class Emitter>
+bool ByteCodeExprGen<Emitter>::VisitDeclRefExpr(const DeclRefExpr *E) {
+  const auto *Decl = E->getDecl();
+
+  if (auto It = Locals.find(Decl); It != Locals.end()) {
+    const unsigned Offset = It->second.Offset;
+    return this->emitGetPtrLocal(Offset, E);
+  } else if (auto GlobalIndex = P.getGlobal(Decl)) {
+    return this->emitGetPtrGlobal(*GlobalIndex, E);
+  } else if (const auto *PVD = dyn_cast<ParmVarDecl>(Decl)) {
+    if (auto It = this->Params.find(PVD); It != this->Params.end())
+      return this->emitGetPtrParam(It->second, E);
+  }
+
+  return false;
 }
 
 template <class Emitter>

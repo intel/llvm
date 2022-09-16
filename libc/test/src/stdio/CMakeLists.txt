@@ -71,6 +71,8 @@ add_libc_unittest(
     sprintf_test.cpp
   DEPENDS
     libc.src.stdio.sprintf
+    libc.src.__support.FPUtil.fp_bits
+    libc.src.__support.FPUtil.platform_defs
 )
 
 add_libc_unittest(
@@ -95,6 +97,18 @@ add_libc_unittest(
     libc.src.stdio.ferror
     libc.src.stdio.fopen
     libc.src.stdio.fread
+)
+
+
+add_libc_unittest(
+  printf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    printf_test.cpp
+  DEPENDS
+    libc.src.stdio.printf
+    libc.src.fenv.fesetround
 )
 
 add_subdirectory(printf_core)

@@ -10,7 +10,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Interfaces/TilingInterface.h"
 
@@ -22,6 +22,8 @@ namespace {
 struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
 
   SmallVector<Value> getDestinationOperands(Operation *op, OpBuilder &b) const {
+    OpBuilder::InsertionGuard g(b);
+    b.setInsertionPoint(op);
     ReifiedRankedShapedTypeDims reifiedShapes;
     ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
         dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
@@ -59,15 +61,25 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
   }
 
   SmallVector<Operation *>
-  getTiledImplementation(Operation *op, OpBuilder &b, ValueRange dest,
+  getTiledImplementation(Operation *op, OpBuilder &b,
                          ArrayRef<OpFoldResult> offsets,
-                         ArrayRef<OpFoldResult> sizes,
-                         bool /*tileDestOperands*/) const {
+                         ArrayRef<OpFoldResult> sizes) const {
     Operation *result =
         tensor::bubbleUpPadSlice(b, cast<PadOp>(op), offsets, sizes);
     if (!result)
       return {};
     return {result};
+  }
+
+  LogicalResult
+  getResultTilePosition(Operation *op, OpBuilder &b, unsigned resultNumber,
+                        ArrayRef<OpFoldResult> offsets,
+                        ArrayRef<OpFoldResult> sizes,
+                        SmallVector<OpFoldResult> &resultOffsets,
+                        SmallVector<OpFoldResult> &resultSizes) const {
+    resultOffsets.assign(offsets.begin(), offsets.end());
+    resultSizes.assign(sizes.begin(), sizes.end());
+    return success();
   }
 };
 
@@ -141,7 +153,7 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
     bool hasHighPad = getConstantIntValue(high) != static_cast<int64_t>(0);
     auto offset = getValueOrCreateConstantIndexOp(b, loc, offsets[dim]);
     auto length = getValueOrCreateConstantIndexOp(b, loc, sizes[dim]);
-    auto srcSize = b.createOrFold<tensor::DimOp>(loc, padOp.source(), dim);
+    auto srcSize = b.createOrFold<tensor::DimOp>(loc, padOp.getSource(), dim);
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of
@@ -246,13 +258,13 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
   auto createPadOfExtractSlice = [&]() {
     // Create pad(extract_slice(x)).
     auto newSliceOp = b.create<tensor::ExtractSliceOp>(
-        loc, padOp.source(), newOffsets, newLengths, newStrides);
+        loc, padOp.getSource(), newOffsets, newLengths, newStrides);
     auto newPadOp = b.create<PadOp>(loc, newSliceOp, staticNewLows,
                                     staticNewHighs, newLows, newHighs);
 
     // Copy region to new PadOp.
     BlockAndValueMapping bvm;
-    padOp.region().cloneInto(&newPadOp.getRegion(), bvm);
+    padOp.getRegion().cloneInto(&newPadOp.getRegion(), bvm);
 
     // Cast result and return.
     return castResult(newPadOp);
@@ -281,7 +293,7 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
   return createPadOfExtractSlice();
 }
 
-void mlir::tensor::registerTilingOpInterfaceExternalModels(
+void mlir::tensor::registerTilingInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, TensorDialect *dialect) {
     tensor::PadOp::attachInterface<PadOpTiling>(*ctx);

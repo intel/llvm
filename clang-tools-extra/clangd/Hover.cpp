@@ -32,6 +32,7 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/CharInfo.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
@@ -578,7 +579,7 @@ HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
                            const SymbolIndex *Index,
                            const syntax::TokenBuffer &TB) {
   HoverInfo HI;
-  const ASTContext &Ctx = D->getASTContext();
+  auto &Ctx = D->getASTContext();
 
   HI.AccessSpecifier = getAccessSpelling(D->getAccess()).str();
   HI.NamespaceScope = getNamespaceScope(D);
@@ -614,19 +615,17 @@ HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
   if (const FunctionDecl *FD = getUnderlyingFunction(D))
     fillFunctionTypeAndParams(HI, D, FD, PP);
   else if (const auto *VD = dyn_cast<ValueDecl>(D))
-    HI.Type = printType(VD->getType(), VD->getASTContext(), PP);
+    HI.Type = printType(VD->getType(), Ctx, PP);
   else if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(D))
     HI.Type = TTP->wasDeclaredWithTypename() ? "typename" : "class";
   else if (const auto *TTP = dyn_cast<TemplateTemplateParmDecl>(D))
     HI.Type = printType(TTP, PP);
   else if (const auto *VT = dyn_cast<VarTemplateDecl>(D))
-    HI.Type =
-        printType(VT->getTemplatedDecl()->getType(), VT->getASTContext(), PP);
+    HI.Type = printType(VT->getTemplatedDecl()->getType(), Ctx, PP);
   else if (const auto *TN = dyn_cast<TypedefNameDecl>(D))
-    HI.Type = printType(TN->getUnderlyingType(), TN->getASTContext(), PP);
+    HI.Type = printType(TN->getUnderlyingType().getDesugaredType(Ctx), Ctx, PP);
   else if (const auto *TAT = dyn_cast<TypeAliasTemplateDecl>(D))
-    HI.Type = printType(TAT->getTemplatedDecl()->getUnderlyingType(),
-                        TAT->getASTContext(), PP);
+    HI.Type = printType(TAT->getTemplatedDecl()->getUnderlyingType(), Ctx, PP);
 
   // Fill in value with evaluated initializer if possible.
   if (const auto *Var = dyn_cast<VarDecl>(D)) {
@@ -639,6 +638,29 @@ HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
   }
 
   HI.Definition = printDefinition(D, PP, TB);
+  return HI;
+}
+
+/// The standard defines __func__ as a "predefined variable".
+llvm::Optional<HoverInfo>
+getPredefinedExprHoverContents(const PredefinedExpr &PE, ASTContext &Ctx,
+                               const PrintingPolicy &PP) {
+  HoverInfo HI;
+  HI.Name = PE.getIdentKindName();
+  HI.Kind = index::SymbolKind::Variable;
+  HI.Documentation = "Name of the current function (predefined variable)";
+  if (const StringLiteral *Name = PE.getFunctionName()) {
+    HI.Value.emplace();
+    llvm::raw_string_ostream OS(*HI.Value);
+    Name->outputString(OS);
+    HI.Type = printType(Name->getType(), Ctx, PP);
+  } else {
+    // Inside templates, the approximate type `const char[]` is still useful.
+    QualType StringType = Ctx.getIncompleteArrayType(
+        Ctx.CharTy.withConst(), ArrayType::ArraySizeModifier::Normal,
+        /*IndexTypeQuals=*/0);
+    HI.Type = printType(StringType, Ctx, PP);
+  }
   return HI;
 }
 
@@ -766,6 +788,8 @@ llvm::Optional<HoverInfo> getHoverContents(const Expr *E, ParsedAST &AST,
   // For `this` expr we currently generate hover with pointee type.
   if (const CXXThisExpr *CTE = dyn_cast<CXXThisExpr>(E))
     return getThisExprHoverContents(CTE, AST.getASTContext(), PP);
+  if (const PredefinedExpr *PE = dyn_cast<PredefinedExpr>(E))
+    return getPredefinedExprHoverContents(*PE, AST.getASTContext(), PP);
   // For expressions we currently print the type and the value, iff it is
   // evaluatable.
   if (auto Val = printExprValue(E, AST.getASTContext())) {
@@ -977,19 +1001,16 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
     return llvm::None;
 
   // Show full header file path if cursor is on include directive.
-  if (const auto MainFilePath =
-          getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM)) {
-    for (const auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
-      if (Inc.Resolved.empty() || Inc.HashLine != Pos.line)
-        continue;
-      HoverInfo HI;
-      HI.Name = std::string(llvm::sys::path::filename(Inc.Resolved));
-      // FIXME: We don't have a fitting value for Kind.
-      HI.Definition =
-          URIForFile::canonicalize(Inc.Resolved, *MainFilePath).file().str();
-      HI.DefinitionLanguage = "";
-      return HI;
-    }
+  for (const auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
+    if (Inc.Resolved.empty() || Inc.HashLine != Pos.line)
+      continue;
+    HoverInfo HI;
+    HI.Name = std::string(llvm::sys::path::filename(Inc.Resolved));
+    // FIXME: We don't have a fitting value for Kind.
+    HI.Definition =
+        URIForFile::canonicalize(Inc.Resolved, AST.tuPath()).file().str();
+    HI.DefinitionLanguage = "";
+    return HI;
   }
 
   // To be used as a backup for highlighting the selected token, we use back as

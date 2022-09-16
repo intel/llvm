@@ -53,6 +53,8 @@ private:
   /// FrameIndex used for transferring values between 64-bit FPRs and a pair
   /// of 32-bit GPRs via the stack.
   int MoveF64FrameIndex = -1;
+  /// FrameIndex of the spill slot for the scratch register in BranchRelaxation.
+  int BranchRelaxationScratchFrameIndex = -1;
   /// Size of any opaque stack adjustment due to save/restore libcalls.
   unsigned LibCallStackSize = 0;
   /// Size of RVV stack.
@@ -67,6 +69,11 @@ private:
 public:
   RISCVMachineFunctionInfo(const MachineFunction &MF) {}
 
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
+
   int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
   void setVarArgsFrameIndex(int Index) { VarArgsFrameIndex = Index; }
 
@@ -78,6 +85,13 @@ public:
       MoveF64FrameIndex =
           MF.getFrameInfo().CreateStackObject(8, Align(8), false);
     return MoveF64FrameIndex;
+  }
+
+  int getBranchRelaxationScratchFrameIndex() const {
+    return BranchRelaxationScratchFrameIndex;
+  }
+  void setBranchRelaxationScratchFrameIndex(int Index) {
+    BranchRelaxationScratchFrameIndex = Index;
   }
 
   unsigned getLibCallStackSize() const { return LibCallStackSize; }

@@ -317,8 +317,15 @@ InstrEmitter::AddRegisterOperand(MachineInstrBuilder &MIB,
       OpRC = TII->getRegClass(*II, IIOpNum, TRI, *MF);
 
     if (OpRC) {
+      unsigned MinNumRegs = MinRCSize;
+      // Don't apply any RC size limit for IMPLICIT_DEF. Each use has a unique
+      // virtual register.
+      if (Op.isMachineOpcode() &&
+          Op.getMachineOpcode() == TargetOpcode::IMPLICIT_DEF)
+        MinNumRegs = 0;
+
       const TargetRegisterClass *ConstrainedRC
-        = MRI->constrainRegClass(VReg, OpRC, MinRCSize);
+        = MRI->constrainRegClass(VReg, OpRC, MinNumRegs);
       if (!ConstrainedRC) {
         OpRC = TRI->getAllocatableClass(OpRC);
         assert(OpRC && "Constraints cannot be fulfilled for allocation");
@@ -1055,6 +1062,9 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
   // Set the memory reference descriptions of this instruction now that it is
   // part of the function.
   MIB.setMemRefs(cast<MachineSDNode>(Node)->memoperands());
+
+  // Set the CFI type.
+  MIB->setCFIType(*MF, Node->getCFIType());
 
   // Insert the instruction into position in the block. This needs to
   // happen before any custom inserter hook is called so that the

@@ -138,7 +138,7 @@ static bool isBlockValidForExtraction(const BasicBlock &BB,
       if (auto *UBB = CSI->getUnwindDest())
         if (!Result.count(UBB))
           return false;
-      for (auto *HBB : CSI->handlers())
+      for (const auto *HBB : CSI->handlers())
         if (!Result.count(const_cast<BasicBlock*>(HBB)))
           return false;
       continue;
@@ -921,11 +921,13 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::WillReturn:
       case Attribute::WriteOnly:
       case Attribute::AllocKind:
+      case Attribute::PresplitCoroutine:
         continue;
       // Those attributes should be safe to propagate to the extracted function.
       case Attribute::AlwaysInline:
       case Attribute::Cold:
       case Attribute::DisableSanitizerInstrumentation:
+      case Attribute::FnRetThunkExtern:
       case Attribute::Hot:
       case Attribute::NoRecurse:
       case Attribute::InlineHint:
@@ -961,6 +963,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::NoCfCheck:
       case Attribute::MustProgress:
       case Attribute::NoProfile:
+      case Attribute::SkipProfile:
         break;
       // These attributes cannot be applied to functions.
       case Attribute::Alignment:
@@ -1256,8 +1259,8 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
                                   codeReplacer);
     Reloads.push_back(load);
     std::vector<User *> Users(outputs[i]->user_begin(), outputs[i]->user_end());
-    for (unsigned u = 0, e = Users.size(); u != e; ++u) {
-      Instruction *inst = cast<Instruction>(Users[u]);
+    for (User *U : Users) {
+      Instruction *inst = cast<Instruction>(U);
       if (!Blocks.count(inst->getParent()))
         inst->replaceUsesOfWith(outputs[i], load);
     }
@@ -1774,9 +1777,9 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
   // Update the entry count of the function.
   if (BFI) {
     auto Count = BFI->getProfileCountFromFreq(EntryFreq.getFrequency());
-    if (Count.hasValue())
+    if (Count)
       newFunction->setEntryCount(
-          ProfileCount(Count.getValue(), Function::PCT_Real)); // FIXME
+          ProfileCount(Count.value(), Function::PCT_Real)); // FIXME
     BFI->setBlockFreq(codeReplacer, EntryFreq.getFrequency());
   }
 

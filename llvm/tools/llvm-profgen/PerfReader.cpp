@@ -13,34 +13,31 @@
 
 #define DEBUG_TYPE "perf-reader"
 
-cl::opt<bool> SkipSymbolization("skip-symbolization", cl::init(false),
-                                cl::ZeroOrMore,
+cl::opt<bool> SkipSymbolization("skip-symbolization",
                                 cl::desc("Dump the unsymbolized profile to the "
                                          "output file. It will show unwinder "
                                          "output for CS profile generation."));
 
-static cl::opt<bool> ShowMmapEvents("show-mmap-events", cl::init(false),
-                                    cl::ZeroOrMore,
+static cl::opt<bool> ShowMmapEvents("show-mmap-events",
                                     cl::desc("Print binary load events."));
 
 static cl::opt<bool>
-    UseOffset("use-offset", cl::init(true), cl::ZeroOrMore,
+    UseOffset("use-offset", cl::init(true),
               cl::desc("Work with `--skip-symbolization` or "
                        "`--unsymbolized-profile` to write/read the "
                        "offset instead of virtual address."));
 
 static cl::opt<bool> UseLoadableSegmentAsBase(
-    "use-first-loadable-segment-as-base", cl::init(false), cl::ZeroOrMore,
+    "use-first-loadable-segment-as-base",
     cl::desc("Use first loadable segment address as base address "
              "for offsets in unsymbolized profile. By default "
              "first executable segment address is used"));
 
 static cl::opt<bool>
-    IgnoreStackSamples("ignore-stack-samples", cl::init(false), cl::ZeroOrMore,
+    IgnoreStackSamples("ignore-stack-samples",
                        cl::desc("Ignore call stack samples for hybrid samples "
                                 "and produce context-insensitive profile."));
-cl::opt<bool> ShowDetailedWarning("show-detailed-warning", cl::init(false),
-                                  cl::ZeroOrMore,
+cl::opt<bool> ShowDetailedWarning("show-detailed-warning",
                                   cl::desc("Show detailed warning message."));
 
 extern cl::opt<std::string> PerfTraceFilename;
@@ -370,12 +367,13 @@ PerfInputFile PerfScriptReader::convertPerfDataToTrace(
   }
   std::string PerfPath = *PerfExecutable;
   std::string PerfTraceFile = PerfData.str() + ".script.tmp";
+  std::string ErrorFile = PerfData.str() + ".script.err.tmp";
   StringRef ScriptMMapArgs[] = {PerfPath, "script",   "--show-mmap-events",
                                 "-F",     "comm,pid", "-i",
                                 PerfData};
-  Optional<StringRef> Redirects[] = {llvm::None,                // Stdin
-                                     StringRef(PerfTraceFile),  // Stdout
-                                     StringRef(PerfTraceFile)}; // Stderr
+  Optional<StringRef> Redirects[] = {llvm::None,               // Stdin
+                                     StringRef(PerfTraceFile), // Stdout
+                                     StringRef(ErrorFile)};    // Stderr
   sys::ExecuteAndWait(PerfPath, ScriptMMapArgs, llvm::None, Redirects);
 
   // Collect the PIDs
@@ -437,7 +435,7 @@ void PerfScriptReader::updateBinaryAddress(const MMapEvent &Event) {
   } else {
     // Verify segments are loaded consecutively.
     const auto &Offsets = Binary->getTextSegmentOffsets();
-    auto It = std::lower_bound(Offsets.begin(), Offsets.end(), Event.Offset);
+    auto It = llvm::lower_bound(Offsets, Event.Offset);
     if (It != Offsets.end() && *It == Event.Offset) {
       // The event is for loading a separate executable segment.
       auto I = std::distance(Offsets.begin(), It);
@@ -470,9 +468,9 @@ static std::string getContextKeyStr(ContextKey *K,
       if (OContextStr.str().size())
         OContextStr << " @ ";
       OContextStr << "0x"
-                  << to_hexString(
+                  << utohexstr(
                          Binary->virtualAddrToOffset(CtxKey->Context[I]),
-                         false);
+                         /*LowerCase=*/true);
     }
     return OContextStr.str();
   } else {
@@ -953,8 +951,8 @@ bool PerfScriptReader::extractMMap2EventForBinary(ProfiledBinary *Binary,
   SmallVector<StringRef, 6> Fields;
   bool R = RegMmap2.match(Line, &Fields);
   if (!R) {
-    std::string ErrorMsg = "Cannot parse mmap event: " + Line.str() + " \n";
-    exitWithError(ErrorMsg);
+    std::string WarningMsg = "Cannot parse mmap event: " + Line.str() + " \n";
+    WithColor::warning() << WarningMsg;
   }
   Fields[PID].getAsInteger(10, MMap.PID);
   Fields[MMAPPED_ADDRESS].getAsInteger(0, MMap.Address);

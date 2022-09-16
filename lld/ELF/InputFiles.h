@@ -196,7 +196,7 @@ public:
 
 protected:
   // Initializes this class's member variables.
-  template <typename ELFT> void init();
+  template <typename ELFT> void init(InputFile::Kind k);
 
   StringRef stringTable;
   const void *elfShdrs = nullptr;
@@ -274,7 +274,7 @@ public:
   // Get cached DWARF information.
   DWARFCache *getDwarf();
 
-  void initializeLocalSymbols();
+  void initSectionsAndLocalSyms(bool ignoreComdats);
   void postParse();
 
 private:
@@ -304,9 +304,6 @@ private:
   // If the section does not exist (which is common), the array is empty.
   ArrayRef<Elf_Word> shndxTable;
 
-  // Storage for local symbols.
-  std::unique_ptr<SymbolUnion[]> localSymStorage;
-
   // Debugging information to retrieve source file and line for error
   // reporting. Linker may find reasonable number of errors in a
   // single object file, so we cache debugging information in order to
@@ -320,7 +317,7 @@ public:
   BitcodeFile(MemoryBufferRef m, StringRef archiveName,
               uint64_t offsetInArchive, bool lazy);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
-  template <class ELFT> void parse();
+  void parse();
   void parseLazy();
   void postParse();
   std::unique_ptr<llvm::lto::InputFile> obj;
@@ -371,23 +368,10 @@ public:
   void parse();
 };
 
-InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName = "",
-                            uint64_t offsetInArchive = 0);
-InputFile *createLazyFile(MemoryBufferRef mb, StringRef archiveName,
-                          uint64_t offsetInArchive);
-
-inline bool isBitcode(MemoryBufferRef mb) {
-  return identify_magic(mb.getBuffer()) == llvm::file_magic::bitcode;
-}
+ELFFileBase *createObjFile(MemoryBufferRef mb, StringRef archiveName = "",
+                           bool lazy = false);
 
 std::string replaceThinLTOSuffix(StringRef path);
-
-extern SmallVector<std::unique_ptr<MemoryBuffer>> memoryBuffers;
-extern SmallVector<BinaryFile *, 0> binaryFiles;
-extern SmallVector<BitcodeFile *, 0> bitcodeFiles;
-extern SmallVector<BitcodeFile *, 0> lazyBitcodeFiles;
-extern SmallVector<ELFFileBase *, 0> objectFiles;
-extern SmallVector<SharedFile *, 0> sharedFiles;
 
 } // namespace elf
 } // namespace lld

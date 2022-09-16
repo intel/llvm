@@ -323,6 +323,9 @@ bool mingw::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   if (args.hasFlag(OPT_disable_tsaware, OPT_tsaware, false))
     add("-tsaware:no");
 
+  if (args.hasFlag(OPT_disable_reloc_section, OPT_enable_reloc_section, false))
+    add("-fixed");
+
   if (args.hasFlag(OPT_no_insert_timestamp, OPT_insert_timestamp, false))
     add("-timestamp:0");
 
@@ -395,6 +398,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     add("-delayload:" + StringRef(a->getValue()));
   for (auto *a : args.filtered(OPT_wrap))
     add("-wrap:" + StringRef(a->getValue()));
+  for (auto *a : args.filtered(OPT_exclude_symbols))
+    add("-exclude-symbols:" + StringRef(a->getValue()));
 
   std::vector<StringRef> searchPaths;
   for (auto *a : args.filtered(OPT_L)) {

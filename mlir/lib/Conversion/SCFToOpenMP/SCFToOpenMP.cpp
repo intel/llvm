@@ -12,17 +12,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
-#include "../PassDetail.h"
+
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSCFTOOPENMP
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -94,11 +100,10 @@ matchSelectReduction(Block &block, ArrayRef<Predicate> lessThanPredicates,
 
   // Detect whether the comparison is less-than or greater-than, otherwise bail.
   bool isLess;
-  if (llvm::find(lessThanPredicates, compare.getPredicate()) !=
-      lessThanPredicates.end()) {
+  if (llvm::is_contained(lessThanPredicates, compare.getPredicate())) {
     isLess = true;
-  } else if (llvm::find(greaterThanPredicates, compare.getPredicate()) !=
-             greaterThanPredicates.end()) {
+  } else if (llvm::is_contained(greaterThanPredicates,
+                                compare.getPredicate())) {
     isLess = false;
   } else {
     return false;
@@ -444,7 +449,7 @@ static LogicalResult applyPatterns(ModuleOp module) {
 }
 
 /// A pass converting SCF operations to OpenMP operations.
-struct SCFToOpenMPPass : public ConvertSCFToOpenMPBase<SCFToOpenMPPass> {
+struct SCFToOpenMPPass : public impl::ConvertSCFToOpenMPBase<SCFToOpenMPPass> {
   /// Pass entry point.
   void runOnOperation() override {
     if (failed(applyPatterns(getOperation())))

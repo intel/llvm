@@ -4,27 +4,23 @@
 // Changing symbol size or alignment is a breaking change. If it happens, refer
 // to the ABI Policy Guide for further instructions on breaking ABI.
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/buffer.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/buffer_impl.hpp>
-#include <CL/sycl/detail/image_impl.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_event.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/image.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/multi_ptr.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/queue.hpp>
-#include <CL/sycl/sampler.hpp>
-#include <CL/sycl/stream.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/buffer.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_event.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/event.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/image.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/multi_ptr.hpp>
+#include <sycl/platform.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/sampler.hpp>
+#include <sycl/stream.hpp>
+#include <sycl/types.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <int newSize, int oldSize> void check_size() {
   static_assert(newSize == oldSize, "Symbol size has changed.");
@@ -46,9 +42,7 @@ int main() {
   check<accessor_t, 32, 8>();
   check<detail::AccessorImplDevice<1>, 24, 8>();
   check<detail::LocalAccessorBaseDevice<1>, 24, 8>();
-  check<detail::AccessorImplHost, 128, 8>();
   check<detail::AccessorBaseHost, 16, 8>();
-  check<detail::LocalAccessorImplHost, 56, 8>();
   check<buffer<int>, 40, 8>();
   check<context, 16, 8>();
   check<cpu_selector, 8, 8>();
@@ -58,13 +52,9 @@ int main() {
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
 #ifdef _MSC_VER
-  check<handler, 552, 8>();
-  check<detail::buffer_impl, 216, 8>();
-  check<detail::image_impl<1>, 272, 8>();
+  check<handler, 568, 8>();
 #else
-  check<handler, 560, 8>();
-  check<detail::buffer_impl, 184, 8>();
-  check<detail::image_impl<1>, 240, 8>();
+  check<handler, 576, 8>();
 #endif
   check<image<1>, 16, 8>();
   check<kernel, 16, 8>();
@@ -73,7 +63,6 @@ int main() {
   check<private_memory<int, 1>, 4, 4>();
   check<detail::sampler_impl, 8, 8>();
 #endif
-  check<program, 16, 8>();
   check<range<1>, 8, 8>();
   check<sampler, 16, 8>();
   check<stream, 144, 8>();

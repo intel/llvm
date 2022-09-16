@@ -1,15 +1,15 @@
 // RUN: %clangxx -fsycl -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %t.out
 // expected-no-diagnostics
 
 // This test performs basic checks of has_known_identity and known_identity
 // type traits.
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <cstddef>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T> void checkCommonKnownIdentity() {
   static_assert(has_known_identity<sycl::maximum<>, T>::value);

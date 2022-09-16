@@ -554,7 +554,7 @@ static void updateLiveness(MachineFunction &MF) {
   }
 }
 
-/// Insert restore code for the callee-saved registers used in the function.
+/// Insert spill code for the callee-saved registers used in the function.
 static void insertCSRSaves(MachineBasicBlock &SaveBlock,
                            ArrayRef<CalleeSavedInfo> CSI) {
   MachineFunction &MF = *SaveBlock.getParent();
@@ -1206,6 +1206,11 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
             UsedRegs.set(Reg);
         }
 
+  // Get a list of registers that are used.
+  BitVector LiveIns(TRI.getNumRegs());
+  for (const MachineBasicBlock::RegisterMaskPair &LI : MF.front().liveins())
+    LiveIns.set(LI.PhysReg);
+
   BitVector RegsToZero(TRI.getNumRegs());
   for (MCRegister Reg : AllocatableSet.set_bits()) {
     // Skip over fixed registers.
@@ -1221,8 +1226,14 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
       continue;
 
     // Want only registers used for arguments.
-    if (OnlyArg && !TRI.isArgumentRegister(MF, Reg))
-      continue;
+    if (OnlyArg) {
+      if (OnlyUsed) {
+        if (!LiveIns[Reg])
+          continue;
+      } else if (!TRI.isArgumentRegister(MF, Reg)) {
+        continue;
+      }
+    }
 
     RegsToZero.set(Reg);
   }

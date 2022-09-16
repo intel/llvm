@@ -577,8 +577,9 @@ LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
     CallParams.removeOperand(0);
 
     // For funcrefs, call_indirect is done through __funcref_call_table and the
-    // funcref is always installed in slot 0 of the table, therefore instead of having
-    // the function pointer added at the end of the params list, a zero (the index in
+    // funcref is always installed in slot 0 of the table, therefore instead of
+    // having the function pointer added at the end of the params list, a zero
+    // (the index in
     // __funcref_call_table is added).
     if (IsFuncrefCall) {
       Register RegZero =
@@ -750,12 +751,12 @@ WebAssemblyTargetLowering::getRegForInlineAsmConstraint(
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
-bool WebAssemblyTargetLowering::isCheapToSpeculateCttz() const {
+bool WebAssemblyTargetLowering::isCheapToSpeculateCttz(Type *Ty) const {
   // Assume ctz is a relatively cheap operation.
   return true;
 }
 
-bool WebAssemblyTargetLowering::isCheapToSpeculateCtlz() const {
+bool WebAssemblyTargetLowering::isCheapToSpeculateCtlz(Type *Ty) const {
   // Assume clz is a relatively cheap operation.
   return true;
 }
@@ -1156,7 +1157,7 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
     // If the callee is a GlobalAddress node (quite common, every direct call
     // is) turn it into a TargetGlobalAddress node so that LowerGlobalAddress
     // doesn't at MO_GOT which is not needed for direct calls.
-    GlobalAddressSDNode* GA = cast<GlobalAddressSDNode>(Callee);
+    GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Callee);
     Callee = DAG.getTargetGlobalAddress(GA->getGlobal(), DL,
                                         getPointerTy(DAG.getDataLayout()),
                                         GA->getOffset());
@@ -1580,6 +1581,11 @@ SDValue WebAssemblyTargetLowering::LowerStore(SDValue Op,
     return DAG.getNode(WebAssemblyISD::LOCAL_SET, DL, Tys, Ops);
   }
 
+  if (WebAssembly::isWasmVarAddressSpace(SN->getAddressSpace()))
+    report_fatal_error(
+        "Encountered an unlowerable store to the wasm_var address space",
+        false);
+
   return Op;
 }
 
@@ -1634,6 +1640,11 @@ SDValue WebAssemblyTargetLowering::LowerLoad(SDValue Op,
     assert(Result->getNumValues() == 2 && "Loads must carry a chain!");
     return Result;
   }
+
+  if (WebAssembly::isWasmVarAddressSpace(LN->getAddressSpace()))
+    report_fatal_error(
+        "Encountered an unlowerable load from the wasm_var address space",
+        false);
 
   return Op;
 }
@@ -1719,20 +1730,12 @@ WebAssemblyTargetLowering::LowerGlobalTLSAddress(SDValue Op,
 
   const GlobalValue *GV = GA->getGlobal();
 
-  // Currently Emscripten does not support dynamic linking with threads.
-  // Therefore, if we have thread-local storage, only the local-exec model
-  // is possible.
-  // TODO: remove this and implement proper TLS models once Emscripten
-  // supports dynamic linking with threads.
-  if (GV->getThreadLocalMode() != GlobalValue::LocalExecTLSModel &&
-      !Subtarget->getTargetTriple().isOSEmscripten()) {
-    report_fatal_error("only -ftls-model=local-exec is supported for now on "
-                       "non-Emscripten OSes: variable " +
-                           GV->getName(),
-                       false);
-  }
-
-  auto model = GV->getThreadLocalMode();
+  // Currently only Emscripten supports dynamic linking with threads. Therefore,
+  // on other targets, if we have thread-local storage, only the local-exec
+  // model is possible.
+  auto model = Subtarget->getTargetTriple().isOSEmscripten()
+                   ? GV->getThreadLocalMode()
+                   : GlobalValue::LocalExecTLSModel;
 
   // Unsupported TLS modes
   assert(model != GlobalValue::NotThreadLocal);
@@ -1791,8 +1794,7 @@ SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
       if (GV->getValueType()->isFunctionTy()) {
         BaseName = MF.createExternalSymbolName("__table_base");
         OperandFlags = WebAssemblyII::MO_TABLE_BASE_REL;
-      }
-      else {
+      } else {
         BaseName = MF.createExternalSymbolName("__memory_base");
         OperandFlags = WebAssemblyII::MO_MEMORY_BASE_REL;
       }
@@ -1853,7 +1855,7 @@ SDValue WebAssemblyTargetLowering::LowerBR_JT(SDValue Op,
   const auto &MBBs = MJTI->getJumpTables()[JT->getIndex()].MBBs;
 
   // Add an operand for each case.
-  for (auto MBB : MBBs)
+  for (auto *MBB : MBBs)
     Ops.push_back(DAG.getBasicBlock(MBB));
 
   // Add the first MBB as a dummy default target for now. This will be replaced
@@ -2131,8 +2133,7 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
 
   auto GetMostCommon = [](auto &Counts) {
     auto CommonIt =
-        std::max_element(Counts.begin(), Counts.end(),
-                         [](auto A, auto B) { return A.second < B.second; });
+        std::max_element(Counts.begin(), Counts.end(), llvm::less_second());
     assert(CommonIt != Counts.end() && "Unexpected all-undef build_vector");
     return *CommonIt;
   };

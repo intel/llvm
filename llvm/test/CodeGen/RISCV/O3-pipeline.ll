@@ -22,10 +22,12 @@
 ; CHECK-NEXT:   ModulePass Manager
 ; CHECK-NEXT:     Pre-ISel Intrinsic Lowering
 ; CHECK-NEXT:     FunctionPass Manager
+; CHECK-NEXT:       Expand large div/rem
 ; CHECK-NEXT:       Expand Atomic instructions
 ; CHECK-NEXT:       Dominator Tree Construction
 ; CHECK-NEXT:       Natural Loop Information
 ; CHECK-NEXT:       RISCV gather/scatter lowering
+; CHECK-NEXT:       RISCV CodeGenPrepare
 ; CHECK-NEXT:       Module Verifier
 ; CHECK-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:       Canonicalize natural loops
@@ -95,6 +97,7 @@
 ; CHECK-NEXT:       Peephole Optimizations
 ; CHECK-NEXT:       Remove dead machine instructions
 ; RV64-NEXT:        RISCV sext.w Removal
+; CHECK-NEXT:       RISCV Pre-RA pseudo instruction expansion pass
 ; CHECK-NEXT:       RISCV Merge Base Offset
 ; CHECK-NEXT:       RISCV Insert VSETVLI pass
 ; CHECK-NEXT:       Detect Dead Lanes

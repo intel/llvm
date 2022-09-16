@@ -474,7 +474,8 @@ public:
       SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
       Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule,
       bool *IsMapped, bool *IsFrameworkFound, bool SkipCache = false,
-      bool BuildSystemModule = false);
+      bool BuildSystemModule = false, bool OpenFile = true,
+      bool CacheFailures = true);
 
   /// Look up a subframework for the specified \#include file.
   ///
@@ -727,8 +728,7 @@ private:
   /// frameworks.
   ///
   /// \returns The module, if found; otherwise, null.
-  Module *loadFrameworkModule(StringRef Name,
-                              const DirectoryEntry *Dir,
+  Module *loadFrameworkModule(StringRef Name, DirectoryEntryRef Dir,
                               bool IsSystem);
 
   /// Load all of the module maps within the immediate subdirectories
@@ -760,7 +760,8 @@ private:
   getFileAndSuggestModule(StringRef FileName, SourceLocation IncludeLoc,
                           const DirectoryEntry *Dir, bool IsSystemHeaderDir,
                           Module *RequestingModule,
-                          ModuleMap::KnownHeader *SuggestedModule);
+                          ModuleMap::KnownHeader *SuggestedModule,
+                          bool OpenFile = true, bool CacheFailures = true);
 
   /// Cache the result of a successful lookup at the given include location
   /// using the search path at \c HitIt.
@@ -884,7 +885,7 @@ private:
 
   LoadModuleMapResult loadModuleMapFileImpl(const FileEntry *File,
                                             bool IsSystem,
-                                            const DirectoryEntry *Dir,
+                                            DirectoryEntryRef Dir,
                                             FileID ID = FileID(),
                                             unsigned *Offset = nullptr);
 
@@ -908,8 +909,8 @@ private:
   ///
   /// \returns The result of attempting to load the module map file from the
   /// named directory.
-  LoadModuleMapResult loadModuleMapFile(const DirectoryEntry *Dir,
-                                        bool IsSystem, bool IsFramework);
+  LoadModuleMapResult loadModuleMapFile(DirectoryEntryRef Dir, bool IsSystem,
+                                        bool IsFramework);
 };
 
 /// Apply the header search options to get given HeaderSearch object.

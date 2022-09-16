@@ -44,9 +44,11 @@
 
 // RUN: %clang_cl /fp:fast /fp:except -### -- %s 2>&1 | FileCheck -check-prefix=fpexcept %s
 // fpexcept-NOT: -menable-unsafe-fp-math
+// fpexcept: -ffp-exception-behavior=strict
 
 // RUN: %clang_cl /fp:fast /fp:except /fp:except- -### -- %s 2>&1 | FileCheck -check-prefix=fpexcept_ %s
 // fpexcept_: -menable-unsafe-fp-math
+// fpexcept_: -ffp-exception-behavior=ignore
 
 // RUN: %clang_cl /fp:precise /fp:fast -### -- %s 2>&1 | FileCheck -check-prefix=fpfast %s
 // fpfast: -menable-unsafe-fp-math
@@ -59,26 +61,39 @@
 // RUN: %clang_cl /fp:fast /fp:strict -### -- %s 2>&1 | FileCheck -check-prefix=fpstrict %s
 // fpstrict-NOT: -menable-unsafe-fp-math
 // fpstrict-NOT: -ffast-math
+// fpstrict: -ffp-contract=off
+
+// RUN: %clang_cl /fp:strict /fp:contract -### -- %s 2>&1 | FileCheck -check-prefix=fpcontract %s
+// fpcontract: -ffp-contract=on
 
 // RUN: %clang_cl /fsanitize=address -### -- %s 2>&1 | FileCheck -check-prefix=fsanitize_address %s
 // fsanitize_address: -fsanitize=address
 
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
 // CHECK-PROFILE-INSTR-GENERATE: "-fprofile-instrument=clang" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
 // CHECK-PROFILE-INSTR-GENERATE-FILE: "-fprofile-instrument-path=/tmp/somefile.profraw"
 
 // RUN: %clang_cl -### /FA -fprofile-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
 // CHECK-PROFILE-GENERATE: "-fprofile-instrument=llvm" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
 
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use=file -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate -fprofile-instr-use=file -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
 // CHECK-NO-MIX-GEN-USE: '{{[a-z=-]*}}' not allowed with '{{[a-z=-]*}}'
 
 // RUN: %clang_cl -### /FA -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
 // RUN: %clang_cl -### /FA -fprofile-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
 // RUN: %clang_cl -### /FA -fprofile-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
 // CHECK-PROFILE-USE: "-fprofile-instrument-use-path=default.profdata"
 // CHECK-PROFILE-USE-FILE: "-fprofile-instrument-use-path=/tmp/somefile.prof"
 
@@ -751,5 +766,13 @@
 
 // RUN: %clang_cl /JMC /Z7 /c -### -- %s 2>&1 | FileCheck %s --check-prefix JMC
 // JMC: -fjmc
+
+// RUN: %clang_cl /external:W0 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_W0 %s
+// RUN: %clang_cl /external:W1 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// RUN: %clang_cl /external:W2 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// RUN: %clang_cl /external:W3 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// RUN: %clang_cl /external:W4 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// EXTERNAL_W0: "-Wno-system-headers"
+// EXTERNAL_Wn: "-Wsystem-headers"
 
 void f(void) { }

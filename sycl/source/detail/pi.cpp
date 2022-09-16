@@ -12,16 +12,16 @@
 /// \ingroup sycl_pi
 
 #include "context_impl.hpp"
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/version.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -42,8 +42,8 @@
 #define SYCL_VERSION_STR                                                       \
   "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -61,20 +61,18 @@ constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
 constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
-template <cl::sycl::backend BE>
-void *getPluginOpaqueData(void *OpaqueDataParam) {
+template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
   void *ReturnOpaqueData = nullptr;
-  const cl::sycl::detail::plugin &Plugin =
-      cl::sycl::detail::pi::getPlugin<BE>();
+  const sycl::detail::plugin &Plugin = sycl::detail::pi::getPlugin<BE>();
 
-  Plugin.call<cl::sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
+  Plugin.call<sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
       OpaqueDataParam, &ReturnOpaqueData);
 
   return ReturnOpaqueData;
 }
 
 template __SYCL_EXPORT void *
-getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(void *);
+getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
@@ -180,7 +178,7 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
 #endif
 }
 
-void contextSetExtendedDeleter(const cl::sycl::context &context,
+void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
@@ -204,7 +202,7 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_EXTENSIONS";
   }
   die("Unknown pi_platform_info value passed to "
-      "cl::sycl::detail::pi::platformInfoToString");
+      "sycl::detail::pi::platformInfoToString");
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
@@ -349,8 +347,9 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 bool bindPlugin(void *Library,
                 const std::shared_ptr<PiPlugin> &PluginInformation) {
 
-  decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
-      &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
+  decltype(::piPluginInit) *PluginInitializeFunction =
+      (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
+                                                          "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
@@ -388,12 +387,15 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
+  const std::string LibSYCLDir =
+      sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
+
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
         PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
                  /*Targets=*/nullptr, /*FunctionPointers=*/{}});
 
-    void *Library = loadPlugin(PluginNames[I].first);
+    void *Library = loadPlugin(LibSYCLDir + PluginNames[I].first);
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
@@ -446,12 +448,14 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       GlobalPlugin = std::make_shared<plugin>(
           PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
-    Plugins.emplace_back(
+    plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << std::endl;
+                << PluginNames[I].first
+                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
+                << " ]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -521,7 +525,7 @@ template <backend BE> const plugin &getPlugin() {
     }
 
   throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_INVALID_OPERATION);
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
@@ -529,6 +533,7 @@ template __SYCL_EXPORT const plugin &
 getPlugin<backend::ext_oneapi_level_zero>();
 template __SYCL_EXPORT const plugin &
 getPlugin<backend::ext_intel_esimd_emulator>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::ext_oneapi_cuda>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
@@ -544,156 +549,93 @@ void assertion(bool Condition, const char *Message) {
     die(Message);
 }
 
-std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
-  switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
-    Out << "[UINT32] ";
-    break;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY:
-    Out << "[Byte array] ";
-    break;
-  case PI_PROPERTY_TYPE_STRING:
-    Out << "[String] ";
-    break;
-  default:
-    assert(false && "unsupported property");
-    return Out;
-  }
-  Out << P.Prop->Name << "=";
-
-  switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
-    Out << P.asUint32();
-    break;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY: {
-    ByteArray BA = P.asByteArray();
-    std::ios_base::fmtflags FlagsBackup = Out.flags();
-    Out << std::hex;
-    for (const auto &Byte : BA) {
-      Out << "0x" << static_cast<unsigned>(Byte) << " ";
+// Reads an integer value from ELF data.
+template <typename ResT>
+static ResT readELFValue(const unsigned char *Data, size_t NumBytes,
+                         bool IsBigEndian) {
+  assert(NumBytes <= sizeof(ResT));
+  ResT Result = 0;
+  if (IsBigEndian) {
+    for (size_t I = 0; I < NumBytes; ++I) {
+      Result = (Result << 8) | static_cast<ResT>(Data[I]);
     }
-    Out.flags(FlagsBackup);
-    break;
+  } else {
+    std::copy(Data, Data + NumBytes, reinterpret_cast<char *>(&Result));
   }
-  case PI_PROPERTY_TYPE_STRING:
-    Out << P.asCString();
-    break;
-  default:
-    assert(false && "Unsupported property");
-    return Out;
+  return Result;
+}
+
+// Checks if an ELF image contains a section with a specified name.
+static bool checkELFSectionPresent(const std::string &ExpectedSectionName,
+                                   const unsigned char *ImgData,
+                                   size_t ImgSize) {
+  // Check for 64bit and big-endian.
+  bool Is64bit = ImgData[4] == 2;
+  bool IsBigEndian = ImgData[5] == 2;
+
+  // Make offsets based on whether the ELF file is 64bit or not.
+  size_t SectionHeaderOffsetInfoOffset = Is64bit ? 0x28 : 0x20;
+  size_t SectionHeaderSizeInfoOffset = Is64bit ? 0x3A : 0x2E;
+  size_t SectionHeaderNumInfoOffset = Is64bit ? 0x3C : 0x30;
+  size_t SectionStringsHeaderIndexInfoOffset = Is64bit ? 0x3E : 0x32;
+
+  // if the image doesn't contain enough data for the header values, end early.
+  if (ImgSize < SectionStringsHeaderIndexInfoOffset + 2)
+    return false;
+
+  // Read the e_shoff, e_shentsize, e_shnum, and e_shstrndx entries in the
+  // header.
+  uint64_t SectionHeaderOffset = readELFValue<uint64_t>(
+      ImgData + SectionHeaderOffsetInfoOffset, Is64bit ? 8 : 4, IsBigEndian);
+  uint16_t SectionHeaderSize = readELFValue<uint16_t>(
+      ImgData + SectionHeaderSizeInfoOffset, 2, IsBigEndian);
+  uint16_t SectionHeaderNum = readELFValue<uint16_t>(
+      ImgData + SectionHeaderNumInfoOffset, 2, IsBigEndian);
+  uint16_t SectionStringsHeaderIndex = readELFValue<uint16_t>(
+      ImgData + SectionStringsHeaderIndexInfoOffset, 2, IsBigEndian);
+
+  // End early if we do not have the expected number of section headers or
+  // if the read section string header index is out-of-range.
+  if (ImgSize < SectionHeaderOffset + SectionHeaderNum * SectionHeaderSize ||
+      SectionStringsHeaderIndex >= SectionHeaderNum)
+    return false;
+
+  // Get the location of the section string data.
+  size_t SectionStringsInfoOffset = Is64bit ? 0x18 : 0x10;
+  const unsigned char *SectionStringsHeaderData =
+      ImgData + SectionHeaderOffset +
+      SectionStringsHeaderIndex * SectionHeaderSize;
+  uint64_t SectionStrings = readELFValue<uint64_t>(
+      SectionStringsHeaderData + SectionStringsInfoOffset, Is64bit ? 8 : 4,
+      IsBigEndian);
+  const unsigned char *SectionStringsData = ImgData + SectionStrings;
+
+  // For each section, check the name against the expected section and return
+  // true if we find it.
+  for (size_t I = 0; I < SectionHeaderNum; ++I) {
+    // Get the offset into the section string data of this sections name.
+    const unsigned char *HeaderData =
+        ImgData + SectionHeaderOffset + I * SectionHeaderSize;
+    uint32_t SectionNameOffset =
+        readELFValue<uint32_t>(HeaderData, 4, IsBigEndian);
+
+    // Read the section name and check if it is the same as the name we are
+    // looking for.
+    const char *SectionName =
+        reinterpret_cast<const char *>(SectionStringsData + SectionNameOffset);
+    if (SectionName == ExpectedSectionName)
+      return true;
   }
-  return Out;
-}
-
-void DeviceBinaryImage::print() const {
-  std::cerr << "  --- Image " << Bin << "\n";
-  if (!Bin)
-    return;
-  std::cerr << "    Version  : " << (int)Bin->Version << "\n";
-  std::cerr << "    Kind     : " << (int)Bin->Kind << "\n";
-  std::cerr << "    Format   : " << (int)Bin->Format << "\n";
-  std::cerr << "    Target   : " << Bin->DeviceTargetSpec << "\n";
-  std::cerr << "    Bin size : "
-            << ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart) << "\n";
-  std::cerr << "    Compile options : "
-            << (Bin->CompileOptions ? Bin->CompileOptions : "NULL") << "\n";
-  std::cerr << "    Link options    : "
-            << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
-  std::cerr << "    Entries  : ";
-  for (_pi_offload_entry EntriesIt = Bin->EntriesBegin;
-       EntriesIt != Bin->EntriesEnd; ++EntriesIt)
-    std::cerr << EntriesIt->name << " ";
-  std::cerr << "\n";
-  std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
-            << Bin->PropertySetsEnd << "]:\n";
-
-  for (pi_device_binary_property_set PS = Bin->PropertySetsBegin;
-       PS != Bin->PropertySetsEnd; ++PS) {
-    std::cerr << "      Category " << PS->Name << " [" << PS->PropertiesBegin
-              << "-" << PS->PropertiesEnd << "]:\n";
-
-    for (pi_device_binary_property P = PS->PropertiesBegin;
-         P != PS->PropertiesEnd; ++P) {
-      std::cerr << "        " << DeviceBinaryProperty(P) << "\n";
-    }
-  }
-}
-
-void DeviceBinaryImage::dump(std::ostream &Out) const {
-  size_t ImgSize = getSize();
-  Out.write(reinterpret_cast<const char *>(Bin->BinaryStart), ImgSize);
-}
-
-static pi_uint32 asUint32(const void *Addr) {
-  assert(Addr && "Addr is NULL");
-  const auto *P = reinterpret_cast<const unsigned char *>(Addr);
-  return (*P) | (*(P + 1) << 8) | (*(P + 2) << 16) | (*(P + 3) << 24);
-}
-
-pi_uint32 DeviceBinaryProperty::asUint32() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
-  // if type fits into the ValSize - it is used to store the property value
-  assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
-  return sycl::detail::pi::asUint32(&Prop->ValSize);
-}
-
-ByteArray DeviceBinaryProperty::asByteArray() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
-  assert(Prop->ValSize > 0 && "property size mismatch");
-  const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
-  return {Data, Prop->ValSize};
-}
-
-const char *DeviceBinaryProperty::asCString() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_STRING && "property type mismatch");
-  assert(Prop->ValSize > 0 && "property size mismatch");
-  return pi::cast<const char *>(Prop->ValAddr);
-}
-
-void DeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
-                                            const char *PropSetName) {
-  assert(!this->Begin && !this->End && "already initialized");
-  pi_device_binary_property_set PS = nullptr;
-
-  for (PS = Bin->PropertySetsBegin; PS != Bin->PropertySetsEnd; ++PS) {
-    assert(PS->Name && "nameless property set - bug in the offload wrapper?");
-    if (!strcmp(PropSetName, PS->Name))
-      break;
-  }
-  if (PS == Bin->PropertySetsEnd) {
-    Begin = End = nullptr;
-    return;
-  }
-  Begin = PS->PropertiesBegin;
-  End = Begin ? PS->PropertiesEnd : nullptr;
-}
-
-pi_device_binary_property
-DeviceBinaryImage::getProperty(const char *PropName) const {
-  DeviceBinaryImage::PropertyRange BoolProp;
-  BoolProp.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP);
-  if (!BoolProp.isAvailable())
-    return nullptr;
-  auto It = std::find_if(BoolProp.begin(), BoolProp.end(),
-                         [=](pi_device_binary_property Prop) {
-                           return !strcmp(PropName, Prop->Name);
-                         });
-  if (It == BoolProp.end())
-    return nullptr;
-
-  return *It;
+  return false;
 }
 
 // Returns the e_type field from an ELF image.
 static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
+  (void)ImgSize;
+  assert(ImgSize >= 18 && "Not enough bytes to have an ELF header type.");
+
   bool IsBigEndian = ImgData[5] == 2;
-  if (IsBigEndian)
-    return (static_cast<uint16_t>(ImgData[16]) << 8) |
-           static_cast<uint16_t>(ImgData[17]);
-  uint16_t HdrType = 0;
-  std::copy(ImgData + 16, ImgData + 16 + sizeof(HdrType),
-            reinterpret_cast<char *>(&HdrType));
-  return HdrType;
+  return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
 RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
@@ -721,7 +663,8 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
     struct {
       RT::PiDeviceBinaryType Fmt;
       const uint16_t Magic;
-    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04}}; // OpenCL executable
+    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04},  // OpenCL executable
+                   {PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF12}}; // ZEBIN executable
 
     // ELF files need to be parsed separately. The header type ends after 18
     // bytes.
@@ -731,31 +674,16 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
         if (HdrType == ELFFmt.Magic)
           return ELFFmt.Fmt;
       }
+      // Newer ZEBIN format does not have a special header type, but can instead
+      // be identified by having a required .ze_info section.
+      if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
+        return PI_DEVICE_BINARY_TYPE_NATIVE;
     }
   }
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
 
-void DeviceBinaryImage::init(pi_device_binary Bin) {
-  this->Bin = Bin;
-  // If device binary image format wasn't set by its producer, then can't change
-  // now, because 'Bin' data is part of the executable image loaded into memory
-  // which can't be modified (easily).
-  // TODO clang driver + ClangOffloadWrapper can figure out the format and set
-  // it when invoking the offload wrapper job
-  Format = static_cast<pi::PiDeviceBinaryType>(Bin->Format);
-
-  if (Format == PI_DEVICE_BINARY_TYPE_NONE)
-    // try to determine the format; may remain "NONE"
-    Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
-
-  SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
-  DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
-  KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
-}
-
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,4 +1,4 @@
-option(ENABLE_GRPC_REFLECTION "Link clangd-index-server to gRPC Reflection library" OFF)
+option(ENABLE_GRPC_REFLECTION "Link to gRPC Reflection library" OFF)
 
 # FIXME(kirillbobyrev): Check if gRPC and Protobuf headers can be included at
 # configure time.
@@ -42,12 +42,13 @@ else()
   find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
   find_program(PROTOC protoc)
   if (NOT GRPC_CPP_PLUGIN OR NOT PROTOC)
-    message(FATAL_ERROR "gRPC C++ Plugin and Protoc must be on $PATH for Clangd remote index build.")
+    message(FATAL_ERROR "gRPC C++ Plugin and Protoc must be on $PATH for gRPC-enabled build.")
   endif()
   # On macOS the libraries are typically installed via Homebrew and are not on
   # the system path.
   set(GRPC_OPTS "")
   set(PROTOBUF_OPTS "")
+  set(GRPC_INCLUDE_PATHS "")
   if (${APPLE})
     find_program(HOMEBREW brew)
     # If Homebrew is not found, the user might have installed libraries
@@ -61,31 +62,41 @@ else()
         OUTPUT_VARIABLE PROTOBUF_HOMEBREW_PATH
         RESULT_VARIABLE PROTOBUF_HOMEBREW_RETURN_CODE
         OUTPUT_STRIP_TRAILING_WHITESPACE)
+      execute_process(COMMAND ${HOMEBREW} --prefix abseil
+        OUTPUT_VARIABLE ABSL_HOMEBREW_PATH
+        RESULT_VARIABLE ABSL_HOMEBREW_RETURN_CODE
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
       # If either library is not installed via Homebrew, fall back to the
       # system path.
       if (GRPC_HOMEBREW_RETURN_CODE EQUAL "0")
-        include_directories(${GRPC_HOMEBREW_PATH}/include)
+        list(APPEND GRPC_INCLUDE_PATHS ${GRPC_HOMEBREW_PATH}/include)
         list(APPEND GRPC_OPTS PATHS ${GRPC_HOMEBREW_PATH}/lib NO_DEFAULT_PATH)
       endif()
       if (PROTOBUF_HOMEBREW_RETURN_CODE EQUAL "0")
-        include_directories(${PROTOBUF_HOMEBREW_PATH}/include)
+        list(APPEND GRPC_INCLUDE_PATHS ${PROTOBUF_HOMEBREW_PATH}/include)
         list(APPEND PROTOBUF_OPTS PATHS ${PROTOBUF_HOMEBREW_PATH}/lib NO_DEFAULT_PATH)
+      endif()
+      if (ABSL_HOMEBREW_RETURN_CODE EQUAL "0")
+        list(APPEND GRPC_INCLUDE_PATHS ${ABSL_HOMEBREW_PATH}/include)
       endif()
     endif()
   endif()
-  find_library(GRPC_LIBRARY grpc++ $GRPC_OPTS REQUIRED)
-  add_library(grpc++ UNKNOWN IMPORTED GLOBAL)
-  message(STATUS "Using grpc++: " ${GRPC_LIBRARY})
-  set_target_properties(grpc++ PROPERTIES IMPORTED_LOCATION ${GRPC_LIBRARY})
-  if (ENABLE_GRPC_REFLECTION)
-    find_library(GRPC_REFLECTION_LIBRARY grpc++_reflection $GRPC_OPTS REQUIRED)
-    add_library(grpc++_reflection UNKNOWN IMPORTED GLOBAL)
-    set_target_properties(grpc++_reflection PROPERTIES IMPORTED_LOCATION ${GRPC_REFLECTION_LIBRARY})
+  if(NOT TARGET grpc++)
+    find_library(GRPC_LIBRARY grpc++ ${GRPC_OPTS} REQUIRED)
+    add_library(grpc++ UNKNOWN IMPORTED GLOBAL)
+    message(STATUS "Using grpc++: " ${GRPC_LIBRARY})
+    set_target_properties(grpc++ PROPERTIES IMPORTED_LOCATION ${GRPC_LIBRARY})
+    target_include_directories(grpc++ INTERFACE ${GRPC_INCLUDE_PATHS})
+    if (ENABLE_GRPC_REFLECTION)
+      find_library(GRPC_REFLECTION_LIBRARY grpc++_reflection ${GRPC_OPTS} REQUIRED)
+      add_library(grpc++_reflection UNKNOWN IMPORTED GLOBAL)
+      set_target_properties(grpc++_reflection PROPERTIES IMPORTED_LOCATION ${GRPC_REFLECTION_LIBRARY})
+    endif()
+    find_library(PROTOBUF_LIBRARY protobuf ${PROTOBUF_OPTS} REQUIRED)
+    message(STATUS "Using protobuf: " ${PROTOBUF_LIBRARY})
+    add_library(protobuf UNKNOWN IMPORTED GLOBAL)
+    set_target_properties(protobuf PROPERTIES IMPORTED_LOCATION ${PROTOBUF_LIBRARY})
   endif()
-  find_library(PROTOBUF_LIBRARY protobuf $PROTOBUF_OPTS REQUIRED)
-  message(STATUS "Using protobuf: " ${PROTOBUF_LIBRARY})
-  add_library(protobuf UNKNOWN IMPORTED GLOBAL)
-  set_target_properties(protobuf PROPERTIES IMPORTED_LOCATION ${PROTOBUF_LIBRARY})
 endif()
 
 if (ENABLE_GRPC_REFLECTION)
@@ -121,7 +132,7 @@ function(generate_protos LibraryName ProtoFile)
         ARGS ${Flags} "${ProtoSourceAbsolutePath}"
         DEPENDS "${ProtoSourceAbsolutePath}")
 
-  add_clang_library(${LibraryName} ${GeneratedProtoSource}
+  add_llvm_library(${LibraryName} ${GeneratedProtoSource}
     PARTIAL_SOURCES_INTENDED
     LINK_LIBS PUBLIC grpc++ protobuf)
 

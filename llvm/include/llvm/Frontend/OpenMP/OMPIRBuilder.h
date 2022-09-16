@@ -14,6 +14,7 @@
 #ifndef LLVM_FRONTEND_OPENMP_OMPIRBUILDER_H
 #define LLVM_FRONTEND_OPENMP_OMPIRBUILDER_H
 
+#include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/IRBuilder.h"
@@ -467,6 +468,20 @@ private:
                                           bool NeedsBarrier,
                                           Value *Chunk = nullptr);
 
+  /// Create alternative version of the loop to support if clause
+  ///
+  /// OpenMP if clause can require to generate second loop. This loop
+  /// will be executed when if clause condition is not met. createIfVersion
+  /// adds branch instruction to the copied loop if \p  ifCond is not met.
+  ///
+  /// \param Loop       Original loop which should be versioned.
+  /// \param IfCond     Value which corresponds to if clause condition
+  /// \param VMap       Value to value map to define relation between
+  ///                   original and copied loop values and loop blocks.
+  /// \param NamePrefix Optional name prefix for if.then if.else blocks.
+  void createIfVersion(CanonicalLoopInfo *Loop, Value *IfCond,
+                       ValueToValueMapTy &VMap, const Twine &NamePrefix = "");
+
 public:
   /// Modifies the canonical loop to be a workshare loop.
   ///
@@ -597,11 +612,17 @@ public:
   void unrollLoopPartial(DebugLoc DL, CanonicalLoopInfo *Loop, int32_t Factor,
                          CanonicalLoopInfo **UnrolledCLI);
 
-  /// Add metadata to simd-ize a loop.
+  /// Add metadata to simd-ize a loop. If IfCond is not nullptr, the loop
+  /// is cloned. The metadata which prevents vectorization is added to
+  /// to the cloned loop. The cloned loop is executed when ifCond is evaluated
+  /// to false.
   ///
-  /// \param DL   Debug location for instructions added by unrolling.
-  /// \param Loop The loop to simd-ize.
-  void applySimd(DebugLoc DL, CanonicalLoopInfo *Loop);
+  /// \param Loop    The loop to simd-ize.
+  /// \param IfCond  The value which corresponds to the if clause condition.
+  /// \param Simdlen The Simdlen length to apply to the simd loop.
+  /// \param Safelen The Safelen length to apply to the simd loop.
+  void applySimd(CanonicalLoopInfo *Loop, Value *IfCond, ConstantInt *Simdlen,
+                 ConstantInt *Safelen);
 
   /// Generator for '#omp flush'
   ///
@@ -624,9 +645,20 @@ public:
   /// \param AllocaIP The insertion point to be used for alloca instructions.
   /// \param BodyGenCB Callback that will generate the region code.
   /// \param Tied True if the task is tied, false if the task is untied.
+  /// \param Final i1 value which is `true` if the task is final, `false` if the
+  ///              task is not final.
   InsertPointTy createTask(const LocationDescription &Loc,
                            InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
-                           bool Tied = true);
+                           bool Tied = true, Value *Final = nullptr);
+
+  /// Generator for the taskgroup construct
+  ///
+  /// \param Loc The location where the taskgroup construct was encountered.
+  /// \param AllocaIP The insertion point to be used for alloca instructions.
+  /// \param BodyGenCB Callback that will generate the region code.
+  InsertPointTy createTaskgroup(const LocationDescription &Loc,
+                                InsertPointTy AllocaIP,
+                                BodyGenCallbackTy BodyGenCB);
 
   /// Functions used to generate reductions. Such functions take two Values
   /// representing LHS and RHS of the reduction, respectively, and a reference
@@ -818,6 +850,23 @@ public:
   void emitCancelationCheckImpl(Value *CancelFlag,
                                 omp::Directive CanceledDirective,
                                 FinalizeCallbackTy ExitCB = {});
+
+  /// Generate a target region entry call.
+  ///
+  /// \param Loc The location at which the request originated and is fulfilled.
+  /// \param Return Return value of the created function returned by reference.
+  /// \param DeviceID Identifier for the device via the 'device' clause.
+  /// \param NumTeams Numer of teams for the region via the 'num_teams' clause
+  ///                 or 0 if unspecified and -1 if there is no 'teams' clause.
+  /// \param NumThreads Number of threads via the 'thread_limit' clause.
+  /// \param HostPtr Pointer to the host-side pointer of the target kernel.
+  /// \param KernelArgs Array of arguments to the kernel.
+  /// \param NoWaitArgs Optional array of arguments to the nowait kernel.
+  InsertPointTy emitTargetKernel(const LocationDescription &Loc, Value *&Return,
+                                 Value *Ident, Value *DeviceID, Value *NumTeams,
+                                 Value *NumThreads, Value *HostPtr,
+                                 ArrayRef<Value *> KernelArgs,
+                                 ArrayRef<Value *> NoWaitArgs = {});
 
   /// Generate a barrier runtime call.
   ///

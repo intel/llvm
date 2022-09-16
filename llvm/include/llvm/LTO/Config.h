@@ -179,7 +179,11 @@ struct Config {
 
   /// Use opaque pointer types. Used to call LLVMContext::setOpaquePointers
   /// unless already set by the `-opaque-pointers` commandline option.
+#if ENABLE_OPAQUE_POINTERS
+  bool OpaquePointers = true;
+#else
   bool OpaquePointers = false;
+#endif
 
   /// If this field is set, LTO will write input file paths and symbol
   /// resolutions here in llvm-lto2 command line flag format. This can be
@@ -267,8 +271,12 @@ struct Config {
   /// the given output file name, and (2) creates a resolution file whose name
   /// is prefixed by the given output file name and sets ResolutionFile to its
   /// file handle.
+  ///
+  /// SaveTempsArgs can be specified to select which temps to save.
+  /// If SaveTempsArgs is not provided, all temps are saved.
   Error addSaveTemps(std::string OutputFileName,
-                     bool UseInputModulePath = false);
+                     bool UseInputModulePath = false,
+                     const DenseSet<StringRef> &SaveTempsArgs = {});
 };
 
 struct LTOLLVMDiagnosticHandler : public DiagnosticHandler {

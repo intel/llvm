@@ -457,7 +457,7 @@ func.func @verbose_terminators() -> (i1, i17) {
 
 ^bb1(%x : i1, %y : i17):
 // CHECK:  cf.cond_br %{{.*}}, ^bb2(%{{.*}} : i17), ^bb3(%{{.*}}, %{{.*}} : i1, i17)
-  "cf.cond_br"(%x, %y, %x, %y) [^bb2, ^bb3] {operand_segment_sizes = dense<[1, 1, 2]>: vector<3xi32>} : (i1, i17, i1, i17) -> ()
+  "cf.cond_br"(%x, %y, %x, %y) [^bb2, ^bb3] {operand_segment_sizes = array<i32: 1, 1, 2>} : (i1, i17, i1, i17) -> ()
 
 ^bb2(%a : i17):
   %true = arith.constant true
@@ -790,10 +790,10 @@ func.func @sparsetensorattr() -> () {
 // CHECK: "foof321"() {bar = sparse<> : tensor<f32>} : () -> ()
   "foof321"(){bar = sparse<> : tensor<f32>} : () -> ()
 
-// CHECK: "foostr"() {bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<"">>} : () -> ()
-  "foostr"(){bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<"">>} : () -> ()
-// CHECK: "foostr"() {bar = sparse<{{\[\[}}1, 1, 0], {{\[}}0, 1, 0], {{\[}}0, 0, 1]], {{\[}}"a", "b", "c"]> : tensor<2x2x2x!unknown<"">>} : () -> ()
-  "foostr"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0, 0, 1]], ["a", "b", "c"]> : tensor<2x2x2x!unknown<"">>} : () -> ()
+// CHECK: "foostr"() {bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<>>} : () -> ()
+  "foostr"(){bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<>>} : () -> ()
+// CHECK: "foostr"() {bar = sparse<{{\[\[}}1, 1, 0], {{\[}}0, 1, 0], {{\[}}0, 0, 1]], {{\[}}"a", "b", "c"]> : tensor<2x2x2x!unknown<>>} : () -> ()
+  "foostr"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0, 0, 1]], ["a", "b", "c"]> : tensor<2x2x2x!unknown<>>} : () -> ()
   return
 }
 
@@ -819,16 +819,16 @@ func.func @sparsevectorattr() -> () {
   return
 }
 
-// CHECK-LABEL: func @unknown_dialect_type() -> !bar<""> {
-func.func @unknown_dialect_type() -> !bar<""> {
+// CHECK-LABEL: func @unknown_dialect_type() -> !bar<> {
+func.func @unknown_dialect_type() -> !bar<> {
   // Unregistered dialect 'bar'.
-  // CHECK: "foo"() : () -> !bar<"">
-  %0 = "foo"() : () -> !bar<"">
+  // CHECK: "foo"() : () -> !bar<>
+  %0 = "foo"() : () -> !bar<>
 
   // CHECK: "foo"() : () -> !bar.baz
-  %1 = "foo"() : () -> !bar<"baz">
+  %1 = "foo"() : () -> !bar<baz>
 
-  return %0 : !bar<"">
+  return %0 : !bar<>
 }
 
 // CHECK-LABEL: func @type_alias() -> i32 {
@@ -953,10 +953,6 @@ func.func @pretty_dialect_attribute() {
   // CHECK: "foo.unknown_op"() {foo = #foo.dialect<!x@#!@#>} : () -> ()
   "foo.unknown_op"() {foo = #foo.dialect<!x@#!@#>} : () -> ()
 
-  // Extraneous extra > character can't use the pretty syntax.
-  // CHECK: "foo.unknown_op"() {foo = #foo<"dialect<!x@#!@#>>">} : () -> ()
-  "foo.unknown_op"() {foo = #foo<"dialect<!x@#!@#>>">} : () -> ()
-
   return
 }
 
@@ -977,10 +973,6 @@ func.func @pretty_dialect_type() {
 
   // CHECK: %{{.*}} = "foo.unknown_op"() : () -> !foo.dialect<!x@#!@#>
   %4 = "foo.unknown_op"() : () -> !foo.dialect<!x@#!@#>
-
-  // Extraneous extra > character can't use the pretty syntax.
-  // CHECK: %{{.*}} = "foo.unknown_op"() : () -> !foo<"dialect<!x@#!@#>>">
-  %5 = "foo.unknown_op"() : () -> !foo<"dialect<!x@#!@#>>">
 
   return
 }
@@ -1202,7 +1194,7 @@ func.func @"\"_string_symbol_reference\""() {
 
 // CHECK-LABEL: func private @parse_opaque_attr_escape
 func.func private @parse_opaque_attr_escape() {
-    // CHECK: value = #foo<"\22escaped\\\0A\22">
+    // CHECK: value = #foo<"\"escaped\\\n\"">
     "foo.constant"() {value = #foo<"\"escaped\\\n\"">} : () -> ()
 }
 

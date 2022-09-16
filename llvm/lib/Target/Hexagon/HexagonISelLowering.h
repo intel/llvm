@@ -107,9 +107,6 @@ class HexagonTargetLowering : public TargetLowering {
   const HexagonTargetMachine &HTM;
   const HexagonSubtarget &Subtarget;
 
-  bool CanReturnSmallStruct(const Function* CalleeFn, unsigned& RetSize)
-      const;
-
 public:
   explicit HexagonTargetLowering(const TargetMachine &TM,
                                  const HexagonSubtarget &ST);
@@ -132,8 +129,8 @@ public:
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override;
   bool isTruncateFree(EVT VT1, EVT VT2) const override;
 
-  bool isCheapToSpeculateCttz() const override { return true; }
-  bool isCheapToSpeculateCtlz() const override { return true; }
+  bool isCheapToSpeculateCttz(Type *) const override { return true; }
+  bool isCheapToSpeculateCtlz(Type *) const override { return true; }
   bool isCtlzFast() const override { return true; }
 
   bool hasBitTest(SDValue X, SDValue Y) const override;

@@ -1,5 +1,4 @@
 
-import unittest2
 import os
 import shutil
 
@@ -10,7 +9,6 @@ from lldbsuite.test import lldbutil
 
 
 class TestClangModuleUpdate(TestBase):
-    mydir = TestBase.compute_mydir(__file__)
 
     @skipIf(debug_info=no_match(["gmodules"]))
     @skipIfDarwin # rdar://76540904

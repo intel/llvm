@@ -292,9 +292,9 @@ class DefaultValuedAPFloat<string value>
   let parser = [{ [&]() -> mlir::FailureOr<llvm::Optional<llvm::APFloat>> {
     mlir::FloatAttr attr;
     auto result = $_parser.parseOptionalAttribute(attr);
-    if (result.hasValue() && mlir::succeeded(*result))
+    if (result.has_value() && mlir::succeeded(*result))
       return {attr.getValue()};
-    if (!result.hasValue())
+    if (!result.has_value())
       return llvm::Optional<llvm::APFloat>();
     return mlir::failure();
   }() }];
@@ -312,7 +312,7 @@ def TestTypeAPFloat : Test_Type<"TestTypeAPFloat"> {
 def TestTypeDefaultValuedType : Test_Type<"TestTypeDefaultValuedType"> {
   let parameters = (ins
     DefaultValuedParameter<"mlir::IntegerType",
-                           "mlir::IntegerType::get($_ctx, 32)">:$type
+                           "mlir::IntegerType::get($_ctxt, 32)">:$type
   );
   let mnemonic = "default_valued_type";
   let assemblyFormat = "`<` (`(` $type^ `)`)? `>`";

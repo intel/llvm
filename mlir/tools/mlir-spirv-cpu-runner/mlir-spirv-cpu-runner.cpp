@@ -17,8 +17,8 @@
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVMPass.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -75,7 +75,7 @@ static LogicalResult runMLIRPasses(ModuleOp module) {
   PassManager passManager(module.getContext());
   applyPassManagerCLOptions(passManager);
   passManager.addPass(createGpuKernelOutliningPass());
-  passManager.addPass(createConvertGPUToSPIRVPass());
+  passManager.addPass(createConvertGPUToSPIRVPass(/*mapMemorySpace=*/true));
 
   OpPassManager &nestedPM = passManager.nest<spirv::ModuleOp>();
   nestedPM.addPass(spirv::createLowerABIAttributesPass());

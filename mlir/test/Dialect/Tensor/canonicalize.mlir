@@ -673,6 +673,20 @@ func.func @compose_expand_of_expand_of_zero_dim(%arg0 : tensor<f32>)
 
 // -----
 
+// CHECK-LABEL: func.func @collapse_of_cast(
+// CHECK-SAME:         %[[IN:.*]]: tensor<8x12x32xf32>) -> tensor<?x32xf32> {
+// CHECK-NEXT:    %[[COLLAPSE:.*]] = tensor.collapse_shape %[[IN]] {{\[}}[0, 1], [2]] : tensor<8x12x32xf32> into tensor<96x32xf32>
+// CHECK-NEXT     %[[CAST:.*]] = tensor.cast %[[COLLAPSE]] : tensor<96x32xf32> to tensor<?x32xf32>
+// CHECK-NEXT     return %[[CAST]] : tensor<?x32xf32>
+func.func @collapse_of_cast(%t: tensor<8x12x32xf32>) -> tensor<?x32xf32> {
+  %0 = tensor.cast %t : tensor<8x12x32xf32> to tensor<?x?x?xf32>
+  %1 = tensor.collapse_shape %0 [[0, 1], [2]] : tensor<?x?x?xf32> into tensor<?x?xf32>
+  %2 = tensor.cast %1 : tensor<?x?xf32> to tensor<?x32xf32>
+  return %2 : tensor<?x32xf32>
+}
+
+// -----
+
 func.func @fold_collapse_of_expand(%arg0 : tensor<12x4xf32>) -> tensor<12x4xf32> {
   %0 = tensor.expand_shape %arg0 [[0, 1], [2]]
       : tensor<12x4xf32> into tensor<3x4x4xf32>
@@ -1424,4 +1438,52 @@ func.func @cast_extract_slice_rank_reduce(%arg0 : tensor<128x512xf32>, %s : inde
   %1 = tensor.cast %0 : tensor<?xf32> to tensor<16xf32>
 // CHECK: return %[[E]] : tensor<16xf32>
   return %1 : tensor<16xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @canonicalize_parallel_insert_slice_indices(
+//  CHECK-SAME:     %[[arg0:[0-9a-z]*]]: tensor<1x5xf32>, 
+//  CHECK-SAME:     %[[arg1:[0-9a-z]*]]: tensor<?x?xf32>,
+//  CHECK-SAME:     %[[num_threads:[0-9a-z]*]]: index
+func.func @canonicalize_parallel_insert_slice_indices(
+    %arg0 : tensor<1x5xf32>, %arg1: tensor<?x?xf32>,
+    %num_threads : index) -> tensor<?x?xf32>
+{
+  %cst = arith.constant 4.200000e+01 : f32
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+
+  //  CHECK-NOT: tensor.cast
+  //      CHECK: scf.foreach_thread (%[[tidx:[0-9a-z]*]]) in (%[[num_threads]]) shared_outs(%[[o:.*]] = %[[arg1]]) -> (tensor<?x?xf32>) {
+  // CHECK-NEXT:   scf.foreach_thread.perform_concurrently {
+  // CHECK-NEXT:     tensor.parallel_insert_slice %[[arg0]] into %[[o]][%[[tidx]], 0] [1, 5] [1, 1]
+  %2 = scf.foreach_thread (%tidx) in (%num_threads) shared_outs(%o = %arg1) -> (tensor<?x?xf32>) {
+    %3 = tensor.cast %arg0 : tensor<1x5xf32> to tensor<?x5xf32>
+    scf.foreach_thread.perform_concurrently {
+      tensor.parallel_insert_slice %3 into %o[%tidx, %c0] [%c1, 5] [%c1, %c1] : tensor<?x5xf32> into tensor<?x?xf32>
+    }
+  }
+  return %2 : tensor<?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dont_fold_parallel_insert_slice(
+//  CHECK-SAME:     %[[arg0:[0-9a-z]*]]: tensor<1x5xf32>, 
+//  CHECK-SAME:     %[[arg1:[0-9a-z]*]]: tensor<1x5xf32>)
+func.func @dont_fold_parallel_insert_slice(
+    %arg0 : tensor<1x5xf32>, %arg1: tensor<1x5xf32>) -> tensor<1x5xf32>
+{
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  //      CHECK: scf.foreach_thread () in () shared_outs(%[[o:.*]] = %[[arg1]]) -> (tensor<1x5xf32>) {
+  // CHECK-NEXT:   scf.foreach_thread.perform_concurrently {
+  // CHECK-NEXT:     tensor.parallel_insert_slice %[[arg0]] into %[[o]][0, 0] [1, 5] [1, 1] : tensor<1x5xf32> into tensor<1x5xf32>
+  %2 = scf.foreach_thread () in () shared_outs(%o = %arg1) -> (tensor<1x5xf32>) {
+    scf.foreach_thread.perform_concurrently {
+      tensor.parallel_insert_slice %arg0 into %o[%c0, %c0] [1, 5] [%c1, %c1] : tensor<1x5xf32> into tensor<1x5xf32>
+    }
+  }
+  return %2 : tensor<1x5xf32>
 }

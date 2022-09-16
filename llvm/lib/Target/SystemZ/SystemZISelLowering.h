@@ -419,12 +419,11 @@ public:
   getNumRegisters(LLVMContext &Context, EVT VT,
                   Optional<MVT> RegisterVT) const override {
     // i128 inline assembly operand.
-    if (VT == MVT::i128 &&
-        RegisterVT.hasValue() && RegisterVT.getValue() == MVT::Untyped)
+    if (VT == MVT::i128 && RegisterVT && *RegisterVT == MVT::Untyped)
       return 1;
     return TargetLowering::getNumRegisters(Context, VT);
   }
-  bool isCheapToSpeculateCtlz() const override { return true; }
+  bool isCheapToSpeculateCtlz(Type *) const override { return true; }
   bool preferZeroCompareBranch() const override { return true; }
   bool hasBitPreservingFPLogic(EVT VT) const override {
     EVT ScVT = VT.getScalarType();

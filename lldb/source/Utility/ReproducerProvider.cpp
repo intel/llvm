@@ -131,7 +131,7 @@ void SymbolFileProvider::Keep() {
     return;
 
   // Remove duplicates.
-  llvm::sort(m_symbol_files.begin(), m_symbol_files.end());
+  llvm::sort(m_symbol_files);
   m_symbol_files.erase(
       std::unique(m_symbol_files.begin(), m_symbol_files.end()),
       m_symbol_files.end());
@@ -161,8 +161,8 @@ SymbolFileLoader::GetPaths(const UUID *uuid) const {
   if (!uuid)
     return {};
 
-  auto it = std::lower_bound(m_symbol_files.begin(), m_symbol_files.end(),
-                             SymbolFileProvider::Entry(uuid->GetAsString()));
+  auto it = llvm::lower_bound(m_symbol_files,
+                              SymbolFileProvider::Entry(uuid->GetAsString()));
   if (it == m_symbol_files.end())
     return {};
   return std::make_pair<FileSpec, FileSpec>(FileSpec(it->module_path),

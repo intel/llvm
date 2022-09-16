@@ -11,6 +11,7 @@
 #include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Compiler.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace presburger;
@@ -31,23 +32,28 @@ scaleAndAddForAssert(ArrayRef<int64_t> a, int64_t scale, ArrayRef<int64_t> b) {
   return res;
 }
 
-SimplexBase::SimplexBase(unsigned nVar, bool mustUseBigM, unsigned symbolOffset,
-                         unsigned nSymbol)
-    : usingBigM(mustUseBigM), nRedundant(0), nSymbol(nSymbol),
+SimplexBase::SimplexBase(unsigned nVar, bool mustUseBigM)
+    : usingBigM(mustUseBigM), nRedundant(0), nSymbol(0),
       tableau(0, getNumFixedCols() + nVar), empty(false) {
-  assert(symbolOffset + nSymbol <= nVar);
-
   colUnknown.insert(colUnknown.begin(), getNumFixedCols(), nullIndex);
   for (unsigned i = 0; i < nVar; ++i) {
     var.emplace_back(Orientation::Column, /*restricted=*/false,
                      /*pos=*/getNumFixedCols() + i);
     colUnknown.push_back(i);
   }
+}
 
-  // Move the symbols to be in columns [3, 3 + nSymbol).
-  for (unsigned i = 0; i < nSymbol; ++i) {
-    var[symbolOffset + i].isSymbol = true;
-    swapColumns(var[symbolOffset + i].pos, getNumFixedCols() + i);
+SimplexBase::SimplexBase(unsigned nVar, bool mustUseBigM,
+                         const llvm::SmallBitVector &isSymbol)
+    : SimplexBase(nVar, mustUseBigM) {
+  assert(isSymbol.size() == nVar && "invalid bitmask!");
+  // Invariant: nSymbol is the number of symbols that have been marked
+  // already and these occupy the columns
+  // [getNumFixedCols(), getNumFixedCols() + nSymbol).
+  for (unsigned symbolIdx : isSymbol.set_bits()) {
+    var[symbolIdx].isSymbol = true;
+    swapColumns(var[symbolIdx].pos, getNumFixedCols() + nSymbol);
+    ++nSymbol;
   }
 }
 
@@ -144,7 +150,7 @@ unsigned SimplexBase::addRow(ArrayRef<int64_t> coeffs, bool makeRestricted) {
     // row, scaled by the coefficient for the variable, accounting for the two
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
-    int64_t lcm = mlir::lcm(tableau(newRow, 0), tableau(pos, 0));
+    int64_t lcm = std::lcm(tableau(newRow, 0), tableau(pos, 0));
     int64_t nRowCoeff = lcm / tableau(newRow, 0);
     int64_t idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
     tableau(newRow, 0) = lcm;
@@ -429,7 +435,7 @@ LogicalResult SymbolicLexSimplex::addSymbolicCut(unsigned row) {
 }
 
 void SymbolicLexSimplex::recordOutput(SymbolicLexMin &result) const {
-  Matrix output(0, domainPoly.getNumIds() + 1);
+  Matrix output(0, domainPoly.getNumVars() + 1);
   output.reserveRows(result.lexmin.getNumOutputs());
   for (const Unknown &u : var) {
     if (u.isSymbol)
@@ -502,7 +508,7 @@ LogicalResult SymbolicLexSimplex::doNonBranchingPivots() {
 }
 
 SymbolicLexMin SymbolicLexSimplex::computeSymbolicIntegerLexMin() {
-  SymbolicLexMin result(nSymbol, var.size() - nSymbol);
+  SymbolicLexMin result(domainPoly.getSpace(), var.size() - nSymbol);
 
   /// The algorithm is more naturally expressed recursively, but we implement
   /// it iteratively here to avoid potential issues with stack overflows in the
@@ -868,7 +874,7 @@ Optional<SimplexBase::Pivot> Simplex::findPivot(int row,
   Direction newDirection =
       tableau(row, *col) < 0 ? flippedDirection(direction) : direction;
   Optional<unsigned> maybePivotRow = findPivotRow(row, newDirection, *col);
-  return Pivot{maybePivotRow.getValueOr(row), *col};
+  return Pivot{maybePivotRow.value_or(row), *col};
 }
 
 /// Swap the associated unknowns for the row and the column.
@@ -1162,7 +1168,7 @@ void Simplex::undoLastConstraint() {
       pivot(*maybeRow, column);
     } else {
       Optional<unsigned> row = findAnyPivotRow(column);
-      assert(row.hasValue() && "Pivot should always exist for a constraint!");
+      assert(row && "Pivot should always exist for a constraint!");
       pivot(*row, column);
     }
   }
@@ -1181,7 +1187,7 @@ void LexSimplexBase::undoLastConstraint() {
     // long as we get the unknown to row orientation and remove it.
     unsigned column = con.back().pos;
     Optional<unsigned> row = findAnyPivotRow(column);
-    assert(row.hasValue() && "Pivot should always exist for a constraint!");
+    assert(row && "Pivot should always exist for a constraint!");
     pivot(*row, column);
   }
   removeLastConstraintRowOrientation();
@@ -1232,8 +1238,7 @@ void SimplexBase::undo(UndoLogEntry entry) {
            col++) {
         assert(colUnknown[col] != nullIndex &&
                "Column should not be a fixed column!");
-        if (std::find(basis.begin(), basis.end(), colUnknown[col]) !=
-            basis.end())
+        if (llvm::is_contained(basis, colUnknown[col]))
           continue;
         if (tableau(u.pos, col) == 0)
           continue;
@@ -1295,7 +1300,7 @@ void SimplexBase::appendVariable(unsigned count) {
 
 /// Add all the constraints from the given IntegerRelation.
 void SimplexBase::intersectIntegerRelation(const IntegerRelation &rel) {
-  assert(rel.getNumIds() == getNumVariables() &&
+  assert(rel.getNumVars() == getNumVariables() &&
          "IntegerRelation must have same dimensionality as simplex");
   for (unsigned i = 0, e = rel.getNumInequalities(); i < e; ++i)
     addInequality(rel.getInequality(i));
@@ -1387,7 +1392,8 @@ void Simplex::markRowRedundant(Unknown &u) {
 }
 
 /// Find a subset of constraints that is redundant and mark them redundant.
-void Simplex::detectRedundant() {
+void Simplex::detectRedundant(unsigned offset, unsigned count) {
+  assert(offset + count <= con.size() && "invalid range!");
   // It is not meaningful to talk about redundancy for empty sets.
   if (empty)
     return;
@@ -1401,7 +1407,8 @@ void Simplex::detectRedundant() {
   // two identical constraints both being marked redundant since each is
   // redundant given the other one. In this example, only the first of the
   // constraints that is processed will get marked redundant, as it should be.
-  for (Unknown &u : con) {
+  for (unsigned i = 0; i < count; ++i) {
+    Unknown &u = con[offset + i];
     if (u.orientation == Orientation::Column) {
       unsigned column = u.pos;
       Optional<unsigned> pivotRow = findPivotRow({}, Direction::Down, column);
@@ -1984,9 +1991,7 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
           llvm::to_vector<8>(basis.getRow(level));
       basisCoeffs.emplace_back(0);
 
-      MaybeOptimum<int64_t> minRoundedUp, maxRoundedDown;
-      std::tie(minRoundedUp, maxRoundedDown) =
-          computeIntegerBounds(basisCoeffs);
+      auto [minRoundedUp, maxRoundedDown] = computeIntegerBounds(basisCoeffs);
 
       // We don't have any integer values in the range.
       // Pop the stack and return up a level.

@@ -27,10 +27,37 @@ enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
   // TODO: add more LoongArchISDs
+  CALL,
   RET,
+  // 32-bit shifts, directly matching the semantics of the named LoongArch
+  // instructions.
+  SLL_W,
+  SRA_W,
+  SRL_W,
 
+  ROTL_W,
+  ROTR_W,
+
+  // FPR<->GPR transfer operations
+  MOVGR2FR_W_LA64,
+  MOVFR2GR_S_LA64,
+
+  FTINT,
+
+  // Bit counting operations
+  CLZ_W,
+  CTZ_W,
+
+  BSTRINS,
+  BSTRPICK,
+
+  // Byte-swapping and bit-reversal
+  REVB_2H,
+  REVB_2W,
+  BITREV_4B,
+  BITREV_W,
 };
-} // namespace LoongArchISD
+} // end namespace LoongArchISD
 
 class LoongArchTargetLowering : public TargetLowering {
   const LoongArchSubtarget &Subtarget;
@@ -40,6 +67,15 @@ public:
                                    const LoongArchSubtarget &STI);
 
   const LoongArchSubtarget &getSubtarget() const { return Subtarget; }
+
+  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+
+  // Provide custom lowering hooks for some operations.
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                          SelectionDAG &DAG) const override;
+
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   // This method returns the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
@@ -58,19 +94,46 @@ public:
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
+  SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
+                    SmallVectorImpl<SDValue> &InVals) const override;
+  bool isCheapToSpeculateCttz(Type *Ty) const override;
+  bool isCheapToSpeculateCtlz(Type *Ty) const override;
+  bool hasAndNot(SDValue Y) const override;
 
 private:
   /// Target-specific function used to lower LoongArch calling conventions.
-  typedef bool LoongArchCCAssignFn(unsigned ValNo, MVT ValVT,
+  typedef bool LoongArchCCAssignFn(const DataLayout &DL, LoongArchABI::ABI ABI,
+                                   unsigned ValNo, MVT ValVT,
                                    CCValAssign::LocInfo LocInfo,
-                                   CCState &State);
+                                   ISD::ArgFlagsTy ArgFlags, CCState &State,
+                                   bool IsFixed, bool IsReg, Type *OrigTy);
 
-  void analyzeInputArgs(CCState &CCInfo,
-                        const SmallVectorImpl<ISD::InputArg> &Ins,
+  void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
+                        const SmallVectorImpl<ISD::InputArg> &Ins, bool IsRet,
                         LoongArchCCAssignFn Fn) const;
-  void analyzeOutputArgs(CCState &CCInfo,
+  void analyzeOutputArgs(MachineFunction &MF, CCState &CCInfo,
                          const SmallVectorImpl<ISD::OutputArg> &Outs,
+                         bool IsRet, CallLoweringInfo *CLI,
                          LoongArchCCAssignFn Fn) const;
+
+  SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
+
+  MachineBasicBlock *
+  EmitInstrWithCustomInserter(MachineInstr &MI,
+                              MachineBasicBlock *BB) const override;
+  SDValue lowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerEH_DWARF_CFA(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFP_TO_SINT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerBITCAST(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerUINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+
+  bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                    bool ForCodeSize) const override;
+
+  bool shouldInsertFencesForAtomic(const Instruction *I) const override;
 };
 
 } // end namespace llvm

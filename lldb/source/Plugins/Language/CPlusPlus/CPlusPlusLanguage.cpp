@@ -35,6 +35,7 @@
 
 #include "BlockPointer.h"
 #include "CPlusPlusNameParser.h"
+#include "Coroutines.h"
 #include "CxxStringTypes.h"
 #include "Generic.h"
 #include "LibCxx.h"
@@ -218,10 +219,10 @@ void CPlusPlusLanguage::MethodName::Parse() {
     } else {
       CPlusPlusNameParser parser(m_full.GetStringRef());
       if (auto function = parser.ParseAsFunctionDefinition()) {
-        m_basename = function.getValue().name.basename;
-        m_context = function.getValue().name.context;
-        m_arguments = function.getValue().arguments;
-        m_qualifiers = function.getValue().qualifiers;
+        m_basename = function.value().name.basename;
+        m_context = function.value().name.context;
+        m_arguments = function.value().arguments;
+        m_qualifiers = function.value().qualifiers;
         m_parse_error = false;
       } else {
         m_parse_error = true;
@@ -329,8 +330,8 @@ bool CPlusPlusLanguage::ExtractContextAndIdentifier(
 
   CPlusPlusNameParser parser(name);
   if (auto full_name = parser.ParseAsFullName()) {
-    identifier = full_name.getValue().basename;
-    context = full_name.getValue().context;
+    identifier = full_name.value().basename;
+    context = full_name.value().context;
     return true;
   }
   return false;
@@ -409,12 +410,12 @@ protected:
 private:
   /// Input character until which we have constructed the respective output
   /// already.
-  const char *Written;
+  const char *Written = "";
 
   llvm::SmallString<128> Result;
 
   /// Whether we have performed any substitutions.
-  bool Substituted;
+  bool Substituted = false;
 
   const char *currentParserPos() const { return this->First; }
 
@@ -756,6 +757,12 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
       lldb_private::formatters::LibcxxAtomicSyntheticFrontEndCreator,
       "libc++ std::atomic synthetic children",
       ConstString("^std::__[[:alnum:]]+::atomic<.+>$"), stl_synth_flags, true);
+  AddCXXSynthetic(
+      cpp_category_sp,
+      lldb_private::formatters::LibcxxStdSpanSyntheticFrontEndCreator,
+      "libc++ std::span synthetic children",
+      ConstString("^std::__[[:alnum:]]+::span<.+>(( )?&)?$"), stl_deref_flags,
+      true);
 
   cpp_category_sp->GetRegexTypeSyntheticsContainer()->Add(
       RegularExpression("^(std::__[[:alnum:]]+::)deque<.+>(( )?&)?$"),
@@ -789,6 +796,14 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
                 "libc++ std::function summary provider",
                 ConstString("^std::__[[:alnum:]]+::function<.+>$"),
                 stl_summary_flags, true);
+
+  ConstString libcxx_std_coroutine_handle_regex(
+      "^std::__[[:alnum:]]+::coroutine_handle<.+>(( )?&)?$");
+  AddCXXSynthetic(
+      cpp_category_sp,
+      lldb_private::formatters::StdlibCoroutineHandleSyntheticFrontEndCreator,
+      "coroutine_handle synthetic children", libcxx_std_coroutine_handle_regex,
+      stl_deref_flags, true);
 
   stl_summary_flags.SetDontShowChildren(false);
   stl_summary_flags.SetSkipPointers(false);
@@ -869,6 +884,11 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
                 "libc++ std::variant summary provider",
                 ConstString("^std::__[[:alnum:]]+::variant<.+>(( )?&)?$"),
                 stl_summary_flags, true);
+  AddCXXSummary(cpp_category_sp,
+                lldb_private::formatters::LibcxxContainerSummaryProvider,
+                "libc++ std::span summary provider",
+                ConstString("^std::__[[:alnum:]]+::span<.+>(( )?&)?$"),
+                stl_summary_flags, true);
 
   stl_summary_flags.SetSkipPointers(true);
 
@@ -887,6 +907,11 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
                 "libc++ std::unique_ptr summary provider",
                 libcxx_std_unique_ptr_regex, stl_summary_flags, true);
 
+  AddCXXSummary(cpp_category_sp,
+                lldb_private::formatters::StdlibCoroutineHandleSummaryProvider,
+                "libc++ std::coroutine_handle summary provider",
+                libcxx_std_coroutine_handle_regex, stl_summary_flags, true);
+
   AddCXXSynthetic(
       cpp_category_sp,
       lldb_private::formatters::LibCxxVectorIteratorSyntheticFrontEndCreator,
@@ -898,8 +923,16 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
       cpp_category_sp,
       lldb_private::formatters::LibCxxMapIteratorSyntheticFrontEndCreator,
       "std::map iterator synthetic children",
-      ConstString("^std::__[[:alnum:]]+::__map_iterator<.+>$"), stl_synth_flags,
+      ConstString("^std::__[[:alnum:]]+::__map_(const_)?iterator<.+>$"), stl_synth_flags,
       true);
+
+  AddCXXSynthetic(
+      cpp_category_sp,
+      lldb_private::formatters::
+          LibCxxUnorderedMapIteratorSyntheticFrontEndCreator,
+      "std::unordered_map iterator synthetic children",
+      ConstString("^std::__[[:alnum:]]+::__hash_map_(const_)?iterator<.+>$"),
+      stl_synth_flags, true);
 }
 
 static void LoadLibStdcppFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
@@ -1103,6 +1136,14 @@ static void LoadLibStdcppFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
       "std::tuple synthetic children", ConstString("^std::tuple<.+>(( )?&)?$"),
       stl_synth_flags, true);
 
+  ConstString libstdcpp_std_coroutine_handle_regex(
+      "^std::coroutine_handle<.+>(( )?&)?$");
+  AddCXXSynthetic(
+      cpp_category_sp,
+      lldb_private::formatters::StdlibCoroutineHandleSyntheticFrontEndCreator,
+      "std::coroutine_handle synthetic children",
+      libstdcpp_std_coroutine_handle_regex, stl_deref_flags, true);
+
   AddCXXSynthetic(
       cpp_category_sp,
       lldb_private::formatters::LibStdcppBitsetSyntheticFrontEndCreator,
@@ -1130,6 +1171,10 @@ static void LoadLibStdcppFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
                 "libstdc++ std::weak_ptr summary provider",
                 ConstString("^std::weak_ptr<.+>(( )?&)?$"), stl_summary_flags,
                 true);
+  AddCXXSummary(cpp_category_sp,
+                lldb_private::formatters::StdlibCoroutineHandleSummaryProvider,
+                "libstdc++ std::coroutine_handle summary provider",
+                libstdcpp_std_coroutine_handle_regex, stl_summary_flags, true);
   AddCXXSummary(
       cpp_category_sp, lldb_private::formatters::GenericOptionalSummaryProvider,
       "libstd++ std::optional summary provider",

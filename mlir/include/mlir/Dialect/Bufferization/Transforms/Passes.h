@@ -17,6 +17,19 @@ struct OneShotBufferizationOptions;
 // Passes
 //===----------------------------------------------------------------------===//
 
+#define GEN_PASS_DECL_BUFFERDEALLOCATION
+#define GEN_PASS_DECL_BUFFERHOISTING
+#define GEN_PASS_DECL_BUFFERLOOPHOISTING
+#define GEN_PASS_DECL_BUFFERRESULTSTOOUTPARAMS
+#define GEN_PASS_DECL_FINALIZINGBUFFERIZE
+#define GEN_PASS_DECL_BUFFERIZATIONBUFFERIZE
+#define GEN_PASS_DECL_DROPEQUIVALENTBUFFERRESULTS
+#define GEN_PASS_DECL_ONESHOTBUFFERIZE
+#define GEN_PASS_DECL_PROMOTEBUFFERSTOSTACK
+#define GEN_PASS_DECL_TENSORCOPYINSERTION
+#define GEN_PASS_DECL_ALLOCTENSORELIMINATION
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h.inc"
+
 /// Creates an instance of the BufferDeallocation pass to free all allocated
 /// buffers.
 std::unique_ptr<Pass> createBufferDeallocationPass();
@@ -38,6 +51,13 @@ std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
 /// Replace buffers that are returned from a function with an out parameter.
 /// Also update all call sites.
 LogicalResult promoteBufferResultsToOutParams(ModuleOp module);
+
+/// Creates a pass that drops memref function results that are equivalent to a
+/// function argument.
+std::unique_ptr<Pass> createDropEquivalentBufferResultsPass();
+
+/// Drop all memref function results that are equivalent to a function argument.
+LogicalResult dropEquivalentBufferResults(ModuleOp module);
 
 /// Creates a pass that finalizes a partial bufferization by removing remaining
 /// bufferization.to_tensor and bufferization.to_memref operations.
@@ -70,6 +90,11 @@ std::unique_ptr<Pass> createAllocTensorEliminationPass();
 
 /// Create a pass that bufferizes ops from the bufferization dialect.
 std::unique_ptr<Pass> createBufferizationBufferizePass();
+
+/// Create a pass that resolves out-of-place tensor OpOperands with copies.
+std::unique_ptr<Pass> createTensorCopyInsertionPass();
+std::unique_ptr<Pass>
+createTensorCopyInsertionPass(const OneShotBufferizationOptions &options);
 
 //===----------------------------------------------------------------------===//
 // Registration

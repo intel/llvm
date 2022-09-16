@@ -15,6 +15,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -140,7 +141,7 @@ static Value *foldMulSelectToNegate(BinaryOperator &I,
 }
 
 Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
-  if (Value *V = SimplifyMulInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyMulInst(I.getOperand(0), I.getOperand(1),
                                  SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -220,16 +221,29 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
     return replaceInstUsesWith(I, FoldedMul);
 
   // Simplify mul instructions with a constant RHS.
-  if (isa<Constant>(Op1)) {
-    // Canonicalize (X+C1)*CI -> X*CI+C1*CI.
+  Constant *MulC;
+  if (match(Op1, m_ImmConstant(MulC))) {
+    // Canonicalize (X+C1)*MulC -> X*MulC+C1*MulC.
+    // Canonicalize (X|C1)*MulC -> X*MulC+C1*MulC.
     Value *X;
     Constant *C1;
-    if (match(Op0, m_OneUse(m_Add(m_Value(X), m_Constant(C1))))) {
-      Value *Mul = Builder.CreateMul(C1, Op1);
-      // Only go forward with the transform if C1*CI simplifies to a tidier
-      // constant.
-      if (!match(Mul, m_Mul(m_Value(), m_Value())))
-        return BinaryOperator::CreateAdd(Builder.CreateMul(X, Op1), Mul);
+    if ((match(Op0, m_OneUse(m_Add(m_Value(X), m_ImmConstant(C1))))) ||
+        (match(Op0, m_OneUse(m_Or(m_Value(X), m_ImmConstant(C1)))) &&
+         haveNoCommonBitsSet(X, C1, DL, &AC, &I, &DT))) {
+      // C1*MulC simplifies to a tidier constant.
+      Value *NewC = Builder.CreateMul(C1, MulC);
+      auto *BOp0 = cast<BinaryOperator>(Op0);
+      bool Op0NUW =
+          (BOp0->getOpcode() == Instruction::Or || BOp0->hasNoUnsignedWrap());
+      Value *NewMul = Builder.CreateMul(X, MulC);
+      auto *BO = BinaryOperator::CreateAdd(NewMul, NewC);
+      if (I.hasNoUnsignedWrap() && Op0NUW) {
+        // If NewMulBO is constant we also can set BO to nuw.
+        if (auto *NewMulBO = dyn_cast<BinaryOperator>(NewMul))
+          NewMulBO->setHasNoUnsignedWrap();
+        BO->setHasNoUnsignedWrap();
+      }
+      return BO;
     }
   }
 
@@ -390,6 +404,12 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
     return SelectInst::Create(IsNeg, Y, ConstantInt::getNullValue(Ty));
   }
 
+  // (and X, 1) * Y --> (trunc X) ? Y : 0
+  if (match(&I, m_c_BinOp(m_OneUse(m_And(m_Value(X), m_One())), m_Value(Y)))) {
+    Value *Tr = Builder.CreateTrunc(X, CmpInst::makeCmpResultType(Ty));
+    return SelectInst::Create(Tr, Y, ConstantInt::getNullValue(Ty));
+  }
+
   // ((ashr X, 31) | 1) * X --> abs(X)
   // X * ((ashr X, 31) | 1) --> abs(X)
   if (match(&I, m_c_BinOp(m_Or(m_AShr(m_Value(X),
@@ -454,7 +474,7 @@ Instruction *InstCombinerImpl::foldFPSignBitOps(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
-  if (Value *V = SimplifyFMulInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFMulInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -486,7 +506,8 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
   Value *X, *Y;
   Constant *C;
   if (match(Op0, m_FNeg(m_Value(X))) && match(Op1, m_Constant(C)))
-    return BinaryOperator::CreateFMulFMF(X, ConstantExpr::getFNeg(C), &I);
+    if (Constant *NegC = ConstantFoldUnaryOpOperand(Instruction::FNeg, C, DL))
+      return BinaryOperator::CreateFMulFMF(X, NegC, &I);
 
   // (select A, B, C) * (select A, D, E) --> select A, (B*D), (C*E)
   if (Value *V = SimplifySelectsFeedingBinaryOp(I, Op0, Op1))
@@ -499,20 +520,23 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       Constant *C1;
       if (match(Op0, m_OneUse(m_FDiv(m_Constant(C1), m_Value(X))))) {
         // (C1 / X) * C --> (C * C1) / X
-        Constant *CC1 = ConstantExpr::getFMul(C, C1);
-        if (CC1->isNormalFP())
+        Constant *CC1 =
+            ConstantFoldBinaryOpOperands(Instruction::FMul, C, C1, DL);
+        if (CC1 && CC1->isNormalFP())
           return BinaryOperator::CreateFDivFMF(CC1, X, &I);
       }
       if (match(Op0, m_FDiv(m_Value(X), m_Constant(C1)))) {
         // (X / C1) * C --> X * (C / C1)
-        Constant *CDivC1 = ConstantExpr::getFDiv(C, C1);
-        if (CDivC1->isNormalFP())
+        Constant *CDivC1 =
+            ConstantFoldBinaryOpOperands(Instruction::FDiv, C, C1, DL);
+        if (CDivC1 && CDivC1->isNormalFP())
           return BinaryOperator::CreateFMulFMF(X, CDivC1, &I);
 
         // If the constant was a denormal, try reassociating differently.
         // (X / C1) * C --> X / (C1 / C)
-        Constant *C1DivC = ConstantExpr::getFDiv(C1, C);
-        if (Op0->hasOneUse() && C1DivC->isNormalFP())
+        Constant *C1DivC =
+            ConstantFoldBinaryOpOperands(Instruction::FDiv, C1, C, DL);
+        if (C1DivC && Op0->hasOneUse() && C1DivC->isNormalFP())
           return BinaryOperator::CreateFDivFMF(X, C1DivC, &I);
       }
 
@@ -521,15 +545,19 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       // further folds and (X * C) + C2 is 'fma'.
       if (match(Op0, m_OneUse(m_FAdd(m_Value(X), m_Constant(C1))))) {
         // (X + C1) * C --> (X * C) + (C * C1)
-        Constant *CC1 = ConstantExpr::getFMul(C, C1);
-        Value *XC = Builder.CreateFMulFMF(X, C, &I);
-        return BinaryOperator::CreateFAddFMF(XC, CC1, &I);
+        if (Constant *CC1 = ConstantFoldBinaryOpOperands(
+                Instruction::FMul, C, C1, DL)) {
+          Value *XC = Builder.CreateFMulFMF(X, C, &I);
+          return BinaryOperator::CreateFAddFMF(XC, CC1, &I);
+        }
       }
       if (match(Op0, m_OneUse(m_FSub(m_Constant(C1), m_Value(X))))) {
         // (C1 - X) * C --> (C * C1) - (X * C)
-        Constant *CC1 = ConstantExpr::getFMul(C, C1);
-        Value *XC = Builder.CreateFMulFMF(X, C, &I);
-        return BinaryOperator::CreateFSubFMF(CC1, XC, &I);
+        if (Constant *CC1 = ConstantFoldBinaryOpOperands(
+                Instruction::FMul, C, C1, DL)) {
+          Value *XC = Builder.CreateFMulFMF(X, C, &I);
+          return BinaryOperator::CreateFSubFMF(CC1, XC, &I);
+        }
       }
     }
 
@@ -657,6 +685,15 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       return BinaryOperator::CreateFSubFMF(LogXTimesY, Y, &I);
     }
   }
+
+  // Simplify FMUL recurrences starting with 0.0 to 0.0 if nnan and nsz are set.
+  // Given a phi node with entry value as 0 and it used in fmul operation,
+  // we can replace fmul with 0 safely and eleminate loop operation.
+  PHINode *PN = nullptr;
+  Value *Start = nullptr, *Step = nullptr;
+  if (matchSimpleRecurrence(&I, PN, Start, Step) && I.hasNoNaNs() &&
+      I.hasNoSignedZeros() && match(Start, m_Zero()))
+    return replaceInstUsesWith(I, Start);
 
   return nullptr;
 }
@@ -994,8 +1031,8 @@ static Instruction *narrowUDivURem(BinaryOperator &I,
   }
 
   Constant *C;
-  if ((match(N, m_OneUse(m_ZExt(m_Value(X)))) && match(D, m_Constant(C))) ||
-      (match(D, m_OneUse(m_ZExt(m_Value(X)))) && match(N, m_Constant(C)))) {
+  if (isa<Instruction>(N) && match(N, m_OneUse(m_ZExt(m_Value(X)))) &&
+      match(D, m_Constant(C))) {
     // If the constant is the same in the smaller type, use the narrow version.
     Constant *TruncC = ConstantExpr::getTrunc(C, X->getType());
     if (ConstantExpr::getZExt(TruncC, Ty) != C)
@@ -1003,18 +1040,25 @@ static Instruction *narrowUDivURem(BinaryOperator &I,
 
     // udiv (zext X), C --> zext (udiv X, C')
     // urem (zext X), C --> zext (urem X, C')
+    return new ZExtInst(Builder.CreateBinOp(Opcode, X, TruncC), Ty);
+  }
+  if (isa<Instruction>(D) && match(D, m_OneUse(m_ZExt(m_Value(X)))) &&
+      match(N, m_Constant(C))) {
+    // If the constant is the same in the smaller type, use the narrow version.
+    Constant *TruncC = ConstantExpr::getTrunc(C, X->getType());
+    if (ConstantExpr::getZExt(TruncC, Ty) != C)
+      return nullptr;
+
     // udiv C, (zext X) --> zext (udiv C', X)
     // urem C, (zext X) --> zext (urem C', X)
-    Value *NarrowOp = isa<Constant>(D) ? Builder.CreateBinOp(Opcode, X, TruncC)
-                                       : Builder.CreateBinOp(Opcode, TruncC, X);
-    return new ZExtInst(NarrowOp, Ty);
+    return new ZExtInst(Builder.CreateBinOp(Opcode, TruncC, X), Ty);
   }
 
   return nullptr;
 }
 
 Instruction *InstCombinerImpl::visitUDiv(BinaryOperator &I) {
-  if (Value *V = SimplifyUDivInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyUDivInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1084,7 +1128,7 @@ Instruction *InstCombinerImpl::visitUDiv(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitSDiv(BinaryOperator &I) {
-  if (Value *V = SimplifySDivInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifySDivInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1213,8 +1257,10 @@ static Instruction *foldFDivConstantDivisor(BinaryOperator &I) {
 
   // -X / C --> X / -C
   Value *X;
+  const DataLayout &DL = I.getModule()->getDataLayout();
   if (match(I.getOperand(0), m_FNeg(m_Value(X))))
-    return BinaryOperator::CreateFDivFMF(X, ConstantExpr::getFNeg(C), &I);
+    if (Constant *NegC = ConstantFoldUnaryOpOperand(Instruction::FNeg, C, DL))
+      return BinaryOperator::CreateFDivFMF(X, NegC, &I);
 
   // If the constant divisor has an exact inverse, this is always safe. If not,
   // then we can still create a reciprocal if fast-math-flags allow it and the
@@ -1226,8 +1272,9 @@ static Instruction *foldFDivConstantDivisor(BinaryOperator &I) {
   // on all targets.
   // TODO: Use Intrinsic::canonicalize or let function attributes tell us that
   // denorms are flushed?
-  auto *RecipC = ConstantExpr::getFDiv(ConstantFP::get(I.getType(), 1.0), C);
-  if (!RecipC->isNormalFP())
+  auto *RecipC = ConstantFoldBinaryOpOperands(
+      Instruction::FDiv, ConstantFP::get(I.getType(), 1.0), C, DL);
+  if (!RecipC || !RecipC->isNormalFP())
     return nullptr;
 
   // X / C --> X * (1 / C)
@@ -1242,8 +1289,10 @@ static Instruction *foldFDivConstantDividend(BinaryOperator &I) {
 
   // C / -X --> -C / X
   Value *X;
+  const DataLayout &DL = I.getModule()->getDataLayout();
   if (match(I.getOperand(1), m_FNeg(m_Value(X))))
-    return BinaryOperator::CreateFDivFMF(ConstantExpr::getFNeg(C), X, &I);
+    if (Constant *NegC = ConstantFoldUnaryOpOperand(Instruction::FNeg, C, DL))
+      return BinaryOperator::CreateFDivFMF(NegC, X, &I);
 
   if (!I.hasAllowReassoc() || !I.hasAllowReciprocal())
     return nullptr;
@@ -1252,10 +1301,10 @@ static Instruction *foldFDivConstantDividend(BinaryOperator &I) {
   Constant *C2, *NewC = nullptr;
   if (match(I.getOperand(1), m_FMul(m_Value(X), m_Constant(C2)))) {
     // C / (X * C2) --> (C / C2) / X
-    NewC = ConstantExpr::getFDiv(C, C2);
+    NewC = ConstantFoldBinaryOpOperands(Instruction::FDiv, C, C2, DL);
   } else if (match(I.getOperand(1), m_FDiv(m_Value(X), m_Constant(C2)))) {
     // C / (X / C2) --> (C * C2) / X
-    NewC = ConstantExpr::getFMul(C, C2);
+    NewC = ConstantFoldBinaryOpOperands(Instruction::FMul, C, C2, DL);
   }
   // Disallow denormal constants because we don't know what would happen
   // on all targets.
@@ -1315,7 +1364,7 @@ static Instruction *foldFDivPowDivisor(BinaryOperator &I,
 Instruction *InstCombinerImpl::visitFDiv(BinaryOperator &I) {
   Module *M = I.getModule();
 
-  if (Value *V = SimplifyFDivInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFDivInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -1478,7 +1527,7 @@ Instruction *InstCombinerImpl::commonIRemTransforms(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
-  if (Value *V = SimplifyURemInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyURemInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1531,7 +1580,7 @@ Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitSRem(BinaryOperator &I) {
-  if (Value *V = SimplifySRemInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifySRemInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1603,7 +1652,7 @@ Instruction *InstCombinerImpl::visitSRem(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitFRem(BinaryOperator &I) {
-  if (Value *V = SimplifyFRemInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFRemInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);

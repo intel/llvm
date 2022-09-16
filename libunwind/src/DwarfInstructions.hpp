@@ -25,7 +25,7 @@
 namespace libunwind {
 
 
-/// DwarfInstructions maps abtract DWARF unwind instructions to a particular
+/// DwarfInstructions maps abstract DWARF unwind instructions to a particular
 /// architecture
 template <typename A, typename R>
 class DwarfInstructions {
@@ -213,9 +213,10 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
       newRegisters.setSP(cfa);
 
       pint_t returnAddress = 0;
-      const int lastReg = R::lastDwarfRegNum();
-      assert(static_cast<int>(CFI_Parser<A>::kMaxRegisterNumber) >= lastReg &&
-             "register range too large");
+      constexpr int lastReg = R::lastDwarfRegNum();
+      static_assert(static_cast<int>(CFI_Parser<A>::kMaxRegisterNumber) >=
+                        lastReg,
+                    "register range too large");
       assert(lastReg >= (int)cieInfo.returnAddressRegister &&
              "register range does not contain return address register");
       for (int i = 0; i <= lastReg; ++i) {
@@ -240,7 +241,7 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
             return UNW_EBADREG;
         } else if (i == (int)cieInfo.returnAddressRegister) {
             // Leaf function keeps the return address in register and there is no
-            // explicit intructions how to restore it.
+            // explicit instructions how to restore it.
             returnAddress = registers.getRegister(cieInfo.returnAddressRegister);
         }
       }
@@ -330,7 +331,7 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
 #endif
 
       // Return address is address after call site instruction, so setting IP to
-      // that does simualates a return.
+      // that does simulates a return.
       newRegisters.setIP(returnAddress);
 
       // Simulate the step by replacing the register set with the new ones.
@@ -634,7 +635,7 @@ DwarfInstructions<A, R>::evaluateExpression(pint_t expression, A &addressSpace,
       svalue = (sint_t)*sp;
       *sp = (pint_t)(svalue >> value);
       if (log)
-        fprintf(stderr, "shift left arithmetric\n");
+        fprintf(stderr, "shift left arithmetic\n");
       break;
 
     case DW_OP_xor:

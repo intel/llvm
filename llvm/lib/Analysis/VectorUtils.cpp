@@ -398,7 +398,7 @@ bool llvm::isSplatValue(const Value *V, int Index, unsigned Depth) {
   if (auto *Shuf = dyn_cast<ShuffleVectorInst>(V)) {
     // FIXME: We can safely allow undefs here. If Index was specified, we will
     //        check that the mask elt is defined at the required index.
-    if (!is_splat(Shuf->getShuffleMask()))
+    if (!all_equal(Shuf->getShuffleMask()))
       return false;
 
     // Match any index.
@@ -478,7 +478,7 @@ bool llvm::widenShuffleMaskElts(int Scale, ArrayRef<int> Mask,
     if (SliceFront < 0) {
       // Negative values (undef or other "sentinel" values) must be equal across
       // the entire slice.
-      if (!is_splat(MaskSlice))
+      if (!all_equal(MaskSlice))
         return false;
       ScaledMask.push_back(SliceFront);
     } else {
@@ -658,9 +658,8 @@ llvm::computeMinimumValueSizes(ArrayRef<BasicBlock *> Blocks, DemandedBits &DB,
     Value *Val = Worklist.pop_back_val();
     Value *Leader = ECs.getOrInsertLeaderValue(Val);
 
-    if (Visited.count(Val))
+    if (!Visited.insert(Val).second)
       continue;
-    Visited.insert(Val);
 
     // Non-instructions terminate a chain successfully.
     if (!isa<Instruction>(Val))
@@ -763,7 +762,7 @@ static void addToAccessGroupList(ListT &List, MDNode *AccGroups) {
     return;
   }
 
-  for (auto &AccGroupListOp : AccGroups->operands()) {
+  for (const auto &AccGroupListOp : AccGroups->operands()) {
     auto *Item = cast<MDNode>(AccGroupListOp.get());
     assert(isValidAsAccessGroup(Item) && "List item must be an access group");
     List.insert(Item);
@@ -1498,12 +1497,12 @@ void VFABI::getVectorVariantNames(
   SmallVector<StringRef, 8> ListAttr;
   S.split(ListAttr, ",");
 
-  for (auto &S : SetVector<StringRef>(ListAttr.begin(), ListAttr.end())) {
+  for (const auto &S : SetVector<StringRef>(ListAttr.begin(), ListAttr.end())) {
 #ifndef NDEBUG
     LLVM_DEBUG(dbgs() << "VFABI: adding mapping '" << S << "'\n");
     Optional<VFInfo> Info = VFABI::tryDemangleForVFABI(S, *(CI.getModule()));
-    assert(Info.hasValue() && "Invalid name for a VFABI variant.");
-    assert(CI.getModule()->getFunction(Info.getValue().VectorName) &&
+    assert(Info && "Invalid name for a VFABI variant.");
+    assert(CI.getModule()->getFunction(Info.value().VectorName) &&
            "Vector function is missing.");
 #endif
     VariantMappings.push_back(std::string(S));

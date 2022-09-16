@@ -3,6 +3,7 @@
 // Hangs
 // UNSUPPORTED: amdgcn-amd-amdhsa
 // UNSUPPORTED: amdgcn-amd-amdhsa-oldDriver
+// UNSUPPORTED: amdgcn-amd-amdhsa-LTO
 
 #include <iostream>
 
@@ -68,7 +69,7 @@ template <typename T> int test_reduction() {
   return 0;
 }
 
-template <typename T> int test_complex() {
+template <typename T> int test_POD() {
   int ret = 0;
   ret |= test_map<T>();
   ret |= test_reduction<T>();
@@ -78,8 +79,8 @@ template <typename T> int test_complex() {
 int main() {
   int ret = 0;
   std::cout << "Testing float" << std::endl;
-  ret |= test_complex<float>();
+  ret |= test_POD<float>();
   std::cout << "Testing double" << std::endl;
-  ret |= test_complex<double>();
+  ret |= test_POD<double>();
   return ret;
 }

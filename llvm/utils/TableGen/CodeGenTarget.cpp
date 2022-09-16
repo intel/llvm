@@ -229,6 +229,8 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::nxv2bf16:  return "MVT::nxv2bf16";
   case MVT::nxv4bf16:  return "MVT::nxv4bf16";
   case MVT::nxv8bf16:  return "MVT::nxv8bf16";
+  case MVT::nxv16bf16: return "MVT::nxv16bf16";
+  case MVT::nxv32bf16: return "MVT::nxv32bf16";
   case MVT::nxv1f32:   return "MVT::nxv1f32";
   case MVT::nxv2f32:   return "MVT::nxv2f32";
   case MVT::nxv4f32:   return "MVT::nxv4f32";
@@ -474,7 +476,7 @@ GetInstByName(const char *Name,
   return I->second.get();
 }
 
-static const char *const FixedInstrs[] = {
+static const char *FixedInstrs[] = {
 #define HANDLE_TARGET_OPCODE(OPC) #OPC,
 #include "llvm/Support/TargetOpcodes.def"
     nullptr};
@@ -686,8 +688,8 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R,
 
   EnumName = DefName.substr(4);
 
-  if (R->getValue("GCCBuiltinName"))  // Ignore a missing GCCBuiltinName field.
-    GCCBuiltinName = std::string(R->getValueAsString("GCCBuiltinName"));
+  if (R->getValue("ClangBuiltinName"))  // Ignore a missing ClangBuiltinName field.
+    ClangBuiltinName = std::string(R->getValueAsString("ClangBuiltinName"));
   if (R->getValue("MSBuiltinName"))   // Ignore a missing MSBuiltinName field.
     MSBuiltinName = std::string(R->getValueAsString("MSBuiltinName"));
 
@@ -891,6 +893,9 @@ void CodeGenIntrinsic::setProperty(Record *R) {
   } else if (R->isSubClassOf("NoUndef")) {
     unsigned ArgNo = R->getValueAsInt("ArgNo");
     ArgumentAttributes.emplace_back(ArgNo, NoUndef, 0);
+  } else if (R->isSubClassOf("NonNull")) {
+    unsigned ArgNo = R->getValueAsInt("ArgNo");
+    ArgumentAttributes.emplace_back(ArgNo, NonNull, 0);
   } else if (R->isSubClassOf("Returned")) {
     unsigned ArgNo = R->getValueAsInt("ArgNo");
     ArgumentAttributes.emplace_back(ArgNo, Returned, 0);

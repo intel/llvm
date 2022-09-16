@@ -123,7 +123,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
-      !C.getDriver().IsCLMode()) {
+      !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
       CmdArgs.push_back("-defaultlib:msvcrt");
     else
@@ -131,14 +131,16 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:oldnames");
   }
 
-  if ((!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
-       Args.hasArg(options::OPT_fsycl) &&
+  if ((!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl) &&
        !Args.hasArg(options::OPT_nolibsycl)) ||
       Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
-    if (Args.hasArg(options::OPT__SLASH_MDd))
-      CmdArgs.push_back("-defaultlib:sycld.lib");
+    CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
+                                         TC.getDriver().Dir + "/../lib"));
+    if (Args.hasArg(options::OPT_g_Flag))
+      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     else
-      CmdArgs.push_back("-defaultlib:sycl.lib");
+      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
+    CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
   for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
@@ -194,6 +196,16 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (TC.getWindowsSDKLibraryPath(Args, WindowsSdkLibPath))
       CmdArgs.push_back(
           Args.MakeArgString(std::string("-libpath:") + WindowsSdkLibPath));
+  }
+
+  if (C.getDriver().IsFlangMode()) {
+    addFortranRuntimeLibraryPath(TC, Args, CmdArgs);
+    addFortranRuntimeLibs(TC, CmdArgs);
+
+    // Inform the MSVC linker that we're generating a console application, i.e.
+    // one with `main` as the "user-defined" entry point. The `main` function is
+    // defined in flang's runtime libraries.
+    CmdArgs.push_back("/subsystem:console");
   }
 
   // Add the compiler-rt library directories to libpath if they exist to help
@@ -781,7 +793,7 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
         if (major >= 10) {
           llvm::VersionTuple Tuple;
           if (!Tuple.tryParse(windowsSDKIncludeVersion) &&
-              Tuple.getSubminor().getValueOr(0) >= 17134) {
+              Tuple.getSubminor().value_or(0) >= 17134) {
             AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
                                           "Include", windowsSDKIncludeVersion,
                                           "cppwinrt");
@@ -839,8 +851,8 @@ MSVCToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
   // The MSVC version doesn't care about the architecture, even though it
   // may look at the triple internally.
   VersionTuple MSVT = computeMSVCVersion(/*D=*/nullptr, Args);
-  MSVT = VersionTuple(MSVT.getMajor(), MSVT.getMinor().getValueOr(0),
-                      MSVT.getSubminor().getValueOr(0));
+  MSVT = VersionTuple(MSVT.getMajor(), MSVT.getMinor().value_or(0),
+                      MSVT.getSubminor().value_or(0));
 
   // For the rest of the triple, however, a computed architecture name may
   // be needed.

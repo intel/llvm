@@ -11,19 +11,23 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclGroup.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/LangStandard.h"
+#include "clang/Basic/Sarif.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/LayoutOverrideSource.h"
 #include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Frontend/SARIFDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Parse/ParseAST.h"
+#include "clang/Sema/HLSLExternalSemaSource.h"
 #include "clang/Serialization/ASTDeserializationListener.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
@@ -34,6 +38,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
 #include <system_error>
 using namespace clang;
 
@@ -191,10 +196,8 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
         ActionType == PluginASTAction::CmdlineBeforeMainAction) {
       // This is O(|plugins| * |add_plugins|), but since both numbers are
       // way below 50 in practice, that's ok.
-      if (llvm::any_of(CI.getFrontendOpts().AddPluginActions,
-                       [&](const std::string &PluginAction) {
-                         return PluginAction == Plugin.getName();
-                       })) {
+      if (llvm::is_contained(CI.getFrontendOpts().AddPluginActions,
+                             Plugin.getName())) {
         if (ActionType == PluginASTAction::CmdlineBeforeMainAction)
           ActionType = PluginASTAction::AddBeforeMainAction;
         else
@@ -413,11 +416,7 @@ static std::error_code collectModuleHeaderIncludes(
 
     // Sort header paths and make the header inclusion order deterministic
     // across different OSs and filesystems.
-    llvm::sort(Headers.begin(), Headers.end(), [](
-      const std::pair<std::string, const FileEntry *> &LHS,
-      const std::pair<std::string, const FileEntry *> &RHS) {
-        return LHS.first < RHS.first;
-    });
+    llvm::sort(Headers, llvm::less_first());
     for (auto &H : Headers) {
       // Include this header as part of the umbrella directory.
       Module->addTopHeader(H.second);
@@ -584,6 +583,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   auto FailureCleanup = llvm::make_scope_exit([&]() {
     if (HasBegunSourceFile)
       CI.getDiagnosticClient().EndSourceFile();
+    CI.setASTConsumer(nullptr);
     CI.clearOutputFiles(/*EraseFiles=*/true);
     CI.getLangOpts().setCompilingModule(LangOptions::CMK_None);
     setCurrentInput(FrontendInputFile());
@@ -719,8 +719,14 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
       return false;
     }
   }
-  if (!CI.hasSourceManager())
+  if (!CI.hasSourceManager()) {
     CI.createSourceManager(CI.getFileManager());
+    if (CI.getDiagnosticOpts().getFormat() == DiagnosticOptions::SARIF) {
+      static_cast<SARIFDiagnosticPrinter *>(&CI.getDiagnosticClient())
+          ->setSarifWriter(
+              std::make_unique<SarifDocumentWriter>(CI.getSourceManager()));
+    }
+  }
 
   // Set up embedding for any specified files. Do this before we load any
   // source files, including the primary module map for the compilation.
@@ -774,7 +780,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
         if (ASTReader::isAcceptableASTFile(
                 Dir->path(), FileMgr, CI.getPCHContainerReader(),
                 CI.getLangOpts(), CI.getTargetOpts(), CI.getPreprocessorOpts(),
-                SpecificModuleCachePath)) {
+                SpecificModuleCachePath, /*RequireStrictOptionMatches=*/true)) {
           PPOpts.ImplicitPCHInclude = std::string(Dir->path());
           Found = true;
           break;
@@ -1018,6 +1024,13 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     CI.getASTContext().setExternalSource(Override);
   }
 
+  // Setup HLSL External Sema Source
+  if (CI.getLangOpts().HLSL && CI.hasASTContext()) {
+    IntrusiveRefCntPtr<ExternalASTSource> HLSLSema(
+        new HLSLExternalSemaSource());
+    CI.getASTContext().setExternalSource(HLSLSema);
+  }
+
   FailureCleanup.release();
   return true;
 }
@@ -1079,7 +1092,7 @@ void FrontendAction::EndSourceFile() {
   }
 
   if (CI.getFrontendOpts().ShowStats) {
-    llvm::errs() << "\nSTATISTICS FOR '" << getCurrentFile() << "':\n";
+    llvm::errs() << "\nSTATISTICS FOR '" << getCurrentFileOrBufferName() << "':\n";
     CI.getPreprocessor().PrintStats();
     CI.getPreprocessor().getIdentifierTable().PrintStats();
     CI.getPreprocessor().getHeaderSearchInfo().PrintStats();
@@ -1200,4 +1213,3 @@ bool WrapperFrontendAction::hasCodeCompletionSupport() const {
 WrapperFrontendAction::WrapperFrontendAction(
     std::unique_ptr<FrontendAction> WrappedAction)
   : WrappedAction(std::move(WrappedAction)) {}
-

@@ -703,12 +703,14 @@ namespace llvm {
 
     // Conversions between float and half-float.
     CVTPS2PH,
+    CVTPS2PH_SAE,
     CVTPH2PS,
     CVTPH2PS_SAE,
 
     // Masked version of above.
     // SRC, RND, PASSTHRU, MASK
     MCVTPS2PH,
+    MCVTPS2PH_SAE,
 
     // Galois Field Arithmetic Instructions
     GF2P8AFFINEINVQB,
@@ -1033,9 +1035,9 @@ namespace llvm {
     bool canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
                           const MachineFunction &MF) const override;
 
-    bool isCheapToSpeculateCttz() const override;
+    bool isCheapToSpeculateCttz(Type *Ty) const override;
 
-    bool isCheapToSpeculateCtlz() const override;
+    bool isCheapToSpeculateCtlz(Type *Ty) const override;
 
     bool isCtlzFast() const override;
 
@@ -1160,6 +1162,19 @@ namespace llvm {
                                    APInt &UndefElts,
                                    unsigned Depth) const override;
 
+    bool isTargetCanonicalConstantNode(SDValue Op) const override {
+      // Peek through bitcasts/extracts/inserts to see if we have a broadcast
+      // vector from memory.
+      while (Op.getOpcode() == ISD::BITCAST ||
+             Op.getOpcode() == ISD::EXTRACT_SUBVECTOR ||
+             (Op.getOpcode() == ISD::INSERT_SUBVECTOR &&
+              Op.getOperand(0).isUndef()))
+        Op = Op.getOperand(Op.getOpcode() == ISD::INSERT_SUBVECTOR ? 1 : 0);
+
+      return Op.getOpcode() == X86ISD::VBROADCAST_LOAD ||
+             TargetLowering::isTargetCanonicalConstantNode(Op);
+    }
+
     const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const override;
 
     SDValue unwrapAddress(SDValue N) const override;
@@ -1226,15 +1241,6 @@ namespace llvm {
     bool isLegalAddImmediate(int64_t Imm) const override;
 
     bool isLegalStoreImmediate(int64_t Imm) const override;
-
-    /// Return the cost of the scaling factor used in the addressing
-    /// mode represented by AM for this target, for a load/store
-    /// of the specified type.
-    /// If the AM is supported, the return value must be >= 0.
-    /// If the AM is not supported, it returns a negative value.
-    InstructionCost getScalingFactorCost(const DataLayout &DL,
-                                         const AddrMode &AM, Type *Ty,
-                                         unsigned AS) const override;
 
     /// This is used to enable splatted operand transforms for vector shifts
     /// and vector funnel shifts.
@@ -1396,7 +1402,7 @@ namespace llvm {
     Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
-    virtual bool needsFixedCatchObjects() const override;
+    bool needsFixedCatchObjects() const override;
 
     /// This method returns a target specific FastISel object,
     /// or null if the target does not support "fast" ISel.
@@ -1446,6 +1452,8 @@ namespace llvm {
     bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
 
     bool supportSwiftError() const override;
+
+    bool supportKCFIBundles() const override { return true; }
 
     bool hasStackProbeSymbol(MachineFunction &MF) const override;
     bool hasInlineStackProbe(MachineFunction &MF) const override;
@@ -1585,6 +1593,7 @@ namespace llvm {
     SDValue lowerFaddFsub(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerFP_TO_BF16(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue
     LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
@@ -1607,6 +1616,17 @@ namespace llvm {
     void insertCopiesSplitCSR(
       MachineBasicBlock *Entry,
       const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
+
+    bool
+    splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
+                                SDValue *Parts, unsigned NumParts, MVT PartVT,
+                                Optional<CallingConv::ID> CC) const override;
+
+    SDValue
+    joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
+                               const SDValue *Parts, unsigned NumParts,
+                               MVT PartVT, EVT ValueVT,
+                               Optional<CallingConv::ID> CC) const override;
 
     bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
 
@@ -1639,6 +1659,8 @@ namespace llvm {
     bool lowerAtomicLoadAsLoadSDNode(const LoadInst &LI) const override;
 
     bool needsCmpXchgNb(Type *MemType) const;
+
+    template<typename T> bool isSoftFP16(T VT) const;
 
     void SetupEntryBlockForSjLj(MachineInstr &MI, MachineBasicBlock *MBB,
                                 MachineBasicBlock *DispatchBB, int FI) const;

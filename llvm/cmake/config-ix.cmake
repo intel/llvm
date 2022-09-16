@@ -6,6 +6,7 @@ endif()
 include(CheckIncludeFile)
 include(CheckLibraryExists)
 include(CheckSymbolExists)
+include(CheckCXXSymbolExists)
 include(CheckFunctionExists)
 include(CheckStructHasMember)
 include(CheckCCompilerFlag)
@@ -133,7 +134,22 @@ if(LLVM_ENABLE_ZLIB)
     endif()
   endif()
   set(LLVM_ENABLE_ZLIB "${HAVE_ZLIB}")
+else()
+  set(LLVM_ENABLE_ZLIB 0)
 endif()
+
+set(zstd_FOUND 0)
+if(LLVM_ENABLE_ZSTD)
+  if(LLVM_ENABLE_ZSTD STREQUAL FORCE_ON)
+    find_package(zstd REQUIRED)
+    if(NOT zstd_FOUND)
+      message(FATAL_ERROR "Failed to configure zstd, but LLVM_ENABLE_ZSTD is FORCE_ON")
+    endif()
+  elseif(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
+    find_package(zstd QUIET)
+  endif()
+endif()
+set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
 
 if(LLVM_ENABLE_LIBXML2)
   if(LLVM_ENABLE_LIBXML2 STREQUAL FORCE_ON)
@@ -175,6 +191,26 @@ if(LLVM_ENABLE_CURL)
     endif()
   endif()
   set(LLVM_ENABLE_CURL "${HAVE_CURL}")
+endif()
+
+if(LLVM_ENABLE_HTTPLIB)
+  if(LLVM_ENABLE_HTTPLIB STREQUAL FORCE_ON)
+    find_package(httplib REQUIRED)
+  else()
+    find_package(httplib)
+  endif()
+  if(HTTPLIB_FOUND)
+    # Check if the "httplib" we found is usable; for example there may be another
+    # library with the same name.
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${HTTPLIB_LIBRARY})
+    check_cxx_symbol_exists(CPPHTTPLIB_HTTPLIB_H ${HTTPLIB_HEADER_PATH} HAVE_HTTPLIB)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_HTTPLIB STREQUAL FORCE_ON AND NOT HAVE_HTTPLIB)
+      message(FATAL_ERROR "Failed to configure cpp-httplib")
+    endif()
+  endif()
+  set(LLVM_ENABLE_HTTPLIB "${HAVE_HTTPLIB}")
 endif()
 
 # Don't look for these libraries if we're using MSan, since uninstrumented third
@@ -362,15 +398,6 @@ endif()
 
 check_symbol_exists(proc_pid_rusage "libproc.h" HAVE_PROC_PID_RUSAGE)
 
-# Whether we can use std::is_trivially_copyable to verify llvm::is_trivially_copyable.
-CHECK_CXX_SOURCE_COMPILES("
-#include <type_traits>
-struct T { int val; };
-static_assert(std::is_trivially_copyable<T>::value, \"ok\");
-int main() { return 0;}
-" HAVE_STD_IS_TRIVIALLY_COPYABLE)
-
-
 # Define LLVM_HAS_ATOMICS if gcc or MSVC atomic builtins are supported.
 include(CheckAtomic)
 
@@ -462,6 +489,8 @@ elseif (LLVM_NATIVE_ARCH MATCHES "riscv64")
   set(LLVM_NATIVE_ARCH RISCV)
 elseif (LLVM_NATIVE_ARCH STREQUAL "m68k")
   set(LLVM_NATIVE_ARCH M68k)
+elseif (LLVM_NATIVE_ARCH MATCHES "loongarch")
+  set(LLVM_NATIVE_ARCH LoongArch)
 else ()
   message(FATAL_ERROR "Unknown architecture ${LLVM_NATIVE_ARCH}")
 endif ()
@@ -538,9 +567,6 @@ if( MSVC )
 else()
   set(LLVM_ENABLE_DIA_SDK 0)
 endif( MSVC )
-
-# FIXME: Signal handler return type, currently hardcoded to 'void'
-set(RETSIGTYPE void)
 
 if( LLVM_ENABLE_THREADS )
   # Check if threading primitives aren't supported on this platform

@@ -16,12 +16,12 @@
 
 #include "CudaUtils.hpp"
 #include "TestGetPlugin.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaContextsTest : public ::testing::Test {
 

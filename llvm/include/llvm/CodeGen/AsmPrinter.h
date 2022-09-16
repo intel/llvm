@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/AsmPrinterHandler.h"
 #include "llvm/CodeGen/DwarfStringPoolEntry.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cstdint>
@@ -41,6 +42,7 @@ class DIEAbbrev;
 class DwarfDebug;
 class GCMetadataPrinter;
 class GCStrategy;
+class GlobalAlias;
 class GlobalObject;
 class GlobalValue;
 class GlobalVariable;
@@ -67,7 +69,6 @@ class MDNode;
 class Module;
 class PseudoProbeHandler;
 class raw_ostream;
-class StackMaps;
 class StringRef;
 class TargetLoweringObjectFile;
 class TargetMachine;
@@ -193,10 +194,15 @@ private:
 protected:
   MCSymbol *CurrentFnBegin = nullptr;
 
+  /// For dso_local functions, the current $local alias for the function.
+  MCSymbol *CurrentFnBeginLocal = nullptr;
+
   /// A vector of all debug/EH info emitters we should use. This vector
   /// maintains ownership of the emitters.
   std::vector<HandlerInfo> Handlers;
   size_t NumUserHandlers = 0;
+
+  StackMaps SM;
 
 private:
   /// If generated on the fly this own the instance.
@@ -400,6 +406,9 @@ public:
 
   void emitBBAddrMapSection(const MachineFunction &MF);
 
+  void emitKCFITrapEntry(const MachineFunction &MF, const MCSymbol *Symbol);
+  virtual void emitKCFITypeId(const MachineFunction &MF);
+
   void emitPseudoProbe(const MachineInstr &MI);
 
   void emitRemarksSection(remarks::RemarkStreamer &RS);
@@ -474,7 +483,11 @@ public:
   virtual const MCExpr *lowerConstant(const Constant *CV);
 
   /// Print a general LLVM constant to the .s file.
-  void emitGlobalConstant(const DataLayout &DL, const Constant *CV);
+  /// On AIX, when an alias refers to a sub-element of a global variable, the
+  /// label of that alias needs to be emitted before the corresponding element.
+  using AliasMapTy = DenseMap<uint64_t, SmallVector<const GlobalAlias *, 1>>;
+  void emitGlobalConstant(const DataLayout &DL, const Constant *CV,
+                          AliasMapTy *AliasList = nullptr);
 
   /// Unnamed constant global variables solely contaning a pointer to
   /// another globals variable act like a global variable "proxy", or GOT
@@ -492,7 +505,7 @@ public:
   void emitGlobalGOTEquivs();
 
   /// Emit the stack maps.
-  void emitStackMaps(StackMaps &SM);
+  void emitStackMaps();
 
   //===------------------------------------------------------------------===//
   // Overridable Hooks

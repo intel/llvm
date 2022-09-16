@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/properties/all_properties.hpp>
-#include <CL/sycl/stream.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Maximum possible size of a flush buffer statement in bytes
 static constexpr size_t MAX_STATEMENT_SIZE =
@@ -27,7 +27,7 @@ static size_t CheckMaxStatementSize(const size_t &MaxStatementSize) {
     throw sycl::invalid_parameter_error(
         "Maximum statement size exceeds limit of " +
             std::to_string(MAX_STATEMENT_SIZE) + " bytes.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
   }
   return MaxStatementSize;
 }
@@ -69,7 +69,7 @@ bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
   __SYCL_EXPORT bool stream::has_property<param_type>() const noexcept {       \
     return impl->has_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -78,10 +78,9 @@ bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
   __SYCL_EXPORT param_type stream::get_property<param_type>() const {          \
     return impl->get_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-

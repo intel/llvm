@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %t.out
 //==------------------- BasicSchedulerTests.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -8,12 +8,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 
-using namespace cl;
-using sycl_access_mode = cl::sycl::access::mode;
+using sycl_access_mode = sycl::access::mode;
 
 // Execute functor provided passing a queue created with default device selector
 // and async handler then waits for the tasks submitted to queue to finish. If

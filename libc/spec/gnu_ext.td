@@ -111,10 +111,45 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
       ]
   >;
 
+  HeaderSpec PThread = HeaderSpec<
+      "pthread.h",
+      [], // Macros
+      [], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "pthread_setname_np",
+              RetValSpec<IntType>,
+              [ArgSpec<PThreadTType>, ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "pthread_getname_np",
+              RetValSpec<IntType>,
+              [ArgSpec<PThreadTType>, ArgSpec<CharPtr>, ArgSpec<SizeTType>]
+          >,
+      ]
+  >;
+
+  HeaderSpec SendFile = HeaderSpec<
+      "sys/sendfile.h",
+      [], // Macros
+      [OffTType, SizeTType, SSizeTType,], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "sendfile",
+              RetValSpec<SSizeTType>,
+              [ArgSpec<IntType>, ArgSpec<IntType>, ArgSpec<OffTPtr>, ArgSpec<SizeTType>]
+          >,
+      ]
+  >;
+
   let Headers = [
     CType,
     FEnv,
     Math,
+    PThread,
+    SendFile,
     StdIO,
     String,
   ];

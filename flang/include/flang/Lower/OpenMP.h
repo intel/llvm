@@ -15,6 +15,15 @@
 
 #include <cinttypes>
 
+namespace mlir {
+class Value;
+class Operation;
+} // namespace mlir
+
+namespace fir {
+class FirOpBuilder;
+} // namespace fir
+
 namespace Fortran {
 namespace parser {
 struct OpenMPConstruct;
@@ -29,6 +38,7 @@ class AbstractConverter;
 
 namespace pft {
 struct Evaluation;
+struct Variable;
 } // namespace pft
 
 void genOpenMPConstruct(AbstractConverter &, pft::Evaluation &,
@@ -36,6 +46,14 @@ void genOpenMPConstruct(AbstractConverter &, pft::Evaluation &,
 void genOpenMPDeclarativeConstruct(AbstractConverter &, pft::Evaluation &,
                                    const parser::OpenMPDeclarativeConstruct &);
 int64_t getCollapseValue(const Fortran::parser::OmpClauseList &clauseList);
+void genThreadprivateOp(AbstractConverter &, const pft::Variable &);
+void genOpenMPReduction(AbstractConverter &,
+                        const Fortran::parser::OmpClauseList &clauseList);
+
+void updateReduction(mlir::Operation *, fir::FirOpBuilder &, mlir::Value,
+                     mlir::Value);
+
+mlir::Operation *getReductionInChain(mlir::Value, mlir::Value);
 
 } // namespace lower
 } // namespace Fortran

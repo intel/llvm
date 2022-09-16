@@ -65,7 +65,7 @@ bool isLoopMemoryParallel(AffineForOp forOp);
 void getReachableAffineApplyOps(ArrayRef<Value> operands,
                                 SmallVectorImpl<Operation *> &affineApplyOps);
 
-/// Builds a system of constraints with dimensional identifiers corresponding to
+/// Builds a system of constraints with dimensional variables corresponding to
 /// the loop IVs of the forOps and AffineIfOp's operands appearing in
 /// that order. Bounds of the loop are used to add appropriate inequalities.
 /// Constraints from the index sets of AffineIfOp are also added. Any symbols
@@ -175,6 +175,12 @@ DependenceResult checkMemrefAccessDependence(
 /// corresponds to a dependence result.
 inline bool hasDependence(DependenceResult result) {
   return result.value == DependenceResult::HasDependence;
+}
+
+/// Returns true if the provided DependenceResult corresponds to the absence of
+/// a dependence.
+inline bool noDependence(DependenceResult result) {
+  return result.value == DependenceResult::NoDependence;
 }
 
 /// Returns in 'depCompsVec', dependence components for dependences between all

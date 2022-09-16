@@ -16,6 +16,7 @@
 #define MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 
 include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
+include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -75,7 +76,9 @@ def SPV_ConstantOp : SPV_Op<"Constant",
     [ConstantLike,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
      NoSideEffect]> {
-  let summary = "The op that declares a SPIR-V normal constant";
+  let summary = [{
+    Declare a new integer-type or floating-point-type scalar constant.
+  }];
 
   let description = [{
     This op declares a SPIR-V normal constant. SPIR-V has multiple constant
@@ -566,7 +569,10 @@ def SPV_ReferenceOfOp : SPV_Op<"mlir.referenceof", [NoSideEffect]> {
 // -----
 
 def SPV_SpecConstantOp : SPV_Op<"SpecConstant", [InModuleScope, Symbol]> {
-  let summary = "The op that declares a SPIR-V specialization constant";
+  let summary = [{
+    Declare a new integer-type or floating-point-type scalar specialization
+    constant.
+  }];
 
   let description = [{
     This op declares a SPIR-V scalar specialization constant. SPIR-V has
@@ -600,7 +606,7 @@ def SPV_SpecConstantOp : SPV_Op<"SpecConstant", [InModuleScope, Symbol]> {
 
   let arguments = (ins
     StrAttr:$sym_name,
-    AnyAttr:$default_value
+    TypedAttrInterface:$default_value
   );
 
   let results = (outs);

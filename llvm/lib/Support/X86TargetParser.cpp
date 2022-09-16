@@ -285,8 +285,9 @@ constexpr FeatureBitset FeaturesZNVER1 =
     FeatureSSE | FeatureSSE2 | FeatureSSE3 | FeatureSSSE3 | FeatureSSE4_1 |
     FeatureSSE4_2 | FeatureSSE4_A | FeatureXSAVE | FeatureXSAVEC |
     FeatureXSAVEOPT | FeatureXSAVES;
-constexpr FeatureBitset FeaturesZNVER2 =
-    FeaturesZNVER1 | FeatureCLWB | FeatureRDPID | FeatureWBNOINVD;
+constexpr FeatureBitset FeaturesZNVER2 = FeaturesZNVER1 | FeatureCLWB |
+                                         FeatureRDPID | FeatureRDPRU |
+                                         FeatureWBNOINVD;
 static constexpr FeatureBitset FeaturesZNVER3 = FeaturesZNVER2 |
                                                 FeatureINVPCID | FeaturePKU |
                                                 FeatureVAES | FeatureVPCLMULQDQ;
@@ -320,7 +321,7 @@ constexpr ProcInfo Processors[] = {
   { {"prescott"}, CK_Prescott, ~0U, FeaturesPrescott },
   { {"nocona"}, CK_Nocona, ~0U, FeaturesNocona },
   // Core microarchitecture based processors.
-  { {"core2"}, CK_Core2, ~0U, FeaturesCore2 },
+  { {"core2"}, CK_Core2, FEATURE_SSSE3, FeaturesCore2 },
   { {"penryn"}, CK_Penryn, ~0U, FeaturesPenryn },
   // Atom processors
   { {"bonnell"}, CK_Bonnell, FEATURE_SSSE3, FeaturesBonnell },
@@ -490,6 +491,7 @@ constexpr FeatureBitset ImpliedFeaturesPREFETCHWT1 = {};
 constexpr FeatureBitset ImpliedFeaturesPRFCHW = {};
 constexpr FeatureBitset ImpliedFeaturesPTWRITE = {};
 constexpr FeatureBitset ImpliedFeaturesRDPID = {};
+constexpr FeatureBitset ImpliedFeaturesRDPRU = {};
 constexpr FeatureBitset ImpliedFeaturesRDRND = {};
 constexpr FeatureBitset ImpliedFeaturesRDSEED = {};
 constexpr FeatureBitset ImpliedFeaturesRTM = {};

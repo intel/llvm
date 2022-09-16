@@ -176,7 +176,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_boyer_moore_searcher",
     "values": { "c++17": 201603 },
     "headers": ["functional"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_byte",
     "values": { "c++17": 201603 },
@@ -187,7 +186,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["bit"],
   }, {
     "name": "__cpp_lib_char8_t",
-    "values": { "c++20": 201811 },
+    "values": { "c++20": 201907 },
     "headers": ["atomic", "filesystem", "istream", "limits", "locale", "ostream", "string", "string_view"],
     "test_suite_guard": "defined(__cpp_char8_t)",
     "libcxx_guard": "!defined(_LIBCPP_HAS_NO_CHAR8_T)",
@@ -216,6 +215,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "values": { "c++20": 201806 },
     "headers": ["algorithm"],
   }, {
+    "name": "__cpp_lib_constexpr_bitset",
+    "values": { "c++2b": 202207 },
+    "headers": ["bitset"],
+  }, {
     "name": "__cpp_lib_constexpr_cmath",
     "values": { "c++2b": 202202 },
     "headers": ["cmath", "cstdlib"],
@@ -239,7 +242,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["iterator"],
   }, {
     "name": "__cpp_lib_constexpr_memory",
-    "values": { "c++20": 201811 },
+    "values": { "c++20": 201811, "c++2b": 202202 },
     "headers": ["memory"],
   }, {
     "name": "__cpp_lib_constexpr_numeric",
@@ -310,11 +313,19 @@ feature_test_macros = [ add_version_header(x) for x in [
     "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)"
   }, {
     "name": "__cpp_lib_format",
+    # P2508, P2286, and P2419 were accepted in the same plenary and modify this
+    # feature-test macro. We expect to see an LWG issue soon. For now keep the
+    # value as is.
+    # TODO FMT Set P2508's feature-test macro.
+    #"values": { "c++20": 202106, "c++23": 202207" },
     "values": { "c++20": 202106 },
     "headers": ["format"],
-    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
-    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
-    "unimplemented": True,
+    "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)",
+    "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)",
+  }, {
+    "name": "__cpp_lib_forward_like",
+    "values": { "c++2b": 202207 },
+    "headers": ["utility"],
   }, {
     "name": "__cpp_lib_gcd_lcm",
     "values": { "c++17": 201606 },
@@ -330,8 +341,9 @@ feature_test_macros = [ add_version_header(x) for x in [
   }, {
     "name": "__cpp_lib_hardware_interference_size",
     "values": { "c++17": 201703 },
+    "test_suite_guard": "defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)",
+    "libcxx_guard": "defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)",
     "headers": ["new"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_has_unique_object_representations",
     "values": { "c++17": 201606 },
@@ -518,7 +530,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_ranges",
     "values": { "c++20": 201811 },
     "headers": ["algorithm", "functional", "iterator", "memory", "ranges"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_ranges_chunk",
     "values": { "c++2b": 202202 },
@@ -771,7 +782,6 @@ lit_markup = {
   "locale": ["UNSUPPORTED: no-localization"],
   "mutex": ["UNSUPPORTED: no-threads"],
   "ostream": ["UNSUPPORTED: no-localization"],
-  "ranges": ["UNSUPPORTED: libcpp-has-no-incomplete-ranges"],
   "regex": ["UNSUPPORTED: no-localization"],
   "semaphore": ["UNSUPPORTED: no-threads"],
   "shared_mutex": ["UNSUPPORTED: no-threads"],
@@ -976,7 +986,7 @@ test_types = {
 #   endif
 # else
 #   ifdef {name}
-#     error "{name} should not be defined when {test_suite_guard} is not defined!"
+#     error "{name} should not be defined when the requirement '{test_suite_guard}' is not met!"
 #   endif
 # endif
 """,

@@ -11,7 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../PassDetail.h"
+#include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVMPass.h"
+
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
@@ -19,17 +20,22 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
-#include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVMPass.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FormatVariadic.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_LOWERHOSTCODETOLLVM
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -120,7 +126,7 @@ static LogicalResult getKernelGlobalVariables(
 /// Encodes the SPIR-V module's symbolic name into the name of the entry point
 /// function.
 static LogicalResult encodeKernelName(spirv::ModuleOp module) {
-  StringRef spvModuleName = module.sym_name().getValue();
+  StringRef spvModuleName = *module.sym_name();
   // We already know that the module contains exactly one entry point function
   // based on `getKernelGlobalVariables()` call. Update this function's name
   // to:
@@ -270,7 +276,7 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
 };
 
 class LowerHostCodeToLLVM
-    : public LowerHostCodeToLLVMBase<LowerHostCodeToLLVM> {
+    : public impl::LowerHostCodeToLLVMBase<LowerHostCodeToLLVM> {
 public:
   void runOnOperation() override {
     ModuleOp module = getOperation();
@@ -280,9 +286,14 @@ public:
          llvm::make_early_inc_range(module.getOps<gpu::GPUModuleOp>()))
       gpuModule.erase();
 
+    // Request C wrapper emission.
+    for (auto func : module.getOps<func::FuncOp>()) {
+      func->setAttr(LLVM::LLVMDialect::getEmitCWrapperAttrName(),
+                    UnitAttr::get(&getContext()));
+    }
+
     // Specify options to lower to LLVM and pull in the conversion patterns.
     LowerToLLVMOptions options(module.getContext());
-    options.emitCWrappers = true;
     auto *context = module.getContext();
     RewritePatternSet patterns(context);
     LLVMTypeConverter typeConverter(context, options);

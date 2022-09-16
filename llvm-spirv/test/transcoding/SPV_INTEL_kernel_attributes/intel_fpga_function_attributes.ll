@@ -29,10 +29,10 @@
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; RUN: llvm-spirv -spirv-text -r %t.spt -o %t.rev.bc
+; RUN: llvm-spirv -spirv-text -r -emit-opaque-pointers %t.spt -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability KernelAttributesINTEL

@@ -16,6 +16,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSectionCOFF.h"
+#include "llvm/MC/MCSectionDXContainer.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSectionGOFF.h"
 #include "llvm/MC/MCSectionMachO.h"
@@ -64,8 +65,18 @@ void MCObjectFileInfo::initMachOMCObjectFileInfo(const Triple &T) {
       (T.getArch() == Triple::aarch64 || T.getArch() == Triple::aarch64_32))
     SupportsCompactUnwindWithoutEHFrame = true;
 
-  if (T.isWatchABI())
+  switch (Ctx->emitDwarfUnwindInfo()) {
+  case EmitDwarfUnwindType::Always:
+    OmitDwarfIfHaveCompactUnwind = false;
+    break;
+  case EmitDwarfUnwindType::NoCompactUnwind:
     OmitDwarfIfHaveCompactUnwind = true;
+    break;
+  case EmitDwarfUnwindType::Default:
+    OmitDwarfIfHaveCompactUnwind =
+        T.isWatchABI() || SupportsCompactUnwindWithoutEHFrame;
+    break;
+  }
 
   FDECFIEncoding = dwarf::DW_EH_PE_pcrel;
 
@@ -564,8 +575,9 @@ void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
       ".rdata", COFF::IMAGE_SCN_CNT_INITIALIZED_DATA | COFF::IMAGE_SCN_MEM_READ,
       SectionKind::getReadOnly());
 
-  if (T.getArch() == Triple::x86_64 || T.getArch() == Triple::aarch64) {
-    // On Windows 64 with SEH, the LSDA is emitted into the .xdata section
+  if (T.getArch() == Triple::x86_64 || T.getArch() == Triple::aarch64 ||
+      T.getArch() == Triple::arm || T.getArch() == Triple::thumb) {
+    // On Windows with SEH, the LSDA is emitted into the .xdata section
     LSDASection = nullptr;
   } else {
     LSDASection = Ctx->getCOFFSection(".gcc_except_table",
@@ -1008,6 +1020,11 @@ void MCObjectFileInfo::initXCOFFMCObjectFileInfo(const Triple &T) {
       /* MultiSymbolsAllowed */ true, ".dwmac", XCOFF::SSUBTYP_DWMAC);
 }
 
+void MCObjectFileInfo::initDXContainerObjectFileInfo(const Triple &T) {
+  // At the moment the DXBC section should end up empty.
+  TextSection = Ctx->getDXContainerSection("DXBC", SectionKind::getText());
+}
+
 MCObjectFileInfo::~MCObjectFileInfo() = default;
 
 void MCObjectFileInfo::initMCObjectFileInfo(MCContext &MCCtx, bool PIC,
@@ -1056,6 +1073,7 @@ void MCObjectFileInfo::initMCObjectFileInfo(MCContext &MCCtx, bool PIC,
     initXCOFFMCObjectFileInfo(TheTriple);
     break;
   case MCContext::IsDXContainer:
+    initDXContainerObjectFileInfo(TheTriple);
     break;
   }
 }
@@ -1085,7 +1103,8 @@ MCSection *MCObjectFileInfo::getDwarfComdatSection(const char *Name,
 
 MCSection *
 MCObjectFileInfo::getStackSizesSection(const MCSection &TextSec) const {
-  if (Ctx->getObjectFileType() != MCContext::IsELF)
+  if ((Ctx->getObjectFileType() != MCContext::IsELF) ||
+      Ctx->getTargetTriple().isPS4())
     return StackSizesSection;
 
   const MCSectionELF &ElfSec = static_cast<const MCSectionELF &>(TextSec);
@@ -1118,6 +1137,25 @@ MCObjectFileInfo::getBBAddrMapSection(const MCSection &TextSec) const {
   // .llvm_bb_addr_map section associated with every unique text section.
   return Ctx->getELFSection(".llvm_bb_addr_map", ELF::SHT_LLVM_BB_ADDR_MAP,
                             Flags, 0, GroupName, true, ElfSec.getUniqueID(),
+                            cast<MCSymbolELF>(TextSec.getBeginSymbol()));
+}
+
+MCSection *
+MCObjectFileInfo::getKCFITrapSection(const MCSection &TextSec) const {
+  if (Ctx->getObjectFileType() != MCContext::IsELF)
+    return nullptr;
+
+  const MCSectionELF &ElfSec = static_cast<const MCSectionELF &>(TextSec);
+  unsigned Flags = ELF::SHF_LINK_ORDER | ELF::SHF_ALLOC;
+  StringRef GroupName;
+  if (const MCSymbol *Group = ElfSec.getGroup()) {
+    GroupName = Group->getName();
+    Flags |= ELF::SHF_GROUP;
+  }
+
+  return Ctx->getELFSection(".kcfi_traps", ELF::SHT_PROGBITS, Flags, 0,
+                            GroupName,
+                            /*IsComdat=*/true, ElfSec.getUniqueID(),
                             cast<MCSymbolELF>(TextSec.getBeginSymbol()));
 }
 

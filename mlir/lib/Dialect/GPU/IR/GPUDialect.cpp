@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -31,7 +31,7 @@
 using namespace mlir;
 using namespace mlir::gpu;
 
-#include "mlir/Dialect/GPU/GPUOpsDialect.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // MMAMatrixType
@@ -121,11 +121,11 @@ void GPUDialect::initialize() {
   addTypes<MMAMatrixType>();
   addOperations<
 #define GET_OP_LIST
-#include "mlir/Dialect/GPU/GPUOps.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOps.cpp.inc"
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "mlir/Dialect/GPU/GPUOpsAttributes.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOpsAttributes.cpp.inc"
       >();
   addInterfaces<GPUInlinerInterface>();
 }
@@ -310,7 +310,7 @@ static void printAsyncDependencies(OpAsmPrinter &printer, Operation *op,
 //===----------------------------------------------------------------------===//
 
 LogicalResult gpu::AllReduceOp::verifyRegions() {
-  if (body().empty() != op().hasValue())
+  if (body().empty() != op().has_value())
     return emitError("expected either an op attribute or a non-empty body");
   if (!body().empty()) {
     if (body().getNumArguments() != 2)
@@ -374,15 +374,15 @@ void gpu::addAsyncDependency(Operation *op, Value token) {
     return;
   auto attrName =
       OpTrait::AttrSizedOperandSegments<void>::getOperandSegmentSizeAttr();
-  auto sizeAttr = op->template getAttrOfType<DenseIntElementsAttr>(attrName);
+  auto sizeAttr = op->template getAttrOfType<DenseI32ArrayAttr>(attrName);
 
   // Async dependencies is the only variadic operand.
   if (!sizeAttr)
     return;
 
-  SmallVector<int32_t, 8> sizes(sizeAttr.getValues<int32_t>());
+  SmallVector<int32_t, 8> sizes(sizeAttr.asArrayRef());
   ++sizes.front();
-  op->setAttr(attrName, Builder(op->getContext()).getI32VectorAttr(sizes));
+  op->setAttr(attrName, Builder(op->getContext()).getDenseI32ArrayAttr(sizes));
 }
 
 //===----------------------------------------------------------------------===//
@@ -416,7 +416,7 @@ void LaunchOp::build(OpBuilder &builder, OperationState &result,
   segmentSizes.front() = asyncDependencies.size();
   segmentSizes.back() = dynamicSharedMemorySize ? 1 : 0;
   result.addAttribute(getOperandSegmentSizeAttr(),
-                      builder.getI32VectorAttr(segmentSizes));
+                      builder.getDenseI32ArrayAttr(segmentSizes));
 }
 
 KernelDim3 LaunchOp::getBlockIds() {
@@ -636,7 +636,7 @@ ParseResult LaunchOp::parse(OpAsmParser &parser, OperationState &result) {
   segmentSizes.front() = asyncDependencies.size();
   segmentSizes.back() = hasDynamicSharedMemorySize ? 1 : 0;
   result.addAttribute(LaunchOp::getOperandSegmentSizeAttr(),
-                      parser.getBuilder().getI32VectorAttr(segmentSizes));
+                      parser.getBuilder().getDenseI32ArrayAttr(segmentSizes));
   return success();
 }
 
@@ -709,7 +709,7 @@ void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
   segmentSizes[segmentSizes.size() - 2] = dynamicSharedMemorySize ? 1 : 0;
   segmentSizes.back() = static_cast<int32_t>(kernelOperands.size());
   result.addAttribute(getOperandSegmentSizeAttr(),
-                      builder.getI32VectorAttr(segmentSizes));
+                      builder.getDenseI32ArrayAttr(segmentSizes));
 }
 
 StringAttr LaunchFuncOp::getKernelModuleName() {
@@ -997,6 +997,8 @@ static LogicalResult verifyAttributions(Operation *op,
 
 /// Verifies the body of the function.
 LogicalResult GPUFuncOp::verifyBody() {
+  if (empty())
+    return emitOpError() << "expected body with at least one block";
   unsigned numFuncArguments = getNumArguments();
   unsigned numWorkgroupAttributions = getNumWorkgroupAttributions();
   unsigned numBlockArguments = front().getNumArguments();
@@ -1040,9 +1042,7 @@ LogicalResult gpu::ReturnOp::verify() {
 
   for (const auto &pair : llvm::enumerate(
            llvm::zip(function.getFunctionType().getResults(), operands()))) {
-    Type type;
-    Value operand;
-    std::tie(type, operand) = pair.value();
+    auto [type, operand] = pair.value();
     if (type != operand.getType())
       return emitOpError() << "unexpected type `" << operand.getType()
                            << "' for operand #" << pair.index();
@@ -1372,15 +1372,15 @@ struct SimplifyDimOfAllocOp : public OpRewritePattern<memref::DimOp> {
 
   LogicalResult matchAndRewrite(memref::DimOp dimOp,
                                 PatternRewriter &rewriter) const override {
-    auto index = dimOp.index().getDefiningOp<arith::ConstantIndexOp>();
+    auto index = dimOp.getIndex().getDefiningOp<arith::ConstantIndexOp>();
     if (!index)
       return failure();
 
-    auto memrefType = dimOp.source().getType().dyn_cast<MemRefType>();
+    auto memrefType = dimOp.getSource().getType().dyn_cast<MemRefType>();
     if (!memrefType || !memrefType.isDynamicDim(index.value()))
       return failure();
 
-    auto alloc = dimOp.source().getDefiningOp<AllocOp>();
+    auto alloc = dimOp.getSource().getDefiningOp<AllocOp>();
     if (!alloc)
       return failure();
 
@@ -1398,11 +1398,11 @@ void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<SimplifyDimOfAllocOp>(context);
 }
 
-#include "mlir/Dialect/GPU/GPUOpInterfaces.cpp.inc"
-#include "mlir/Dialect/GPU/GPUOpsEnums.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOpInterfaces.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOpsEnums.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/GPU/GPUOpsAttributes.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOpsAttributes.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "mlir/Dialect/GPU/GPUOps.cpp.inc"
+#include "mlir/Dialect/GPU/IR/GPUOps.cpp.inc"

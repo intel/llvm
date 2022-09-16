@@ -302,9 +302,8 @@ void MachOWriter::writeSymbolTable() {
           .MachOLoadCommand.symtab_command_data;
 
   char *SymTable = (char *)Buf->getBufferStart() + SymTabCommand.symoff;
-  for (auto Iter = O.SymTable.Symbols.begin(), End = O.SymTable.Symbols.end();
-       Iter != End; Iter++) {
-    SymbolEntry *Sym = Iter->get();
+  for (auto &Symbol : O.SymTable.Symbols) {
+    SymbolEntry *Sym = Symbol.get();
     uint32_t Nstrx = LayoutBuilder.getStringTableBuilder().getOffset(Sym->Name);
 
     if (Is64Bit)
@@ -520,8 +519,9 @@ void MachOWriter::writeCodeSignatureData() {
   uint8_t *CurrHashWritePosition = HashWriteStart;
   while (CurrHashReadPosition < HashReadEnd) {
     StringRef Block(reinterpret_cast<char *>(CurrHashReadPosition),
-                    std::min(HashReadEnd - CurrHashReadPosition,
-                             static_cast<ssize_t>(CodeSignature.BlockSize)));
+                    std::min(static_cast<size_t>(HashReadEnd
+                             - CurrHashReadPosition),
+                             static_cast<size_t>(CodeSignature.BlockSize)));
     SHA256 Hasher;
     Hasher.update(Block);
     std::array<uint8_t, 32> Hash = Hasher.final();
@@ -634,9 +634,7 @@ void MachOWriter::writeTail() {
     }
   }
 
-  llvm::sort(Queue, [](const WriteOperation &LHS, const WriteOperation &RHS) {
-    return LHS.first < RHS.first;
-  });
+  llvm::sort(Queue, llvm::less_first());
 
   for (auto WriteOp : Queue)
     (this->*WriteOp.second)();

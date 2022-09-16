@@ -178,7 +178,7 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::id<1>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
+// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}} 'StructWithAccessors'
 // CHECK-NEXT: InitListExpr {{.*}} 'Accessor[2]'
@@ -219,7 +219,7 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_c 'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
+// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 
 // Initializer for struct array i.e. DecomposedStruct DecompStructArray[2]
@@ -330,7 +330,7 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>':'S<int>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
+// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr
@@ -380,9 +380,9 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct' lvalue <NoOp>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'NonDecomposedStruct' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'NonDecomposedStruct' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .

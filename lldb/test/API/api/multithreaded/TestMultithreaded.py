@@ -1,7 +1,5 @@
 """Test the lldb public C++ api breakpoint callbacks."""
 
-from __future__ import print_function
-
 # __package__ = "lldbsuite.test"
 
 
@@ -24,8 +22,6 @@ class SBBreakpointCallbackCase(TestBase):
         self.generateSource('test_listener_event_process_state.cpp')
         self.generateSource('test_listener_resume.cpp')
         self.generateSource('test_stop-hook.cpp')
-
-    mydir = TestBase.compute_mydir(__file__)
 
     @skipIfRemote
     @skipIfNoSBHeaders
@@ -108,12 +104,15 @@ class SBBreakpointCallbackCase(TestBase):
         env = {self.dylibPath: self.getLLDBLibraryEnvVal()}
         if 'LLDB_DEBUGSERVER_PATH' in os.environ:
             env['LLDB_DEBUGSERVER_PATH'] = os.environ['LLDB_DEBUGSERVER_PATH']
-        if self.TraceOn():
-            print("Running test %s" % " ".join(exe))
-            check_call(exe, env=env)
-        else:
-            with open(os.devnull, 'w') as fnull:
-                check_call(exe, env=env, stdout=fnull, stderr=fnull)
+        try:
+            if self.TraceOn():
+                print("Running test %s" % " ".join(exe))
+                check_call(exe, env=env)
+            else:
+                with open(os.devnull, 'w') as fnull:
+                    check_call(exe, env=env, stdout=fnull, stderr=fnull)
+        except subprocess.CalledProcessError as e:
+            self.fail(e)
 
     def build_program(self, sources, program):
         return self.buildDriver(sources, program)
