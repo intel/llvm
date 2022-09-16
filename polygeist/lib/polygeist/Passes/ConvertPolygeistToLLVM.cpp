@@ -125,10 +125,10 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     // otherwise a llvm pointer type is generated instead of a memref).
     assert((sycl::isSYCLType(sourceElemType) ||
             (sourceElemType.isa<LLVM::LLVMStructType>() &&
-                any_of(sourceElemType.cast<LLVM::LLVMStructType>().getBody(),
-                       [](const Type &memType) {
-                         return sycl::isSYCLType(memType);
-                       }))) &&
+             any_of(sourceElemType.cast<LLVM::LLVMStructType>().getBody(),
+                    [](const Type &memType) {
+                      return sycl::isSYCLType(memType);
+                    }))) &&
            "the source memref element type should be either a SYCL type, or "
            "a struct containing at least a member of SYCL type");
 
