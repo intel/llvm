@@ -34,6 +34,7 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
@@ -55,33 +56,26 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = subViewOp.getLoc();
+    assert(subViewOp.source().getType().isa<MemRefType>() &&
+           "Source operand should be a memref type");
+    assert(subViewOp.getType().isa<MemRefType>() &&
+           "Result should be a memref type");
 
-    if (!subViewOp.source().getType().isa<MemRefType>()) {
-      llvm::errs() << " func: " << subViewOp->getParentOfType<func::FuncOp>()
-                   << "\n";
-      llvm::errs() << " sub: " << subViewOp << " - " << subViewOp.source()
-                   << "\n";
-    }
     auto sourceMemRefType = subViewOp.source().getType().cast<MemRefType>();
-
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
 
+    auto loc = subViewOp.getLoc();
     MemRefDescriptor targetMemRef(transformed.source());
     Value prev = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {transformed.index()};
 
-    SmallVector<Value, 4> sizes;
-    SmallVector<Value, 4> strides;
-
-    if (sourceMemRefType.getShape().size() !=
-        viewMemRefType.getShape().size()) {
-      if (sourceMemRefType.getShape().size() !=
-          viewMemRefType.getShape().size() + 1) {
+    SmallVector<Value, 4> sizes, strides;
+    if (sourceMemRefType.getRank() != viewMemRefType.getRank()) {
+      if (sourceMemRefType.getRank() != viewMemRefType.getRank() + 1)
         return failure();
-      }
+
       size_t sz = 1;
-      for (size_t i = 1; i < sourceMemRefType.getShape().size(); i++) {
+      for (int64_t i = 1; i < sourceMemRefType.getRank(); i++) {
         if (sourceMemRefType.getShape()[i] == ShapedType::kDynamicSize)
           return failure();
         sz *= sourceMemRefType.getShape()[i];
@@ -90,83 +84,131 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
           loc, idxs[0].getType(),
           rewriter.getIntegerAttr(idxs[0].getType(), sz));
       idxs[0] = rewriter.create<LLVM::MulOp>(loc, idxs[0], cop);
-      for (size_t i = 1; i < sourceMemRefType.getShape().size(); i++) {
+      for (int64_t i = 1; i < sourceMemRefType.getRank(); i++) {
         sizes.push_back(targetMemRef.size(rewriter, loc, i));
         strides.push_back(targetMemRef.stride(rewriter, loc, i));
       }
     } else {
-      for (size_t i = 0; i < sourceMemRefType.getShape().size(); i++) {
+      for (int64_t i = 0; i < sourceMemRefType.getRank(); i++) {
         sizes.push_back(targetMemRef.size(rewriter, loc, i));
         strides.push_back(targetMemRef.stride(rewriter, loc, i));
       }
     }
 
-    // nexRef.setOffset(targetMemRef.offset());
-    // nexRef.setSize(targetMemRef.size());
-    // nexRef.setStride(targetMemRef.stride());
+    Type sourceElemType = sourceMemRefType.getElementType();
+    Type convSourceElemType = getTypeConverter()->convertType(sourceElemType);
+    Type viewElemType = viewMemRefType.getElementType();
+    Type convViewElemType = getTypeConverter()->convertType(viewElemType);
 
-    if (false) {
-      Value baseOffset = targetMemRef.offset(rewriter, loc);
-      Value stride = targetMemRef.stride(rewriter, loc, 0);
-      Value offset = transformed.index();
-      Value mul = rewriter.create<LLVM::MulOp>(loc, offset, stride);
-      baseOffset = rewriter.create<LLVM::AddOp>(loc, baseOffset, mul);
-      targetMemRef.setOffset(rewriter, loc, baseOffset);
-    }
+    // When the converted source operand element type is a struct, the original
+    // memref element type represents a SYCL type. Handle the non-SYCL case
+    // first.
+    if (!convSourceElemType.isa<LLVM::LLVMStructType>()) {
+      assert(
+          convViewElemType ==
+              prev.getType().cast<LLVM::LLVMPointerType>().getElementType() &&
+          "Expecting the element types to match");
+      auto memRefDesc = createMemRefDescriptor(
+          loc, viewMemRefType, targetMemRef.allocatedPtr(rewriter, loc),
+          rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
+          strides, rewriter);
 
-    if (auto ST = getTypeConverter()
-                      ->convertType(sourceMemRefType.getElementType())
-                      .dyn_cast<mlir::LLVM::LLVMStructType>()) {
-      assert(sourceMemRefType.getShape().size() ==
-                 viewMemRefType.getShape().size() &&
-             "Expecting the input and output MemRef size to be the same");
-
-      if (auto ST = sourceMemRefType.getElementType()
-                        .dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        // According to MLIRASTConsumer::getMLIRType() in clang-mlir.cc, memref
-        // of struct type is only generated for struct that has at least one
-        // entry of SYCL type, otherwise a llvm pointer type is generated
-        // instead of a memref.
-        assert(any_of(ST.getBody(),
-                      [](mlir::Type Element) {
-                        return sycl::isSYCLType(Element);
-                      }) &&
-               "Expecting at least one element type of the struct to be a SYCL "
-               "type");
-      } else
-        assert(sycl::isSYCLType(sourceMemRefType.getElementType()) &&
-               "Expecting element type of the memref to be a SYCL type");
-
-      // The first index (zero) takes a pointer to the structure.
-      Value zero = rewriter.create<LLVM::ConstantOp>(
-          loc, idxs[0].getType(),
-          rewriter.getIntegerAttr(idxs[0].getType(), 0));
-      Value idxs[] = {zero, transformed.index()};
-
-      // According to MLIRScanner::InitializeValueByInitListExpr() in
-      // clang-mlir.cc, when a memref element type is a struct type, the return
-      // type of a polygeist.subindex should be a memref of the element type of
-      // the struct.
-      auto elemPtrTy = LLVM::LLVMPointerType::get(
-          getTypeConverter()->convertType(viewMemRefType.getElementType()));
-      auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, idxs);
-      MemRefDescriptor nexRef = createMemRefDescriptor(
-          loc, viewMemRefType, gep, gep, sizes, strides, rewriter);
-
-      rewriter.replaceOp(subViewOp, {nexRef});
+      rewriter.replaceOp(subViewOp, {memRefDesc});
       return success();
     }
 
-    assert(getTypeConverter()->convertType(viewMemRefType.getElementType()) ==
-               prev.getType().cast<LLVM::LLVMPointerType>().getElementType() &&
-           "Expecting the element types to match");
-    MemRefDescriptor nexRef = createMemRefDescriptor(
-        loc, viewMemRefType, targetMemRef.allocatedPtr(rewriter, loc),
-        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
-        strides, rewriter);
+    // SYCL case
+    assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
+           "Expecting the input and output MemRef ranks to be the same");
+    // Note: in MLIRASTConsumer::getMLIRType(), a memref of struct type is
+    // generated only for a struct that has at least one member of SYCL type,
+    // otherwise a llvm pointer type is generated instead of a memref.
+    assert((sycl::isSYCLType(sourceElemType) ||
+            (sourceElemType.isa<LLVM::LLVMStructType>() &&
+             any_of(sourceElemType.cast<LLVM::LLVMStructType>().getBody(),
+                    [](const Type &memType) {
+                      return sycl::isSYCLType(memType);
+                    }))) &&
+           "the source memref element type should be either a SYCL type, or "
+           "a struct containing at least a member of SYCL type");
 
-    rewriter.replaceOp(subViewOp, {nexRef});
+    SmallVector<Value, 4> indices;
+    computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
+                   convViewElemType, indices, subViewOp, transformed, rewriter);
+    assert(!indices.empty() && "Expecting a least one index");
+
+    // Note: MLIRScanner::InitializeValueByInitListExpr() in clang-mlir.cc, when
+    // a memref element type is a struct type, the return type of a
+    // polygeist.subindex operation should be a memref of the element type of
+    // the struct.
+    auto elemPtrTy = LLVM::LLVMPointerType::get(convViewElemType);
+    auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, indices);
+    auto memRefDesc = createMemRefDescriptor(loc, viewMemRefType, gep, gep,
+                                             sizes, strides, rewriter);
+    LLVM_DEBUG(llvm::dbgs() << "SubIndexOpLowering: gep: " << *gep << "\n");
+
+    rewriter.replaceOp(subViewOp, {memRefDesc});
     return success();
+  }
+
+private:
+  // Compute the indices of the GEP operation we lower the SubIndexOp to.
+  // The indices are computed based on:
+  //   a) the (converted) source element type, and
+  //   b) the (converted) result element type that is requested
+  // Examples:
+  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<i64>
+  //      -> idxs = [0, 0, SubIndexOp's index]
+  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<array<1xi64>>
+  //      -> idxs = [0, SubIndexOp's index]
+  //
+  // Note: when the source element type is a struct with more than one member
+  // type, the result type that is requested is deemed illegal unless it is one
+  // of the source member types. For example assume:
+  //   - src ty: ptr<struct<array<1xi64>,i32>>
+  //   - res ty: ptr<i64>
+  // This is illegal because res ty can only be either ptr<i32> or
+  // ptr<array<1xi64>>
+  void computeIndices(const LLVM::LLVMStructType &srcElemType,
+                      const Type &resElemType, SmallVectorImpl<Value> &indices,
+                      SubIndexOp op, OpAdaptor transformed,
+                      ConversionPatternRewriter &rewriter) const {
+    assert(indices.empty() && "Expecting an empty vector");
+
+    ArrayRef<Type> memTypes = srcElemType.getBody();
+    unsigned numMembers = memTypes.size();
+    assert((numMembers == 1 ||
+            any_of(memTypes, [=](Type t) { return resElemType == t; })) &&
+           "The requested result memref element type is illegal");
+
+    Type indexType = transformed.index().getType();
+    Value zero = rewriter.create<LLVM::ConstantOp>(
+        op.getLoc(), indexType, rewriter.getIntegerAttr(indexType, 0));
+    indices.push_back(zero);
+
+    if (numMembers == 1) {
+      Type currType = srcElemType.getBody()[0];
+      while (currType != resElemType) {
+        indices.push_back(zero);
+
+        TypeSwitch<Type>(currType)
+            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
+              assert(t.getBody().size() == 1 && "Expecting single member type");
+              currType = t.getBody()[0];
+            })
+            .Case<LLVM::LLVMArrayType>(
+                [&](LLVM::LLVMArrayType t) { currType = t.getElementType(); })
+            .Case<LLVM::LLVMPointerType>(
+                [&](LLVM::LLVMPointerType t) { currType = t.getElementType(); })
+            .Default([&](Type t) {
+              currType = t;
+              assert(currType == resElemType &&
+                     "requested result type is illegal");
+            });
+      }
+    }
+
+    indices.push_back(transformed.index());
   }
 };
 
@@ -772,8 +814,8 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
   bool useAlignedAlloc =
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
-      options.useBarePtrCallConv, false,
-      options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
+      options.useBarePtrCallConv, false, options.getIndexBitwidth(),
+      useAlignedAlloc, options.dataLayout);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
