@@ -117,6 +117,11 @@ static void Parse_ODS_Device(ods_target &Target,
         throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
       }
     }
+  } else if (DeviceSubPair.size() > 2) {
+    std::stringstream ss;
+    ss << "error parsing " << DeviceStr
+       << "  Only one level of sub-devices supported at this time";
+    throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
   }
 }
 
@@ -148,6 +153,11 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
       }
+    } else if (Pair.size() > 2) {
+      std::stringstream ss;
+      ss << "Error parsing selector string \"" << Entry
+         << "\"  Too many colons (:)";
+      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
     }
   }
 

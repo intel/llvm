@@ -13,6 +13,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -298,9 +299,20 @@ static std::vector<device> amendDeviceAndSubDevices(
                 FinalResult.insert(FinalResult.end(), subDevices.begin(),
                                    subDevices.end());
               } else {
-                if (subDevices.size() > target.SubDeviceNum.value())
+                if (subDevices.size() > target.SubDeviceNum.value()) {
                   FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
+                } else {
+                  std::cout << "subdevice index out of bounds: " << target
+                            << std::endl;
+                }
               }
+            } else if (target.DeviceNum ||
+                       (target.DeviceType && (target.DeviceType.value() !=
+                                              info::device_type::all))) {
+              // this device was specifically requested and yet is not
+              // partitionable.
+              std::cout << "device is not partitionable: " << target
+                        << std::endl;
             }
           } else if (!deviceAdded) {
             FinalResult.push_back(dev);

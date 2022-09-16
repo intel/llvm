@@ -60,7 +60,7 @@ Common Usage Examples:
 -----------|---------
 | `ONEAPI_DEVICE_SELECTOR=opencl:*` | All the devices on the OpenCL platform are available |
 | `ONEAPI_DEVICE_SELECTOR=level_zero:gpu` | Only gpu devices on the LevelZero platform will be available.|
-| `ONEAPI_DEVICE_SELECTOR="opencl:gpu;level_zero:gpu"` | GPU devices from both Level Zero and OpenCL will be available. (Quotation marks will likely be needed when using semi-colon separated entries.) |
+| `ONEAPI_DEVICE_SELECTOR="opencl:gpu;level_zero:gpu"` | GPU devices from both Level Zero and OpenCL will be available. (Some sort of escaping (like quotation marks) will likely be needed when using semi-colon separated entries.) |
 | `ONEAPI_DEVICE_SELECTOR=opencl:gpu,cpu` | Only cpu and gpu devices on the OpenCL platform will be available.|
 | `ONEAPI_DEVICE_SELECTOR=opencl:0` | Device with numeric identifier of 0 chosen from the OpenCL platform. |
 | `ONEAPI_DEVICE_SELECTOR=hip:0,2` | Devices with numeric identifier of 0 and 2 are chosen from the Hip platform. |
@@ -72,7 +72,7 @@ Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( : ) and at least one device specifier of some sort, else an error is thrown.
 - For sub-devices/tiles, the parent device must support partitioning ( see`info::partition_by_domain` and `info::next_partitionable` in the SYCL 2020 Spec)
-- if using semi-colons ( ; ) to seperate entries, quotation marks will likely be needed around the entire environment variable. 
+- if using semi-colons ( ; ) to separate entries, quotation marks will likely be needed around the entire environment variable. 
 
 
 
