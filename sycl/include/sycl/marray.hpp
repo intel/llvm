@@ -40,11 +40,22 @@ constexpr std::size_t vecAlignment() {
   return res;
 }
 
+#if defined(_WIN32) || defined(_WIN64)
+#define MARRAY_WINDOWS_ALIGN_ATTR                                              \
+  __declspec(align(vecAlignment<NumElements, sizeof(Type)>()))
+#define MARRAY_LINUX_ALIGN_ATTR
+#else
+#define MARRAY_WINDOWS_ALIGN_ATTR
+#define MARRAY_LINUX_ALIGN_ATTR                                                \
+  __attribute__((aligned(vecAlignment<NumElements, sizeof(Type)>())))
+#endif
+
 /// Provides a cross-patform math array class template that works on
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api
-template <typename Type, std::size_t NumElements> class marray {
+template <typename Type, std::size_t NumElements>
+class MARRAY_WINDOWS_ALIGN_ATTR marray {
   using DataT = Type;
 
 public:
@@ -321,7 +332,7 @@ public:
     }
     return Ret;
   }
-} __attribute__((aligned(vecAlignment<NumElements, sizeof(Type)>())));
+} MARRAY_LINUX_ALIGN_ATTR;
 
 #define __SYCL_MAKE_MARRAY_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::marray<TYPE, N>;
@@ -358,6 +369,9 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH
+
+#undef MARRAY_LINUX_ALIGN_ATTR
+#undef MARRAY_WINDOWS_ALIGN_ATTR
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
