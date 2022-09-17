@@ -95,7 +95,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .AccField
 // CHECK-NEXT: MemberExpr {{.*}} lvalue .struct_mem
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '' '(lambda at {{.*}}union-kernel-param2.cpp:48:9)'
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:48:9)'
 
 // Check kernel_C parameters
 // CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (_generated_MyStructWithPtr)'
@@ -115,7 +115,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr *' prefix '&' cannot overflow
 // CHECK-NEXT: MemberExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue .structWithPtr_mem
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:55:9)' lvalue Var {{.*}} '' '(lambda at {{.*}}union-kernel-param2.cpp:55:9)'
+// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:55:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:55:9)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '_generated_MyStructWithPtr *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '_generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '_generated_MyStructWithPtr'
