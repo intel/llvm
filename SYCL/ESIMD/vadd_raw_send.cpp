@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-dg1,cuda,hip
+// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip
 // TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
 // XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
