@@ -4822,8 +4822,9 @@ class OffloadingActionBuilder final {
           return ABRT_Success;
 
         Action *DeviceCompilerInput = nullptr;
-        int I = 0, J = 0;
-        for (Action *&A : SYCLDeviceActions) {
+        for (auto TargetActionInfo :
+             llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+          Action *&A = std::get<0>(TargetActionInfo);
           types::ID OutputType = types::TY_LLVM_BC;
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
@@ -4842,18 +4843,19 @@ class OffloadingActionBuilder final {
           } else {
             if (Args.hasArg(options::OPT_fsyntax_only))
               OutputType = types::TY_Nothing;
-            A = C.MakeAction<CompileJobAction>(A, OutputType);
-            const auto *TC = ToolChains[I];
-            llvm::Triple TT(TC->getTriple());
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-              if (auto *CA = dyn_cast<CompileJobAction>(A)) {
-                CA->registerDependentActionInfo(GenDeviceList[J]);
-                ++J;
-              }
-            }
+            auto *CompileJob = C.MakeAction<CompileJobAction>(A, OutputType);
+            auto &TargetInfo = std::get<1>(TargetActionInfo);
+            llvm::Triple TT(TargetInfo.TC->getTriple());
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                TargetInfo.BoundArch != nullptr) {
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*CompileJob, *TargetInfo.TC, TargetInfo.BoundArch,
+                      Action::OFK_SYCL);
+              A = C.MakeAction<OffloadAction>(Dep, CompileJob->getType());
+            } else
+              A = CompileJob;
           }
           DeviceCompilerInput = A;
-          ++I;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
         DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
@@ -5206,10 +5208,8 @@ class OffloadingActionBuilder final {
 
               // We are using BoundArch="" here since the NVPTX bundles in
               // the devicelib .o files do not contain any arch information
-              for (auto &TargetInfo : SYCLTargetInfoList) {
-                SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                    TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
-              }
+              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
               OffloadAction::DeviceDependences Dep;
               Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
                       Action::OFK_SYCL);
@@ -5540,16 +5540,17 @@ class OffloadingActionBuilder final {
               unbundleAdd(A, types::TY_FPGA_Dependencies_List);
             for (const auto &A : DeviceLibObjects)
               BEInputs.push_back(A);
-            BuildCodeAction =
-                C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
-            int I = 0;
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-              if (auto *BEA =
-                      dyn_cast<BackendCompileJobAction>(BuildCodeAction)) {
-                BEA->registerDependentActionInfo(GenDeviceList[I]);
-                ++I;
-              }
-            }
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                BoundArch != nullptr) {
+              auto *BEC =
+                  C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*BEC, *TC, BoundArch, Action::OFK_SYCL);
+              BuildCodeAction =
+                  C.MakeAction<OffloadAction>(Dep, BEC->getType());
+            } else
+              BuildCodeAction =
+                  C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
           }
           ActionList TformInputs{PostLinkAction, BuildCodeAction};
           auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
@@ -5792,7 +5793,8 @@ class OffloadingActionBuilder final {
               // is the target device.
               if (TT.isSPIR() &&
                   TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-                SYCLTargetInfoList.emplace_back(*TCIt, GenDeviceList[J]);
+                StringRef Device(GenDeviceList[J]);
+                SYCLTargetInfoList.emplace_back(*TCIt, Device.empty() ? nullptr : Device.data());
                 ++J;
                 continue;
               }

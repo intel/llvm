@@ -5006,18 +5006,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add any predefined macros associated with intel_gpu* type targets
     // passed in with -fsycl-targets
-    if (auto *CA = dyn_cast<CompileJobAction>(&JA)) {
-      if (RawTriple.isSPIR() &&
-          RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-        auto Device = CA->getDependentActionsInfo();
-        if (!Device.empty())
-          CmdArgs.push_back(Args.MakeArgString(
-              Twine("-D") + SYCL::gen::getGenDeviceMacro(Device)));
-      }
-      if (RawTriple.isSPIR() &&
-          RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-        CmdArgs.push_back("-D__SYCL_TARGET_INTEL_X86_64__");
+    if (RawTriple.isSPIR() &&
+        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+      StringRef Device = JA.getOffloadingArch();
+      if (!Device.empty())
+        CmdArgs.push_back(Args.MakeArgString(
+            Twine("-D") + SYCL::gen::getGenDeviceMacro(Device)));
     }
+    if (RawTriple.isSPIR() &&
+        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      CmdArgs.push_back("-D__SYCL_TARGET_INTEL_X86_64__");
   }
 
   if (IsSYCL) {

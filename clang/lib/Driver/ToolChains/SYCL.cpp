@@ -570,8 +570,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
-  auto &BCA = cast<BackendCompileJobAction>(JA);
-  auto Device = BCA.getDependentActionsInfo();
+  StringRef Device = JA.getOffloadingArch();
 
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
@@ -827,8 +826,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
     // other -device was passed, as that is a conflict.
-    auto &BCA = cast<BackendCompileJobAction>(JA);
-    auto DepInfo = BCA.getDependentActionsInfo();
+    StringRef DepInfo = JA.getOffloadingArch();
     if (!DepInfo.empty()) {
       ArgStringList TargArgs;
       Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
