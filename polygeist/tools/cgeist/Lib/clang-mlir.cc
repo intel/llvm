@@ -121,20 +121,14 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
 
 void MLIRScanner::initSupportedFunctions() {
   // Functions needed for single_task with one dimensional write buffer.
+
+  // SYCL constructors:
   supportedFuncs.insert("_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_"
                         "2idILi1EEENS0_5rangeILi1EEES7_");
   supportedFuncs.insert(
       "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_"
       "3ext6oneapi22accessor_property_listIJEEEEC1Ev");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEEixILi1EvEERiNS0_2idILi1EEE");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
   supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ILi1EEENSt9enable_"
                         "ifIXeqT_Li1EEmE4typeE");
   supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ERKS3_");
@@ -143,6 +137,32 @@ void MLIRScanner::initSupportedFunctions() {
   supportedFuncs.insert(
       "_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
   supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V15rangeILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
+
+  // Other SYCL functions:
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEEixILi1EvEERiNS0_2idILi1EEE");
+  // TODO: Improve polygeist.subindex lowering to add support to the commented
+  // out functions below.
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEE");
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE15getQualifiedPtrEv");
+#endif
+  supportedFuncs.insert("_ZN4sycl3_V16detail14InitializedValILi1ENS0_"
+                        "5rangeEE3getILi0EEENS3_ILi1EEEv");
 }
 
 void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
@@ -1398,16 +1418,6 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
   return VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0);
 }
 
-static void getMangledFuncName(std::string &name, const FunctionDecl *FD,
-                               CodeGen::CodeGenModule &CGM) {
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
-  else
-    name = CGM.getMangledName(FD).str();
-}
-
 ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
                                                 VarDecl *name, unsigned memtype,
                                                 mlir::Value op,
@@ -1497,7 +1507,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   if (const FunctionDecl *FuncDecl =
           dyn_cast<FunctionDecl>(cons->getConstructor())) {
     std::string name;
-    getMangledFuncName(name, FuncDecl, Glob.CGM);
+    MLIRScanner::getMangledFuncName(name, FuncDecl, Glob.CGM);
     name = (PrefixABI + name);
 
     if (DebugFunction) {
@@ -2008,7 +2018,7 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
         std::string name;
-        getMangledFuncName(name, Func, Glob.CGM);
+        MLIRScanner::getMangledFuncName(name, Func, Glob.CGM);
         Op = builder.create<mlir::sycl::SYCLConstructorOp>(loc, RD->getName(),
                                                            name, Args);
       }
@@ -2036,7 +2046,7 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
       }
 
       std::string name;
-      getMangledFuncName(name, Func, Glob.CGM);
+      MLIRScanner::getMangledFuncName(name, Func, Glob.CGM);
       Op = builder.create<mlir::sycl::SYCLCallOp>(
           loc, OptRetType, OptFuncType, Func->getNameAsString(), name, Args);
     }
@@ -4346,7 +4356,7 @@ mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateFreeFunction() {
 mlir::LLVM::LLVMFuncOp
 MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   std::string name;
-  getMangledFuncName(name, FD, CGM);
+  MLIRScanner::getMangledFuncName(name, FD, CGM);
 
   if (name != "malloc" && name != "free")
     name = (PrefixABI + name);
@@ -4722,7 +4732,7 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
     name =
         CGM.getMangledName(GlobalDecl(FD, KernelReferenceKind::Kernel)).str();
   else
-    getMangledFuncName(name, FD, CGM);
+    MLIRScanner::getMangledFuncName(name, FD, CGM);
 
   name = (PrefixABI + name);
 
@@ -4944,7 +4954,7 @@ void MLIRASTConsumer::run() {
                TK_DependentFunctionTemplateSpecialization);
     std::string name;
 
-    getMangledFuncName(name, FD, CGM);
+    MLIRScanner::getMangledFuncName(name, FD, CGM);
 
     if (done.count(name))
       continue;
@@ -5020,7 +5030,7 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       externLinkage = false;
 
     std::string name;
-    getMangledFuncName(name, fd, CGM);
+    MLIRScanner::getMangledFuncName(name, fd, CGM);
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5094,7 +5104,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       externLinkage = false;
 
     std::string name;
-    getMangledFuncName(name, fd, CGM);
+    MLIRScanner::getMangledFuncName(name, fd, CGM);
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5703,6 +5713,16 @@ mlir::Value MLIRScanner::getTypeAlign(clang::QualType t) {
   return builder.create<polygeist::TypeAlignOp>(
       loc, builder.getIndexType(),
       mlir::TypeAttr::get(innerTy)); // DLI.getTypeSize(innerTy);
+}
+
+void MLIRScanner::getMangledFuncName(std::string &name, const FunctionDecl *FD,
+                                     CodeGen::CodeGenModule &CGM) {
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+  else
+    name = CGM.getMangledName(FD).str();
 }
 
 #include "clang/Frontend/TextDiagnosticBuffer.h"
