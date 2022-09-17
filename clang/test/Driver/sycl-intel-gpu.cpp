@@ -119,6 +119,7 @@
 /// Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl -fno-sycl-device-lib=all \
+// RUN:   -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -134,21 +135,12 @@
 // CHECK_PHASES: 10: assembler, {9}, object, (host-sycl)
 // CHECK_PHASES: 11: linker, {10}, image, (host-sycl)
 // CHECK_PHASES: 12: linker, {6}, ir, (device-sycl)
-// CHECK_PHASES: 13: input, "{{.*libsycl-itt-user-wrappers.o.*}}", object
-// CHECK_PHASES: 14: clang-offload-unbundler, {13}, object
-// CHECK_PHASES: 15: offload, " (spir64_gen-unknown-unknown)" {14}, object
-// CHECK_PHASES: 16: input, "{{.*libsycl-itt-compiler-wrappers.o.*}}", object
-// CHECK_PHASES: 17: clang-offload-unbundler, {16}, object
-// CHECK_PHASES: 18: offload, " (spir64_gen-unknown-unknown)" {17}, object
-// CHECK_PHASES: 19: input, "{{.*libsycl-itt-stubs.o.*}}", object
-// CHECK_PHASES: 20: clang-offload-unbundler, {19}, object
-// CHECK_PHASES: 21: offload, " (spir64_gen-unknown-unknown)" {20}, object
-// CHECK_PHASES: 22: linker, {12, 15, 18, 21}, ir, (device-sycl)
-// CHECK_PHASES: 23: sycl-post-link, {22}, tempfiletable, (device-sycl)
-// CHECK_PHASES: 24: file-table-tform, {23}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES: 25: llvm-spirv, {24}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES: 26: backend-compiler, {25}, image, (device-sycl, skl)
-// CHECK_PHASES: 27: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {26}, image
-// CHECK_PHASES: 28: file-table-tform, {23, 27}, tempfiletable, (device-sycl)
-// CHECK_PHASES: 29: clang-offload-wrapper, {28}, object, (device-sycl)
-// CHECK_PHASES: 30: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64_gen-unknown-unknown)" {29}, image
+// CHECK_PHASES: 13: sycl-post-link, {12}, tempfiletable, (device-sycl)
+// CHECK_PHASES: 14: file-table-tform, {13}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES: 15: llvm-spirv, {14}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES: 16: backend-compiler, {15}, image, (device-sycl, skl)
+// CHECK_PHASES: 17: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {16}, image
+// CHECK_PHASES: 18: file-table-tform, {13, 17}, tempfiletable, (device-sycl)
+// CHECK_PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl)
+// CHECK_PHASES: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64_gen-unknown-unknown)" {19}, image
+
