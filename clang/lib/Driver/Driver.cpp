@@ -5794,7 +5794,8 @@ class OffloadingActionBuilder final {
               if (TT.isSPIR() &&
                   TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
                 StringRef Device(GenDeviceList[J]);
-                SYCLTargetInfoList.emplace_back(*TCIt, Device.empty() ? nullptr : Device.data());
+                SYCLTargetInfoList.emplace_back(
+                    *TCIt, Device.empty() ? nullptr : Device.data());
                 ++J;
                 continue;
               }
