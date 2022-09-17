@@ -8,3 +8,10 @@ platform
 queue
 reduction
 optional_kernel_features
+vector_alias
+vector_api
+vector_constructors
+vector_load_store
+vector_operators
+vector_swizzle_assignment
+vector_swizzles
