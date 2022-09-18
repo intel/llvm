@@ -1801,29 +1801,26 @@ public:
     // SYCLRequiresDecompositionAttr. Else if a record contains
     // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
     // will never be marked with both attributes.
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "should not be null.");
     if (CollectionStack.pop_back_val()) {
-      RecordDecl *RD = Ty->getAsRecordDecl();
-      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      RecordDecl *RD = Ty->getAsRecordDecl();
-      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
-        // Do not generate a new type if the record corresponds to a
-        // lambda. Currently the fields/bases of the local clone
+        // Do not generate a new type if the record is not default
+        // constructible. Currently the fields/bases of the local clone
         // corresponding to these generated types are intialized using
         // their default constructors(Actual initialization is done via
         // memcpy in kernel body.) to maintain the integrity of the
         // InitListExpr we generate for Kernel Object local clone.
-        // Records correspondng to lambdas which have captures do not have
-        // a default constructor and so current logic fails for lambdas.
-        // FIXME: Can/Should we stop triggering decomposition for lambdas
-        // with pointers?
-        if (!RD->isLambda())
+        // So current logic fails for types without default constructors.
+        // FIXME: Stop triggering decomposition for non-trivial types with
+        // pointers
+        if (RD->isTrivial())
           RD->addAttr(
               SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
         else
@@ -1848,20 +1845,30 @@ public:
     // SYCLRequiresDecompositionAttr. Else if a record contains
     // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
     // will never be marked with both attributes.
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "should not be null.");
     if (CollectionStack.pop_back_val()) {
-      RecordDecl *RD = Ty->getAsRecordDecl();
-      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      RecordDecl *RD = Ty->getAsRecordDecl();
-      assert(RD && "should not be null.");
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      // Do not generate a new type if the record is not default
+      // constructible. Currently the fields/bases of the local clone
+      // corresponding to these generated types are intialized using
+      // their default constructors(Actual initialization is done via
+      // memcpy in kernel body.) to maintain the integrity of the
+      // InitListExpr we generate for Kernel Object local clone.
+      // So current logic fails for types without default constructors.
+      // FIXME: Stop triggering decomposition for non-trivial types with
+      // pointers
+      if (RD->isTrivial())
         RD->addAttr(
             SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      else
+        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaRef.getASTContext()));
       PointerStack.back() = true;
     }
     return true;
