@@ -18,3 +18,4 @@ vector_operators
 vector_swizzle_assignment
 vector_swizzles
 kernel_bundle
+specialization_constants
