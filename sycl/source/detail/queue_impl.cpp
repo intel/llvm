@@ -391,6 +391,51 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
+bool queue_impl::ext_oneapi_empty() const {
+  if (MDiscardEvents)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "ext_oneapi_empty() method cannot be used for queues "
+                          "with discard_events property.");
+
+  if (isInOrder()) {
+    std::shared_lock Lock(MLastEventMtx);
+    return MLastEvent.get_info<info::event::command_execution_status>() ==
+           info::event_command_status::complete;
+  } else {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "ext_oneapi_empty() is not supported for out-of-order queues");
+  }
+  return false;
+}
+
+size_t queue_impl::ext_oneapi_size() const {
+  if (MDiscardEvents)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "ext_oneapi_get_wait_list() method cannot be used "
+                          "for queues with discard_events property.");
+
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "ext_oneapi_size() is not supported");
+}
+
+std::vector<event> queue_impl::ext_oneapi_get_wait_list() const {
+  if (MDiscardEvents)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "ext_oneapi_get_wait_list() method cannot be used "
+                          "for queues with discard_events property.");
+
+  if (isInOrder()) {
+    std::shared_lock Lock(MLastEventMtx);
+    return {MLastEvent};
+  } else {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "ext_oneapi_get_wait_list() is not supported for out-of-order queues");
+  }
+  return {};
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

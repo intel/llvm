@@ -1077,6 +1077,25 @@ public:
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
 
+  /// Allows to check status of the queue (completed vs noncompleted).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+  bool ext_oneapi_empty() const;
+
+  /// Get the number of uncompleted events in the queue.
+  ///
+  /// \return Returns the number of enqueued commands in the queue that have not
+  /// been completed.
+  size_t ext_oneapi_size() const;
+
+  /// Get the list of events to wait for queue completion.
+  ///
+  /// \return returns the list of events such that waiting for all returned
+  /// events guarantees that all enqueued commands in the queue have been
+  /// completed.
+  std::vector<event> ext_oneapi_get_wait_list() const;
+
 private:
   pi_native_handle getNative() const;
 

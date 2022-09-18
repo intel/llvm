@@ -450,6 +450,10 @@ public:
     return MAssertHappenedBuffer;
   }
 
+  bool ext_oneapi_empty() const;
+  size_t ext_oneapi_size() const;
+  std::vector<event> ext_oneapi_get_wait_list() const;
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -464,7 +468,7 @@ protected:
 
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
-      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+      std::lock_guard<std::shared_mutex> Lock{MLastEventMtx};
 
       if (MLastCGType == CG::CGTYPE::None)
         MLastCGType = Type;
@@ -606,7 +610,7 @@ private:
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
-  std::mutex MLastEventMtx;
+  mutable std::shared_mutex MLastEventMtx;
   // Used for in-order queues in pair with MLastEvent
   // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
   // backend. Using type to setup explicit sync between host and pi tasks.

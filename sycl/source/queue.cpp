@@ -198,6 +198,12 @@ bool queue::is_in_order() const {
 
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
+bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
+
+std::vector<event> queue::ext_oneapi_get_wait_list() const {
+  return impl->ext_oneapi_get_wait_list();
+}
+
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
