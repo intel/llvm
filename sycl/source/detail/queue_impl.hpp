@@ -231,7 +231,7 @@ public:
       return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
       {
-        std::lock_guard<std::mutex> Lock(MMutex);
+        std::lock_guard<std::shared_mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
       return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
@@ -283,7 +283,7 @@ public:
 
     exception_list Exceptions;
     {
-      std::lock_guard<std::mutex> Lock(MMutex);
+      std::lock_guard<std::shared_mutex> Lock(MMutex);
       std::swap(Exceptions, MExceptions);
     }
     // Unlock the mutex before calling user-provided handler to avoid
@@ -344,7 +344,7 @@ public:
     RT::PiQueue *PIQ = nullptr;
     bool ReuseQueue = false;
     {
-      std::lock_guard<std::mutex> Lock(MMutex);
+      std::lock_guard<std::shared_mutex> Lock(MMutex);
 
       // To achieve parallelism for FPGA with in order execution model with
       // possibility of two kernels to share data with each other we shall
@@ -433,7 +433,7 @@ public:
   ///
   /// \param ExceptionPtr is a pointer to exception to be put.
   void reportAsyncException(const std::exception_ptr &ExceptionPtr) {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::shared_mutex> Lock(MMutex);
     MExceptions.PushBack(ExceptionPtr);
   }
 
@@ -579,13 +579,18 @@ private:
   void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
-  std::mutex MMutex;
+  mutable std::shared_mutex MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
 
-  /// These events are tracked, but not owned, by the queue.
+  /// Events in MEventsWeak are tracked, but not owned, by the queue.
+  /// It contains only those events which need processing in queue_impl::wait.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;
+
+  /// Events in MAuxEventsWeak are tracked, but not owned, by the queue.
+  /// It contains events which doesn't need processing in queue_impl::wait.
+  std::vector<std::weak_ptr<event_impl>> MAuxEventsWeak;
 
   /// Events without data dependencies (such as USM) need an owner,
   /// additionally, USM operations are not added to the scheduler command graph,

@@ -95,9 +95,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       MLastCGType = CG::CGTYPE::None;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
-    addSharedEvent(ResEvent);
+  addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
@@ -137,9 +135,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
       MLastCGType = CG::CGTYPE::None;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
-    addSharedEvent(ResEvent);
+  addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
@@ -181,9 +177,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       MLastCGType = CG::CGTYPE::None;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (!MSupportOOO)
-    addSharedEvent(ResEvent);
+  addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
@@ -193,10 +187,8 @@ void queue_impl::addEvent(const event &Event) {
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
-    // as that will leave it with no owner. Track in MEventsShared only if we're
-    // unable to call piQueueFinish during wait.
-    if (is_host() || !MSupportOOO)
-      addSharedEvent(Event);
+    // as that will leave it with no owner.
+    addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
   // with command nodes in the following cases:
@@ -207,8 +199,14 @@ void queue_impl::addEvent(const event &Event) {
   else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
            EImpl->needsCleanupAfterWait()) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
-    std::lock_guard<std::mutex> Lock{MMutex};
+    std::lock_guard<std::shared_mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
+  } else {
+    // Keep track of all other events for API which allows to get status of the
+    // queue.
+    std::weak_ptr<event_impl> EventWeakPtr{EImpl};
+    std::lock_guard<std::shared_mutex> Lock{MMutex};
+    MAuxEventsWeak.push_back(std::move(EventWeakPtr));
   }
 }
 
@@ -216,8 +214,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  assert(is_host() || !MSupportOOO);
-  std::lock_guard<std::mutex> Lock(MMutex);
+  std::lock_guard<std::shared_mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
   // make, and ~queue_impl(). If the number of events grows large enough,
@@ -342,9 +339,10 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::shared_mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
+    MAuxEventsWeak.clear();
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
@@ -371,9 +369,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
               EventImplWeakPtr.lock())
         if (EventImplSharedPtr->needsCleanupAfterWait())
           EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
-    assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
-                                   "shouldn't have shared events");
   } else {
+    // Iterate over MEventsShared and wait only if we're unable to call
+    // piQueueFinish during wait.
     for (event &Event : SharedEvents)
       Event.wait();
   }
@@ -402,11 +400,8 @@ bool queue_impl::ext_oneapi_empty() const {
     return MLastEvent.get_info<info::event::command_execution_status>() ==
            info::event_command_status::complete;
   } else {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "ext_oneapi_empty() is not supported for out-of-order queues");
+    return ext_oneapi_size() == 0;
   }
-  return false;
 }
 
 size_t queue_impl::ext_oneapi_size() const {
@@ -415,8 +410,7 @@ size_t queue_impl::ext_oneapi_size() const {
                           "ext_oneapi_get_wait_list() method cannot be used "
                           "for queues with discard_events property.");
 
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "ext_oneapi_size() is not supported");
+  return ext_oneapi_get_wait_list().size();
 }
 
 std::vector<event> queue_impl::ext_oneapi_get_wait_list() const {
@@ -429,11 +423,25 @@ std::vector<event> queue_impl::ext_oneapi_get_wait_list() const {
     std::shared_lock Lock(MLastEventMtx);
     return {MLastEvent};
   } else {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "ext_oneapi_get_wait_list() is not supported for out-of-order queues");
+    std::shared_lock Lock(MMutex);
+    std::vector<event> NonCompleted;
+    for (auto Event : MEventsShared)
+      if (Event.get_info<info::event::command_execution_status>() !=
+          info::event_command_status::complete)
+        NonCompleted.push_back(Event);
+
+    for (auto EventImplWeakPtrIt = MEventsWeak.begin();
+         EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock())
+        if (EventImplSharedPtr
+                ->get_info<info::event::command_execution_status>() !=
+            info::event_command_status::complete)
+          NonCompleted.push_back(
+              createSyclObjFromImpl<event>(EventImplSharedPtr));
+
+    return NonCompleted;
   }
-  return {};
 }
 
 } // namespace detail
