@@ -99,6 +99,20 @@ public:
   bool isCheapToSpeculateCttz(Type *Ty) const override;
   bool isCheapToSpeculateCtlz(Type *Ty) const override;
   bool hasAndNot(SDValue Y) const override;
+  TargetLowering::AtomicExpansionKind
+  shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
+
+  Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder, AtomicRMWInst *AI,
+                                      Value *AlignedAddr, Value *Incr,
+                                      Value *Mask, Value *ShiftAmt,
+                                      AtomicOrdering Ord) const override;
+
+  bool getTgtMemIntrinsic(IntrinsicInfo &Info, const CallInst &I,
+                          MachineFunction &MF,
+                          unsigned Intrinsic) const override;
+
+  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                  EVT VT) const override;
 
 private:
   /// Target-specific function used to lower LoongArch calling conventions.

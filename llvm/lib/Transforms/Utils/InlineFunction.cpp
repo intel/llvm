@@ -1064,10 +1064,10 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
           FunctionModRefBehavior MRB = CalleeAAR->getModRefBehavior(Call);
 
           // We'll retain this knowledge without additional metadata.
-          if (AAResults::onlyAccessesInaccessibleMem(MRB))
+          if (MRB.onlyAccessesInaccessibleMem())
             continue;
 
-          if (AAResults::onlyAccessesArgPointees(MRB))
+          if (MRB.onlyAccessesArgPointees())
             IsArgMemOnlyCall = true;
         }
 
@@ -1786,7 +1786,8 @@ inlineRetainOrClaimRVCalls(CallBase &CB, objcarc::ARCInstKind RVCallKind,
 llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
                                         AAResults *CalleeAAR,
                                         bool InsertLifetime,
-                                        Function *ForwardVarArgsTo) {
+                                        Function *ForwardVarArgsTo,
+                                        bool MergeAttributes) {
   assert(CB.getParent() && CB.getFunction() && "Instruction not in function!");
 
   // FIXME: we don't inline callbr yet.
@@ -2509,6 +2510,9 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     // Since we are now done with the return instruction, delete it also.
     Returns[0]->eraseFromParent();
 
+    if (MergeAttributes)
+      AttributeFuncs::mergeAttributesForInlining(*Caller, *CalledFunc);
+
     // We are now done with the inlining.
     return InlineResult::success();
   }
@@ -2671,6 +2675,9 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       PHI->eraseFromParent();
     }
   }
+
+  if (MergeAttributes)
+    AttributeFuncs::mergeAttributesForInlining(*Caller, *CalledFunc);
 
   return InlineResult::success();
 }

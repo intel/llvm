@@ -18,7 +18,6 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -123,13 +122,15 @@ mlir::linalg::computeMultiTileSizes(OpBuilder &builder, LinalgOp op,
     return failure();
 
   // The code below works only on values.
-  ImplicitLocOpBuilder b(op.getLoc(), builder);
+  Location loc = op.getLoc();
+  ImplicitLocOpBuilder b(loc, builder);
   if (emitAssertions) {
     emitIsPositiveIndexAssertion(b, targetSize);
     emitIsPositiveIndexAssertion(b, divisor);
   }
-  Value targetSizeValue = materializeOpFoldResult(b, targetSize);
-  Value divisorValue = materializeOpFoldResult(b, divisor);
+  Value targetSizeValue =
+      getValueOrCreateConstantIndexOp(builder, loc, targetSize);
+  Value divisorValue = getValueOrCreateConstantIndexOp(builder, loc, divisor);
 
   // Find the trip count of the iteration space dimension for which the tile
   // sizes are computed.
@@ -140,7 +141,7 @@ mlir::linalg::computeMultiTileSizes(OpBuilder &builder, LinalgOp op,
       makeComposedFoldedMultiResultAffineApply(b, op.getLoc(), shapesToLoops,
                                                allShapes);
   Value tripCount =
-      materializeOpFoldResult(b, op.getLoc(), loopRanges[dimension]);
+      getValueOrCreateConstantIndexOp(b, op.getLoc(), loopRanges[dimension]);
 
   // Compute the tile sizes and the respective numbers of tiles.
   AffineExpr s0 = b.getAffineSymbolExpr(0);
@@ -234,10 +235,7 @@ static FailureOr<ForeachThreadTilingResult> tileToForeachThreadOpImpl(
   auto hasStrideOne = [](Range r) { return !isConstantIntValue(r.stride, 1); };
   if (llvm::any_of(loopRanges, hasStrideOne))
     return op->emitOpError("only stride-1 supported atm");
-  // TODO: support `getTiledImplementation` with >1 produced tiled ops.
   auto dest = op.getDestinationOperands(b);
-  if (dest.size() != 1)
-    return op->emitOpError("only single dest operand supported atm");
 
   SmallVector<OpFoldResult> nonZeroNumThreads =
       llvm::to_vector(llvm::make_filter_range(numThreads, [](OpFoldResult ofr) {
@@ -245,8 +243,7 @@ static FailureOr<ForeachThreadTilingResult> tileToForeachThreadOpImpl(
       }));
   SmallVector<Value> materializedNonZeroNumThreads =
       llvm::to_vector(llvm::map_range(nonZeroNumThreads, [&](OpFoldResult ofr) {
-        ImplicitLocOpBuilder ilocb(loc, b);
-        return materializeOpFoldResult(ilocb, ofr);
+        return getValueOrCreateConstantIndexOp(b, loc, ofr);
       }));
 
   Operation *tiledOp = nullptr;
@@ -351,7 +348,7 @@ static FailureOr<ForeachThreadTilingResult> tileToForeachThreadOpImpl(
                                         resultSizes)))
       return op->emitOpError("output offsets couldn't be calculated");
     SmallVector<OpFoldResult> strides(resultSizes.size(), b.getIndexAttr(1));
-    b.setInsertionPointToStart(foreachThreadOp.getTerminator().getBody());
+    b.setInsertionPointToEnd(foreachThreadOp.getTerminator().getBody());
     b.create<tensor::ParallelInsertSliceOp>(loc, std::get<1>(it),
                                             std::get<2>(it), resultOffsets,
                                             resultSizes, strides);
@@ -618,9 +615,12 @@ static LogicalResult tilePadOp(RewriterBase &builder, tensor::PadOp op,
   for (int64_t i = 0; i < rank; ++i) {
     allDims.push_back(ranges[i].size);
     if (!isZero(tileSizes[i])) {
-      lbs.push_back(materializeOpFoldResult(builder, loc, ranges[i].offset));
-      dims.push_back(materializeOpFoldResult(builder, loc, ranges[i].size));
-      steps.push_back(materializeOpFoldResult(builder, loc, tileSizes[i]));
+      lbs.push_back(
+          getValueOrCreateConstantIndexOp(builder, loc, ranges[i].offset));
+      dims.push_back(
+          getValueOrCreateConstantIndexOp(builder, loc, ranges[i].size));
+      steps.push_back(
+          getValueOrCreateConstantIndexOp(builder, loc, tileSizes[i]));
     }
   }
   // Generate loop nest: One loop per dimension.

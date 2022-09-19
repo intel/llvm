@@ -21,6 +21,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/Register.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
+#include "llvm/IR/InstrTypes.h"
 #include <functional>
 
 namespace llvm {
@@ -361,7 +362,6 @@ public:
   void applyCombineI2PToP2I(MachineInstr &MI, Register &Reg);
 
   /// Transform PtrToInt(IntToPtr(x)) to x.
-  bool matchCombineP2IToI2P(MachineInstr &MI, Register &Reg);
   void applyCombineP2IToI2P(MachineInstr &MI, Register &Reg);
 
   /// Transform G_ADD (G_PTRTOINT x), y -> G_PTRTOINT (G_PTR_ADD x, y)
@@ -388,11 +388,7 @@ public:
   void applyCombineExtOfExt(MachineInstr &MI,
                             std::tuple<Register, unsigned> &MatchInfo);
 
-  /// Transform fneg(fneg(x)) to x.
-  bool matchCombineFNegOfFNeg(MachineInstr &MI, Register &Reg);
-
-  /// Match fabs(fabs(x)) to fabs(x).
-  bool matchCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
+  /// Transform fabs(fabs(x)) to fabs(x).
   void applyCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
 
   /// Transform fabs(fneg(x)) to fabs(x).
@@ -684,6 +680,11 @@ public:
   /// (G_*ADDO x, 0) -> x + no carry out
   bool matchAddOBy0(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  /// Match:
+  /// (G_*ADDE x, y, 0) -> (G_*ADDO x, y)
+  /// (G_*SUBE x, y, 0) -> (G_*SUBO x, y)
+  bool matchAddEToAddO(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   /// Transform (fadd x, fneg(y)) -> (fsub x, y)
   ///           (fadd fneg(x), y) -> (fsub y, x)
   ///           (fsub x, fneg(y)) -> (fadd x, y)
@@ -750,6 +751,10 @@ public:
   /// Transform G_ADD(G_SUB(y, x), x) to y.
   bool matchAddSubSameReg(MachineInstr &MI, Register &Src);
 
+  /// \returns true if it is possible to simplify a select instruction \p MI
+  /// to a min/max instruction of some sort.
+  bool matchSimplifySelectToMinMax(MachineInstr &MI, BuildFnTy &MatchInfo);
+
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that
   /// can be usefully and legally folded into it as a post-indexing operation.
@@ -795,6 +800,49 @@ private:
   /// a re-association of its operands would break an existing legal addressing
   /// mode that the address computation currently represents.
   bool reassociationCanBreakAddressingModePattern(MachineInstr &PtrAdd);
+
+  /// Behavior when a floating point min/max is given one NaN and one
+  /// non-NaN as input.
+  enum class SelectPatternNaNBehaviour {
+    NOT_APPLICABLE = 0, /// NaN behavior not applicable.
+    RETURNS_NAN,        /// Given one NaN input, returns the NaN.
+    RETURNS_OTHER,      /// Given one NaN input, returns the non-NaN.
+    RETURNS_ANY /// Given one NaN input, can return either (or both operands are
+                /// known non-NaN.)
+  };
+
+  /// \returns which of \p LHS and \p RHS would be the result of a non-equality
+  /// floating point comparison where one of \p LHS and \p RHS may be NaN.
+  ///
+  /// If both \p LHS and \p RHS may be NaN, returns
+  /// SelectPatternNaNBehaviour::NOT_APPLICABLE.
+  SelectPatternNaNBehaviour
+  computeRetValAgainstNaN(Register LHS, Register RHS,
+                          bool IsOrderedComparison) const;
+
+  /// Determines the floating point min/max opcode which should be used for
+  /// a G_SELECT fed by a G_FCMP with predicate \p Pred.
+  ///
+  /// \returns 0 if this G_SELECT should not be combined to a floating point
+  /// min or max. If it should be combined, returns one of
+  ///
+  /// * G_FMAXNUM
+  /// * G_FMAXIMUM
+  /// * G_FMINNUM
+  /// * G_FMINIMUM
+  ///
+  /// Helper function for matchFPSelectToMinMax.
+  unsigned getFPMinMaxOpcForSelect(CmpInst::Predicate Pred, LLT DstTy,
+                                   SelectPatternNaNBehaviour VsNaNRetVal) const;
+
+  /// Handle floating point cases for matchSimplifySelectToMinMax.
+  ///
+  /// E.g.
+  ///
+  /// select (fcmp uge x, 1.0) x, 1.0 -> fmax x, 1.0
+  /// select (fcmp uge x, 1.0) 1.0, x -> fminnm x, 1.0
+  bool matchFPSelectToMinMax(Register Dst, Register Cond, Register TrueVal,
+                             Register FalseVal, BuildFnTy &MatchInfo);
 };
 } // namespace llvm
 

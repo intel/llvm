@@ -1183,21 +1183,16 @@ public:
 class VPWidenPointerInductionRecipe : public VPHeaderPHIRecipe {
   const InductionDescriptor &IndDesc;
 
-  /// SCEV used to expand step.
-  /// FIXME: move expansion of step to the pre-header, once it is modeled
-  /// explicitly.
-  ScalarEvolution &SE;
-
 public:
   /// Create a new VPWidenPointerInductionRecipe for \p Phi with start value \p
   /// Start.
-  VPWidenPointerInductionRecipe(PHINode *Phi, VPValue *Start,
-                                const InductionDescriptor &IndDesc,
-                                ScalarEvolution &SE)
+  VPWidenPointerInductionRecipe(PHINode *Phi, VPValue *Start, VPValue *Step,
+                                const InductionDescriptor &IndDesc)
       : VPHeaderPHIRecipe(VPVWidenPointerInductionSC, VPWidenPointerInductionSC,
                           Phi),
-        IndDesc(IndDesc), SE(SE) {
+        IndDesc(IndDesc) {
     addOperand(Start);
+    addOperand(Step);
   }
 
   ~VPWidenPointerInductionRecipe() override = default;
@@ -2892,9 +2887,8 @@ public:
   template <typename BlockTy, typename T>
   static auto blocksOnly(const T &Range) {
     // Create BaseTy with correct const-ness based on BlockTy.
-    using BaseTy =
-        typename std::conditional<std::is_const<BlockTy>::value,
-                                  const VPBlockBase, VPBlockBase>::type;
+    using BaseTy = std::conditional_t<std::is_const<BlockTy>::value,
+                                      const VPBlockBase, VPBlockBase>;
 
     // We need to first create an iterator range over (const) BlocktTy & instead
     // of (const) BlockTy * for filter_range to work properly.

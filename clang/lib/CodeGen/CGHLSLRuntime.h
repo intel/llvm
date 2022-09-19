@@ -46,6 +46,7 @@ public:
   virtual ~CGHLSLRuntime() {}
 
   void annotateHLSLResource(const VarDecl *D, llvm::GlobalVariable *GV);
+  void generateGlobalCtorDtorCalls();
 
   void finishCodeGen();
 

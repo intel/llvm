@@ -430,7 +430,8 @@ llvm::Optional<std::string> printExprValue(const Expr *E,
     return llvm::None;
 
   // Show enums symbolically, not numerically like APValue::printPretty().
-  if (T->isEnumeralType() && Constant.Val.getInt().getMinSignedBits() <= 64) {
+  if (T->isEnumeralType() && Constant.Val.isInt() &&
+      Constant.Val.getInt().getMinSignedBits() <= 64) {
     // Compare to int64_t to avoid bit-width match requirements.
     int64_t Val = Constant.Val.getInt().getExtValue();
     for (const EnumConstantDecl *ECD :
@@ -441,7 +442,7 @@ llvm::Optional<std::string> printExprValue(const Expr *E,
             .str();
   }
   // Show hex value of integers if they're at least 10 (or negative!)
-  if (T->isIntegralOrEnumerationType() &&
+  if (T->isIntegralOrEnumerationType() && Constant.Val.isInt() &&
       Constant.Val.getInt().getMinSignedBits() <= 64 &&
       Constant.Val.getInt().uge(10))
     return llvm::formatv("{0} ({1})", Constant.Val.getAsString(Ctx, T),
@@ -665,7 +666,8 @@ getPredefinedExprHoverContents(const PredefinedExpr &PE, ASTContext &Ctx,
 }
 
 /// Generate a \p Hover object given the macro \p MacroDecl.
-HoverInfo getHoverContents(const DefinedMacro &Macro, ParsedAST &AST) {
+HoverInfo getHoverContents(const DefinedMacro &Macro, const syntax::Token &Tok,
+                           ParsedAST &AST) {
   HoverInfo HI;
   SourceManager &SM = AST.getSourceManager();
   HI.Name = std::string(Macro.Name);
@@ -694,6 +696,29 @@ HoverInfo getHoverContents(const DefinedMacro &Macro, ParsedAST &AST) {
         HI.Definition =
             ("#define " + Buffer.substr(StartOffset, EndOffset - StartOffset))
                 .str();
+    }
+  }
+
+  if (auto Expansion = AST.getTokens().expansionStartingAt(&Tok)) {
+    // We drop expansion that's longer than the threshold.
+    // For extremely long expansion text, it's not readable from hover card
+    // anyway.
+    std::string ExpansionText;
+    for (const auto &ExpandedTok : Expansion->Expanded) {
+      ExpansionText += ExpandedTok.text(SM);
+      ExpansionText += " ";
+      if (ExpansionText.size() > 2048) {
+        ExpansionText.clear();
+        break;
+      }
+    }
+
+    if (!ExpansionText.empty()) {
+      if (!HI.Definition.empty()) {
+        HI.Definition += "\n\n";
+      }
+      HI.Definition += "// Expands to\n";
+      HI.Definition += ExpansionText;
     }
   }
   return HI;
@@ -981,6 +1006,37 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
   HI.CallPassType.emplace(PassType);
 }
 
+const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
+  if (Candidates.empty())
+    return nullptr;
+
+  // This is e.g the case for
+  //     namespace ns { void foo(); }
+  //     void bar() { using ns::foo; f^oo(); }
+  // One declaration in Candidates will refer to the using declaration,
+  // which isn't really useful for Hover. So use the other one,
+  // which in this example would be the actual declaration of foo.
+  if (Candidates.size() <= 2) {
+    if (llvm::isa<BaseUsingDecl>(Candidates.front()))
+      return Candidates.back();
+    return Candidates.front();
+  }
+
+  // For something like
+  //     namespace ns { void foo(int); void foo(char); }
+  //     using ns::foo;
+  //     template <typename T> void bar() { fo^o(T{}); }
+  // we actually want to show the using declaration,
+  // it's not clear which declaration to pick otherwise.
+  auto BaseDecls = llvm::make_filter_range(Candidates, [](const NamedDecl *D) {
+    return llvm::isa<BaseUsingDecl>(D);
+  });
+  if (std::distance(BaseDecls.begin(), BaseDecls.end()) == 1)
+    return *BaseDecls.begin();
+
+  return Candidates.front();
+}
+
 } // namespace
 
 llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
@@ -1027,7 +1083,7 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
       // Prefer the identifier token as a fallback highlighting range.
       HighlightRange = Tok.range(SM).toCharRange(SM);
       if (auto M = locateMacroAt(Tok, AST.getPreprocessor())) {
-        HI = getHoverContents(*M, AST);
+        HI = getHoverContents(*M, Tok, AST);
         break;
       }
     } else if (Tok.kind() == tok::kw_auto || Tok.kind() == tok::kw_decltype) {
@@ -1056,11 +1112,11 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
       // FIXME: Fill in HighlightRange with range coming from N->ASTNode.
       auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Alias,
                                             AST.getHeuristicResolver());
-      if (!Decls.empty()) {
-        HI = getHoverContents(Decls.front(), PP, Index, TB);
+      if (const auto *DeclToUse = pickDeclToUse(Decls)) {
+        HI = getHoverContents(DeclToUse, PP, Index, TB);
         // Layout info only shown when hovering on the field/class itself.
-        if (Decls.front() == N->ASTNode.get<Decl>())
-          addLayoutInfo(*Decls.front(), *HI);
+        if (DeclToUse == N->ASTNode.get<Decl>())
+          addLayoutInfo(*DeclToUse, *HI);
         // Look for a close enclosing expression to show the value of.
         if (!HI->Value)
           HI->Value = printExprValue(N, AST.getASTContext());
@@ -1078,11 +1134,15 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   if (!HI)
     return llvm::None;
 
-  auto Replacements = format::reformat(
-      Style, HI->Definition, tooling::Range(0, HI->Definition.size()));
-  if (auto Formatted =
-          tooling::applyAllReplacements(HI->Definition, Replacements))
-    HI->Definition = *Formatted;
+  // Reformat Definition
+  if (!HI->Definition.empty()) {
+    auto Replacements = format::reformat(
+        Style, HI->Definition, tooling::Range(0, HI->Definition.size()));
+    if (auto Formatted =
+            tooling::applyAllReplacements(HI->Definition, Replacements))
+      HI->Definition = *Formatted;
+  }
+
   HI->DefinitionLanguage = getMarkdownLanguage(AST.getASTContext());
   HI->SymRange = halfOpenToRange(SM, HighlightRange);
 
@@ -1177,25 +1237,31 @@ markup::Document HoverInfo::present() const {
 
   if (!Definition.empty()) {
     Output.addRuler();
-    std::string ScopeComment;
-    // Drop trailing "::".
-    if (!LocalScope.empty()) {
-      // Container name, e.g. class, method, function.
-      // We might want to propagate some info about container type to print
-      // function foo, class X, method X::bar, etc.
-      ScopeComment =
-          "// In " + llvm::StringRef(LocalScope).rtrim(':').str() + '\n';
-    } else if (NamespaceScope && !NamespaceScope->empty()) {
-      ScopeComment = "// In namespace " +
-                     llvm::StringRef(*NamespaceScope).rtrim(':').str() + '\n';
+    std::string Buffer;
+
+    if (!Definition.empty()) {
+      // Append scope comment, dropping trailing "::".
+      // Note that we don't print anything for global namespace, to not annoy
+      // non-c++ projects or projects that are not making use of namespaces.
+      if (!LocalScope.empty()) {
+        // Container name, e.g. class, method, function.
+        // We might want to propagate some info about container type to print
+        // function foo, class X, method X::bar, etc.
+        Buffer +=
+            "// In " + llvm::StringRef(LocalScope).rtrim(':').str() + '\n';
+      } else if (NamespaceScope && !NamespaceScope->empty()) {
+        Buffer += "// In namespace " +
+                  llvm::StringRef(*NamespaceScope).rtrim(':').str() + '\n';
+      }
+
+      if (!AccessSpecifier.empty()) {
+        Buffer += AccessSpecifier + ": ";
+      }
+
+      Buffer += Definition;
     }
-    std::string DefinitionWithAccess = !AccessSpecifier.empty()
-                                           ? AccessSpecifier + ": " + Definition
-                                           : Definition;
-    // Note that we don't print anything for global namespace, to not annoy
-    // non-c++ projects or projects that are not making use of namespaces.
-    Output.addCodeBlock(ScopeComment + DefinitionWithAccess,
-                        DefinitionLanguage);
+
+    Output.addCodeBlock(Buffer, DefinitionLanguage);
   }
 
   return Output;

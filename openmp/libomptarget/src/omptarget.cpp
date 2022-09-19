@@ -368,6 +368,32 @@ void *targetAllocExplicit(size_t Size, int DeviceNum, int Kind,
   return Rc;
 }
 
+void targetFreeExplicit(void *DevicePtr, int DeviceNum, int Kind,
+                        const char *Name) {
+  TIMESCOPE();
+  DP("Call to %s for device %d and address " DPxMOD "\n", Name, DeviceNum,
+     DPxPTR(DevicePtr));
+
+  if (!DevicePtr) {
+    DP("Call to %s with NULL ptr\n", Name);
+    return;
+  }
+
+  if (DeviceNum == omp_get_initial_device()) {
+    free(DevicePtr);
+    DP("%s deallocated host ptr\n", Name);
+    return;
+  }
+
+  if (!deviceIsReady(DeviceNum)) {
+    DP("%s returns, nothing to do\n", Name);
+    return;
+  }
+
+  PM->Devices[DeviceNum]->deleteData(DevicePtr, Kind);
+  DP("omp_target_free deallocated device ptr\n");
+}
+
 /// Call the user-defined mapper function followed by the appropriate
 // targetData* function (targetData{Begin,End,Update}).
 int targetDataMapper(ident_t *Loc, DeviceTy &Device, void *ArgBase, void *Arg,
@@ -744,7 +770,8 @@ int targetDataEnd(ident_t *Loc, DeviceTy &Device, int32_t ArgNum,
         HstPtrBegin, DataSize, IsLast, UpdateRef, HasHoldModifier, IsHostPtr,
         !IsImplicit, ForceDelete);
     void *TgtPtrBegin = TPR.TargetPointer;
-    if (!TgtPtrBegin && (DataSize || HasPresentModifier)) {
+    if (!TPR.isPresent() && !TPR.isHostPointer() &&
+        (DataSize || HasPresentModifier)) {
       DP("Mapping does not exist (%s)\n",
          (HasPresentModifier ? "'present' map type modifier" : "ignored"));
       if (HasPresentModifier) {
@@ -779,7 +806,7 @@ int targetDataEnd(ident_t *Loc, DeviceTy &Device, int32_t ArgNum,
     // construct and a corresponding list item of the original list item is not
     // present in the device data environment on exit from the region then the
     // list item is ignored."
-    if (!TgtPtrBegin)
+    if (!TPR.isPresent())
       continue;
 
     bool DelEntry = IsLast;
@@ -921,7 +948,7 @@ static int targetDataContiguous(ident_t *Loc, DeviceTy &Device, void *ArgsBase,
       HstPtrBegin, ArgSize, IsLast, /*UpdateRefCount=*/false,
       /*UseHoldRefCount=*/false, IsHostPtr, /*MustContain=*/true);
   void *TgtPtrBegin = TPR.TargetPointer;
-  if (!TgtPtrBegin) {
+  if (!TPR.isPresent()) {
     DP("hst data:" DPxMOD " not found, becomes a noop\n", DPxPTR(HstPtrBegin));
     if (ArgType & OMP_TGT_MAPTYPE_PRESENT) {
       MESSAGE("device mapping required by 'present' motion modifier does not "
@@ -1349,7 +1376,7 @@ static int processDataBefore(ident_t *Loc, int64_t DeviceId, void *HostPtr,
             HstPtrVal, ArgSizes[I], IsLast, /*UpdateRefCount=*/false,
             /*UseHoldRefCount=*/false, IsHostPtr);
         PointerTgtPtrBegin = TPR.TargetPointer;
-        if (!PointerTgtPtrBegin) {
+        if (!TPR.isPresent()) {
           DP("No lambda captured variable mapped (" DPxMOD ") - ignored\n",
              DPxPTR(HstPtrVal));
           continue;

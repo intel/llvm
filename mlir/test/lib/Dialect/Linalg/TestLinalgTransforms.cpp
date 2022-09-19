@@ -25,7 +25,6 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
@@ -225,9 +224,6 @@ static void applyPatterns(func::FuncOp funcOp) {
   //===--------------------------------------------------------------------===//
   // Linalg to vector contraction patterns.
   //===--------------------------------------------------------------------===//
-  patterns.add<LinalgVectorizationPattern>(
-      ctx, LinalgTransformationFilter(StringAttr::get(ctx, "VECTORIZE"))
-               .addOpFilter<MatmulOp, FillOp, GenericOp>());
   patterns.add<CopyVectorizationPattern>(ctx);
 
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
@@ -441,9 +437,6 @@ static void applyVectorTransferForwardingPatterns(func::FuncOp funcOp) {
 static void applyLinalgToVectorPatterns(func::FuncOp funcOp) {
   RewritePatternSet patterns(funcOp.getContext());
   auto *ctx = funcOp.getContext();
-  patterns.add<LinalgVectorizationPattern>(
-      ctx, LinalgTransformationFilter()
-               .addOpFilter<ContractionOpInterface, FillOp, GenericOp>());
   patterns.add<CopyVectorizationPattern>(ctx);
   populatePadOpVectorizationPatterns(patterns);
   populateConvolutionVectorizationPatterns(patterns);

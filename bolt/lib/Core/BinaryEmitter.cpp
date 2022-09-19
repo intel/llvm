@@ -154,7 +154,7 @@ private:
   void emitCFIInstruction(const MCCFIInstruction &Inst) const;
 
   /// Emit exception handling ranges for the function.
-  void emitLSDA(BinaryFunction &BF, bool EmitColdPart);
+  void emitLSDA(BinaryFunction &BF, const FunctionFragment &FF);
 
   /// Emit line number information corresponding to \p NewLoc. \p PrevLoc
   /// provides a context for de-duplication of line number info.
@@ -287,6 +287,11 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function,
   if (Function.getState() == BinaryFunction::State::Empty)
     return false;
 
+  // Avoid emitting function without instructions when overwriting the original
+  // function in-place. Otherwise, emit the empty function to define the symbol.
+  if (!BC.HasRelocations && !Function.hasNonPseudoInstructions())
+    return false;
+
   MCSection *Section =
       BC.getCodeSection(Function.getCodeSectionName(FF.getFragmentNum()));
   Streamer.switchSection(Section);
@@ -333,9 +338,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function,
     if (Function.getPersonalityFunction() != nullptr)
       Streamer.emitCFIPersonality(Function.getPersonalityFunction(),
                                   Function.getPersonalityEncoding());
-    MCSymbol *LSDASymbol = FF.isSplitFragment()
-                               ? Function.getColdLSDASymbol(FF.getFragmentNum())
-                               : Function.getLSDASymbol();
+    MCSymbol *LSDASymbol = Function.getLSDASymbol(FF.getFragmentNum());
     if (LSDASymbol)
       Streamer.emitCFILsda(LSDASymbol, BC.LSDAEncoding);
     else
@@ -394,7 +397,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function,
     emitLineInfoEnd(Function, EndSymbol);
 
   // Exception handling info for the function.
-  emitLSDA(Function, FF.isSplitFragment());
+  emitLSDA(Function, FF);
 
   if (FF.isMainFragment() && opts::JumpTables > JTS_NONE)
     emitJumpTables(Function);
@@ -880,10 +883,10 @@ void BinaryEmitter::emitCFIInstruction(const MCCFIInstruction &Inst) const {
 }
 
 // The code is based on EHStreamer::emitExceptionTable().
-void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
-  const BinaryFunction::CallSitesType *Sites =
-      EmitColdPart ? &BF.getColdCallSites() : &BF.getCallSites();
-  if (Sites->empty())
+void BinaryEmitter::emitLSDA(BinaryFunction &BF, const FunctionFragment &FF) {
+  const BinaryFunction::CallSitesRange Sites =
+      BF.getCallSites(FF.getFragmentNum());
+  if (Sites.empty())
     return;
 
   // Calculate callsite table size. Size of each callsite entry is:
@@ -893,13 +896,13 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   // or
   //
   //  sizeof(dwarf::DW_EH_PE_data4) * 3 + sizeof(uleb128(action))
-  uint64_t CallSiteTableLength = Sites->size() * 4 * 3;
-  for (const BinaryFunction::CallSite &CallSite : *Sites)
-    CallSiteTableLength += getULEB128Size(CallSite.Action);
+  uint64_t CallSiteTableLength = llvm::size(Sites) * 4 * 3;
+  for (const auto &FragmentCallSite : Sites)
+    CallSiteTableLength += getULEB128Size(FragmentCallSite.second.Action);
 
   Streamer.switchSection(BC.MOFI->getLSDASection());
 
-  const unsigned TTypeEncoding = BC.TTypeEncoding;
+  const unsigned TTypeEncoding = BF.getLSDATypeEncoding();
   const unsigned TTypeEncodingSize = BC.getDWARFEncodingSize(TTypeEncoding);
   const uint16_t TTypeAlignment = 4;
 
@@ -907,15 +910,12 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   Streamer.emitValueToAlignment(TTypeAlignment);
 
   // Emit the LSDA label.
-  MCSymbol *LSDASymbol = EmitColdPart
-                             ? BF.getColdLSDASymbol(FragmentNum::cold())
-                             : BF.getLSDASymbol();
+  MCSymbol *LSDASymbol = BF.getLSDASymbol(FF.getFragmentNum());
   assert(LSDASymbol && "no LSDA symbol set");
   Streamer.emitLabel(LSDASymbol);
 
   // Corresponding FDE start.
-  const MCSymbol *StartSymbol =
-      BF.getSymbol(EmitColdPart ? FragmentNum::cold() : FragmentNum::main());
+  const MCSymbol *StartSymbol = BF.getSymbol(FF.getFragmentNum());
 
   // Emit the LSDA header.
 
@@ -976,10 +976,11 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
                        TTypeBaseOffset;      // TType base offset
   unsigned SizeAlign = (4 - TotalSize) & 3;
 
-  // Account for any extra padding that will be added to the call site table
-  // length.
-  Streamer.emitULEB128IntValue(TTypeBaseOffset,
-                               /*PadTo=*/TTypeBaseOffsetSize + SizeAlign);
+  if (TTypeEncoding != dwarf::DW_EH_PE_omit)
+    // Account for any extra padding that will be added to the call site table
+    // length.
+    Streamer.emitULEB128IntValue(TTypeBaseOffset,
+                                 /*PadTo=*/TTypeBaseOffsetSize + SizeAlign);
 
   // Emit the landing pad call site table. We use signed data4 since we can emit
   // a landing pad in a different part of the split function that could appear
@@ -987,7 +988,8 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   Streamer.emitIntValue(dwarf::DW_EH_PE_sdata4, 1);
   Streamer.emitULEB128IntValue(CallSiteTableLength);
 
-  for (const BinaryFunction::CallSite &CallSite : *Sites) {
+  for (const auto &FragmentCallSite : Sites) {
+    const BinaryFunction::CallSite &CallSite = FragmentCallSite.second;
     const MCSymbol *BeginLabel = CallSite.Start;
     const MCSymbol *EndLabel = CallSite.End;
 

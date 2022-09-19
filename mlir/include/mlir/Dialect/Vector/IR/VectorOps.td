@@ -27,7 +27,6 @@ def Vector_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 1;
   let hasConstantMaterializer = 1;
   let dependentDialects = ["arith::ArithmeticDialect"];
-  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 }
 
 // Base class for Vector dialect ops.
@@ -58,16 +57,26 @@ def CombiningKind : I32BitEnumAttr<
   let genSpecializedAttr = 0;
 }
 
-def Vector_CombiningKindAttr : DialectAttr<
-    Vector_Dialect,
-    CPred<"$_self.isa<::mlir::vector::CombiningKindAttr>()">,
-    "Kind of combining function for contractions and reductions"> {
-  let storageType = "::mlir::vector::CombiningKindAttr";
-  let returnType = "::mlir::vector::CombiningKind";
-  let convertFromStorage = "$_self.getKind()";
-  let constBuilderCall =
-          "::mlir::vector::CombiningKindAttr::get($0, $_builder.getContext())";
+/// An attribute that specifies the combining function for `vector.contract`,
+/// and `vector.reduction`.
+def Vector_CombiningKindAttr : EnumAttr<Vector_Dialect, CombiningKind, "kind"> {
+  let assemblyFormat = "`<` $value `>`";
 }
+
+def IteratorType : I32EnumAttr<"IteratorType", "Iterator type", [
+  I32EnumAttrCase<"parallel", 0>,
+  I32EnumAttrCase<"reduction", 1>
+  ]> {
+    let genSpecializedAttr = 0;
+    let cppNamespace = "::mlir::vector";
+}
+
+def IteratorTypeEnum : EnumAttr<Vector_Dialect, IteratorType, "iterator_type"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+def IteratorTypeArrayAttr : TypedArrayAttrBase<IteratorTypeEnum,
+    "Iterator type should be an enum.">;
 
 // TODO: Add an attribute to specify a different algebra with operators other
 // than the current set: {*, +}.
@@ -82,7 +91,7 @@ def Vector_ContractionOp :
     Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyType:$acc,
                Variadic<VectorOf<[I1]>>:$masks,
                ArrayAttr:$indexing_maps,
-               ArrayAttr:$iterator_types,
+               IteratorTypeArrayAttr:$iterator_types,
                DefaultValuedAttr<Vector_CombiningKindAttr,
                                  "CombiningKind::ADD">:$kind)>,
     Results<(outs AnyType)> {
@@ -207,7 +216,7 @@ def Vector_ContractionOp :
       "ArrayAttr":$indexingMaps, "ArrayAttr":$iteratorTypes)>,
     OpBuilder<(ins "Value":$lhs, "Value":$rhs, "Value":$acc,
       "ArrayRef<ArrayRef<AffineExpr>>":$indexingExprs,
-      "ArrayRef<StringRef>":$iteratorTypes)>,
+      "ArrayRef<IteratorType>":$iteratorTypes)>,
     OpBuilder<(ins "Value":$lhs, "Value":$rhs, "Value":$acc,
       "ArrayAttr":$indexingMaps, "ArrayAttr":$iteratorTypes,
       "CombiningKind":$kind)>
@@ -254,6 +263,14 @@ def Vector_ContractionOp :
 
     static CombiningKind getDefaultKind() {
       return CombiningKind::ADD;
+    }
+
+    // Returns iterator types in string format.
+    SmallVector<StringRef> getIteratorTypeNames() {
+      return llvm::to_vector(
+          llvm::map_range(getIteratorTypes(), [](Attribute a) {
+            return stringifyIteratorType(a.cast<IteratorTypeAttr>().getValue());
+          }));
     }
   }];
 
@@ -582,75 +599,6 @@ def Vector_ExtractOp :
   let hasVerifier = 1;
 }
 
-def Vector_ExtractMapOp :
-  Vector_Op<"extract_map", [NoSideEffect]>,
-    Arguments<(ins AnyVector:$vector, Variadic<Index>:$ids)>,
-    Results<(outs AnyVector)> {
-  let summary = "vector extract map operation";
-  let description = [{
-    Takes an N-D vector and extracts a sub-part of the vector starting at id
-    along each dimension.
-
-    The dimension associated to each element of `ids` used to extract are
-    implicitly deduced from the destination type. For each dimension the
-    multiplicity is the destination dimension size divided by the source
-    dimension size, each dimension with a multiplicity greater than 1 is
-    associated to the next id, following ids order.
-    For example if the source type is `vector<64x4x32xf32>` and the destination
-    type is `vector<4x4x2xf32>`, the first id maps to dimension 0 and the second
-    id to dimension 2.
-
-    Similarly to vector.tuple_get, this operation is used for progressive
-    lowering and should be folded away before converting to LLVM.
-
-    It is different than `vector.extract_slice` and
-    `vector.extract_strided_slice` as it takes a Value as index instead of an
-    attribute. Also in the future it is meant to support extracting along any
-    dimensions and not only the most major ones.
-
-    For instance:
-    ```
-    // dynamic computation producing the value 0 of index type
-    %idx0 = ... : index
-    // dynamic computation producing the value 1 of index type
-    %idx1 = ... : index
-    %0 = arith.constant dense<0, 1, 2, 3>: vector<4xi32>
-    // extracts values [0, 1]
-    %1 = vector.extract_map %0[%idx0] : vector<4xi32> to vector<2xi32>
-    // extracts values [1, 2]
-    %2 = vector.extract_map %0[%idx1] : vector<4xi32> to vector<2xi32>
-    ```
-
-    Example:
-
-    ```mlir
-    %ev = vector.extract_map %v[%id] : vector<32xf32> to vector<1xf32>
-    %ev1 = vector.extract_map %v1[%id1, %id2] : vector<64x4x32xf32>
-      to vector<4x4x2xf32>
-    ```
-  }];
-  let builders = [
-    OpBuilder<(ins "Value":$vector, "ValueRange":$ids,
-                  "ArrayRef<int64_t>":$multiplicity,
-                  "AffineMap":$map)>];
-  let extraClassDeclaration = [{
-    VectorType getSourceVectorType() {
-      return getVector().getType().cast<VectorType>();
-    }
-    VectorType getResultType() {
-      return getResult().getType().cast<VectorType>();
-    }
-    void getMultiplicity(SmallVectorImpl<int64_t> &multiplicity);
-    AffineMap map();
-  }];
-  let assemblyFormat = [{
-    $vector `[` $ids `]` attr-dict `:` type($vector) `to` type(results)
-  }];
-
-  let hasFolder = 1;
-  let hasVerifier = 1;
-}
-
 def Vector_FMAOp :
   Op<Vector_Dialect, "fma", [
        NoSideEffect, AllTypesMatch<["lhs", "rhs", "acc", "result"]>,
@@ -770,72 +718,6 @@ def Vector_InsertOp :
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
-  let hasVerifier = 1;
-}
-
-def Vector_InsertMapOp :
-  Vector_Op<"insert_map", [NoSideEffect, AllTypesMatch<["dest", "result"]>]>,
-    Arguments<(ins AnyVector:$vector, AnyVector:$dest, Variadic<Index>:$ids)>,
-    Results<(outs AnyVector:$result)> {
-  let summary = "vector insert map operation";
-  let description = [{
-    Inserts a N-D vector and within a larger vector starting at id. The new
-    vector created will have the same size as the destination operand vector.
-
-    The dimension associated to each element of `ids` used to insert is
-    implicitly deduced from the source type (see `ExtractMapOp` for details).
-    For example if source type is `vector<4x4x2xf32>` and the destination type
-    is `vector<64x4x32xf32>`, the first id maps to dimension 0 and the second id
-    to dimension 2.
-
-    Similarly to vector.tuple_get, this operation is used for progressive
-    lowering and should be folded away before converting to LLVM.
-
-    It is different than `vector.insert` and `vector.insert_strided_slice` as it
-    takes a Value as index instead of an attribute. Also in the future it is
-    meant to support inserting along any dimensions and not only the most major
-    ones.
-
-    This operations is meant to be used in combination with vector.extract_map.
-
-    For instance:
-    ```
-    // dynamic computation producing the value 0 of index type
-    %idx0 = ... : index
-    // dynamic computation producing the value 1 of index type
-    %idx1 = ... : index /
-    %0 = arith.constant dense<0, 1, 2, 3>: vector<4xi32>
-    // extracts values [0, 1]
-    %1 = vector.extract_map %0[%idx0] : vector<4xi32> to vector<2xi32>
-    // extracts values [1, 2]
-    %2 = vector.extract_map %0[%idx1] : vector<4xi32> to vector<2xi32>
-    // insert [0, 1] into [x, x, x, x] and produce [0, 1, x, x]
-    %3 = vector.insert_map %1, %0[%idx0] : vector<2xi32> into vector<4xi32>
-    // insert [1, 2] into [x, x, x, x] and produce [x, 1, 2, x]
-    %4 = vector.insert_map %2, %0[%idx1] : vector<2xi32> into vector<4xi32>
-    ```
-    Example:
-
-    ```mlir
-    %v = vector.insert_map %ev %v[%id] : vector<1xf32> into vector<32xf32>
-    %v1 = vector.insert_map %ev1, %v1[%arg0, %arg1] : vector<2x4x1xf32>
-      into vector<64x4x32xf32>
-    ```
-  }];
-  let extraClassDeclaration = [{
-    VectorType getSourceVectorType() {
-      return getVector().getType().cast<VectorType>();
-    }
-    VectorType getResultType() {
-      return getResult().getType().cast<VectorType>();
-    }
-    // Return a map indicating the dimension mapping to the given ids.
-    AffineMap map();
-  }];
-  let assemblyFormat = [{
-    $vector `,` $dest `[` $ids `]` attr-dict
-      `:` type($vector) `into` type($result)
-  }];
   let hasVerifier = 1;
 }
 
@@ -969,7 +851,7 @@ def Vector_OuterProductOp :
       return getRhs().getType();
     }
     VectorType getOperandVectorTypeACC() {
-      return (llvm::size(getAcc()) == 0)
+      return getAcc().empty()
         ? VectorType()
         : (*getAcc().begin()).getType().cast<VectorType>();
     }

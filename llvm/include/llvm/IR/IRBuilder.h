@@ -199,6 +199,14 @@ public:
       SetCurrentDebugLocation(IP->getDebugLoc());
   }
 
+  /// This specifies that created instructions should inserted at the beginning
+  /// end of the specified function, but after already existing static alloca
+  /// instructions that are at the start.
+  void SetInsertPointPastAllocas(Function *F) {
+    BB = &F->getEntryBlock();
+    InsertPt = BB->getFirstNonPHIOrDbgOrAlloca();
+  }
+
   /// Set location information used by debugging information.
   void SetCurrentDebugLocation(DebugLoc L) {
     AddOrRemoveMetadataToCopy(LLVMContext::MD_dbg, L.getAsMDNode());
@@ -772,6 +780,15 @@ public:
   /// Create a call to Masked Scatter intrinsic
   CallInst *CreateMaskedScatter(Value *Val, Value *Ptrs, Align Alignment,
                                 Value *Mask = nullptr);
+
+  /// Create a call to Masked Expand Load intrinsic
+  CallInst *CreateMaskedExpandLoad(Type *Ty, Value *Ptr, Value *Mask = nullptr,
+                                   Value *PassThru = nullptr,
+                                   const Twine &Name = "");
+
+  /// Create a call to Masked Compress Store intrinsic
+  CallInst *CreateMaskedCompressStore(Value *Val, Value *Ptr,
+                                      Value *Mask = nullptr);
 
   /// Create an assume intrinsic call that allows the optimizer to
   /// assume that the provided condition will be true.

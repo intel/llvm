@@ -1657,7 +1657,7 @@ static void genLiteralPrinter(StringRef value, MethodBody &body,
   // Insert a space after certain literals.
   shouldEmitSpace =
       value.size() != 1 || !StringRef("<({[").contains(value.front());
-  lastWasPunctuation = !(value.front() == '_' || isalpha(value.front()));
+  lastWasPunctuation = value.front() != '_' && !isalpha(value.front());
 }
 
 /// Generate the printer for a space. `shouldEmitSpace` and `lastWasPunctuation`
@@ -2468,7 +2468,7 @@ LogicalResult
 OpFormatParser::verifyAttributeColonType(SMLoc loc,
                                          ArrayRef<FormatElement *> elements) {
   auto isBase = [](FormatElement *el) {
-    auto attr = dyn_cast<AttributeVariable>(el);
+    auto *attr = dyn_cast<AttributeVariable>(el);
     if (!attr)
       return false;
     // Check only attributes without type builders or that are known to call

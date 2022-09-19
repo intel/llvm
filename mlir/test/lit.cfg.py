@@ -67,23 +67,23 @@ tools = [
     'mlir-linalg-ods-yaml-gen',
     'mlir-reduce',
     'mlir-pdll',
+    'not',
 ]
+
+if config.enable_spirv_cpu_runner:
+  tools.extend(['mlir-spirv-cpu-runner'])
 
 # The following tools are optional
 tools.extend([
-    ToolSubst('toy-ch1', unresolved='ignore'),
-    ToolSubst('toy-ch2', unresolved='ignore'),
-    ToolSubst('toy-ch3', unresolved='ignore'),
-    ToolSubst('toy-ch4', unresolved='ignore'),
-    ToolSubst('toy-ch5', unresolved='ignore'),
+    ToolSubst('toyc-ch1', unresolved='ignore'),
+    ToolSubst('toyc-ch2', unresolved='ignore'),
+    ToolSubst('toyc-ch3', unresolved='ignore'),
+    ToolSubst('toyc-ch4', unresolved='ignore'),
+    ToolSubst('toyc-ch5', unresolved='ignore'),
+    ToolSubst('toyc-ch6', unresolved='ignore'),
+    ToolSubst('toyc-ch7', unresolved='ignore'),
     ToolSubst('%mlir_lib_dir', config.mlir_lib_dir, unresolved='ignore'),
     ToolSubst('%mlir_src_dir', config.mlir_src_root, unresolved='ignore'),
-    # The substitutions below will be replaced by '%mlir_lib_dir' shortly.
-    ToolSubst('%linalg_test_lib_dir', config.mlir_lib_dir, unresolved='ignore'),
-    ToolSubst('%mlir_runner_utils_dir', config.mlir_lib_dir, unresolved='ignore'),
-    ToolSubst('%spirv_wrapper_library_dir', config.mlir_lib_dir, unresolved='ignore'),
-    ToolSubst('%vulkan_wrapper_library_dir', config.mlir_lib_dir, unresolved='ignore'),
-    ToolSubst('%mlir_integration_test_dir', config.mlir_lib_dir, unresolved='ignore'),
 ])
 
 python_executable = config.python_executable

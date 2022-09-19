@@ -275,6 +275,7 @@ class SelectionDAG {
   struct NodeExtraInfo {
     CallSiteInfo CSInfo;
     MDNode *HeapAllocSite = nullptr;
+    MDNode *PCSections = nullptr;
     bool NoMerge = false;
   };
   /// Out-of-line extra information for SDNodes.
@@ -333,6 +334,19 @@ public:
     void NodeDeleted(SDNode *N, SDNode *E) override { Callback(N, E); }
 
    private:
+    virtual void anchor();
+  };
+
+  struct DAGNodeInsertedListener : public DAGUpdateListener {
+    std::function<void(SDNode *)> Callback;
+
+    DAGNodeInsertedListener(SelectionDAG &DAG,
+                            std::function<void(SDNode *)> Callback)
+        : DAGUpdateListener(DAG), Callback(std::move(Callback)) {}
+
+    void NodeInserted(SDNode *N) override { Callback(N); }
+
+  private:
     virtual void anchor();
   };
 
@@ -962,6 +976,13 @@ public:
     if (InGlue.getNode())
       Ops.push_back(InGlue);
     return getNode(ISD::CALLSEQ_END, DL, NodeTys, Ops);
+  }
+
+  SDValue getCALLSEQ_END(SDValue Chain, uint64_t Size1, uint64_t Size2,
+                         SDValue Glue, const SDLoc &DL) {
+    return getCALLSEQ_END(
+        Chain, getIntPtrConstant(Size1, DL, /*isTarget=*/true),
+        getIntPtrConstant(Size2, DL, /*isTarget=*/true), Glue, DL);
   }
 
   /// Return true if the result of this operation is always undefined.
@@ -2183,6 +2204,15 @@ public:
   MDNode *getHeapAllocSite(const SDNode *Node) const {
     auto I = SDEI.find(Node);
     return I != SDEI.end() ? I->second.HeapAllocSite : nullptr;
+  }
+  /// Set PCSections to be associated with Node.
+  void addPCSections(const SDNode *Node, MDNode *MD) {
+    SDEI[Node].PCSections = MD;
+  }
+  /// Return PCSections associated with Node, or nullptr if none exists.
+  MDNode *getPCSections(const SDNode *Node) const {
+    auto It = SDEI.find(Node);
+    return It != SDEI.end() ? It->second.PCSections : nullptr;
   }
   /// Set NoMergeSiteInfo to be associated with Node if NoMerge is true.
   void addNoMergeSiteInfo(const SDNode *Node, bool NoMerge) {

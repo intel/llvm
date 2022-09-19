@@ -1385,10 +1385,15 @@ static bool isConstExprSupported(uint8_t Opcode) {
   if (Opcode >= BitcodeConstant::FirstSpecialOpcode)
     return true;
 
+  // If -expand-constant-exprs is set, we want to consider all expressions
+  // as unsupported.
+  if (ExpandConstantExprs)
+    return false;
+
   if (Instruction::isBinaryOp(Opcode))
     return ConstantExpr::isSupportedBinOp(Opcode);
 
-  return !ExpandConstantExprs;
+  return Opcode != Instruction::FNeg;
 }
 
 Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
@@ -1449,8 +1454,6 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         C = UpgradeBitCastExpr(BC->Opcode, ConstOps[0], BC->getType());
         if (!C)
           C = ConstantExpr::getCast(BC->Opcode, ConstOps[0], BC->getType());
-      } else if (Instruction::isUnaryOp(BC->Opcode)) {
-        C = ConstantExpr::get(BC->Opcode, ConstOps[0], BC->Flags);
       } else if (Instruction::isBinaryOp(BC->Opcode)) {
         C = ConstantExpr::get(BC->Opcode, ConstOps[0], ConstOps[1], BC->Flags);
       } else {
@@ -1577,8 +1580,6 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         I->setIsExact();
     } else {
       switch (BC->Opcode) {
-      case BitcodeConstant::ConstantStructOpcode:
-      case BitcodeConstant::ConstantArrayOpcode:
       case BitcodeConstant::ConstantVectorOpcode: {
         Type *IdxTy = Type::getInt32Ty(BC->getContext());
         Value *V = PoisonValue::get(BC->getType());
@@ -1587,6 +1588,15 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
           V = InsertElementInst::Create(V, Pair.value(), Idx, "constexpr.ins",
                                         InsertBB);
         }
+        I = cast<Instruction>(V);
+        break;
+      }
+      case BitcodeConstant::ConstantStructOpcode:
+      case BitcodeConstant::ConstantArrayOpcode: {
+        Value *V = PoisonValue::get(BC->getType());
+        for (auto Pair : enumerate(Ops))
+          V = InsertValueInst::Create(V, Pair.value(), Pair.index(),
+                                      "constexpr.ins", InsertBB);
         I = cast<Instruction>(V);
         break;
       }

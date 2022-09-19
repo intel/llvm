@@ -549,7 +549,6 @@ add_entrypoint_object(
   HDRS
     ../exp2f.h
   DEPENDS
-    .common_constants
     .explogxf
     libc.src.__support.FPUtil.fenv_impl
     libc.src.__support.FPUtil.fp_bits
@@ -1286,6 +1285,40 @@ add_object_library(
     libc.include.errno
     libc.src.errno.errno
     libc.include.math
+)
+
+add_entrypoint_object(
+  asinf
+  SRCS
+    asinf.cpp
+  HDRS
+    ../asinf.h
+  DEPENDS
+    libc.src.__support.FPUtil.except_value_utils
+    libc.src.__support.FPUtil.fp_bits
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.polyeval
+    libc.src.__support.FPUtil.sqrt
+    .inv_trigf_utils
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  acosf
+  SRCS
+    acosf.cpp
+  HDRS
+    ../acosf.h
+  DEPENDS
+    libc.src.__support.FPUtil.except_value_utils
+    libc.src.__support.FPUtil.fp_bits
+    libc.src.__support.FPUtil.multiply_add
+    libc.src.__support.FPUtil.polyeval
+    libc.src.__support.FPUtil.sqrt
+    .inv_trigf_utils
+  COMPILE_OPTIONS
+    -O3
 )
 
 add_entrypoint_object(

@@ -63,6 +63,7 @@ def LLVM_Prefetch : LLVM_ZeroResultIntrOp<"prefetch", [0]> {
 def LLVM_SinOp : LLVM_UnaryIntrinsicOp<"sin">;
 def LLVM_RoundEvenOp : LLVM_UnaryIntrinsicOp<"roundeven">;
 def LLVM_RoundOp : LLVM_UnaryIntrinsicOp<"round">;
+def LLVM_FTruncOp : LLVM_UnaryIntrinsicOp<"trunc">;
 def LLVM_SqrtOp : LLVM_UnaryIntrinsicOp<"sqrt">;
 def LLVM_PowOp : LLVM_BinarySameArgsIntrinsicOp<"pow">;
 def LLVM_PowIOp : LLVM_BinaryIntrinsicOp<"powi">;
@@ -96,6 +97,32 @@ def LLVM_MemsetOp : LLVM_ZeroResultIntrOp<"memset", [0, 2]> {
   let arguments = (ins Arg<LLVM_Type,"",[MemWrite]>:$dst, LLVM_Type:$val, LLVM_Type:$len,
                    LLVM_Type:$isVolatile);
 }
+
+//===----------------------------------------------------------------------===//
+// Lifetime Markers
+//===----------------------------------------------------------------------===//
+
+/// Base operation for lifetime markers. The LLVM intrinsics require the size
+/// operand to be an immediate. In MLIR it is encoded as an attribute.
+class LLVM_LifetimeBaseOp<string opName> : LLVM_ZeroResultIntrOp<opName> {
+  let arguments = (ins I64Attr:$size, LLVM_AnyPointer:$ptr);
+
+  // Custom builder to convert the size attribute to an integer.
+  let llvmBuilder = [{
+    llvm::Module *module = builder.GetInsertBlock()->getModule();
+    llvm::Function *fn = llvm::Intrinsic::getDeclaration(
+        module, llvm::Intrinsic::}] # llvmEnumName # [{, {}] #
+        !interleave(ListIntSubst<LLVM_IntrPatterns.operand, [0]>.lst, ", ")
+        # [{});
+    builder.CreateCall(fn, {builder.getInt64(op.getSizeAttr().getInt()),
+                            moduleTranslation.lookupValue(op.getPtr())});
+  }];
+
+  let assemblyFormat = "$size `,` $ptr attr-dict `:` type($ptr)";
+}
+
+def LLVM_LifetimeStartOp : LLVM_LifetimeBaseOp<"lifetime.start">;
+def LLVM_LifetimeEndOp : LLVM_LifetimeBaseOp<"lifetime.end">;
 
 // Intrinsics with multiple returns.
 

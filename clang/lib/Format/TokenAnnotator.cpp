@@ -1110,7 +1110,7 @@ private:
           !Contexts.back().IsExpression && !Line.startsWith(TT_ObjCProperty) &&
           !Tok->isOneOf(TT_TypeDeclarationParen, TT_RequiresExpressionLParen) &&
           (!Tok->Previous ||
-           !Tok->Previous->isOneOf(tok::kw___attribute,
+           !Tok->Previous->isOneOf(tok::kw___attribute, TT_RequiresClause,
                                    TT_LeadingJavaAnnotation))) {
         Line.MightBeFunctionDecl = true;
       }
@@ -1427,7 +1427,7 @@ public:
     if (!CurrentToken)
       return LT_Invalid;
     NonTemplateLess.clear();
-    if (CurrentToken->is(tok::hash)) {
+    if (!Line.InMacroBody && CurrentToken->is(tok::hash)) {
       // We were not yet allowed to use C++17 optional when this was being
       // written. So we used LT_Invalid to mark that the line is not a
       // preprocessor directive.
@@ -2611,8 +2611,10 @@ private:
       }
       if (Current->is(TT_BinaryOperator) || Current->is(tok::comma))
         return Current->getPrecedence();
-      if (Current->isOneOf(tok::period, tok::arrow))
+      if (Current->isOneOf(tok::period, tok::arrow) &&
+          Current->isNot(TT_TrailingReturnArrow)) {
         return PrecedenceArrowAndPeriod;
+      }
       if ((Style.Language == FormatStyle::LK_Java || Style.isJavaScript()) &&
           Current->isOneOf(Keywords.kw_extends, Keywords.kw_implements,
                            Keywords.kw_throws)) {
@@ -4241,7 +4243,7 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     return false;
   }
   if (Right.is(tok::less) && Left.isNot(tok::l_paren) &&
-      Line.startsWith(tok::hash)) {
+      Line.Type == LT_ImportStatement) {
     return true;
   }
   if (Right.is(TT_TrailingUnaryOperator))

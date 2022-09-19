@@ -1212,7 +1212,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 /// by Dirs.
 ///
 static bool searchForFile(SmallVectorImpl<char> &FilePath,
-                          ArrayRef<StringRef> Dirs, StringRef FileName) {
+                          ArrayRef<StringRef> Dirs, StringRef FileName,
+                          llvm::vfs::FileSystem &FS) {
   SmallString<128> WPath;
   for (const StringRef &Dir : Dirs) {
     if (Dir.empty())
@@ -1220,7 +1221,8 @@ static bool searchForFile(SmallVectorImpl<char> &FilePath,
     WPath.clear();
     llvm::sys::path::append(WPath, Dir, FileName);
     llvm::sys::path::native(WPath);
-    if (llvm::sys::fs::is_regular_file(WPath)) {
+    auto Status = FS.status(WPath);
+    if (Status && Status->getType() == llvm::sys::fs::file_type::regular_file) {
       FilePath = std::move(WPath);
       return true;
     }
@@ -1231,7 +1233,7 @@ static bool searchForFile(SmallVectorImpl<char> &FilePath,
 bool Driver::readConfigFile(StringRef FileName) {
   // Try reading the given file.
   SmallVector<const char *, 32> NewCfgArgs;
-  if (!llvm::cl::readConfigFile(FileName, Saver, NewCfgArgs)) {
+  if (!llvm::cl::readConfigFile(FileName, Saver, NewCfgArgs, getVFS())) {
     Diag(diag::err_drv_cannot_read_config_file) << FileName;
     return true;
   }
@@ -1271,7 +1273,7 @@ bool Driver::loadConfigFile() {
       SmallString<128> CfgDir;
       CfgDir.append(
           CLOptions->getLastArgValue(options::OPT_config_system_dir_EQ));
-      if (CfgDir.empty() || llvm::sys::fs::make_absolute(CfgDir))
+      if (CfgDir.empty() || getVFS().makeAbsolute(CfgDir))
         SystemConfigDir.clear();
       else
         SystemConfigDir = static_cast<std::string>(CfgDir);
@@ -1280,7 +1282,7 @@ bool Driver::loadConfigFile() {
       SmallString<128> CfgDir;
       CfgDir.append(
           CLOptions->getLastArgValue(options::OPT_config_user_dir_EQ));
-      if (CfgDir.empty() || llvm::sys::fs::make_absolute(CfgDir))
+      if (CfgDir.empty() || getVFS().makeAbsolute(CfgDir))
         UserConfigDir.clear();
       else
         UserConfigDir = static_cast<std::string>(CfgDir);
@@ -1305,13 +1307,16 @@ bool Driver::loadConfigFile() {
       // If argument contains directory separator, treat it as a path to
       // configuration file.
       if (llvm::sys::path::has_parent_path(CfgFileName)) {
-        SmallString<128> CfgFilePath;
-        if (llvm::sys::path::is_relative(CfgFileName))
-          llvm::sys::fs::current_path(CfgFilePath);
-        llvm::sys::path::append(CfgFilePath, CfgFileName);
-        if (!llvm::sys::fs::is_regular_file(CfgFilePath)) {
-          Diag(diag::err_drv_config_file_not_exist) << CfgFilePath;
-          return true;
+        SmallString<128> CfgFilePath(CfgFileName);
+        if (llvm::sys::path::is_relative(CfgFilePath)) {
+          if (getVFS().makeAbsolute(CfgFilePath))
+            return true;
+          auto Status = getVFS().status(CfgFilePath);
+          if (!Status ||
+              Status->getType() != llvm::sys::fs::file_type::regular_file) {
+            Diag(diag::err_drv_config_file_not_exist) << CfgFilePath;
+            return true;
+          }
         }
         return readConfigFile(CfgFilePath);
       }
@@ -1320,11 +1325,14 @@ bool Driver::loadConfigFile() {
     }
   }
 
-  // If config file is not specified explicitly, try to deduce configuration
-  // from executable name. For instance, an executable 'armv7l-clang' will
-  // search for config file 'armv7l-clang.cfg'.
-  if (CfgFileName.empty() && !ClangNameParts.TargetPrefix.empty())
-    CfgFileName = ClangNameParts.TargetPrefix + '-' + ClangNameParts.ModeSuffix;
+  if (!(CLOptions && CLOptions->hasArg(options::OPT_no_default_config))) {
+    // If config file is not specified explicitly, try to deduce configuration
+    // from executable name. For instance, an executable 'armv7l-clang' will
+    // search for config file 'armv7l-clang.cfg'.
+    if (CfgFileName.empty() && !ClangNameParts.TargetPrefix.empty())
+      CfgFileName =
+          ClangNameParts.TargetPrefix + '-' + ClangNameParts.ModeSuffix;
+  }
 
   if (CfgFileName.empty())
     return false;
@@ -1370,17 +1378,19 @@ bool Driver::loadConfigFile() {
   // Try to find config file. First try file with corrected architecture.
   llvm::SmallString<128> CfgFilePath;
   if (!FixedConfigFile.empty()) {
-    if (searchForFile(CfgFilePath, CfgFileSearchDirs, FixedConfigFile))
+    if (searchForFile(CfgFilePath, CfgFileSearchDirs, FixedConfigFile,
+                      getVFS()))
       return readConfigFile(CfgFilePath);
     // If 'x86_64-clang.cfg' was not found, try 'x86_64.cfg'.
     FixedConfigFile.resize(FixedArchPrefixLen);
     FixedConfigFile.append(".cfg");
-    if (searchForFile(CfgFilePath, CfgFileSearchDirs, FixedConfigFile))
+    if (searchForFile(CfgFilePath, CfgFileSearchDirs, FixedConfigFile,
+                      getVFS()))
       return readConfigFile(CfgFilePath);
   }
 
   // Then try original file name.
-  if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName))
+  if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS()))
     return readConfigFile(CfgFilePath);
 
   // Finally try removing driver mode part: 'x86_64-clang.cfg' -> 'x86_64.cfg'.
@@ -1388,7 +1398,7 @@ bool Driver::loadConfigFile() {
       !ClangNameParts.TargetPrefix.empty()) {
     CfgFileName.assign(ClangNameParts.TargetPrefix);
     CfgFileName.append(".cfg");
-    if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName))
+    if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS()))
       return readConfigFile(CfgFilePath);
   }
 
@@ -3686,7 +3696,7 @@ class OffloadingActionBuilder final {
 
     /// Update the state to include the provided host action \a HostAction as a
     /// dependency of the current device action. By default it is inactive.
-    virtual ActionBuilderReturnCode addDeviceDepences(Action *HostAction) {
+    virtual ActionBuilderReturnCode addDeviceDependences(Action *HostAction) {
       return ABRT_Inactive;
     }
 
@@ -3785,7 +3795,7 @@ class OffloadingActionBuilder final {
                           OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, OFKind, OAB) {}
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
+    ActionBuilderReturnCode addDeviceDependences(Action *HostAction) override {
       // While generating code for CUDA, we only depend on the host input action
       // to trigger the creation of all the CUDA device actions.
 
@@ -4474,7 +4484,7 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
+    ActionBuilderReturnCode addDeviceDependences(Action *HostAction) override {
 
       // If this is an input action replicate it for each OpenMP toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -4934,7 +4944,7 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
+    ActionBuilderReturnCode addDeviceDependences(Action *HostAction) override {
 
       // If this is an input action replicate it for each SYCL toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -6056,7 +6066,7 @@ public:
       if (!SB->isValid())
         continue;
 
-      auto RetCode = SB->addDeviceDepences(HostAction);
+      auto RetCode = SB->addDeviceDependences(HostAction);
 
       // Host dependences for device actions are not compatible with that same
       // action being ignored.
@@ -7021,10 +7031,14 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
       auto TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
+        if (A->getType() == types::TY_Nothing)
+          continue;
+
         A = ConstructPhaseAction(C, Args, Phase, A, Kind);
 
         if (isa<CompileJobAction>(A) && isa<CompileJobAction>(HostAction) &&
-            Kind == Action::OFK_OpenMP) {
+            Kind == Action::OFK_OpenMP &&
+            HostAction->getType() != types::TY_Nothing) {
           // OpenMP offloading has a dependency on the host compile action to
           // identify which declarations need to be emitted. This shouldn't be
           // collapsed with any other actions so we can use it in the device.
@@ -7092,11 +7106,15 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
              nullptr, Action::OFK_None);
   }
 
+  // If we are unable to embed a single device output into the host, we need to
+  // add each device output as a host dependency to ensure they are still built.
+  bool SingleDeviceOutput = !llvm::any_of(OffloadActions, [](Action *A) {
+    return A->getType() == types::TY_Nothing;
+  }) && isa<CompileJobAction>(HostAction);
   OffloadAction::HostDependence HDep(
       *HostAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
-      /*BoundArch=*/nullptr, isa<CompileJobAction>(HostAction) ? DDep : DDeps);
-  return C.MakeAction<OffloadAction>(
-      HDep, isa<CompileJobAction>(HostAction) ? DDep : DDeps);
+      /*BoundArch=*/nullptr, SingleDeviceOutput ? DDep : DDeps);
+  return C.MakeAction<OffloadAction>(HDep, SingleDeviceOutput ? DDep : DDeps);
 }
 
 Action *Driver::ConstructPhaseAction(

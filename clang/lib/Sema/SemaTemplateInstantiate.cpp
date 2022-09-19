@@ -1912,6 +1912,7 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
       return NewT;
     }
 
+    Optional<unsigned> PackIndex;
     if (T->isParameterPack()) {
       assert(Arg.getKind() == TemplateArgument::Pack &&
              "Missing argument pack");
@@ -1928,6 +1929,8 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
         return Result;
       }
 
+      // PackIndex starts from last element.
+      PackIndex = Arg.pack_size() - 1 - getSema().ArgumentPackSubstitutionIndex;
       Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
     }
 
@@ -1937,8 +1940,8 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
     QualType Replacement = Arg.getAsType();
 
     // TODO: only do this uniquing once, at the start of instantiation.
-    QualType Result
-      = getSema().Context.getSubstTemplateTypeParmType(T, Replacement);
+    QualType Result = getSema().Context.getSubstTemplateTypeParmType(
+        T, Replacement, PackIndex);
     SubstTemplateTypeParmTypeLoc NewTL
       = TLB.push<SubstTemplateTypeParmTypeLoc>(Result);
     NewTL.setNameLoc(TL.getNameLoc());
@@ -1974,13 +1977,13 @@ TemplateInstantiator::TransformSubstTemplateTypeParmPackType(
     return TL.getType();
   }
 
-  TemplateArgument Arg = TL.getTypePtr()->getArgumentPack();
-  Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
-  QualType Result = Arg.getAsType();
-
-  Result = getSema().Context.getSubstTemplateTypeParmType(
-                                      TL.getTypePtr()->getReplacedParameter(),
-                                                          Result);
+  const SubstTemplateTypeParmPackType *T = TL.getTypePtr();
+  TemplateArgument Pack = T->getArgumentPack();
+  TemplateArgument Arg = getPackSubstitutedTemplateArgument(getSema(), Pack);
+  // PackIndex starts from last element.
+  QualType Result = getSema().Context.getSubstTemplateTypeParmType(
+      T->getReplacedParameter(), Arg.getAsType(),
+      Pack.pack_size() - 1 - getSema().ArgumentPackSubstitutionIndex);
   SubstTemplateTypeParmTypeLoc NewTL
     = TLB.push<SubstTemplateTypeParmTypeLoc>(Result);
   NewTL.setNameLoc(TL.getNameLoc());

@@ -601,8 +601,13 @@ struct ForOpInterface
     SmallVector<Value> castedInitArgs;
     for (const auto &it : llvm::enumerate(initArgs)) {
       Value initArg = it.value();
-      auto targetType =
-          bufferization::getBufferType(forOp->getResult(it.index()), options);
+      Value result = forOp->getResult(it.index());
+      // If the type is not a tensor, bufferization doesn't need to touch it.
+      if (!result.getType().isa<TensorType>()) {
+        castedInitArgs.push_back(initArg);
+        continue;
+      }
+      auto targetType = bufferization::getBufferType(result, options);
       if (failed(targetType))
         return failure();
       castedInitArgs.push_back(castBuffer(rewriter, initArg, *targetType));
@@ -757,13 +762,6 @@ struct WhileOpInterface
     OpBuilder::InsertionGuard g(rewriter);
     auto whileOp = cast<scf::WhileOp>(op);
     auto conditionOp = whileOp.getConditionOp();
-    auto yieldOp = whileOp.getYieldOp();
-
-    // Indices of all bbArgs that have tensor type. These are the ones that
-    // are bufferized. The "before" and "after" regions may have different args.
-    DenseSet<int64_t> indicesBefore = getTensorIndices(whileOp.getInits());
-    DenseSet<int64_t> indicesAfter =
-        getTensorIndices(whileOp.getAfterArguments());
 
     // For every yielded value, is the value equivalent to its corresponding
     // bbArg?
@@ -778,8 +776,9 @@ struct WhileOpInterface
     for (int64_t idx = 0;
          idx < static_cast<int64_t>(conditionOp.getArgs().size()); ++idx) {
       Value value = conditionOp.getArgs()[idx];
-      if (!indicesBefore.contains(idx) ||
-          equivalentYieldsBefore.contains(idx)) {
+      if (!value.getType().isa<TensorType>() ||
+          (equivalentYieldsAfter.contains(idx) &&
+           equivalentYieldsBefore.contains(idx))) {
         beforeYieldValues.push_back(value);
         continue;
       }
@@ -792,27 +791,6 @@ struct WhileOpInterface
     }
     rewriter.updateRootInPlace(conditionOp, [&]() {
       conditionOp.getArgsMutable().assign(beforeYieldValues);
-    });
-
-    // Update "after" region.
-    rewriter.setInsertionPoint(yieldOp);
-    SmallVector<Value> afterYieldValues;
-    for (int64_t idx = 0;
-         idx < static_cast<int64_t>(yieldOp.getResults().size()); ++idx) {
-      Value value = yieldOp.getResults()[idx];
-      if (!indicesAfter.contains(idx) || equivalentYieldsAfter.contains(idx)) {
-        afterYieldValues.push_back(value);
-        continue;
-      }
-      FailureOr<Value> alloc =
-          allocateTensorForShapedValue(rewriter, yieldOp.getLoc(), value,
-                                       /*escape=*/true, state.getOptions());
-      if (failed(alloc))
-        return failure();
-      afterYieldValues.push_back(*alloc);
-    }
-    rewriter.updateRootInPlace(yieldOp, [&]() {
-      yieldOp.getResultsMutable().assign(afterYieldValues);
     });
 
     return success();
@@ -846,8 +824,13 @@ struct WhileOpInterface
     SmallVector<Value> castedInitArgs;
     for (const auto &it : llvm::enumerate(initArgs)) {
       Value initArg = it.value();
-      auto targetType = bufferization::getBufferType(
-          whileOp.getBeforeArguments()[it.index()], options);
+      Value beforeArg = whileOp.getBeforeArguments()[it.index()];
+      // If the type is not a tensor, bufferization doesn't need to touch it.
+      if (!beforeArg.getType().isa<TensorType>()) {
+        castedInitArgs.push_back(initArg);
+        continue;
+      }
+      auto targetType = bufferization::getBufferType(beforeArg, options);
       if (failed(targetType))
         return failure();
       castedInitArgs.push_back(castBuffer(rewriter, initArg, *targetType));
@@ -856,6 +839,8 @@ struct WhileOpInterface
     // The result types of a WhileOp are the same as the "after" bbArg types.
     SmallVector<Type> argsTypesAfter = llvm::to_vector(
         llvm::map_range(whileOp.getAfterArguments(), [&](BlockArgument bbArg) {
+          if (!bbArg.getType().isa<TensorType>())
+            return bbArg.getType();
           // TODO: error handling
           return bufferization::getBufferType(bbArg, options)->cast<Type>();
         }));

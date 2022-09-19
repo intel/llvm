@@ -298,12 +298,13 @@ void benchmarkMain() {
   if (exegesis::pfm::pfmInitialize())
     ExitWithError("cannot initialize libpfm");
 
-  InitializeNativeTarget();
-  InitializeNativeTargetAsmPrinter();
-  InitializeNativeTargetAsmParser();
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllAsmParsers();
   InitializeNativeExegesisTarget();
 
-  const LLVMState State(CpuName);
+  const LLVMState State = ExitOnErr(LLVMState::Create("", CpuName));
 
   // Preliminary check to ensure features needed for requested
   // benchmark mode are present on target CPU and/or OS.
@@ -413,9 +414,10 @@ static void analysisMain() {
   InitializeNativeTarget();
   InitializeNativeTargetAsmPrinter();
   InitializeNativeTargetDisassembler();
+  InitializeNativeExegesisTarget();
 
   // Read benchmarks.
-  const LLVMState State("");
+  const LLVMState State = ExitOnErr(LLVMState::Create("", ""));
   const std::vector<InstructionBenchmark> Points = ExitOnFileError(
       BenchmarkFile, InstructionBenchmark::readYamls(State, BenchmarkFile));
 

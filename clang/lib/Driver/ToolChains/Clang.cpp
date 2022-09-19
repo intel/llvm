@@ -1180,7 +1180,14 @@ static void RenderDebugInfoCompressionArgs(const ArgList &Args,
         CmdArgs.push_back(
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
       } else {
-        D.Diag(diag::warn_debug_compression_unavailable);
+        D.Diag(diag::warn_debug_compression_unavailable) << "zlib";
+      }
+    } else if (Value == "zstd") {
+      if (llvm::compression::zstd::isAvailable()) {
+        CmdArgs.push_back(
+            Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
+      } else {
+        D.Diag(diag::warn_debug_compression_unavailable) << "zstd";
       }
     } else {
       D.Diag(diag::err_drv_unsupported_option_argument)
@@ -2890,6 +2897,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   // CUDA and HIP don't rely on the frontend to pass an ffp-contract option.
   // If one wasn't given by the user, don't pass it here.
   StringRef FPContract;
+  StringRef LastSeenFfpContractOption;
+  bool SeenFfastMathOption = false;
   if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
       !JA.isOffloading(Action::OFK_HIP))
     FPContract = "on";
@@ -3045,9 +3054,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         // -ffp-model=precise sets PreciseFPModel to on and Val to
         // "precise". FPContract is set.
         ;
-      } else if (Val.equals("fast") || Val.equals("on") || Val.equals("off"))
+      } else if (Val.equals("fast") || Val.equals("on") || Val.equals("off")) {
         FPContract = Val;
-      else
+        LastSeenFfpContractOption = Val;
+      } else
         D.Diag(diag::err_drv_unsupported_option_argument)
            << A->getOption().getName() << Val;
       break;
@@ -3140,6 +3150,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       RoundingFPMath = false;
       // If fast-math is set then set the fp-contract mode to fast.
       FPContract = "fast";
+      SeenFfastMathOption = true;
       break;
     case options::OPT_fno_fast_math:
       HonorINFs = true;
@@ -3156,13 +3167,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       DenormalFPMath = DefaultDenormalFPMath;
       DenormalFP32Math = llvm::DenormalMode::getIEEE();
       if (!JA.isDeviceOffloading(Action::OFK_Cuda) &&
-          !JA.isOffloading(Action::OFK_HIP))
-        if (FPContract == "fast") {
+          !JA.isOffloading(Action::OFK_HIP)) {
+        if (LastSeenFfpContractOption != "") {
+          FPContract = LastSeenFfpContractOption;
+        } else if (SeenFfastMathOption)
           FPContract = "on";
-          D.Diag(clang::diag::warn_drv_overriding_flag_option)
-              << "-ffp-contract=fast"
-              << "-ffp-contract=on";
-        }
+      }
       break;
     }
     if (StrictFPModel) {
@@ -3629,6 +3639,7 @@ static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
                                          options::OPT_D,
                                          options::OPT_I,
                                          options::OPT_S,
+                                         options::OPT_O,
                                          options::OPT_emit_llvm,
                                          options::OPT_emit_obj,
                                          options::OPT_disable_llvm_passes,
@@ -4730,6 +4741,71 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::move(Cmd));
 }
 
+static void ProcessVSRuntimeLibrary(const ArgList &Args,
+                                    ArgStringList &CmdArgs) {
+  unsigned RTOptionID = options::OPT__SLASH_MT;
+
+  if (Args.hasArg(options::OPT__SLASH_LDd))
+    // The /LDd option implies /MTd. The dependent lib part can be overridden,
+    // but defining _DEBUG is sticky.
+    RTOptionID = options::OPT__SLASH_MTd;
+
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group))
+    RTOptionID = A->getOption().getID();
+
+  if (Arg *A = Args.getLastArg(options::OPT_fms_runtime_lib_EQ)) {
+    RTOptionID = llvm::StringSwitch<unsigned>(A->getValue())
+                     .Case("static", options::OPT__SLASH_MT)
+                     .Case("static_dbg", options::OPT__SLASH_MTd)
+                     .Case("dll", options::OPT__SLASH_MD)
+                     .Case("dll_dbg", options::OPT__SLASH_MDd)
+                     .Default(options::OPT__SLASH_MT);
+  }
+
+  StringRef FlagForCRT;
+  switch (RTOptionID) {
+  case options::OPT__SLASH_MD:
+    if (Args.hasArg(options::OPT__SLASH_LDd))
+      CmdArgs.push_back("-D_DEBUG");
+    CmdArgs.push_back("-D_MT");
+    CmdArgs.push_back("-D_DLL");
+    FlagForCRT = "--dependent-lib=msvcrt";
+    break;
+  case options::OPT__SLASH_MDd:
+    CmdArgs.push_back("-D_DEBUG");
+    CmdArgs.push_back("-D_MT");
+    CmdArgs.push_back("-D_DLL");
+    FlagForCRT = "--dependent-lib=msvcrtd";
+    break;
+  case options::OPT__SLASH_MT:
+    if (Args.hasArg(options::OPT__SLASH_LDd))
+      CmdArgs.push_back("-D_DEBUG");
+    CmdArgs.push_back("-D_MT");
+    CmdArgs.push_back("-flto-visibility-public-std");
+    FlagForCRT = "--dependent-lib=libcmt";
+    break;
+  case options::OPT__SLASH_MTd:
+    CmdArgs.push_back("-D_DEBUG");
+    CmdArgs.push_back("-D_MT");
+    CmdArgs.push_back("-flto-visibility-public-std");
+    FlagForCRT = "--dependent-lib=libcmtd";
+    break;
+  default:
+    llvm_unreachable("Unexpected option ID.");
+  }
+
+  if (Args.hasArg(options::OPT__SLASH_Zl)) {
+    CmdArgs.push_back("-D_VC_NODEFAULTLIB");
+  } else {
+    CmdArgs.push_back(FlagForCRT.data());
+
+    // This provides POSIX compatibility (maps 'open' to '_open'), which most
+    // users want.  The /Za flag to cl.exe turns this off, but it's not
+    // implemented in clang.
+    CmdArgs.push_back("--dependent-lib=oldnames");
+  }
+}
+
 void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
@@ -4813,8 +4889,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const InputInfo *OpenMPDeviceInput = nullptr;
   const InputInfo *SYCLDeviceInput = nullptr;
   for (const InputInfo &I : Inputs) {
-    if (&I == &Input) {
-      // This is the primary input.
+    if (&I == &Input || I.getType() == types::TY_Nothing) {
+      // This is the primary input or contains nothing.
     } else if (IsHeaderModulePrecompile &&
                types::getPrecompiledType(I.getType()) == types::TY_PCH) {
       types::ID Expected = HeaderModuleInput.getType();
@@ -5246,7 +5322,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (IsUsingLTO) {
       // Only AMDGPU supports device-side LTO.
-      if (IsDeviceOffloadAction && !JA.isHostOffloading(Action::OFK_OpenMP) &&
+      if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
           !Args.hasFlag(options::OPT_offload_new_driver,
                         options::OPT_no_offload_new_driver, false) &&
           !Triple.isAMDGPU()) {
@@ -6619,13 +6695,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_openmp_target_debug, /*Default=*/false))
         CmdArgs.push_back("-fopenmp-target-debug");
 
-      // When in OpenMP offloading mode with NVPTX target, check if full runtime
-      // is required.
-      if (Args.hasFlag(options::OPT_fopenmp_cuda_force_full_runtime,
-                       options::OPT_fno_openmp_cuda_force_full_runtime,
-                       /*Default=*/false))
-        CmdArgs.push_back("-fopenmp-cuda-force-full-runtime");
-
       // When in OpenMP offloading mode, forward assumptions information about
       // thread and team counts in the device.
       if (Args.hasFlag(options::OPT_fopenmp_assume_teams_oversubscription,
@@ -6988,6 +7057,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                      options::OPT_fno_ms_extensions, true)));
   if (IsMSVCCompat)
     CmdArgs.push_back("-fms-compatibility");
+
+  if (Triple.isWindowsMSVCEnvironment() && !D.IsCLMode() &&
+      Args.hasArg(options::OPT_fms_runtime_lib_EQ))
+    ProcessVSRuntimeLibrary(Args, CmdArgs);
 
   // Handle -fgcc-version, if present.
   VersionTuple GNUCVer;
@@ -8143,6 +8216,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
+  ProcessVSRuntimeLibrary(Args, CmdArgs);
 
   if (Arg *ShowIncludes =
           Args.getLastArg(options::OPT__SLASH_showIncludes,
@@ -9778,7 +9852,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                  const char *LinkingOutput) const {
   const Driver &D = getToolChain().getDriver();
   const llvm::Triple TheTriple = getToolChain().getTriple();
-  auto OpenMPTCRange = C.getOffloadToolChains<Action::OFK_OpenMP>();
   ArgStringList CmdArgs;
 
   // Pass the CUDA path to the linker wrapper tool.
@@ -9794,30 +9867,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
-  }
-
-  // Get the AMDGPU math libraries.
-  // FIXME: This method is bad, remove once AMDGPU has a proper math library
-  // (see AMDGCN::OpenMPLinker::constructLLVMLinkCommand).
-  for (auto &I : llvm::make_range(OpenMPTCRange.first, OpenMPTCRange.second)) {
-    const ToolChain *TC = I.second;
-
-    if (!TC->getTriple().isAMDGPU() || Args.hasArg(options::OPT_nogpulib))
-      continue;
-
-    const ArgList &TCArgs = C.getArgsForToolChain(TC, "", Action::OFK_OpenMP);
-    StringRef Arch = TCArgs.getLastArgValue(options::OPT_march_EQ);
-    const toolchains::ROCMToolChain RocmTC(TC->getDriver(), TC->getTriple(),
-                                           TCArgs);
-
-    SmallVector<std::string, 12> BCLibs =
-        RocmTC.getCommonDeviceLibNames(TCArgs, Arch.str(), Action::OFK_OpenMP);
-
-    for (StringRef LibName : BCLibs)
-      CmdArgs.push_back(Args.MakeArgString(
-          "--bitcode-library=" +
-          Action::GetOffloadKindName(Action::OFK_OpenMP) + "-" +
-          TC->getTripleString() + "-" + Arch + "=" + LibName));
   }
 
   if (D.isUsingLTO(/* IsOffload */ true)) {

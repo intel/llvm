@@ -25,7 +25,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLArrayExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/DAGCombine.h"
@@ -68,6 +67,7 @@ class Constant;
 class FastISel;
 class FunctionLoweringInfo;
 class GlobalValue;
+class Loop;
 class GISelKnownBits;
 class IntrinsicInst;
 class IRBuilderBase;
@@ -935,7 +935,7 @@ public:
   /// promotions or expansions.
   bool isTypeLegal(EVT VT) const {
     assert(!VT.isSimple() ||
-           (unsigned)VT.getSimpleVT().SimpleTy < array_lengthof(RegClassForVT));
+           (unsigned)VT.getSimpleVT().SimpleTy < std::size(RegClassForVT));
     return VT.isSimple() && RegClassForVT[VT.getSimpleVT().SimpleTy] != nullptr;
   }
 
@@ -1110,7 +1110,8 @@ public:
     if (VT.isExtended()) return Expand;
     // If a target-specific SDNode requires legalization, require the target
     // to provide custom legalization for it.
-    if (Op >= array_lengthof(OpActions[0])) return Custom;
+    if (Op >= std::size(OpActions[0]))
+      return Custom;
     return OpActions[(unsigned)VT.getSimpleVT().SimpleTy][Op];
   }
 
@@ -1417,8 +1418,8 @@ public:
   /// expander for it.
   LegalizeAction
   getCondCodeAction(ISD::CondCode CC, MVT VT) const {
-    assert((unsigned)CC < array_lengthof(CondCodeActions) &&
-           ((unsigned)VT.SimpleTy >> 3) < array_lengthof(CondCodeActions[0]) &&
+    assert((unsigned)CC < std::size(CondCodeActions) &&
+           ((unsigned)VT.SimpleTy >> 3) < std::size(CondCodeActions[0]) &&
            "Table isn't big enough!");
     // See setCondCodeAction for how this is encoded.
     uint32_t Shift = 4 * (VT.SimpleTy & 0x7);
@@ -1526,7 +1527,7 @@ public:
 
   /// Return the type of registers that this ValueType will eventually require.
   MVT getRegisterType(MVT VT) const {
-    assert((unsigned)VT.SimpleTy < array_lengthof(RegisterTypeForVT));
+    assert((unsigned)VT.SimpleTy < std::size(RegisterTypeForVT));
     return RegisterTypeForVT[VT.SimpleTy];
   }
 
@@ -1534,7 +1535,7 @@ public:
   MVT getRegisterType(LLVMContext &Context, EVT VT) const {
     if (VT.isSimple()) {
       assert((unsigned)VT.getSimpleVT().SimpleTy <
-                array_lengthof(RegisterTypeForVT));
+             std::size(RegisterTypeForVT));
       return RegisterTypeForVT[VT.getSimpleVT().SimpleTy];
     }
     if (VT.isVector()) {
@@ -1567,7 +1568,7 @@ public:
                   Optional<MVT> RegisterVT = None) const {
     if (VT.isSimple()) {
       assert((unsigned)VT.getSimpleVT().SimpleTy <
-                array_lengthof(NumRegistersForVT));
+             std::size(NumRegistersForVT));
       return NumRegistersForVT[VT.getSimpleVT().SimpleTy];
     }
     if (VT.isVector()) {
@@ -1635,7 +1636,7 @@ public:
   /// If true, the target has custom DAG combine transformations that it can
   /// perform for the specified node.
   bool hasTargetDAGCombine(ISD::NodeType NT) const {
-    assert(unsigned(NT >> 3) < array_lengthof(TargetDAGCombineArray));
+    assert(unsigned(NT >> 3) < std::size(TargetDAGCombineArray));
     return TargetDAGCombineArray[NT >> 3] & (1 << (NT&7));
   }
 
@@ -1932,6 +1933,12 @@ public:
   /// AtomicExpandPass into an __atomic_* library call.
   unsigned getMaxAtomicSizeInBitsSupported() const {
     return MaxAtomicSizeInBitsSupported;
+  }
+
+  /// Returns the size in bits of the maximum div/rem the backend supports.
+  /// Larger operations will be expanded by ExpandLargeDivRem.
+  unsigned getMaxDivRemBitWidthSupported() const {
+    return MaxDivRemBitWidthSupported;
   }
 
   /// Returns the size of the smallest cmpxchg or ll/sc instruction
@@ -2298,7 +2305,7 @@ protected:
   /// specified value type. This indicates the selector can handle values of
   /// that class natively.
   void addRegisterClass(MVT VT, const TargetRegisterClass *RC) {
-    assert((unsigned)VT.SimpleTy < array_lengthof(RegClassForVT));
+    assert((unsigned)VT.SimpleTy < std::size(RegClassForVT));
     RegClassForVT[VT.SimpleTy] = RC;
   }
 
@@ -2315,7 +2322,7 @@ protected:
   /// type and indicate what to do about it. Note that VT may refer to either
   /// the type of a result or that of an operand of Op.
   void setOperationAction(unsigned Op, MVT VT, LegalizeAction Action) {
-    assert(Op < array_lengthof(OpActions[0]) && "Table isn't big enough!");
+    assert(Op < std::size(OpActions[0]) && "Table isn't big enough!");
     OpActions[(unsigned)VT.SimpleTy][Op] = Action;
   }
   void setOperationAction(ArrayRef<unsigned> Ops, MVT VT,
@@ -2417,7 +2424,7 @@ protected:
   void setCondCodeAction(ArrayRef<ISD::CondCode> CCs, MVT VT,
                          LegalizeAction Action) {
     for (auto CC : CCs) {
-      assert(VT.isValid() && (unsigned)CC < array_lengthof(CondCodeActions) &&
+      assert(VT.isValid() && (unsigned)CC < std::size(CondCodeActions) &&
              "Table isn't big enough!");
       assert((unsigned)Action < 0x10 && "too many bits for bitfield array");
       /// The lower 3 bits of the SimpleTy index into Nth 4bit set from the
@@ -2454,7 +2461,7 @@ protected:
   /// PerformDAGCombine virtual method.
   void setTargetDAGCombine(ArrayRef<ISD::NodeType> NTs) {
     for (auto NT : NTs) {
-      assert(unsigned(NT >> 3) < array_lengthof(TargetDAGCombineArray));
+      assert(unsigned(NT >> 3) < std::size(TargetDAGCombineArray));
       TargetDAGCombineArray[NT >> 3] |= 1 << (NT & 7);
     }
   }
@@ -2489,6 +2496,12 @@ protected:
   /// AtomicExpandPass into an __atomic_* library call.
   void setMaxAtomicSizeInBitsSupported(unsigned SizeInBits) {
     MaxAtomicSizeInBitsSupported = SizeInBits;
+  }
+
+  /// Set the size in bits of the maximum div/rem the backend supports.
+  /// Larger operations will be expanded by ExpandLargeDivRem.
+  void setMaxDivRemBitWidthSupported(unsigned SizeInBits) {
+    MaxDivRemBitWidthSupported = SizeInBits;
   }
 
   /// Sets the minimum cmpxchg or ll/sc size supported by the backend.
@@ -2783,6 +2796,13 @@ public:
   /// come first).
   virtual bool shouldSinkOperands(Instruction *I,
                                   SmallVectorImpl<Use *> &Ops) const {
+    return false;
+  }
+
+  /// Try to optimize extending or truncating conversion instructions (like
+  /// zext, trunc, fptoui, uitofp) for the target.
+  virtual bool optimizeExtendOrTruncateConversion(Instruction *I,
+                                                  Loop *L) const {
     return false;
   }
 
@@ -3178,6 +3198,10 @@ private:
   /// Size in bits of the maximum atomics size the backend supports.
   /// Accesses larger than this will be expanded by AtomicExpandPass.
   unsigned MaxAtomicSizeInBitsSupported;
+
+  /// Size in bits of the maximum div/rem size the backend supports.
+  /// Larger operations will be expanded by ExpandLargeDivRem.
+  unsigned MaxDivRemBitWidthSupported;
 
   /// Size in bits of the minimum cmpxchg or ll/sc operation the
   /// backend supports.
@@ -3999,6 +4023,23 @@ public:
     return false;
   }
 
+  /// Allows the target to handle physreg-carried dependency
+  /// in target-specific way. Used from the ScheduleDAGSDNodes to decide whether
+  /// to add the edge to the dependency graph.
+  /// Def - input: Selection DAG node defininfg physical register
+  /// User - input: Selection DAG node using physical register
+  /// Op - input: Number of User operand
+  /// PhysReg - inout: set to the physical register if the edge is
+  /// necessary, unchanged otherwise
+  /// Cost - inout: physical register copy cost.
+  /// Returns 'true' is the edge is necessary, 'false' otherwise
+  virtual bool checkForPhysRegDependency(SDNode *Def, SDNode *User, unsigned Op,
+                                         const TargetRegisterInfo *TRI,
+                                         const TargetInstrInfo *TII,
+                                         unsigned &PhysReg, int &Cost) const {
+    return false;
+  }
+
   /// Target-specific combining of register parts into its original value
   virtual SDValue
   joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
@@ -4573,6 +4614,7 @@ public:
   //===--------------------------------------------------------------------===//
   // Div utility functions
   //
+
   SDValue BuildSDIV(SDNode *N, SelectionDAG &DAG, bool IsAfterLegalization,
                     SmallVectorImpl<SDNode *> &Created) const;
   SDValue BuildUDIV(SDNode *N, SelectionDAG &DAG, bool IsAfterLegalization,
@@ -4695,6 +4737,26 @@ public:
                  SelectionDAG &DAG, MulExpansionKind Kind,
                  SDValue LL = SDValue(), SDValue LH = SDValue(),
                  SDValue RL = SDValue(), SDValue RH = SDValue()) const;
+
+  /// Attempt to expand an n-bit div/rem/divrem by constant using a n/2-bit
+  /// urem by constant and other arithmetic ops. The n/2-bit urem by constant
+  /// will be expanded by DAGCombiner. This is not possible for all constant
+  /// divisors.
+  /// \param N Node to expand
+  /// \param Result A vector that will be filled with the lo and high parts of
+  ///        the results. For *DIVREM, this will be the quotient parts followed
+  ///        by the remainder parts.
+  /// \param HiLoVT The value type to use for the Lo and Hi parts. Should be
+  ///        half of VT.
+  /// \param LL Low bits of the LHS of the operation. You can use this
+  ///        parameter if you want to control how low bits are extracted from
+  ///        the LHS.
+  /// \param LH High bits of the LHS of the operation. See LL for meaning.
+  /// \returns true if the node has been expanded, false if it has not.
+  bool expandDIVREMByConstant(SDNode *N, SmallVectorImpl<SDValue> &Result,
+                              EVT HiLoVT, SelectionDAG &DAG,
+                              SDValue LL = SDValue(),
+                              SDValue LH = SDValue()) const;
 
   /// Expand funnel shift.
   /// \param N Node to expand

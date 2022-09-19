@@ -20,7 +20,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "Debug.h"
@@ -163,8 +162,8 @@ struct DeviceDataTy {
   unsigned int BlocksPerGrid = 0;
   unsigned int WarpSize = 0;
   // OpenMP properties
-  int NumTeams = 0;
-  int NumThreads = 0;
+  unsigned int NumTeams = 0;
+  unsigned int NumThreads = 0;
 };
 
 /// Resource allocator where \p T is the resource type.
@@ -329,8 +328,8 @@ class DeviceRTLTy {
   int NumberOfDevices;
   // OpenMP environment properties
   int EnvNumTeams;
-  int EnvTeamLimit;
-  int EnvTeamThreadLimit;
+  unsigned int EnvTeamLimit;
+  unsigned int EnvTeamThreadLimit;
   // OpenMP requires flags
   int64_t RequiresFlags;
   // Amount of dynamic shared memory to use at launch.
@@ -366,8 +365,6 @@ class DeviceRTLTy {
   /// A class responsible for interacting with device native runtime library to
   /// allocate and free memory.
   class CUDADeviceAllocatorTy : public DeviceAllocatorTy {
-    std::unordered_map<void *, TargetAllocTy> HostPinnedAllocs;
-
   public:
     void *allocate(size_t Size, void *, TargetAllocTy Kind) override {
       if (Size == 0)
@@ -390,7 +387,6 @@ class DeviceRTLTy {
         MemAlloc = HostPtr;
         if (!checkResult(Err, "Error returned from cuMemAllocHost\n"))
           return nullptr;
-        HostPinnedAllocs[MemAlloc] = Kind;
         break;
       case TARGET_ALLOC_SHARED:
         CUdeviceptr SharedPtr;
@@ -404,13 +400,9 @@ class DeviceRTLTy {
       return MemAlloc;
     }
 
-    int free(void *TgtPtr) override {
+    int free(void *TgtPtr, TargetAllocTy Kind) override {
       CUresult Err;
       // Host pinned memory must be freed differently.
-      TargetAllocTy Kind =
-          (HostPinnedAllocs.find(TgtPtr) == HostPinnedAllocs.end())
-              ? TARGET_ALLOC_DEFAULT
-              : TARGET_ALLOC_HOST;
       switch (Kind) {
       case TARGET_ALLOC_DEFAULT:
       case TARGET_ALLOC_DEVICE:
@@ -1102,11 +1094,23 @@ public:
     return memcpyDtoD(SrcPtr, DstPtr, Size, Stream);
   }
 
-  int dataDelete(const int DeviceId, void *TgtPtr) {
-    if (UseMemoryManager)
-      return MemoryManagers[DeviceId]->free(TgtPtr);
+  int dataDelete(const int DeviceId, void *TgtPtr, TargetAllocTy Kind) {
+    switch (Kind) {
+    case TARGET_ALLOC_DEFAULT:
+    case TARGET_ALLOC_DEVICE:
+      if (UseMemoryManager)
+        return MemoryManagers[DeviceId]->free(TgtPtr);
+      else
+        return DeviceAllocators[DeviceId].free(TgtPtr, Kind);
+    case TARGET_ALLOC_HOST:
+    case TARGET_ALLOC_SHARED:
+      return DeviceAllocators[DeviceId].free(TgtPtr, Kind);
+    }
 
-    return DeviceAllocators[DeviceId].free(TgtPtr);
+    REPORT("Invalid target data allocation kind or requested allocator not "
+           "implemented yet\n");
+
+    return OFFLOAD_FAIL;
   }
 
   int runTargetTeamRegion(const int DeviceId, void *TgtEntryPtr, void **TgtArgs,
@@ -1147,7 +1151,7 @@ public:
       CudaThreadsPerBlock = DeviceData[DeviceId].NumThreads;
     }
 
-    if (CudaThreadsPerBlock > DeviceData[DeviceId].ThreadsPerBlock) {
+    if ((unsigned)CudaThreadsPerBlock > DeviceData[DeviceId].ThreadsPerBlock) {
       DP("Threads per block capped at device limit %d\n",
          DeviceData[DeviceId].ThreadsPerBlock);
       CudaThreadsPerBlock = DeviceData[DeviceId].ThreadsPerBlock;
@@ -1527,20 +1531,20 @@ int32_t __tgt_rtl_is_valid_binary(__tgt_device_image *Image) {
   return elf_check_machine(Image, /* EM_CUDA */ 190);
 }
 
-int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *image,
-                                       __tgt_image_info *info) {
-  if (!__tgt_rtl_is_valid_binary(image))
+int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *Image,
+                                       __tgt_image_info *Info) {
+  if (!__tgt_rtl_is_valid_binary(Image))
     return false;
 
   // A subarchitecture was not specified. Assume it is compatible.
-  if (!info || !info->Arch)
+  if (!Info || !Info->Arch)
     return true;
 
   int32_t NumberOfDevices = 0;
   if (cuDeviceGetCount(&NumberOfDevices) != CUDA_SUCCESS)
     return false;
 
-  StringRef ArchStr = StringRef(info->Arch).drop_front(sizeof("sm_") - 1);
+  StringRef ArchStr = StringRef(Info->Arch).drop_front(sizeof("sm_") - 1);
   for (int32_t DeviceId = 0; DeviceId < NumberOfDevices; ++DeviceId) {
     CUdevice Device;
     if (cuDeviceGet(&Device, DeviceId) != CUDA_SUCCESS)
@@ -1564,7 +1568,7 @@ int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *image,
       return false;
   }
 
-  DP("Image has compatible compute capability: %s\n", info->Arch);
+  DP("Image has compatible compute capability: %s\n", Info->Arch);
   return true;
 }
 
@@ -1699,13 +1703,13 @@ int32_t __tgt_rtl_data_exchange(int32_t SrcDevId, void *SrcPtr,
   return __tgt_rtl_synchronize(SrcDevId, &AsyncInfo);
 }
 
-int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr) {
+int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr, int32_t Kind) {
   assert(DeviceRTL.isValidDeviceId(DeviceId) && "device_id is invalid");
 
   if (DeviceRTL.setContext(DeviceId) != OFFLOAD_SUCCESS)
     return OFFLOAD_FAIL;
 
-  return DeviceRTL.dataDelete(DeviceId, TgtPtr);
+  return DeviceRTL.dataDelete(DeviceId, TgtPtr, (TargetAllocTy)Kind);
 }
 
 int32_t __tgt_rtl_run_target_team_region(int32_t DeviceId, void *TgtEntryPtr,

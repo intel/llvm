@@ -492,29 +492,43 @@ module std [system] {
     export *
 
     module __chrono {
-      module calendar              { private header "__chrono/calendar.h" }
-      module convert_to_timespec   { private header "__chrono/convert_to_timespec.h" }
-      module day                   { private header "__chrono/day.h" }
-      module duration              { private header "__chrono/duration.h" }
-      module file_clock            { private header "__chrono/file_clock.h" }
-      module hh_mm_ss              { private header "__chrono/hh_mm_ss.h" }
-      module high_resolution_clock {
+      module calendar               { private header "__chrono/calendar.h" }
+      module convert_to_timespec    { private header "__chrono/convert_to_timespec.h" }
+      module convert_to_tm          { private header "__chrono/convert_to_tm.h" }
+      module day                    { private header "__chrono/day.h" }
+      module duration               { private header "__chrono/duration.h" }
+      module file_clock             { private header "__chrono/file_clock.h" }
+      module formatter              {
+        @requires_LIBCXX_ENABLE_LOCALIZATION@
+        private header "__chrono/formatter.h"
+      }
+      module hh_mm_ss               { private header "__chrono/hh_mm_ss.h" }
+      module high_resolution_clock  {
         private header "__chrono/high_resolution_clock.h"
         export steady_clock
         export system_clock
       }
-      module literals              { private header "__chrono/literals.h" }
-      module month                 { private header "__chrono/month.h" }
-      module month_weekday         { private header "__chrono/month_weekday.h" }
-      module monthday              { private header "__chrono/monthday.h" }
-      module steady_clock          { private header "__chrono/steady_clock.h" }
-      module system_clock          { private header "__chrono/system_clock.h" }
-      module time_point            { private header "__chrono/time_point.h" }
-      module weekday               { private header "__chrono/weekday.h" }
-      module year                  { private header "__chrono/year.h" }
-      module year_month            { private header "__chrono/year_month.h" }
-      module year_month_day        { private header "__chrono/year_month_day.h" }
-      module year_month_weekday    { private header "__chrono/year_month_weekday.h" }
+      module literals               { private header "__chrono/literals.h" }
+      module month                  { private header "__chrono/month.h" }
+      module month_weekday          { private header "__chrono/month_weekday.h" }
+      module monthday               { private header "__chrono/monthday.h" }
+      module ostream                {
+        @requires_LIBCXX_ENABLE_LOCALIZATION@
+        private header "__chrono/ostream.h"
+      }
+      module parser_std_format_spec {
+        @requires_LIBCXX_ENABLE_LOCALIZATION@
+        private header "__chrono/parser_std_format_spec.h"
+      }
+      module statically_widen       { private header "__chrono/statically_widen.h" }
+      module steady_clock           { private header "__chrono/steady_clock.h" }
+      module system_clock           { private header "__chrono/system_clock.h" }
+      module time_point             { private header "__chrono/time_point.h" }
+      module weekday                { private header "__chrono/weekday.h" }
+      module year                   { private header "__chrono/year.h" }
+      module year_month             { private header "__chrono/year_month.h" }
+      module year_month_day         { private header "__chrono/year_month_day.h" }
+      module year_month_weekday     { private header "__chrono/year_month_weekday.h" }
     }
   }
   module codecvt {
@@ -924,7 +938,10 @@ module std [system] {
       module clamp_to_integral               { private header "__random/clamp_to_integral.h" }
       module default_random_engine           { private header "__random/default_random_engine.h" }
       module discard_block_engine            { private header "__random/discard_block_engine.h" }
-      module discrete_distribution           { private header "__random/discrete_distribution.h" }
+      module discrete_distribution {
+        private header "__random/discrete_distribution.h"
+        export vector
+      }
       module exponential_distribution        { private header "__random/exponential_distribution.h" }
       module extreme_value_distribution      { private header "__random/extreme_value_distribution.h" }
       module fisher_f_distribution           { private header "__random/fisher_f_distribution.h" }
@@ -941,8 +958,14 @@ module std [system] {
       module mersenne_twister_engine         { private header "__random/mersenne_twister_engine.h" }
       module negative_binomial_distribution  { private header "__random/negative_binomial_distribution.h" }
       module normal_distribution             { private header "__random/normal_distribution.h" }
-      module piecewise_constant_distribution { private header "__random/piecewise_constant_distribution.h" }
-      module piecewise_linear_distribution   { private header "__random/piecewise_linear_distribution.h" }
+      module piecewise_constant_distribution {
+        private header "__random/piecewise_constant_distribution.h"
+        export vector
+      }
+      module piecewise_linear_distribution {
+        private header "__random/piecewise_linear_distribution.h"
+        export vector
+      }
       module poisson_distribution            { private header "__random/poisson_distribution.h" }
       module random_device                   { private header "__random/random_device.h" }
       module ranlux                          { private header "__random/ranlux.h" }

@@ -2174,12 +2174,10 @@ static bool CheckLValueConstantExpression(EvalInfo &Info, SourceLocation Loc,
   // assumed to be global here.
   if (!IsGlobalLValue(Base)) {
     if (Info.getLangOpts().CPlusPlus11) {
-      const ValueDecl *VD = Base.dyn_cast<const ValueDecl*>();
       Info.FFDiag(Loc, diag::note_constexpr_non_global, 1)
-        << IsReferenceType << !Designator.Entries.empty()
-        << !!VD << VD;
-
-      auto *VarD = dyn_cast_or_null<VarDecl>(VD);
+          << IsReferenceType << !Designator.Entries.empty() << !!BaseVD
+          << BaseVD;
+      auto *VarD = dyn_cast_or_null<VarDecl>(BaseVD);
       if (VarD && VarD->isConstexpr()) {
         // Non-static local constexpr variables have unintuitive semantics:
         //   constexpr int a = 1;
@@ -4844,6 +4842,8 @@ enum EvalStmtResult {
 }
 
 static bool EvaluateVarDecl(EvalInfo &Info, const VarDecl *VD) {
+  if (VD->isInvalidDecl())
+    return false;
   // We don't need to evaluate the initializer for a static local.
   if (!VD->hasLocalStorage())
     return true;
@@ -8178,7 +8178,8 @@ public:
       return LValueExprEvaluatorBaseTy::VisitCastExpr(E);
 
     case CK_LValueBitCast:
-      this->CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+      this->CCEDiag(E, diag::note_constexpr_invalid_cast)
+          << 2 << Info.Ctx.getLangOpts().CPlusPlus;
       if (!Visit(E->getSubExpr()))
         return false;
       Result.Designator.setInvalid();
@@ -8907,9 +8908,10 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
         Result.Designator.setInvalid();
         if (SubExpr->getType()->isVoidPointerType())
           CCEDiag(E, diag::note_constexpr_invalid_cast)
-            << 3 << SubExpr->getType();
+              << 3 << SubExpr->getType();
         else
-          CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+          CCEDiag(E, diag::note_constexpr_invalid_cast)
+              << 2 << Info.Ctx.getLangOpts().CPlusPlus;
       }
     }
     if (E->getCastKind() == CK_AddressSpaceConversion && Result.IsNullPtr)
@@ -8946,7 +8948,8 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     return ZeroInitialization(E);
 
   case CK_IntegralToPointer: {
-    CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+    CCEDiag(E, diag::note_constexpr_invalid_cast)
+        << 2 << Info.Ctx.getLangOpts().CPlusPlus;
 
     APValue Value;
     if (!EvaluateIntegerOrLValue(SubExpr, Value, Info))
@@ -13617,7 +13620,8 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   }
 
   case CK_PointerToIntegral: {
-    CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+    CCEDiag(E, diag::note_constexpr_invalid_cast)
+        << 2 << Info.Ctx.getLangOpts().CPlusPlus;
 
     LValue LV;
     if (!EvaluatePointer(SubExpr, LV, Info))
@@ -14964,25 +14968,27 @@ static bool EvaluateInPlace(APValue &Result, EvalInfo &Info, const LValue &This,
 /// lvalue-to-rvalue cast if it is an lvalue.
 static bool EvaluateAsRValue(EvalInfo &Info, const Expr *E, APValue &Result) {
   assert(!E->isValueDependent());
+
+  if (E->getType().isNull())
+    return false;
+
+  if (!CheckLiteralType(Info, E))
+    return false;
+
   if (Info.EnableNewConstInterp) {
     if (!Info.Ctx.getInterpContext().evaluateAsRValue(Info, E, Result))
       return false;
   } else {
-    if (E->getType().isNull())
-      return false;
-
-    if (!CheckLiteralType(Info, E))
-      return false;
-
     if (!::Evaluate(Result, Info, E))
       return false;
+  }
 
-    if (E->isGLValue()) {
-      LValue LV;
-      LV.setFrom(Info.Ctx, Result);
-      if (!handleLValueToRValueConversion(Info, E, E->getType(), LV, Result))
-        return false;
-    }
+  // Implicit lvalue-to-rvalue cast.
+  if (E->isGLValue()) {
+    LValue LV;
+    LV.setFrom(Info.Ctx, Result);
+    if (!handleLValueToRValueConversion(Info, E, E->getType(), LV, Result))
+      return false;
   }
 
   // Check this core constant expression is a constant expression.

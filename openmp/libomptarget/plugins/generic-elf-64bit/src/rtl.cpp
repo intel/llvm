@@ -18,7 +18,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <ffi.h>
-#include <gelf.h>
 #include <link.h>
 #include <list>
 #include <string>
@@ -42,7 +41,7 @@ using namespace llvm::sys;
 #include "elf_common.h"
 
 #define NUMBER_OF_DEVICES 4
-#define OFFLOADSECTIONNAME "omp_offloading_entries"
+#define OFFLOAD_SECTION_NAME "omp_offloading_entries"
 
 /// Array of Dynamic libraries loaded for this target.
 struct DynLibTy {
@@ -140,8 +139,6 @@ __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
   assert(DeviceId >= 0 && DeviceId < NUMBER_OF_DEVICES && "bad dev id");
 
   size_t ImageSize = (size_t)Image->ImageEnd - (size_t)Image->ImageStart;
-  size_t NumEntries = (size_t)(Image->EntriesEnd - Image->EntriesBegin);
-  DP("Expecting to have %zd entries defined.\n", NumEntries);
 
   // load dynamic library and get the entry points. We use the dl library
   // to do the loading of the library, but we could do it directly to avoid the
@@ -235,7 +232,7 @@ int32_t __tgt_rtl_data_retrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
   return OFFLOAD_SUCCESS;
 }
 
-int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr) {
+int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr, int32_t) {
   free(TgtPtr);
   return OFFLOAD_SUCCESS;
 }

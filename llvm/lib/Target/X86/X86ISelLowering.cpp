@@ -170,6 +170,8 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   if (!Subtarget.canUseCMPXCHG8B())
     setMaxAtomicSizeInBitsSupported(32);
 
+  setMaxDivRemBitWidthSupported(Subtarget.is64Bit() ? 128 : 64);
+
   // Set up the register classes.
   addRegisterClass(MVT::i8, &X86::GR8RegClass);
   addRegisterClass(MVT::i16, &X86::GR16RegClass);
@@ -4751,9 +4753,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SmallVector<SDValue, 8> Ops;
 
   if (!IsSibcall && isTailCall && !IsMustTail) {
-    Chain = DAG.getCALLSEQ_END(Chain,
-                               DAG.getIntPtrConstant(NumBytesToPop, dl, true),
-                               DAG.getIntPtrConstant(0, dl, true), InFlag, dl);
+    Chain = DAG.getCALLSEQ_END(Chain, NumBytesToPop, 0, InFlag, dl);
     InFlag = Chain.getValue(1);
   }
 
@@ -4892,10 +4892,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   // Returns a flag for retval copy to use.
   if (!IsSibcall) {
-    Chain = DAG.getCALLSEQ_END(Chain,
-                               DAG.getIntPtrConstant(NumBytesToPop, dl, true),
-                               DAG.getIntPtrConstant(NumBytesForCalleeToPop, dl,
-                                                     true),
+    Chain = DAG.getCALLSEQ_END(Chain, NumBytesToPop, NumBytesForCalleeToPop,
                                InFlag, dl);
     InFlag = Chain.getValue(1);
   }
@@ -12550,7 +12547,7 @@ static int canLowerByDroppingElements(ArrayRef<int> Mask, bool MatchEven,
       continue;
 
     bool IsAnyViable = false;
-    for (unsigned j = 0; j != array_lengthof(ViableForN); ++j)
+    for (unsigned j = 0; j != std::size(ViableForN); ++j)
       if (ViableForN[j]) {
         uint64_t N = j + 1;
 
@@ -12565,7 +12562,7 @@ static int canLowerByDroppingElements(ArrayRef<int> Mask, bool MatchEven,
       break;
   }
 
-  for (unsigned j = 0; j != array_lengthof(ViableForN); ++j)
+  for (unsigned j = 0; j != std::size(ViableForN); ++j)
     if (ViableForN[j])
       return j + 1;
 
@@ -20609,9 +20606,7 @@ X86TargetLowering::LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const {
     Chain = DAG.getCALLSEQ_START(Chain, 0, 0, DL);
     SDValue Args[] = { Chain, Offset };
     Chain = DAG.getNode(X86ISD::TLSCALL, DL, NodeTys, Args);
-    Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(0, DL, true),
-                               DAG.getIntPtrConstant(0, DL, true),
-                               Chain.getValue(1), DL);
+    Chain = DAG.getCALLSEQ_END(Chain, 0, 0, Chain.getValue(1), DL);
 
     // TLSCALL will be codegen'ed as call. Inform MFI that function has calls.
     MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
@@ -26034,8 +26029,7 @@ X86TargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
     Result = SP;
   }
 
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(0, dl, true),
-                             DAG.getIntPtrConstant(0, dl, true), SDValue(), dl);
+  Chain = DAG.getCALLSEQ_END(Chain, 0, 0, SDValue(), dl);
 
   SDValue Ops[2] = {Result, Chain};
   return DAG.getMergeValues(Ops, dl);
@@ -29525,6 +29519,12 @@ SDValue X86TargetLowering::LowerWin64_i128OP(SDValue Op, SelectionDAG &DAG) cons
   EVT VT = Op.getValueType();
   assert(VT.isInteger() && VT.getSizeInBits() == 128 &&
          "Unexpected return type for lowering");
+
+  if (isa<ConstantSDNode>(Op->getOperand(1))) {
+    SmallVector<SDValue> Result;
+    if (expandDIVREMByConstant(Op.getNode(), Result, MVT::i64, DAG))
+      return DAG.getNode(ISD::BUILD_PAIR, SDLoc(Op), VT, Result[0], Result[1]);
+  }
 
   RTLIB::Libcall LC;
   bool isSigned;

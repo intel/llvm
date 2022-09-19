@@ -3112,11 +3112,11 @@ public:
   static constexpr const char *kLoadDependentFilesExecOnly = "Executable only";
 
   std::vector<std::string> GetLoadDependentFilesChoices() {
-    std::vector<std::string> load_depentents_options;
-    load_depentents_options.push_back(kLoadDependentFilesExecOnly);
-    load_depentents_options.push_back(kLoadDependentFilesYes);
-    load_depentents_options.push_back(kLoadDependentFilesNo);
-    return load_depentents_options;
+    std::vector<std::string> load_dependents_options;
+    load_dependents_options.push_back(kLoadDependentFilesExecOnly);
+    load_dependents_options.push_back(kLoadDependentFilesYes);
+    load_dependents_options.push_back(kLoadDependentFilesNo);
+    return load_dependents_options;
   }
 
   LoadDependentFiles GetLoadDependentFiles() {
@@ -5908,7 +5908,7 @@ public:
       if (m_frame_block != frame_block) {
         m_frame_block = frame_block;
 
-        VariableList *locals = frame->GetVariableList(true);
+        VariableList *locals = frame->GetVariableList(true, nullptr);
         if (locals) {
           const DynamicValueType use_dynamic = eDynamicDontRunTarget;
           for (const VariableSP &local_sp : *locals) {

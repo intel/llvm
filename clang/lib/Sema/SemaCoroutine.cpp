@@ -1043,7 +1043,8 @@ static bool findDeleteForPromise(Sema &S, SourceLocation Loc, QualType PromiseTy
   // The deallocation function's name is looked up by searching for it in the
   // scope of the promise type. If nothing is found, a search is performed in
   // the global scope.
-  if (S.FindDeallocationFunction(Loc, PointeeRD, DeleteName, OperatorDelete))
+  if (S.FindDeallocationFunction(Loc, PointeeRD, DeleteName, OperatorDelete,
+                                 /*Diagnose*/ true, /*WantSize*/ true))
     return false;
 
   // [dcl.fct.def.coroutine]p12
@@ -1698,7 +1699,7 @@ bool Sema::buildCoroutineParameterMoves(SourceLocation Loc) {
     // [dcl.fct.def.coroutine]p13
     //   The initialization and destruction of each parameter copy occurs in the
     //   context of the called coroutine.
-    auto D = buildVarDecl(*this, Loc, PD->getType(), PD->getIdentifier());
+    auto *D = buildVarDecl(*this, Loc, PD->getType(), PD->getIdentifier());
     AddInitializerToDecl(D, CExpr, /*DirectInit=*/true);
 
     // Convert decl to a statement.
@@ -1728,7 +1729,8 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
     // discovered.
     // TODO: Become stricter when <experimental/coroutine> is removed.
 
-    auto const &TraitIdent = PP.getIdentifierTable().get("coroutine_traits");
+    IdentifierInfo const &TraitIdent =
+        PP.getIdentifierTable().get("coroutine_traits");
 
     NamespaceDecl *StdSpace = getStdNamespace();
     LookupResult ResStd(*this, &TraitIdent, FuncLoc, LookupOrdinaryName);
@@ -1746,7 +1748,7 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
     }
 
     // Prefer ::std to std::experimental.
-    auto &Result = InStd ? ResStd : ResExp;
+    LookupResult &Result = InStd ? ResStd : ResExp;
     CoroTraitsNamespaceCache = InStd ? StdSpace : ExpSpace;
 
     // coroutine_traits is required to be a class template.
@@ -1763,7 +1765,7 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
       Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
           << "coroutine_traits";
       ResExp.suppressDiagnostics();
-      auto *Found = *ResExp.begin();
+      NamedDecl *Found = *ResExp.begin();
       Diag(Found->getLocation(), diag::note_entity_declared_at) << Found;
 
       if (InStd &&

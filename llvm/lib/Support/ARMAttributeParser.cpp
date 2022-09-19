@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/ARMAttributeParser.h"
-#include "llvm/ADT/STLArrayExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/Errc.h"
@@ -214,7 +213,7 @@ Error ARMAttributeParser::ABI_align_needed(AttrType tag) {
   uint64_t value = de.getULEB128(cursor);
 
   std::string description;
-  if (value < array_lengthof(strings))
+  if (value < std::size(strings))
     description = strings[value];
   else if (value <= 12)
     description = "8-byte alignment, " + utostr(1ULL << value) +
@@ -233,7 +232,7 @@ Error ARMAttributeParser::ABI_align_preserved(AttrType tag) {
   uint64_t value = de.getULEB128(cursor);
 
   std::string description;
-  if (value < array_lengthof(strings))
+  if (value < std::size(strings))
     description = std::string(strings[value]);
   else if (value <= 12)
     description = std::string("8-byte stack alignment, ") +

@@ -121,6 +121,7 @@ void BinaryFunction::parseLSDA(ArrayRef<uint8_t> LSDASectionData,
                                              : *MaybeLPStart - Address;
 
   const uint8_t TTypeEncoding = Data.getU8(&Offset);
+  LSDATypeEncoding = TTypeEncoding;
   size_t TTypeEncodingSize = 0;
   uintptr_t TTypeEnd = 0;
   if (TTypeEncoding != DW_EH_PE_omit) {
@@ -367,10 +368,10 @@ void BinaryFunction::updateEHRanges() {
     uint64_t Action;
   };
 
-  for (FunctionFragment &FF : getLayout().fragments()) {
-    // Sites to update - either regular or cold.
-    CallSitesType &Sites = FF.isMainFragment() ? CallSites : ColdCallSites;
+  // Sites to update.
+  CallSitesList Sites;
 
+  for (FunctionFragment &FF : getLayout().fragments()) {
     // If previous call can throw, this is its exception handler.
     EHInfo PreviousEH = {nullptr, 0};
 
@@ -388,9 +389,6 @@ void BinaryFunction::updateEHRanges() {
         // Ignore the call if it's a continuation of a no-throw gap.
         if (!Throws && !StartRange)
           continue;
-
-        assert(getLayout().isHotColdSplit() &&
-               "Exceptions only supported for hot/cold splitting");
 
         // Extract exception handling information from the instruction.
         const MCSymbol *LP = nullptr;
@@ -434,10 +432,10 @@ void BinaryFunction::updateEHRanges() {
         }
 
         // Close the previous range.
-        if (EndRange) {
+        if (EndRange)
           Sites.emplace_back(
+              FF.getFragmentNum(),
               CallSite{StartRange, EndRange, PreviousEH.LP, PreviousEH.Action});
-        }
 
         if (Throws) {
           // I, II:
@@ -451,13 +449,14 @@ void BinaryFunction::updateEHRanges() {
 
     // Check if we need to close the range.
     if (StartRange) {
-      assert((FF.isMainFragment() || &Sites == &ColdCallSites) &&
-             "sites mismatch");
       const MCSymbol *EndRange = getFunctionEndLabel(FF.getFragmentNum());
       Sites.emplace_back(
+          FF.getFragmentNum(),
           CallSite{StartRange, EndRange, PreviousEH.LP, PreviousEH.Action});
     }
   }
+
+  addCallSites(Sites);
 }
 
 const uint8_t DWARF_CFI_PRIMARY_OPCODE_MASK = 0xc0;

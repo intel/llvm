@@ -98,6 +98,12 @@ enum CoverageFeature {
   CoverageInlineBoolFlag = 1 << 15,
   CoverageTraceLoads = 1 << 16,
   CoverageTraceStores = 1 << 17,
+  CoverageControlFlow = 1 << 18,
+};
+
+enum BinaryMetadataFeature {
+  BinaryMetadataCovered = 1 << 0,
+  BinaryMetadataAtomics = 1 << 1,
 };
 
 /// Parse a -fsanitize= or -fno-sanitize= argument's values, diagnosing any
@@ -109,6 +115,11 @@ static SanitizerMask parseArgValues(const Driver &D, const llvm::opt::Arg *A,
 /// components. Returns OR of members of \c CoverageFeature enumeration.
 static int parseCoverageFeatures(const Driver &D, const llvm::opt::Arg *A,
                                  bool DiagnoseErrors);
+
+/// Parse -f(no-)?sanitize-metadata= flag values, diagnosing any invalid
+/// components. Returns OR of members of \c BinaryMetadataFeature enumeration.
+static int parseBinaryMetadataFeatures(const Driver &D, const llvm::opt::Arg *A,
+                                       bool DiagnoseErrors);
 
 /// Produce an argument string from ArgList \p Args, which shows how it
 /// provides some sanitizer kind from \p Mask. For example, the argument list
@@ -798,19 +809,21 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   int InsertionPointTypes = CoverageFunc | CoverageBB | CoverageEdge;
   int InstrumentationTypes = CoverageTracePC | CoverageTracePCGuard |
                              CoverageInline8bitCounters | CoverageTraceLoads |
-                             CoverageTraceStores | CoverageInlineBoolFlag;
+                             CoverageTraceStores | CoverageInlineBoolFlag |
+                             CoverageControlFlow;
   if ((CoverageFeatures & InsertionPointTypes) &&
       !(CoverageFeatures & InstrumentationTypes) && DiagnoseErrors) {
     D.Diag(clang::diag::warn_drv_deprecated_arg)
         << "-fsanitize-coverage=[func|bb|edge]"
-        << "-fsanitize-coverage=[func|bb|edge],[trace-pc-guard|trace-pc]";
+        << "-fsanitize-coverage=[func|bb|edge],[trace-pc-guard|trace-pc],["
+           "control-flow]";
   }
 
   // trace-pc w/o func/bb/edge implies edge.
   if (!(CoverageFeatures & InsertionPointTypes)) {
     if (CoverageFeatures &
         (CoverageTracePC | CoverageTracePCGuard | CoverageInline8bitCounters |
-         CoverageInlineBoolFlag))
+         CoverageInlineBoolFlag | CoverageControlFlow))
       CoverageFeatures |= CoverageEdge;
 
     if (CoverageFeatures & CoverageStackDepth)
@@ -832,6 +845,22 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         options::OPT_fsanitize_coverage_ignorelist, OptSpecifier(),
         clang::diag::err_drv_malformed_sanitizer_coverage_ignorelist,
         DiagnoseErrors);
+  }
+
+  // Parse -f(no-)?sanitize-metadata.
+  for (const auto *Arg :
+       Args.filtered(options::OPT_fexperimental_sanitize_metadata_EQ,
+                     options::OPT_fno_experimental_sanitize_metadata_EQ)) {
+    if (Arg->getOption().matches(
+            options::OPT_fexperimental_sanitize_metadata_EQ)) {
+      Arg->claim();
+      BinaryMetadataFeatures |=
+          parseBinaryMetadataFeatures(D, Arg, DiagnoseErrors);
+    } else {
+      Arg->claim();
+      BinaryMetadataFeatures &=
+          ~parseBinaryMetadataFeatures(D, Arg, DiagnoseErrors);
+    }
   }
 
   SharedRuntime =
@@ -1085,7 +1114,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       std::make_pair(CoverageNoPrune, "-fsanitize-coverage-no-prune"),
       std::make_pair(CoverageStackDepth, "-fsanitize-coverage-stack-depth"),
       std::make_pair(CoverageTraceLoads, "-fsanitize-coverage-trace-loads"),
-      std::make_pair(CoverageTraceStores, "-fsanitize-coverage-trace-stores")};
+      std::make_pair(CoverageTraceStores, "-fsanitize-coverage-trace-stores"),
+      std::make_pair(CoverageControlFlow, "-fsanitize-coverage-control-flow")};
   for (auto F : CoverageFlags) {
     if (CoverageFeatures & F.first)
       CmdArgs.push_back(F.second);
@@ -1094,6 +1124,17 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       Args, CmdArgs, "-fsanitize-coverage-allowlist=", CoverageAllowlistFiles);
   addSpecialCaseListOpt(Args, CmdArgs, "-fsanitize-coverage-ignorelist=",
                         CoverageIgnorelistFiles);
+
+  // Translate available BinaryMetadataFeatures to corresponding clang-cc1
+  // flags. Does not depend on any other sanitizers.
+  const std::pair<int, std::string> BinaryMetadataFlags[] = {
+      std::make_pair(BinaryMetadataCovered, "covered"),
+      std::make_pair(BinaryMetadataAtomics, "atomics")};
+  for (const auto &F : BinaryMetadataFlags) {
+    if (BinaryMetadataFeatures & F.first)
+      CmdArgs.push_back(
+          Args.MakeArgString("-fexperimental-sanitize-metadata=" + F.second));
+  }
 
   if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
     // Instruct the code generator to embed linker directives in the object file
@@ -1332,6 +1373,29 @@ int parseCoverageFeatures(const Driver &D, const llvm::opt::Arg *A,
                 .Case("stack-depth", CoverageStackDepth)
                 .Case("trace-loads", CoverageTraceLoads)
                 .Case("trace-stores", CoverageTraceStores)
+                .Case("control-flow", CoverageControlFlow)
+                .Default(0);
+    if (F == 0 && DiagnoseErrors)
+      D.Diag(clang::diag::err_drv_unsupported_option_argument)
+          << A->getOption().getName() << Value;
+    Features |= F;
+  }
+  return Features;
+}
+
+int parseBinaryMetadataFeatures(const Driver &D, const llvm::opt::Arg *A,
+                                bool DiagnoseErrors) {
+  assert(
+      A->getOption().matches(options::OPT_fexperimental_sanitize_metadata_EQ) ||
+      A->getOption().matches(
+          options::OPT_fno_experimental_sanitize_metadata_EQ));
+  int Features = 0;
+  for (int i = 0, n = A->getNumValues(); i != n; ++i) {
+    const char *Value = A->getValue(i);
+    int F = llvm::StringSwitch<int>(Value)
+                .Case("covered", BinaryMetadataCovered)
+                .Case("atomics", BinaryMetadataAtomics)
+                .Case("all", ~0)
                 .Default(0);
     if (F == 0 && DiagnoseErrors)
       D.Diag(clang::diag::err_drv_unsupported_option_argument)
