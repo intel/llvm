@@ -931,6 +931,8 @@ const TargetRegisterClass *
 SIRegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (isAGPRClass(RC) && !ST.hasGFX90AInsts())
     return getEquivalentVGPRClass(RC);
+  if (RC == &AMDGPU::SCC_CLASSRegClass)
+    return getWaveMaskRegClass();
 
   return RC;
 }
@@ -2694,7 +2696,7 @@ bool SIRegisterInfo::isSGPRReg(const MachineRegisterInfo &MRI,
     RC = MRI.getRegClass(Reg);
   else
     RC = getPhysRegClass(Reg);
-  return isSGPRClass(RC);
+  return RC ? isSGPRClass(RC) : false;
 }
 
 const TargetRegisterClass *

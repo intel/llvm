@@ -287,6 +287,11 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function,
   if (Function.getState() == BinaryFunction::State::Empty)
     return false;
 
+  // Avoid emitting function without instructions when overwriting the original
+  // function in-place. Otherwise, emit the empty function to define the symbol.
+  if (!BC.HasRelocations && !Function.hasNonPseudoInstructions())
+    return false;
+
   MCSection *Section =
       BC.getCodeSection(Function.getCodeSectionName(FF.getFragmentNum()));
   Streamer.switchSection(Section);
@@ -881,7 +886,7 @@ void BinaryEmitter::emitCFIInstruction(const MCCFIInstruction &Inst) const {
 void BinaryEmitter::emitLSDA(BinaryFunction &BF, const FunctionFragment &FF) {
   const BinaryFunction::CallSitesRange Sites =
       BF.getCallSites(FF.getFragmentNum());
-  if (llvm::empty(Sites))
+  if (Sites.empty())
     return;
 
   // Calculate callsite table size. Size of each callsite entry is:

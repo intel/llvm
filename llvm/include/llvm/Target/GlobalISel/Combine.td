@@ -416,10 +416,11 @@ def p2i_to_i2p: GICombineRule<
 
 // Fold ptr2int(int2ptr(x)) -> x
 def i2p_to_p2i: GICombineRule<
-  (defs root:$root, register_matchinfo:$info),
-  (match (wip_match_opcode G_PTRTOINT):$root,
-    [{ return Helper.matchCombineP2IToI2P(*${root}, ${info}); }]),
-  (apply [{ Helper.applyCombineP2IToI2P(*${root}, ${info}); }])
+  (defs root:$dst, register_matchinfo:$info),
+  (match (G_INTTOPTR $t, $ptr),
+         (G_PTRTOINT $dst, $t):$mi,
+    [{ ${info} = ${ptr}.getReg(); }]),
+  (apply [{ Helper.applyCombineP2IToI2P(*${mi}, ${info}); }])
 >;
 
 // Fold add ptrtoint(x), y -> ptrtoint (ptr_add x), y
@@ -529,10 +530,11 @@ def not_cmp_fold : GICombineRule<
 
 // Fold (fneg (fneg x)) -> x.
 def fneg_fneg_fold: GICombineRule <
-  (defs root:$root, register_matchinfo:$matchinfo),
-  (match (wip_match_opcode G_FNEG):$root,
-         [{ return Helper.matchCombineFNegOfFNeg(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.replaceSingleDefInstWithReg(*${root}, ${matchinfo}); }])
+  (defs root:$dst, register_matchinfo:$matchinfo),
+  (match (G_FNEG $t, $src),
+         (G_FNEG $dst, $t):$mi,
+         [{ ${matchinfo} = ${src}.getReg(); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithReg(*${mi}, ${matchinfo}); }])
 >;
 
 // Fold (unmerge(merge x, y, z)) -> z, y, z.
@@ -554,10 +556,11 @@ def merge_unmerge : GICombineRule<
 
 // Fold (fabs (fabs x)) -> (fabs x).
 def fabs_fabs_fold: GICombineRule<
-  (defs root:$root, register_matchinfo:$matchinfo),
-  (match (wip_match_opcode G_FABS):$root,
-         [{ return Helper.matchCombineFAbsOfFAbs(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.replaceSingleDefInstWithReg(*${root}, ${matchinfo}); }])
+  (defs root:$dst, register_matchinfo:$matchinfo),
+  (match (G_FABS $abs, $src),
+         (G_FABS $dst, $abs):$mi,
+         [{ ${matchinfo} = ${abs}.getReg(); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithReg(*${mi}, ${matchinfo}); }])
 >;
 
 // Fold (fabs (fneg x)) -> (fabs x).
@@ -928,6 +931,12 @@ def add_sub_reg: GICombineRule <
          [{ return Helper.matchAddSubSameReg(*${root}, ${matchinfo}); }]),
   (apply [{ return Helper.replaceSingleDefInstWithReg(*${root},
                                                       ${matchinfo}); }])>;
+
+def select_to_minmax: GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_SELECT):$root,
+         [{ return Helper.matchSimplifySelectToMinMax(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
 
 // FIXME: These should use the custom predicate feature once it lands.
 def undef_combines : GICombineGroup<[undef_to_fp_zero, undef_to_int_zero,
