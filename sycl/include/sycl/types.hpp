@@ -1098,7 +1098,7 @@ public:
 #else
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
-    vec<rel_t, NumElements> Ret;                                               \
+    vec<rel_t, NumElements> Ret{0};                                            \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret.setValue(I, -(vec_data<DataT>::get(getValue(I))                      \
                             RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));  \
