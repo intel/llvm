@@ -968,14 +968,9 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
 public:
-  using value_type = typename std::conditional<AccessMode == access::mode::read,
-                                               const DataT, DataT>::type;
-  using reference = value_type &;
+  using value_type = DataT;
+  using reference = DataT &;
   using const_reference = const DataT &;
-  using iterator = value_type *;
-  using const_iterator = const DataT *;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1840,22 +1835,6 @@ public:
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
-  iterator begin() const noexcept { return &operator[](id<Dimensions>()); }
-  iterator end() const noexcept { return begin() + size(); }
-
-  const_iterator cbegin() const noexcept { return const_iterator(begin()); }
-  const_iterator cend() const noexcept { return const_iterator(end()); }
-
-  reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
-  reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
-
-  const_reverse_iterator crbegin() const noexcept {
-    return const_reverse_iterator(end());
-  }
-  const_reverse_iterator crend() const noexcept {
-    return const_reverse_iterator(begin());
-  }
-
 private:
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const {
@@ -2349,7 +2328,7 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
 
   using value_type = DataT;
   using iterator = value_type *;
-  using const_iterator = const DataT *;
+  using const_iterator = const value_type *;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
