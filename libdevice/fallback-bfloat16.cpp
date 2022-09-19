@@ -18,12 +18,10 @@
 // TODO: generate the DeviceLibFuncMap in sycl-post-link.cpp automatically
 // during the build based on libdevice to avoid manually sync.
 
-extern "C" SYCL_EXTERNAL int __builtin_spirv_OpIsNan_f32(float);
-
 DEVICE_EXTERN_C_INLINE uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &a) {
   // In case float value is nan - propagate bfloat16's qnan
-  if (__builtin_spirv_OpIsNan_f32(a))
+  if (__spirv_IsNan(a))
     return 0xffc1;
   union {
     uint32_t intStorage;

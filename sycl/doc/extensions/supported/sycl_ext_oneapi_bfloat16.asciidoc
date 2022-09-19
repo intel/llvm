@@ -274,39 +274,17 @@ int main(int argc, char *argv[]) {
   queue deviceQueue{dev};
   buffer<float, 1> buf{data, 3};
 
-  if (dev.has(aspect::ext_oneapi_bfloat16)) {
-    deviceQueue.submit([&](handler &cgh) {
-      accessor numbers{buf, cgh, read_write};
-      cgh.single_task([=]() { numbers[2] = foo(numbers[0], numbers[1]); });
-    });
-  } else {
-    std::cout << "No bfloat16 support\n";
-    return 1;
-  }
+  deviceQueue.submit([&](handler &cgh) {
+    accessor numbers{buf, cgh, read_write};
+    cgh.single_task([=]() { numbers[2] = foo(numbers[0], numbers[1]); });
+  });
+
   host_accessor hostOutAcc{buf, read_only};
   std::cout << "Result = " << hostOutAcc[2] << std::endl;
+  
   return 0;
 }
 ----
-
-== Deprecated Features
-
-=== Extension to `enum class aspect`
-
-[source]
-----
-namespace sycl {
-enum class aspect {
-  ...
-  ext_oneapi_bfloat16
-}
-}
-----
-
-This extension adds a new aspect named `ext_oneapi_bfloat16`, but usage of this
-aspect is deprecated. It used to indicate whether a device supports `bfloat16`,
-but all devices are now required to support `bfloat16` when an implementation
-supports this extension. Therefore, this aspect now returns true for all devices.
 
 == Revision History
 
