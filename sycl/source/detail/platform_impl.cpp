@@ -121,9 +121,7 @@ std::vector<platform> platform_impl::get_platforms() {
           Plugin.getPlatformId(PiPlatform);
         }
         // Skip platforms which do not contain requested device types
-        // ::all means _no_ forced type.
-        if ((ForcedType == info::device_type::all ||
-             !Platform.get_devices(ForcedType).empty()) &&
+        if (!Platform.get_devices(ForcedType).empty() &&
             !IsBannedPlatform(Platform))
           Platforms.push_back(Platform);
       }
