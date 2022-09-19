@@ -205,8 +205,7 @@ template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty desired, Ty expected) {
 #endif
 }
 
-// Template argument is to avoid failure from 'odr.cpp' test
-template <int N> void atomic_fence() {
+inline void atomic_fence() {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
