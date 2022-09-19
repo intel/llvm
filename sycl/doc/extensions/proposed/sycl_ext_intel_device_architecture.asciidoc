@@ -304,7 +304,7 @@ has finalized and the exact version is known.
 ====
 
 
-=== New `if_device_architecture_is` free function
+=== New `if_architecture_is` free function
 
 This extension adds one new free function which may be called from device
 code.  This function is not available in host code.
@@ -313,7 +313,7 @@ code.  This function is not available in host code.
 namespace sycl::ext::intel::experimental {
 
 template<architecture ...Archs, typename ...Args, typename T>
-/* unspecified */ if_device_architecture_is(T fn, Args ...args);
+/* unspecified */ if_architecture_is(T fn, Args ...args);
 
 } // namespace sycl::ext::intel::experimental
 ```
@@ -322,33 +322,32 @@ This function operates exactly like `if_device_has` from the
 link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension
 except that the condition gating execution of the callable function `fn` is
 determined by the `Archs` parameter pack.  This condition is `true` if the
-device which executes `if_device_architecture_is` matches **any** of the
-architectures listed in this pack.
+device which executes `if_architecture_is` matches **any** of the architectures
+listed in this pack.
 
-The value returned by `if_device_architecture_is` is an object _F_ of an
-unspecified type, which provides the following member functions:
+The value returned by `if_architecture_is` is an object _F_ of an unspecified
+type, which provides the following member functions:
 
 ```
 class /* unspecified */ {
  public:
   template<architecture ...Archs, typename ...Args, typename T>
-  /* unspecified */ else_if_device_architecture_is(T fn, Args ...args);
+  /* unspecified */ else_if_architecture_is(T fn, Args ...args);
 
   template<typename T, typename ...Args>
-  void else_device(T fn, Args ...args);
+  void otherwise(T fn, Args ...args);
 };
 ```
 
-The `else_device` function behaves exactly like the `else_device` function
-from the link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if]
-extension.  The `else_if_device_architecture_is` function behaves exactly like
+The `otherwise` function behaves exactly like the `otherwise` function from the
+link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension.
+The `else_if_architecture_is` function behaves exactly like
 `else_if_device_has` from that extension except that the condition gating
 execution of the callable object `fn` is determined by the `Archs` parameter
 pack.  This condition is `true` only if the object _F_ comes from a previous
-call to `if_device_architecture_is` or `else_if_device_architecture_is` whose
-condition is `false` *and* if the device calling
-`else_if_device_architecture_is` has one of the architectures in the `Archs`
-parameter pack.
+call to `if_architecture_is` or `else_if_architecture_is` whose condition is
+`false` *and* if the device calling `else_if_architecture_is` has one of the
+architectures in the `Archs` parameter pack.
 
 
 == Future direction

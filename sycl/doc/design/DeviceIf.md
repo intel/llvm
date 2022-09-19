@@ -1,4 +1,4 @@
-# Implementation design for "device\_if" and "device\_architecture\_is"
+# Implementation design for "device\_if" and "device\_architecture"
 
 This document describes the design for the DPC++ implementation of the
 [sycl\_ext\_oneapi\_device\_if][1] and
@@ -166,11 +166,11 @@ namespace detail {
 #endif
 // ...
 
-// This is true when the translation unit is compiled in AOT mode with device
-// names that supports the "if_device_architecture_is" features.  If an
-// unsupported device name is specified via "-fsycl-targets", the associated
-// invocation of the device compiler will set this variable to false, and that
-// will trigger an error for code that uses "if_device_architecture_is".
+// This is true when the translation unit is compiled in AOT mode with target
+// names that supports the "if_architecture_is" features.  If an unsupported
+// target name is specified via "-fsycl-targets", the associated invocation of
+// the device compiler will set this variable to false, and that will trigger
+// an error for code that uses "if_architecture_is".
 static constexpr bool is_allowable_aot_mode =
   (__SYCL_TARGET_INTEL_X86_64__ == 1) ||
   (__SYCL_TARGET_INTEL_GPU_BDW__ == 1) ||
@@ -203,28 +203,28 @@ constexpr static bool device_architecture_is() {
   return (is_aot_for_architecture[static_cast<int>(Archs)] || ...);
 }
 
-// Helper object used to implement "else_if_device_architecture_is" and
-// "else_device".  The "MakeCall" template parameter tells whether a previous
-// clause in the "if-elseif-elseif ..." chain was true.  When "MakeCall" is
-// false, some previous clause was true, so none of the subsequent
-// "else_if_device_architecture_is" or "else_device" member functions should
-// call the user's function.
+// Helper object used to implement "else_if_architecture_is" and "otherwise".
+// The "MakeCall" template parameter tells whether a previous clause in the
+// "if-elseif-elseif ..." chain was true.  When "MakeCall" is false, some
+// previous clause was true, so none of the subsequent
+// "else_if_architecture_is" or "otherwise" member functions should call the
+// user's function.
 template<bool MakeCall>
-class if_device_architecture_helper {
+class if_architecture_helper {
  public:
   template<ext::intel::experimental::architecture ...Archs, typename T,
            typename ...Args>
-  constexpr auto else_if_device_architecture_is(T fnTrue, Args ...args) {
+  constexpr auto else_if_architecture_is(T fnTrue, Args ...args) {
     if constexpr (MakeCall && device_architecture_is<Archs...>()) {
       fnTrue(args...);
-      return if_device_architecture_helper<false>{};
+      return if_architecture_helper<false>{};
     } else {
-      return if_device_architecture_helper<MakeCall>{};
+      return if_architecture_helper<MakeCall>{};
     }
   }
 
   template<typename T, typename ...Args>
-  constexpr void else_device(T fn, Args ...args) {
+  constexpr void otherwise(T fn, Args ...args) {
     if constexpr (MakeCall) {
       fn(args...);
     }
@@ -236,16 +236,16 @@ class if_device_architecture_helper {
 namespace ext::intel::experimental {
 
 template<architecture ...Archs, typename T, typename ...Args>
-constexpr static auto if_device_architecture_is(T fnTrue, Args ...args) {
+constexpr static auto if_architecture_is(T fnTrue, Args ...args) {
   static_assert(detail::allowable_aot_mode<Archs...>(),
-    "The if_device_architecture_is function may only be used when AOT "
+    "The if_architecture_is function may only be used when AOT "
     "compiling with '-fsycl-targets=spir64_x86_64' or "
     "'-fsycl-targets=intel_gpu_*'");
   if constexpr (detail::device_architecture_is<Archs...>()) {
     fnTrue(args...);
-    return detail::if_device_architecture_helper<false>{};
+    return detail::if_architecture_helper<false>{};
   } else {
-    return detail::if_device_architecture_helper<true>{};
+    return detail::if_architecture_helper<true>{};
   }
 }
 
@@ -256,9 +256,9 @@ constexpr static auto if_device_architecture_is(T fnTrue, Args ...args) {
 ### Analysis of error checking for unsupported AOT modes
 
 The header file code presented above triggers a `static_assert` if the
-`if_device_architecture_is` function is used in a translation unit that is
-compiled for an unsupported target.  The only supported targets are
-`spir64_x86_64` and the new `intel_gpu_*` GPU device names.
+`if_architecture_is` function is used in a translation unit that is compiled
+for an unsupported target.  The only supported targets are `spir64_x86_64` and
+the new `intel_gpu_*` GPU device names.
 
 The error checking relies on the fact that the device compiler is invoked
 separately for each target listed in `-fsycl-target`.  If any target is
