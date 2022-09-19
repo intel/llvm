@@ -68,7 +68,7 @@ pi_result redefinedDevicePartition(
     pi_device device, const pi_device_partition_property *properties,
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
   if (out_devices) {
-    for (pi_uint32 I = 0; I < num_devices; ++I) {
+    for (size_t I = 0; I < num_devices; ++I) {
       out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
     }
   }
