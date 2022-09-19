@@ -10,6 +10,10 @@
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
+
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:
 ; CHECK-WO-EXT: SPV_KHR_uniform_group_instructions
 
@@ -32,14 +36,26 @@
 ; CHECK-SPIRV: GroupIMulKHR [[#TypeInt]] [[#]] [[#Scope]] 0 [[#Val1]]
 ; CHECK-SPIRV: GroupFMulKHR [[#TypeFloat]] [[#]] [[#Scope]] 0 [[#Val2]]
 
-; CHECK-LLVM: %call1 = call spir_func i32 @_Z26__spirv_GroupBitwiseAndKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call2 = call spir_func i32 @_Z25__spirv_GroupBitwiseOrKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call3 = call spir_func i32 @_Z26__spirv_GroupBitwiseXorKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call4 = call spir_func i1 @_Z26__spirv_GroupLogicalAndKHR{{.*}}(i32 2, i32 0, i1 false)
-; CHECK-LLVM: %call5 = call spir_func i1 @_Z25__spirv_GroupLogicalOrKHR{{.*}}(i32 2, i32 0, i1 false)
-; CHECK-LLVM: %call6 = call spir_func i1 @_Z26__spirv_GroupLogicalXorKHR{{.*}}(i32 2, i32 0, i1 false)
-; CHECK-LLVM: %call7 = call spir_func i32 @_Z20__spirv_GroupIMulKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call8 = call spir_func half @_Z20__spirv_GroupFMulKHR{{.*}}(i32 2, i32 0, half 0xH0000)
+; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_bitwise_andi(i32 0)
+; CHECK-LLVM: call spir_func i32 @_Z28work_group_reduce_bitwise_ori(i32 0)
+; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_bitwise_xori(i32 0)
+; CHECK-LLVM: [[INIT_I32_0:%.*]] = zext i1 false to i32
+; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_logical_andi(i32 [[INIT_I32_0]])
+; CHECK-LLVM: [[INIT_I32_1:%.*]] = zext i1 false to i32
+; CHECK-LLVM: call spir_func i32 @_Z28work_group_reduce_logical_ori(i32 [[INIT_I32_1]])
+; CHECK-LLVM: [[INIT_I32_2:%.*]] = zext i1 false to i32
+; CHECK-LLVM: call spir_func i32 @_Z29work_group_reduce_logical_xori(i32 [[INIT_I32_2]])
+; CHECK-LLVM: call spir_func i32 @_Z21work_group_reduce_muli(i32 0)
+; CHECK-LLVM: call spir_func half @_Z21work_group_reduce_mulDh(half 0xH0000)
+
+; CHECK-LLVM-SPIRV: %call1 = call spir_func i32 @_Z26__spirv_GroupBitwiseAndKHR{{.*}}(i32 2, i32 0, i32 0)
+; CHECK-LLVM-SPIRV: %call2 = call spir_func i32 @_Z25__spirv_GroupBitwiseOrKHR{{.*}}(i32 2, i32 0, i32 0)
+; CHECK-LLVM-SPIRV: %call3 = call spir_func i32 @_Z26__spirv_GroupBitwiseXorKHR{{.*}}(i32 2, i32 0, i32 0)
+; CHECK-LLVM-SPIRV: %call4 = call spir_func i1 @_Z26__spirv_GroupLogicalAndKHR{{.*}}(i32 2, i32 0, i1 false)
+; CHECK-LLVM-SPIRV: %call5 = call spir_func i1 @_Z25__spirv_GroupLogicalOrKHR{{.*}}(i32 2, i32 0, i1 false)
+; CHECK-LLVM-SPIRV: %call6 = call spir_func i1 @_Z26__spirv_GroupLogicalXorKHR{{.*}}(i32 2, i32 0, i1 false)
+; CHECK-LLVM-SPIRV: %call7 = call spir_func i32 @_Z20__spirv_GroupIMulKHR{{.*}}(i32 2, i32 0, i32 0)
+; CHECK-LLVM-SPIRV: %call8 = call spir_func half @_Z20__spirv_GroupFMulKHR{{.*}}(i32 2, i32 0, half 0xH0000)
 
 ; ModuleID = 'source.bc'
 source_filename = "group_operations.cpp"

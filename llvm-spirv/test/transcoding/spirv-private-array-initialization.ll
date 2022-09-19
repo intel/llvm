@@ -33,7 +33,7 @@
 ; CHECK-LLVM:@__const.test.arr = internal addrspace(2) constant [3 x i32] [i32 1, i32 2, i32 3], align 4 
 ; CHECK-LLVM-DAG:@__const.test.arr2 = internal addrspace(2) constant [3 x i32] [i32 1, i32 2, i32 3], align 4 
 
-; CHECK-LLVM:%[[VAR1:.*]] = bitcast ptr addrspace(2) @__const.test.arr to ptr addrspace(2)
+; CHECK-LLVM:%[[VAR1:.*]] = bitcast ptr addrspace(2) @__const.test.arr to ptr addrspace(2) 
 ; CHECK-LLVM-DAG:call void @llvm.memcpy.p0.p2.i32(ptr align 4 %[[VAR0:.*]], ptr addrspace(2) align 4 %[[VAR1]], i32 12, i1 false)
 
 ; CHECK-LLVM:%[[VAR3:.*]] = bitcast ptr addrspace(2) @__const.test.arr2 to ptr addrspace(2)

@@ -41,7 +41,6 @@
 #ifndef SPIRVREADER_H
 #define SPIRVREADER_H
 
-#include "SPIRVBuiltinHelper.h"
 #include "SPIRVInternal.h"
 #include "SPIRVModule.h"
 
@@ -75,7 +74,7 @@ class SPIRVConstantSampler;
 class SPIRVConstantPipeStorage;
 class SPIRVLoopMerge;
 class SPIRVToLLVMDbgTran;
-class SPIRVToLLVM : private BuiltinCallHelper {
+class SPIRVToLLVM {
 public:
   SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule);
 

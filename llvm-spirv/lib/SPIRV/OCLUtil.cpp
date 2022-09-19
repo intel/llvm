@@ -979,7 +979,9 @@ static FunctionType *getBlockInvokeTy(Function *F, unsigned BlockIdx) {
 class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
 public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
-  OCLBuiltinFuncMangleInfo() = default;
+  OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
+      : ArgTypes(ArgTypes.vec()) {}
+  Type *getArgTy(unsigned I) { return F->getFunctionType()->getParamType(I); }
   void init(StringRef UniqName) override {
     // Make a local copy as we will modify the string in init function
     std::string TempStorage = UniqName.str();
@@ -1303,11 +1305,29 @@ public:
   }
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
-  Function *F; // SPIRV decorated function
+  Function *F;                  // SPIRV decorated function
+  // TODO: ArgTypes argument should get removed once all SPV-IR related issues
+  // are resolved
+  std::vector<Type *> ArgTypes; // Arguments of OCL builtin
 };
 
-std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F) {
-  return std::make_unique<OCLBuiltinFuncMangleInfo>(&F);
+CallInst *mutateCallInstOCL(
+    Module *M, CallInst *CI,
+    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
+    AttributeList *Attrs) {
+  OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
+  return mutateCallInst(M, CI, ArgMutate, &BtnInfo, Attrs);
+}
+
+Instruction *mutateCallInstOCL(
+    Module *M, CallInst *CI,
+    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
+        ArgMutate,
+    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs,
+    bool TakeFuncName) {
+  OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
+  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs,
+                        TakeFuncName);
 }
 
 static StringRef getStructName(Type *Ty) {
@@ -1583,6 +1603,6 @@ Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,
                                ArrayRef<Type *> ArgTypes,
                                std::string &MangledName) {
-  OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo;
+  OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo(ArgTypes);
   MangledName = SPIRV::mangleBuiltin(UniqName, ArgTypes, &BtnInfo);
 }

@@ -41,7 +41,6 @@
 #define SPIRV_OCLTOSPIRV_H
 
 #include "OCLUtil.h"
-#include "SPIRVBuiltinHelper.h"
 
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/PassManager.h"
@@ -51,11 +50,10 @@ namespace SPIRV {
 
 class OCLTypeToSPIRVBase;
 
-class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase>, BuiltinCallHelper {
+class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
 public:
   OCLToSPIRVBase()
-      : BuiltinCallHelper(ManglingRules::SPIRV), Ctx(nullptr), CLVer(0),
-        OCLTypeToSPIRVPtr(nullptr) {}
+      : M(nullptr), Ctx(nullptr), CLVer(0), OCLTypeToSPIRVPtr(nullptr) {}
   virtual ~OCLToSPIRVBase() {}
   bool runOCLToSPIRV(Module &M);
 
@@ -266,6 +264,7 @@ public:
   OCLTypeToSPIRVBase *getOCLTypeToSPIRV() { return OCLTypeToSPIRVPtr; }
 
 private:
+  Module *M;
   LLVMContext *Ctx;
   unsigned CLVer; /// OpenCL version as major*10+minor
   std::set<Value *> ValuesToDelete;
@@ -280,10 +279,6 @@ private:
   /// Transform OpenCL vload/vstore function name.
   void transVecLoadStoreName(std::string &DemangledName,
                              const std::string &Stem, bool AlwaysN);
-
-  void processSubgroupBlockReadWriteINTEL(CallInst *CI,
-                                          OCLBuiltinTransInfo &Info,
-                                          const Type *DataTy);
 };
 
 class OCLToSPIRVLegacy : public OCLToSPIRVBase, public llvm::ModulePass {
