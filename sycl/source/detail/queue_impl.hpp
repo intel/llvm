@@ -16,6 +16,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/shared_events_container.hpp>
 #include <detail/thread_pool.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/assert_happened.hpp>
@@ -595,7 +596,13 @@ private:
   /// Events without data dependencies (such as USM) need an owner,
   /// additionally, USM operations are not added to the scheduler command graph,
   /// queue is the only owner on the runtime side.
-  std::vector<event> MEventsShared;
+  shared_events_container MEventsShared;
+
+  // This is a special mutex to synchronize execution of queue::wait() and queue
+  // status API. We don't want to exclusively hold MMutex for too long to access
+  // containers with events.
+  mutable std::shared_mutex SyncMutex;
+
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;

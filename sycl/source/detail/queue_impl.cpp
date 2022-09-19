@@ -220,25 +220,7 @@ void queue_impl::addSharedEvent(const event &Event) {
   // make, and ~queue_impl(). If the number of events grows large enough,
   // there's a good chance that most of them are already completed and ownership
   // of them can be released.
-  const size_t EventThreshold = 128;
-  if (MEventsShared.size() >= EventThreshold) {
-    // Generally, the vector is ordered so that the oldest events are in the
-    // front and the newer events are in the end.  So, search to find the first
-    // event that isn't yet complete.  All the events prior to that can be
-    // erased. This could leave some few events further on that have completed
-    // not yet erased, but that is OK.  This cleanup doesn't have to be perfect.
-    // This also keeps the algorithm linear rather than quadratic because it
-    // doesn't continually recheck things towards the back of the list that
-    // really haven't had time to complete.
-    MEventsShared.erase(
-        MEventsShared.begin(),
-        std::find_if(
-            MEventsShared.begin(), MEventsShared.end(), [](const event &E) {
-              return E.get_info<info::event::command_execution_status>() !=
-                     info::event_command_status::complete;
-            }));
-  }
-  MEventsShared.push_back(Event);
+  MEventsShared.push(Event);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
@@ -336,12 +318,14 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
+  std::shared_lock SyncLock(SyncMutex);
+
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
     std::lock_guard<std::shared_mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
-    SharedEvents.swap(MEventsShared);
+    SharedEvents = std::move(MEventsShared.get_event_list());
     MAuxEventsWeak.clear();
   }
   // If the queue is either a host one or does not support OOO (and we use
@@ -423,9 +407,11 @@ std::vector<event> queue_impl::ext_oneapi_get_wait_list() const {
     std::shared_lock Lock(MLastEventMtx);
     return {MLastEvent};
   } else {
+    // If at least one thread is syncing right now, we need to wait for it.
+    std::unique_lock SyncLock(SyncMutex);
     std::shared_lock Lock(MMutex);
     std::vector<event> NonCompleted;
-    for (auto Event : MEventsShared)
+    for (event Event : MEventsShared.get_event_list())
       if (Event.get_info<info::event::command_execution_status>() !=
           info::event_command_status::complete)
         NonCompleted.push_back(Event);
