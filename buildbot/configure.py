@@ -103,7 +103,7 @@ def do_configure(args):
         print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
-        llvm_enable_projects += ";compiler-rt"
+        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
         # libclc is required for CI validation
         if 'libclc' not in llvm_enable_projects:
             llvm_enable_projects += ';libclc'
