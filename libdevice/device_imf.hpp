@@ -94,13 +94,13 @@ static inline TyFP __integral2FP_host(TyINT x, int rdMode) {
 
 template <typename Ty> static inline Ty __imax(Ty x, Ty y) {
   static_assert(std::is_integral<Ty>::value,
-                "__imin only accepts integral type.");
+                "__imax only accepts integral type.");
   return (x > y) ? x : y;
 }
 
 template <typename Ty> static inline Ty __imin(Ty x, Ty y) {
   static_assert(std::is_integral<Ty>::value,
-                "__imax only accepts integral type.");
+                "__imin only accepts integral type.");
   return (x < y) ? x : y;
 }
 
