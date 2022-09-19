@@ -338,7 +338,7 @@ protected:
           funcOp->getAttr("llvm.cconv").dyn_cast<mlir::LLVM::CConvAttr>();
       if (!attr) {
         funcOp->emitError()
-            << "Contains llvm.cconv attribute not of type bLLVM::CConvAttr";
+            << "Contains llvm.cconv attribute not of type LLVM::CConvAttr";
         return nullptr;
       }
       callingConvention = attr.getCallingConv();
