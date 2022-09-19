@@ -3,7 +3,7 @@
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-WO
 // RUN: llvm-spirv -s -spirv-mem2reg %t.bc -o %t.opt.bc
 // RUN: llvm-dis < %t.opt.bc | FileCheck %s --check-prefixes=CHECK-W
-// CHECK-W-LABEL: spir_func void @foo
+// CHECK-W-LABEL: spir_kernel void @foo
 // CHECK-W-NOT: alloca
 // CHECK-WO-LABEL: spir_kernel void @foo
 // CHECK-WO: alloca
