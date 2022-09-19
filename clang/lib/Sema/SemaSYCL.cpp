@@ -2061,15 +2061,11 @@ public:
     CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
     ModifiedRD->completeDefinition();
 
-    // Elizabeth - Check if this will work if kernel functor has generated
-    // base class.
     if (!ModifiedBases.empty())
       ModifiedRD->setBases(ModifiedBases.data(), ModifiedBases.size());
 
     return QualType(ModifiedRD->getTypeForDecl(), 0);
   }
-
-  // Elizabeth - Need to handle KernelHandler
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
@@ -2553,7 +2549,7 @@ public:
 };
 
 std::string getKernelArgDesc(StringRef KernelArgDescription) {
-  if (KernelArgDescription == ":" || KernelArgDescription == "")
+  if (KernelArgDescription == "")
     return "";
   return ("Compiler generated argument for " + KernelArgDescription + ",")
       .str();
@@ -2564,27 +2560,20 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   SourceLocation KernelInvocationLoc;
 
   void addParam(const FieldDecl *KernelArg, QualType KernelArgType,
-                StringRef KernelArgDescription) {
+                StringRef KernelArgDescription,
+                bool IsCompilerGeneratedType = false) {
     StringRef NameToEmitInDescription = KernelArg->getName();
     const RecordDecl *KernelArgParent = KernelArg->getParent();
     if (KernelArgParent && KernelArgDescription == "decomposed struct/class")
       NameToEmitInDescription = KernelArgParent->getName();
-
-    bool isWrappedField = KernelArgDescription == "WrappedPointer" ||
-                          KernelArgDescription == "WrappedArray";
-
-    KernelArgDescription =
-        (KernelArgDescription == "WrappedPointer"
-             ? "nested pointer"
-             : (KernelArgDescription == "WrappedArray" ? "array"
-                                                       : KernelArgDescription));
 
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
 
     SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), NameToEmitInDescription,
-        isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
+        IsCompilerGeneratedType ? "Compiler generated"
+                                : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDescription),
         (KernelArgDescription == "decomposed struct/class")
@@ -2593,10 +2582,8 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   }
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
-    std::string KernelArgDescription = FieldTy.getAsString();
+    std::string KernelArgDescription = "";
     const RecordDecl *RD = FD->getParent();
-    if (FieldTy->isScalarType())
-      KernelArgDescription = "";
     if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>())
       KernelArgDescription = "decomposed struct/class";
 
@@ -2605,12 +2592,15 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
 
   // Handles base classes.
   void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
-                StringRef KernelArgDescription) {
+                StringRef KernelArgDescription,
+                bool IsCompilerGeneratedType = false) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
     SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), KernelArgType.getAsString(),
-        KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+        IsCompilerGeneratedType ? "Compiler generated"
+                                : KernelArgType.getAsString(),
+        KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDescription), "");
   }
 
@@ -2652,15 +2642,20 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    std::string KernelArgDescription = ":";
+    std::string KernelArgDescription = "";
+    bool IsCompilerGeneratedType = false;
     ParmVarDecl *KernelParameter = DC.getParamVarDeclsForCurrentField()[0];
     // Compiler generated openCL kernel argument for current pointer field
     // is not a pointer. This means we are processing a nested pointer and
     // the openCL kernel argument is of type __wrapper_class.
-    if (!KernelParameter->getType()->isPointerType())
-      KernelArgDescription = "WrappedPointer";
+    if (!KernelParameter->getType()->isPointerType()) {
+      KernelArgDescription = "nested pointer";
+      IsCompilerGeneratedType = true;
+    }
+
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
-      addParam(FD, Param->getType(), KernelArgDescription);
+      addParam(FD, Param->getType(), KernelArgDescription,
+               /*IsCompilerGeneratedType*/ IsCompilerGeneratedType);
     return true;
   }
 
@@ -2672,19 +2667,30 @@ public:
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
     // Simple arrays are always wrapped.
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
-      addParam(FD, Param->getType(), "WrappedArray");
+      addParam(FD, Param->getType(), "array", /*IsCompilerGeneratedType*/ true);
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
-    addParam(FD, Ty);
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "Type must be a C++ record type");
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(FD, Ty, "object with pointer", /*IsCompilerGeneratedType*/ true);
+    else
+      addParam(FD, Ty);
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
-                             const CXXBaseSpecifier &BS, QualType Ty) final {
-    addParam(BS, Ty, "base class");
+  bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType Ty) final {
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "Type must be a C++ record type");
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(BS, Ty, "base class with pointer",
+               /*IsCompilerGeneratedType*/ true);
+    else
+      addParam(BS, Ty, "base class");
     return true;
   }
 

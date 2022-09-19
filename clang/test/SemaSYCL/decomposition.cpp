@@ -10,6 +10,7 @@ sycl::queue myQueue;
 
 struct StructWithAccessor {
   sycl::accessor<char, 1, sycl::access::mode::read> acc;
+  int *ptr;
 };
 
 struct StructInheritedAccessor : sycl::accessor<char, 1, sycl::access::mode::read> {
@@ -46,6 +47,12 @@ struct StructWithNonDecomposedStruct : StructNonDecomposed {
   double d;
 };
 
+struct StructWithPtr {
+  StructNonDecomposed member;
+  int *ptr;
+  int i;
+};
+
 template <typename T>
 struct StructWithArray {
   T a;
@@ -66,6 +73,8 @@ int main() {
   StructNonDecomposed ArrayOfSimpleStruct[5];
   StructWithNonDecomposedStruct NonDecompStruct;
   StructWithNonDecomposedStruct ArrayOfNonDecompStruct[5];
+  StructWithPtr SimpleStructWithPtr;
+
   // Check to ensure that these are not decomposed.
   myQueue.submit([&](sycl::handler &h) {
     h.single_task<class NonDecomposed>([=]() { return SimpleStruct.i + ArrayOfSimpleStruct[0].i + NonDecompStruct.i + ArrayOfNonDecompStruct[0].i; });
@@ -77,13 +86,13 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Acc1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Acc1{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Acc1{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, StructNonDecomposed, int)'
 
     DerivedStruct<StructWithAccessor> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Acc2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Acc2{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Acc2{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, StructNonDecomposed, int)'
 
     StructWithArray<StructInheritedAccessor> t3;
     myQueue.submit([&](sycl::handler &h) {
@@ -151,5 +160,18 @@ int main() {
       h.single_task<class Half2>([=]() { return t2.i; });
     });
     // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (DerivedStruct<StructWithHalf>)'
+  }
+
+  {
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class Pointer>([=]() { return SimpleStructWithPtr.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (_generated_StructWithPtr)'
+
+    DerivedStruct<StructWithPtr> t1;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class PointerInBase>([=]() { return t1.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (_generated_DerivedStruct)'
   }
 }
