@@ -144,7 +144,67 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirements) {
   ASSERT_TRUE((std::is_convertible_v<decltype(It <= It2), bool>));
   ASSERT_TRUE((std::is_convertible_v<decltype(It > It2), bool>));
   ASSERT_TRUE((std::is_convertible_v<decltype(It >= It2), bool>));
-  // FIXME: add more test cases based on Notes
+}
+
+// Based on notes listed at
+// https://en.cppreference.com/w/cpp/named_req/RandomAccessIterator
+TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
+  std::vector<int> reference(6);
+  std::iota(reference.begin(), reference.end(), 0);
+  sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
+  auto accessor = buffer.template get_access<sycl::access_mode::read_write>();
+  auto It = accessor.begin();
+  It += 3;
+
+  { // It += n should be equivalent to incrementint/decrementing It n times
+    for (int n = -3; n <= 3; ++n) {
+      auto It1 = It;
+      auto It2 = It;
+      It1 += n;
+
+      if (n < 0) {
+        int i = n;
+        while (i++)
+          --It2;
+      } else {
+        int i = n;
+        while (i--)
+          ++It2;
+      }
+
+      ASSERT_EQ(It1, It2);
+    }
+  }
+
+  { // It + n == n + It
+    for (int n = -3; n <= 3; ++n) {
+      ASSERT_EQ(It + n, n + It);
+    }
+  }
+
+  {
+    auto It1 = accessor.begin();
+    auto It2 = accessor.end();
+    ASSERT_EQ(It - It1, It1 - It);
+    ASSERT_EQ(It - It2, It2 - It);
+    ASSERT_EQ(It2, It + (It2 - It));
+    ASSERT_EQ(It, It1 + (It - It1));
+  }
+
+  {
+    auto It1 = accessor.begin();
+    auto It2 = accessor.begin();
+    auto It3 = accessor.end();
+
+    ASSERT_TRUE(!(It1 < It2));
+    ASSERT_TRUE(It1 < It); // precondition for the next check
+    ASSERT_TRUE(!(It < It1));
+    ASSERT_TRUE(It < It3); // precondition for the next check
+    ASSERT_TRUE(It1 < It3);
+
+    ASSERT_FALSE(It3 < It);
+    ASSERT_FALSE(It == It3);
+  }
 }
 
 // Based on requirements listed at
@@ -170,7 +230,25 @@ TEST_F(AccessorIteratorTest, LegacyForwardIteratorRequirements) {
   IteratorT It2;
   ASSERT_TRUE((std::is_convertible_v<decltype(It == It2), bool>));
   ASSERT_TRUE((std::is_convertible_v<decltype(It != It2), bool>));
-  // FIXME: test that Objects of the type IteratorT provide multipass guarantee
+}
+
+TEST_F(AccessorIteratorTest, MultipassGuarantee) {
+  std::vector<int> reference(5);
+  std::iota(reference.begin(), reference.end(), 0);
+  sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
+  auto accessor = buffer.template get_access<sycl::access_mode::read_write>();
+  auto It1 = accessor.begin();
+  auto It2 = accessor.begin();
+
+  while (It1 != accessor.end()) {
+    ASSERT_EQ(It1, It2);
+    ASSERT_EQ(*It1, *It2);
+    ASSERT_EQ(++It1, ++It2);
+  }
+
+  It1 = accessor.begin();
+  It2 = It1;
+  ASSERT_EQ(((void)++It2, *It1), *It1);
 }
 
 // Based on requirements listead at
@@ -210,23 +288,36 @@ TEST_F(AccessorIteratorTest, FullCopy3D) {
 }
 
 TEST_F(AccessorIteratorTest, PartialCopyWithoutOffset1D) {
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<1>{10}, sycl::range<1>{5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<1>{10}, sycl::range<1>{10}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<1>{10}, sycl::range<1>{5}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<1>{10}, sycl::range<1>{10}));
 }
 
 TEST_F(AccessorIteratorTest, PartialCopyWithoutOffset2D) {
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<2>{5, 5}, sycl::range<2>{3, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<2>{5, 5}, sycl::range<2>{5, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<2>{5, 5}, sycl::range<2>{2, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<2>{5, 5}, sycl::range<2>{5, 2}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<2>{5, 5}, sycl::range<2>{3, 2}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<2>{5, 5}, sycl::range<2>{3, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<2>{5, 5}, sycl::range<2>{5, 5}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<2>{5, 5}, sycl::range<2>{2, 5}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<2>{5, 5}, sycl::range<2>{5, 2}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<2>{5, 5}, sycl::range<2>{3, 2}));
 }
 
 TEST_F(AccessorIteratorTest, PartialCopyWithoutOffset3D) {
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 3, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 5, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 5, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(sycl::range<3>{5, 5, 5}, sycl::range<3>{1, 2, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 3, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 5, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 5}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 5, 5}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{1, 2, 3}));
 }

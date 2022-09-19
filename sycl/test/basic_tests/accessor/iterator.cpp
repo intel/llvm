@@ -15,10 +15,12 @@ int main() {
     auto acc = buf.get_access<access_mode::read_write>(range<1>{10});
     std::vector<int> data;
     auto It = acc.begin();
-    std::cout << *(It--) << std::endl;
-    std::cout << *(It--) << std::endl;
-    std::cout << *(--It) << std::endl;
-    std::cout << *(--It) << std::endl;
+    It += 3;
+    std::cout << "loop start" << std::endl;
+    for (int i = -3; i <=3; ++i) {
+      std::cout << "i = " << i << std::endl;
+      std::cout << ((It + i) == (i + It)) << std::endl;
+    }
     /*int N = 0;
     for (auto I = acc.begin(), E = acc.end(); I != E; ++I) {
       data.push_back(*I);

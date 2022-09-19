@@ -395,16 +395,18 @@ public:
     return *this;
   }
 
-  friend __accessor_iterator operator+(__accessor_iterator &_Lhs,
+  friend __accessor_iterator operator+(const __accessor_iterator &_Lhs,
                                        difference_type _N) {
-    _Lhs += _N;
-    return _Lhs;
+    auto _Ret = _Lhs;
+    _Ret += _N;
+    return _Ret;
   }
 
   friend __accessor_iterator operator+(difference_type _N,
-                                       __accessor_iterator &_Rhs) {
-    _Rhs += _N;
-    return _Rhs;
+                                       const __accessor_iterator &_Rhs) {
+    auto _Ret = _Rhs;
+    _Ret += _N;
+    return _Ret;
   }
 
   __accessor_iterator &operator-=(difference_type _N) {
