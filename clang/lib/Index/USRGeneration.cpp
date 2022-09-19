@@ -258,7 +258,7 @@ void USRGenerator::VisitFunctionDecl(const FunctionDecl *D) {
   }
 
   // Mangle in type information for the arguments.
-  for (auto PD : D->parameters()) {
+  for (auto *PD : D->parameters()) {
     Out << '#';
     VisitType(PD->getType());
   }
@@ -968,7 +968,7 @@ void USRGenerator::VisitTemplateArgument(const TemplateArgument &Arg) {
 
   case TemplateArgument::TemplateExpansion:
     Out << 'P'; // pack expansion of...
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case TemplateArgument::Template:
     VisitTemplateName(Arg.getAsTemplateOrTemplatePattern());
     break;

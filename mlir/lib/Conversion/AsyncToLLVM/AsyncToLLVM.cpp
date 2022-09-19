@@ -8,7 +8,6 @@
 
 #include "mlir/Conversion/AsyncToLLVM/AsyncToLLVM.h"
 
-#include "../PassDetail.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
@@ -23,6 +22,11 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTASYNCTOLLVM
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 #define DEBUG_TYPE "convert-async-to-llvm"
 
@@ -278,6 +282,17 @@ public:
   AsyncRuntimeTypeConverter() {
     addConversion([](Type type) { return type; });
     addConversion(convertAsyncTypes);
+
+    // Use UnrealizedConversionCast as the bridge so that we don't need to pull
+    // in patterns for other dialects.
+    auto addUnrealizedCast = [](OpBuilder &builder, Type type,
+                                ValueRange inputs, Location loc) {
+      auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
+      return Optional<Value>(cast.getResult(0));
+    };
+
+    addSourceMaterialization(addUnrealizedCast);
+    addTargetMaterialization(addUnrealizedCast);
   }
 
   static Optional<Type> convertAsyncTypes(Type type) {
@@ -311,8 +326,8 @@ public:
     auto loc = op->getLoc();
 
     // Constants for initializing coroutine frame.
-    auto constZero = rewriter.create<LLVM::ConstantOp>(
-        loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
+    auto constZero =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), 0);
     auto nullPtr = rewriter.create<LLVM::NullOp>(loc, i8Ptr);
 
     // Get coroutine id: @llvm.coro.id.
@@ -350,8 +365,8 @@ public:
     // requires the size parameter be an integral multiple of the alignment
     // parameter.
     auto makeConstant = [&](uint64_t c) {
-      return rewriter.create<LLVM::ConstantOp>(
-          op->getLoc(), rewriter.getI64Type(), rewriter.getI64IntegerAttr(c));
+      return rewriter.create<LLVM::ConstantOp>(op->getLoc(),
+                                               rewriter.getI64Type(), c);
     };
     coroSize = rewriter.create<LLVM::AddOp>(op->getLoc(), coroSize, coroAlign);
     coroSize =
@@ -365,13 +380,12 @@ public:
     auto allocFuncOp = LLVM::lookupOrCreateAlignedAllocFn(
         op->getParentOfType<ModuleOp>(), rewriter.getI64Type());
     auto coroAlloc = rewriter.create<LLVM::CallOp>(
-        loc, i8Ptr, SymbolRefAttr::get(allocFuncOp),
-        ValueRange{coroAlign, coroSize});
+        loc, allocFuncOp, ValueRange{coroAlign, coroSize});
 
     // Begin a coroutine: @llvm.coro.begin.
     auto coroId = CoroBeginOpAdaptor(adaptor.getOperands()).id();
     rewriter.replaceOpWithNewOp<LLVM::CoroBeginOp>(
-        op, i8Ptr, ValueRange({coroId, coroAlloc.getResult(0)}));
+        op, i8Ptr, ValueRange({coroId, coroAlloc.getResult()}));
 
     return success();
   }
@@ -400,8 +414,7 @@ public:
     // Free the memory.
     auto freeFuncOp =
         LLVM::lookupOrCreateFreeFn(op->getParentOfType<ModuleOp>());
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, TypeRange(),
-                                              SymbolRefAttr::get(freeFuncOp),
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, freeFuncOp,
                                               ValueRange(coroMem.getResult()));
 
     return success();
@@ -977,7 +990,7 @@ public:
 
 namespace {
 struct ConvertAsyncToLLVMPass
-    : public ConvertAsyncToLLVMBase<ConvertAsyncToLLVMPass> {
+    : public impl::ConvertAsyncToLLVMBase<ConvertAsyncToLLVMPass> {
   void runOnOperation() override;
 };
 } // namespace

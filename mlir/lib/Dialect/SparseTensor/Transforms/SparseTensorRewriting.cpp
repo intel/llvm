@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CodegenUtils.h"
+
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -32,11 +34,9 @@ using namespace mlir::sparse_tensor;
 // Helper to detect a sparse tensor type operand.
 static bool isSparseTensor(OpOperand *op) {
   if (auto enc = getSparseTensorEncoding(op->get().getType())) {
-    ArrayRef<SparseTensorEncodingAttr::DimLevelType> dimTypes =
-        enc.getDimLevelType();
-    for (auto dimType : dimTypes)
-      if (dimType == SparseTensorEncodingAttr::DimLevelType::Compressed)
-        return true; // at least one compressed
+    if (llvm::is_contained(enc.getDimLevelType(),
+                           SparseTensorEncodingAttr::DimLevelType::Compressed))
+      return true;
   }
   return false;
 }
@@ -56,7 +56,7 @@ static bool isAlloc(OpOperand *op, bool isZero) {
 
 // Helper to detect sampling operation.
 static bool isSampling(GenericOp op) {
-  auto yieldOp = cast<linalg::YieldOp>(op.region().front().getTerminator());
+  auto yieldOp = cast<linalg::YieldOp>(op.getRegion().front().getTerminator());
   if (auto *def = yieldOp.getOperand(0).getDefiningOp()) {
     if (isa<arith::MulFOp>(def) || isa<arith::MulIOp>(def)) {
       // Both scalar input arguments used exactly once.
@@ -83,7 +83,7 @@ static bool isMulChain(Value val, Value x) {
 
 // Helper to detect x = x + <multiplications>.
 static bool isSumOfMul(GenericOp op) {
-  auto yieldOp = cast<linalg::YieldOp>(op.region().front().getTerminator());
+  auto yieldOp = cast<linalg::YieldOp>(op.getRegion().front().getTerminator());
   if (auto *def = yieldOp.getOperand(0).getDefiningOp()) {
     if (isa<arith::AddFOp>(def) || isa<arith::AddIOp>(def)) {
       Value x = op.getBlock()->getArguments().back();
@@ -94,11 +94,55 @@ static bool isSumOfMul(GenericOp op) {
   return false;
 }
 
+// Helper to detect direct yield of a zero value.
+static bool isZeroYield(GenericOp op) {
+  auto yieldOp = cast<linalg::YieldOp>(op.getRegion().front().getTerminator());
+  if (auto arg = yieldOp.getOperand(0).dyn_cast<BlockArgument>()) {
+    if (arg.getOwner()->getParentOp() == op) {
+      OpOperand *t = op.getInputAndOutputOperands()[arg.getArgNumber()];
+      return matchPattern(t->get(), m_Zero()) ||
+             matchPattern(t->get(), m_AnyZeroFloat());
+    }
+  } else if (auto *def = yieldOp.getOperand(0).getDefiningOp()) {
+    return matchPattern(def, m_Zero()) || matchPattern(def, m_AnyZeroFloat());
+  }
+  return false;
+}
+
 //===---------------------------------------------------------------------===//
 // The actual sparse tensor rewriting rules.
 //===---------------------------------------------------------------------===//
 
 namespace {
+
+/// Rewriting rule that converts direct yield of zero with initial allocation.
+struct FoldInvariantYield : public OpRewritePattern<GenericOp> {
+public:
+  using OpRewritePattern<GenericOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.hasTensorSemantics() || op.getNumResults() != 1 ||
+        !isAlloc(op.getOutputOperand(0), /*isZero=*/false) || !isZeroYield(op))
+      return failure();
+    auto outputType = op.getResult(0).getType().cast<RankedTensorType>();
+    // Yielding zero on newly allocated (all-zero) sparse tensors can be
+    // optimized out directly (regardless of dynamic or static size).
+    if (getSparseTensorEncoding(outputType)) {
+      rewriter.replaceOp(op, op.getOutputOperand(0)->get());
+      return success();
+    }
+    // Incorporate zero value into allocation copy.
+    if (!outputType.hasStaticShape())
+      return failure();
+    Value zero = constantZero(rewriter, op.getLoc(), op.getResult(0).getType());
+    AllocTensorOp a =
+        op.getOutputOperand(0)->get().getDefiningOp<AllocTensorOp>();
+    rewriter.updateRootInPlace(a, [&]() { a.getCopyMutable().assign(zero); });
+    rewriter.replaceOp(op, op.getOutputOperand(0)->get());
+    return success();
+  }
+};
 
 /// Rewriting rule that converts two kernels:
 ///
@@ -161,11 +205,11 @@ public:
         loc, op.getResult(0).getType(), inputOps, outputOps,
         rewriter.getAffineMapArrayAttr(fusedIndexMaps), prod.iterator_types(),
         /*doc=*/nullptr, /*library_call=*/nullptr);
-    Block &prodBlock = prod.region().front();
-    Block &consBlock = op.region().front();
+    Block &prodBlock = prod.getRegion().front();
+    Block &consBlock = op.getRegion().front();
     BlockAndValueMapping mapper;
     Block *fusedBlock = new Block();
-    fusedOp.region().push_back(fusedBlock);
+    fusedOp.getRegion().push_back(fusedBlock);
     unsigned num = prodBlock.getNumArguments();
     for (unsigned i = 0; i < num - 1; i++)
       addArg(mapper, fusedBlock, prodBlock.getArgument(i));
@@ -187,11 +231,13 @@ public:
     rewriter.create<linalg::YieldOp>(loc, last);
     // Force initial value on merged allocation for dense outputs.
     if (!getSparseTensorEncoding(op.getResult(0).getType())) {
-      AllocTensorOp a1 =
-          prod.getOutputOperand(0)->get().getDefiningOp<AllocTensorOp>();
-      AllocTensorOp a2 =
+      Value init = prod.getOutputOperand(0)
+                       ->get()
+                       .getDefiningOp<AllocTensorOp>()
+                       .getCopy();
+      AllocTensorOp a =
           op.getOutputOperand(0)->get().getDefiningOp<AllocTensorOp>();
-      a2.getCopyMutable().assign(a1.getCopy());
+      rewriter.updateRootInPlace(a, [&]() { a.getCopyMutable().assign(init); });
     }
     // Replace consumer with fused operation. Old producer
     // and consumer ops will be removed by DCE.
@@ -253,7 +299,7 @@ public:
 //===---------------------------------------------------------------------===//
 
 void mlir::populateSparseTensorRewriting(RewritePatternSet &patterns) {
-  patterns
-      .add<FuseSparseMultiplyOverAdd, ReshapeRewriter<tensor::ExpandShapeOp>,
-           ReshapeRewriter<tensor::CollapseShapeOp>>(patterns.getContext());
+  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd,
+               ReshapeRewriter<tensor::ExpandShapeOp>,
+               ReshapeRewriter<tensor::CollapseShapeOp>>(patterns.getContext());
 }

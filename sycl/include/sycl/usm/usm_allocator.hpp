@@ -106,6 +106,14 @@ public:
              (One.MDevice == Two.MDevice));
   }
 
+  template <typename Property> bool has_property() const noexcept {
+    return MPropList.has_property<Property>();
+  }
+
+  template <typename Property> Property get_property() const {
+    return MPropList.get_property<Property>();
+  }
+
 private:
   constexpr size_t getAlignment() const { return max(alignof(T), Alignment); }
 
