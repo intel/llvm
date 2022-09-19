@@ -78,7 +78,7 @@ conditionally use the `sycl::half` type (which is associated with
 `aspect::fp16`):
 
 ```
-template<bool useFp16>
+template<bool UseFp16>
 void frob() { /*...*/ }
 ```
 
