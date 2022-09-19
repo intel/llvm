@@ -2572,6 +2572,7 @@ public:
   }
   const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator(begin());
+  }
 
   template <typename Property> bool has_property() const noexcept {
 #ifndef __SYCL_DEVICE_ONLY__
