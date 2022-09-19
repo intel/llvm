@@ -246,23 +246,11 @@ using BIsRepresentationT = half;
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
-template <int NumElements> struct half_vec {
-  alignas(detail::vector_alignment<StorageT, NumElements>::value)
-      StorageT s[NumElements];
-
-  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
-  constexpr void initialize_data() {
-    for (size_t i = 0; i < NumElements; ++i) {
-      s[i] = StorageT(0.0f);
-    }
-  }
-};
-
-using Vec2StorageT = half_vec<2>;
-using Vec3StorageT = half_vec<3>;
-using Vec4StorageT = half_vec<4>;
-using Vec8StorageT = half_vec<8>;
-using Vec16StorageT = half_vec<16>;
+using Vec2StorageT = std::array<StorageT, 2>;
+using Vec3StorageT = std::array<StorageT, 3>;
+using Vec4StorageT = std::array<StorageT, 4>;
+using Vec8StorageT = std::array<StorageT, 8>;
+using Vec16StorageT = std::array<StorageT, 16>;
 #endif
 
 class half {
