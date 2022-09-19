@@ -214,7 +214,8 @@ public:
 
     // Dispatch the function call as appropriate, based on the types that the
     // function may be called with.
-    if constexpr (std::is_invocable<FnType, IRBuilder<> &, Value *, Type *>::value)
+    if constexpr (std::is_invocable<FnType, IRBuilder<> &, Value *,
+                                    Type *>::value)
       replaceArg(Index, Func(Builder, V, T));
     else if constexpr (std::is_invocable<FnType, IRBuilder<> &, Value *>::value)
       replaceArg(Index, Func(Builder, V));

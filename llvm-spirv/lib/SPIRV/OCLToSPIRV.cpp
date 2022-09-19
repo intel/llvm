@@ -962,8 +962,7 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
       CI, getSPIRVFuncName(OpImageSampleExplicitLod,
                            std::string(kSPIRVPostfix::ExtDivider) +
                                getPostfixForReturnType(Ret)));
-  Mutator.replaceArg(0, {SampledImg, SampledImgStructTy})
-      .removeArg(1);
+  Mutator.replaceArg(0, {SampledImg, SampledImgStructTy}).removeArg(1);
   unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
   unsigned ImgOpMaskInsIndex = Mutator.arg_size();
   switch (Mutator.arg_size()) {
@@ -1285,13 +1284,13 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
   }
   Op OC;
   if (IsDot) {
-    OC = (IsFirstSigned != IsSecondSigned
-        ? OpSUDot
-        : ((IsFirstSigned) ? OpSDot : OpUDot));
+    OC =
+        (IsFirstSigned != IsSecondSigned ? OpSUDot
+                                         : ((IsFirstSigned) ? OpSDot : OpUDot));
   } else {
     OC = (IsFirstSigned != IsSecondSigned
-        ? OpSUDotAccSat
-        : ((IsFirstSigned) ? OpSDotAccSat : OpUDotAccSat));
+              ? OpSUDotAccSat
+              : ((IsFirstSigned) ? OpSDotAccSat : OpUDotAccSat));
   }
   auto Mutator = mutateCallInst(CI, OC);
   // If arguments are in order unsigned -> signed
@@ -1720,17 +1719,16 @@ void OCLToSPIRVBase::visitCallSplitBarrierINTEL(CallInst *CI,
   // OpControlBarrierArriveINTEL -> Release,
   // OpControlBarrierWaitINTEL -> Acquire
   unsigned MemFenceFlag = std::get<0>(Lit);
-  OCLMemOrderKind MemOrder = OpCode == OpControlBarrierArriveINTEL
-    ? OCLMO_release
-    : OCLMO_acquire;
+  OCLMemOrderKind MemOrder =
+      OpCode == OpControlBarrierArriveINTEL ? OCLMO_release : OCLMO_acquire;
   mutateCallInst(CI, OpCode)
-    .removeArgs(0, CI->arg_size())
-    // Execution scope
-    .appendArg(addInt32(map<Scope>(std::get<2>(Lit))))
-    // Memory scope
-    .appendArg(addInt32(map<Scope>(std::get<1>(Lit))))
-    // Memory semantics
-    .appendArg(addInt32(mapOCLMemSemanticToSPIRV(MemFenceFlag, MemOrder)));
+      .removeArgs(0, CI->arg_size())
+      // Execution scope
+      .appendArg(addInt32(map<Scope>(std::get<2>(Lit))))
+      // Memory scope
+      .appendArg(addInt32(map<Scope>(std::get<1>(Lit))))
+      // Memory semantics
+      .appendArg(addInt32(mapOCLMemSemanticToSPIRV(MemFenceFlag, MemOrder)));
 }
 
 void OCLToSPIRVBase::visitCallSplitBarrierINTEL(CallInst *CI,

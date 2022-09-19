@@ -76,11 +76,11 @@ bool SPIRVToOCL12Base::runSPIRVToOCL(Module &Module) {
 
 void SPIRVToOCL12Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
   mutateCallInst(CI, kOCLBuiltinName::MemFence)
-    .mapArg(1,
-        [=](Value *V) {
-        return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
-        })
-  .removeArg(0);
+      .mapArg(1,
+              [=](Value *V) {
+                return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
+              })
+      .removeArg(0);
 }
 
 void SPIRVToOCL12Base::visitCallSPIRVControlBarrier(CallInst *CI) {
@@ -95,11 +95,12 @@ void SPIRVToOCL12Base::visitCallSPIRVControlBarrier(CallInst *CI) {
 
 void SPIRVToOCL12Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {
   mutateCallInst(CI, OCLSPIRVBuiltinMap::rmap(OC))
-    .mapArg(2, [=](Value *V) {
-        return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
-    })
-    .removeArg(1)
-    .removeArg(0);
+      .mapArg(2,
+              [=](Value *V) {
+                return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
+              })
+      .removeArg(1)
+      .removeArg(0);
 }
 
 void SPIRVToOCL12Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {

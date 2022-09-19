@@ -104,11 +104,11 @@ void SPIRVToOCL20Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {
     return cast<ConstantInt>(CI->getArgOperand(I))->getZExtValue();
   };
   Value *MemScope =
-    getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
-  Value *MemFenceFlags =
-    SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(CI->getArgOperand(2), CI);
+      getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
+  Value *MemFenceFlags = SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
+      CI->getArgOperand(2), CI);
   mutateCallInst(CI, OCLSPIRVBuiltinMap::rmap(OC))
-    .setArgs({MemFenceFlags, MemScope});
+      .setArgs({MemFenceFlags, MemScope});
 }
 
 void SPIRVToOCL20Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {

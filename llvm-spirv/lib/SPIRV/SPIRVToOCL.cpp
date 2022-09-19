@@ -552,8 +552,8 @@ void SPIRVToOCLBase::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
     if (auto *VT = dyn_cast<FixedVectorType>(VecArg->getType())) {
       unsigned NumElements = VT->getNumElements();
       for (unsigned I = 0; I < NumElements; I++)
-        Mutator.insertArg(
-            1 + I, Mutator.Builder.CreateExtractElement(VecArg, Mutator.Builder.getInt32(I)));
+        Mutator.insertArg(1 + I, Mutator.Builder.CreateExtractElement(
+                                     VecArg, Mutator.Builder.getInt32(I)));
       Mutator.removeArg(1 + NumElements);
     }
   } else if (HasArg0ExtendedToi32)
@@ -785,7 +785,8 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   Mutator.insertArg(1, {Sampler, SamplerTy});
   if (IsDepthImage)
     Mutator.changeReturnType(T, [&](IRBuilder<> &Builder, CallInst *NewCI) {
-      return Builder.CreateInsertElement(FixedVectorType::get(NewCI->getType(), 4), NewCI, uint64_t(0));
+      return Builder.CreateInsertElement(
+          FixedVectorType::get(NewCI->getType(), 4), NewCI, uint64_t(0));
     });
 }
 
