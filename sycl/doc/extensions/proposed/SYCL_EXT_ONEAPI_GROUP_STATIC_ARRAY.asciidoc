@@ -38,7 +38,7 @@ NOTE: This extension is experimental: interfaces are subject to change later.
 
 == Introduction
 
-This extension introduces interfaces for Group algorithms library (core SYCL specification 4.17.4)
+This extension introduces interfaces for Groups sorting algorithms library
 that are based on fixed-size arrays.
 
 == Feature test macro
@@ -264,7 +264,6 @@ If other `scope` values are passed, behavior is unspecified.
 
 [source,c++]
 ----
-
 template<std::size_t ItemsPerWorkItem = 1, std::int32_t dimensions = 1>
 static constexpr size_t
 memory_required(sycl::memory_scope scope, sycl::range<dimensions> r);
