@@ -193,7 +193,7 @@ public:
   // According to SYCL2020 copy constructors for a derived reducer class are
   // marked as 'delete' to avoid errors when a lambda accepts a private copy of a
   // `reducer` argument.
-  combiner() {}
+  combiner() = default;
   combiner(const combiner &) = delete;
   combiner(combiner &&) = delete;
   combiner &operator=(const combiner &) = delete;
@@ -1656,19 +1656,19 @@ getInitToIdentityProperties(std::tuple<Reductions...> &ReduTuple,
 }
 
 template <typename... Reductions, size_t... Is>
-std::tuple<typename Reductions::reducer_type...>
+std::tuple<typename Reductions::reducer_type *...>
 createReducers(ReduTupleT<typename Reductions::result_type...> Identities,
                ReduTupleT<typename Reductions::binary_operation...> BOPsTuple,
                std::index_sequence<Is...>) {
-  return {typename Reductions::reducer_type{std::get<Is>(Identities),
-                                            std::get<Is>(BOPsTuple)}...};
+  return {new typename Reductions::reducer_type{std::get<Is>(Identities),
+                                                std::get<Is>(BOPsTuple)}...};
 }
 
 template <typename KernelType, int Dims, typename... ReducerT, size_t... Is>
 void callReduUserKernelFunc(KernelType KernelFunc, nd_item<Dims> NDIt,
-                            std::tuple<ReducerT...> &Reducers,
+                            const std::tuple<ReducerT...> &Reducers,
                             std::index_sequence<Is...>) {
-  KernelFunc(NDIt, std::get<Is>(Reducers)...);
+  KernelFunc(NDIt, *std::get<Is>(Reducers)...);
 }
 
 template <typename... LocalAccT, typename... ReducerT, typename... ResultT,
@@ -1679,7 +1679,7 @@ void initReduLocalAccs(bool Pow2WG, size_t LID, size_t WGSize,
                        ReduTupleT<ResultT...> Identities,
                        std::index_sequence<Is...>) {
   std::tie(std::get<Is>(LocalAccs)[LID]...) =
-      std::make_tuple(std::get<Is>(Reducers).MValue...);
+      std::make_tuple(std::get<Is>(Reducers)->MValue...);
 
   // For work-groups, which size is not power of two, local accessors have
   // an additional element with index WGSize that is used by the tree-reduction
@@ -1853,7 +1853,8 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
 void reduCGFuncImplScalar(
     bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
     ReduTupleT<LocalAccT...> LocalAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple,
+    const std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
@@ -1903,7 +1904,7 @@ void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
   for (size_t E = 0; E < NElements; ++E) {
 
     // Copy the element to local memory to prepare it for tree-reduction.
-    LocalReds[LID] = Reducer.getElement(E);
+    LocalReds[LID] = Reducer->getElement(E);
     if (!Pow2WG)
       LocalReds[WGSize] = Identity;
     NDIt.barrier();
@@ -1955,7 +1956,8 @@ template <typename... Reductions, int Dims, typename... LocalAccT,
 void reduCGFuncImplArray(
     bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
     ReduTupleT<LocalAccT...> LocalAccsTuple,
-    ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple,
+    const std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
@@ -2012,15 +2014,15 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
     auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
     auto InitToIdentityProps =
         getInitToIdentityProperties(ReduTuple, ReduIndices);
+    auto ReduIndices = std::index_sequence_for<Reductions...>();
+    auto ReducersTuple =
+        createReducers<Reductions...>(IdentitiesTuple, BOPsTuple, ReduIndices);
 
     using Name = __sycl_reduction_kernel<reduction::main_krn::NDRangeMulti,
                                          KernelName, decltype(OutAccsTuple)>;
     CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
-      auto ReduIndices = std::index_sequence_for<Reductions...>();
-      auto ReducersTuple = createReducers<Reductions...>(
-          IdentitiesTuple, BOPsTuple, ReduIndices);
       callReduUserKernelFunc(KernelFunc, NDIt, ReducersTuple, ReduIndices);
 
       // Combine and write-back the results of any scalar reductions
