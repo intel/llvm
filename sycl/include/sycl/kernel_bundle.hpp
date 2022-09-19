@@ -341,6 +341,9 @@ private:
     return ReturnValue;
   }
 };
+#if __cplusplus >= 201703L
+template <bundle_state State> kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
+#endif
 
 /////////////////////////
 // get_kernel_id API
@@ -572,10 +575,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 /////////////////////////
 
 namespace detail {
-
-// TODO: This is no longer in use. Remove when ABI break is allowed.
-__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,

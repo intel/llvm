@@ -3,6 +3,54 @@ add_libc_testsuite(libc_unistd_unittests)
 add_subdirectory(testdata)
 
 add_libc_unittest(
+  chdir_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    chdir_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.chdir
+    libc.src.unistd.close
+    libc.test.errno_setter_matcher
+)
+
+add_libc_unittest(
+  fchdir_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    fchdir_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.fchdir
+    libc.src.unistd.close
+    libc.test.errno_setter_matcher
+)
+
+add_libc_unittest(
+  ftruncate_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    ftruncate_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.close
+    libc.src.unistd.read
+    libc.src.unistd.ftruncate
+    libc.src.unistd.unlink
+    libc.src.unistd.write
+    libc.src.__support.CPP.string_view
+)
+
+add_libc_unittest(
   read_write_test
   SUITE
     libc_unistd_unittests
@@ -17,6 +65,36 @@ add_libc_unittest(
     libc.src.unistd.read
     libc.src.unistd.write
     libc.test.errno_setter_matcher
+)
+
+add_libc_unittest(
+  link_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    link_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.close
+    libc.src.unistd.link
+    libc.src.unistd.unlink
+)
+
+add_libc_unittest(
+  linkat_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    linkat_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.close
+    libc.src.unistd.linkat
+    libc.src.unistd.unlink
 )
 
 add_libc_unittest(
@@ -46,6 +124,85 @@ add_libc_unittest(
     libc.include.fcntl
     libc.src.sys.stat.mkdir
     libc.src.unistd.rmdir
+)
+
+add_libc_unittest(
+  readlink_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    readlink_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.unistd.readlink
+    libc.src.unistd.symlink
+    libc.src.unistd.unlink
+    libc.src.__support.CPP.string_view
+)
+
+add_libc_unittest(
+  readlinkat_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    readlinkat_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.fcntl
+    libc.include.unistd
+    libc.src.unistd.readlinkat
+    libc.src.unistd.symlink
+    libc.src.unistd.unlink
+    libc.src.__support.CPP.string_view
+)
+
+add_libc_unittest(
+  symlink_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    symlink_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.close
+    libc.src.unistd.symlink
+    libc.src.unistd.unlink
+)
+
+add_libc_unittest(
+  symlinkat_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    symlinkat_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.close
+    libc.src.unistd.symlinkat
+    libc.src.unistd.unlink
+)
+
+add_libc_unittest(
+  truncate_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    truncate_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.unistd
+    libc.src.fcntl.open
+    libc.src.unistd.close
+    libc.src.unistd.read
+    libc.src.unistd.truncate
+    libc.src.unistd.unlink
+    libc.src.unistd.write
+    libc.src.__support.CPP.string_view
 )
 
 add_libc_unittest(

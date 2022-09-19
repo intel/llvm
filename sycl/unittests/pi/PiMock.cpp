@@ -25,13 +25,13 @@ pi_result piKernelCreateRedefine(pi_program, const char *, pi_kernel *) {
 }
 
 TEST(PiMockTest, ConstructFromQueue) {
+  sycl::unittest::PiMock Mock;
+  queue MockQ{Mock.getPlatform().get_devices()[0]};
   queue NormalQ;
   if (NormalQ.is_host()) {
     std::cerr << "Not run due to host-only environment\n";
     return;
   }
-  queue MockQ;
-  unittest::PiMock Mock(MockQ);
 
   const auto &NormalPiPlugin =
       detail::getSyclObjImpl(NormalQ)->getPlugin().getPiPlugin();
@@ -46,13 +46,9 @@ TEST(PiMockTest, ConstructFromQueue) {
 }
 
 TEST(PiMockTest, ConstructFromPlatform) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform MockPlatform = Mock.getPlatform();
   platform NormalPlatform(default_selector{});
-  if (NormalPlatform.is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
-  platform MockPlatform(default_selector{});
-  unittest::PiMock Mock(MockPlatform);
 
   const auto &NormalPiPlugin =
       detail::getSyclObjImpl(NormalPlatform)->getPlugin().getPiPlugin();
@@ -67,12 +63,7 @@ TEST(PiMockTest, ConstructFromPlatform) {
 }
 
 TEST(PiMockTest, RedefineAPI) {
-  sycl::default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
-  unittest::PiMock Mock(Selector);
+  sycl::unittest::PiMock Mock;
   const auto &MockPiPlugin =
       detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
   const auto &Table = MockPiPlugin.PiFunctionTable;
@@ -89,8 +80,12 @@ TEST(PiMockTest, RedefineAPI) {
 
   // Pass a captureless lambda
   auto *OldFuncPtr = Table.piProgramRetain;
-  Mock.redefine<detail::PiApiKind::piProgramRetain>(
-      [](pi_program) -> pi_result { return PI_SUCCESS; });
+  auto Lambda = [](pi_program) -> pi_result {
+    return PI_ERROR_INVALID_PROGRAM;
+  };
+  EXPECT_FALSE(OldFuncPtr == Lambda)
+      << "Lambda is the same as the existing function.";
+  Mock.redefine<detail::PiApiKind::piProgramRetain>(Lambda);
   EXPECT_FALSE(Table.piProgramRetain == OldFuncPtr)
       << "Passing a lambda didn't change the function table entry";
   ASSERT_FALSE(Table.piProgramRetain == nullptr)

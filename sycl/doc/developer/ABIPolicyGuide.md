@@ -106,27 +106,6 @@ owners for help.
 **Note**: Features clearly marked as experimental are considered as an exception
 to this guideline.
 
-### ABI breaking changes window June 15 - September 15 2022
+### ABI breaking changes window June 15 - September 15 2022 [CLOSED]
 
-Since the point when ABI was frozen ~2 years ago we have accumulated a significant
-volume of changes, which require breaking ABI. We are opening a window to
-implement these changes. During this period of time ABI breaking changes will be
-accepted. All breaking changes will still require a good justification.
-
-Whenever you need to change the existing ABI, please, follow these steps:
-
-1. Add [ABI-break] tag to your PR title.
-2. Update your PR description with rationale why breaking ABI is necessary.
-3. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
-   update test files.
-4. Increment library engineering version together with the change ("-V" postfix
-   part of version, as described above)
-
-At the end of this window we will increment major version of the DPC++ library
-
-## BKMs on avoiding changing ABI
-
-1. If there is a need to add a new field in `sycl::handler` or/and
-   `sycl::detail::CG` classes it can be done without breaking ABI using the
-   approach described in the comment at the beggining of
-   [cg.hpp](../../include/sycl/detail/cg.hpp)
+Next ABI breaking changes window is TBD.

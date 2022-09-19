@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -42,7 +41,8 @@ struct MmaSyncF32ToTF32Pattern : public OpRewritePattern<nvgpu::MmaSyncOp> {
                                 PatternRewriter &rewrite) const override {
     Location location = op->getLoc();
 
-    if (op->hasAttr(op.getTf32EnabledAttrName()))
+    if (op->hasAttr(op.getTf32EnabledAttrName()) ||
+        !op.getMatrixA().getType().cast<VectorType>().getElementType().isF32())
       return failure();
 
     if (precision == MmaSyncF32Lowering::Unkown)

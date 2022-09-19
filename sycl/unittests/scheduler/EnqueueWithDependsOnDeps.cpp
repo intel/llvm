@@ -10,7 +10,6 @@
 #include "SchedulerTestUtils.hpp"
 #include <detail/handler_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
@@ -110,12 +109,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -151,15 +150,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -190,15 +186,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -229,15 +222,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -344,19 +334,17 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWaitCustom);
   Mock.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCustom);
 
   {
-    queue QueueDev(context(Plt), Selector);
+    queue QueueDev(context(Plt), default_selector_v);
     PassedNumEvents.clear();
     PassedNumEventsToLaunch.clear();
     EventsWaitVerification(QueueDev);
@@ -375,7 +363,8 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
   }
 
   {
-    queue QueueDev(context(Plt), Selector, property::queue::in_order());
+    queue QueueDev(context(Plt), default_selector_v,
+                   property::queue::in_order());
     PassedNumEvents.clear();
     PassedNumEventsToLaunch.clear();
     EventsWaitVerification(QueueDev);

@@ -6,7 +6,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O2  -dwarf-version 2 -filetype=obj < %t.ll | llvm-dwarfdump - | FileCheck %s  --check-prefix=DWARF23
 ; RUN: llc -mtriple=%triple -O2  -dwarf-version 3 -filetype=obj < %t.ll | llvm-dwarfdump - | FileCheck %s  --check-prefix=DWARF23

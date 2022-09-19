@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s
 
 ; Check that the "inlinedAt" attribute of a DILocation references another
 ; DILocation that is marked as distinct.  Note that the checks for distinct

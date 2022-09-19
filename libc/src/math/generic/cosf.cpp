@@ -7,55 +7,36 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/math/cosf.h"
-#include "common_constants.h"
+#include "sincosf_utils.h"
 #include "src/__support/FPUtil/BasicOperations.h"
 #include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/FPUtil/PolyEval.h"
 #include "src/__support/FPUtil/except_value_utils.h"
 #include "src/__support/FPUtil/multiply_add.h"
 #include "src/__support/common.h"
 
 #include <errno.h>
 
-#if defined(LIBC_TARGET_HAS_FMA)
-#include "range_reduction_fma.h"
-// using namespace __llvm_libc::fma;
-using __llvm_libc::fma::FAST_PASS_BOUND;
-using __llvm_libc::fma::large_range_reduction;
-using __llvm_libc::fma::small_range_reduction;
-#else
-#include "range_reduction.h"
-// using namespace __llvm_libc::generic;
-using __llvm_libc::generic::FAST_PASS_BOUND;
-using __llvm_libc::generic::large_range_reduction;
-using __llvm_libc::generic::small_range_reduction;
-#endif
-
 namespace __llvm_libc {
 
 // Exceptional cases for cosf.
-static constexpr int COSF_EXCEPTS = 6;
+static constexpr size_t N_EXCEPTS = 6;
 
-static constexpr fputil::ExceptionalValues<float, COSF_EXCEPTS> CosfExcepts{
-    /* inputs */ {
-        0x55325019, // x = 0x1.64a032p43
-        0x5922aa80, // x = 0x1.4555p51
-        0x5aa4542c, // x = 0x1.48a858p54
-        0x5f18b878, // x = 0x1.3170fp63
-        0x6115cb11, // x = 0x1.2b9622p67
-        0x7beef5ef, // x = 0x1.ddebdep120
-    },
-    /* outputs (RZ, RU offset, RD offset, RN offset) */
-    {
-        {0x3f4ea5d2, 1, 0, 0}, // x = 0x1.64a032p43, cos(x) = 0x1.9d4ba4p-1 (RZ)
-        {0x3f08aebe, 1, 0, 1}, // x = 0x1.4555p51, cos(x) = 0x1.115d7cp-1 (RZ)
-        {0x3efa40a4, 1, 0, 0}, // x = 0x1.48a858p54, cos(x) = 0x1.f48148p-2 (RZ)
-        {0x3f7f14bb, 1, 0, 0}, // x = 0x1.3170fp63, cos(x) = 0x1.fe2976p-1 (RZ)
-        {0x3f78142e, 1, 0, 1}, // x = 0x1.2b9622p67, cos(x) = 0x1.f0285cp-1 (RZ)
-        {0x3f08a21c, 1, 0,
-         0}, // x = 0x1.ddebdep120, cos(x) = 0x1.114438p-1 (RZ)
-    }};
+static constexpr fputil::ExceptValues<float, N_EXCEPTS> COSF_EXCEPTS{{
+    // (inputs, RZ output, RU offset, RD offset, RN offset)
+    // x = 0x1.64a032p43, cos(x) = 0x1.9d4ba4p-1 (RZ)
+    {0x55325019, 0x3f4ea5d2, 1, 0, 0},
+    // x = 0x1.4555p51, cos(x) = 0x1.115d7cp-1 (RZ)
+    {0x5922aa80, 0x3f08aebe, 1, 0, 1},
+    // x = 0x1.48a858p54, cos(x) = 0x1.f48148p-2 (RZ)
+    {0x5aa4542c, 0x3efa40a4, 1, 0, 0},
+    // x = 0x1.3170fp63, cos(x) = 0x1.fe2976p-1 (RZ)
+    {0x5f18b878, 0x3f7f14bb, 1, 0, 0},
+    // x = 0x1.2b9622p67, cos(x) = 0x1.f0285cp-1 (RZ)
+    {0x6115cb11, 0x3f78142e, 1, 0, 1},
+    // x = 0x1.ddebdep120, cos(x) = 0x1.114438p-1 (RZ)
+    {0x7beef5ef, 0x3f08a21c, 1, 0, 0},
+}};
 
 LLVM_LIBC_FUNCTION(float, cosf, (float x)) {
   using FPBits = typename fputil::FPBits<float>;
@@ -68,21 +49,21 @@ LLVM_LIBC_FUNCTION(float, cosf, (float x)) {
   // Range reduction:
   // For |x| > pi/16, we perform range reduction as follows:
   // Find k and y such that:
-  //   x = (k + y) * pi/16
+  //   x = (k + y) * pi/32
   //   k is an integer
   //   |y| < 0.5
-  // For small range (|x| < 2^46 when FMA instructions are available, 2^22
+  // For small range (|x| < 2^45 when FMA instructions are available, 2^22
   // otherwise), this is done by performing:
-  //   k = round(x * 16/pi)
-  //   y = x * 16/pi - k
+  //   k = round(x * 32/pi)
+  //   y = x * 32/pi - k
   // For large range, we will omit all the higher parts of 16/pi such that the
-  // least significant bits of their full products with x are larger than 31,
-  // since cos((k + y + 32*i) * pi/16) = cos(x + i * 2pi) = cos(x).
+  // least significant bits of their full products with x are larger than 63,
+  // since cos((k + y + 64*i) * pi/32) = cos(x + i * 2pi) = cos(x).
   //
-  // When FMA instructions are not available, we store the digits of 16/pi in
+  // When FMA instructions are not available, we store the digits of 32/pi in
   // chunks of 28-bit precision.  This will make sure that the products:
-  //   x * SIXTEEN_OVER_PI_28[i] are all exact.
-  // When FMA instructions are available, we simply store the digits of 16/pi in
+  //   x * THIRTYTWO_OVER_PI_28[i] are all exact.
+  // When FMA instructions are available, we simply store the digits of 32/pi in
   // chunks of doubles (53-bit of precision).
   // So when multiplying by the largest values of single precision, the
   // resulting output should be correct up to 2^(-208 + 128) ~ 2^-80.  By the
@@ -95,11 +76,11 @@ LLVM_LIBC_FUNCTION(float, cosf, (float x)) {
   //
   // Once k and y are computed, we then deduce the answer by the cosine of sum
   // formula:
-  //   cos(x) = cos((k + y)*pi/16)
-  //          = cos(y*pi/16) * cos(k*pi/16) - sin(y*pi/16) * sin(k*pi/16)
-  // The values of sin(k*pi/16) and cos(k*pi/16) for k = 0..31 are precomputed
-  // and stored using a vector of 32 doubles. Sin(y*pi/16) and cos(y*pi/16) are
-  // computed using degree-7 and degree-8 minimax polynomials generated by
+  //   cos(x) = cos((k + y)*pi/32)
+  //          = cos(y*pi/32) * cos(k*pi/32) - sin(y*pi/32) * sin(k*pi/32)
+  // The values of sin(k*pi/32) and cos(k*pi/32) for k = 0..63 are precomputed
+  // and stored using a vector of 32 doubles. Sin(y*pi/32) and cos(y*pi/32) are
+  // computed using degree-7 and degree-6 minimax polynomials generated by
   // Sollya respectively.
 
   // |x| < 0x1.0p-12f
@@ -125,65 +106,29 @@ LLVM_LIBC_FUNCTION(float, cosf, (float x)) {
 #endif // LIBC_TARGET_HAS_FMA
   }
 
-  using ExceptChecker = typename fputil::ExceptionChecker<float, COSF_EXCEPTS>;
-  {
-    float result;
-    if (ExceptChecker::check_odd_func(CosfExcepts, x_abs, false, result))
-      return result;
-  }
+  if (auto r = COSF_EXCEPTS.lookup(x_abs); unlikely(r.has_value()))
+    return r.value();
 
-  // TODO(lntue): refactor range reduction and most of polynomial approximation
-  // to share between sinf, cosf, and sincosf.
-  int k;
-  double y;
-
-  if (likely(x_abs < FAST_PASS_BOUND)) {
-    k = small_range_reduction(xd, y);
-  } else {
-    // x is inf or nan.
-    if (unlikely(x_abs >= 0x7f80'0000U)) {
-      if (x_abs == 0x7f80'0000U) {
-        errno = EDOM;
-        fputil::set_except(FE_INVALID);
-      }
-      return x +
-             FPBits::build_nan(1 << (fputil::MantissaWidth<float>::VALUE - 1));
+  // x is inf or nan.
+  if (unlikely(x_abs >= 0x7f80'0000U)) {
+    if (x_abs == 0x7f80'0000U) {
+      errno = EDOM;
+      fputil::set_except(FE_INVALID);
     }
-
-    k = large_range_reduction(xd, xbits.get_exponent(), y);
+    return x +
+           FPBits::build_nan(1 << (fputil::MantissaWidth<float>::VALUE - 1));
   }
-
-  // After range reduction, k = round(x * 16 / pi) and y = (x * 16 / pi) - k.
-  // So k is an integer and -0.5 <= y <= 0.5.
-  // Then cos(x) = cos((k + y)*pi/16)
-  //             = cos(y*pi/16) * cos(k*pi/16) - sin(y*pi/16) * sin(k*pi/16)
-
-  double ysq = y * y;
-
-  // Degree-6 minimax even polynomial for sin(y*pi/16)/y generated by Sollya
-  // with:
-  // > Q = fpminimax(sin(y*pi/16)/y, [|0, 2, 4, 6|], [|D...|], [0, 0.5]);
-  double sin_y =
-      y * fputil::polyeval(ysq, 0x1.921fb54442d17p-3, -0x1.4abbce6256adp-10,
-                           0x1.466bc5a5ac6b3p-19, -0x1.32bdcb4207562p-29);
-  // Degree-8 minimax even polynomial for cos(y*pi/16) generated by Sollya with:
-  // > P = fpminimax(cos(x*pi/16), [|0, 2, 4, 6, 8|], [|1, D...|], [0, 0.5]);
-  // Note that cosm1_y = cos(y*pi/16) - 1.
-  double cosm1_y =
-      ysq * fputil::polyeval(ysq, -0x1.3bd3cc9be45dcp-6, 0x1.03c1f081b08ap-14,
-                             -0x1.55d3c6fb0fb6ep-24, 0x1.e1d3d60f58873p-35);
-
-  double sin_k = -SIN_K_PI_OVER_16[k & 31];
-  // cos(k * pi/16) = sin(k * pi/16 + pi/2) = sin((k + 8) * pi/16).
-  // cos_k = y * cos(k * pi/16)
-  double cos_k = SIN_K_PI_OVER_16[(k + 8) & 31];
 
   // Combine the results with the sine of sum formula:
-  //   cos(x) = cos((k + y)*pi/16)
-  //          = cos(y*pi/16) * cos(k*pi/16) - sin(y*pi/16) * sin(k*pi/16)
+  //   cos(x) = cos((k + y)*pi/32)
+  //          = cos(y*pi/32) * cos(k*pi/32) - sin(y*pi/32) * sin(k*pi/32)
   //          = cosm1_y * cos_k + sin_y * sin_k
   //          = (cosm1_y * cos_k + cos_k) + sin_y * sin_k
-  return fputil::multiply_add(sin_y, sin_k,
+  double sin_k, cos_k, sin_y, cosm1_y;
+
+  sincosf_eval(xd, x_abs, sin_k, cos_k, sin_y, cosm1_y);
+
+  return fputil::multiply_add(sin_y, -sin_k,
                               fputil::multiply_add(cosm1_y, cos_k, cos_k));
 }
 
