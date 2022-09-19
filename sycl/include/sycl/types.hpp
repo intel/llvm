@@ -821,7 +821,7 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &...args): m_Data{} {
+  constexpr vec(const argTN &...args) : m_Data{} {
     vaargCtorHelper(0, args...);
   }
 
@@ -2087,7 +2087,6 @@ __SYCL_RELLOGOP(||)
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
-
 #ifdef __HAS_EXT_VECTOR_TYPE__
 
 #define __SYCL_DECLARE_TYPE_VIA_CL_T(type)                                     \
@@ -2131,7 +2130,6 @@ __SYCL_DECLARE_TYPE_VIA_CL_T(double)
 #undef __SYCL_DECLARE_TYPE_T
 
 #endif // __HAS_EXT_VECTOR_TYPE__
-
 
 #ifdef __SYCL_DEVICE_ONLY__
 
