@@ -424,6 +424,9 @@ public:
                                   bool removeIndex = true);
 
   ValueCategory CommonArrayToPointer(ValueCategory val);
+
+  static void getMangledFuncName(std::string &name, const FunctionDecl *FD,
+                                 CodeGen::CodeGenModule &CGM);
 };
 
 #endif
