@@ -42,9 +42,9 @@ private:
 #if (__CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
 #else
-    // TODO std::isnan not defined in device code
-    // if (std::isnan(a))
-    // return 0xffc1;
+    // TODO find a better way to check for NaN
+    if (a != a)
+      return 0xffc1;
     union {
       uint32_t intStorage;
       float floatValue;
