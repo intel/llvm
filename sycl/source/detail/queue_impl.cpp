@@ -426,6 +426,16 @@ std::vector<event> queue_impl::ext_oneapi_get_wait_list() const {
           NonCompleted.push_back(
               createSyclObjFromImpl<event>(EventImplSharedPtr));
 
+    for (auto EventImplWeakPtrIt = MAuxEventsWeak.begin();
+         EventImplWeakPtrIt != MAuxEventsWeak.end(); ++EventImplWeakPtrIt)
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock())
+        if (EventImplSharedPtr
+                ->get_info<info::event::command_execution_status>() !=
+            info::event_command_status::complete)
+          NonCompleted.push_back(
+              createSyclObjFromImpl<event>(EventImplSharedPtr));
+
     return NonCompleted;
   }
 }

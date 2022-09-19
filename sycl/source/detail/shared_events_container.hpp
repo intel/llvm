@@ -61,6 +61,7 @@ public:
       // If we consumed everything then increase ring size to full capacity.
       if (NumAvailableSlots == RingSize) {
         AvailableIndex = 0;
+        CleanupStartIndex = 0;
         if (RingSize < MEventsShared.size()) {
           CleanupStartIndex = RingSize;
           RingSize = MEventsShared.size();
