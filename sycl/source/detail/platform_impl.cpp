@@ -321,6 +321,12 @@ static std::vector<device> amendDeviceAndSubDevices(
     } // /for
   }   // /for
 
+  // We are only in this function if ONEAPI_DEVICE_SELECTOR is being used.
+  // Therefore we should warn if, ultimately, no matching devices discovered.
+  if (FinalResult.size() == 0)
+    std::cout << "ONEAPI_DEVICE_SELECTOR did not match any devices."
+              << std::endl;
+
   return FinalResult;
 }
 
