@@ -267,3 +267,18 @@ TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
     // Expected path
   }
 }
+
+TEST(SpecializationConstant, NoKernel) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  Queue.submit([&](sycl::handler &CGH) {
+    int ExpectedValue = 42;
+    CGH.set_specialization_constant<SpecConst1>(ExpectedValue);
+    EXPECT_EQ(CGH.get_specialization_constant<SpecConst1>(), ExpectedValue);
+  });
+}
