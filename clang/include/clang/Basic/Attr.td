@@ -1434,7 +1434,7 @@ def SYCLGenerateNewType : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[Named]>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {

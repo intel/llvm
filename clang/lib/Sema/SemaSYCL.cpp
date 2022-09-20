@@ -1971,18 +1971,15 @@ public:
   static constexpr const bool VisitInsideSimpleContainersWithPointer = true;
   SyclKernelPointerHandler(Sema &S, const CXXRecordDecl *RD)
       : SyclKernelFieldHandler(S) {
-    // Generate new type
     createNewType(RD);
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
-    // Generate new type
     createNewType(Ty->getAsCXXRecordDecl());
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    // Get Decl of generated new type
     CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
 
     // Add this record as a field of it's parent record.
@@ -1993,14 +1990,12 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
                    QualType Ty) final {
-    // Generate new type
     createNewType(Ty->getAsCXXRecordDecl());
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *Parent, const CXXBaseSpecifier &BS,
                    QualType Ty) final {
-    // Get Decl of generated new type
     CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
 
     // Create CXXBaseSpecifier for this generated class.
@@ -2011,9 +2006,9 @@ public:
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
-    auto AS = Quals.getAddressSpace();
+    LangAS AS = Quals.getAddressSpace();
     // Leave global_device and global_host address spaces as is to help FPGA
-    // device in memory allocations
+    // device in memory allocations.
     if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
         AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
@@ -2655,7 +2650,7 @@ public:
 
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
       addParam(FD, Param->getType(), KernelArgDescription,
-               /*IsCompilerGeneratedType*/ IsCompilerGeneratedType);
+               IsCompilerGeneratedType);
     return true;
   }
 
@@ -2976,7 +2971,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return Cast;
   }
 
-  Expr *getAddressOf(Expr *E) {
+  Expr *createGetAddressOf(Expr *E) {
     return UnaryOperator::Create(SemaRef.Context, E, UO_AddrOf,
                                  SemaRef.Context.getPointerType(E->getType()),
                                  VK_PRValue, OK_Ordinary, KernelCallerSrcLoc,
@@ -3021,8 +3016,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, None,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
     addFieldMemberExpr(FD, Ty);
-    Expr *ParamRef = getAddressOf(createParamReferenceExpr());
-    Expr *LocalCloneRef = getAddressOf(MemberExprBases.back());
+    Expr *ParamRef = createGetAddressOf(createParamReferenceExpr());
+    Expr *LocalCloneRef = createGetAddressOf(MemberExprBases.back());
     Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
     BodyStmts.push_back(MemCpyCallExpr);
     removeFieldMemberExpr(FD, Ty);
@@ -3034,8 +3029,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void handleGeneratedType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                            QualType Ty) {
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    Expr *ParamRef = getAddressOf(createParamReferenceExpr());
-    Expr *LocalCloneRef = getAddressOf(MemberExprBases.back());
+    Expr *ParamRef = createGetAddressOf(createParamReferenceExpr());
+    Expr *LocalCloneRef = createGetAddressOf(MemberExprBases.back());
     LocalCloneRef = addDerivedToBaseCastExpr(RD, BS, LocalCloneRef);
     Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
     BodyStmts.push_back(MemCpyCallExpr);

@@ -67,6 +67,12 @@ struct DerivedStruct : T {
   int i;
 };
 
+struct NonTrivialType {
+  int *Ptr;
+  int i;
+  NonTrivialType(int i){}
+};
+
 int main() {
 
   StructNonDecomposed SimpleStruct;
@@ -74,6 +80,7 @@ int main() {
   StructWithNonDecomposedStruct NonDecompStruct;
   StructWithNonDecomposedStruct ArrayOfNonDecompStruct[5];
   StructWithPtr SimpleStructWithPtr;
+  NonTrivialType NonTrivialStructWithPtr(10);
 
   // Check to ensure that these are not decomposed.
   myQueue.submit([&](sycl::handler &h) {
@@ -172,6 +179,14 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class PointerInBase>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (_generated_DerivedStruct)'
+    // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (_generated_DerivedStruct)'
+  }
+
+  {
+    // FIXME: Stop decomposition for non-trivial types with pointers. 
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class NonTrivial>([=]() { return NonTrivialStructWithPtr.i;});
+    });
+    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__wrapper_class, int)'
   }
 }
