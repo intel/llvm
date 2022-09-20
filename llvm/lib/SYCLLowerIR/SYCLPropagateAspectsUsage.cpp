@@ -81,10 +81,10 @@ TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
 
 using AspectValueToNameMapTy = SmallMapVector<StringRef, int, 32>;
 
-/// Retrieves from metadata (intel_sycl_aspects) the mapping between SYCL aspect
-/// names and their integral values.
+/// Retrieves from metadata (sycl_aspects) the mapping between SYCL aspect names
+/// and their integral values.
 AspectValueToNameMapTy getSYCLAspectsFromMetadata(const Module &M) {
-  const NamedMDNode *Node = M.getNamedMetadata("intel_sycl_aspects");
+  const NamedMDNode *Node = M.getNamedMetadata("sycl_aspects");
   AspectValueToNameMapTy Result;
   if (!Node)
     return Result;
@@ -92,7 +92,7 @@ AspectValueToNameMapTy getSYCLAspectsFromMetadata(const Module &M) {
   for (const auto OperandIt : Node->operands()) {
     const MDNode &N = *OperandIt;
     assert(N.getNumOperands() == 2 &&
-           "Each operand of intel_sycl_aspects must be a pair.");
+           "Each operand of sycl_aspects must be a pair.");
 
     // The aspect's name is the first operand.
     const auto *AspectName = cast<MDString>(N.getOperand(0));
@@ -369,7 +369,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   // that use aspects, so we can skip this pass.
   if (AspectValues.empty()) {
     assert(TypesWithAspects.empty() &&
-           "intel_sycl_aspects metadata is missing but "
+           "sycl_aspects metadata is missing but "
            "intel_types_that_use_aspects is present.");
     return PreservedAnalyses::all();
   }

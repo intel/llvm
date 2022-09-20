@@ -939,7 +939,7 @@ void CodeGenModule::Release() {
     // Emit metadata for all aspects defined in the aspects enum.
     if (AspectsEnumDecl) {
       llvm::NamedMDNode *AspectEnumValsMD =
-          TheModule.getOrInsertNamedMetadata("intel_sycl_aspects");
+          TheModule.getOrInsertNamedMetadata("sycl_aspects");
       for (const EnumConstantDecl *ECD : AspectsEnumDecl->enumerators())
         AspectEnumValsMD->addOperand(
             getAspectEnumValueMD(Context, TheModule.getContext(), ECD));

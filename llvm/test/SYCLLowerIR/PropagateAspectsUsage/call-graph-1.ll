@@ -50,7 +50,7 @@ define spir_func void @func3() {
 !0 = !{!"Optional.A", i32 1}
 !1 = !{!"Optional.B", i32 2}
 
-!intel_sycl_aspects = !{!2}
+!sycl_aspects = !{!2}
 !2 = !{!"fp64", i32 6}
 
 ; CHECK: ![[#ID1]] = !{i32 1}

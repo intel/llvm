@@ -46,7 +46,7 @@ define spir_kernel void @kernel() {
 !2 = !{!"C", i32 2}
 !3 = !{!"D", i32 3, i32 4}
 
-!intel_sycl_aspects = !{!4}
+!sycl_aspects = !{!4}
 !4 = !{!"fp64", i32 6}
 
 ; CHECK: ![[#ID0]] = !{i32 0}

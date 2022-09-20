@@ -34,7 +34,7 @@ define spir_func void @func.composite() {
   ret void
 }
 
-!intel_sycl_aspects = !{!0}
+!sycl_aspects = !{!0}
 !0 = !{!"fp64", i32 6}
 
 ; CHECK: ![[MDID]] = !{i32 6}

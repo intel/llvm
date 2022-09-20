@@ -103,7 +103,7 @@ define spir_func void @funcA.assepts.optional(%A.optional %0) {
 !intel_types_that_use_aspects = !{!0}
 !0 = !{!"A.optional", i32 1}
 
-!intel_sycl_aspects = !{!1}
+!sycl_aspects = !{!1}
 !1 = !{!"fp64", i32 6}
 
 ; CHECK: ![[MDID]] = !{i32 1}
