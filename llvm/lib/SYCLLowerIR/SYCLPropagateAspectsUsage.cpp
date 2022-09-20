@@ -370,7 +370,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   if (AspectValues.empty()) {
     assert(TypesWithAspects.empty() &&
            "sycl_aspects metadata is missing but "
-           "intel_types_that_use_aspects is present.");
+           "sycl_types_that_use_aspects is present.");
     return PreservedAnalyses::all();
   }
 
