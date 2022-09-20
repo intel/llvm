@@ -3153,20 +3153,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                       PI_SUCCESS);
       return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
+    // Only report device memory which zeMemAllocDevice can allocate from.
+    // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
-    uint32_t MemCount = 0;
-    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
-    std::vector<zes_mem_handle_t> MemHandles(MemCount);
-    ZE_CALL(zesDeviceEnumMemoryModules,
-            (ZeDevice, &MemCount, MemHandles.data()));
-
-    for (auto &ZesMemHandle : MemHandles) {
+    uint32_t MemCount = 1;
+    zes_mem_handle_t ZesMemHandle;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, &ZesMemHandle));
+    if (MemCount != 0) {
       ZesStruct<zes_mem_properties_t> ZeMemProperties;
       ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
-      // Only report HBM which zeMemAllocDevice allocates from.
-      if (ZeMemProperties.type != ZES_MEM_TYPE_HBM)
-        continue;
-
       ZesStruct<zes_mem_state_t> ZeMemState;
       ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
       FreeMemory += ZeMemState.free;
