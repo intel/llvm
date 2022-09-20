@@ -1,19 +1,19 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -fsycl-int-header=%t.header.h -fsycl-int-footer=%t.footer.h \
-// RUN: -main-file-name checksum.cpp -fsycl-use-main-file-name \
-// RUN: -full-main-file-name "%S/checksum.cpp" \
-// RUN: -gcodeview -debug-info-kind=limited -emit-llvm -O0 -o - "%S/checksum.cpp" \
+// RUN: -main-file-name %S/Inputs/checksum.cpp -fsycl-use-main-file-name \
+// RUN: -full-main-file-name "%S/Inputs/checksum.cpp" \
+// RUN: -gcodeview -debug-info-kind=limited -emit-llvm -O0 -o - "%S/Inputs/checksum.cpp" \
 // RUN: | FileCheck %s -check-prefix=COMP1
 
-// RUN: append-file "%S/checksum.cpp" \
+// RUN: append-file "%S/Inputs/checksum.cpp" \
 // RUN: --append=%t.footer.h \
-// RUN: --orig-filename="%S/checksum.cpp" \
+// RUN: --orig-filename="%S/Inputs/checksum.cpp" \
 // RUN: --output=%t.checksum.cpp --use-include
 
 // RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host \
 // RUN: -include %t.header.h -dependency-filter %t.header.h \
-// RUN: -main-file-name checksum.cpp -fsycl-use-main-file-name \
-// RUN: -full-main-file-name %S/checksum.cpp \
+// RUN: -main-file-name %S/Inputs/checksum.cpp -fsycl-use-main-file-name \
+// RUN: -full-main-file-name %S/Inputs/checksum.cpp \
 // RUN: -gcodeview -debug-info-kind=limited -emit-llvm -O0 -o - \
 // RUN: %t.checksum.cpp \
 // RUN: | FileCheck %s -check-prefix=COMP2
