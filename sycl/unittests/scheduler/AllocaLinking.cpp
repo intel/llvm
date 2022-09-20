@@ -45,12 +45,13 @@ TEST_F(SchedulerTest, AllocaLinking) {
   // This host device constructor should be placed before Mock.redefine
   // because it overrides the real implementation of get_device_info
   // which is needed when creating a host device.
-  device HostDevice{host_selector()};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
   sycl::unittest::PiMock Mock;
-  queue Q{Mock.getPlatform().get_devices()[0]};
+  sycl::queue Q{Mock.getPlatform().get_devices()[0]};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);

@@ -243,7 +243,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
         MS.addEmptyCmd(Leaf, {&MockReq}, QueueImpl,
                        detail::Command::BlockReason::HostTask, ToEnqueue);
       });
-  device HostDevice{host_selector{}};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   detail::QueueImplPtr DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
   checkCleanupOnLeafUpdate(
