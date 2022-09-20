@@ -468,6 +468,9 @@ private:
 
   ~handler() = default;
 
+  // TODO: Private and unusued. Remove when ABI break is allowed.
+  bool is_host() { return MIsHost; }
+
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from AccessorBaseHost, so
   // can't detect by it. Since we don't expect it to be ever called in device
@@ -539,6 +542,12 @@ private:
     auto StoredArg = static_cast<void *>(storePlainArg(Arg));
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
+  }
+
+  // TODO: Unusued. Remove when ABI break is allowed.
+  void verifyKernelInvoc(const kernel &Kernel) {
+    std::ignore = Kernel;
+    return;
   }
 
   /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
