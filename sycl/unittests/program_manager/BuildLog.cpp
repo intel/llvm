@@ -47,37 +47,9 @@ static pi_result redefinedProgramGetBuildInfo(
   return PI_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_NAME) {
-    const std::string name = "Test Device";
-    if (param_value_size_ret) {
-      *param_value_size_ret = name.size();
-    }
-    if (param_value) {
-      auto *val = static_cast<char *>(param_value);
-      strcpy(val, name.data());
-    }
-  }
-  if (param_name == PI_DEVICE_INFO_COMPILER_AVAILABLE) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = sizeof(cl_bool);
-    }
-    if (param_value) {
-      auto *val = static_cast<cl_bool *>(param_value);
-      *val = 1;
-    }
-  }
-  return PI_SUCCESS;
-}
-
 static void setupCommonTestAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
   Mock.redefine<PiApiKind::piProgramGetBuildInfo>(redefinedProgramGetBuildInfo);
-  Mock.redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
 }
 
 TEST(BuildLog, OutputNothingOnLevel1) {
