@@ -16,7 +16,8 @@
 // CHECK: !sycl_id_2_ = !sycl.id<2>
 // CHECK: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
 
-// CHECK: func.func @_Z8method_1N4sycl3_V14itemILi2ELb1EEE(%arg0: !sycl_item_2_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @_Z8method_1N4sycl3_V14itemILi2ELb1EEE(%arg0: !sycl_item_2_1_)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT: %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_item_2_1_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_item_2_1_> to memref<?x!sycl_item_2_1_>
@@ -29,7 +30,8 @@ SYCL_EXTERNAL void method_1(sycl::item<2, true> item) {
   auto id = item.get_id(0);
 }
 
-// CHECK: func.func @_Z8method_2N4sycl3_V14itemILi2ELb1EEE(%arg0: !sycl_item_2_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @_Z8method_2N4sycl3_V14itemILi2ELb1EEE(%arg0: !sycl_item_2_1_)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_item_2_1_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_item_2_1_> to memref<?x!sycl_item_2_1_>
 // CHECK-NEXT: affine.store %arg0, %0[0] : memref<1x!sycl_item_2_1_>
@@ -41,7 +43,8 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
   auto id = item.operator==(item);
 }
 
-// CHECK: func.func @_Z4op_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @_Z4op_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_id_2_>
@@ -56,7 +59,8 @@ SYCL_EXTERNAL void op_1(sycl::id<2> a, sycl::id<2> b) {
   auto id = a == b;
 }
 
-// CHECK: func.func @_Z8static_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func.func @_Z8static_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT: %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT: %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
