@@ -12,9 +12,6 @@ inputs:
     description: 'Name of SYCL toolchain archive file'
     required: false
     default: 'llvm_sycl.tar.xz'
-  results_name_suffix:
-    description: 'Name suffix of the results artifact'
-    required: true
   sycl_device_filter:
     description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
     required: true
@@ -32,7 +29,7 @@ runs:
     shell: bash
   - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
     shell: bash
-  - name: Checkout LLVM Test Suite
+  - name: Checkout SYCL CTS
     uses: ./actions/cached_checkout
     with:
       path: khronos_sycl_cts
@@ -54,7 +51,6 @@ runs:
       mkdir toolchain
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
-  # TODO these must be in the container
   - name: Build SYCL-CTS
     shell: bash
     run: |

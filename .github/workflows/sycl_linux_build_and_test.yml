@@ -288,7 +288,6 @@ jobs:
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
         sycl_device_filter: ${{ matrix.sycl_device_filter }}
-        results_name_suffix: $cts_{{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
   aws-stop:
