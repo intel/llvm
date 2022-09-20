@@ -194,7 +194,7 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   if (auto *AI = dyn_cast<const AllocaInst>(&I)) {
     // Return type of an alloca is a pointer and in opaque pointers world we
     // don't know which type it points to. Therefore, explicitly checking the
-    // allocated type insted
+    // allocated type instead
     ReturnType = AI->getAllocatedType();
   }
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
