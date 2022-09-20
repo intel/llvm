@@ -1,26 +1,27 @@
-// RUN: %clang_cc1 -fsycl-is-device %S/Inputs/checksum.cpp \
-// RUN: -triple spir64-unknown-unknown \
-// RUN: -main-file-name "%S/Inputs/checksum.cpp" \
-// RUN: -full-main-file-name "%S/Inputs/checksum.cpp" \
-// RUN: -fsycl-use-main-file-name -gcodeview -debug-info-kind=constructor \
-// RUN: -emit-llvm -O0 -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
+// RUN: -fsycl-int-header=%t.header.h -fsycl-int-footer=%t.footer.h \
+// RUN: -main-file-name checksum.cpp -fsycl-use-main-file-name \
+// RUN: -full-main-file-name "%S/checksum.cpp" \
+// RUN: -gcodeview -debug-info-kind=limited -emit-llvm -O0 -o - "%S/checksum.cpp" \
+// RUN: | FileCheck %s -check-prefix=COMP1
 
-// Check that "checksum" is created correctly for the compiled file and
-// that the same checksum is generated for the input file appended with
-// the footer.
+// RUN: append-file "%S/checksum.cpp" \
+// RUN: --append=%t.footer.h \
+// RUN: --orig-filename="%S/checksum.cpp" \
+// RUN: --output=%t.checksum.cpp --use-include
 
-// CHECK: !DICompileUnit({{.*}} file: ![[#FILE:]]
-// CHECK: ![[#FILE:]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}checksum.cpp"
-// CHECK-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host \
+// RUN: -include %t.header.h -dependency-filter %t.header.h \
+// RUN: -main-file-name checksum.cpp -fsycl-use-main-file-name \
+// RUN: -full-main-file-name %S/checksum.cpp \
+// RUN: -gcodeview -debug-info-kind=limited -emit-llvm -O0 -o - \
+// RUN: %t.checksum.cpp \
+// RUN: | FileCheck %s -check-prefix=COMP2
 
-// RUN: %clang_cc1 -fsycl-is-host %S/Inputs/checksum-with-footer.cpp \
-// RUN: -triple x86_64-pc-windows-msvc \
-// RUN: -main-file-name %S/Inputs/checksum.cpp \
-// RUN: -full-main-file-name %S/Inputs/checksum.cpp \
-// RUN: -fsycl-use-main-file-name -gcodeview -debug-info-kind=constructor \
-// RUN: -S -emit-llvm -O0  -o - | FileCheck %s
+// COMP1: !DICompileUnit({{.*}} file: ![[#FILE1:]]
+// COMP1: ![[#FILE1]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}checksum.cpp"
+// COMP1-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
 
-
-// CHECKSUM: distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1
-// CHECKSUM: !1 = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}checksum.cpp"
-// CHECKSUM-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
+// COMP2: !DICompileUnit({{.*}} file: ![[#FILE2:]]
+// COMP2: ![[#FILE2]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}checksum.cpp"
+// COMP2-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")

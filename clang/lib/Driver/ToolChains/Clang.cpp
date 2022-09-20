@@ -5447,6 +5447,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(llvm::sys::path::filename(Input.getBaseInput())));
     CmdArgs.push_back("-fsycl-use-main-file-name");
   }
+
   CmdArgs.push_back("-full-main-file-name");
   CmdArgs.push_back(Input.getBaseInput());
 

@@ -399,6 +399,18 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
 
   // Cache the results.
   auto It = DIFileCache.find(FileName.data());
+  if (SM.getFileEntryForID(SM.getMainFileID()) &&
+      CGM.getCodeGenOpts().SYCLUseMainFileName && FID.isInvalid() &&
+      llvm::sys::path::is_absolute(FileName)) {
+    FileID MainFileID = SM.getMainFileID();
+    auto ExpectedFileRef = SM.getFileManager().getFileRef(FileName);
+    if (ExpectedFileRef) {
+      MainFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
+                                        SrcMgr::CharacteristicKind::C_User);
+      FID = MainFileID;
+    }
+  }
+
   if (It != DIFileCache.end()) {
     // Verify that the information still exists.
     if (llvm::Metadata *V = It->second)
@@ -406,6 +418,17 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
   }
 
   SmallString<32> Checksum;
+
+  if (SM.getFileEntryForID(SM.getMainFileID()) &&
+      CGM.getCodeGenOpts().SYCLUseMainFileName && FID.isInvalid()) {
+    FileID MainFileID = SM.getMainFileID();
+    auto ExpectedFileRef = SM.getFileManager().getFileRef(FileName);
+    if (ExpectedFileRef) {
+      MainFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
+                                        SrcMgr::CharacteristicKind::C_User);
+      FID = MainFileID;
+    }
+  }
 
   Optional<llvm::DIFile::ChecksumKind> CSKind = computeChecksum(FID, Checksum);
   Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
