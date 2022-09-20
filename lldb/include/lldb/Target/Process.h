@@ -22,10 +22,10 @@
 #include <vector>
 
 #include "lldb/Breakpoint/BreakpointSiteList.h"
-#include "lldb/Core/Communication.h"
 #include "lldb/Core/LoadedModuleInfoList.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/ThreadSafeValue.h"
+#include "lldb/Core/ThreadedCommunication.h"
 #include "lldb/Core/UserSettingsController.h"
 #include "lldb/Host/HostThread.h"
 #include "lldb/Host/ProcessLaunchInfo.h"
@@ -474,15 +474,6 @@ public:
     ProcessEventData(const ProcessEventData &) = delete;
     const ProcessEventData &operator=(const ProcessEventData &) = delete;
   };
-
-  /// Construct with a shared pointer to a target, and the Process listener.
-  /// Uses the Host UnixSignalsSP by default.
-  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
-
-  /// Construct with a shared pointer to a target, the Process listener, and
-  /// the appropriate UnixSignalsSP for the process.
-  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
-          const lldb::UnixSignalsSP &unix_signals_sp);
 
   /// Destructor.
   ///
@@ -2499,6 +2490,16 @@ void PruneThreadPlans();
 
 protected:
   friend class Trace;
+
+  /// Construct with a shared pointer to a target, and the Process listener.
+  /// Uses the Host UnixSignalsSP by default.
+  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
+
+  /// Construct with a shared pointer to a target, the Process listener, and
+  /// the appropriate UnixSignalsSP for the process.
+  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
+          const lldb::UnixSignalsSP &unix_signals_sp);
+
   ///  Get the processor tracing type supported for this process.
   ///  Responses might be different depending on the architecture and
   ///  capabilities of the underlying OS.
@@ -2882,7 +2883,7 @@ protected:
       m_unix_signals_sp; /// This is the current signal set for this process.
   lldb::ABISP m_abi_sp;
   lldb::IOHandlerSP m_process_input_reader;
-  Communication m_stdio_communication;
+  ThreadedCommunication m_stdio_communication;
   std::recursive_mutex m_stdio_communication_mutex;
   bool m_stdin_forward; /// Remember if stdin must be forwarded to remote debug
                         /// server

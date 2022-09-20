@@ -17,8 +17,11 @@
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/StringRef.h"
+#include <algorithm>
 
 using namespace mlir;
 using namespace mlir::tensor;
@@ -34,6 +37,21 @@ Operation *TensorDialect::materializeConstant(OpBuilder &builder,
     return builder.create<complex::ConstantOp>(loc, type,
                                                value.cast<ArrayAttr>());
   return nullptr;
+}
+
+SmallVector<OpFoldResult> tensor::getMixedSizes(OpBuilder &builder,
+                                                Location loc, Value value) {
+  auto tensorType = value.getType().cast<RankedTensorType>();
+  SmallVector<OpFoldResult> result;
+  for (int64_t i = 0; i < tensorType.getRank(); ++i) {
+    if (tensorType.isDynamicDim(i)) {
+      Value size = builder.create<tensor::DimOp>(loc, value, i);
+      result.push_back(size);
+    } else {
+      result.push_back(builder.getIndexAttr(tensorType.getDimSize(i)));
+    }
+  }
+  return result;
 }
 
 //===----------------------------------------------------------------------===//
@@ -526,6 +544,89 @@ struct ExtractElementFromIndexCast
 void FromElementsOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
   results.add<ExtractElementFromIndexCast>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// GatherOp
+//===----------------------------------------------------------------------===//
+
+/// Return the inferred result type for a gatherOp where:
+///   - sourceType is the type of the source tensor gathered from
+///   - indicesType is the type of the indices used to gather
+///   - gatherDims are the dims along which the gather occurs.
+/// Return a full rank or ranked-reduced variant of the type depending on
+/// the value of rankReduced.
+///
+/// The leading dimensions of the index tensor give the result tensor its
+/// leading dimensions.
+/// The trailing dimensions of the result tensor are obtained from the source
+/// tensor by setting the dimensions specified in gather_dims to `1` (if
+/// rankedReduced is false), or skipping them (otherwise).
+RankedTensorType GatherOp::inferResultType(RankedTensorType sourceType,
+                                           RankedTensorType indicesType,
+                                           ArrayRef<int64_t> gatherDims,
+                                           bool rankReduced) {
+  SmallVector<int64_t> resultShape(indicesType.getShape().drop_back());
+  resultShape.reserve(resultShape.size() + sourceType.getRank());
+  for (int64_t idx : llvm::seq<int64_t>(0, sourceType.getRank())) {
+    if (std::binary_search(gatherDims.begin(), gatherDims.end(), idx)) {
+      if (!rankReduced)
+        resultShape.push_back(1);
+      continue;
+    }
+    resultShape.push_back(sourceType.getDimSize(idx));
+  }
+  return RankedTensorType::Builder(sourceType).setShape(resultShape);
+}
+
+static LogicalResult
+verifyGatherOrScatterDims(Operation *op, ArrayRef<int64_t> dims, int64_t rank,
+                          StringRef gatherOrScatter, StringRef sourceOrDest) {
+  if (dims.empty())
+    return op->emitOpError(gatherOrScatter) << "_dims must be non-empty";
+
+  int64_t numGatherDims = dims.size();
+  if (numGatherDims > rank)
+    return op->emitOpError(gatherOrScatter)
+           << "_dims overflow " << sourceOrDest << " rank";
+  for (int64_t val : dims) {
+    if (val < 0)
+      return op->emitOpError(gatherOrScatter)
+             << "_dims value must be non-negative";
+    if (val >= rank)
+      return op->emitOpError(gatherOrScatter)
+             << "_dims value must be smaller than " << sourceOrDest << " rank";
+  }
+  for (int64_t i = 1; i < numGatherDims; ++i) {
+    if (dims[i - 1] >= dims[i])
+      return op->emitOpError(gatherOrScatter)
+             << "_dims values must be strictly increasing";
+  }
+  return success();
+}
+
+LogicalResult GatherOp::verify() {
+  int64_t sourceRank = getSourceType().getRank();
+  ArrayRef<int64_t> gatherDims = getGatherDims();
+  if (failed(verifyGatherOrScatterDims(getOperation(), gatherDims, sourceRank,
+                                       "gather", "source")))
+    return failure();
+
+  RankedTensorType expectedResultType = GatherOp::inferResultType(
+      getSourceType(), getIndicesType(), gatherDims, /*rankReduced=*/false);
+  RankedTensorType expectedRankReducedResultType = GatherOp::inferResultType(
+      getSourceType(), getIndicesType(), gatherDims, /*rankReduced=*/true);
+  if (getResultType() != expectedResultType &&
+      getResultType() != expectedRankReducedResultType) {
+    return emitOpError("result type "
+                       "mismatch: "
+                       "expected ")
+           << expectedResultType << " or its rank-reduced variant "
+           << expectedRankReducedResultType << " (got: " << getResultType()
+           << ")";
+  }
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1465,18 +1566,8 @@ Value mlir::tensor::createCanonicalRankReducingExtractSliceOp(
     OpBuilder &b, Location loc, Value tensor, RankedTensorType targetType) {
   auto rankedTensorType = tensor.getType().cast<RankedTensorType>();
   unsigned rank = rankedTensorType.getRank();
-  auto shape = rankedTensorType.getShape();
   SmallVector<OpFoldResult> offsets(rank, b.getIndexAttr(0));
-  SmallVector<OpFoldResult> sizes;
-  for (unsigned i = 0, e = rank; i < e; ++i) {
-    OpFoldResult dim;
-    if (rankedTensorType.isDynamicDim(i))
-      dim = b.createOrFold<tensor::DimOp>(
-          loc, tensor, b.create<arith::ConstantIndexOp>(loc, i));
-    else
-      dim = b.getIndexAttr(shape[i]);
-    sizes.push_back(dim);
-  }
+  SmallVector<OpFoldResult> sizes = getMixedSizes(b, loc, tensor);
   SmallVector<OpFoldResult> strides(rank, b.getIndexAttr(1));
   return b.createOrFold<tensor::ExtractSliceOp>(loc, targetType, tensor,
                                                 offsets, sizes, strides);
@@ -1547,7 +1638,6 @@ LogicalResult InsertSliceOp::verify() {
 
 /// If we have two consecutive InsertSliceOp writing to the same slice, we
 /// can mutate the second InsertSliceOp's destination to the first one's.
-/// This works similarly when the second op is a ParallelInsertSliceOp.
 ///
 /// Example:
 ///
@@ -1563,9 +1653,8 @@ LogicalResult InsertSliceOp::verify() {
 /// ```
 ///
 /// This pattern works with both InsertSliceOp and ParallelInsertSliceOp.
-template <typename InsertOpTy>
-static LogicalResult foldInsertAfterInsertSlice(InsertOpTy insertOp) {
-  auto prevInsertOp = insertOp.getDest().template getDefiningOp<InsertOpTy>();
+static LogicalResult foldInsertAfterInsertSlice(InsertSliceOp insertOp) {
+  auto prevInsertOp = insertOp.getDest().getDefiningOp<InsertSliceOp>();
 
   auto isSame = [](OpFoldResult a, OpFoldResult b) { return a == b; };
   if (!prevInsertOp ||
@@ -1577,32 +1666,14 @@ static LogicalResult foldInsertAfterInsertSlice(InsertOpTy insertOp) {
   return success();
 }
 
-/// Same logic for folding InsertSliceOp and ParallelInsertSliceOp, the return
-/// type varies though so we wrap it in a FailureOr.
-///
-/// This pattern works with both InsertSliceOp and ParallelInsertSliceOp.
-template <typename InsertOpTy>
-FailureOr<OpFoldResult> foldInsertOp(InsertOpTy insertOp, ArrayRef<Attribute>) {
-  if (insertOp.getSourceType().hasStaticShape() &&
-      insertOp.getDestType().hasStaticShape() &&
-      insertOp.getSourceType() == insertOp.getDestType() &&
-      succeeded(foldIdentityOffsetSizeAndStrideOpInterface(
-          insertOp, insertOp.getDestType())))
-    return static_cast<OpFoldResult>(insertOp.getSource());
-  if (succeeded(foldInsertAfterInsertSlice(insertOp))) {
-    // InsertSliceOp has 1 result but ParallelInsertSliceOp has none and should
-    // return OpFoldResult().
-    if (std::is_same<InsertOpTy, InsertSliceOp>::value)
-      return static_cast<OpFoldResult>(insertOp->getResult(0));
-    else
-      return OpFoldResult();
-  }
-  return failure();
-}
-
-OpFoldResult InsertSliceOp::fold(ArrayRef<Attribute> operands) {
-  auto maybeOpFoldResult = foldInsertOp(*this, operands);
-  return failed(maybeOpFoldResult) ? OpFoldResult() : *maybeOpFoldResult;
+OpFoldResult InsertSliceOp::fold(ArrayRef<Attribute>) {
+  if (getSourceType().hasStaticShape() && getType().hasStaticShape() &&
+      getSourceType() == getType() &&
+      succeeded(foldIdentityOffsetSizeAndStrideOpInterface(*this, getType())))
+    return this->getSource();
+  if (succeeded(foldInsertAfterInsertSlice(*this)))
+    return getResult();
+  return OpFoldResult();
 }
 
 LogicalResult InsertSliceOp::reifyResultShapes(
@@ -1818,18 +1889,8 @@ Value mlir::tensor::createCanonicalRankReducingInsertSliceOp(OpBuilder &b,
                                                              Value dest) {
   auto rankedTensorType = dest.getType().cast<RankedTensorType>();
   unsigned rank = rankedTensorType.getRank();
-  auto shape = rankedTensorType.getShape();
   SmallVector<OpFoldResult> offsets(rank, b.getIndexAttr(0));
-  SmallVector<OpFoldResult> sizes;
-  for (unsigned i = 0, e = rank; i < e; ++i) {
-    OpFoldResult dim;
-    if (rankedTensorType.isDynamicDim(i))
-      dim = b.createOrFold<tensor::DimOp>(
-          loc, dest, b.create<arith::ConstantIndexOp>(loc, i));
-    else
-      dim = b.getIndexAttr(shape[i]);
-    sizes.push_back(dim);
-  }
+  SmallVector<OpFoldResult> sizes = getMixedSizes(b, loc, dest);
   SmallVector<OpFoldResult> strides(rank, b.getIndexAttr(1));
   return b.createOrFold<tensor::InsertSliceOp>(loc, tensor, dest, offsets,
                                                sizes, strides);
@@ -2324,63 +2385,47 @@ LogicalResult ParallelInsertSliceOp::verify() {
   return produceSliceErrorMsg(result, *this, expectedType);
 }
 
-namespace {
-/// Pattern to rewrite a parallel_insert_slice op with constant arguments.
-class ParallelInsertSliceOpConstantArgumentFolder final
-    : public OpRewritePattern<ParallelInsertSliceOp> {
-public:
-  using OpRewritePattern<ParallelInsertSliceOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(ParallelInsertSliceOp insertSliceOp,
-                                PatternRewriter &rewriter) const override {
-    // No constant operand, just return.
-    if (llvm::none_of(insertSliceOp.getOperands(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
-        }))
-      return failure();
-
-    // At least one of offsets/sizes/strides is a new constant.
-    // Form the new list of operands and constant attributes from the
-    // existing.
-    SmallVector<OpFoldResult> mixedOffsets(insertSliceOp.getMixedOffsets());
-    SmallVector<OpFoldResult> mixedSizes(insertSliceOp.getMixedSizes());
-    SmallVector<OpFoldResult> mixedStrides(insertSliceOp.getMixedStrides());
-    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamicStrideOrOffset);
-    canonicalizeSubViewPart(mixedSizes, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamicStrideOrOffset);
-
-    // Create the new op in canonical form.
-    auto sourceType =
-        tensor::ExtractSliceOp::inferCanonicalRankReducedResultType(
-            insertSliceOp.getSourceType().getRank(),
-            insertSliceOp.getDestType(), mixedOffsets, mixedSizes,
-            mixedStrides);
-    Value toInsert = insertSliceOp.getSource();
-    if (sourceType != insertSliceOp.getSourceType()) {
-      OpBuilder::InsertionGuard g(rewriter);
-      rewriter.setInsertionPoint(insertSliceOp->getParentOp());
-      toInsert = rewriter.create<tensor::CastOp>(insertSliceOp.getLoc(),
-                                                 sourceType, toInsert);
-    }
-    rewriter.replaceOpWithNewOp<ParallelInsertSliceOp>(
-        insertSliceOp, toInsert, insertSliceOp.getDest(), mixedOffsets,
-        mixedSizes, mixedStrides);
-    return success();
-  }
-};
-} // namespace
-
-LogicalResult
-ParallelInsertSliceOp::fold(ArrayRef<Attribute> operands,
-                            SmallVectorImpl<OpFoldResult> &results) {
-  return foldInsertOp(*this, operands);
-}
-
 void ParallelInsertSliceOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
   results.add<InsertSliceOpConstantArgumentFolder<ParallelInsertSliceOp>,
               InsertSliceOpCastFolder<ParallelInsertSliceOp>,
               InsertSliceOpSourceCastInserter<ParallelInsertSliceOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// ScatterOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult ScatterOp::verify() {
+  int64_t destRank = getDestType().getRank();
+  ArrayRef<int64_t> scatterDims = getScatterDims();
+  if (failed(verifyGatherOrScatterDims(getOperation(), scatterDims, destRank,
+                                       "scatter", "dest")))
+    return failure();
+
+  if (!getUnique())
+    return emitOpError("requires 'unique' attribute to be set");
+  // TODO: we could also check statically that there are fewer leading index
+  // tensor dims than the dest dims. If this is not the case, the unique
+  // attribute cannot be true.
+
+  // Use the GatherOp::inferResultType on the `dest` type and verify the
+  // expected type matches the source type.
+  RankedTensorType expectedSourceType = GatherOp::inferResultType(
+      getDestType(), getIndicesType(), scatterDims, /*rankReduced=*/false);
+  RankedTensorType expectedRankReducedSourceType = GatherOp::inferResultType(
+      getDestType(), getIndicesType(), scatterDims, /*rankReduced=*/true);
+  if (getSourceType() != expectedSourceType &&
+      getSourceType() != expectedRankReducedSourceType) {
+    return emitOpError("source type "
+                       "mismatch: "
+                       "expected ")
+           << expectedSourceType << " or its rank-reduced variant "
+           << expectedRankReducedSourceType << " (got: " << getSourceType()
+           << ")";
+  }
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

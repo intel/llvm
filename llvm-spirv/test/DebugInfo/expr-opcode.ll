@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-allow-extra-diexpressions
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.rev.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll
 
 ; RUN: llc -mtriple=%triple -dwarf-version=5 -filetype=obj -O0 < %t.rev.ll

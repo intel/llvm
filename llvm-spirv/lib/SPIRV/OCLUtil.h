@@ -305,6 +305,7 @@ const static char SubgroupBlockWriteINTELPrefix[] =
     "intel_sub_group_block_write";
 const static char SubgroupImageMediaBlockINTELPrefix[] =
     "intel_sub_group_media_block";
+const static char SplitBarrierINTELPrefix[] = "intel_work_group_barrier_";
 const static char LDEXP[] = "ldexp";
 #define _SPIRV_OP(x)                                                           \
   const static char ConvertBFloat16##x##AsUShort##x[] =                        \
@@ -506,7 +507,7 @@ bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerStructTy(StructType *Ty);
+bool isSamplerStructTy(Type *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);

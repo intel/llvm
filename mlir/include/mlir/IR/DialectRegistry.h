@@ -90,9 +90,8 @@ protected:
     unsigned dialectIdx = 0;
     auto derivedDialects = std::tuple<DialectsT *...>{
         static_cast<DialectsT *>(dialects[dialectIdx++])...};
-    llvm::apply_tuple(
-        [&](DialectsT *...dialect) { apply(context, dialect...); },
-        derivedDialects);
+    std::apply([&](DialectsT *...dialect) { apply(context, dialect...); },
+               derivedDialects);
   }
 };
 
@@ -175,8 +174,7 @@ public:
   /// Add the given extensions to the registry.
   template <typename... ExtensionsT>
   void addExtensions() {
-    (void)std::initializer_list<int>{
-        (addExtension(std::make_unique<ExtensionsT>()), 0)...};
+    (addExtension(std::make_unique<ExtensionsT>()), ...);
   }
 
   /// Add an extension function that requires the given dialects.

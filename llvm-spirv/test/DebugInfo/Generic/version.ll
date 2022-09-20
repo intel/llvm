@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefix=CHECK-LLVM
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll > %t

@@ -140,8 +140,7 @@ GeneratePCHAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
       CI.getPreprocessor(), CI.getModuleCache(), OutputFile, Sysroot, Buffer,
       FrontendOpts.ModuleFileExtensions,
       CI.getPreprocessorOpts().AllowPCHWithCompilerErrors,
-      FrontendOpts.IncludeTimestamps, +CI.getLangOpts().CacheGeneratedPCH,
-      FrontendOpts.OutputPathIndependentPCM));
+      FrontendOpts.IncludeTimestamps, +CI.getLangOpts().CacheGeneratedPCH));
   Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
       CI, std::string(InFile), OutputFile, std::move(OS), Buffer));
 
@@ -204,9 +203,7 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
       /*IncludeTimestamps=*/
       +CI.getFrontendOpts().BuildingImplicitModule,
       /*ShouldCacheASTInMemory=*/
-      +CI.getFrontendOpts().BuildingImplicitModule,
-      /*OutputPathIndependent=*/
-      +CI.getFrontendOpts().OutputPathIndependentPCM));
+      +CI.getFrontendOpts().BuildingImplicitModule));
   Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
       CI, std::string(InFile), OutputFile, std::move(OS), Buffer));
   return std::make_unique<MultiplexConsumer>(std::move(Consumers));
@@ -923,12 +920,12 @@ void DumpModuleInfoAction::ExecuteAction() {
     if (Primary) {
       if (!Primary->submodules().empty())
         Out << "   Sub Modules:\n";
-      for (auto MI : Primary->submodules()) {
+      for (auto *MI : Primary->submodules()) {
         PrintSubMapEntry(MI->Name, MI->Kind);
       }
       if (!Primary->Imports.empty())
         Out << "   Imports:\n";
-      for (auto IMP : Primary->Imports) {
+      for (auto *IMP : Primary->Imports) {
         PrintSubMapEntry(IMP->Name, IMP->Kind);
       }
       if (!Primary->Exports.empty())

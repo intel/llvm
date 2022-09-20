@@ -401,7 +401,7 @@ std::string opts::breakpoint::substitute(StringRef Cmd) {
         OS << sys::path::parent_path(breakpoint::CommandFile);
         break;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       size_t pos = Cmd.find('%');
       OS << Cmd.substr(0, pos);
@@ -505,8 +505,9 @@ Error opts::symbols::findFunctions(lldb_private::Module &Module) {
         ContextOr->IsValid() ? *ContextOr : CompilerDeclContext();
 
     List.Clear();
-    Symfile.FindFunctions(ConstString(Name), ContextPtr, getFunctionNameFlags(),
-                         true, List);
+    Module::LookupInfo lookup_info(ConstString(Name), getFunctionNameFlags(),
+                                   eLanguageTypeUnknown);
+    Symfile.FindFunctions(lookup_info, ContextPtr, true, List);
   }
   outs() << formatv("Found {0} functions:\n", List.GetSize());
   StreamString Stream;
@@ -878,11 +879,12 @@ static Mangled::NamePreference opts::symtab::getNamePreference() {
   case ManglingPreference::MangledWithoutArguments:
     return Mangled::ePreferDemangledWithoutArguments;
   }
+  llvm_unreachable("Fully covered switch above!");
 }
 
 int opts::symtab::handleSymtabCommand(Debugger &Dbg) {
   if (auto error = validate()) {
-    logAllUnhandledErrors(std::move(error.getValue()), WithColor::error(), "");
+    logAllUnhandledErrors(std::move(error.value()), WithColor::error(), "");
     return 1;
   }
 

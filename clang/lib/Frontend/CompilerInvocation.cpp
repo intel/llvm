@@ -113,8 +113,8 @@ using namespace llvm::opt;
 
 // Parse misexpect tolerance argument value.
 // Valid option values are integers in the range [0, 100)
-inline Expected<Optional<uint64_t>> parseToleranceOption(StringRef Arg) {
-  int64_t Val;
+inline Expected<Optional<uint32_t>> parseToleranceOption(StringRef Arg) {
+  uint32_t Val;
   if (Arg.getAsInteger(10, Val))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "Not an integer: %s", Arg.data());
@@ -517,6 +517,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fgnu89-inline" << GetInputKindName(IK);
 
+  if (Args.hasArg(OPT_hlsl_entrypoint) && !LangOpts.HLSL)
+    Diags.Report(diag::err_drv_argument_not_allowed_with)
+        << "-hlsl-entry" << GetInputKindName(IK);
+
   if (Args.hasArg(OPT_fgpu_allow_device_init) && !LangOpts.HIP)
     Diags.Report(diag::warn_ignored_hip_only_option)
         << Args.getLastArg(OPT_fgpu_allow_device_init)->getAsString(Args);
@@ -910,14 +914,6 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
       IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, MERGER, TABLE_INDEX)
 #include "clang/Driver/Options.inc"
 #undef ANALYZER_OPTION_WITH_MARSHALLING
-
-  if (Args.hasArg(OPT_analyzer_store))
-    Diags.Report(diag::warn_analyzer_deprecated_option) << "-analyzer-store"
-                                                        << "clang-16";
-  if (Args.hasArg(OPT_analyzer_opt_analyze_nested_blocks))
-    Diags.Report(diag::warn_analyzer_deprecated_option)
-        << "-analyzer-opt-analyze-nested-blocks"
-        << "clang-16";
 
   if (Arg *A = Args.getLastArg(OPT_analyzer_constraints)) {
     StringRef Name = A->getValue();
@@ -3550,6 +3546,8 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Args, OPT_fclang_abi_compat_EQ, "12.0", SA);
   else if (Opts.getClangABICompat() == LangOptions::ClangABI::Ver14)
     GenerateArg(Args, OPT_fclang_abi_compat_EQ, "14.0", SA);
+  else if (Opts.getClangABICompat() == LangOptions::ClangABI::Ver15)
+    GenerateArg(Args, OPT_fclang_abi_compat_EQ, "15.0", SA);
 
   if (Opts.getSignReturnAddressScope() ==
       LangOptions::SignReturnAddressScopeKind::All)
@@ -4110,6 +4108,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         Opts.setClangABICompat(LangOptions::ClangABI::Ver12);
       else if (Major <= 14)
         Opts.setClangABICompat(LangOptions::ClangABI::Ver14);
+      else if (Major <= 15)
+        Opts.setClangABICompat(LangOptions::ClangABI::Ver15);
     } else if (Ver != "latest") {
       Diags.Report(diag::err_drv_invalid_value)
           << A->getAsString(Args) << A->getValue();
@@ -4198,6 +4198,14 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   if (const Arg *A = Args.getLastArg(OPT_frandomize_layout_seed_EQ))
     Opts.RandstructSeed = A->getValue(0);
+
+  // Validate options for HLSL
+  if (Opts.HLSL) {
+    bool SupportedTarget = T.getArch() == llvm::Triple::dxil &&
+                           T.getOS() == llvm::Triple::ShaderModel;
+    if (!SupportedTarget)
+      Diags.Report(diag::err_drv_hlsl_unsupported_target) << T.str();
+  }
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }
@@ -4782,6 +4790,37 @@ void CompilerInvocation::generateCC1CommandLine(
   GeneratePreprocessorOutputArgs(PreprocessorOutputOpts, Args, SA,
                                  FrontendOpts.ProgramAction);
   GenerateDependencyOutputArgs(DependencyOutputOpts, Args, SA);
+}
+
+std::vector<std::string> CompilerInvocation::getCC1CommandLine() const {
+  // Set up string allocator.
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Strings(Alloc);
+  auto SA = [&Strings](const Twine &Arg) { return Strings.save(Arg).data(); };
+
+  // Synthesize full command line from the CompilerInvocation, including "-cc1".
+  SmallVector<const char *, 32> Args{"-cc1"};
+  generateCC1CommandLine(Args, SA);
+
+  // Convert arguments to the return type.
+  return std::vector<std::string>{Args.begin(), Args.end()};
+}
+
+void CompilerInvocation::resetNonModularOptions() {
+  getLangOpts()->resetNonModularOptions();
+  getPreprocessorOpts().resetNonModularOptions();
+}
+
+void CompilerInvocation::clearImplicitModuleBuildOptions() {
+  getLangOpts()->ImplicitModules = false;
+  getHeaderSearchOpts().ImplicitModuleMaps = false;
+  getHeaderSearchOpts().ModuleCachePath.clear();
+  getHeaderSearchOpts().ModulesValidateOncePerBuildSession = false;
+  getHeaderSearchOpts().BuildSessionTimestamp = 0;
+  // The specific values we canonicalize to for pruning don't affect behaviour,
+  /// so use the default values so they may be dropped from the command-line.
+  getHeaderSearchOpts().ModuleCachePruneInterval = 7 * 24 * 60 * 60;
+  getHeaderSearchOpts().ModuleCachePruneAfter = 31 * 24 * 60 * 60;
 }
 
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>

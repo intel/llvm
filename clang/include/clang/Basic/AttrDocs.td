@@ -127,6 +127,10 @@ relative ordering of values is important. For example:
 ``Obj2`` will be initialized *before* ``Obj1`` despite the usual order of
 initialization being the opposite.
 
+On Windows, ``init_seg(compiler)`` is represented with a priority of 200 and
+``init_seg(library)`` is represented with a priority of 400. ``init_seg(user)``
+uses the default 65535 priority.
+
 This attribute is only supported for C++ and Objective-C++ and is ignored in
 other language modes. Currently, this attribute is not implemented on z/OS.
   }];
@@ -6139,6 +6143,16 @@ guaranteed to not throw an exception.
     }];
 }
 
+def NoUwtableDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``nouwtable`` attribute which skips emitting
+the unwind table entry for the specified function. This attribute is useful for
+selectively emitting the unwind table entry on some functions when building with
+``-funwind-tables`` compiler option.
+    }];
+}
+
 def InternalLinkageDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -6847,6 +6861,21 @@ aarch64/aarch64-be/riscv32/riscv64/i386/x86-64 targets.
 }];
 }
 
+def HotFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((hot))`` marks a function as hot, as a manual alternative to PGO hotness data.
+If PGO data is available, the annotation ``__attribute__((hot))`` overrides the profile count based hotness (unlike ``__attribute__((cold))``).
+}];
+}
+
+def ColdFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((cold))`` marks a function as cold, as a manual alternative to PGO hotness data.
+If PGO data is available, the profile count based hotness overrides the ``__attribute__((cold))`` annotation (unlike ``__attribute__((hot))``).
+}];
+}
 def TransparentUnionDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
