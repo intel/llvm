@@ -2078,10 +2078,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           << (Fixit ? FixItHint::CreateInsertion(D.getBeginLoc(), "_Noreturn ")
                     : FixItHint());
     }
-  }
 
-  // Check to see if we have a function *definition* which must have a body.
-  if (D.isFunctionDeclarator()) {
+    // Check to see if we have a function *definition* which must have a body.
     if (Tok.is(tok::equal) && NextToken().is(tok::code_completion)) {
       cutOffParsing();
       Actions.CodeCompleteAfterFunctionEquals(D);
@@ -2803,7 +2801,7 @@ bool Parser::ParseImplicitInt(DeclSpec &DS, CXXScopeSpec *SS,
         }
       }
       // Fall through.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case tok::comma:
     case tok::equal:
@@ -3269,13 +3267,14 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         return;
       }
 
-      if (getCurScope()->getFnParent() || getCurScope()->getBlockParent())
-        CCC = Sema::PCC_LocalDeclarationSpecifiers;
-      else if (TemplateInfo.Kind != ParsedTemplateInfo::NonTemplate)
+      // Class context can appear inside a function/block, so prioritise that.
+      if (TemplateInfo.Kind != ParsedTemplateInfo::NonTemplate)
         CCC = DSContext == DeclSpecContext::DSC_class ? Sema::PCC_MemberTemplate
                                                       : Sema::PCC_Template;
       else if (DSContext == DeclSpecContext::DSC_class)
         CCC = Sema::PCC_Class;
+      else if (getCurScope()->getFnParent() || getCurScope()->getBlockParent())
+        CCC = Sema::PCC_LocalDeclarationSpecifiers;
       else if (CurParsedObjCImpl)
         CCC = Sema::PCC_ObjCImplementation;
 
@@ -3474,7 +3473,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // typedef-name
     case tok::kw___super:
     case tok::kw_decltype:
-    case tok::identifier: {
+    case tok::identifier:
+    ParseIdentifier: {
       // This identifier can only be a typedef name if we haven't already seen
       // a type-specifier.  Without this check we misparse:
       //  typedef int X; struct Y { short X; };  as 'short int'.
@@ -3667,7 +3667,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
             }
           }
           ConsumedEnd = Tok.getLocation();
-          DS.setTypeofParensRange(Tracker.getRange());
+          DS.setTypeArgumentRange(Tracker.getRange());
           // Even if something went wrong above, continue as if we've seen
           // `decltype(auto)`.
           isInvalid = DS.SetTypeSpecType(TST_decltype_auto, Loc, PrevSpec,
@@ -4209,8 +4209,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       HandlePragmaMSPointersToMembers();
       continue;
 
-    case tok::kw___underlying_type:
-      ParseUnderlyingTypeSpecifier(DS);
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
+      // HACK: libstdc++ already uses '__remove_cv' as an alias template so we
+      // work around this by expecting all transform type traits to be suffixed
+      // with '('. They're an identifier otherwise.
+      if (!MaybeParseTypeTransformTypeSpecifier(DS))
+        goto ParseIdentifier;
       continue;
 
     case tok::kw__Atomic:
@@ -4241,13 +4246,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         isInvalid = true;
         break;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::kw_private:
       // It's fine (but redundant) to check this for __generic on the
       // fallthrough path; we only form the __generic token in OpenCL mode.
       if (!getLangOpts().OpenCL)
         goto DoneWithDeclSpec;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::kw___private:
     case tok::kw___global:
     case tok::kw___local:
@@ -4643,6 +4648,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
 
     if (Spec.isSet() && Tok.isNot(tok::identifier)) {
       Diag(Tok, diag::err_expected) << tok::identifier;
+      DS.SetTypeSpecError();
       if (Tok.isNot(tok::l_brace)) {
         // Has no name and is not a definition.
         // Skip the rest of this declarator, up until the comma or semicolon.
@@ -4659,6 +4665,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
       Tok.isNot(tok::colon)) {
     Diag(Tok, diag::err_expected_either) << tok::identifier << tok::l_brace;
 
+    DS.SetTypeSpecError();
     // Skip the rest of this declarator, up until the comma or semicolon.
     SkipUntil(tok::comma, StopAtSemi);
     return;
@@ -4834,6 +4841,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
   if (!Name && TUK != Sema::TUK_Definition) {
     Diag(Tok, diag::err_enumerator_unnamed_no_def);
 
+    DS.SetTypeSpecError();
     // Skip the rest of this declarator, up until the comma or semicolon.
     SkipUntil(tok::comma, StopAtSemi);
     return;
@@ -5162,7 +5170,7 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::identifier:   // foo::bar
     if (TryAltiVecVectorToken())
       return true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw_typename:  // typename T::type
     // Annotate typenames and C++ scope specifiers.  If we get one, just
     // recurse to handle whatever we get.
@@ -5305,7 +5313,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
       return false;
     if (TryAltiVecVectorToken())
       return true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw_decltype: // decltype(T())::type
   case tok::kw_typename: // typename T::type
     // Annotate typenames and C++ scope specifiers.  If we get one, just
@@ -5720,7 +5728,7 @@ void Parser::ParseTypeQualifierListOpt(
     case tok::kw_private:
       if (!getLangOpts().OpenCL)
         goto DoneWithTypeQuals;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::kw___private:
     case tok::kw___global:
     case tok::kw___local:
@@ -5744,7 +5752,7 @@ void Parser::ParseTypeQualifierListOpt(
         if (TryKeywordIdentFallback(false))
           continue;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::kw___sptr:
     case tok::kw___w64:
     case tok::kw___ptr64:
@@ -5795,7 +5803,7 @@ void Parser::ParseTypeQualifierListOpt(
         continue; // do *not* consume the next token!
       }
       // otherwise, FALL THROUGH!
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       DoneWithTypeQuals:
       // If this is not a type-qualifier token, we're done reading type
@@ -7448,7 +7456,7 @@ void Parser::ParseTypeofSpecifier(DeclSpec &DS) {
   ExprResult Operand = Actions.CorrectDelayedTyposInExpr(
       ParseExprAfterUnaryExprOrTypeTrait(OpTok, isCastExpr, CastTy, CastRange));
   if (hasParens)
-    DS.setTypeofParensRange(CastRange);
+    DS.setTypeArgumentRange(CastRange);
 
   if (CastRange.getEnd().isInvalid())
     // FIXME: Not accurate, the range gets one token more than it should.
@@ -7518,7 +7526,7 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
   if (T.getCloseLocation().isInvalid())
     return;
 
-  DS.setTypeofParensRange(T.getRange());
+  DS.setTypeArgumentRange(T.getRange());
   DS.SetRangeEnd(T.getCloseLocation());
 
   const char *PrevSpec = nullptr;

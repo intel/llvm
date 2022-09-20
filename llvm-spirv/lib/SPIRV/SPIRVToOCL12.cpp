@@ -100,6 +100,19 @@ void SPIRVToOCL12Base::visitCallSPIRVControlBarrier(CallInst *CI) {
       &Attrs);
 }
 
+void SPIRVToOCL12Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        Value *MemFenceFlags =
+            SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[2], CI);
+        Args.assign(1, MemFenceFlags);
+        return OCLSPIRVBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
 Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(

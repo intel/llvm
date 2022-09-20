@@ -1490,8 +1490,8 @@ define i8 @sub_add_sub_reassoc_use2(i8 %w, i8 %x, i8 %y, i8 %z) {
 
 define i8 @sub_mask_lowbits(i8 %x) {
 ; CHECK-LABEL: @sub_mask_lowbits(
-; CHECK-NEXT:    [[A1:%.*]] = add i8 [[X:%.*]], -108
-; CHECK-NEXT:    [[R:%.*]] = and i8 [[A1]], -4
+; CHECK-NEXT:    [[TMP1:%.*]] = and i8 [[X:%.*]], -4
+; CHECK-NEXT:    [[R:%.*]] = add i8 [[TMP1]], -108
 ; CHECK-NEXT:    ret i8 [[R]]
 ;
   %a1 = add i8 %x, 148 ; 0x94
@@ -1517,10 +1517,10 @@ define i8 @sub_not_mask_lowbits(i8 %x) {
 
 define <2 x i8> @sub_mask_lowbits_splat_extra_use(<2 x i8> %x, <2 x i8>* %p) {
 ; CHECK-LABEL: @sub_mask_lowbits_splat_extra_use(
-; CHECK-NEXT:    [[A1:%.*]] = add <2 x i8> [[X:%.*]], <i8 -64, i8 -64>
-; CHECK-NEXT:    [[A2:%.*]] = and <2 x i8> [[X]], <i8 10, i8 10>
+; CHECK-NEXT:    [[A2:%.*]] = and <2 x i8> [[X:%.*]], <i8 10, i8 10>
 ; CHECK-NEXT:    store <2 x i8> [[A2]], <2 x i8>* [[P:%.*]], align 2
-; CHECK-NEXT:    [[R:%.*]] = and <2 x i8> [[A1]], <i8 -11, i8 -11>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i8> [[X]], <i8 -11, i8 -11>
+; CHECK-NEXT:    [[R:%.*]] = add <2 x i8> [[TMP1]], <i8 -64, i8 -64>
 ; CHECK-NEXT:    ret <2 x i8> [[R]]
 ;
   %a1 = add <2 x i8> %x, <i8 192, i8 192> ; 0xc0
@@ -2001,4 +2001,70 @@ define i16 @urem_zext_noundef(i8 noundef %x, i8 %y) {
   %ex = zext i8 %x to i16
   %z = sub i16 %ex, %ed
   ret i16 %z
+}
+
+; x * y - x --> (y - 1) * x
+; TODO: The mul could retain nsw.
+
+define i8 @mul_sub_common_factor_commute1(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute1(
+; CHECK-NEXT:    [[X1:%.*]] = add i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[X1]], [[X:%.*]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul nsw i8 %x, %y
+  %a = sub nsw i8 %m, %x
+  ret i8 %a
+}
+
+; TODO: The mul could retain nuw.
+
+define <2 x i8> @mul_sub_common_factor_commute2(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute2(
+; CHECK-NEXT:    [[M1:%.*]] = add <2 x i8> [[Y:%.*]], <i8 -1, i8 -1>
+; CHECK-NEXT:    [[A:%.*]] = mul <2 x i8> [[M1]], [[X:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[A]]
+;
+  %m = mul nuw <2 x i8> %y, %x
+  %a = sub nuw <2 x i8> %m, %x
+  ret <2 x i8> %a
+}
+
+; x - (x * y) --> (1 - y) * x
+
+define i8 @mul_sub_common_factor_commute3(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute3(
+; CHECK-NEXT:    [[M1:%.*]] = sub i8 1, [[Y:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[M1]], [[X:%.*]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul nuw i8 %x, %y
+  %a = sub nsw i8 %x, %m
+  ret i8 %a
+}
+
+define i8 @mul_sub_common_factor_commute4(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_commute4(
+; CHECK-NEXT:    [[M1:%.*]] = sub i8 1, [[Y:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = mul i8 [[M1]], [[X:%.*]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul nsw i8 %y, %x
+  %a = sub nuw i8 %x, %m
+  ret i8 %a
+}
+
+; negative test - uses
+
+define i8 @mul_sub_common_factor_use(i8 %x, i8 %y) {
+; CHECK-LABEL: @mul_sub_common_factor_use(
+; CHECK-NEXT:    [[M:%.*]] = mul i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @use8(i8 [[M]])
+; CHECK-NEXT:    [[A:%.*]] = sub i8 [[M]], [[X]]
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %m = mul i8 %x, %y
+  call void @use8(i8 %m)
+  %a = sub i8 %m, %x
+  ret i8 %a
 }

@@ -1172,11 +1172,11 @@ SDValue  MipsTargetLowering::PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI)
   return SDValue();
 }
 
-bool MipsTargetLowering::isCheapToSpeculateCttz() const {
+bool MipsTargetLowering::isCheapToSpeculateCttz(Type *Ty) const {
   return Subtarget.hasMips32();
 }
 
-bool MipsTargetLowering::isCheapToSpeculateCtlz() const {
+bool MipsTargetLowering::isCheapToSpeculateCtlz(Type *Ty) const {
   return Subtarget.hasMips32();
 }
 
@@ -3323,19 +3323,19 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       break;
     case CCValAssign::SExtUpper:
       UseUpperBits = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CCValAssign::SExt:
       Arg = DAG.getNode(ISD::SIGN_EXTEND, DL, LocVT, Arg);
       break;
     case CCValAssign::ZExtUpper:
       UseUpperBits = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CCValAssign::ZExt:
       Arg = DAG.getNode(ISD::ZERO_EXTEND, DL, LocVT, Arg);
       break;
     case CCValAssign::AExtUpper:
       UseUpperBits = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CCValAssign::AExt:
       Arg = DAG.getNode(ISD::ANY_EXTEND, DL, LocVT, Arg);
       break;
@@ -3854,19 +3854,19 @@ MipsTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
       break;
     case CCValAssign::AExtUpper:
       UseUpperBits = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CCValAssign::AExt:
       Val = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Val);
       break;
     case CCValAssign::ZExtUpper:
       UseUpperBits = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CCValAssign::ZExt:
       Val = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Val);
       break;
     case CCValAssign::SExtUpper:
       UseUpperBits = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CCValAssign::SExt:
       Val = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Val);
       break;

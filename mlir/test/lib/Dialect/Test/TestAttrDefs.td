@@ -17,6 +17,7 @@
 include "TestDialect.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SubElementInterfaces.td"
 
@@ -94,22 +95,23 @@ def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
 
     /// Provide begin iterators for the various iterable types.
     // * uint64_t
-    auto value_begin_impl(OverloadToken<uint64_t>) const {
+    mlir::FailureOr<const uint64_t *>
+    try_value_begin_impl(OverloadToken<uint64_t>) const {
       return getElements().begin();
     }
     // * Attribute
-    auto value_begin_impl(OverloadToken<mlir::Attribute>) const {
+    auto try_value_begin_impl(OverloadToken<mlir::Attribute>) const {
       mlir::Type elementType = getType().getElementType();
-      return llvm::map_range(getElements(), [=](uint64_t value) {
+      return mlir::success(llvm::map_range(getElements(), [=](uint64_t value) {
         return mlir::IntegerAttr::get(elementType,
                                       llvm::APInt(/*numBits=*/64, value));
-      }).begin();
+      }).begin());
     }
     // * APInt
-    auto value_begin_impl(OverloadToken<llvm::APInt>) const {
-      return llvm::map_range(getElements(), [=](uint64_t value) {
+    auto try_value_begin_impl(OverloadToken<llvm::APInt>) const {
+      return mlir::success(llvm::map_range(getElements(), [=](uint64_t value) {
         return llvm::APInt(/*numBits=*/64, value);
-      }).begin();
+      }).begin());
     }
   }];
   let genVerifyDecl = 1;
@@ -257,11 +259,36 @@ def TestExtern1DI64ElementsAttr : Test_Attr<"TestExtern1DI64Elements", [
 
     /// Provide begin iterators for the various iterable types.
     // * uint64_t
-    auto value_begin_impl(OverloadToken<uint64_t>) const {
+    mlir::FailureOr<const uint64_t *>
+    try_value_begin_impl(OverloadToken<uint64_t>) const {
       return getElements().begin();
     }
   }];
   let assemblyFormat = "`<` $handle `>`";
 }
+
+// An array of nested attributes.
+def TestArrayOfUglyAttrs : ArrayOfAttr<Test_Dialect, "ArrayOfUglyAttrs",
+    "array_of_ugly", "TestAttrUglyAttr"> {
+  let assemblyFormat = "`[` $value ` ` `]`";
+}
+
+// An array of integers.
+def TestArrayOfInts : ArrayOfAttr<Test_Dialect, "ArrayOfInts",
+    "array_of_ints", "int32_t">;
+
+// An array of enum attributes.
+def TestSimpleEnum : I32EnumAttr<"SimpleEnum", "", [
+    I32EnumAttrCase<"a", 0>,
+    I32EnumAttrCase<"b", 1>
+  ]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::test";
+}
+def TestSimpleEnumAttr : EnumAttr<Test_Dialect, TestSimpleEnum, "simple_enum"> {
+  let assemblyFormat = "`` $value";
+}
+def TestArrayOfEnums : ArrayOfAttr<Test_Dialect, "ArrayOfEnums",
+    "array_of_enums", "SimpleEnumAttr">;
 
 #endif // TEST_ATTRDEFS

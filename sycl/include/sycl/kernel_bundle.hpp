@@ -341,6 +341,9 @@ private:
     return ReturnValue;
   }
 };
+#if __cplusplus >= 201703L
+template <bundle_state State> kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
+#endif
 
 /////////////////////////
 // get_kernel_id API

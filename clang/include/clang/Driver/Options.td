@@ -502,6 +502,7 @@ defvar render_script = LangOpts<"RenderScript">;
 defvar hip = LangOpts<"HIP">;
 defvar gnu_mode = LangOpts<"GNUMode">;
 defvar asm_preprocessor = LangOpts<"AsmPreprocessor">;
+defvar hlsl = LangOpts<"HLSL">;
 defvar sycl_ver = LangOpts<"SYCLVersion">;
 
 defvar std = !strconcat("LangStandard::getLangStandardForKind(", lang_std.KeyPath, ")");
@@ -771,12 +772,6 @@ def R_Joined : Joined<["-"], "R">, Group<R_Group>, Flags<[CC1Option, CoreOption]
   MetaVarName<"<remark>">, HelpText<"Enable the specified remark">;
 def S : Flag<["-"], "S">, Flags<[NoXarchOption,CC1Option,FlangOption,FC1Option]>, Group<Action_Group>,
   HelpText<"Only run preprocess and compilation steps">;
-def Tbss : JoinedOrSeparate<["-"], "Tbss">, Group<T_Group>,
-  MetaVarName<"<addr>">, HelpText<"Set starting address of BSS to <addr>">;
-def Tdata : JoinedOrSeparate<["-"], "Tdata">, Group<T_Group>,
-  MetaVarName<"<addr>">, HelpText<"Set starting address of DATA to <addr>">;
-def Ttext : JoinedOrSeparate<["-"], "Ttext">, Group<T_Group>,
-  MetaVarName<"<addr>">, HelpText<"Set starting address of TEXT to <addr>">;
 def T : JoinedOrSeparate<["-"], "T">, Group<T_Group>,
   MetaVarName<"<script>">, HelpText<"Specify <script> as linker script">;
 def U : JoinedOrSeparate<["-"], "U">, Group<Preprocessor_Group>,
@@ -824,8 +819,10 @@ def Xassembler : Separate<["-"], "Xassembler">,
   HelpText<"Pass <arg> to the assembler">, MetaVarName<"<arg>">,
   Group<CompileOnly_Group>;
 def Xclang : Separate<["-"], "Xclang">,
-  HelpText<"Pass <arg> to the clang compiler">, MetaVarName<"<arg>">,
+  HelpText<"Pass <arg> to clang -cc1">, MetaVarName<"<arg>">,
   Flags<[NoXarchOption, CoreOption]>, Group<CompileOnly_Group>;
+def : Joined<["-"], "Xclang=">, Group<CompileOnly_Group>, Flags<[NoXarchOption, CoreOption]>, Alias<Xclang>,
+  HelpText<"Alias for -Xclang">, MetaVarName<"<arg>">;
 def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
@@ -866,17 +863,13 @@ def Xoffload_linker : JoinedAndSeparate<["-"], "Xoffload-linker">,
 def Xpreprocessor : Separate<["-"], "Xpreprocessor">, Group<Preprocessor_Group>,
   HelpText<"Pass <arg> to the preprocessor">, MetaVarName<"<arg>">;
 def X_Flag : Flag<["-"], "X">, Group<Link_Group>;
-def X_Joined : Joined<["-"], "X">, IgnoredGCCCompat;
 def Z_Flag : Flag<["-"], "Z">, Group<Link_Group>;
-// FIXME: All we do with this is reject it. Remove.
-def Z_Joined : Joined<["-"], "Z">;
 def all__load : Flag<["-"], "all_load">;
 def allowable__client : Separate<["-"], "allowable_client">;
 def ansi : Flag<["-", "--"], "ansi">, Group<CompileOnly_Group>;
 def arch__errors__fatal : Flag<["-"], "arch_errors_fatal">;
 def arch : Separate<["-"], "arch">, Flags<[NoXarchOption]>;
 def arch__only : Separate<["-"], "arch_only">;
-def a : Joined<["-"], "a">;
 def autocomplete : Joined<["--"], "autocomplete=">;
 def bind__at__load : Flag<["-"], "bind_at_load">;
 def bundle__loader : Separate<["-"], "bundle_loader">;
@@ -1181,7 +1174,7 @@ def fallow_unsupported : Flag<["-"], "fallow-unsupported">, Group<f_Group>;
 def fapple_kext : Flag<["-"], "fapple-kext">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Use Apple's kernel extensions ABI">,
   MarshallingInfoFlag<LangOpts<"AppleKext">>;
-def fstrict_flex_arrays_EQ : Joined<["-"], "fstrict-flex-arrays=">,Group<f_Group>,
+def fstrict_flex_arrays_EQ : Joined<["-"], "fstrict-flex-arrays=">, Group<f_Group>,
   MetaVarName<"<n>">, Values<"0,1,2">,
   LangOpts<"StrictFlexArrays">,
   Flags<[CC1Option]>,
@@ -2020,6 +2013,11 @@ def finline_functions : Flag<["-"], "finline-functions">, Group<f_clang_Group>, 
 def finline_hint_functions: Flag<["-"], "finline-hint-functions">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Inline functions which are (explicitly or implicitly) marked inline">;
 def finline : Flag<["-"], "finline">, Group<clang_ignored_f_Group>;
+def finline_max_stacksize_EQ
+    : Joined<["-"], "finline-max-stacksize=">,
+      Group<f_Group>, Flags<[CoreOption, CC1Option]>,
+      HelpText<"Suppress inlining of functions whose stack size exceeds the given value">,
+      MarshallingInfoInt<CodeGenOpts<"InlineMaxStackSize">, "UINT_MAX">;
 defm jmc : BoolFOption<"jmc",
   CodeGenOpts<"JMCInstrument">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enable just-my-code debugging">,
@@ -2234,7 +2232,7 @@ defm asm_blocks : BoolFOption<"asm-blocks",
   LangOpts<"AsmBlocks">, Default<fms_extensions.KeyPath>,
   PosFlag<SetTrue, [CC1Option]>, NegFlag<SetFalse>>;
 def fms_volatile : Flag<["-"], "fms-volatile">, Group<f_Group>, Flags<[CC1Option]>,
-  MarshallingInfoFlag<CodeGenOpts<"MSVolatile">>;
+  MarshallingInfoFlag<LangOpts<"MSVolatile">>;
 def fmsc_version : Joined<["-"], "fmsc-version=">, Group<f_Group>, Flags<[NoXarchOption, CoreOption]>,
   HelpText<"Microsoft compiler version number to report in _MSC_VER (0 = don't define it (default))">;
 def fms_compatibility_version
@@ -2617,6 +2615,10 @@ def fopenmp_assume_no_thread_state : Flag<["-"], "fopenmp-assume-no-thread-state
   Flags<[CC1Option, NoArgumentUnused, HelpHidden]>,
   HelpText<"Assert no thread in a parallel region modifies an ICV">,
   MarshallingInfoFlag<LangOpts<"OpenMPNoThreadState">>;
+def fopenmp_assume_no_nested_parallelism : Flag<["-"], "fopenmp-assume-no-nested-parallelism">, Group<f_Group>,
+  Flags<[CC1Option, NoArgumentUnused, HelpHidden]>,
+  HelpText<"Assert no nested parallel regions in the GPU">,
+  MarshallingInfoFlag<LangOpts<"OpenMPNoNestedParallelism">>;
 def fopenmp_offload_mandatory : Flag<["-"], "fopenmp-offload-mandatory">, Group<f_Group>,
   Flags<[CC1Option, NoArgumentUnused]>,
   HelpText<"Do not create a host fallback if offloading to the device fails.">,
@@ -2942,7 +2944,8 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
   "or AOT compilation of each device image.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
-  Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
+  Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
+  HelpText<"Run the preprocessor, parser and semantic analysis stages">;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
 def ftemplate_depth_EQ : Joined<["-"], "ftemplate-depth=">, Group<f_Group>;
 def ftemplate_depth_ : Joined<["-"], "ftemplate-depth-">, Group<f_Group>;
@@ -3092,8 +3095,9 @@ def fvisibility_externs_nodllstorageclass_EQ : Joined<["-"], "fvisibility-extern
   HelpText<"The visibility for external declarations without an explicit DLL dllstorageclass [-fvisibility-from-dllstorageclass]">,
   MarshallingInfoVisibility<LangOpts<"ExternDeclNoDLLStorageClassVisibility">, "HiddenVisibility">,
   ShouldParseIf<fvisibility_from_dllstorageclass.KeyPath>;
-def fvisibility_EQ : Joined<["-"], "fvisibility=">, Group<f_Group>,
-  HelpText<"Set the default symbol visibility for all global declarations">, Values<"hidden,default">;
+def fvisibility_EQ : Joined<["-"], "fvisibility=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the default symbol visibility for all global definitions">,
+  MarshallingInfoVisibility<LangOpts<"ValueVisibilityMode">, "DefaultVisibility">;
 defm visibility_inlines_hidden : BoolFOption<"visibility-inlines-hidden",
   LangOpts<"InlineVisibilityHidden">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Give inline C++ member functions hidden visibility by default">,
@@ -4169,7 +4173,7 @@ def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
   HelpText<"Disable standard #include directories for the C++ standard library">,
   MarshallingInfoNegativeFlag<HeaderSearchOpts<"UseStandardCXXIncludes">>;
 def nostdlib : Flag<["-"], "nostdlib">, Group<Link_Group>;
-def nostdlibxx : Flag<["-"], "nostdlib++">;
+def nostdlibxx : Flag<["-"], "nostdlib++">, Group<Link_Group>;
 def nolibsycl : Flag<["-"], "nolibsycl">, Flags<[NoXarchOption, CoreOption]>,
   HelpText<"Do not link SYCL runtime library">;
 def object : Flag<["-"], "object">;
@@ -4211,8 +4215,9 @@ def print_target_triple : Flag<["-", "--"], "print-target-triple">,
   HelpText<"Print the normalized target triple">, Flags<[FlangOption]>;
 def print_effective_triple : Flag<["-", "--"], "print-effective-triple">,
   HelpText<"Print the effective target triple">, Flags<[FlangOption]>;
-def print_multiarch : Flag<["-", "--"], "print-multiarch">,
-  HelpText<"Print the multiarch target triple">;
+// GCC --disable-multiarch, GCC --enable-multiarch (upstream and Debian
+// specific) have different behaviors. We choose not to support the option.
+def : Flag<["-", "--"], "print-multiarch">, Flags<[Unsupported]>;
 def print_prog_name_EQ : Joined<["-", "--"], "print-prog-name=">,
   HelpText<"Print the full program path of <name>">, MetaVarName<"<name>">;
 def print_resource_dir : Flag<["-", "--"], "print-resource-dir">,
@@ -4260,7 +4265,8 @@ defm openmp_implicit_rpath: BoolFOption<"openmp-implicit-rpath",
   LangOpts<"OpenMP">,
   DefaultTrue,
   PosFlag<SetTrue, [], "Set rpath on OpenMP executables">,
-  NegFlag<SetFalse>>;
+  NegFlag<SetFalse>,
+  BothFlags<[NoArgumentUnused]>>;
 def r : Flag<["-"], "r">, Flags<[LinkerInput,NoArgumentUnused]>,
         Group<Link_Group>;
 def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[CC1Option, FlangOption, NoXarchOption]>,
@@ -4415,7 +4421,7 @@ def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[NoXarchOption]
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,
       Flags<[CC1Option, FlangOption, NoXarchOption]>;
 
-def working_directory : JoinedOrSeparate<["-"], "working-directory">, Flags<[CC1Option]>,
+def working_directory : Separate<["-"], "working-directory">, Flags<[CC1Option]>,
   HelpText<"Resolve file paths relative to the specified directory">,
   MarshallingInfoString<FileSystemOpts<"WorkingDir">>;
 def working_directory_EQ : Joined<["-"], "working-directory=">, Flags<[CC1Option]>,
@@ -4505,7 +4511,6 @@ def _print_diagnostic_categories : Flag<["--"], "print-diagnostic-categories">;
 def _print_file_name : Separate<["--"], "print-file-name">, Alias<print_file_name_EQ>;
 def _print_missing_file_dependencies : Flag<["--"], "print-missing-file-dependencies">, Alias<MG>;
 def _print_prog_name : Separate<["--"], "print-prog-name">, Alias<print_prog_name_EQ>;
-def _profile_blocks : Flag<["--"], "profile-blocks">, Alias<a>;
 def _profile : Flag<["--"], "profile">, Alias<p>;
 def _resource_EQ : Joined<["--"], "resource=">, Alias<fcompile_resource_EQ>;
 def _resource : Separate<["--"], "resource">, Alias<fcompile_resource_EQ>;
@@ -5253,11 +5258,6 @@ def analysis_UnoptimizedCFG : Flag<["-"], "unoptimized-cfg">,
 def analysis_CFGAddImplicitDtors : Flag<["-"], "cfg-add-implicit-dtors">,
   HelpText<"Add C++ implicit destructors to CFGs for all analyses">;
 
-// We should remove this option in clang-16 release.
-def analyzer_store : Separate<["-"], "analyzer-store">,
-  HelpText<"Source Code Analysis - Abstract Memory Store Models [DEPRECATED, removing in clang-16]">;
-def analyzer_store_EQ : Joined<["-"], "analyzer-store=">, Alias<analyzer_store>;
-
 def analyzer_constraints : Separate<["-"], "analyzer-constraints">,
   HelpText<"Source Code Analysis - Symbolic Constraint Engines">;
 def analyzer_constraints_EQ : Joined<["-"], "analyzer-constraints=">,
@@ -5275,9 +5275,6 @@ def analyzer_purge_EQ : Joined<["-"], "analyzer-purge=">, Alias<analyzer_purge>;
 def analyzer_opt_analyze_headers : Flag<["-"], "analyzer-opt-analyze-headers">,
   HelpText<"Force the static analyzer to analyze functions defined in header files">,
   MarshallingInfoFlag<AnalyzerOpts<"AnalyzeAll">>;
-// We should remove this option in clang-16 release.
-def analyzer_opt_analyze_nested_blocks : Flag<["-"], "analyzer-opt-analyze-nested-blocks">,
-  HelpText<"Analyze the definitions of blocks in addition to functions [DEPRECATED, removing in clang-16]">;
 def analyzer_display_progress : Flag<["-"], "analyzer-display-progress">,
   HelpText<"Emit verbose output about the analyzer's progress">,
   MarshallingInfoFlag<AnalyzerOpts<"AnalyzerDisplayProgress">>;
@@ -5418,6 +5415,16 @@ def migrator_no_finalize_removal : Flag<["-"], "no-finalize-removal">,
 // CodeGen Options
 //===----------------------------------------------------------------------===//
 
+let Flags = [CC1Option, CC1AsOption, FC1Option, NoDriverOption] in {
+
+def mrelocation_model : Separate<["-"], "mrelocation-model">,
+  HelpText<"The relocation model to use">, Values<"static,pic,ropi,rwpi,ropi-rwpi,dynamic-no-pic">,
+  NormalizedValuesScope<"llvm::Reloc">,
+  NormalizedValues<["Static", "PIC_", "ROPI", "RWPI", "ROPI_RWPI", "DynamicNoPIC"]>,
+  MarshallingInfoEnum<CodeGenOpts<"RelocationModel">, "PIC_">;
+
+} // let Flags = [CC1Option, CC1AsOption, FC1Option, NoDriverOption]
+
 let Flags = [CC1Option, CC1AsOption, NoDriverOption] in {
 
 def debug_info_kind_EQ : Joined<["-"], "debug-info-kind=">;
@@ -5462,11 +5469,9 @@ def msave_temp_labels : Flag<["-"], "msave-temp-labels">,
            "Note this may change .s semantics and shouldn't generally be used "
            "on compiler-generated code.">,
   MarshallingInfoFlag<CodeGenOpts<"SaveTempLabels">>;
-def mrelocation_model : Separate<["-"], "mrelocation-model">,
-  HelpText<"The relocation model to use">, Values<"static,pic,ropi,rwpi,ropi-rwpi,dynamic-no-pic">,
-  NormalizedValuesScope<"llvm::Reloc">,
-  NormalizedValues<["Static", "PIC_", "ROPI", "RWPI", "ROPI_RWPI", "DynamicNoPIC"]>,
-  MarshallingInfoEnum<CodeGenOpts<"RelocationModel">, "PIC_">;
+def mno_type_check : Flag<["-"], "mno-type-check">,
+  HelpText<"Don't perform type checking of the assembly code (wasm only)">,
+  MarshallingInfoFlag<CodeGenOpts<"NoTypeCheck">>;
 def fno_math_builtin : Flag<["-"], "fno-math-builtin">,
   HelpText<"Disable implicit builtin knowledge of math functions">,
   MarshallingInfoFlag<LangOpts<"NoMathBuiltin">>;
@@ -6156,6 +6161,17 @@ def split_dwarf_output : Separate<["-"], "split-dwarf-output">,
   Flags<[CC1Option, CC1AsOption, NoDriverOption]>,
   MarshallingInfoString<CodeGenOpts<"SplitDwarfOutput">>;
 
+let Flags = [CC1Option, FC1Option, NoDriverOption] in {
+
+def pic_level : Separate<["-"], "pic-level">,
+  HelpText<"Value for __PIC__">,
+  MarshallingInfoInt<LangOpts<"PICLevel">>;
+def pic_is_pie : Flag<["-"], "pic-is-pie">,
+  HelpText<"File is for a position independent executable">,
+  MarshallingInfoFlag<LangOpts<"PIE">>;
+
+} // let Flags = [CC1Option, FC1Option, NoDriverOption]
+
 let Flags = [CC1Option, NoDriverOption] in {
 
 def fblocks_runtime_optional : Flag<["-"], "fblocks-runtime-optional">,
@@ -6196,12 +6212,6 @@ def fencode_extended_block_signature : Flag<["-"], "fencode-extended-block-signa
 def function_alignment : Separate<["-"], "function-alignment">,
     HelpText<"default alignment for functions">,
     MarshallingInfoInt<LangOpts<"FunctionAlignment">>;
-def pic_level : Separate<["-"], "pic-level">,
-  HelpText<"Value for __PIC__">,
-  MarshallingInfoInt<LangOpts<"PICLevel">>;
-def pic_is_pie : Flag<["-"], "pic-is-pie">,
-  HelpText<"File is for a position independent executable">,
-  MarshallingInfoFlag<LangOpts<"PIE">>;
 def fhalf_no_semantic_interposition : Flag<["-"], "fhalf-no-semantic-interposition">,
   HelpText<"Like -fno-semantic-interposition but don't use local aliases">,
   MarshallingInfoFlag<LangOpts<"HalfNoSemanticInterposition">>;
@@ -6209,9 +6219,6 @@ def fno_validate_pch : Flag<["-"], "fno-validate-pch">,
   HelpText<"Disable validation of precompiled headers">,
   MarshallingInfoFlag<PreprocessorOpts<"DisablePCHOrModuleValidation">, "DisableValidationForModuleKind::None">,
   Normalizer<"makeFlagToValueNormalizer(DisableValidationForModuleKind::All)">;
-def fpcm_output_path_independent : Flag<["-"], "fpcm-output-path-independent">,
-  HelpText<"Output a PCM/PCH file that does not write out information about its output path">,
-  MarshallingInfoFlag<FrontendOpts<"OutputPathIndependentPCM">>;
 def fallow_pcm_with_errors : Flag<["-"], "fallow-pcm-with-compiler-errors">,
   HelpText<"Accept a PCM file that was created with compiler errors">,
   MarshallingInfoFlag<FrontendOpts<"AllowPCMWithCompilerErrors">>;
@@ -6223,6 +6230,9 @@ def fallow_pch_with_different_modules_cache_path :
   Flag<["-"], "fallow-pch-with-different-modules-cache-path">,
   HelpText<"Accept a PCH file that was created with a different modules cache path">,
   MarshallingInfoFlag<PreprocessorOpts<"AllowPCHWithDifferentModulesCachePath">>;
+def fno_modules_share_filemanager : Flag<["-"], "fno-modules-share-filemanager">,
+  HelpText<"Disable sharing the FileManager when building a module implicitly">,
+  MarshallingInfoNegativeFlag<FrontendOpts<"ModulesShareFileManager">>;
 def dump_deserialized_pch_decls : Flag<["-"], "dump-deserialized-decls">,
   HelpText<"Dump declarations that are deserialized from PCH, for testing">,
   MarshallingInfoFlag<PreprocessorOpts<"DumpDeserializedPCHDecls">>;
@@ -6242,12 +6252,9 @@ def stack_protector : Separate<["-"], "stack-protector">,
 def stack_protector_buffer_size : Separate<["-"], "stack-protector-buffer-size">,
   HelpText<"Lower bound for a buffer to be considered for stack protection">,
   MarshallingInfoInt<CodeGenOpts<"SSPBufferSize">, "8">;
-def fvisibility : Separate<["-"], "fvisibility">,
-  HelpText<"Default type and symbol visibility">,
-  MarshallingInfoVisibility<LangOpts<"ValueVisibilityMode">, "DefaultVisibility">;
-def ftype_visibility : Separate<["-"], "ftype-visibility">,
+def ftype_visibility : Joined<["-"], "ftype-visibility=">,
   HelpText<"Default type visibility">,
-  MarshallingInfoVisibility<LangOpts<"TypeVisibilityMode">, fvisibility.KeyPath>;
+  MarshallingInfoVisibility<LangOpts<"TypeVisibilityMode">, fvisibility_EQ.KeyPath>;
 def fapply_global_visibility_to_externs : Flag<["-"], "fapply-global-visibility-to-externs">,
   HelpText<"Apply global symbol visibility to external declarations without an explicit visibility">,
   MarshallingInfoFlag<LangOpts<"SetVisibilityForExternDecls">>;
@@ -6311,7 +6318,7 @@ def fnative_half_type: Flag<["-"], "fnative-half-type">,
 def fnative_half_arguments_and_returns : Flag<["-"], "fnative-half-arguments-and-returns">,
   HelpText<"Use the native __fp16 type for arguments and returns (and skip ABI-specific lowering)">,
   MarshallingInfoFlag<LangOpts<"NativeHalfArgsAndReturns">>,
-  ImpliedByAnyOf<[open_cl.KeyPath, render_script.KeyPath]>;
+  ImpliedByAnyOf<[open_cl.KeyPath, render_script.KeyPath, hlsl.KeyPath]>;
 def fallow_half_arguments_and_returns : Flag<["-"], "fallow-half-arguments-and-returns">,
   HelpText<"Allow function arguments and returns of type half">,
   MarshallingInfoFlag<LangOpts<"HalfArgsAndReturns">>,
@@ -6387,20 +6394,20 @@ def fmodules_strict_context_hash : Flag<["-"], "fmodules-strict-context-hash">,
   HelpText<"Enable hashing of all compiler options that could impact the "
            "semantics of a module in an implicit build">,
   MarshallingInfoFlag<HeaderSearchOpts<"ModulesStrictContextHash">>;
-def c_isystem : JoinedOrSeparate<["-"], "c-isystem">, MetaVarName<"<directory>">,
+def c_isystem : Separate<["-"], "c-isystem">, MetaVarName<"<directory>">,
   HelpText<"Add directory to the C SYSTEM include search path">;
-def objc_isystem : JoinedOrSeparate<["-"], "objc-isystem">,
+def objc_isystem : Separate<["-"], "objc-isystem">,
   MetaVarName<"<directory>">,
   HelpText<"Add directory to the ObjC SYSTEM include search path">;
-def objcxx_isystem : JoinedOrSeparate<["-"], "objcxx-isystem">,
+def objcxx_isystem : Separate<["-"], "objcxx-isystem">,
   MetaVarName<"<directory>">,
   HelpText<"Add directory to the ObjC++ SYSTEM include search path">;
-def internal_isystem : JoinedOrSeparate<["-"], "internal-isystem">,
+def internal_isystem : Separate<["-"], "internal-isystem">,
   MetaVarName<"<directory>">,
   HelpText<"Add directory to the internal system include search path; these "
            "are assumed to not be user-provided and are used to model system "
            "and standard headers' paths.">;
-def internal_externc_isystem : JoinedOrSeparate<["-"], "internal-externc-isystem">,
+def internal_externc_isystem : Separate<["-"], "internal-externc-isystem">,
   MetaVarName<"<directory>">,
   HelpText<"Add directory to the internal system include search path with "
            "implicit extern \"C\" semantics; these are assumed to not be "
@@ -6665,13 +6672,12 @@ def _SLASH_E : CLFlag<"E">, HelpText<"Preprocess to stdout">, Alias<E>;
 def _SLASH_external_COLON_I : CLJoinedOrSeparate<"external:I">, Alias<isystem>,
   HelpText<"Add directory to include search path with warnings suppressed">,
   MetaVarName<"<dir>">;
-def _SLASH_fp_except : CLFlag<"fp:except">, HelpText<"">, Alias<ftrapping_math>;
-def _SLASH_fp_except_ : CLFlag<"fp:except-">,
-  HelpText<"">, Alias<fno_trapping_math>;
+def _SLASH_fp_contract : CLFlag<"fp:contract">, HelpText<"">, Alias<ffp_contract>, AliasArgs<["on"]>;
+def _SLASH_fp_except : CLFlag<"fp:except">, HelpText<"">, Alias<ffp_exception_behavior_EQ>, AliasArgs<["strict"]>;
+def _SLASH_fp_except_ : CLFlag<"fp:except-">, HelpText<"">, Alias<ffp_exception_behavior_EQ>, AliasArgs<["ignore"]>;
 def _SLASH_fp_fast : CLFlag<"fp:fast">, HelpText<"">, Alias<ffast_math>;
-def _SLASH_fp_precise : CLFlag<"fp:precise">,
-  HelpText<"">, Alias<fno_fast_math>;
-def _SLASH_fp_strict : CLFlag<"fp:strict">, HelpText<"">, Alias<fno_fast_math>;
+def _SLASH_fp_precise : CLFlag<"fp:precise">, HelpText<"">, Alias<ffp_model_EQ>, AliasArgs<["precise"]>;
+def _SLASH_fp_strict : CLFlag<"fp:strict">, HelpText<"">, Alias<ffp_model_EQ>, AliasArgs<["strict"]>;
 def _SLASH_fsanitize_EQ_address : CLFlag<"fsanitize=address">,
   HelpText<"Enable AddressSanitizer">,
   Alias<fsanitize_EQ>, AliasArgs<["address"]>;
@@ -6847,7 +6853,7 @@ def _SLASH_Zp : CLJoined<"Zp">,
 def _SLASH_Zp_flag : CLFlag<"Zp">,
   HelpText<"Set default maximum struct packing alignment to 1">,
   Alias<fpack_struct_EQ>, AliasArgs<["1"]>;
-def _SLASH_Zs : CLFlag<"Zs">, HelpText<"Syntax-check only">,
+def _SLASH_Zs : CLFlag<"Zs">, HelpText<"Run the preprocessor, parser and semantic analysis stages">,
   Alias<fsyntax_only>;
 def _SLASH_openmp_ : CLFlag<"openmp-">,
   HelpText<"Disable OpenMP support">, Alias<fno_openmp>;
@@ -7145,3 +7151,12 @@ def fcgl : DXCFlag<"fcgl">, Alias<emit_pristine_llvm>;
 def enable_16bit_types : DXCFlag<"enable-16bit-types">, Alias<fnative_half_type>,
   HelpText<"Enable 16-bit types and disable min precision types."
            "Available in HLSL 2018 and shader model 6.2.">;
+def hlsl_entrypoint : Option<["-"], "hlsl-entry", KIND_SEPARATE>,
+                      Group<dxc_Group>,
+                      Flags<[CC1Option]>,
+                      MarshallingInfoString<TargetOpts<"HLSLEntry">, "\"main\"">,
+                      HelpText<"Entry point name for hlsl">;
+def dxc_entrypoint : Option<["--", "/", "-"], "E", KIND_JOINED_OR_SEPARATE>,
+                     Group<dxc_Group>,
+                     Flags<[DXCOption, NoXarchOption]>,
+                     HelpText<"Entry point name">;

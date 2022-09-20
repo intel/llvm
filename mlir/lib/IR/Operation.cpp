@@ -77,6 +77,10 @@ Operation *Operation::create(Location location, OperationName name,
   char *mallocMem = reinterpret_cast<char *>(malloc(byteSize + prefixByteSize));
   void *rawMem = mallocMem + prefixByteSize;
 
+  // Populate default attributes.
+  if (Optional<RegisteredOperationName> info = name.getRegisteredInfo())
+    info->populateDefaultAttrs(attributes);
+
   // Create the new Operation.
   Operation *op = ::new (rawMem) Operation(
       location, name, numResults, numSuccessors, numRegions,
@@ -987,26 +991,19 @@ LogicalResult OpTrait::impl::verifyValueSizeAttr(Operation *op,
                                                  StringRef attrName,
                                                  StringRef valueGroupName,
                                                  size_t expectedCount) {
-  auto sizeAttr = op->getAttrOfType<DenseIntElementsAttr>(attrName);
+  auto sizeAttr = op->getAttrOfType<DenseI32ArrayAttr>(attrName);
   if (!sizeAttr)
-    return op->emitOpError("requires 1D i32 elements attribute '")
+    return op->emitOpError("requires dense i32 array attribute '")
            << attrName << "'";
 
-  auto sizeAttrType = sizeAttr.getType();
-  if (sizeAttrType.getRank() != 1 ||
-      !sizeAttrType.getElementType().isInteger(32))
-    return op->emitOpError("requires 1D i32 elements attribute '")
-           << attrName << "'";
-
-  if (llvm::any_of(sizeAttr.getValues<APInt>(), [](const APInt &element) {
-        return !element.isNonNegative();
-      }))
+  ArrayRef<int32_t> sizes = sizeAttr.asArrayRef();
+  if (llvm::any_of(sizes, [](int32_t element) { return element < 0; }))
     return op->emitOpError("'")
            << attrName << "' attribute cannot have negative elements";
 
-  size_t totalCount = std::accumulate(
-      sizeAttr.begin(), sizeAttr.end(), 0,
-      [](unsigned all, const APInt &one) { return all + one.getZExtValue(); });
+  size_t totalCount =
+      std::accumulate(sizes.begin(), sizes.end(), 0,
+                      [](unsigned all, int32_t one) { return all + one; });
 
   if (totalCount != expectedCount)
     return op->emitOpError()
