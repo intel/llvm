@@ -534,7 +534,7 @@ static llvm::MDNode *getAspectEnumValueMD(ASTContext &ASTContext,
   AspectEnumValMD.push_back(llvm::MDString::get(Ctx, ECD->getName()));
   AspectEnumValMD.push_back(
       llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-          llvm::Type::getInt32Ty(Ctx), ECD->getInitVal().getZExtValue())));
+          llvm::Type::getInt32Ty(Ctx), ECD->getInitVal().getSExtValue())));
   return llvm::MDNode::get(Ctx, AspectEnumValMD);
 }
 

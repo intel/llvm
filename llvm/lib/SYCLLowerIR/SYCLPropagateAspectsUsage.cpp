@@ -83,7 +83,7 @@ using AspectValueToNameMapTy = SmallMapVector<StringRef, int, 32>;
 
 /// Retrieves from metadata (sycl_aspects) the mapping between SYCL aspect names
 /// and their integral values.
-AspectValueToNameMapTy getSYCLAspectsFromMetadata(const Module &M) {
+AspectValueToNameMapTy getAspectsFromMetadata(const Module &M) {
   const NamedMDNode *Node = M.getNamedMetadata("sycl_aspects");
   AspectValueToNameMapTy Result;
   if (!Node)
@@ -136,7 +136,7 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 /// another type TT, which in turn uses the aspect A.
 /// @TypesWithAspects argument consist of known types with aspects
 /// from metadata information.
-/// @AspectValues argument consist of known known aspect values and their names.
+/// @AspectValues argument consist of known aspect values and their names.
 ///
 /// The algorithm is the following:
 /// 1) Make a list of all structure types from module @M. The list also
@@ -362,7 +362,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
-  AspectValueToNameMapTy AspectValues = getSYCLAspectsFromMetadata(M);
+  AspectValueToNameMapTy AspectValues = getAspectsFromMetadata(M);
 
   // If there is no metadata for aspect values the source code must not have
   // included the SYCL headers. In that case there should also not be any types
