@@ -1,5 +1,4 @@
-//==--------- tfloat32.hpp ------- SYCL tnsorfloat32 conversion
-//----------------==//
+//==--------- tfloat32.hpp ------- SYCL tensorfloat32 conversion ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/half_type.hpp>
-
-#if !defined(__SYCL_DEVICE_ONLY__)
-#include <cmath>
-#endif
+#include <sycl/bit_cast.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -23,33 +18,24 @@ namespace oneapi {
 namespace experimental {
 
 class tfloat32 {
-  using storage_t = float;
+  using storage_t = uint32_t;
   storage_t value;
 
 public:
   tfloat32() = default;
-  tfloat32(const bfloat16 &) = default;
+  tfloat32(const tfloat32 &) = default;
   ~tfloat32() = default;
 
   // Explicit conversion functions
   static storage_t from_float(const float &a) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-    int32_t tmp_int = __nvvm_f2tf32_rna(a);
-    return __nvvm_bitcast_i2f(tmp_int);
-#else
-    uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
-    tmp_uint += 0x1000u;
-    tmp_uint &= 0xFFFFE000u;
-    float ret = reinterpret_cast<float &>(tmp_uint);
-    return ret;
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  }
-  static float to_float(const storage_t &a) { return a; }
 
-  static tfloat32 from_bits(const storage_t &a) {
-    tfloat32 res;
-    res.value = a;
-    return res;
+    storage_t tmp_uint = sycl::bit_cast<storage_t>(a);
+    tmp_uint &= 0xFFFFE000u;
+
+    return tmp_uint;
+  }
+  static float to_float(const storage_t &a) {
+    return sycl::bit_cast<float>(a & 0xFFFFE000u);
   }
 
   // Implicit conversion from float to tfloat32
@@ -60,18 +46,17 @@ public:
     return *this;
   }
 
-  // Implicit conversion from bfloat16 to float
+  // Implicit conversion from tfloat32 to float
   operator float() const { return to_float(value); }
-  operator sycl::half() const { return to_float(value); }
 
-  // Get raw bits representation of bfloat16
+  // Get raw bits representation of tfloat32
   storage_t raw() const { return value; }
 
   // Logical operators (!,||,&&) are covered if we can cast to bool
   explicit operator bool() { return to_float(value) != 0.0f; }
 
   // Unary minus operator overloading
-  friend tfloat32 operator-(bfloat16 &lhs) { return tfloat32(-to_float(lhs)); }
+  friend tfloat32 operator-(tfloat32 &lhs) { return tfloat32(-to_float(lhs)); }
 
 // Increment and decrement operators overloading
 #define OP(op)                                                                 \
@@ -100,7 +85,7 @@ public:
   friend tfloat32 &operator op(tfloat32 &lhs, const T &rhs) {                  \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
+    return lhs = static_cast<float>(f);                                        \
   }                                                                            \
   template <typename T> friend T &operator op(T &lhs, const tfloat32 &rhs) {   \
     float f = static_cast<float>(lhs);                                         \
