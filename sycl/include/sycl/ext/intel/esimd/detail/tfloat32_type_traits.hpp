@@ -43,22 +43,31 @@ template <int N> struct vector_conversion_traits<tfloat32, N> {
 
   static ESIMD_INLINE vector_type_t<RawT, N>
   convert_to_raw(vector_type_t<StdT, N> Val) {
+#ifdef __SYCL_DEVICE_ONLY__
+    vector_type_t<RawT, N> Result = __esimd_tf32_cvt<RawT, StdT, N>(Val);
+    return Result;
+#else
     vector_type_t<RawT, N> Output = 0;
 
     for (int i = 0; i < N; i += 1) {
       Output[i] = tfloat32::from_float(Val[i]);
     }
     return Output;
+#endif
   }
 
   static ESIMD_INLINE vector_type_t<StdT, N>
   convert_to_cpp(vector_type_t<RawT, N> Val) {
+#ifdef __SYCL_DEVICE_ONLY__
+    vector_type_t<StdT, N> Result = sycl::bit_cast<vector_type_t<StdT, N>>(Val);
+#else
     vector_type_t<StdT, N> Output;
 
     for (int i = 0; i < N; i++) {
       Output[i] = tfloat32::to_float(Val[i]);
     }
     return Output;
+#endif
   }
 };
 
