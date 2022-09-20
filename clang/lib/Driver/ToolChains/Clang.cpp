@@ -4742,7 +4742,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
 }
 
 static void ProcessVSRuntimeLibrary(const ArgList &Args,
-                                    ArgStringList &CmdArgs) {
+                                    ArgStringList &CmdArgs,
+                                    const ToolChain &TC) {
   unsigned RTOptionID = options::OPT__SLASH_MT;
 
   if (Args.hasArg(options::OPT__SLASH_LDd))
@@ -4762,31 +4763,38 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
                      .Default(options::OPT__SLASH_MT);
   }
 
+  bool isSPIR = TC.getTriple().isSPIR();
   StringRef FlagForCRT;
   switch (RTOptionID) {
   case options::OPT__SLASH_MD:
     if (Args.hasArg(options::OPT__SLASH_LDd))
       CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
-    CmdArgs.push_back("-D_DLL");
+    if (!isSPIR) {
+      CmdArgs.push_back("-D_MT");
+      CmdArgs.push_back("-D_DLL");
+    }
     FlagForCRT = "--dependent-lib=msvcrt";
     break;
   case options::OPT__SLASH_MDd:
     CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
-    CmdArgs.push_back("-D_DLL");
+    if (!isSPIR) {
+      CmdArgs.push_back("-D_MT");
+      CmdArgs.push_back("-D_DLL");
+    }
     FlagForCRT = "--dependent-lib=msvcrtd";
     break;
   case options::OPT__SLASH_MT:
     if (Args.hasArg(options::OPT__SLASH_LDd))
       CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
+    if (!isSPIR)
+      CmdArgs.push_back("-D_MT");
     CmdArgs.push_back("-flto-visibility-public-std");
     FlagForCRT = "--dependent-lib=libcmt";
     break;
   case options::OPT__SLASH_MTd:
     CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
+    if (!isSPIR)
+      CmdArgs.push_back("-D_MT");
     CmdArgs.push_back("-flto-visibility-public-std");
     FlagForCRT = "--dependent-lib=libcmtd";
     break;
@@ -7060,7 +7068,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Triple.isWindowsMSVCEnvironment() && !D.IsCLMode() &&
       Args.hasArg(options::OPT_fms_runtime_lib_EQ))
-    ProcessVSRuntimeLibrary(Args, CmdArgs);
+    ProcessVSRuntimeLibrary(Args, CmdArgs, TC);
 
   // Handle -fgcc-version, if present.
   VersionTuple GNUCVer;
@@ -8216,7 +8224,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
-  ProcessVSRuntimeLibrary(Args, CmdArgs);
+  ProcessVSRuntimeLibrary(Args, CmdArgs, getToolChain());
 
   if (Arg *ShowIncludes =
           Args.getLastArg(options::OPT__SLASH_showIncludes,
