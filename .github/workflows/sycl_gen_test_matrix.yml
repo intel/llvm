@@ -21,7 +21,7 @@ on:
         default: ""
       cts_config:
         type: string
-        required: false
+        required: true
         default: ""
       uniq:
         description: Unique string to name dynamic runners in AWS
