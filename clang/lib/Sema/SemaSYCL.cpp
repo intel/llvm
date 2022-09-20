@@ -2106,9 +2106,9 @@ public:
     // CodeGen.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
-    auto AS = Quals.getAddressSpace();
+    LangAS AS = Quals.getAddressSpace();
     // Leave global_device and global_host address spaces as is to help FPGA
-    // device in memory allocations
+    // device in memory allocations.
     if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
         AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
