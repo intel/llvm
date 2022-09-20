@@ -1458,7 +1458,7 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                  Value) {
     // We are currently in PointerHandler visitor.
     if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
-      // This is record containing pointers.
+      // This is a record containing pointers.
       visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
     } else {
       // This is a record without pointers.
@@ -1503,7 +1503,7 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
     // 'simple' array i.e. one that does not include special types or pointers.
     // Array of pointers/ array of type containing pointers will be handled in
     // a follow-up PR. Currently, they continue to trigger decomposition, and
-    // will be handled in 'if' statment above.
+    // will be handled in 'if' statement above.
     visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
   } else {
     if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
@@ -1745,10 +1745,7 @@ class SyclKernelDecompMarker : public SyclKernelFieldHandler {
   llvm::SmallVector<bool, 16> CollectionStack;
   llvm::SmallVector<bool, 16> PointerStack;
 
-  // FIXME: Array of pointers/ array of type containing pointers
-  // will be handled in a follow up PR. Currently, they continue
-  // to trigger decomposition.
-  // TODO: Remove this method once arrays are handled correctly
+  // TODO: Remove this method once arrays are handled correctly.
   bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
     return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
@@ -1819,7 +1816,7 @@ public:
         // InitListExpr we generate for Kernel Object local clone.
         // So current logic fails for types without default constructors.
         // FIXME: Stop triggering decomposition for non-trivial types with
-        // pointers
+        // pointers.
         if (RD->isTrivial())
           RD->addAttr(
               SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
@@ -1862,7 +1859,7 @@ public:
       // InitListExpr we generate for Kernel Object local clone.
       // So current logic fails for types without default constructors.
       // FIXME: Stop triggering decomposition for non-trivial types with
-      // pointers
+      // pointers.
       if (RD->isTrivial())
         RD->addAttr(
             SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
