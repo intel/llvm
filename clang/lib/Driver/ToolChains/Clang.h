@@ -309,6 +309,28 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Cgeist tool.
+class LLVM_LIBRARY_VISIBILITY Cgeist final : public Tool {
+  const Tool *Clang;
+
+public:
+  Cgeist(const ToolChain &TC, const Tool *Clang)
+      : Tool("cgeist", "cgeist", TC), Clang(Clang) {}
+
+  bool hasGoodDiagnostics() const override { return true; }
+  bool hasIntegratedAssembler() const override { return true; }
+  bool hasIntegratedBackend() const override {
+    return Clang->hasIntegratedBackend();
+  }
+  bool hasIntegratedCPP() const override { return true; }
+  bool canEmitIR() const override { return true; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 enum class DwarfFissionKind { None, Split, Single };
 
 DwarfFissionKind getDebugFissionKind(const Driver &D,

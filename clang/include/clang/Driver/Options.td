@@ -826,6 +826,9 @@ def Xassembler : Separate<["-"], "Xassembler">,
 def Xclang : Separate<["-"], "Xclang">,
   HelpText<"Pass <arg> to the clang compiler">, MetaVarName<"<arg>">,
   Flags<[NoXarchOption, CoreOption]>, Group<CompileOnly_Group>;
+def Xcgeist : Separate<["-"], "Xcgeist">,
+  HelpText<"Pass <arg> to the cgeist compiler">, MetaVarName<"<arg>">,
+  Flags<[NoXarchOption, CoreOption]>, Group<CompileOnly_Group>;
 def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
@@ -5115,6 +5118,11 @@ def J : JoinedOrSeparate<["-"], "J">,
 // FC1 Options
 //===----------------------------------------------------------------------===//
 
+// move out of the next block make it accessible by code clang
+def emit_mlir : Flag<["-"], "emit-mlir">, Group<Action_Group>,
+  Flags<[CoreOption, FC1Option]>,
+  HelpText<"Build the parse tree, then lower it to MLIR">;
+
 let Flags = [FC1Option, FlangOnlyOption] in {
 
 def fget_definition : MultiArg<["-"], "fget-definition", 3>,
@@ -5165,8 +5173,6 @@ def fno_reformat : Flag<["-"], "fno-reformat">, Group<Preprocessor_Group>,
   HelpText<"Dump the cooked character stream in -E mode">;
 defm analyzed_objects_for_unparse : OptOutFC1FFlag<"analyzed-objects-for-unparse", "", "Do not use the analyzed objects when unparsing">;
 
-def emit_mlir : Flag<["-"], "emit-mlir">, Group<Action_Group>,
-  HelpText<"Build the parse tree, then lower it to MLIR">;
 def emit_fir : Flag<["-"], "emit-fir">, Alias<emit_mlir>;
 
 } // let Flags = [FC1Option, FlangOnlyOption]

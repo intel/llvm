@@ -161,6 +161,7 @@ private:
   mutable std::unique_ptr<Tool> FileTableTform;
   mutable std::unique_ptr<Tool> SpirvToIrWrapper;
   mutable std::unique_ptr<Tool> LinkerWrapper;
+  mutable std::unique_ptr<Tool> Cgeist;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -181,6 +182,7 @@ private:
   Tool *getTableTform() const;
   Tool *getSpirvToIrWrapper() const;
   Tool *getLinkerWrapper() const;
+  Tool *getCgeist() const;
 
   mutable bool SanitizerArgsChecked = false;
   mutable std::unique_ptr<XRayArgs> XRayArguments;

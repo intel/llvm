@@ -4786,11 +4786,17 @@ class OffloadingActionBuilder final {
           return ABRT_Success;
 
         Action *DeviceCompilerInput = nullptr;
-        for (Action *&A : SYCLDeviceActions) {
+        for (auto TargetActionInfo :
+             llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+          Action *&A = std::get<0>(TargetActionInfo);
+          auto &TargetInfo = std::get<1>(TargetActionInfo);
           types::ID OutputType = types::TY_LLVM_BC;
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
             OutputType = types::TY_LLVM_IR;
+          if (SYCLDeviceOnly && Args.hasArg(options::OPT_emit_mlir)) {
+            OutputType = types::TY_MLIR_IR;
+          }
           // Use of -fsycl-device-obj=spirv converts the original LLVM-IR
           // file to SPIR-V for later consumption.
           if ((SYCLDeviceOnly || FinalPhase != phases::Link) &&
