@@ -468,8 +468,6 @@ private:
 
   ~handler() = default;
 
-  bool is_host() { return MIsHost; }
-
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from AccessorBaseHost, so
   // can't detect by it. Since we don't expect it to be ever called in device
@@ -541,18 +539,6 @@ private:
     auto StoredArg = static_cast<void *>(storePlainArg(Arg));
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
-  }
-
-  void verifyKernelInvoc(const kernel &Kernel) {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This kernel invocation method cannot be used on the host",
-          PI_ERROR_INVALID_DEVICE);
-    }
-    if (Kernel.is_host()) {
-      throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_ERROR_INVALID_KERNEL);
-    }
   }
 
   /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
@@ -1066,7 +1052,6 @@ private:
   template <int Dims>
   void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
@@ -1877,7 +1862,6 @@ public:
   /// \param Kernel is a SYCL kernel object.
   void single_task(kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1914,7 +1898,6 @@ public:
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
@@ -1933,7 +1916,6 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));

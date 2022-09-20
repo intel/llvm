@@ -223,7 +223,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   if (WaitEvent) {
     device D = get_device();
     std::string DevStr;
-    if (D.is_host())
+    if (getSyclObjImpl(D)->is_host())
       DevStr = "HOST";
     else if (D.is_cpu())
       DevStr = "CPU";
