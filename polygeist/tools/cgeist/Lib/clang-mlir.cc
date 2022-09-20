@@ -4909,19 +4909,7 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
     SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
   }
 
-  NamedAttrList attrs(function->getAttrDictionary());
-  attrs.set("llvm.linkage",
-            mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
-  if (FD->hasAttr<SYCLKernelAttr>())
-    attrs.set("llvm.cconv",
-              mlir::LLVM::CConvAttr::get(
-                  builder.getContext(), mlir::LLVM::cconv::CConv::SPIR_KERNEL));
-  if (FD->hasAttr<SYCLDeviceAttr>())
-    attrs.set("llvm.cconv",
-              mlir::LLVM::CConvAttr::get(builder.getContext(),
-                                         mlir::LLVM::cconv::CConv::SPIR_FUNC));
-
-  function->setAttrs(attrs.getDictionary(builder.getContext()));
+  setMLIRFunctionAttributes(function, *FD, lnk, builder.getContext());
 
   functions[name] = function;
   module->push_back(function);
@@ -5149,6 +5137,53 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
 
   auto ctx = module->getContext();
   return FileLineColLoc::get(ctx, fileId, lineNumber, colNumber);
+}
+
+void MLIRASTConsumer::setMLIRFunctionAttributes(mlir::func::FuncOp &function,
+    const FunctionDecl &FD, LLVM::Linkage lnk, MLIRContext *ctx) const {
+  bool isSycl = FD.hasAttr<SYCLDeviceAttr>() || FD.hasAttr<SYCLKernelAttr>();
+
+  NamedAttrList attrs(function->getAttrDictionary());
+  attrs.set("llvm.linkage", mlir::LLVM::LinkageAttr::get(ctx, lnk));
+
+  if (!isSycl) {
+    // HACK: we want to avoid setting additional attributes on non-sycl
+    // functions because we do not want to adjust the test cases at this time
+    // (if we did we would have merge conflicts if we ever update polygeist).
+    function->setAttrs(attrs.getDictionary(ctx));
+    return;
+  }
+
+  // Calling conventions for SPIRV functions.
+  attrs.set("llvm.cconv", mlir::LLVM::CConvAttr::get(
+                            ctx, FD.hasAttr<SYCLKernelAttr>()
+                                     ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
+                                     : mlir::LLVM::cconv::CConv::SPIR_FUNC));
+
+  // SYCL v1.2.1 s3.10:
+  //   kernels and device function cannot include RTTI information,
+  //   exception classes, recursive code, virtual functions or make use of
+  //   C++ libraries that are not compiled for the device.
+  std::vector<mlir::Attribute> passThroughAttrs;  
+  passThroughAttrs.push_back(StringAttr::get(ctx, "norecurse"));
+  passThroughAttrs.push_back(StringAttr::get(ctx, "nounwind"));
+
+  if (CGM.getLangOpts().assumeFunctionsAreConvergent())
+    passThroughAttrs.push_back(StringAttr::get(ctx, "convergent"));
+
+  auto functionMustProgress = [&]() -> bool {
+    if (CGM.getCodeGenOpts().getFiniteLoops() ==
+        CodeGenOptions::FiniteLoopsKind::Never)
+      return false;
+    return CGM.getLangOpts().CPlusPlus11;
+  };
+
+  if (functionMustProgress())
+    passThroughAttrs.push_back(StringAttr::get(ctx, "mustprogress"));
+
+  attrs.set("passthrough", ArrayAttr::get(ctx, {passThroughAttrs}));
+  
+  function->setAttrs(attrs.getDictionary(ctx));
 }
 
 /// Iteratively get the size of each dim of the given ConstantArrayType inst.

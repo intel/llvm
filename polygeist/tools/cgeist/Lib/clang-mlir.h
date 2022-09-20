@@ -141,6 +141,11 @@ struct MLIRASTConsumer : public ASTConsumer {
   llvm::Type *getLLVMType(clang::QualType t);
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
+
+private:
+  void setMLIRFunctionAttributes(mlir::func::FuncOp &function,
+                                 const FunctionDecl &FD, LLVM::Linkage lnk,
+                                 MLIRContext *ctx) const;
 };
 
 class MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
