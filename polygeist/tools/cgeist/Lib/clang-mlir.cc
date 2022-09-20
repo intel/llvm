@@ -5140,7 +5140,9 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
 }
 
 void MLIRASTConsumer::setMLIRFunctionAttributes(mlir::func::FuncOp &function,
-    const FunctionDecl &FD, LLVM::Linkage lnk, MLIRContext *ctx) const {
+                                                const FunctionDecl &FD,
+                                                LLVM::Linkage lnk,
+                                                MLIRContext *ctx) const {
   bool isSycl = FD.hasAttr<SYCLDeviceAttr>() || FD.hasAttr<SYCLKernelAttr>();
 
   NamedAttrList attrs(function->getAttrDictionary());
@@ -5156,15 +5158,15 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(mlir::func::FuncOp &function,
 
   // Calling conventions for SPIRV functions.
   attrs.set("llvm.cconv", mlir::LLVM::CConvAttr::get(
-                            ctx, FD.hasAttr<SYCLKernelAttr>()
-                                     ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
-                                     : mlir::LLVM::cconv::CConv::SPIR_FUNC));
+                              ctx, FD.hasAttr<SYCLKernelAttr>()
+                                       ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
+                                       : mlir::LLVM::cconv::CConv::SPIR_FUNC));
 
   // SYCL v1.2.1 s3.10:
   //   kernels and device function cannot include RTTI information,
   //   exception classes, recursive code, virtual functions or make use of
   //   C++ libraries that are not compiled for the device.
-  std::vector<mlir::Attribute> passThroughAttrs;  
+  std::vector<mlir::Attribute> passThroughAttrs;
   passThroughAttrs.push_back(StringAttr::get(ctx, "norecurse"));
   passThroughAttrs.push_back(StringAttr::get(ctx, "nounwind"));
 
@@ -5182,7 +5184,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(mlir::func::FuncOp &function,
     passThroughAttrs.push_back(StringAttr::get(ctx, "mustprogress"));
 
   attrs.set("passthrough", ArrayAttr::get(ctx, {passThroughAttrs}));
-  
+
   function->setAttrs(attrs.getDictionary(ctx));
 }
 
