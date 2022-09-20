@@ -7,40 +7,40 @@
 %C = type { i32 }
 %D = type { i32 }
 
-; CHECK: define spir_func void @funcA() !intel_used_aspects ![[#ID0:]] {
+; CHECK: define spir_func void @funcA() !sycl_used_aspects ![[#ID0:]] {
 define spir_func void @funcA() {
   %tmp = alloca %A
   ret void
 }
 
-; CHECK: define spir_func void @funcB() !intel_used_aspects ![[#ID1:]] {
+; CHECK: define spir_func void @funcB() !sycl_used_aspects ![[#ID1:]] {
 define spir_func void @funcB() {
   %tmp = alloca %B
   call spir_func void @funcA()
   ret void
 }
 
-; CHECK: define spir_func void @funcC() !intel_used_aspects ![[#ID2:]] {
+; CHECK: define spir_func void @funcC() !sycl_used_aspects ![[#ID2:]] {
 define spir_func void @funcC() {
   %tmp = alloca %C
   call spir_func void @funcB()
   ret void
 }
 
-; CHECK: define spir_func void @funcD() !intel_used_aspects ![[#ID3:]] {
+; CHECK: define spir_func void @funcD() !sycl_used_aspects ![[#ID3:]] {
 define spir_func void @funcD() {
   %tmp = alloca %D
   call spir_func void @funcC()
   ret void
 }
 
-; CHECK: define spir_kernel void @kernel() !intel_used_aspects ![[#ID3]] {
+; CHECK: define spir_kernel void @kernel() !sycl_used_aspects ![[#ID3]] {
 define spir_kernel void @kernel() {
   call spir_func void @funcD()
   ret void
 }
 
-!intel_types_that_use_aspects = !{!0, !1, !2, !3}
+!sycl_types_that_use_aspects = !{!0, !1, !2, !3}
 !0 = !{!"A", i32 0}
 !1 = !{!"B", i32 1}
 !2 = !{!"C", i32 2}
