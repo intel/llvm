@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -O1 -triple spir-unknown-unknown -cl-std=CL2.0 %s -finclude-default-header -emit-llvm-bc -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 // RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV

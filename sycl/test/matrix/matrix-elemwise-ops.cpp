@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl -O2 %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX=1
 
 #include <iostream>

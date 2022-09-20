@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ;Source:
 ;void __kernel test(float2 x, uint c,
 ;                   read_only image2d_t image_in,

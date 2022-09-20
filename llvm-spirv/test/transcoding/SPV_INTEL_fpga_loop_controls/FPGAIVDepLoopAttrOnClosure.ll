@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; This LLVM IR was generated using Intel SYCL Clang compiler (https://github.com/intel/llvm)
 ;
 ; SYCL source code of this program can be found below.

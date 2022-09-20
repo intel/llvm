@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt

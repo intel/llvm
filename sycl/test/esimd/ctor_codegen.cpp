@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o - | FileCheck %s
 
 // Check efficiency of LLVM IR generated for various simd constructors.

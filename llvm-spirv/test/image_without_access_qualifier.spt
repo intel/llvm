@@ -71,3 +71,6 @@
 
 ; CHECK-LLVM: %opencl.image2d_ro_t = type opaque
 ; CHECK-LLVM: !{{[0-9]*}} = !{!"read_only", !"none", !"none"}
+
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS

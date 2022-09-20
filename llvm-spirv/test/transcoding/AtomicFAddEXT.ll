@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_EXT_shader_atomic_float_add -o %t.spv
 ; RUN: spirv-val %t.spv

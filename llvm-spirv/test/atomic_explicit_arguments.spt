@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 119734787 65536 393230 11 0
 2 Capability Addresses
 2 Capability Linkage

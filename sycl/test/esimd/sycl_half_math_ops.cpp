@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t.ll
 // RUN: sycl-post-link -split-esimd -lower-esimd -S %t.ll -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll

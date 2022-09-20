@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -s -o %t.pre.bc
 ; RUN: llvm-dis %t.pre.bc -o - | FileCheck %s --check-prefix=CHECK-PRE

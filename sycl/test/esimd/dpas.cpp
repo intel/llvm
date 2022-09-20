@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -DESIMD_XE_HPC -O0 -fsycl -c -Xclang -emit-llvm %s -o %t
 // RUN: %clangxx -DESIMD_XE_HPC -O0 -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table

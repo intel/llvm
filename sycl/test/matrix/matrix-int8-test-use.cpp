@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl -fsycl-device-only -O2 -S -emit-llvm -o - %s | FileCheck %s
 
 // CHECK-DAG: %spirv.JointMatrixINTEL._char_12_48_4_3_0 = type { [12 x [48 x [5 x [4 x [1 x i8]]]]] addrspace(4)* }

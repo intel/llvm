@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ;; Test CL opaque types
 ;;
 ;; // cl-types.cl

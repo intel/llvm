@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv

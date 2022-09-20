@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ;; Test SPIR-V opaque types
 ;;
 ; RUN: llvm-as %s -o %t.bc

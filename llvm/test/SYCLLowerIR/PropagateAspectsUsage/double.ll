@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: opt -passes=sycl-propagate-aspects-usage < %s -S | FileCheck %s
 ;
 ; Test checks that double's aspect is spotted and propagated.

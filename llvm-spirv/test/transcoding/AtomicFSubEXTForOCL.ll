@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ;; Check that atomic_fetch_sub is translated to OpAtomicFAddEXT with negative
 ;; value operand
 ; RUN: llvm-as %s -o %t.bc

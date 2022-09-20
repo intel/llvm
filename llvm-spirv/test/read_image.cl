@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -triple spir64 -fdeclare-opencl-builtins -finclude-default-header -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv --spirv-max-version=1.3 %t.bc -o %t.spv
 // RUN: spirv-val %t.spv

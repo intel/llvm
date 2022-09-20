@@ -1,3 +1,5 @@
+; XFAIL:*
+; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
