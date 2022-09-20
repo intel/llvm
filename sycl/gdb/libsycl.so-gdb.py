@@ -53,22 +53,22 @@ class HostAccessor(Accessor):
 
     def memory_range(self, dim):
         eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getMemoryRange()"
-        return gdb.parse_and_eval(eval_string)["common_array"][dim];
+        return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def offset(self, dim):
         eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getOffset()"
-        return gdb.parse_and_eval(eval_string)["common_array"][dim];
+        return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def data(self):
         eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getPtr()"
-        return gdb.parse_and_eval(eval_string);
+        return gdb.parse_and_eval(eval_string)
 
 class HostAccessorLocal(HostAccessor):
     """For Host device memory layout"""
 
     def memory_range(self, dim):
         eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getSize()"
-        return gdb.parse_and_eval(eval_string)["common_array"][dim];
+        return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def index(self, arg):
         if arg.type.code == gdb.TYPE_CODE_INT:
@@ -76,7 +76,7 @@ class HostAccessorLocal(HostAccessor):
         result = 0
         for dim in range(self.depth):
             result = (
-                result * self.memory_range() + arg["common_array"][dim]
+                result * self.memory_range(dim) + arg["common_array"][dim]
             )
         return result
 
