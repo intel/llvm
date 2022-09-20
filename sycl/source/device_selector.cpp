@@ -195,6 +195,7 @@ __SYCL_EXPORT int accelerator_selector_v(const device &dev) {
 int host_selector::operator()(const device &dev) const {
   // Host device has been removed and host_selector has been deprecated, so this
   // should never be able to select a device.
+  std::ignore = dev;
   return detail::REJECT_DEVICE_SCORE;
 }
 
