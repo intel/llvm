@@ -52,15 +52,17 @@ This extension adds support for a 16-bit floating point type `bfloat16`.
 This type occupies 16 bits of storage space as does the `sycl::half` type.
 However, `bfloat16` allots 8 bits to the exponent instead of the 5 bits used by
 `sycl::half` and 7 bits to the significand versus 10 bits used by `sycl::half`.
-Thus, `bfloat16` has the same dynamic range as a 32-bit `float` but with reduced
-precision. This type is useful when memory required to store the values must be
-reduced, and when the calculations require high dynamic range but can tolerate
-lower-precision. Some implementations may still perform operations on this type
-using 32-bit math. For example, they may convert the `bfloat16` value to
-`float`, and then perform the operation on the 32-bit `float`.
+Thus, `bfloat16` has the same dynamic range as a 32-bit `float` but with
+reduced precision. This type is useful when memory required to store the values
+must be reduced, and when the calculations require high dynamic range but can
+tolerate lower-precision. Some implementations may still perform operations
+ on this type using 32-bit math. For example, they may convert the `bfloat16`
+ value to `float`, and then perform the operation on the 32-bit `float`.
 
 [NOTE]
-The bfloat16 type is supported on all devices. DPC++ currently supports this type natively on Intel Xe HP GPUs and Nvidia GPUs with Compute Capability >= SM80. On other devices it is emulated in software.
+The bfloat16 type is supported on all devices. DPC++ currently supports this
+type natively on Intel Xe HP GPUs and Nvidia GPUs with
+Compute Capability >= SM80. On other devices it is emulated in software.
 
 == Specification
 
@@ -95,7 +97,6 @@ namespace ext {
 namespace oneapi {
 
 class bfloat16 {
-using storage_t = uint16_t;
 
 public:
   bfloat16() = default;
@@ -131,14 +132,16 @@ public:
   friend bfloat16 &operatorOP(bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
 
   // OP is +, -, *, /
-  friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+  { /* ... */ }
   template <typename T>
   friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
   template <typename T>
   friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
 
   // OP is ==,!=, <, >, <=, >=
-  friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+  { /* ... */ }
   template <typename T>
   friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
   template <typename T>
@@ -192,13 +195,15 @@ Table 1. Member functions of `bfloat16` class.
 
   OP is: `++, --`
 
-| `friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }`
+| `friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+{ /* ... */ }`
 | Perform an in-place `OP` arithmetic operation between the `lhs` and the `rhs`
   and return the `lhs`.
 
   OP is: `+=, -=, *=, /=`
 
-| `friend type operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }`
+| `friend type operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+{ /* ... */ }`
 | Construct a new instance of the `bfloat16` class with the value of the new
   `bfloat16` instance being the result of an OP arithmetic operation between
   the `lhs` `bfloat16` and `rhs` `bfloat16` values.
@@ -223,7 +228,8 @@ Table 1. Member functions of `bfloat16` class.
 
   OP is `+, -, *, /`
 
-| `friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }`
+| `friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+{ /* ... */ }`
 | Perform comparison operation OP between `lhs` `bfloat16` and `rhs` `bfloat16`
   values and return the result as a boolean value.
 
@@ -298,7 +304,8 @@ int main(int argc, char *argv[]) {
                              Add operator overloadings +
                              Apply code review suggestions
 |3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
-|4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific to oneapi
+|4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific
+ to oneapi
 |5|2022-04-05|Jack Kirk | Added section for bfloat16 math builtins
 |6|2022-09-15|Rajiv Deodhar |Move bfloat16 from experimental to supported
 and leave math functions as experimental
