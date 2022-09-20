@@ -310,6 +310,8 @@ bool types::isArchive(ID Id) {
   }
 }
 
+bool types::isHLSL(ID Id) { return Id == TY_HLSL; }
+
 bool types::isSrcFile(ID Id) {
   return Id != TY_Object && getPreprocessedType(Id) != TY_INVALID;
 }
