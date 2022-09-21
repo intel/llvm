@@ -126,23 +126,43 @@ constexpr int verify_parameters_and_deduce_exec_size() {
 
   if constexpr (APrecision == dpas_argument_type::FP16 ||
                 BPrecision == dpas_argument_type::FP16) {
-    static_assert(APrecision == BPrecision &&
-                      __ESIMD_DNS::is_type<T, float, sycl::half>() &&
-                      __ESIMD_DNS::is_type<CT, float, sycl::half>(),
-                  "Unsupported DPAS types! The supported types are:\n"
-                  " Result |   C   |   B  |  A  \n"
-                  " f, hf  | f, hf |  hf  |  hf \n");
+    if constexpr (ExecutionSize == 8) {
+      static_assert(APrecision == BPrecision &&
+                        __ESIMD_DNS::is_type<T, float>() &&
+                        __ESIMD_DNS::is_type<CT, float>(),
+                    "Unsupported DPAS types! The supported types are:\n"
+                    " Result |   C   |   B  |  A  \n"
+                    "   f    |   f   |  hf  |  hf \n");
+    } else {
+      static_assert(APrecision == BPrecision &&
+                        __ESIMD_DNS::is_type<T, float, sycl::half>() &&
+                        __ESIMD_DNS::is_type<CT, float, sycl::half>(),
+                    "Unsupported DPAS types! The supported types are:\n"
+                    " Result |   C   |   B  |  A  \n"
+                    " f, hf  | f, hf |  hf  |  hf \n");
+    }
   } else if constexpr (APrecision == dpas_argument_type::BF16 ||
                        BPrecision == dpas_argument_type::BF16) {
     using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
-    static_assert(APrecision == BPrecision &&
-                      __ESIMD_DNS::is_type<T, float, bfloat16>() &&
-                      __ESIMD_DNS::is_type<CT, float, bfloat16>(),
-                  "Unsupported DPAS types! The supported types are:\n"
-                  " Result |   C   |   B  |  A        \n"
-                  " f, bf  | f, bf |  bf  |  bf       \n");
+    if constexpr (ExecutionSize == 8) {
+      static_assert(APrecision == BPrecision &&
+                        __ESIMD_DNS::is_type<T, float, bfloat16>() &&
+                        __ESIMD_DNS::is_type<CT, float, bfloat16>(),
+                    "Unsupported DPAS types! The supported types are:\n"
+                    " Result |   C   |   B  |  A        \n"
+                    "   f    |   f   |  bf  |  bf       \n");
+    } else {
+      static_assert(APrecision == BPrecision &&
+                        __ESIMD_DNS::is_type<T, float, bfloat16>() &&
+                        __ESIMD_DNS::is_type<CT, float, bfloat16>(),
+                    "Unsupported DPAS types! The supported types are:\n"
+                    " Result |   C   |   B  |  A        \n"
+                    " f, bf  | f, bf |  bf  |  bf       \n");
+    }
   } else if constexpr (APrecision == dpas_argument_type::TF32 ||
                        BPrecision == dpas_argument_type::TF32) {
+    static_assert(ExecutionSize == 16,
+                  "tf32 type can be used only with ExecutionSize=16");
     static_assert(APrecision == BPrecision && std::is_same_v<T, float> &&
                       std::is_same_v<CT, float>,
                   "Unsupported DPAS types! The supported types are:\n"
@@ -223,7 +243,7 @@ auto dpas(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
       detail::verify_parameters_and_deduce_exec_size<SystolicDepth, RepeatCount,
                                                      T, T, BT, AT, BPrecision,
                                                      APrecision, BN, AN>();
-  // Result(_Mx_N) = A(_Mx_K) * B(_Kx_N) + C(_Mx_N)
+  // Result(_Mx_N) = A(_Mx_K) * B(_Kx_N)
   // where:
   //   _M = RepeatCount;
   //   _K = SystolicDepth * OpsPerChannel;
@@ -237,8 +257,10 @@ auto dpas(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
 
   constexpr int Info = (RepeatCount << 24) + (SystolicDepth << 16) +
                        ((int)APrecision << 8) + (int)BPrecision;
-  return __esimd_dpas_nosrc0<Info, T, int, int, ResultN, BNCasted, ANCasted>(
-      BCasted.data(), ACasted.data());
+  __ESIMD_NS::simd<T, ResultN> Result =
+      __esimd_dpas_nosrc0<Info, T, int, int, ResultN, BNCasted, ANCasted>(
+          BCasted.data(), ACasted.data());
+  return Result;
 }
 
 /// DPAS (Dot Product Accumulate Systolic)
@@ -283,14 +305,20 @@ template <
     int SystolicDepth, int RepeatCount, typename T, typename BT, typename AT,
     dpas_argument_type BPrecision = detail::dpas_precision_from_type<BT>(),
     dpas_argument_type APrecision = detail::dpas_precision_from_type<AT>(),
-    int N, int BN, int AN>
-__ESIMD_NS::simd<T, N> dpasw(__ESIMD_NS::simd<BT, BN> B,
-                             __ESIMD_NS::simd<AT, AN> A) {
+    int BN, int AN>
+auto dpasw(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
 
   constexpr bool IsDPASW = true;
-  (void)detail::verify_parameters_and_deduce_exec_size<
+  constexpr int ExecutionSize = detail::verify_parameters_and_deduce_exec_size<
       SystolicDepth, RepeatCount, T, T, BT, AT, BPrecision, APrecision, BN, AN,
       IsDPASW>();
+
+  // Result(_Mx_N) = A(_Mx_K) * B(_Kx_N)
+  // where:
+  //   _M = RepeatCount;
+  //   _K = SystolicDepth * OpsPerChannel;
+  //   _N = ExecutionSize (unknown, but deducible), must be 8 or 16.
+  constexpr int ResultN = RepeatCount * ExecutionSize;
 
   constexpr int ANCasted = AN / (sizeof(int) / sizeof(AT));
   constexpr int BNCasted = BN / (sizeof(int) / sizeof(BT));
@@ -299,8 +327,10 @@ __ESIMD_NS::simd<T, N> dpasw(__ESIMD_NS::simd<BT, BN> B,
 
   constexpr int Info = (RepeatCount << 24) + (SystolicDepth << 16) +
                        ((int)APrecision << 8) + (int)BPrecision;
-  return __esimd_dpasw_nosrc0<Info, T, int, int, N, BNCasted, ANCasted>(
-      BCasted.data(), ACasted.data());
+  __ESIMD_NS::simd<T, ResultN> Result =
+      __esimd_dpasw_nosrc0<Info, T, int, int, ResultN, BNCasted, ANCasted>(
+          BCasted.data(), ACasted.data());
+  return Result;
 }
 
 /// @} sycl_esimd_xmx_systolic_array_api
