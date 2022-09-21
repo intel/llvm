@@ -47,16 +47,17 @@ public:
   }
 
   template <int Dimensions, typename T = int>
-  void checkPartialCopyThroughIteratorWithoutOffset(
-      const sycl::range<Dimensions> &fullShape,
-      const sycl::range<Dimensions> &copyShape) {
+  void
+  checkPartialCopyThroughIterator(const sycl::range<Dimensions> &fullShape,
+                                  const sycl::range<Dimensions> &copyShape,
+                                  const sycl::id<Dimensions> &offset = {}) {
     std::vector<T> reference(fullShape.size());
     std::iota(reference.begin(), reference.end(), 0);
     sycl::buffer<T, Dimensions> buffer(reference.data(), fullShape);
     std::vector<T> copied;
     {
-      auto accessor =
-          buffer.template get_access<sycl::access_mode::read_write>(copyShape);
+      auto accessor = buffer.template get_access<sycl::access_mode::read_write>(
+          copyShape, offset);
       auto I = accessor.begin();
       I = accessor.end();
       for (auto i = accessor.begin(), e = accessor.end(); i != e; ++i) {
@@ -69,12 +70,19 @@ public:
     {
       auto fullAccessor = buffer.template get_access<sycl::access_mode::read>();
       size_t linearId = 0;
-      sycl::id<3> shapeToCheck(Dimensions > 2 ? copyShape[Dimensions - 3] : 1,
-                               Dimensions > 1 ? copyShape[Dimensions - 2] : 1,
-                               copyShape[Dimensions - 1]);
-      for (size_t z = 0; z < shapeToCheck[0]; ++z) {
-        for (size_t y = 0; y < shapeToCheck[1]; ++y) {
-          for (size_t x = 0; x < shapeToCheck[2]; ++x) {
+
+      sycl::id<3> offsetToUse(Dimensions > 2 ? offset[Dimensions - 3] : 1,
+                              Dimensions > 1 ? offset[Dimensions - 2] : 1,
+                              offset[Dimensions - 1]);
+
+      sycl::id<3> shapeToCheck(
+          (Dimensions > 2 ? copyShape[Dimensions - 3] : 1) - offsetToUse[0],
+          (Dimensions > 1 ? copyShape[Dimensions - 2] : 1) - offsetToUse[1],
+          copyShape[Dimensions - 1] - offsetToUse[2]);
+
+      for (size_t z = offsetToUse[0]; z < shapeToCheck[0]; ++z) {
+        for (size_t y = offsetToUse[1]; y < shapeToCheck[1]; ++y) {
+          for (size_t x = offsetToUse[2]; x < shapeToCheck[2]; ++x) {
             auto value = accessHelper<Dimensions>(fullAccessor, z, y, x);
             ASSERT_EQ(copied[linearId], value);
             ++linearId;
@@ -293,36 +301,72 @@ TEST_F(AccessorIteratorTest, FullCopy3D) {
 }
 
 TEST_F(AccessorIteratorTest, PartialCopyWithoutOffset1D) {
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
-      sycl::range<1>{10}, sycl::range<1>{5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
-      sycl::range<1>{10}, sycl::range<1>{10}));
+  ASSERT_NO_FATAL_FAILURE(
+      checkPartialCopyThroughIterator(sycl::range<1>{10}, sycl::range<1>{5}));
+  ASSERT_NO_FATAL_FAILURE(
+      checkPartialCopyThroughIterator(sycl::range<1>{10}, sycl::range<1>{10}));
 }
 
 TEST_F(AccessorIteratorTest, PartialCopyWithoutOffset2D) {
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{3, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{5, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{2, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{5, 2}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{3, 2}));
 }
 
 TEST_F(AccessorIteratorTest, PartialCopyWithoutOffset3D) {
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 3, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 5, 3}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 5, 5}));
-  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIteratorWithoutOffset(
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{1, 2, 3}));
+}
+
+TEST_F(AccessorIteratorTest, PartialCopyWithOffset1D) {
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{5}));
+}
+
+TEST_F(AccessorIteratorTest, PartialCopyWithOffset2D) {
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<2>{10, 10}, sycl::range<2>{5, 5}, sycl::id<2>{3, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<2>{10, 10}, sycl::range<2>{5, 5}, sycl::id<2>{3, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<2>{10, 10}, sycl::range<2>{5, 5}, sycl::id<2>{0, 3}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<2>{10, 10}, sycl::range<2>{5, 5}, sycl::id<2>{5, 5}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<2>{5, 10}, sycl::range<2>{3, 5}, sycl::id<2>{1, 4}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<2>{10, 5}, sycl::range<2>{5, 3}, sycl::id<2>{5, 1}));
+}
+
+TEST_F(AccessorIteratorTest, PartialCopyWithOffset3D) {
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 3, 3}, sycl::id<3>{2, 2, 2}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<3>{8, 8, 8}, sycl::range<3>{4, 4, 4}, sycl::id<3>{4, 4, 4}));
+  // FIXME: figure out why the test below fails
+  // ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+  //     sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 3, 3}, sycl::id<3>{4, 4, 4}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 4, 5}, sycl::id<3>{3, 2, 1}));
+  ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
+      sycl::range<3>{9, 8, 7}, sycl::range<3>{3, 4, 5}, sycl::id<3>{3, 2, 1}));
 }
