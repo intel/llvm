@@ -19,7 +19,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 template <std::size_t N, typename T> constexpr std::size_t vecAlignment() {
   static_assert(N > 0, "Invalid number of elements.");
-  size_t SizeOfT = sizeof(T);
+  constexpr size_t SizeOfT = sizeof(T);
   static_assert(SizeOfT > 0, "Invalid size of T.");
   // First find the "previous" vector num elements.
   size_t res = N >= 16  ? 16
