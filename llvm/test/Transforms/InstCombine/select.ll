@@ -1458,6 +1458,19 @@ define i32 @PR27817_nsw(i32 %x) {
   ret i32 %sel
 }
 
+define <2 x i32> @PR27817_nsw_vec(<2 x i32> %x) {
+; CHECK-LABEL: @PR27817_nsw_vec(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[X:%.*]], <i32 -2147483648, i32 -2147483648>
+; CHECK-NEXT:    [[SUB:%.*]] = sub nsw <2 x i32> zeroinitializer, [[X]]
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[CMP]], <2 x i32> <i32 -2147483648, i32 -2147483648>, <2 x i32> [[SUB]]
+; CHECK-NEXT:    ret <2 x i32> [[SEL]]
+;
+  %cmp = icmp eq <2 x i32> %x, <i32 -2147483648, i32 -2147483648>
+  %sub = sub nsw <2 x i32> zeroinitializer, %x
+  %sel = select <2 x i1> %cmp, <2 x i32> <i32 -2147483648, i32 -2147483648>, <2 x i32> %sub
+  ret <2 x i32> %sel
+}
+
 define i32 @select_icmp_slt0_xor(i32 %x) {
 ; CHECK-LABEL: @select_icmp_slt0_xor(
 ; CHECK-NEXT:    [[TMP1:%.*]] = or i32 [[X:%.*]], -2147483648
@@ -2769,6 +2782,45 @@ define i8 @select_replacement_add_eq(i8 %x, i8 %y) {
   ret i8 %sel
 }
 
+define <2 x i8> @select_replacement_add_eq_vec(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @select_replacement_add_eq_vec(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i8> [[X:%.*]], <i8 1, i8 1>
+; CHECK-NEXT:    [[ADD:%.*]] = add <2 x i8> [[X]], <i8 1, i8 1>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[CMP]], <2 x i8> [[ADD]], <2 x i8> [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[SEL]]
+;
+  %cmp = icmp eq <2 x i8> %x, <i8 1, i8 1>
+  %add = add <2 x i8> %x, <i8 1, i8 1>
+  %sel = select <2 x i1> %cmp, <2 x i8> %add, <2 x i8> %y
+  ret <2 x i8> %sel
+}
+
+define <2 x i8> @select_replacement_add_eq_vec_nonuniform(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @select_replacement_add_eq_vec_nonuniform(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i8> [[X:%.*]], <i8 1, i8 2>
+; CHECK-NEXT:    [[ADD:%.*]] = add <2 x i8> [[X]], <i8 3, i8 4>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[CMP]], <2 x i8> [[ADD]], <2 x i8> [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[SEL]]
+;
+  %cmp = icmp eq <2 x i8> %x, <i8 1, i8 2>
+  %add = add <2 x i8> %x, <i8 3, i8 4>
+  %sel = select <2 x i1> %cmp, <2 x i8> %add, <2 x i8> %y
+  ret <2 x i8> %sel
+}
+
+define <2 x i8> @select_replacement_add_eq_vec_poison(<2 x i8> %x, <2 x i8> %y) {
+; CHECK-LABEL: @select_replacement_add_eq_vec_poison(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i8> [[X:%.*]], <i8 1, i8 poison>
+; CHECK-NEXT:    [[ADD:%.*]] = add <2 x i8> [[X]], <i8 1, i8 1>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[CMP]], <2 x i8> [[ADD]], <2 x i8> [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[SEL]]
+;
+  %cmp = icmp eq <2 x i8> %x, <i8 1, i8 poison>
+  %add = add <2 x i8> %x, <i8 1, i8 1>
+  %sel = select <2 x i1> %cmp, <2 x i8> %add, <2 x i8> %y
+  ret <2 x i8> %sel
+}
+
 define i8 @select_replacement_add_ne(i8 %x, i8 %y) {
 ; CHECK-LABEL: @select_replacement_add_ne(
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i8 [[X:%.*]], 1
@@ -3213,8 +3265,7 @@ declare i32 @llvm.cttz.i32(i32, i1 immarg)
 
 define i32 @select_cond_zext_cond(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_zext_cond(
-; CHECK-NEXT:    [[ZEXT:%.*]] = zext i1 [[COND:%.*]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[ZEXT]], i32 [[B:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 1, i32 [[B:%.*]]
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %zext = zext i1 %cond to i32
@@ -3224,8 +3275,7 @@ define i32 @select_cond_zext_cond(i1 %cond, i32 %b) {
 
 define <2 x i32> @select_cond_zext_cond_vec(<2 x i1> %cond, <2 x i32> %b) {
 ; CHECK-LABEL: @select_cond_zext_cond_vec(
-; CHECK-NEXT:    [[ZEXT:%.*]] = zext <2 x i1> [[COND:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[COND]], <2 x i32> [[ZEXT]], <2 x i32> [[B:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[COND:%.*]], <2 x i32> <i32 1, i32 1>, <2 x i32> [[B:%.*]]
 ; CHECK-NEXT:    ret <2 x i32> [[SEL]]
 ;
   %zext = zext <2 x i1> %cond to <2 x i32>
@@ -3235,8 +3285,7 @@ define <2 x i32> @select_cond_zext_cond_vec(<2 x i1> %cond, <2 x i32> %b) {
 
 define i32 @select_cond_sext_cond(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_sext_cond(
-; CHECK-NEXT:    [[SEXT:%.*]] = sext i1 [[COND:%.*]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[SEXT]], i32 [[B:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 -1, i32 [[B:%.*]]
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %sext = sext i1 %cond to i32
@@ -3246,8 +3295,7 @@ define i32 @select_cond_sext_cond(i1 %cond, i32 %b) {
 
 define <2 x i32> @select_cond_sext_cond_vec(<2 x i1> %cond, <2 x i32> %b) {
 ; CHECK-LABEL: @select_cond_sext_cond_vec(
-; CHECK-NEXT:    [[SEXT:%.*]] = sext <2 x i1> [[COND:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[COND]], <2 x i32> [[SEXT]], <2 x i32> [[B:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[COND:%.*]], <2 x i32> <i32 -1, i32 -1>, <2 x i32> [[B:%.*]]
 ; CHECK-NEXT:    ret <2 x i32> [[SEL]]
 ;
   %sext = sext <2 x i1> %cond to <2 x i32>
@@ -3257,8 +3305,7 @@ define <2 x i32> @select_cond_sext_cond_vec(<2 x i1> %cond, <2 x i32> %b) {
 
 define i32 @select_cond_val_zext_cond(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_val_zext_cond(
-; CHECK-NEXT:    [[ZEXT:%.*]] = zext i1 [[COND:%.*]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[B:%.*]], i32 [[ZEXT]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 [[B:%.*]], i32 0
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %zext = zext i1 %cond to i32
@@ -3268,8 +3315,7 @@ define i32 @select_cond_val_zext_cond(i1 %cond, i32 %b) {
 
 define <2 x i32> @select_cond_val_zext_cond_vec(<2 x i1> %cond, <2 x i32> %b) {
 ; CHECK-LABEL: @select_cond_val_zext_cond_vec(
-; CHECK-NEXT:    [[ZEXT:%.*]] = zext <2 x i1> [[COND:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[COND]], <2 x i32> [[B:%.*]], <2 x i32> [[ZEXT]]
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> [[COND:%.*]], <2 x i32> [[B:%.*]], <2 x i32> zeroinitializer
 ; CHECK-NEXT:    ret <2 x i32> [[SEL]]
 ;
   %zext = zext <2 x i1> %cond to <2 x i32>
@@ -3279,8 +3325,7 @@ define <2 x i32> @select_cond_val_zext_cond_vec(<2 x i1> %cond, <2 x i32> %b) {
 
 define i32 @select_cond_val_sext_cond(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_val_sext_cond(
-; CHECK-NEXT:    [[SEXT:%.*]] = sext i1 [[COND:%.*]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[B:%.*]], i32 [[SEXT]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 [[B:%.*]], i32 0
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %sext = sext i1 %cond to i32
@@ -3290,9 +3335,7 @@ define i32 @select_cond_val_sext_cond(i1 %cond, i32 %b) {
 
 define i32 @select_cond_zext_not_cond_val(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_zext_not_cond_val(
-; CHECK-NEXT:    [[NOT_COND:%.*]] = xor i1 [[COND:%.*]], true
-; CHECK-NEXT:    [[ZEXT:%.*]] = zext i1 [[NOT_COND]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[ZEXT]], i32 [[B:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 0, i32 [[B:%.*]]
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %not_cond = xor i1 %cond, true
@@ -3303,9 +3346,7 @@ define i32 @select_cond_zext_not_cond_val(i1 %cond, i32 %b) {
 
 define i32 @select_cond_sext_not_cond_val(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_sext_not_cond_val(
-; CHECK-NEXT:    [[NOT_COND:%.*]] = xor i1 [[COND:%.*]], true
-; CHECK-NEXT:    [[SEXT:%.*]] = sext i1 [[NOT_COND]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[SEXT]], i32 [[B:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 0, i32 [[B:%.*]]
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %not_cond = xor i1 %cond, true
@@ -3317,9 +3358,7 @@ define i32 @select_cond_sext_not_cond_val(i1 %cond, i32 %b) {
 
 define i32 @select_cond_val_zext_not_cond(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_val_zext_not_cond(
-; CHECK-NEXT:    [[NOT_COND:%.*]] = xor i1 [[COND:%.*]], true
-; CHECK-NEXT:    [[ZEXT:%.*]] = zext i1 [[NOT_COND]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[B:%.*]], i32 [[ZEXT]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 [[B:%.*]], i32 1
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %not_cond = xor i1 %cond, true
@@ -3330,9 +3369,7 @@ define i32 @select_cond_val_zext_not_cond(i1 %cond, i32 %b) {
 
 define i32 @select_cond_val_sext_not_cond(i1 %cond, i32 %b) {
 ; CHECK-LABEL: @select_cond_val_sext_not_cond(
-; CHECK-NEXT:    [[NOT_COND:%.*]] = xor i1 [[COND:%.*]], true
-; CHECK-NEXT:    [[SEXT:%.*]] = sext i1 [[NOT_COND]] to i32
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND]], i32 [[B:%.*]], i32 [[SEXT]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], i32 [[B:%.*]], i32 -1
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
   %not_cond = xor i1 %cond, true
@@ -3343,11 +3380,7 @@ define i32 @select_cond_val_sext_not_cond(i1 %cond, i32 %b) {
 
 define i32 @select_cond_not_cond_cond1(i1 %cond) {
 ; CHECK-LABEL: @select_cond_not_cond_cond1(
-; CHECK-NEXT:    [[Z:%.*]] = zext i1 [[COND:%.*]] to i32
-; CHECK-NEXT:    [[NOT_COND:%.*]] = xor i1 [[COND]], true
-; CHECK-NEXT:    [[S:%.*]] = sext i1 [[NOT_COND]] to i32
-; CHECK-NEXT:    [[V:%.*]] = select i1 [[COND]], i32 [[S]], i32 [[Z]]
-; CHECK-NEXT:    ret i32 [[V]]
+; CHECK-NEXT:    ret i32 0
 ;
   %z = zext i1 %cond to i32
   %not_cond = xor i1 %cond, true
@@ -3358,11 +3391,7 @@ define i32 @select_cond_not_cond_cond1(i1 %cond) {
 
 define i32 @select_cond_not_cond_cond2(i1 %cond) {
 ; CHECK-LABEL: @select_cond_not_cond_cond2(
-; CHECK-NEXT:    [[Z:%.*]] = sext i1 [[COND:%.*]] to i32
-; CHECK-NEXT:    [[NOT_COND:%.*]] = xor i1 [[COND]], true
-; CHECK-NEXT:    [[S:%.*]] = zext i1 [[NOT_COND]] to i32
-; CHECK-NEXT:    [[V:%.*]] = select i1 [[COND]], i32 [[S]], i32 [[Z]]
-; CHECK-NEXT:    ret i32 [[V]]
+; CHECK-NEXT:    ret i32 0
 ;
   %z = sext i1 %cond to i32
   %not_cond = xor i1 %cond, true

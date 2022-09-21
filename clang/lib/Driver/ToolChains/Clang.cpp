@@ -2305,6 +2305,10 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
 
   SetRISCVSmallDataLimit(getToolChain(), Args, CmdArgs);
 
+  if (!Args.hasFlag(options::OPT_mimplicit_float,
+                    options::OPT_mno_implicit_float, true))
+    CmdArgs.push_back("-no-implicit-float");
+
   if (const Arg *A = Args.getLastArg(options::OPT_mtune_EQ)) {
     CmdArgs.push_back("-tune-cpu");
     CmdArgs.push_back(A->getValue());
@@ -5956,13 +5960,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   auto SanitizeArgs = TC.getSanitizerArgs(Args);
   auto UnwindTables = TC.getDefaultUnwindTableLevel(Args);
 
+  const bool HasSyncUnwindTables = Args.hasFlag(
+      options::OPT_funwind_tables, options::OPT_fno_unwind_tables, false);
   if (Args.hasFlag(options::OPT_fasynchronous_unwind_tables,
                    options::OPT_fno_asynchronous_unwind_tables,
                    SanitizeArgs.needsUnwindTables()) &&
       !Freestanding)
     UnwindTables = ToolChain::UnwindTableLevel::Asynchronous;
-  else if (Args.hasFlag(options::OPT_funwind_tables,
-                        options::OPT_fno_unwind_tables, false))
+  else if (HasSyncUnwindTables)
     UnwindTables = ToolChain::UnwindTableLevel::Synchronous;
   else if (Args.hasFlag(options::OPT_fno_unwind_tables,
                    options::OPT_fno_asynchronous_unwind_tables,
