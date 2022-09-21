@@ -1777,13 +1777,7 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType Ty) final {
-    // FIXME: Array of pointers/ array of type containing pointers
-    // will be handled in a follow up PR. Currently, they continue
-    // to trigger decomposition.
-    if (isArrayElement(FD, Ty))
-      CollectionStack.back() = true;
-    else
-      PointerStack.back() = true;
+    PointerStack.back() = true;
     return true;
   }
 
@@ -1793,7 +1787,7 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     // If a record needs to be decomposed, it is marked with
     // SYCLRequiresDecompositionAttr. Else if a record contains
     // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
@@ -1807,24 +1801,20 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
-        // Do not generate a new type if the record is not default
-        // constructible. Currently the fields/bases of the local clone
-        // corresponding to these generated types are intialized using
-        // their default constructors(Actual initialization is done via
-        // memcpy in kernel body.) to maintain the integrity of the
-        // InitListExpr we generate for Kernel Object local clone.
-        // So current logic fails for types without default constructors.
-        // FIXME: Stop triggering decomposition for non-trivial types with
-        // pointers.
-        if (RD->isTrivial())
+      // FIXME: Stop triggering decomposition for non-trivial types with
+      // pointers
+      if (RD->isTrivial()) {
+        PointerStack.back() = true;
+        if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
           RD->addAttr(
               SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
-        else
+      } else {
+        // We are visiting a non-trivial type with pointer.
+        CollectionStack.back() = true;
+        if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
           RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
               SemaRef.getASTContext()));
       }
-      PointerStack.back() = true;
     }
     return true;
   }
@@ -1851,22 +1841,20 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      // Do not generate a new type if the record is not default
-      // constructible. Currently the fields/bases of the local clone
-      // corresponding to these generated types are intialized using
-      // their default constructors(Actual initialization is done via
-      // memcpy in kernel body.) to maintain the integrity of the
-      // InitListExpr we generate for Kernel Object local clone.
-      // So current logic fails for types without default constructors.
       // FIXME: Stop triggering decomposition for non-trivial types with
-      // pointers.
-      if (RD->isTrivial())
-        RD->addAttr(
-            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
-      else
-        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
-            SemaRef.getASTContext()));
-      PointerStack.back() = true;
+      // pointers
+      if (RD->isTrivial()) {
+        PointerStack.back() = true;
+        if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+          RD->addAttr(
+              SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      } else {
+        // We are visiting a non-trivial type with pointer.
+        CollectionStack.back() = true;
+        if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+          RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+              SemaRef.getASTContext()));
+      }
     }
     return true;
   }
@@ -1890,7 +1878,10 @@ public:
       // FIXME: Array of pointers/ array of type containing pointers
       // will be handled in a follow up PR. Currently, they continue
       // to trigger decomposition.
-      llvm_unreachable("PointerStack should not be true when handling arrays.");
+      if (!FD->hasAttr<SYCLRequiresDecompositionAttr>())
+        FD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaRef.getASTContext()));
+      CollectionStack.back() = true;
     }
     return true;
   }
@@ -1904,7 +1895,7 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
 
   IdentifierInfo *getModifiedName(IdentifierInfo *Id) {
     std::string Name =
-        Id ? (Twine("_generated_") + Id->getName()).str() : "_generated_";
+        Id ? (Twine("__generated_") + Id->getName()).str() : "__generated_";
     return &SemaRef.getASTContext().Idents.get(Name);
   }
 

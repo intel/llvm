@@ -173,13 +173,13 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Pointer>([=]() { return SimpleStructWithPtr.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (_generated_StructWithPtr)'
+    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (__generated_StructWithPtr)'
 
     DerivedStruct<StructWithPtr> t1;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class PointerInBase>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (_generated_DerivedStruct)'
+    // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (__generated_DerivedStruct)'
   }
 
   {

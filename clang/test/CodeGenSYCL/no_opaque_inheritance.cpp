@@ -42,14 +42,14 @@ int main() {
 // CHECK: %struct.base = type { i32, %class.InnerField }
 // CHECK: %class.InnerField = type { %class.InnerFieldBase, i32 }
 // CHECK: %class.InnerFieldBase = type { i32 }
-// CHECK: %class._generated_second_base = type { i32 addrspace(1)* }
+// CHECK: %class.__generated_second_base = type { i32 addrspace(1)* }
 // CHECK: %struct.derived = type <{ %struct.base, [4 x i8], %class.second_base, i32, [4 x i8] }>
 // CHECK: %class.second_base = type { i32 addrspace(4)* }
 
 // Check kernel paramters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}derived
 // CHECK-SAME: %struct.base* noundef byval(%struct.base) align 4 %_arg__base
-// CHECK-SAME: %class._generated_second_base* noundef byval(%class._generated_second_base) align 8 %_arg__base1
+// CHECK-SAME: %class.__generated_second_base* noundef byval(%class.__generated_second_base) align 8 %_arg__base1
 // CHECK-SAME: i32 noundef %_arg_a
 
 // Check allocas for kernel parameters and local functor object
@@ -58,7 +58,7 @@ int main() {
 // CHECK: %[[ARG_A:[a-zA-Z0-9_.]+]] = addrspacecast i32* %[[ARG_A_ALLOCA]] to i32 addrspace(4)*
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %struct.derived* %[[LOCAL_OBJECT_ALLOCA]] to %struct.derived addrspace(4)*
 // CHECK: %[[ARG_BASE:[a-zA-Z0-9_.]+]] = addrspacecast %struct.base* %_arg__base to %struct.base addrspace(4)*
-// CHECK: %[[ARG_BASE1:[a-zA-Z0-9_.]+]] = addrspacecast %class._generated_second_base* %_arg__base1 to %class._generated_second_base addrspace(4)*
+// CHECK: %[[ARG_BASE1:[a-zA-Z0-9_.]+]] = addrspacecast %class.__generated_second_base* %_arg__base1 to %class.__generated_second_base addrspace(4)*
 // CHECK: store i32 %_arg_a, i32 addrspace(4)* %[[ARG_A]], align 4
 
 // Initialize 'base' subobject
@@ -78,6 +78,6 @@ int main() {
 // CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, i8 addrspace(4)* %[[DERIVED_PTR]], i64 16
 // CHECK: %[[TO_SECOND_BASE:.*]] = bitcast i8 addrspace(4)* %[[OFFSET_CALC]] to %class.second_base addrspace(4)*
 // CHECK: %[[SECOND_BASE_TO_PTR:.*]] = bitcast %class.second_base addrspace(4)* %[[TO_SECOND_BASE]] to i8 addrspace(4)*
-// CHECK: %[[SECOND_PARAM_TO_PTR:.*]] = bitcast %class._generated_second_base addrspace(4)* %[[ARG_BASE1]] to i8 addrspace(4)*
+// CHECK: %[[SECOND_PARAM_TO_PTR:.*]] = bitcast %class.__generated_second_base addrspace(4)* %[[ARG_BASE1]] to i8 addrspace(4)*
 // CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %[[SECOND_BASE_TO_PTR]], i8 addrspace(4)* align 8 %[[SECOND_PARAM_TO_PTR]], i64 8, i1 false)
 

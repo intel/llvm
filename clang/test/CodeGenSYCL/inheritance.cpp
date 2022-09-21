@@ -42,14 +42,14 @@ int main() {
 // CHECK: %struct.base = type { i32, %class.InnerField }
 // CHECK: %class.InnerField = type { %class.InnerFieldBase, i32 }
 // CHECK: %class.InnerFieldBase = type { i32 }
-// CHECK: %class._generated_second_base = type { ptr addrspace(1) }
+// CHECK: %class.__generated_second_base = type { ptr addrspace(1) }
 // CHECK: %struct.derived = type <{ %struct.base, [4 x i8], %class.second_base, i32, [4 x i8] }>
 // CHECK: %class.second_base = type { ptr addrspace(4) }
 
 // Check kernel paramters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}derived
 // CHECK-SAME: ptr noundef byval(%struct.base) align 4 %_arg__base
-// CHECK-SAME: ptr noundef byval(%class._generated_second_base) align 8 %_arg__base1
+// CHECK-SAME: ptr noundef byval(%class.__generated_second_base) align 8 %_arg__base1
 // CHECK-SAME: i32 noundef %_arg_a
 
 // Check allocas for kernel parameters and local functor object

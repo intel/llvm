@@ -98,8 +98,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:48:9)'
 
 // Check kernel_C parameters
-// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (_generated_MyStructWithPtr)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_structWithPtr_mem '_generated_MyStructWithPtr'
+// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__generated_MyStructWithPtr)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_structWithPtr_mem '__generated_MyStructWithPtr'
 
 // Check kernel_C inits
 // CHECK-NEXT: CompoundStmt
@@ -117,6 +117,6 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue .structWithPtr_mem
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:55:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:55:9)'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '_generated_MyStructWithPtr *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '_generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '_generated_MyStructWithPtr'
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'
 // CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 24
