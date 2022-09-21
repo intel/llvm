@@ -443,6 +443,8 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
+  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
+
   Scheduler();
   ~Scheduler();
 

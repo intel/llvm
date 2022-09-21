@@ -473,6 +473,10 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   }
 }
 
+void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

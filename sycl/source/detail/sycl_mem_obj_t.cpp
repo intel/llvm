@@ -147,6 +147,13 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
   } else
     HostPtrReadOnly = false;
 }
+
+void SYCLMemObjT::detachObjectIfNeeded(
+    const std::shared_ptr<SYCLMemObjT> &self) const {
+  if (self.use_count() == 1 && MNotBlockingRelease)
+    Scheduler::getInstance().deferMemObjRelease(self);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
