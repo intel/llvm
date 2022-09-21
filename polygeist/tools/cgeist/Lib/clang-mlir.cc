@@ -437,8 +437,11 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
     } else {
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
-      LLVM_DEBUG(llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
-                 alloc.dump(); llvm::dbgs() << "\n");
+      LLVM_DEBUG({
+        llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
+        alloc.dump();
+        llvm::dbgs() << "\n"
+      });
 
       if (memspace != 0) {
         alloc = abuilder.create<polygeist::Pointer2MemrefOp>(
@@ -448,8 +451,11 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       }
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, mlir::MemRefType::get(-1, t, {}, 0), alloc);
-      LLVM_DEBUG(llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
-                 alloc.dump(); llvm::dbgs() << "\n");
+      LLVM_DEBUG({
+        llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
+        alloc.dump();
+        llvm::dbgs() << "\n"
+      });
 
       if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
         mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(loc, 0)};
