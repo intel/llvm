@@ -385,40 +385,6 @@ static std::vector<device> amendDeviceAndSubDevices(
             }
           }
         } // /if deviceMatch
-
-        /*
-                  if (target.SubDeviceNum || target.HasSubDeviceWildCard) {
-                    if (supportsPartitionProperty(dev, partitionProperty) &&
-                        supportsAffinityDomain(dev, partitionProperty,
-                                               affinityDomain)) {
-                      auto subDevices = dev.create_sub_devices<
-                          info::partition_property::partition_by_affinity_domain>(
-                          affinityDomain);
-                      if (target.HasSubDeviceWildCard) {
-                        FinalResult.insert(FinalResult.end(),
-           subDevices.begin(), subDevices.end()); } else { if (subDevices.size()
-           > target.SubDeviceNum.value()) {
-                          FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
-                        } else {
-                          std::cout << "subdevice index out of bounds: " <<
-           target
-                                    << std::endl;
-                        }
-                      }
-                    } else if (target.DeviceNum ||
-                               (target.DeviceType && (target.DeviceType.value()
-           != info::device_type::all))) {
-                      // this device was specifically requested and yet is not
-                      // partitionable.
-                      std::cout << "device is not partitionable: " << target
-                                << std::endl;
-                    }
-                  } else if (!deviceAdded) {
-                    FinalResult.push_back(dev);
-                    deviceAdded = true;
-                  }
-                } // /if deviceMatch
-                */
       }
     } // /for
   }   // /for
