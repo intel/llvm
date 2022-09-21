@@ -17,9 +17,9 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-template <std::size_t N, std::size_t SizeOfT>
-constexpr std::size_t vecAlignment() {
+template <std::size_t N, typename T> constexpr std::size_t vecAlignment() {
   static_assert(N > 0, "Invalid number of elements.");
+  size_t SizeOfT = sizeof(T);
   static_assert(SizeOfT > 0, "Invalid size of T.");
   // First find the "previous" vector num elements.
   size_t res = N >= 16  ? 16
@@ -42,12 +42,12 @@ constexpr std::size_t vecAlignment() {
 
 #if defined(_WIN32) || defined(_WIN64)
 #define MARRAY_WINDOWS_ALIGN_ATTR                                              \
-  __declspec(align(vecAlignment<NumElements, sizeof(Type)>()))
+  __declspec(align(vecAlignment<NumElements, Type>()))
 #define MARRAY_LINUX_ALIGN_ATTR
 #else
 #define MARRAY_WINDOWS_ALIGN_ATTR
 #define MARRAY_LINUX_ALIGN_ATTR                                                \
-  __attribute__((aligned(vecAlignment<NumElements, sizeof(Type)>())))
+  __attribute__((aligned(vecAlignment<NumElements, Type>())))
 #endif
 
 /// Provides a cross-patform math array class template that works on
