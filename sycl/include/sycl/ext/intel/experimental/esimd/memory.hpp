@@ -536,7 +536,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// Refer to \ref lsc_block_load for more details.
+/// See comments in the  \ref lsc_block_load API for description and parameter constraints.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -931,7 +931,8 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to specific address.
-/// Refer to \ref lsc_block_load for more details.
+/// See comments in the  \ref lsc_block_load API for description and parameter
+/// constraints.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -984,7 +985,8 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to surface.
-/// Refer to \ref lsc_block_load for more details.
+/// See comments in the  \ref lsc_block_load API for description and parameter
+/// constraints.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
