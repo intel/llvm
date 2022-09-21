@@ -4816,9 +4816,7 @@ class OffloadingActionBuilder final {
           return ABRT_Success;
 
         Action *DeviceCompilerInput = nullptr;
-        for (auto TargetActionInfo :
-             llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
-          Action *&A = std::get<0>(TargetActionInfo);
+        for (Action *&A : SYCLDeviceActions) {
           types::ID OutputType = types::TY_LLVM_BC;
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
