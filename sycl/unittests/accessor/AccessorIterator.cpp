@@ -30,6 +30,22 @@ public:
     }
   }
 
+  template <int TotalDimensions, int CurrentDimension = 3, typename Container,
+            typename... Indices>
+  auto &&accessHelper(Container &&C, int Idx, Indices... Ids) {
+    if constexpr (CurrentDimension > TotalDimensions) {
+      (void)Idx;
+      return accessHelper<TotalDimensions, CurrentDimension - 1>(C, Ids...);
+    } else
+      return accessHelper<TotalDimensions, CurrentDimension - 1>(C[Idx],
+                                                                 Ids...);
+  }
+
+  template <int TotalDimensions, int CurrentDimension = 3, typename Container>
+  auto &&accessHelper(Container &&C, int Idx) {
+    return C[Idx];
+  }
+
   template <int Dimensions, typename T = int>
   void checkPartialCopyThroughIteratorWithoutOffset(
       const sycl::range<Dimensions> &fullShape,
@@ -52,27 +68,16 @@ public:
 
     {
       auto fullAccessor = buffer.template get_access<sycl::access_mode::read>();
-
-      if constexpr (Dimensions == 1) {
-        for (size_t x = 0; x < copyShape[0]; ++x) {
-          ASSERT_EQ(copied[x], reference[x]);
-        }
-      } else if constexpr (Dimensions == 2) {
-        size_t linear = 0;
-        for (size_t y = 0; y < copyShape[0]; ++y) {
-          for (size_t x = 0; x < copyShape[1]; ++x) {
-            ASSERT_EQ(copied[linear], fullAccessor[y][x]);
-            ++linear;
-          }
-        }
-      } else {
-        size_t linear = 0;
-        for (size_t z = 0; z < copyShape[0]; ++z) {
-          for (size_t y = 0; y < copyShape[1]; ++y) {
-            for (size_t x = 0; x < copyShape[2]; ++x) {
-              ASSERT_EQ(copied[linear], fullAccessor[z][y][x]);
-              ++linear;
-            }
+      size_t linearId = 0;
+      sycl::id<3> shapeToCheck(Dimensions > 2 ? copyShape[Dimensions - 3] : 1,
+                               Dimensions > 1 ? copyShape[Dimensions - 2] : 1,
+                               copyShape[Dimensions - 1]);
+      for (size_t z = 0; z < shapeToCheck[0]; ++z) {
+        for (size_t y = 0; y < shapeToCheck[1]; ++y) {
+          for (size_t x = 0; x < shapeToCheck[2]; ++x) {
+            auto value = accessHelper<Dimensions>(fullAccessor, z, y, x);
+            ASSERT_EQ(copied[linearId], value);
+            ++linearId;
           }
         }
       }
