@@ -10,6 +10,7 @@
 
 #include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
 #include <memory>
 #include <sycl/sycl.hpp>
 
@@ -28,7 +29,6 @@ protected:
       }
     }
   };
-  sycl::queue MQueue = sycl::queue(sycl::host_selector{}, MAsyncHandler);
 };
 
 std::shared_ptr<Command>
@@ -46,6 +46,9 @@ createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
 }
 
 TEST_F(LeavesCollectionTest, PushBack) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   static constexpr size_t GenericCmdsCapacity = 8;
 
   size_t TimesGenericWasFull;
@@ -65,7 +68,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
-      Cmds.push_back(createGenericCommand(getSyclObjImpl(MQueue)));
+      Cmds.push_back(createGenericCommand(getSyclObjImpl(Q)));
 
       LE.push_back(Cmds.back().get(), ToEnqueue);
     }
@@ -93,8 +96,8 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
-                         : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
+                         : createEmptyCommand(getSyclObjImpl(Q), MockReq);
       Cmds.push_back(Cmd);
 
       LE.push_back(Cmds.back().get(), ToEnqueue);
@@ -112,6 +115,9 @@ TEST_F(LeavesCollectionTest, PushBack) {
 }
 
 TEST_F(LeavesCollectionTest, Remove) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   static constexpr size_t GenericCmdsCapacity = 8;
 
   std::vector<sycl::detail::Command *> ToEnqueue;
@@ -130,8 +136,8 @@ TEST_F(LeavesCollectionTest, Remove) {
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
-                         : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
+                         : createEmptyCommand(getSyclObjImpl(Q), MockReq);
       Cmds.push_back(Cmd);
 
       if (LE.push_back(Cmds.back().get(), ToEnqueue))

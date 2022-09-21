@@ -25,5 +25,4 @@ protected:
       }
     }
   };
-  sycl::queue MQueue = sycl::queue(sycl::host_selector{}, MAsyncHandler);
 };
