@@ -5,7 +5,6 @@
 // RUN: llvm-as %t.ll
 // RUN: llvm-spirv %t.bc
 // RUN: cat %t.ll | FileCheck %s
-// XFAIL: *
 
 // Test that the kernel named `kernel_single_task` is generated.
 // CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task
