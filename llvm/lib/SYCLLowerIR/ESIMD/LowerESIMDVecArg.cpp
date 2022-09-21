@@ -67,6 +67,7 @@
 //        i64 0, i32 0))
 //===----------------------------------------------------------------------===//
 
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -106,21 +107,6 @@ ModulePass *llvm::createESIMDLowerVecArgPass() {
   return new ESIMDLowerVecArgLegacyPass();
 }
 
-namespace {
-// Unwraps a presumably simd* type to extract the native vector type encoded
-// in it. Returns nullptr if failed to do so.
-Type *getVectorTyOrNull(StructType *STy) {
-  Type *Res = nullptr;
-  while (STy && (STy->getStructNumElements() == 1)) {
-    Res = STy->getStructElementType(0);
-    STy = dyn_cast<StructType>(Res);
-  }
-  if (!Res || !Res->isVectorTy())
-    return nullptr;
-  return Res;
-}
-} // namespace
-
 // Return ptr to first-class vector type if Value is a simd*, else return
 // nullptr.
 Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
@@ -131,7 +117,7 @@ Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
   StructType *ST =
       dyn_cast_or_null<StructType>(ArgType->getPointerElementType());
 
-  Res = getVectorTyOrNull(ST);
+  Res = esimd::getVectorTyOrNull(ST);
   if (!Res)
     return nullptr;
 
@@ -237,7 +223,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
 void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
   for (auto &G : M.getGlobalList()) {
     Type *GVTy = G.getValueType();
-    Type *NewTy = getVectorTyOrNull(dyn_cast<StructType>(GVTy));
+    Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
     if (NewTy && !G.user_empty()) {
       auto InitVal =
           G.hasInitializer() && isa<UndefValue>(G.getInitializer())

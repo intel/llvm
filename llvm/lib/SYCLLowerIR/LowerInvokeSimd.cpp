@@ -19,13 +19,14 @@
 //   deducible when BE is ready
 
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/GenXIntrinsics/GenXMetadata.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -34,6 +35,7 @@
 #define DEBUG_TYPE "LowerInvokeSimd"
 
 using namespace llvm;
+using namespace llvm::esimd;
 
 namespace {
 
@@ -76,44 +78,10 @@ namespace {
 // overloads instantiations:
 constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
 
-bool isCast(const Value *V) {
-  int Opc = Operator::getOpcode(V);
-  return (Opc == Instruction::BitCast) || (Opc == Instruction::AddrSpaceCast);
-}
-
 using ValueSetImpl = SmallPtrSetImpl<Value *>;
 using ValueSet = SmallPtrSet<Value *, 4>;
 using ConstValueSetImpl = SmallPtrSetImpl<const Value *>;
 using ConstValueSet = SmallPtrSet<const Value *, 4>;
-
-Value *stripCasts(Value *V) {
-  if (!V->getType()->isPtrOrPtrVectorTy())
-    return V;
-  // Even though we don't look through PHI nodes, we could be called on an
-  // instruction in an unreachable block, which may be on a cycle.
-  ConstValueSet Visited;
-  Visited.insert(V);
-
-  do {
-    if (isCast(V)) {
-      V = cast<Operator>(V)->getOperand(0);
-    }
-    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
-  } while (Visited.insert(V).second);
-  return V;
-}
-
-void collectUsesLookThroughCasts(Value *V, SmallPtrSetImpl<const Use *> &Uses) {
-  for (Use &U : V->uses()) {
-    Value *VV = U.getUser();
-
-    if (isCast(VV)) {
-      collectUsesLookThroughCasts(VV, Uses);
-    } else {
-      Uses.insert(&U);
-    }
-  }
-}
 
 // Expects a call instruction in the form
 // __builtin_invoke_simd(simd_func_call_helper, f,...);
