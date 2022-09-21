@@ -481,7 +481,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// When \? DS equals \? lsc_data_size::u64, the address must be 8-byte aligned,
 /// otherwise - 4-bytes aligned. Allowed values for the data size are
 /// \? lsc_data_size::u32 and \? lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 4, 8, 16, 32, 64.
+/// 1, 2, 3, 4, 8, 16, 32, 64.
 /// Note that to access 512 bytes, DS must be \? lsc_data_size::u64 and \c NElts
 /// must be 64.
 ///
@@ -534,16 +534,9 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
-/// Accesses contiguous block of memory of `NElts * S` bytes  at given surface,
-/// where S is a byte size of an "element" defined by the \c DS
-/// template parameter. The maximum size of accessed block is 512 bytes for PVC
-/// and 256 bytes for ACM (DG2).
-/// When \? DS equals \? lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \? lsc_data_size::u32 and \? lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \? lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+/// Refer to \ref lsc_block_load for more details.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -937,16 +930,8 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
-/// Stores contiguous block of memory of `NElts * S` bytes  starting from
-/// given address, where S is a byte size of an "element" defined by the \c DS
-/// template parameter. The maximum size of accessed block is 512 bytes for PVC
-/// and 256 bytes for ACM (DG2).
-/// When \? DS equals \? lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \? lsc_data_size::u32 and \? lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \? lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// Scatters elements to specific address.
+/// Refer to \ref lsc_block_load for more details.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -998,16 +983,8 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
-/// Stores contiguous block of memory of `NElts * S` bytes  at
-/// given surface, where S is a byte size of an "element" defined by the \c DS
-/// template parameter. The maximum size of accessed block is 512 bytes for PVC
-/// and 256 bytes for ACM (DG2).
-/// When \? DS equals \? lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \? lsc_data_size::u32 and \? lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \? lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// Scatters elements to surface.
+/// Refer to \ref lsc_block_load for more details.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
