@@ -168,7 +168,7 @@ MultiLevelTemplateArgumentList Sema::getTemplateInstantiationArgs(
       // instead of its semantic parent, unless of course the pattern we're
       // instantiating actually comes from the file's context!
       if (Function->getFriendObjectKind() &&
-          Function->getDeclContext()->isFileContext() &&
+          Function->getNonTransparentDeclContext()->isFileContext() &&
           (!Pattern || !Pattern->getLexicalDeclContext()->isFileContext())) {
         Ctx = Function->getLexicalDeclContext();
         RelativeToPrimary = false;
@@ -864,7 +864,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
       // context, depending on what else is on the stack.
       if (isa<TypeAliasTemplateDecl>(Active->Entity))
         break;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CodeSynthesisContext::DefaultFunctionArgumentInstantiation:
     case CodeSynthesisContext::ExceptionSpecInstantiation:
     case CodeSynthesisContext::ConstraintsCheck:
@@ -1112,8 +1112,9 @@ namespace {
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
     const SYCLIntelFPGALoopCountAttr *
     TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
-    const SYCLIntelFPGAPipelineAttr *
-    TransformSYCLIntelFPGAPipelineAttr(const SYCLIntelFPGAPipelineAttr *SI);
+    const SYCLIntelFPGAMaxReinvocationDelayAttr *
+    TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
+        const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1605,11 +1606,12 @@ const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
 }
 
-const SYCLIntelFPGAPipelineAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAPipelineAttr(
-    const SYCLIntelFPGAPipelineAttr *PA) {
-  Expr *TransformedExpr = getDerived().TransformExpr(PA->getValue()).get();
-  return getSema().BuildSYCLIntelFPGAPipelineAttr(*PA, TransformedExpr);
+const SYCLIntelFPGAMaxReinvocationDelayAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
+    const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD) {
+  Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
+  return getSema().BuildSYCLIntelFPGAMaxReinvocationDelayAttr(*MRD,
+                                                              TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(

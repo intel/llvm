@@ -170,15 +170,15 @@ def AnyAttrOfOp : TEST_Op<"any_attr_of_i32_str"> {
 
 def NonNegIntAttrOp : TEST_Op<"non_negative_int_attr"> {
   let arguments = (ins
-      Confined<I32Attr, [IntNonNegative]>:$i32attr,
-      Confined<I64Attr, [IntNonNegative]>:$i64attr
+      ConfinedAttr<I32Attr, [IntNonNegative]>:$i32attr,
+      ConfinedAttr<I64Attr, [IntNonNegative]>:$i64attr
   );
 }
 
 def PositiveIntAttrOp : TEST_Op<"positive_int_attr"> {
   let arguments = (ins
-      Confined<I32Attr, [IntPositive]>:$i32attr,
-      Confined<I64Attr, [IntPositive]>:$i64attr
+      ConfinedAttr<I32Attr, [IntPositive]>:$i32attr,
+      ConfinedAttr<I64Attr, [IntPositive]>:$i64attr
   );
 }
 
@@ -270,19 +270,28 @@ def StringElementsAttrOp : TEST_Op<"string_elements_attr"> {
   );
 }
 
+def TypedAttrOp : TEST_Op<"typed_attr"> {
+  let arguments = (ins TypeAttr:$type, AnyAttr:$attr);
+  let assemblyFormat = [{
+    attr-dict $type `=` custom<AttrElideType>(ref($type), $attr)
+  }];
+}
+
 def DenseArrayAttrOp : TEST_Op<"dense_array_attr"> {
   let arguments = (ins
+    DenseBoolArrayAttr:$i1attr,
     DenseI8ArrayAttr:$i8attr,
     DenseI16ArrayAttr:$i16attr,
     DenseI32ArrayAttr:$i32attr,
     DenseI64ArrayAttr:$i64attr,
     DenseF32ArrayAttr:$f32attr,
-    DenseF64ArrayAttr:$f64attr
+    DenseF64ArrayAttr:$f64attr,
+    DenseI32ArrayAttr:$emptyattr
   );
   let assemblyFormat = [{
-   `i8attr` `=` $i8attr `i16attr` `=` $i16attr `i32attr` `=` $i32attr
-   `i64attr` `=` $i64attr  `f32attr` `=` $f32attr `f64attr` `=` $f64attr
-   attr-dict
+   `i1attr` `=` $i1attr `i8attr` `=` $i8attr `i16attr` `=` $i16attr
+   `i32attr` `=` $i32attr `i64attr` `=` $i64attr  `f32attr` `=` $f32attr
+   `f64attr` `=` $f64attr `emptyattr` `=` $emptyattr attr-dict
   }];
 }
 
@@ -375,7 +384,7 @@ def OpWithBitEnumVerticalBar : TEST_Op<"op_with_bit_enum_vbar"> {
 
 def SymbolRefOp : TEST_Op<"symbol_ref_attr"> {
   let arguments = (ins
-    Confined<FlatSymbolRefAttr, [ReferToOp<"func::FuncOp">]>:$symbol
+    ConfinedAttr<FlatSymbolRefAttr, [ReferToOp<"func::FuncOp">]>:$symbol
   );
 }
 
@@ -552,7 +561,7 @@ def OperandsHaveSameType :
 def ResultHasSameTypeAsAttr :
     TEST_Op<"result_has_same_type_as_attr",
             [AllTypesMatch<["attr", "result"]>]> {
-  let arguments = (ins AnyAttr:$attr);
+  let arguments = (ins TypedAttrInterface:$attr);
   let results = (outs AnyType:$result);
   let assemblyFormat = "$attr `->` type($result) attr-dict";
 }
@@ -643,8 +652,14 @@ def IndexElementsAttrOp : TEST_Op<"indexElementsAttr"> {
 }
 
 def OpWithInferTypeInterfaceOp : TEST_Op<"op_with_infer_type_if", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let arguments = (ins AnyTensor, AnyTensor);
+  let results = (outs AnyTensor);
+}
+
+def OpWithRefineTypeInterfaceOp : TEST_Op<"op_with_refine_type_if", [
     DeclareOpInterfaceMethods<InferTypeOpInterface,
-        ["inferReturnTypeComponents"]>]> {
+        ["refineReturnTypes"]>]> {
   let arguments = (ins AnyTensor, AnyTensor);
   let results = (outs AnyTensor);
 }
@@ -708,21 +723,23 @@ def AttrSizedOperandOp : TEST_Op<"attr_sized_operands",
     Variadic<I32>:$b,
     I32:$c,
     Variadic<I32>:$d,
-    I32ElementsAttr:$operand_segment_sizes
+    DenseI32ArrayAttr:$operand_segment_sizes
   );
 }
 
 def AttrSizedResultOp : TEST_Op<"attr_sized_results",
                                 [AttrSizedResultSegments]> {
-  let arguments = (ins
-    I32ElementsAttr:$result_segment_sizes
-  );
   let results = (outs
     Variadic<I32>:$a,
     Variadic<I32>:$b,
     I32:$c,
     Variadic<I32>:$d
   );
+}
+
+def AttrSizedResultCompileTestOp : TEST_Op<"attr_sized_results_compile_test",
+                                           [AttrSizedResultSegments]> {
+  let results = (outs Variadic<I32>:$a, I32:$b, Optional<I32>:$c);
 }
 
 // This is used to test that the fallback for a custom op's parser and printer
@@ -1119,7 +1136,7 @@ def : Pattern<(OpNativeCodeCall6 $arg1, $arg2),
               [(OpNativeCodeCall7 (BindMultipleNativeCodeCallResult:$native__0 $arg1, $arg2)),
                (OpNativeCodeCall7 $native__1)]>;
 
-// Test AllAttrConstraintsOf.
+// Test AllAttrOf.
 def OpAllAttrConstraint1 : TEST_Op<"all_attr_constraint_of1"> {
   let arguments = (ins I64ArrayAttr:$attr);
   let results = (outs I32);
@@ -1136,7 +1153,7 @@ def Constraint1 : AttrConstraint<
     CPred<"$_self.cast<ArrayAttr>()[1].cast<::mlir::IntegerAttr>().getInt() == 1">,
     "[1] == 1">;
 def : Pat<(OpAllAttrConstraint1
-            AllAttrConstraintsOf<[Constraint0, Constraint1]>:$attr),
+            AllAttrOf<[Constraint0, Constraint1]>:$attr),
           (OpAllAttrConstraint2 $attr)>;
 
 // Op for testing RewritePattern removing op with inner ops.
@@ -1178,8 +1195,18 @@ def TestOpWithVariadicResultsAndFolder: TEST_Op<"op_with_variadic_results_and_fo
   let hasFolder = 1;
 }
 
+def TestAddIOp : TEST_Op<"addi"> {
+  let arguments = (ins I32:$op1, I32:$op2);
+  let results = (outs I32);
+}
+
 def TestCommutativeOp : TEST_Op<"op_commutative", [Commutative]> {
   let arguments = (ins I32:$op1, I32:$op2, I32:$op3, I32:$op4);
+  let results = (outs I32);
+}
+
+def TestLargeCommutativeOp : TEST_Op<"op_large_commutative", [Commutative]> {
+  let arguments = (ins I32:$op1, I32:$op2, I32:$op3, I32:$op4, I32:$op5, I32:$op6, I32:$op7);
   let results = (outs I32);
 }
 
@@ -1234,6 +1261,18 @@ def TestOpInPlaceFold : TEST_Op<"op_in_place_fold"> {
   let arguments = (ins I32:$op, I32Attr:$attr);
   let results = (outs I32);
   let hasFolder = 1;
+}
+
+// Test op that simply returns success.
+def TestOpInPlaceFoldSuccess : TEST_Op<"op_in_place_fold_success"> {
+  let results = (outs Variadic<I1>);
+  let hasFolder = 1;
+  let extraClassDefinition = [{
+    ::mlir::LogicalResult $cppClass::fold(ArrayRef<Attribute> operands,
+        SmallVectorImpl<OpFoldResult> &results) {
+      return success();
+    }
+  }];
 }
 
 // An op that always fold itself.
@@ -2026,7 +2065,7 @@ def FormatVariadicOfVariadicOperand
    : TEST_Op<"format_variadic_of_variadic_operand"> {
   let arguments = (ins
     VariadicOfVariadic<I64, "operand_segments">:$operand,
-    I32ElementsAttr:$operand_segments
+    DenseI32ArrayAttr:$operand_segments
   );
   let assemblyFormat = [{ $operand `:` type($operand) attr-dict}];
 }
@@ -2098,7 +2137,7 @@ def FormatInferVariadicTypeFromNonVariadic
               [SameOperandsAndResultType]> {
   let arguments = (ins Variadic<AnyType>:$args);
   let results = (outs AnyType:$result);
-  let assemblyFormat = "$args attr-dict `:` type($result)";
+  let assemblyFormat = "operands attr-dict `:` type($result)";
 }
 
 def FormatOptionalUnitAttr : TEST_Op<"format_optional_unit_attribute"> {
@@ -2280,7 +2319,7 @@ def FormatAllTypesMatchVarOp : TEST_Op<"format_all_types_match_var", [
 def FormatAllTypesMatchAttrOp : TEST_Op<"format_all_types_match_attr", [
     AllTypesMatch<["value1", "value2", "result"]>
   ]> {
-  let arguments = (ins AnyAttr:$value1, AnyType:$value2);
+  let arguments = (ins TypedAttrInterface:$value1, AnyType:$value2);
   let results = (outs AnyType:$result);
   let assemblyFormat = "attr-dict $value1 `,` $value2";
 }
@@ -2308,7 +2347,7 @@ def FormatTypesMatchVariadicOp : TEST_Op<"format_types_match_variadic", [
 def FormatTypesMatchAttrOp : TEST_Op<"format_types_match_attr", [
     TypesMatchWith<"result type matches constant", "value", "result", "$_self">
   ]> {
-  let arguments = (ins AnyAttr:$value);
+  let arguments = (ins TypedAttrInterface:$value);
   let results = (outs AnyType:$result);
   let assemblyFormat = "attr-dict $value";
 }
@@ -2433,6 +2472,17 @@ def FormatInferTypeVariadicOperandsOp
       return ::mlir::success();
     }
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// Test ArrayOfAttr
+//===----------------------------------------------------------------------===//
+
+// Embed the array attributes directly in the assembly format for a nice syntax.
+def ArrayOfAttrOp : TEST_Op<"array_of_attr_op"> {
+  let arguments = (ins TestArrayOfUglyAttrs:$a, TestArrayOfInts:$b,
+                       TestArrayOfEnums:$c);
+  let assemblyFormat = "`a` `=` $a `,` `b` `=` $b `,` `c` `=` $c attr-dict";
 }
 
 //===----------------------------------------------------------------------===//
@@ -2711,7 +2761,8 @@ def TestLinalgConvOpNotLinalgOp : TEST_Op<"conv_op_not_linalg_op", [
 
 def TestLinalgConvOp :
   TEST_Op<"linalg_conv_op", [AttrSizedOperandSegments, SingleBlock,
-      LinalgStructuredInterface, LinalgConvolutionOpInterface]> {
+      DestinationStyleOpInterface, LinalgStructuredInterface,
+      LinalgConvolutionOpInterface]> {
 
   let arguments = (ins Variadic<AnyType>:$inputs,
     Variadic<AnyType>:$outputs);
@@ -2742,7 +2793,7 @@ def TestLinalgConvOp :
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("iterator_types");
     }
 
-    mlir::ArrayAttr indexing_maps() {
+    mlir::ArrayAttr getIndexingMaps() {
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("indexing_maps");
     }
 
@@ -2769,7 +2820,8 @@ def TestLinalgFillOpNotLinalgOp : TEST_Op<"fill_op_not_linalg_op", [
 
 def TestLinalgFillOp :
   TEST_Op<"linalg_fill_op", [AttrSizedOperandSegments, SingleBlock,
-      LinalgStructuredInterface, LinalgFillOpInterface]> {
+      DestinationStyleOpInterface, LinalgStructuredInterface,
+      LinalgFillOpInterface]> {
 
   let arguments = (ins Variadic<AnyType>:$inputs,
     Variadic<AnyType>:$outputs);
@@ -2800,7 +2852,7 @@ def TestLinalgFillOp :
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("iterator_types");
     }
 
-    mlir::ArrayAttr indexing_maps() {
+    mlir::ArrayAttr getIndexingMaps() {
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("indexing_maps");
     }
 
@@ -2858,6 +2910,10 @@ def TestEffectsRead : TEST_Op<"op_with_memread",
 
 def TestEffectsWrite : TEST_Op<"op_with_memwrite",
     [MemoryEffects<[MemWrite]>]>;
+
+def TestEffectsResult : TEST_Op<"test_effects_result"> {
+  let results = (outs Res<I32, "", [MemAlloc, MemWrite]>);
+}
 
 //===----------------------------------------------------------------------===//
 // Test Ops with verifiers

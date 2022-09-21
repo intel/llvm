@@ -153,7 +153,7 @@ bool Parser::ExpectAndConsume(tok::TokenKind ExpectedTok, unsigned DiagID,
   return true;
 }
 
-bool Parser::ExpectAndConsumeSemi(unsigned DiagID) {
+bool Parser::ExpectAndConsumeSemi(unsigned DiagID, StringRef TokenUsed) {
   if (TryConsumeToken(tok::semi))
     return false;
 
@@ -172,7 +172,7 @@ bool Parser::ExpectAndConsumeSemi(unsigned DiagID) {
     return false;
   }
 
-  return ExpectAndConsume(tok::semi, DiagID);
+  return ExpectAndConsume(tok::semi, DiagID , TokenUsed);
 }
 
 void Parser::ConsumeExtraSemi(ExtraSemiKind Kind, DeclSpec::TST TST) {
@@ -386,7 +386,7 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
     case tok::semi:
       if (HasFlagsSet(Flags, StopAtSemi))
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       // Skip this token.
       ConsumeAnyToken();
@@ -663,12 +663,22 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
     return false;
   }
 
-  case tok::annot_module_include:
-    Actions.ActOnModuleInclude(Tok.getLocation(),
-                               reinterpret_cast<Module *>(
-                                   Tok.getAnnotationValue()));
+  case tok::annot_module_include: {
+    auto Loc = Tok.getLocation();
+    Module *Mod = reinterpret_cast<Module *>(Tok.getAnnotationValue());
+    // FIXME: We need a better way to disambiguate C++ clang modules and
+    // standard C++ modules.
+    if (!getLangOpts().CPlusPlusModules || !Mod->isHeaderUnit())
+      Actions.ActOnModuleInclude(Loc, Mod);
+    else {
+      DeclResult Import =
+          Actions.ActOnModuleImport(Loc, SourceLocation(), Loc, Mod);
+      Decl *ImportDecl = Import.isInvalid() ? nullptr : Import.get();
+      Result = Actions.ConvertDeclToDeclGroup(ImportDecl);
+    }
     ConsumeAnnotationToken();
     return false;
+  }
 
   case tok::annot_module_begin:
     Actions.ActOnModuleBegin(Tok.getLocation(), reinterpret_cast<Module *>(
@@ -922,7 +932,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     }
     // This must be 'export template'. Parse it so we can diagnose our lack
     // of support.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw_using:
   case tok::kw_namespace:
   case tok::kw_typedef:
@@ -1820,7 +1830,7 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
         AnnotateScopeToken(SS, !WasScopeAnnotation);
       return ANK_TemplateName;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Sema::NC_VarTemplate:
   case Sema::NC_FunctionTemplate:
   case Sema::NC_UndeclaredTemplate: {
@@ -2157,7 +2167,7 @@ bool Parser::isTokenEqualOrEqualTypo() {
     Diag(Tok, diag::err_invalid_token_after_declarator_suggest_equal)
         << Kind
         << FixItHint::CreateReplacement(SourceRange(Tok.getLocation()), "=");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::equal:
     return true;
   }

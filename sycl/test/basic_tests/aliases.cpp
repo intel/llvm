@@ -12,7 +12,7 @@
 #include <type_traits>
 
 using std::is_same;
-namespace s = cl::sycl;
+namespace s = sycl;
 
 // Test to verify requirements from 4.10.2.2 Aliases
 

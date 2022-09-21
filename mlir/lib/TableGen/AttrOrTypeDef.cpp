@@ -20,7 +20,11 @@ using namespace mlir::tblgen;
 // AttrOrTypeBuilder
 //===----------------------------------------------------------------------===//
 
-/// Returns true if this builder is able to infer the MLIRContext parameter.
+Optional<StringRef> AttrOrTypeBuilder::getReturnType() const {
+  Optional<StringRef> type = def->getValueAsOptionalString("returnType");
+  return type && !type->empty() ? type : llvm::None;
+}
+
 bool AttrOrTypeBuilder::hasInferredContextParameter() const {
   return def->getValueAsBit("hasInferredContextParam");
 }
@@ -81,19 +85,13 @@ AttrOrTypeDef::AttrOrTypeDef(const llvm::Record *def) : def(def) {
                     "'assemblyFormat' or 'hasCustomAssemblyFormat' can only be "
                     "used when 'mnemonic' is set");
   }
-  // Assembly format parser requires builders with the same prototype
-  // as the default-builders.
-  // TODO: attempt to detect when a custom builder matches the prototype.
-  if (hasDeclarativeFormat && skipDefaultBuilders()) {
-    PrintWarning(getLoc(),
-                 "using 'assemblyFormat' with 'skipDefaultBuilders=1' may "
-                 "result in C++ compilation errors");
-  }
   // Assembly format printer requires accessors to be generated.
   if (hasDeclarativeFormat && !genAccessors()) {
     PrintFatalError(getLoc(),
                     "'assemblyFormat' requires 'genAccessors' to be true");
   }
+  // TODO: Ensure that a suitable builder prototype can be generated:
+  // https://llvm.org/PR56415
 }
 
 Dialect AttrOrTypeDef::getDialect() const {
@@ -175,6 +173,11 @@ Optional<StringRef> AttrOrTypeDef::getExtraDecls() const {
   return value.empty() ? Optional<StringRef>() : value;
 }
 
+Optional<StringRef> AttrOrTypeDef::getExtraDefs() const {
+  auto value = def->getValueAsString("extraClassDefinition");
+  return value.empty() ? Optional<StringRef>() : value;
+}
+
 ArrayRef<SMLoc> AttrOrTypeDef::getLoc() const { return def->getLoc(); }
 
 bool AttrOrTypeDef::skipDefaultBuilders() const {
@@ -239,7 +242,7 @@ StringRef AttrOrTypeParameter::getComparator() const {
 StringRef AttrOrTypeParameter::getCppType() const {
   if (auto *stringType = dyn_cast<llvm::StringInit>(getDef()))
     return stringType->getValue();
-  return getDefValue<llvm::StringInit>("cppType").getValue();
+  return getDefValue<llvm::StringInit>("cppType").value();
 }
 
 StringRef AttrOrTypeParameter::getCppAccessorType() const {
@@ -280,7 +283,8 @@ bool AttrOrTypeParameter::isOptional() const {
 }
 
 Optional<StringRef> AttrOrTypeParameter::getDefaultValue() const {
-  return getDefValue<llvm::StringInit>("defaultValue");
+  Optional<StringRef> result = getDefValue<llvm::StringInit>("defaultValue");
+  return result && !result->empty() ? result : llvm::None;
 }
 
 llvm::Init *AttrOrTypeParameter::getDef() const { return def->getArg(index); }

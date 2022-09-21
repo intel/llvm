@@ -272,13 +272,13 @@ class SelectionDAG {
   using CallSiteInfo = MachineFunction::CallSiteInfo;
   using CallSiteInfoImpl = MachineFunction::CallSiteInfoImpl;
 
-  struct CallSiteDbgInfo {
+  struct NodeExtraInfo {
     CallSiteInfo CSInfo;
     MDNode *HeapAllocSite = nullptr;
     bool NoMerge = false;
   };
-
-  DenseMap<const SDNode *, CallSiteDbgInfo> SDCallSiteDbgInfo;
+  /// Out-of-line extra information for SDNodes.
+  DenseMap<const SDNode *, NodeExtraInfo> SDEI;
 
   /// PersistentId counter to be used when inserting the next
   /// SDNode to this SelectionDAG. We do not place that under
@@ -1043,13 +1043,15 @@ public:
                     bool AlwaysInline, bool isTailCall,
                     MachinePointerInfo DstPtrInfo,
                     MachinePointerInfo SrcPtrInfo,
-                    const AAMDNodes &AAInfo = AAMDNodes());
+                    const AAMDNodes &AAInfo = AAMDNodes(),
+                    AAResults *AA = nullptr);
 
   SDValue getMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst, SDValue Src,
                      SDValue Size, Align Alignment, bool isVol, bool isTailCall,
                      MachinePointerInfo DstPtrInfo,
                      MachinePointerInfo SrcPtrInfo,
-                     const AAMDNodes &AAInfo = AAMDNodes());
+                     const AAMDNodes &AAInfo = AAMDNodes(),
+                     AAResults *AA = nullptr);
 
   SDValue getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst, SDValue Src,
                     SDValue Size, Align Alignment, bool isVol,
@@ -1854,14 +1856,6 @@ public:
   SDValue FoldSetCC(EVT VT, SDValue N1, SDValue N2, ISD::CondCode Cond,
                     const SDLoc &dl);
 
-  /// See if the specified operand can be simplified with the knowledge that
-  /// only the bits specified by DemandedBits are used.  If so, return the
-  /// simpler operand, otherwise return a null SDValue.
-  ///
-  /// (This exists alongside SimplifyDemandedBits because GetDemandedBits can
-  /// simplify nodes with multiple uses more aggressively.)
-  SDValue GetDemandedBits(SDValue V, const APInt &DemandedBits);
-
   /// Return true if the sign bit of Op is known to be zero.
   /// We use this predicate to simplify operations downstream.
   bool SignBitIsZero(SDValue Op, unsigned Depth = 0) const;
@@ -1978,6 +1972,32 @@ public:
     return isGuaranteedNotToBeUndefOrPoison(Op, DemandedElts,
                                             /*PoisonOnly*/ true, Depth);
   }
+
+  /// Return true if Op can create undef or poison from non-undef & non-poison
+  /// operands. The DemandedElts argument limits the check to the requested
+  /// vector elements.
+  ///
+  /// \p ConsiderFlags controls whether poison producing flags on the
+  /// instruction are considered.  This can be used to see if the instruction
+  /// could still introduce undef or poison even without poison generating flags
+  /// which might be on the instruction.  (i.e. could the result of
+  /// Op->dropPoisonGeneratingFlags() still create poison or undef)
+  bool canCreateUndefOrPoison(SDValue Op, const APInt &DemandedElts,
+                              bool PoisonOnly = false,
+                              bool ConsiderFlags = true,
+                              unsigned Depth = 0) const;
+
+  /// Return true if Op can create undef or poison from non-undef & non-poison
+  /// operands.
+  ///
+  /// \p ConsiderFlags controls whether poison producing flags on the
+  /// instruction are considered.  This can be used to see if the instruction
+  /// could still introduce undef or poison even without poison generating flags
+  /// which might be on the instruction.  (i.e. could the result of
+  /// Op->dropPoisonGeneratingFlags() still create poison or undef)
+  bool canCreateUndefOrPoison(SDValue Op, bool PoisonOnly = false,
+                              bool ConsiderFlags = true,
+                              unsigned Depth = 0) const;
 
   /// Return true if the specified operand is an ISD::ADD with a ConstantSDNode
   /// on the right-hand side, or if it is an ISD::OR with a ConstantSDNode that
@@ -2148,33 +2168,35 @@ public:
 
   /// Set CallSiteInfo to be associated with Node.
   void addCallSiteInfo(const SDNode *Node, CallSiteInfoImpl &&CallInfo) {
-    SDCallSiteDbgInfo[Node].CSInfo = std::move(CallInfo);
+    SDEI[Node].CSInfo = std::move(CallInfo);
   }
   /// Return CallSiteInfo associated with Node, or a default if none exists.
   CallSiteInfo getCallSiteInfo(const SDNode *Node) {
-    auto I = SDCallSiteDbgInfo.find(Node);
-    return I != SDCallSiteDbgInfo.end() ? std::move(I->second).CSInfo
-                                        : CallSiteInfo();
+    auto I = SDEI.find(Node);
+    return I != SDEI.end() ? std::move(I->second).CSInfo : CallSiteInfo();
   }
   /// Set HeapAllocSite to be associated with Node.
   void addHeapAllocSite(const SDNode *Node, MDNode *MD) {
-    SDCallSiteDbgInfo[Node].HeapAllocSite = MD;
+    SDEI[Node].HeapAllocSite = MD;
   }
   /// Return HeapAllocSite associated with Node, or nullptr if none exists.
   MDNode *getHeapAllocSite(const SDNode *Node) const {
-    auto I = SDCallSiteDbgInfo.find(Node);
-    return I != SDCallSiteDbgInfo.end() ? I->second.HeapAllocSite : nullptr;
+    auto I = SDEI.find(Node);
+    return I != SDEI.end() ? I->second.HeapAllocSite : nullptr;
   }
   /// Set NoMergeSiteInfo to be associated with Node if NoMerge is true.
   void addNoMergeSiteInfo(const SDNode *Node, bool NoMerge) {
     if (NoMerge)
-      SDCallSiteDbgInfo[Node].NoMerge = NoMerge;
+      SDEI[Node].NoMerge = NoMerge;
   }
   /// Return NoMerge info associated with Node.
   bool getNoMergeSiteInfo(const SDNode *Node) const {
-    auto I = SDCallSiteDbgInfo.find(Node);
-    return I != SDCallSiteDbgInfo.end() ? I->second.NoMerge : false;
+    auto I = SDEI.find(Node);
+    return I != SDEI.end() ? I->second.NoMerge : false;
   }
+
+  /// Copy extra info associated with one node to another.
+  void copyExtraInfo(SDNode *From, SDNode *To);
 
   /// Return the current function's default denormal handling kind for the given
   /// floating point type.

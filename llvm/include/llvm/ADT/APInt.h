@@ -72,7 +72,7 @@ inline APInt operator-(APInt);
 ///     shifts are defined, but sign extension and ashr is not.  Zero bit values
 ///     compare and hash equal to themselves, and countLeadingZeros returns 0.
 ///
-class LLVM_NODISCARD APInt {
+class [[nodiscard]] APInt {
 public:
   typedef uint64_t WordType;
 
@@ -147,7 +147,7 @@ public:
   APInt(unsigned numBits, StringRef str, uint8_t radix);
 
   /// Default constructor that creates an APInt with a 1-bit zero value.
-  explicit APInt() : BitWidth(1) { U.VAL = 0; }
+  explicit APInt() { U.VAL = 0; }
 
   /// Copy Constructor.
   APInt(const APInt &that) : BitWidth(that.BitWidth) {
@@ -1824,7 +1824,7 @@ private:
     uint64_t *pVal; ///< Used to store the >64 bits integer value.
   } U;
 
-  unsigned BitWidth; ///< The number of bits in this APInt.
+  unsigned BitWidth = 1; ///< The number of bits in this APInt.
 
   friend struct DenseMapInfo<APInt, void>;
   friend class APSInt;

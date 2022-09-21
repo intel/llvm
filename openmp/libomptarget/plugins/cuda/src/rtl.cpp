@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/StringRef.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -32,6 +34,8 @@
 #include "MemoryManager.h"
 
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
+
+using namespace llvm;
 
 // Utility for retrieving and printing CUDA error string.
 #ifdef OMPTARGET_DEBUG
@@ -155,9 +159,9 @@ struct DeviceDataTy {
 
   CUcontext Context = nullptr;
   // Device properties
-  int ThreadsPerBlock = 0;
-  int BlocksPerGrid = 0;
-  int WarpSize = 0;
+  unsigned int ThreadsPerBlock = 0;
+  unsigned int BlocksPerGrid = 0;
+  unsigned int WarpSize = 0;
   // OpenMP properties
   int NumTeams = 0;
   int NumThreads = 0;
@@ -505,6 +509,10 @@ public:
     if (Err == CUDA_ERROR_INVALID_HANDLE) {
       // Can't call cuGetErrorString if dlsym failed
       DP("Failed to load CUDA shared library\n");
+      return;
+    }
+    if (Err == CUDA_ERROR_NO_DEVICE) {
+      DP("There are no devices supporting CUDA.\n");
       return;
     }
     if (!checkResult(Err, "Error returned from cuInit\n")) {
@@ -1071,7 +1079,7 @@ public:
 
         PeerAccessMatrix[SrcDevId][DstDevId] = PeerAccessState::Yes;
 
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       }
       case PeerAccessState::Yes: {
         Err = cuMemcpyPeerAsync(
@@ -1517,6 +1525,47 @@ extern "C" {
 
 int32_t __tgt_rtl_is_valid_binary(__tgt_device_image *Image) {
   return elf_check_machine(Image, /* EM_CUDA */ 190);
+}
+
+int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *image,
+                                       __tgt_image_info *info) {
+  if (!__tgt_rtl_is_valid_binary(image))
+    return false;
+
+  // A subarchitecture was not specified. Assume it is compatible.
+  if (!info || !info->Arch)
+    return true;
+
+  int32_t NumberOfDevices = 0;
+  if (cuDeviceGetCount(&NumberOfDevices) != CUDA_SUCCESS)
+    return false;
+
+  StringRef ArchStr = StringRef(info->Arch).drop_front(sizeof("sm_") - 1);
+  for (int32_t DeviceId = 0; DeviceId < NumberOfDevices; ++DeviceId) {
+    CUdevice Device;
+    if (cuDeviceGet(&Device, DeviceId) != CUDA_SUCCESS)
+      return false;
+
+    int32_t Major, Minor;
+    if (cuDeviceGetAttribute(&Major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             Device) != CUDA_SUCCESS)
+      return false;
+    if (cuDeviceGetAttribute(&Minor,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                             Device) != CUDA_SUCCESS)
+      return false;
+
+    // A cubin generated for a certain compute capability is supported to run on
+    // any GPU with the same major revision and same or higher minor revision.
+    int32_t ImageMajor = ArchStr[0] - '0';
+    int32_t ImageMinor = ArchStr[1] - '0';
+    if (Major != ImageMajor || Minor < ImageMinor)
+      return false;
+  }
+
+  DP("Image has compatible compute capability: %s\n", info->Arch);
+  return true;
 }
 
 int32_t __tgt_rtl_number_of_devices() { return DeviceRTL.getNumOfDevices(); }

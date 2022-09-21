@@ -53,7 +53,7 @@ static llvm::Expected<Scalar> Evaluate(llvm::ArrayRef<uint8_t> expr,
       return Scalar(llvm::APInt(buf.GetByteSize()*8, val, false));
     }
   }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default:
     return status.ToError();
   }
@@ -129,6 +129,25 @@ TEST(DWARFExpression, DW_OP_const) {
   EXPECT_THAT_EXPECTED(
       Evaluate({DW_OP_consts, 0x81, 0x82, 0x84, 0x88, 0x90, 0xa0, 0x40}),
       llvm::HasValue(0xffff010101010101));
+}
+
+TEST(DWARFExpression, DW_OP_skip) {
+  EXPECT_THAT_EXPECTED(Evaluate({DW_OP_const1u, 0x42, DW_OP_skip, 0x02, 0x00,
+                                 DW_OP_const1u, 0xff}),
+                       llvm::HasValue(0x42));
+}
+
+TEST(DWARFExpression, DW_OP_bra) {
+  EXPECT_THAT_EXPECTED(
+      // clang-format off
+      Evaluate({
+        DW_OP_const1u, 0x42,     // push 0x42
+        DW_OP_const1u, 0x1,      // push 0x1
+        DW_OP_bra, 0x02, 0x00,   // if 0x1 > 0, then skip 0x0002 opcodes
+        DW_OP_const1u, 0xff,     // push 0xff
+      }),
+      // clang-format on
+      llvm::HasValue(0x42));
 }
 
 TEST(DWARFExpression, DW_OP_convert) {
@@ -309,7 +328,9 @@ TEST_F(DWARFExpressionMockProcessTest, DW_OP_deref) {
   EXPECT_THAT_EXPECTED(Evaluate({DW_OP_lit0, DW_OP_deref}), llvm::Failed());
 
   struct MockProcess : Process {
-    using Process::Process;
+    MockProcess(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp)
+        : Process(target_sp, listener_sp) {}
+
     llvm::StringRef GetPluginName() override { return "mock process"; }
     bool CanDebug(lldb::TargetSP target,
                   bool plugin_specified_by_name) override {

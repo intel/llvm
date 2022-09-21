@@ -13,27 +13,38 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/device_selector.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // TODO: make code thread-safe
 
 // Forward declaration
 class device_selector;
 class device;
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class platform_impl;
 }
+namespace ext {
+namespace oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace oneapi
+} // namespace ext
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT platform {
 public:
-  /// Constructs a SYCL platform as a host platform.
+  /// Constructs a SYCL platform using the default device.
   platform();
 
   /// Constructs a SYCL platform instance from an OpenCL cl_platform_id.
@@ -46,14 +57,27 @@ public:
   explicit platform(cl_platform_id PlatformId);
 #endif
 
-  /// Constructs a SYCL platform instance using device selector.
+  /// Constructs a SYCL platform instance using a device_selector.
   ///
   /// One of the SYCL devices that is associated with the constructed SYCL
   /// platform instance must be the SYCL device that is produced from the
   /// provided device selector.
   ///
-  /// \param DeviceSelector is an instance of SYCL device_selector.
+  /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   explicit platform(const device_selector &DeviceSelector);
+
+#if __cplusplus >= 201703L
+  /// Constructs a SYCL platform instance using the platform of the device
+  /// identified by the device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit platform(const DeviceSelector &deviceSelector)
+      : platform(detail::select_device(deviceSelector)) {}
+#endif
 
   platform(const platform &rhs) = default;
 
@@ -85,6 +109,8 @@ public:
   /// Checks if this SYCL platform is a host platform.
   ///
   /// \return true if this SYCL platform is a host platform.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Returns all SYCL devices associated with this platform.
@@ -101,9 +127,8 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
+  template <typename Param>
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -116,15 +141,6 @@ public:
   ///
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
-
-  /// Gets the native handle of the SYCL platform.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, platform> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, platform>>(getNative());
-  }
 
   /// Indicates if all of the SYCL devices on this platform have the
   /// given feature.
@@ -147,20 +163,25 @@ private:
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
 
+  platform(const device &Device);
+
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 }; // class platform
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::platform> {
-  size_t operator()(const cl::sycl::platform &p) const {
-    return hash<std::shared_ptr<cl::sycl::detail::platform_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(p));
+template <> struct hash<sycl::platform> {
+  size_t operator()(const sycl::platform &p) const {
+    return hash<std::shared_ptr<sycl::detail::platform_impl>>()(
+        sycl::detail::getSyclObjImpl(p));
   }
 };
 } // namespace std

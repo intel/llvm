@@ -169,7 +169,8 @@ public:
   /// read_image(image, sampler, ...) =>
   ///   sampled_image = __spirv_SampledImage(image, sampler);
   ///   return __spirv_ImageSampleExplicitLod_R{ReturnType}(sampled_image, ...);
-  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName);
+  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName,
+                                     StringRef DemangledName);
 
   /// Transform read_image with msaa image arguments.
   /// Sample argument must be acoded as Image Operand.
@@ -209,6 +210,11 @@ public:
   /// Transforms OpDot instructions with a scalar type to a fmul instruction
   void visitCallDot(CallInst *CI);
 
+  /// Transforms OpDot instructions with a vector or scalar (packed vector) type
+  /// to dot or dot_acc_sat instructions
+  void visitCallDot(CallInst *CI, StringRef MangledName,
+                    StringRef DemangledName);
+
   /// Fixes for built-in functions with vector+scalar arguments that are
   /// translated to the SPIR-V instructions where all arguments must have the
   /// same type.
@@ -240,6 +246,9 @@ public:
                                           StringRef DemangledName);
   void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
                                               StringRef DemangledName);
+
+  /// For cl_intel_split_work_group_barrier built-ins:
+  void visitCallSplitBarrierINTEL(CallInst *CI, StringRef DemangledName);
 
   void visitCallLdexp(CallInst *CI, StringRef MangledName,
                       StringRef DemangledName);

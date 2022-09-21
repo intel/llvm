@@ -109,7 +109,7 @@ enum class Action : uint32_t {
   kSparseToSparse = 3,
   kEmptyCOO = 4,
   kToCOO = 5,
-  kToIterator = 6
+  kToIterator = 6,
 };
 
 /// This enum mimics `SparseTensorEncodingAttr::DimLevelType` for
@@ -118,7 +118,13 @@ enum class Action : uint32_t {
 enum class DimLevelType : uint8_t {
   kDense = 0,
   kCompressed = 1,
-  kSingleton = 2
+  kCompressedNu = 2,
+  kCompressedNo = 3,
+  kCompressedNuNo = 4,
+  kSingleton = 5,
+  kSingletonNu = 6,
+  kSingletonNo = 7,
+  kSingletonNuNo = 8,
 };
 
 //===----------------------------------------------------------------------===//
@@ -182,8 +188,8 @@ FOREVERY_O(DECL_SPARSEINDICES)
 /// Coordinate-scheme method for adding a new element.
 #define DECL_ADDELT(VNAME, V)                                                  \
   MLIR_CRUNNERUTILS_EXPORT void *_mlir_ciface_addElt##VNAME(                   \
-      void *coo,                                                               \
-      StridedMemRefType<V, 0> *vref, StridedMemRefType<index_type, 1> *iref,   \
+      void *coo, StridedMemRefType<V, 0> *vref,                                \
+      StridedMemRefType<index_type, 1> *iref,                                  \
       StridedMemRefType<index_type, 1> *pref);
 FOREVERY_V(DECL_ADDELT)
 #undef DECL_ADDELT

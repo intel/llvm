@@ -32,12 +32,12 @@ Attribute constFoldBinaryOpConditional(ArrayRef<Attribute> operands,
   assert(operands.size() == 2 && "binary op takes two operands");
   if (!operands[0] || !operands[1])
     return {};
-  if (operands[0].getType() != operands[1].getType())
-    return {};
 
   if (operands[0].isa<AttrElementT>() && operands[1].isa<AttrElementT>()) {
     auto lhs = operands[0].cast<AttrElementT>();
     auto rhs = operands[1].cast<AttrElementT>();
+    if (lhs.getType() != rhs.getType())
+      return {};
 
     auto calRes = calculate(lhs.getValue(), rhs.getValue());
 
@@ -53,6 +53,8 @@ Attribute constFoldBinaryOpConditional(ArrayRef<Attribute> operands,
     // just fold based on the splat value.
     auto lhs = operands[0].cast<SplatElementsAttr>();
     auto rhs = operands[1].cast<SplatElementsAttr>();
+    if (lhs.getType() != rhs.getType())
+      return {};
 
     auto elementResult = calculate(lhs.getSplatValue<ElementValueT>(),
                                    rhs.getSplatValue<ElementValueT>());
@@ -66,6 +68,8 @@ Attribute constFoldBinaryOpConditional(ArrayRef<Attribute> operands,
     // expanding the values.
     auto lhs = operands[0].cast<ElementsAttr>();
     auto rhs = operands[1].cast<ElementsAttr>();
+    if (lhs.getType() != rhs.getType())
+      return {};
 
     auto lhsIt = lhs.value_begin<ElementValueT>();
     auto rhsIt = rhs.value_begin<ElementValueT>();
@@ -98,11 +102,11 @@ Attribute constFoldBinaryOp(ArrayRef<Attribute> operands,
 
 /// Performs constant folding `calculate` with element-wise behavior on the one
 /// attributes in `operands` and returns the result if possible.
-template <class AttrElementT,
-          class ElementValueT = typename AttrElementT::ValueType,
-          class CalculationT = function_ref<ElementValueT(ElementValueT)>>
-Attribute constFoldUnaryOp(ArrayRef<Attribute> operands,
-                           const CalculationT &&calculate) {
+template <
+    class AttrElementT, class ElementValueT = typename AttrElementT::ValueType,
+    class CalculationT = function_ref<Optional<ElementValueT>(ElementValueT)>>
+Attribute constFoldUnaryOpConditional(ArrayRef<Attribute> operands,
+                                      const CalculationT &&calculate) {
   assert(operands.size() == 1 && "unary op takes one operands");
   if (!operands[0])
     return {};
@@ -110,7 +114,10 @@ Attribute constFoldUnaryOp(ArrayRef<Attribute> operands,
   if (operands[0].isa<AttrElementT>()) {
     auto op = operands[0].cast<AttrElementT>();
 
-    return AttrElementT::get(op.getType(), calculate(op.getValue()));
+    auto res = calculate(op.getValue());
+    if (!res)
+      return {};
+    return AttrElementT::get(op.getType(), *res);
   }
   if (operands[0].isa<SplatElementsAttr>()) {
     // Both operands are splats so we can avoid expanding the values out and
@@ -118,7 +125,9 @@ Attribute constFoldUnaryOp(ArrayRef<Attribute> operands,
     auto op = operands[0].cast<SplatElementsAttr>();
 
     auto elementResult = calculate(op.getSplatValue<ElementValueT>());
-    return DenseElementsAttr::get(op.getType(), elementResult);
+    if (!elementResult)
+      return {};
+    return DenseElementsAttr::get(op.getType(), *elementResult);
   } else if (operands[0].isa<ElementsAttr>()) {
     // Operands are ElementsAttr-derived; perform an element-wise fold by
     // expanding the values.
@@ -127,11 +136,25 @@ Attribute constFoldUnaryOp(ArrayRef<Attribute> operands,
     auto opIt = op.value_begin<ElementValueT>();
     SmallVector<ElementValueT> elementResults;
     elementResults.reserve(op.getNumElements());
-    for (size_t i = 0, e = op.getNumElements(); i < e; ++i, ++opIt)
-      elementResults.push_back(calculate(*opIt));
+    for (size_t i = 0, e = op.getNumElements(); i < e; ++i, ++opIt) {
+      auto elementResult = calculate(*opIt);
+      if (!elementResult)
+        return {};
+      elementResults.push_back(*elementResult);
+    }
     return DenseElementsAttr::get(op.getType(), elementResults);
   }
   return {};
+}
+
+template <class AttrElementT,
+          class ElementValueT = typename AttrElementT::ValueType,
+          class CalculationT = function_ref<ElementValueT(ElementValueT)>>
+Attribute constFoldUnaryOp(ArrayRef<Attribute> operands,
+                           const CalculationT &&calculate) {
+  return constFoldUnaryOpConditional<AttrElementT>(
+      operands,
+      [&](ElementValueT a) -> Optional<ElementValueT> { return calculate(a); });
 }
 
 template <

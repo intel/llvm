@@ -16,20 +16,20 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw cl::sycl::invalid_parameter_error("No device of forced type.",
-                                            PI_ERROR_INVALID_OPERATION);
+    throw sycl::invalid_parameter_error("No device of forced type.",
+                                        PI_ERROR_INVALID_OPERATION);
   }
 }
 } // namespace detail
 
-device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
+device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
@@ -52,19 +52,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-  // Host device availability should depend on the forced type
-  bool includeHost = false;
-  // If SYCL_DEVICE_FILTER is set, we don't automatically include it.
-  // We will check if host devices are specified in the filter below.
-  if (FilterList) {
-    if (deviceType != info::device_type::host &&
-        deviceType != info::device_type::all)
-      includeHost = false;
-    else
-      includeHost = FilterList->containsHost();
-  } else {
-    includeHost = detail::match_types(deviceType, info::device_type::host);
-  }
   info::device_type forced_type = detail::get_forced_type();
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
@@ -74,24 +61,18 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
       // backend.
       backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
       if (ForcedBackend)
-        if (!plt.is_host() && plt.get_backend() != *ForcedBackend)
+        if (!detail::getSyclObjImpl(plt)->is_host() &&
+            plt.get_backend() != *ForcedBackend)
           continue;
       // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
       // with the filter specification.
       if (FilterList && !FilterList->backendCompatible(plt.get_backend()))
         continue;
 
-      if (includeHost && plt.is_host()) {
-        std::vector<device> host_device(
-            plt.get_devices(info::device_type::host));
-        if (!host_device.empty())
-          devices.insert(devices.end(), host_device.begin(), host_device.end());
-      } else {
-        std::vector<device> found_devices(plt.get_devices(deviceType));
-        if (!found_devices.empty())
-          devices.insert(devices.end(), found_devices.begin(),
-                         found_devices.end());
-      }
+      std::vector<device> found_devices(plt.get_devices(deviceType));
+      if (!found_devices.empty())
+        devices.insert(devices.end(), found_devices.begin(),
+                       found_devices.end());
     }
   }
   return devices;
@@ -99,7 +80,11 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
 
 cl_device_id device::get() const { return impl->get(); }
 
-bool device::is_host() const { return impl->is_host(); }
+bool device::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "device::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 
@@ -142,18 +127,24 @@ bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }
 
-template <info::device param>
-typename info::param_traits<info::device, param>::return_type
+template <typename Param>
+typename detail::is_device_info_desc<Param>::return_type
 device::get_info() const {
-  return impl->template get_info<param>();
+  return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
 #include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_info<Namespace::info::DescType::Desc>() const;
+
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return getImplBackend(impl); }
@@ -162,5 +153,5 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

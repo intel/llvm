@@ -78,6 +78,7 @@ struct TransferrableTargetInfo {
   unsigned char LargeArrayMinWidth, LargeArrayAlign;
   unsigned char LongWidth, LongAlign;
   unsigned char LongLongWidth, LongLongAlign;
+  unsigned char Int128Align;
 
   // Fixed point bit widths
   unsigned char ShortAccumWidth, ShortAccumAlign;
@@ -222,9 +223,7 @@ protected:
   mutable VersionTuple PlatformMinVersion;
 
   unsigned HasAlignMac68kSupport : 1;
-  unsigned RealTypeUsesObjCFPRetMask
-      : llvm::BitmaskEnumDetail::bitWidth(
-            (int)FloatModeKind::LLVM_BITMASK_LARGEST_ENUMERATOR);
+  unsigned RealTypeUsesObjCFPRetMask : llvm::BitWidth<FloatModeKind>;
   unsigned ComplexLongDoubleUsesFP2Ret : 1;
 
   unsigned HasBuiltinMSVaList : 1;
@@ -471,6 +470,9 @@ public:
   /// 'unsigned long long' for this target, in bits.
   unsigned getLongLongWidth() const { return LongLongWidth; }
   unsigned getLongLongAlign() const { return LongLongAlign; }
+
+  /// getInt128Align() - Returns the alignment of Int128.
+  unsigned getInt128Align() const { return Int128Align; }
 
   /// getShortAccumWidth/Align - Return the size of 'signed short _Accum' and
   /// 'unsigned short _Accum' for this target, in bits.
@@ -893,7 +895,7 @@ public:
   /// Check whether the given real type should use the "fpret" flavor of
   /// Objective-C message passing on this target.
   bool useObjCFPRetForRealType(FloatModeKind T) const {
-    return RealTypeUsesObjCFPRetMask & llvm::BitmaskEnumDetail::Underlying(T);
+    return (int)((FloatModeKind)RealTypeUsesObjCFPRetMask & T);
   }
 
   /// Check whether _Complex long double should use the "fp2ret" flavor
@@ -909,6 +911,8 @@ public:
   virtual bool useFP16ConversionIntrinsics() const {
     return true;
   }
+
+  virtual bool shouldEmitFloat16WithExcessPrecision() const { return false; }
 
   /// Specify if mangling based on address space map should be used or
   /// not for language specific address spaces

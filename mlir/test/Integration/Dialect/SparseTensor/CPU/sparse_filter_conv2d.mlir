@@ -1,13 +1,13 @@
 // RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 //
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
-// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=2" | \
+// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=any-storage-inner-loop vl=2" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 #DCSR = #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ] }>
@@ -63,14 +63,12 @@ module {
     // CHECK-SAME: ( 0, 0, 3, 6, -3, -6 ),
     // CHECK-SAME: ( 2, -1, 3, 0, -3, 0 ) )
     //
-    %m = bufferization.to_memref %0 : memref<6x6xi32>
-    %v = vector.transfer_read %m[%c0, %c0], %i0
-      : memref<6x6xi32>, vector<6x6xi32>
+    %v = vector.transfer_read %0[%c0, %c0], %i0
+      : tensor<6x6xi32>, vector<6x6xi32>
     vector.print %v : vector<6x6xi32>
 
     // Release the resources.
-    sparse_tensor.release %sparse_filter : tensor<3x3xi32, #DCSR>
-    memref.dealloc %m : memref<6x6xi32>
+    bufferization.dealloc_tensor %sparse_filter : tensor<3x3xi32, #DCSR>
 
     return
   }

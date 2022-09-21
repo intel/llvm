@@ -71,7 +71,8 @@ template <typename ConcreteType, typename ValueT, typename Traits,
 class Interface : public BaseType {
 public:
   using Concept = typename Traits::Concept;
-  template <typename T> using Model = typename Traits::template Model<T>;
+  template <typename T>
+  using Model = typename Traits::template Model<T>;
   template <typename T>
   using FallbackModel = typename Traits::template FallbackModel<T>;
   using InterfaceBase =
@@ -190,22 +191,21 @@ public:
   /// do not represent interfaces are not added to the interface map.
   template <typename... Types>
   static InterfaceMap get() {
-    // TODO: Use constexpr if here in C++17.
     constexpr size_t numInterfaces = num_interface_types_t<Types...>::value;
-    if (numInterfaces == 0)
+    if constexpr (numInterfaces == 0)
       return InterfaceMap();
 
     std::array<std::pair<TypeID, void *>, numInterfaces> elements;
     std::pair<TypeID, void *> *elementIt = elements.data();
     (void)elementIt;
-    (void)std::initializer_list<int>{
-        0, (addModelAndUpdateIterator<Types>(elementIt), 0)...};
+    (addModelAndUpdateIterator<Types>(elementIt), ...);
     return InterfaceMap(elements);
   }
 
   /// Returns an instance of the concept object for the given interface if it
   /// was registered to this map, null otherwise.
-  template <typename T> typename T::Concept *lookup() const {
+  template <typename T>
+  typename T::Concept *lookup() const {
     return reinterpret_cast<typename T::Concept *>(lookup(T::getInterfaceID()));
   }
 

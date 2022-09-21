@@ -447,6 +447,14 @@ public:
     return const_cast<Decl*>(this)->getDeclContext();
   }
 
+  /// Return the non transparent context.
+  /// See the comment of `DeclContext::isTransparentContext()` for the
+  /// definition of transparent context.
+  DeclContext *getNonTransparentDeclContext();
+  const DeclContext *getNonTransparentDeclContext() const {
+    return const_cast<Decl *>(this)->getNonTransparentDeclContext();
+  }
+
   /// Find the innermost non-closure ancestor of this declaration,
   /// walking up through blocks, lambdas, etc.  If that ancestor is
   /// not a code context (!isFunctionOrMethod()), returns null.
@@ -920,10 +928,12 @@ public:
 
   /// If this decl is defined inside a function/method/block it returns
   /// the corresponding DeclContext, otherwise it returns null.
-  const DeclContext *getParentFunctionOrMethod() const;
-  DeclContext *getParentFunctionOrMethod() {
-    return const_cast<DeclContext*>(
-                    const_cast<const Decl*>(this)->getParentFunctionOrMethod());
+  const DeclContext *
+  getParentFunctionOrMethod(bool LexicalParent = false) const;
+  DeclContext *getParentFunctionOrMethod(bool LexicalParent = false) {
+    return const_cast<DeclContext *>(
+        const_cast<const Decl *>(this)->getParentFunctionOrMethod(
+            LexicalParent));
   }
 
   /// Retrieves the "canonical" declaration of the given declaration.
@@ -2007,7 +2017,7 @@ public:
   /// Here, E is a transparent context, so its enumerator (Val1) will
   /// appear (semantically) that it is in the same context of E.
   /// Examples of transparent contexts include: enumerations (except for
-  /// C++0x scoped enums), and C++ linkage specifications.
+  /// C++0x scoped enums), C++ linkage specifications and export declaration.
   bool isTransparentContext() const;
 
   /// Determines whether this context or some of its ancestors is a

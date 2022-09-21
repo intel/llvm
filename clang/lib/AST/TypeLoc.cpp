@@ -194,15 +194,21 @@ SourceLocation TypeLoc::getBeginLoc() const {
   while (true) {
     switch (Cur.getTypeLocClass()) {
     case Elaborated:
-      LeftMost = Cur;
-      break;
+      if (Cur.getLocalSourceRange().getBegin().isValid()) {
+        LeftMost = Cur;
+        break;
+      }
+      Cur = Cur.getNextTypeLoc();
+      if (Cur.isNull())
+        break;
+      continue;
     case FunctionProto:
       if (Cur.castAs<FunctionProtoTypeLoc>().getTypePtr()
               ->hasTrailingReturn()) {
         LeftMost = Cur;
         break;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case FunctionNoProto:
     case ConstantArray:
     case DependentSizedArray:
@@ -254,7 +260,7 @@ SourceLocation TypeLoc::getEndLoc() const {
       // `id` and `id<...>` have no star location.
       if (Cur.castAs<ObjCObjectPointerTypeLoc>().getStarLoc().isInvalid())
         break;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Pointer:
     case BlockPointer:
     case MemberPointer:
@@ -535,6 +541,8 @@ void UnaryTransformTypeLoc::initializeLocal(ASTContext &Context,
 
 void ElaboratedTypeLoc::initializeLocal(ASTContext &Context,
                                         SourceLocation Loc) {
+  if (isEmpty())
+    return;
   setElaboratedKeywordLoc(Loc);
   NestedNameSpecifierLocBuilder Builder;
   Builder.MakeTrivial(Context, getTypePtr()->getQualifier(), Loc);

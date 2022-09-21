@@ -92,8 +92,8 @@ TEST(StatisticTest, API) {
     OptionalStatistic S2;
     extractCounters(Range1, S1, S2);
 
-    EXPECT_EQ(S1.hasValue(), true);
-    EXPECT_EQ(S2.hasValue(), false);
+    EXPECT_EQ(S1.has_value(), true);
+    EXPECT_EQ(S2.has_value(), false);
   }
 
   // Counter2 will be registered when it's first touched.
@@ -108,8 +108,8 @@ TEST(StatisticTest, API) {
     OptionalStatistic S2;
     extractCounters(Range, S1, S2);
 
-    EXPECT_EQ(S1.hasValue(), true);
-    EXPECT_EQ(S2.hasValue(), true);
+    EXPECT_EQ(S1.has_value(), true);
+    EXPECT_EQ(S2.has_value(), true);
 
     EXPECT_EQ(S1->first, "Counter");
     EXPECT_EQ(S1->second, 2u);
@@ -119,7 +119,7 @@ TEST(StatisticTest, API) {
   }
 #else
   Counter2++;
-  auto &Range = GetStatistics();
+  auto Range = GetStatistics();
   EXPECT_EQ(Range.begin(), Range.end());
 #endif
 
@@ -128,15 +128,15 @@ TEST(StatisticTest, API) {
   // It should empty the list and zero the counters.
   ResetStatistics();
   {
-    auto &Range = GetStatistics();
+    auto Range = GetStatistics();
     EXPECT_EQ(Range.begin(), Range.end());
     EXPECT_EQ(Counter, 0u);
     EXPECT_EQ(Counter2, 0u);
     OptionalStatistic S1;
     OptionalStatistic S2;
     extractCounters(Range, S1, S2);
-    EXPECT_EQ(S1.hasValue(), false);
-    EXPECT_EQ(S2.hasValue(), false);
+    EXPECT_EQ(S1.has_value(), false);
+    EXPECT_EQ(S2.has_value(), false);
   }
 
   // Now check that they successfully re-register and count.
@@ -144,7 +144,7 @@ TEST(StatisticTest, API) {
   Counter2++;
 
   {
-    auto &Range = GetStatistics();
+    auto Range = GetStatistics();
     EXPECT_EQ(Range.begin() + 2, Range.end());
     EXPECT_EQ(Counter, 1u);
     EXPECT_EQ(Counter2, 1u);
@@ -153,8 +153,8 @@ TEST(StatisticTest, API) {
     OptionalStatistic S2;
     extractCounters(Range, S1, S2);
 
-    EXPECT_EQ(S1.hasValue(), true);
-    EXPECT_EQ(S2.hasValue(), true);
+    EXPECT_EQ(S1.has_value(), true);
+    EXPECT_EQ(S2.has_value(), true);
 
     EXPECT_EQ(S1->first, "Counter");
     EXPECT_EQ(S1->second, 1u);

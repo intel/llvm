@@ -1,6 +1,5 @@
 // RUN: clang-repl "int i = 10;" 'extern "C" int printf(const char*,...);' \
 // RUN:            'auto r1 = printf("i = %d\n", i);' | FileCheck --check-prefix=CHECK-DRIVER %s
-// REQUIRES: host-supports-jit
 // UNSUPPORTED: system-aix
 // CHECK-DRIVER: i = 10
 // RUN: cat %s | clang-repl | FileCheck %s
@@ -19,5 +18,10 @@ int foo() { return 1; }
 int foo() { return 2; }
 auto r3 = printf("foo() = %d\n", foo());
 // CHECK-NEXT: foo() = 2
+
+inline int bar() { return 42;}
+auto r4 = bar();
+%undo
+auto r5 = bar();
 
 %quit

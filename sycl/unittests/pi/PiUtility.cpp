@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 TEST(PiUtilityTest, CheckPiCastScalar) {
   std::int32_t I = 42;

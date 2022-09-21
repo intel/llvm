@@ -9,17 +9,17 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include <fstream>
-#include <iostream>
 #include <istream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class backend : char {
-  host = 0,
+  host __SYCL2020_DEPRECATED("'host' backend is no longer supported") = 0,
   opencl = 1,
   ext_oneapi_level_zero = 2,
   level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
@@ -69,5 +69,5 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   return Out;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

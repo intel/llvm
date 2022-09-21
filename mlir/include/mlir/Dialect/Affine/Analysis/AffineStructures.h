@@ -299,7 +299,8 @@ public:
   /// Append variables of the specified kind after the last variable of that
   /// kind. The coefficient columns corresponding to the added variables are
   /// initialized to zero. `vals` are the Values corresponding to the
-  /// variables. Return the position of the first added column.
+  /// variables. Return the absolute column position (i.e., not relative to the
+  /// kind of variable) of the first appended variable.
   ///
   /// Note: Empty Values are allowed in `vals`.
   unsigned appendDimVar(ValueRange vals);
@@ -400,13 +401,13 @@ public:
   inline Value getValue(unsigned pos) const {
     assert(pos < getNumDimAndSymbolVars() && "Invalid position");
     assert(hasValue(pos) && "variable's Value not set");
-    return values[pos].getValue();
+    return values[pos].value();
   }
 
   /// Returns true if the pos^th variable has an associated Value.
   inline bool hasValue(unsigned pos) const {
     assert(pos < getNumDimAndSymbolVars() && "Invalid position");
-    return values[pos].hasValue();
+    return values[pos].has_value();
   }
 
   /// Returns true if at least one variable has an associated Value.

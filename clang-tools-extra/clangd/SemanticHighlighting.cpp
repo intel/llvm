@@ -523,6 +523,8 @@ llvm::Optional<HighlightingModifier> scopeModifier(const Type *T) {
 /// e.g. highlights dependent names and 'auto' as the underlying type.
 class CollectExtraHighlightings
     : public RecursiveASTVisitor<CollectExtraHighlightings> {
+  using Base = RecursiveASTVisitor<CollectExtraHighlightings>;
+
 public:
   CollectExtraHighlightings(HighlightingsBuilder &H) : H(H) {}
 
@@ -530,6 +532,21 @@ public:
     highlightMutableReferenceArguments(E->getConstructor(),
                                        {E->getArgs(), E->getNumArgs()});
 
+    return true;
+  }
+
+  bool TraverseConstructorInitializer(CXXCtorInitializer *Init) {
+    if (Init->isMemberInitializer())
+      if (auto *Member = Init->getMember())
+        highlightMutableReferenceArgument(Member->getType(), Init->getInit());
+    return Base::TraverseConstructorInitializer(Init);
+  }
+
+  bool VisitPredefinedExpr(PredefinedExpr *E) {
+    H.addToken(E->getLocation(), HighlightingKind::LocalVariable)
+        .addModifier(HighlightingModifier::Static)
+        .addModifier(HighlightingModifier::Readonly)
+        .addModifier(HighlightingModifier::FunctionScope);
     return true;
   }
 
@@ -542,8 +559,8 @@ public:
     // FIXME: consider highlighting parameters of some other overloaded
     // operators as well
     llvm::ArrayRef<const Expr *> Args = {E->getArgs(), E->getNumArgs()};
-    if (const auto callOp = dyn_cast<CXXOperatorCallExpr>(E)) {
-      switch (callOp->getOperator()) {
+    if (auto *CallOp = dyn_cast<CXXOperatorCallExpr>(E)) {
+      switch (CallOp->getOperator()) {
       case OO_Call:
       case OO_Subscript:
         Args = Args.drop_front(); // Drop object parameter
@@ -559,6 +576,33 @@ public:
     return true;
   }
 
+  void highlightMutableReferenceArgument(QualType T, const Expr *Arg) {
+    if (!Arg)
+      return;
+
+    // Is this parameter passed by non-const reference?
+    // FIXME The condition T->idDependentType() could be relaxed a bit,
+    // e.g. std::vector<T>& is dependent but we would want to highlight it
+    if (!T->isLValueReferenceType() ||
+        T.getNonReferenceType().isConstQualified() || T->isDependentType()) {
+      return;
+    }
+
+    llvm::Optional<SourceLocation> Location;
+
+    // FIXME Add "unwrapping" for ArraySubscriptExpr and UnaryOperator,
+    //  e.g. highlight `a` in `a[i]`
+    // FIXME Handle dependent expression types
+    if (auto *DR = dyn_cast<DeclRefExpr>(Arg))
+      Location = DR->getLocation();
+    else if (auto *M = dyn_cast<MemberExpr>(Arg))
+      Location = M->getMemberLoc();
+
+    if (Location)
+      H.addExtraModifier(*Location,
+                         HighlightingModifier::UsedAsMutableReference);
+  }
+
   void
   highlightMutableReferenceArguments(const FunctionDecl *FD,
                                      llvm::ArrayRef<const Expr *const> Args) {
@@ -571,31 +615,7 @@ public:
       // highlighting modifier to the corresponding expression
       for (size_t I = 0;
            I < std::min(size_t(ProtoType->getNumParams()), Args.size()); ++I) {
-        auto T = ProtoType->getParamType(I);
-
-        // Is this parameter passed by non-const reference?
-        // FIXME The condition !T->idDependentType() could be relaxed a bit,
-        // e.g. std::vector<T>& is dependent but we would want to highlight it
-        if (T->isLValueReferenceType() &&
-            !T.getNonReferenceType().isConstQualified() &&
-            !T->isDependentType()) {
-          if (auto *Arg = Args[I]) {
-            llvm::Optional<SourceLocation> Location;
-
-            // FIXME Add "unwrapping" for ArraySubscriptExpr and UnaryOperator,
-            //  e.g. highlight `a` in `a[i]`
-            // FIXME Handle dependent expression types
-            if (auto *DR = dyn_cast<DeclRefExpr>(Arg)) {
-              Location = DR->getLocation();
-            } else if (auto *M = dyn_cast<MemberExpr>(Arg)) {
-              Location = M->getMemberLoc();
-            }
-
-            if (Location)
-              H.addExtraModifier(*Location,
-                                 HighlightingModifier::UsedAsMutableReference);
-          }
-        }
+        highlightMutableReferenceArgument(ProtoType->getParamType(I), Args[I]);
       }
     }
   }
@@ -913,7 +933,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingKind K) {
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingModifier K) {
   switch (K) {
   case HighlightingModifier::Declaration:
-    return OS << "decl"; // abbrevation for common case
+    return OS << "decl"; // abbreviation for common case
   default:
     return OS << toSemanticTokenModifier(K);
   }
@@ -931,7 +951,7 @@ bool operator<(const HighlightingToken &L, const HighlightingToken &R) {
 std::vector<SemanticToken>
 toSemanticTokens(llvm::ArrayRef<HighlightingToken> Tokens,
                  llvm::StringRef Code) {
-  assert(std::is_sorted(Tokens.begin(), Tokens.end()));
+  assert(llvm::is_sorted(Tokens));
   std::vector<SemanticToken> Result;
   // In case we split a HighlightingToken into multiple tokens (e.g. because it
   // was spanning multiple lines), this tracks the last one. This prevents

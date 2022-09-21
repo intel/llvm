@@ -1,7 +1,7 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=100 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
-#include <sycl/ext/intel/online_compiler.hpp>
-#include <sycl/sycl.hpp>
+#include <CL/sycl.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -57,9 +57,6 @@ int main() {
   sycl::kernel Kernel{ClKernel, Ctx};
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
-
-  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
-  sycl::program Prog{Ctx};
 
   sycl::buffer<int, 1> Buffer(4);
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
@@ -124,22 +121,37 @@ int main() {
   sycl::byte B;
   (void)B;
 
-  // expected-warning@+1{{'max_constant_buffer_size' is deprecated: max_constant_buffer_size is deprecated}}
-  auto MCBS = sycl::info::device::max_constant_buffer_size;
-  (void)MCBS;
-  // expected-warning@+1{{'max_constant_args' is deprecated: max_constant_args is deprecated}}
-  auto MCA = sycl::info::device::max_constant_args;
-  (void)MCA;
+  // expected-warning@+1{{'image_support' is deprecated: deprecated in SYCL 2020, use device::has(aspect::image) instead}}
+  using IS = sycl::info::device::image_support;
+  // expected-warning@+1{{'max_constant_buffer_size' is deprecated: deprecated in SYCL 2020}}
+  using MCBS = sycl::info::device::max_constant_buffer_size;
+  // expected-warning@+1{{'max_constant_args' is deprecated: deprecated in SYCL 2020}}
+  using MCA = sycl::info::device::max_constant_args;
+  // expected-warning@+1{{'host_unified_memory' is deprecated: deprecated in SYCL 2020, use device::has() with one of the aspect::usm_* aspects instead}}
+  using HUM = sycl::info::device::host_unified_memory;
+  // expected-warning@+1{{'is_endian_little' is deprecated: deprecated in SYCL 2020, check the byte order of the host system instead, the host and the device are required to have the same byte order}}
+  using IEL = sycl::info::device::is_endian_little;
+  // expected-warning@+1{{'is_compiler_available' is deprecated: deprecated in SYCL 2020, use device::has(aspect::online_compiler) instead}}
+  using ICA = sycl::info::device::is_compiler_available;
+  // expected-warning@+1{{'is_linker_available' is deprecated: deprecated in SYCL 2020, use device::has(aspect::online_linker) instead}}
+  using ILA = sycl::info::device::is_linker_available;
+  // expected-warning@+1{{'queue_profiling' is deprecated: deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead}}
+  using QP = sycl::info::device::queue_profiling;
+  // expected-warning@+1{{'built_in_kernels' is deprecated: deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead}}
+  using BIK = sycl::info::device::built_in_kernels;
+  // expected-warning@+1{{'profile' is deprecated: deprecated in SYCL 2020}}
+  using DP = sycl::info::device::profile;
+  // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use info::device::aspects instead}}
+  using DE = sycl::info::device::extensions;
+  // expected-warning@+1{{'printf_buffer_size' is deprecated: deprecated in SYCL 2020}}
+  using PBS = sycl::info::device::printf_buffer_size;
+  // expected-warning@+1{{'preferred_interop_user_sync' is deprecated: deprecated in SYCL 2020}}
+  using PIUS = sycl::info::device::preferred_interop_user_sync;
+  // expected-warning@+1{{'usm_system_allocator' is deprecated: use info::device::usm_system_allocations instead}}
+  using USA = sycl::info::device::usm_system_allocator;
 
-  // expected-warning@+1{{'built_in_kernels' is deprecated: use built_in_kernel_ids instead}}
-  auto BIK = sycl::info::device::built_in_kernels;
-  (void)BIK;
-
-  // expected-warning@+1{{'extensions' is deprecated: platform::extensions is deprecated, use device::get_info() with info::device::aspects instead.}}
-  auto PE = sycl::info::platform::extensions;
-
-  // expected-warning@+1{{'extensions' is deprecated: device::extensions is deprecated, use info::device::aspects instead.}}
-  auto DE = sycl::info::device::extensions;
+  // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
+  using PE = sycl::info::platform::extensions;
 
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
   // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
@@ -170,19 +182,34 @@ int main() {
   // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
 
-  cl::sycl::multi_ptr<int, cl::sycl::access::address_space::global_space> a(
-      nullptr);
+  sycl::multi_ptr<int, sycl::access::address_space::global_space> a(nullptr);
   // expected-warning@+1 {{'atomic<int, sycl::access::address_space::global_space>' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
-  cl::sycl::atomic<int> b(a);
+  sycl::atomic<int> b(a);
 
-  cl::sycl::group<1> group =
-      cl::sycl::detail::Builder::createGroup<1>({8}, {4}, {1});
+  sycl::group<1> group = sycl::detail::Builder::createGroup<1>({8}, {4}, {1});
   // expected-warning@+1{{'get_id' is deprecated: use sycl::group::get_group_id() instead}}
   group.get_id();
   // expected-warning@+1{{'get_id' is deprecated: use sycl::group::get_group_id() instead}}
   group.get_id(1);
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
+
+  // expected-warning@+1{{'default_selector' is deprecated: Use the callable sycl::default_selector_v instead.}}
+  sycl::default_selector ds;
+  // expected-warning@+1{{'cpu_selector' is deprecated: Use the callable sycl::cpu_selector_v instead.}}
+  sycl::cpu_selector cs;
+  // expected-warning@+1{{'gpu_selector' is deprecated: Use the callable sycl::gpu_selector_v instead.}}
+  sycl::gpu_selector gs;
+  // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
+  sycl::accelerator_selector as;
+  // expected-warning@+1{{'host_selector' is deprecated: Host device is no longer supported.}}
+  sycl::host_selector hs;
+
+  // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
+        LocalAcc(sycl::range<1>(1), CGH);
+  });
 
   return 0;
 }

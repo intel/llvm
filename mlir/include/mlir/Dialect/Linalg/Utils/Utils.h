@@ -48,6 +48,8 @@ bool isPermutation(ArrayRef<int64_t> permutation);
 /// Helper function that creates a memref::DimOp or tensor::DimOp depending on
 /// the type of `source`.
 Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source, int64_t dim);
+OpFoldResult createFoldedDimOp(OpBuilder &b, Location loc, Value source,
+                               int64_t dim);
 
 /// Given an operation, retrieves the value of each dynamic dimension through
 /// constructing the necessary DimOp operators.
@@ -90,25 +92,6 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
 /// getConstantUpperBoundForIndex(%1) returns 42
 /// (boundsMap = affine.map<() -> (42)>)
 FailureOr<int64_t> getConstantUpperBoundForIndex(Value value);
-
-/// Create an ExtractSliceOp and, if `source` is defined by an ExtractSliceOp,
-/// fold it by adding the offsets.
-///
-/// Example:
-/// ```
-/// %0 = tensor.extract_slice %arg0[3, 4][3, 32][1, 1] : tensor<64x64xf32> to
-///                                                        tensor<3x32xf32>
-/// %1 = tensor.extract_slice %0[0, 5][3, 4][1, 1] : tensor<3x32xf32> to
-///                                                    tensor<3x4xf32>
-/// ```
-/// folds into:
-/// ```
-/// %1 = tensor.extract_slice %arg0[3, 9][3, 4][1, 1] : tensor<64x64xf32> to
-///                                                       tensor<3x4xf32>
-/// ```
-tensor::ExtractSliceOp makeComposedExtractSliceOp(
-    OpBuilder &b, Location loc, Value source, ArrayRef<OpFoldResult> offsets,
-    ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides);
 
 /// Create a tensor::PadOp that pads `source` to the size of the statically
 /// sized `type` whose static sizes are assumed to be greater than the dynamic
@@ -160,8 +143,7 @@ getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes);
 enum class LinalgTilingLoopType {
   Loops = 0,
   AffineLoops = 1,
-  ParallelLoops = 2,
-  TiledLoops = 3,
+  ParallelLoops = 2
 };
 
 /// Checks whether the specific `producer` is the last write to exactly the
@@ -177,24 +159,19 @@ bool isProducerLastWriteOfView(const LinalgDependenceGraph &graph,
 bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
                    Value consumedView, LinalgOp producer);
 
-/// Creates either a memref.subview or a tensor.extract_slice with the given
-/// offsets/sizes/strides based on the type of `value`.
-Value createSlice(OpBuilder &builder, Location loc, Value value,
-                  ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
-                  ArrayRef<OpFoldResult> strides);
-
 /// Computes tile offsets, given a list of loop `ivs` and `tileSizes`. In case a
 /// tile size is zero (i.e., no tiling), the corresponding offset is also zero.
-SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
-                                      ValueRange ivs, ValueRange tileSizes);
+SmallVector<OpFoldResult> computeTileOffsets(OpBuilder &b, Location loc,
+                                             ArrayRef<OpFoldResult> ivs,
+                                             ArrayRef<OpFoldResult> tileSizes);
 
 /// Computes tile sizes, given a list of `tileSizes` and dimension
 /// sizes (`sizeBounds`). In case a tile size is zero (i.e., no tiling), the
 /// corresponding result size is the corresponding value from `sizeBounds`.
 /// Note: The returned tile sizes are closed intervals.
-SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc,
-                                    ValueRange tileSizes,
-                                    ArrayRef<Value> sizeBounds);
+SmallVector<OpFoldResult> computeTileSizes(OpBuilder &b, Location loc,
+                                           ArrayRef<OpFoldResult> tileSizes,
+                                           ArrayRef<OpFoldResult> sizeBounds);
 
 /// Returns the list of tensor output types produced when the given structured
 /// operation `op` is applied to the given `operands`. Note that `operands` are
@@ -210,14 +187,61 @@ SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
                                     LinalgOp op, ValueRange operands,
                                     ValueRange results);
 
+/// Turns an OpFoldResult into a value, creating an index-typed constant if
+/// necessary.
+Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
+                              OpFoldResult opFoldResult);
+Value materializeOpFoldResult(OpBuilder &b, Location loc,
+                              OpFoldResult opFoldResult);
+Value materializeOpFoldResult(OpBuilder &b, Location loc,
+                              ArrayRef<OpFoldResult> opFoldResults);
+
+/// A struct containg offsets-sizes-strides arguments of the tiled shape.
+struct SliceParameters {
+  SmallVector<OpFoldResult> offsets;
+  SmallVector<OpFoldResult> sizes;
+  SmallVector<OpFoldResult> strides;
+};
+
+/// Computes SliceParameters for a single `valueToTile` assuming that its user
+/// is being tiled with the given loop bounds `lbs` and `ubs` and the tile sizes
+/// `tileSizes`.
+///
+/// `omitPartialTileCheck` controls whether to omit the partial/boundary tile
+/// condition check in cases where we statically know that it is unnecessary.
+SliceParameters
+computeSliceParameters(OpBuilder &builder, Location loc, Value valueToTile,
+                       ArrayRef<OpFoldResult> tileSizes, AffineMap map,
+                       ArrayRef<OpFoldResult> lbs, ArrayRef<OpFoldResult> ubs,
+                       ArrayRef<OpFoldResult> subShapeSizes,
+                       bool omitPartialTileCheck);
+
+/// Computes SliceParamaters for all `valuesToTile` of the given `linalgOp`,
+/// assuming `linalgOp` is being fused into a loop nest. Calls
+/// `computeSliceParameters` for every individual value.
+///
+/// Note that a constant zero in `tileSizes` means no tiling at that implicit
+/// loop. The number of non-zero values in `tileSizes` should be equal to the
+/// number of values in `ivs`.
+///
+/// Some of the `valuesToTile` won't be affected by tiling. For these values,
+/// llvm::None will be returned.
+SmallVector<Optional<SliceParameters>>
+computeAllSliceParameters(OpBuilder &builder, Location loc, LinalgOp linalgOp,
+                          ValueRange valuesToTile, ArrayRef<OpFoldResult> ivs,
+                          ArrayRef<OpFoldResult> tileSizes,
+                          ArrayRef<OpFoldResult> sizeBounds,
+                          bool omitPartialTileCheck);
+
 /// Creates an extract_slice/subview op for a single `valueToTile` with
 /// `builder`. This new operation extracts a tile of `valueToTile`, starting
 /// at offsets `lbs` and with sizes `subShapeSizes`. `omitPartialTileCheck`
 /// controls whether to omit the partial/boundary tile condition check in cases
 /// where we statically know that it is unnecessary.
 Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
-                     ValueRange tileSizes, AffineMap map, ValueRange lbs,
-                     ValueRange ubs, ValueRange subShapeSizes,
+                     ArrayRef<OpFoldResult> tileSizes, AffineMap map,
+                     ArrayRef<OpFoldResult> lbs, ArrayRef<OpFoldResult> ubs,
+                     ArrayRef<OpFoldResult> subShapeSizes,
                      bool omitPartialTileCheck);
 
 /// Creates extract_slice/subview ops for all `valuesToTile` of the given
@@ -231,17 +255,20 @@ Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
 /// Note that a constant zero in `tileSizes` means no tiling at that implicit
 /// loop. The number of non-zero values in `tileSizes` should be equal to the
 /// number of values in `ivs`.
-SmallVector<Value, 4> makeTiledShapes(OpBuilder &builder, Location loc,
-                                      LinalgOp linalgOp,
-                                      ArrayRef<Value> valuesToTile,
-                                      ValueRange ivs, ValueRange tileSizes,
-                                      ArrayRef<Value> sizeBounds,
-                                      bool omitPartialTileCheck);
+SmallVector<Value> makeTiledShapes(OpBuilder &builder, Location loc,
+                                   LinalgOp linalgOp, ValueRange valuesToTile,
+                                   ArrayRef<OpFoldResult> ivs,
+                                   ArrayRef<OpFoldResult> tileSizes,
+                                   ArrayRef<OpFoldResult> sizeBounds,
+                                   bool omitPartialTileCheck);
 
-/// Add the tile loop induction variables `ivs` to the IndexOp results found in
-/// the body of the `tiledOp` to account for the tile offset.
-void addTileLoopIvsToIndexOpResults(OpBuilder &b, LinalgOp tiledOp,
-                                    ArrayRef<Value> ivs);
+/// Add the specified offsets to any `linalg.index` ops contained in the given
+/// `linalgOp`. The offsets are provided in the same order as iteration space
+/// dimensions. Null offests are assumed to be zero.
+void offsetIndices(OpBuilder &b, LinalgOp linalgOp,
+                   ArrayRef<OpFoldResult> offests);
+void offsetIndices(RewriterBase &b, LinalgOp linalgOp,
+                   ArrayRef<OpFoldResult> offests);
 
 using FusableOpDependencesTy = llvm::MapVector<
     Operation *,
@@ -325,7 +352,10 @@ enum class DistributionMethod {
   /// to
   ///
   /// %iv = %lb + %procId * %step
-  CyclicNumProcsEqNumIters = 2
+  CyclicNumProcsEqNumIters = 2,
+
+  /// No Distribution.
+  None = 3
 };
 
 /// Callback function type used to get processor ID, and number of processors
@@ -333,11 +363,10 @@ enum class DistributionMethod {
 struct ProcInfo {
   Value procId;
   Value nprocs;
+  DistributionMethod distributionMethod;
 };
-using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
+using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo>(
     OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges)>;
-using OneDimProcInfoCallBackFn =
-    std::function<ProcInfo(OpBuilder &b, Location loc)>;
 
 /// Options that allow distribution of loops generated in Linalg transforms to
 /// processors while generating the loops.
@@ -345,21 +374,10 @@ struct LinalgLoopDistributionOptions {
   /// Callback function that returns the Values for processor ID (`procId`), and
   /// number of processors (`nprocs`) used to execute the parallel loops. The
   /// number of `{procId, nprocs}` pairs returned must be equal to the number of
-  /// `parallelLoopRanges` passed into the callback, which in-turn is same as
-  /// the number of parallel loops for which the `distributionMethod` is
-  /// specified below.
+  /// `parallelLoopRanges` passed into the callback. The `parallelLoopRanges`
+  /// are ranges of the outer parallel loops of the operation that
+  /// do have non-zero tile sizes specified.
   ProcInfoCallBackFn procInfo;
-  /// Specification of how to distribute the `scf.parallel` loops that are
-  /// generated. As the `scf.parallel` loop is generated, the elements of this
-  /// vector is used (from left to right) and the specified distribution is
-  /// applied. If the vector is less than the number of `scf.parallel` loops
-  /// generated, then no distribution is applied.
-  SmallVector<DistributionMethod, 0> distributionMethod = {};
-
-  /// The map keyed by the distribution type that contains callback functions
-  /// that return the Values for processor ID (`procId`), and number of
-  /// processors (`nprocs`) used to execute the parallel loops.
-  DenseMap<StringRef, OneDimProcInfoCallBackFn> procInfoMap;
 };
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -477,8 +495,7 @@ struct GenerateLoopNest {
                    function_ref<scf::ValueVector(OpBuilder &, Location,
                                                  ValueRange, ValueRange)>
                        bodyBuilderFn,
-                   Optional<LinalgLoopDistributionOptions> = None,
-                   ArrayRef<StringRef> distributionTypes = {});
+                   ArrayRef<linalg::ProcInfo> procInfo = {});
 };
 
 } // namespace linalg

@@ -468,24 +468,6 @@ MCSectionMachO *MCContext::getMachOSection(StringRef Segment, StringRef Section,
   return R.first->second;
 }
 
-void MCContext::renameELFSection(MCSectionELF *Section, StringRef Name) {
-  StringRef GroupName;
-  if (const MCSymbol *Group = Section->getGroup())
-    GroupName = Group->getName();
-
-  // This function is only used by .debug*, which should not have the
-  // SHF_LINK_ORDER flag.
-  unsigned UniqueID = Section->getUniqueID();
-  ELFUniquingMap.erase(
-      ELFSectionKey{Section->getName(), GroupName, "", UniqueID});
-  auto I = ELFUniquingMap
-               .insert(std::make_pair(
-                   ELFSectionKey{Name, GroupName, "", UniqueID}, Section))
-               .first;
-  StringRef CachedName = I->first.SectionName;
-  const_cast<MCSectionELF *>(Section)->setSectionName(CachedName);
-}
-
 MCSectionELF *MCContext::createELFSectionImpl(StringRef Section, unsigned Type,
                                               unsigned Flags, SectionKind K,
                                               unsigned EntrySize,
@@ -773,7 +755,7 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   // Do the lookup. If we have a hit, return it.
   auto IterBool = XCOFFUniquingMap.insert(std::make_pair(
       IsDwarfSec
-          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.getValue())
+          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.value())
           : XCOFFSectionKey(Section.str(), CsectProp->MappingClass),
       nullptr));
   auto &Entry = *IterBool.first;
@@ -806,7 +788,7 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   if (IsDwarfSec)
     Result = new (XCOFFAllocator.Allocate())
         MCSectionXCOFF(QualName->getUnqualifiedName(), Kind, QualName,
-                       DwarfSectionSubtypeFlags.getValue(), Begin, CachedName,
+                       DwarfSectionSubtypeFlags.value(), Begin, CachedName,
                        MultiSymbolsAllowed);
   else
     Result = new (XCOFFAllocator.Allocate())
@@ -873,30 +855,35 @@ void MCContext::addDebugPrefixMapEntry(const std::string &From,
   DebugPrefixMap.insert(std::make_pair(From, To));
 }
 
+void MCContext::remapDebugPath(SmallVectorImpl<char> &Path) {
+  for (const auto &[From, To] : DebugPrefixMap)
+    if (llvm::sys::path::replace_path_prefix(Path, From, To))
+      break;
+}
+
 void MCContext::RemapDebugPaths() {
   const auto &DebugPrefixMap = this->DebugPrefixMap;
   if (DebugPrefixMap.empty())
     return;
 
-  const auto RemapDebugPath = [&DebugPrefixMap](std::string &Path) {
-    SmallString<256> P(Path);
-    for (const auto &Entry : DebugPrefixMap) {
-      if (llvm::sys::path::replace_path_prefix(P, Entry.first, Entry.second)) {
-        Path = P.str().str();
-        break;
-      }
-    }
-  };
-
   // Remap compilation directory.
-  std::string CompDir = std::string(CompilationDir.str());
-  RemapDebugPath(CompDir);
-  CompilationDir = CompDir;
+  remapDebugPath(CompilationDir);
 
-  // Remap MCDwarfDirs in all compilation units.
-  for (auto &CUIDTablePair : MCDwarfLineTablesCUMap)
-    for (auto &Dir : CUIDTablePair.second.getMCDwarfDirs())
-      RemapDebugPath(Dir);
+  // Remap MCDwarfDirs and RootFile.Name in all compilation units.
+  SmallString<256> P;
+  for (auto &CUIDTablePair : MCDwarfLineTablesCUMap) {
+    for (auto &Dir : CUIDTablePair.second.getMCDwarfDirs()) {
+      P = Dir;
+      remapDebugPath(P);
+      Dir = std::string(P);
+    }
+
+    // Used by DW_TAG_compile_unit's DT_AT_name and DW_TAG_label's
+    // DW_AT_decl_file for DWARF v5 generated for assembly source.
+    P = CUIDTablePair.second.getRootFile().Name;
+    remapDebugPath(P);
+    CUIDTablePair.second.getRootFile().Name = std::string(P);
+  }
 }
 
 //===----------------------------------------------------------------------===//

@@ -45,6 +45,8 @@ def diasdkdir : P<"diasdkdir", "Set the location of the DIA SDK">;
 def entry   : P<"entry", "Name of entry point symbol">;
 def errorlimit : P<"errorlimit",
     "Maximum number of errors to emit before stopping (0 = no limit)">;
+def exclude_symbols  : P<"exclude-symbols", "Exclude symbols from automatic export">,
+    MetaVarName<"<symbol[,symbol,...]>">;
 def export  : P<"export", "Export a function">;
 // No help text because /failifmismatch is not intended to be used by the user.
 def failifmismatch : P<"failifmismatch", "">;
@@ -277,6 +279,8 @@ def print_symbol_order: P<
     "Print a symbol order specified by /call-graph-ordering-file and "
     "/call-graph-profile-sort into the specified file">;
 def wrap : P_priv<"wrap">;
+
+def vfsoverlay : P<"vfsoverlay", "Path to a vfsoverlay yaml file to optionally look for /defaultlib's in">;
 
 // Flags for debugging
 def lldmap : F<"lldmap">;

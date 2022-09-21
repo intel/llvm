@@ -16,7 +16,7 @@
 #include <memory>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   bool SupportOOO = true;
@@ -87,14 +87,8 @@ pi_result redefinedEventRelease(pi_event event) {
 }
 
 TEST(QueueWait, QueueWaitTest) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
   Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
   Mock.redefine<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
@@ -174,7 +168,7 @@ TEST(QueueWait, QueueWaitTest) {
   // Test behaviour for emulating an OOO queue with multiple in-order ones.
   TestContext = {};
   TestContext.SupportOOO = false;
-  Q = {Ctx, default_selector()};
+  Q = queue{Ctx, default_selector()};
   Q.memset(HostAlloc, 42, 1);
   // The event is kept alive in this case to call wait.
   ASSERT_EQ(TestContext.EventReferenceCount, 1);

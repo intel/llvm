@@ -88,7 +88,7 @@ static void restoreSSA(const DominatorTree &DT, const Loop *L,
   using InstVector = SmallVector<Instruction *, 8>;
   using IIMap = MapVector<Instruction *, InstVector>;
   IIMap ExternalUsers;
-  for (auto BB : L->blocks()) {
+  for (auto *BB : L->blocks()) {
     for (auto &I : *BB) {
       for (auto &U : I.uses()) {
         auto UserInst = cast<Instruction>(U.getUser());
@@ -117,7 +117,7 @@ static void restoreSSA(const DominatorTree &DT, const Loop *L,
     auto NewPhi = PHINode::Create(Def->getType(), Incoming.size(),
                                   Def->getName() + ".moved",
                                   LoopExitBlock->getTerminator());
-    for (auto In : Incoming) {
+    for (auto *In : Incoming) {
       LLVM_DEBUG(dbgs() << "predecessor " << In->getName() << ": ");
       if (Def->getParent() == In || DT.dominates(Def, In)) {
         LLVM_DEBUG(dbgs() << "dominated\n");
@@ -129,7 +129,7 @@ static void restoreSSA(const DominatorTree &DT, const Loop *L,
     }
 
     LLVM_DEBUG(dbgs() << "external users:");
-    for (auto U : II.second) {
+    for (auto *U : II.second) {
       LLVM_DEBUG(dbgs() << " " << U->getName());
       U->replaceUsesOfWith(Def, NewPhi);
     }
@@ -145,26 +145,19 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
   // locate the exit blocks.
   SetVector<BasicBlock *> ExitingBlocks;
   SetVector<BasicBlock *> Exits;
-  // Record the exit blocks that branch to the same block.
-  MapVector<BasicBlock *, SetVector<BasicBlock *> > CommonSuccs;
 
   // We need SetVectors, but the Loop API takes a vector, so we use a temporary.
   SmallVector<BasicBlock *, 8> Temp;
   L->getExitingBlocks(Temp);
-  for (auto BB : Temp) {
+  for (auto *BB : Temp) {
     ExitingBlocks.insert(BB);
-    for (auto S : successors(BB)) {
+    for (auto *S : successors(BB)) {
       auto SL = LI.getLoopFor(S);
       // A successor is not an exit if it is directly or indirectly in the
       // current loop.
       if (SL == L || L->contains(SL))
         continue;
       Exits.insert(S);
-      // The typical case for reducing the number of guard blocks occurs when
-      // the exit block has a single predecessor and successor.
-      if (S->getSinglePredecessor())
-        if (auto *Succ = S->getSingleSuccessor())
-          CommonSuccs[Succ].insert(S);
     }
   }
 
@@ -179,37 +172,11 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
       for (auto EB : ExitingBlocks) {
         dbgs() << " " << EB->getName();
       }
-      dbgs() << "\n";
-
-      dbgs() << "Exit blocks with a common successor:\n";
-      for (auto CS : CommonSuccs) {
-        dbgs() << "  Succ " << CS.first->getName() << ", exits:";
-        for (auto Exit : CS.second)
-          dbgs() << " " << Exit->getName();
-        dbgs() << "\n";
-      });
+      dbgs() << "\n";);
 
   if (Exits.size() <= 1) {
     LLVM_DEBUG(dbgs() << "loop does not have multiple exits; nothing to do\n");
     return false;
-  }
-
-  // When multiple exit blocks branch to the same block, change the control
-  // flow hub to after the exit blocks rather than before. This reduces the
-  // number of guard blocks needed after the loop.
-  for (auto CS : CommonSuccs) {
-    auto CB = CS.first;
-    auto Preds = CS.second;
-    if (Exits.contains(CB))
-      continue;
-    if (Preds.size() < 2 || Preds.size() == Exits.size())
-      continue;
-    for (auto Exit : Preds) {
-      Exits.remove(Exit);
-      ExitingBlocks.remove(Exit->getSinglePredecessor());
-      ExitingBlocks.insert(Exit);
-    }
-    Exits.insert(CB);
   }
 
   SmallVector<BasicBlock *, 8> GuardBlocks;
@@ -229,19 +196,8 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
   // The guard blocks were created outside the loop, so they need to become
   // members of the parent loop.
   if (auto ParentLoop = L->getParentLoop()) {
-    for (auto G : GuardBlocks) {
+    for (auto *G : GuardBlocks) {
       ParentLoop->addBasicBlockToLoop(G, LI);
-      // Ensure the guard block predecessors are in a valid loop. After the
-      // change to the control flow hub for common successors, a guard block
-      // predecessor may not be in a loop or may be in an outer loop.
-      for (auto Pred : predecessors(G)) {
-        auto PredLoop = LI.getLoopFor(Pred);
-        if (!ParentLoop->contains(PredLoop)) {
-          if (PredLoop)
-            LI.removeBlock(Pred);
-          ParentLoop->addBasicBlockToLoop(Pred, LI);
-        }
-      }
     }
     ParentLoop->verifyLoop();
   }
@@ -257,7 +213,7 @@ static bool runImpl(LoopInfo &LI, DominatorTree &DT) {
 
   bool Changed = false;
   auto Loops = LI.getLoopsInPreorder();
-  for (auto L : Loops) {
+  for (auto *L : Loops) {
     LLVM_DEBUG(dbgs() << "Loop: " << L->getHeader()->getName() << " (depth: "
                       << LI.getLoopDepth(L->getHeader()) << ")\n");
     Changed |= unifyLoopExits(DT, LI, L);

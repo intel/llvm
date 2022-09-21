@@ -216,10 +216,11 @@ spirv::Deserializer::processMemoryModel(ArrayRef<uint32_t> operands) {
 
   (*module)->setAttr(
       "addressing_model",
-      opBuilder.getI32IntegerAttr(llvm::bit_cast<int32_t>(operands.front())));
-  (*module)->setAttr(
-      "memory_model",
-      opBuilder.getI32IntegerAttr(llvm::bit_cast<int32_t>(operands.back())));
+      opBuilder.getAttr<spirv::AddressingModelAttr>(
+          static_cast<spirv::AddressingModel>(operands.front())));
+  (*module)->setAttr("memory_model",
+                     opBuilder.getAttr<spirv::MemoryModelAttr>(
+                         static_cast<spirv::MemoryModel>(operands.back())));
 
   return success();
 }
@@ -377,7 +378,7 @@ spirv::Deserializer::processFunction(ArrayRef<uint32_t> operands) {
 
   std::string fnName = getFunctionSymbol(fnID);
   auto funcOp = opBuilder.create<spirv::FuncOp>(
-      unknownLoc, fnName, functionType, fnControl.getValue());
+      unknownLoc, fnName, functionType, fnControl.value());
   curFunction = funcMap[fnID] = funcOp;
   auto *entryBlock = funcOp.addEntryBlock();
   LLVM_DEBUG({
@@ -729,6 +730,8 @@ LogicalResult spirv::Deserializer::processType(spirv::Opcode opcode,
     return processCooperativeMatrixType(operands);
   case spirv::Opcode::OpTypeFunction:
     return processFunctionType(operands);
+  case spirv::Opcode::OpTypeJointMatrixINTEL:
+    return processJointMatrixType(operands);
   case spirv::Opcode::OpTypeImage:
     return processImageType(operands);
   case spirv::Opcode::OpTypeSampledImage:
@@ -883,7 +886,41 @@ spirv::Deserializer::processCooperativeMatrixType(ArrayRef<uint32_t> operands) {
   unsigned columns = getConstantInt(operands[4]).getInt();
 
   typeMap[operands[0]] = spirv::CooperativeMatrixNVType::get(
-      elementTy, scope.getValue(), rows, columns);
+      elementTy, scope.value(), rows, columns);
+  return success();
+}
+
+LogicalResult
+spirv::Deserializer::processJointMatrixType(ArrayRef<uint32_t> operands) {
+  if (operands.size() != 6) {
+    return emitError(unknownLoc, "OpTypeJointMatrix must have element "
+                                 "type and row x column parameters");
+  }
+
+  Type elementTy = getType(operands[1]);
+  if (!elementTy) {
+    return emitError(unknownLoc, "OpTypeJointMatrix references undefined <id> ")
+           << operands[1];
+  }
+
+  auto scope = spirv::symbolizeScope(getConstantInt(operands[5]).getInt());
+  if (!scope) {
+    return emitError(unknownLoc,
+                     "OpTypeJointMatrix references undefined scope <id> ")
+           << operands[5];
+  }
+  auto matrixLayout =
+      spirv::symbolizeMatrixLayout(getConstantInt(operands[4]).getInt());
+  if (!matrixLayout) {
+    return emitError(unknownLoc,
+                     "OpTypeJointMatrix references undefined scope <id> ")
+           << operands[4];
+  }
+  unsigned rows = getConstantInt(operands[2]).getInt();
+  unsigned columns = getConstantInt(operands[3]).getInt();
+
+  typeMap[operands[0]] = spirv::JointMatrixINTELType::get(
+      elementTy, scope.value(), rows, columns, matrixLayout.value());
   return success();
 }
 
@@ -1067,8 +1104,8 @@ spirv::Deserializer::processImageType(ArrayRef<uint32_t> operands) {
            << operands[7];
 
   typeMap[operands[0]] = spirv::ImageType::get(
-      elementTy, dim.getValue(), depthInfo.getValue(), arrayedInfo.getValue(),
-      samplingInfo.getValue(), samplerUseInfo.getValue(), format.getValue());
+      elementTy, dim.value(), depthInfo.value(), arrayedInfo.value(),
+      samplingInfo.value(), samplerUseInfo.value(), format.value());
   return success();
 }
 

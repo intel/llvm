@@ -184,7 +184,7 @@ human-readable symbolic form.
     {{{symbol:_ZN7Mangled4NameEv}}}
     {{{symbol:foobar}}}
 
-``{{{pc:%p}}}``, ``{{{pc:%p:ra}}}``, ``{{{pc:%p:pc}}}`` [#not_yet_implemented]_
+``{{{pc:%p}}}``, ``{{{pc:%p:ra}}}``, ``{{{pc:%p:pc}}}``
 
   Here ``%p`` is the memory address of a code location. It might be presented as a
   function name and source location. The second two forms distinguish the kind of
@@ -195,7 +195,7 @@ human-readable symbolic form.
     {{{pc:0x12345678}}}
     {{{pc:0xffffffff9abcdef0}}}
 
-``{{{data:%p}}}`` [#not_yet_implemented]_
+``{{{data:%p}}}``
 
   Here ``%p`` is the memory address of a data location. It might be presented as
   the name of a global variable at that location.
@@ -205,7 +205,7 @@ human-readable symbolic form.
     {{{data:0x12345678}}}
     {{{data:0xffffffff9abcdef0}}}
 
-``{{{bt:%u:%p}}}``, ``{{{bt:%u:%p:ra}}}``, ``{{{bt:%u:%p:pc}}}`` [#not_yet_implemented]_
+``{{{bt:%u:%p}}}``, ``{{{bt:%u:%p:ra}}}``, ``{{{bt:%u:%p:pc}}}``
 
   This represents one frame in a backtrace. It usually appears on a line by
   itself (surrounded only by whitespace), in a sequence of such lines with
@@ -360,7 +360,7 @@ elements should have appeared somewhere earlier in the logging stream. It should
 always be possible for the symbolizing filter to be implemented as a single pass
 over the raw logging stream, accumulating context and massaging text as it goes.
 
-``{{{reset}}}`` [#not_yet_implemented]_
+``{{{reset}}}``
 
   This should be output before any other contextual element. The need for this
   contextual element is to support implementations that handle logs coming from
@@ -372,7 +372,7 @@ over the raw logging stream, accumulating context and massaging text as it goes.
   previous process's contextual elements is not assumed for new process that
   just happens have the same identifying information.
 
-``{{{module:%i:%s:%s:...}}}`` [#not_yet_implemented]_
+``{{{module:%i:%s:%s:...}}}``
 
   This element represents a so-called "module". A "module" is a single linked
   binary, such as a loaded ELF file. Usually each module occupies a contiguous
@@ -399,7 +399,7 @@ over the raw logging stream, accumulating context and massaging text as it goes.
 
     {{{module:1:libc.so:elf:83238ab56ba10497}}}
 
-``{{{mmap:%p:%i:...}}}`` [#not_yet_implemented]_
+``{{{mmap:%p:%i:...}}}``
 
   This contextual element is used to give information about a particular region
   in memory. ``%p`` is the starting address and ``%i`` gives the size in hex of the

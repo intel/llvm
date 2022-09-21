@@ -8,14 +8,15 @@
 
 #include <utility>
 
-#include "mlir/IR/AffineExpr.h"
 #include "AffineExprDetail.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Support/TypeID.h"
 #include "llvm/ADT/STLExtras.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -219,7 +220,7 @@ int64_t AffineExpr::getLargestKnownDivisor() const {
   AffineBinaryOpExpr binExpr(nullptr);
   switch (getKind()) {
   case AffineExprKind::CeilDiv:
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AffineExprKind::DimId:
   case AffineExprKind::FloorDiv:
   case AffineExprKind::SymbolId:
@@ -232,12 +233,11 @@ int64_t AffineExpr::getLargestKnownDivisor() const {
            binExpr.getRHS().getLargestKnownDivisor();
   }
   case AffineExprKind::Add:
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AffineExprKind::Mod: {
     binExpr = cast<AffineBinaryOpExpr>();
-    return llvm::GreatestCommonDivisor64(
-        binExpr.getLHS().getLargestKnownDivisor(),
-        binExpr.getRHS().getLargestKnownDivisor());
+    return std::gcd((uint64_t)binExpr.getLHS().getLargestKnownDivisor(),
+                    (uint64_t)binExpr.getRHS().getLargestKnownDivisor());
   }
   }
   llvm_unreachable("Unknown AffineExpr");
@@ -248,7 +248,7 @@ bool AffineExpr::isMultipleOf(int64_t factor) const {
   uint64_t l, u;
   switch (getKind()) {
   case AffineExprKind::SymbolId:
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AffineExprKind::DimId:
     return factor * factor == 1;
   case AffineExprKind::Constant:
@@ -267,9 +267,8 @@ bool AffineExpr::isMultipleOf(int64_t factor) const {
   case AffineExprKind::CeilDiv:
   case AffineExprKind::Mod: {
     binExpr = cast<AffineBinaryOpExpr>();
-    return llvm::GreatestCommonDivisor64(
-               binExpr.getLHS().getLargestKnownDivisor(),
-               binExpr.getRHS().getLargestKnownDivisor()) %
+    return std::gcd((uint64_t)binExpr.getLHS().getLargestKnownDivisor(),
+                    (uint64_t)binExpr.getRHS().getLargestKnownDivisor()) %
                factor ==
            0;
   }
@@ -974,7 +973,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // Adds entries to `indexToExprMap`, `coefficients` and `indices`.
   auto addEntry = [&](std::pair<unsigned, signed> index, int64_t coefficient,
                       AffineExpr expr) {
-    assert(std::find(indices.begin(), indices.end(), index) == indices.end() &&
+    assert(!llvm::is_contained(indices, index) &&
            "Key is already present in indices vector and overwriting will "
            "happen in `indexToExprMap` and `coefficients`!");
 
@@ -1073,7 +1072,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // Constructing the simplified semi-affine sum of product/division/mod
   // expression from the flattened form in the desired sorted order of indices
   // of the various individual product/division/mod expressions.
-  std::sort(indices.begin(), indices.end());
+  llvm::sort(indices);
   for (const std::pair<unsigned, unsigned> index : indices) {
     assert(indexToExprMap.lookup(index) &&
            "cannot find key in `indexToExprMap` map");
@@ -1201,7 +1200,7 @@ void SimpleAffineExprFlattener::visitModExpr(AffineBinaryOpExpr expr) {
   SmallVector<int64_t, 8> floorDividend(lhs);
   uint64_t gcd = rhsConst;
   for (unsigned i = 0, e = lhs.size(); i < e; i++)
-    gcd = llvm::GreatestCommonDivisor64(gcd, std::abs(lhs[i]));
+    gcd = std::gcd(gcd, (uint64_t)std::abs(lhs[i]));
   // Simplify the numerator and the denominator.
   if (gcd != 1) {
     for (unsigned i = 0, e = floorDividend.size(); i < e; i++)
@@ -1313,7 +1312,7 @@ void SimpleAffineExprFlattener::visitDivExpr(AffineBinaryOpExpr expr,
   // common divisors of the numerator and denominator.
   uint64_t gcd = std::abs(rhsConst);
   for (unsigned i = 0, e = lhs.size(); i < e; i++)
-    gcd = llvm::GreatestCommonDivisor64(gcd, std::abs(lhs[i]));
+    gcd = std::gcd(gcd, (uint64_t)std::abs(lhs[i]));
   // Simplify the numerator and the denominator.
   if (gcd != 1) {
     for (unsigned i = 0, e = lhs.size(); i < e; i++)

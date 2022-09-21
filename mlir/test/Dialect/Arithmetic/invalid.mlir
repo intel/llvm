@@ -110,6 +110,38 @@ func.func @func_with_ops(f32) {
 
 // -----
 
+func.func @func_with_ops(%a: f32) {
+  // expected-error@+1 {{'arith.addui_carry' op operand #0 must be signless-integer-like}}
+  %r:2 = arith.addui_carry %a, %a : f32, i32
+  return
+}
+
+// -----
+
+func.func @func_with_ops(%a: i32) {
+  // expected-error@+1 {{'arith.addui_carry' op result #1 must be bool-like}}
+  %r:2 = arith.addui_carry %a, %a : i32, i32
+  return
+}
+
+// -----
+
+func.func @func_with_ops(%a: vector<8xi32>) {
+  // expected-error@+1 {{'arith.addui_carry' op if an operand is non-scalar, then all results must be non-scalar}}
+  %r:2 = arith.addui_carry %a, %a : vector<8xi32>, i1
+  return
+}
+
+// -----
+
+func.func @func_with_ops(%a: vector<8xi32>) {
+  // expected-error@+1 {{'arith.addui_carry' op all non-scalar operands/results must have the same shape and base type}}
+  %r:2 = arith.addui_carry %a, %a : vector<8xi32>, tensor<8xi1>
+  return
+}
+
+// -----
+
 func.func @func_with_ops(i32) {
 ^bb0(%a : i32):
   %sf = arith.addf %a, %a : i32  // expected-error {{'arith.addf' op operand #0 must be floating-point-like}}
@@ -712,4 +744,12 @@ func.func @bitcast_fl_to_scalable(%arg0 : vector<4xf32>) {
   // expected-error@+1 {{'arith.bitcast' op requires the same shape for all operands and results}}
   %0 = arith.bitcast %arg0 : vector<4xf32> to vector<[4]xi32>
   return
+}
+
+// -----
+
+func.func @func() {
+  %c0 = arith.constant  // expected-error {{expected attribute value}}
+
+  %x = arith.constant 1 : i32
 }

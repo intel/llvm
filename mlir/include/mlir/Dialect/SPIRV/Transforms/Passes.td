@@ -12,14 +12,14 @@
 include "mlir/Pass/PassBase.td"
 
 def SPIRVCompositeTypeLayout
-    : Pass<"decorate-spirv-composite-type-layout", "ModuleOp"> {
+    : Pass<"decorate-spirv-composite-type-layout", "mlir::ModuleOp"> {
   let summary = "Decorate SPIR-V composite type with layout info";
   let constructor = "mlir::spirv::createDecorateSPIRVCompositeTypeLayoutPass()";
 }
 
-def SPIRVCanonicalizeGLSL : Pass<"spirv-canonicalize-glsl", ""> {
+def SPIRVCanonicalizeGL : Pass<"spirv-canonicalize-gl", ""> {
   let summary = "Run canonicalization involving GLSL ops";
-  let constructor = "mlir::spirv::createCanonicalizeGLSLPass()";
+  let constructor = "mlir::spirv::createCanonicalizeGLPass()";
 }
 
 def SPIRVLowerABIAttributes : Pass<"spirv-lower-abi-attrs", "spirv::ModuleOp"> {

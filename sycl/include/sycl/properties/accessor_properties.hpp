@@ -14,8 +14,8 @@
 #include <sycl/properties/property_traits.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -48,7 +48,7 @@ constexpr const auto &noinit __SYCL2020_DEPRECATED("spelling is now: no_init") =
 namespace ext {
 namespace intel {
 namespace property {
-struct buffer_location {
+struct __SYCL_TYPE(buffer_location) buffer_location {
   template <int A = 0> struct instance {
     template <int B>
     constexpr bool operator==(const buffer_location::instance<B> &) const {
@@ -82,7 +82,7 @@ struct no_offset {
     }
   };
 };
-struct no_alias {
+struct __SYCL_TYPE(no_alias) no_alias {
   template <bool B = true> struct instance {
     constexpr bool operator==(const no_alias::instance<B> &) const {
       return true;
@@ -96,8 +96,8 @@ struct no_alias {
 
 #if __cplusplus >= 201703L
 
-inline constexpr property::no_offset::instance no_offset;
-inline constexpr property::no_alias::instance no_alias;
+inline constexpr property::no_offset::instance<> no_offset;
+inline constexpr property::no_alias::instance<> no_alias;
 
 #endif
 
@@ -203,5 +203,5 @@ template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

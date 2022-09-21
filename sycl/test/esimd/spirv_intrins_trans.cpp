@@ -20,7 +20,7 @@ size_t caller() {
   uint32_t DoNotOpt32[1];
   size_t DoNotOptXYZ[3];
 
-  cl::sycl::queue().submit([&](cl::sycl::handler &cgh) {
+  sycl::queue().submit([&](sycl::handler &cgh) {
     auto DoNotOptimize = &DoNotOpt[0];
     auto DoNotOptimize32 = &DoNotOpt32[0];
 

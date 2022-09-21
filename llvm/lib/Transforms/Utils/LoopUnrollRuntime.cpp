@@ -30,6 +30,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -217,7 +218,7 @@ static void ConnectEpilog(Loop *L, Value *ModVal, BasicBlock *NewExit,
   for (PHINode &PN : NewExit->phis()) {
     // PN should be used in another PHI located in Exit block as
     // Exit was split by SplitBlockPredecessors into Exit and NewExit
-    // Basicaly it should look like:
+    // Basically it should look like:
     // NewExit:
     //   PN = PHI [I, Latch]
     // ...
@@ -402,7 +403,7 @@ CloneLoopBlocks(Loop *L, Value *NewIter, const bool UseEpilogRemainder,
   Optional<MDNode *> NewLoopID = makeFollowupLoopID(
       LoopID, {LLVMLoopUnrollFollowupAll, LLVMLoopUnrollFollowupRemainder});
   if (NewLoopID) {
-    NewLoop->setLoopID(NewLoopID.getValue());
+    NewLoop->setLoopID(NewLoopID.value());
 
     // Do not setLoopAlreadyUnrolled if loop attributes have been defined
     // explicitly.
@@ -471,7 +472,7 @@ static void updateLatchBranchWeightsForRemainderLoop(Loop *OrigLoop,
   uint64_t TrueWeight, FalseWeight;
   BranchInst *LatchBR =
       cast<BranchInst>(OrigLoop->getLoopLatch()->getTerminator());
-  if (!LatchBR->extractProfMetadata(TrueWeight, FalseWeight))
+  if (!extractBranchWeights(*LatchBR, TrueWeight, FalseWeight))
     return;
   uint64_t ExitWeight = LatchBR->getSuccessor(0) == OrigLoop->getHeader()
                             ? FalseWeight

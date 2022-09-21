@@ -64,9 +64,6 @@
 //   - SANITIZER_DRIVERKIT
 #if defined(__APPLE__)
 #  define SANITIZER_APPLE 1
-// SANITIZER_MAC will be deprecated/removed in the future
-#  define SANITIZER_MAC \
-     error "SANITIZER_MAC will be removed, please use SANITIZER_APPLE"
 #  include <TargetConditionals.h>
 #  if TARGET_OS_OSX
 #    define SANITIZER_OSX 1
@@ -93,15 +90,13 @@
 #  else
 #    define SANITIZER_IOSSIM 0
 #  endif
-#  if TARGET_OS_DRIVERKIT
+#  if defined(TARGET_OS_DRIVERKIT) && TARGET_OS_DRIVERKIT
 #    define SANITIZER_DRIVERKIT 1
 #  else
 #    define SANITIZER_DRIVERKIT 0
 #  endif
 #else
 #  define SANITIZER_APPLE 0
-#  define SANITIZER_MAC \
-     error "SANITIZER_MAC will be removed, please use SANITIZER_APPLE"
 #  define SANITIZER_OSX 0
 #  define SANITIZER_IOS 0
 #  define SANITIZER_WATCHOS 0
@@ -275,6 +270,12 @@
 #  define SANITIZER_RISCV64 1
 #else
 #  define SANITIZER_RISCV64 0
+#endif
+
+#if defined(__loongarch_lp64)
+#  define SANITIZER_LOONGARCH64 1
+#else
+#  define SANITIZER_LOONGARCH64 0
 #endif
 
 // By default we allow to use SizeClassAllocator64 on 64-bit platform.

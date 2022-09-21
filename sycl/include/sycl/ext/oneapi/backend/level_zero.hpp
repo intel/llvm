@@ -9,12 +9,11 @@
 #pragma once
 
 #include <sycl/backend.hpp>
-#include <sycl/program.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
@@ -27,10 +26,6 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool keep_ownership = false);
-#ifdef __SYCL_INTERNAL_API
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle);
-#endif
 __SYCL_DEPRECATED("Use make_queue with device parameter")
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle,
@@ -82,18 +77,6 @@ T make(const std::vector<device> &DeviceList,
                       Ownership == ownership::keep);
 }
 
-// Construction of SYCL program.
-#ifdef __SYCL_INTERNAL_API
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, program>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
-T make(const context &Context,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop) {
-  return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
-}
-#endif
-
 // Construction of SYCL queue.
 template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
@@ -140,9 +123,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
-  const device Device = detail::OptionalDeviceHasDevice(BackendObject.Device)
-                            ? device{BackendObject.Device}
-                            : TargetContext.get_devices()[0];
+  const device Device = device{BackendObject.Device};
   return ext::oneapi::level_zero::make_queue(
       TargetContext, Device,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
@@ -193,7 +174,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 
 // Specialization of sycl::make_buffer with event for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = detail::default_buffer_allocator<T>>
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
@@ -208,7 +189,7 @@ make_buffer(
 
 // Specialization of sycl::make_buffer for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = detail::default_buffer_allocator<T>>
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
 typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
@@ -221,25 +202,10 @@ make_buffer(
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
-// TODO: remove this specialization when generic is changed to call
-// .GetNative() instead of .get_native() member of kernel_bundle.
-template <>
-inline auto get_native<backend::ext_oneapi_level_zero>(
-    const kernel_bundle<bundle_state::executable> &Obj)
-    -> backend_return_t<backend::ext_oneapi_level_zero,
-                        kernel_bundle<bundle_state::executable>> {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::ext_oneapi_level_zero)
-    throw runtime_error(errc::backend_mismatch, "Backends mismatch",
-                        PI_ERROR_INVALID_OPERATION);
-
-  return Obj.template getNative<backend::ext_oneapi_level_zero>();
-}
-
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
-  using namespace ext::oneapi::level_zero;
+using namespace ext::oneapi::level_zero;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

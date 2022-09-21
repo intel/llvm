@@ -1246,7 +1246,7 @@ class llvm::vfs::RedirectingFSDirIterImpl
       sys::fs::file_type Type = sys::fs::file_type::type_unknown;
       switch ((*Current)->getKind()) {
       case RedirectingFileSystem::EK_Directory:
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case RedirectingFileSystem::EK_DirectoryRemap:
         Type = sys::fs::file_type::directory_file;
         break;
@@ -2669,13 +2669,13 @@ void JSONWriter::write(ArrayRef<YAMLVFSEntry> Entries,
         "  'version': 0,\n";
   if (IsCaseSensitive)
     OS << "  'case-sensitive': '"
-       << (IsCaseSensitive.getValue() ? "true" : "false") << "',\n";
+       << (IsCaseSensitive.value() ? "true" : "false") << "',\n";
   if (UseExternalNames)
     OS << "  'use-external-names': '"
-       << (UseExternalNames.getValue() ? "true" : "false") << "',\n";
+       << (UseExternalNames.value() ? "true" : "false") << "',\n";
   bool UseOverlayRelative = false;
   if (IsOverlayRelative) {
-    UseOverlayRelative = IsOverlayRelative.getValue();
+    UseOverlayRelative = IsOverlayRelative.value();
     OS << "  'overlay-relative': '" << (UseOverlayRelative ? "true" : "false")
        << "',\n";
   }

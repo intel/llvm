@@ -2970,7 +2970,7 @@ public:
           << MatchTable::IntValue(RendererID);
     if (SubOperand)
       Table << MatchTable::Comment("SubOperand")
-            << MatchTable::IntValue(SubOperand.getValue());
+            << MatchTable::IntValue(SubOperand.value());
     Table << MatchTable::Comment(SymbolicName) << MatchTable::LineBreak;
   }
 };
@@ -3135,7 +3135,7 @@ public:
             << MatchTable::LineBreak;
 
       if (!I->ImplicitDefs.empty() || !I->ImplicitUses.empty()) {
-        for (auto Def : I->ImplicitDefs) {
+        for (auto *Def : I->ImplicitDefs) {
           auto Namespace = Def->getValue("Namespace")
                                ? Def->getValueAsString("Namespace")
                                : "";
@@ -3144,7 +3144,7 @@ public:
                 << MatchTable::NamedValue(Namespace, Def->getName())
                 << MatchTable::LineBreak;
         }
-        for (auto Use : I->ImplicitUses) {
+        for (auto *Use : I->ImplicitUses) {
           auto Namespace = Use->getValue("Namespace")
                                ? Use->getValueAsString("Namespace")
                                : "";
@@ -3785,10 +3785,12 @@ GlobalISelEmitter::getEquivNode(Record &Equiv, const TreePatternNode *N) const {
 
   for (const TreePredicateCall &Call : N->getPredicateCalls()) {
     const TreePredicateFn &Predicate = Call.Fn;
-    if (!Equiv.isValueUnset("IfSignExtend") && Predicate.isLoad() &&
+    if (!Equiv.isValueUnset("IfSignExtend") &&
+        (Predicate.isLoad() || Predicate.isAtomic()) &&
         Predicate.isSignExtLoad())
       return &Target.getInstruction(Equiv.getValueAsDef("IfSignExtend"));
-    if (!Equiv.isValueUnset("IfZeroExtend") && Predicate.isLoad() &&
+    if (!Equiv.isValueUnset("IfZeroExtend") &&
+        (Predicate.isLoad() || Predicate.isAtomic()) &&
         Predicate.isZeroExtLoad())
       return &Target.getInstruction(Equiv.getValueAsDef("IfZeroExtend"));
   }
@@ -4005,8 +4007,10 @@ Expected<InstructionMatcher &> GlobalISelEmitter::createAndImportSelDAGMatcher(
   for (const TypeSetByHwMode &VTy : Src->getExtTypes()) {
     // Results don't have a name unless they are the root node. The caller will
     // set the name if appropriate.
+    const bool OperandIsAPointer =
+        SrcGIOrNull && SrcGIOrNull->isOutOperandAPointer(OpIdx);
     OperandMatcher &OM = InsnMatcher.addOperand(OpIdx++, "", TempOpIdx);
-    if (auto Error = OM.addTypeCheckPredicate(VTy, false /* OperandIsAPointer */))
+    if (auto Error = OM.addTypeCheckPredicate(VTy, OperandIsAPointer))
       return failedImport(toString(std::move(Error)) +
                           " for result of Src pattern operator");
   }
@@ -4154,13 +4158,13 @@ Expected<InstructionMatcher &> GlobalISelEmitter::createAndImportSelDAGMatcher(
       // argument that is required to be an immediate, we should not emit an LLT
       // type check, and should not be looking for a G_CONSTANT defined
       // register.
-      bool OperandIsImmArg = SrcGIOrNull->isOperandImmArg(i);
+      bool OperandIsImmArg = SrcGIOrNull->isInOperandImmArg(i);
 
       // SelectionDAG allows pointers to be represented with iN since it doesn't
       // distinguish between pointers and integers but they are different types in GlobalISel.
       // Coerce integers to pointers to address space 0 if the context indicates a pointer.
       //
-      bool OperandIsAPointer = SrcGIOrNull->isOperandAPointer(i);
+      bool OperandIsAPointer = SrcGIOrNull->isInOperandAPointer(i);
 
       if (IsIntrinsic) {
         // For G_INTRINSIC/G_INTRINSIC_W_SIDE_EFFECTS, the operand immediately
@@ -4534,7 +4538,7 @@ Expected<action_iterator> GlobalISelEmitter::importExplicitUseRenderer(
     if (ChildTypes.size() != 1)
       return failedImport("Dst pattern child has multiple results");
 
-    Optional<LLTCodeGen> OpTyOrNone = None;
+    Optional<LLTCodeGen> OpTyOrNone;
     if (ChildTypes.front().isMachineValueType())
       OpTyOrNone = MVTToLLT(ChildTypes.front().getMachineValueType().SimpleTy);
     if (!OpTyOrNone)
@@ -4966,7 +4970,7 @@ Error GlobalISelEmitter::importDefaultOperandRenderers(
     action_iterator InsertPt, RuleMatcher &M, BuildMIAction &DstMIBuilder,
     DagInit *DefaultOps) const {
   for (const auto *DefaultOp : DefaultOps->getArgs()) {
-    Optional<LLTCodeGen> OpTyOrNone = None;
+    Optional<LLTCodeGen> OpTyOrNone;
 
     // Look through ValueType operators.
     if (const DagInit *DefaultDagOp = dyn_cast<DagInit>(DefaultOp)) {
@@ -4984,8 +4988,8 @@ Error GlobalISelEmitter::importDefaultOperandRenderers(
       auto Def = DefaultDefOp->getDef();
       if (Def->getName() == "undef_tied_input") {
         unsigned TempRegID = M.allocateTempRegID();
-        M.insertAction<MakeTempRegisterAction>(
-          InsertPt, OpTyOrNone.getValue(), TempRegID);
+        M.insertAction<MakeTempRegisterAction>(InsertPt, OpTyOrNone.value(),
+                                               TempRegID);
         InsertPt = M.insertAction<BuildMIAction>(
           InsertPt, M.allocateOutputInsnID(),
           &Target.getInstruction(RK.getDef("IMPLICIT_DEF")));

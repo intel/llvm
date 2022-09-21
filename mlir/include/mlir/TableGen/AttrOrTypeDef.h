@@ -37,6 +37,9 @@ class AttrOrTypeBuilder : public Builder {
 public:
   using Builder::Builder;
 
+  /// Returns an optional builder return type.
+  Optional<StringRef> getReturnType() const;
+
   /// Returns true if this builder is able to infer the MLIRContext parameter.
   bool hasInferredContextParameter() const;
 };
@@ -197,6 +200,9 @@ public:
 
   /// Returns the def's extra class declaration code.
   Optional<StringRef> getExtraDecls() const;
+
+  /// Returns the def's extra class definition code.
+  Optional<StringRef> getExtraDefs() const;
 
   /// Get the code location (for error printing).
   ArrayRef<SMLoc> getLoc() const;

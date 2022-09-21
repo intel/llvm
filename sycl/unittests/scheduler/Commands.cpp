@@ -12,7 +12,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 pi_result redefinePiEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                                  pi_uint32 NumEventsInWaitList,
@@ -50,22 +50,14 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // }
 //
 TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
-  // NB! This test requires at least one non-host environmet
-  // For example, OpenCL.
-  default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
-
-  platform Plt{Selector};
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   Mock.redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
       redefinePiEnqueueEventsWaitWithBarrier);
 
   queue Queue{Plt.get_devices()[0]};
-  cl::sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();

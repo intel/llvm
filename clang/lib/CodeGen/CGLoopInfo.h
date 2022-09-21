@@ -134,6 +134,9 @@ struct LoopAttributes {
   /// Value for llvm.loop.intel.speculated.iterations.count metadata.
   llvm::Optional<unsigned> SYCLSpeculatedIterationsNIterations;
 
+  // Value for llvm.loop.intel.max_reinvocation_delay metadata.
+  llvm::Optional<unsigned> SYCLMaxReinvocationDelayNCycles;
+
   /// llvm.unroll.
   unsigned UnrollCount;
 
@@ -151,10 +154,6 @@ struct LoopAttributes {
 
   /// Flag for llvm.loop.fusion.disable metatdata.
   bool SYCLNofusionEnable;
-
-  /// Value for fpga_pipeline variant and metadata.
-  llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
-      SYCLIntelFPGAPipeline;
 
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
@@ -411,13 +410,13 @@ public:
   /// Set flag of nofusion for the next loop pushed.
   void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
 
-  /// Set variant and value of fpga_pipeline for the next loop pushed.
-  void setSYCLIntelFPGAPipeline(const char *Var, unsigned int Value) {
-    StagedAttrs.SYCLIntelFPGAPipeline.push_back({Var, Value});
-  }
-
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }
+
+  /// Set value of max reinvocation delay for the next loop pushed.
+  void setSYCLMaxReinvocationDelayNCycles(unsigned C) {
+    StagedAttrs.SYCLMaxReinvocationDelayNCycles = C;
+  }
 
 private:
   /// Returns true if there is LoopInfo on the stack.

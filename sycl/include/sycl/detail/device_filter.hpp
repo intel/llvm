@@ -10,13 +10,13 @@
 
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/info/info_desc.hpp>
 
-#include <iostream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 struct device_filter {
@@ -46,7 +46,6 @@ public:
   bool backendCompatible(backend Backend);
   bool deviceTypeCompatible(info::device_type DeviceType);
   bool deviceNumberCompatible(int DeviceNum);
-  bool containsHost();
   friend std::ostream &operator<<(std::ostream &Out,
                                   const device_filter_list &List);
 };
@@ -83,5 +82,5 @@ inline std::ostream &operator<<(std::ostream &Out,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

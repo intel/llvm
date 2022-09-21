@@ -13,6 +13,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/PDL/IR/PDLTypes.td"
+include "mlir/Dialect/Transform/IR/TransformAttrs.td"
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
 include "mlir/Dialect/Transform/IR/TransformEffects.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
@@ -38,7 +39,7 @@ def AlternativesOp : TransformDialectOp<"alternatives",
     "alternatives" transformation fails.
 
     It is up to the nested operations to define which errors are "recoverable"
-    (or "silencable") and allow another alternatives to be attempted, and which
+    (or "silenceable") and allow another alternatives to be attempted, and which
     errors should be propagated without attempting the other alternatives.
 
     The single operand of this operation is the scope in which the alternative
@@ -51,7 +52,7 @@ def AlternativesOp : TransformDialectOp<"alternatives",
     irrecoverable error and thus abort the execution without attempting the
     remaining alternatives. Note that the payload IR outside of the given scope
     is not necessarily in the valid state, or even accessible to the
-    tranfsormation.
+    transformation.
     
     The changes to the IR within the scope performed by transforms in the failed
     alternative region are reverted before attempting the next region.
@@ -79,7 +80,7 @@ def AlternativesOp : TransformDialectOp<"alternatives",
       transform.yield %0 : !pdl.operation
     }, {
     ^bb0(%arg0: !pdl.operation):
-      // Otherwise, the second alternative is tried and it always succeeeds by
+      // Otherwise, the second alternative is tried and it always succeeds by
       // returning the original handle.
       transform.yield %arg0 : !pdl.operation
     }
@@ -95,6 +96,53 @@ def AlternativesOp : TransformDialectOp<"alternatives",
   let hasVerifier = 1;
 }
 
+def ForeachOp : TransformDialectOp<"foreach",
+    [DeclareOpInterfaceMethods<TransformOpInterface>,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     DeclareOpInterfaceMethods<RegionBranchOpInterface, [
+         "getSuccessorRegions", "getSuccessorEntryOperands"]>,
+     SingleBlockImplicitTerminator<"::mlir::transform::YieldOp">
+    ]> {
+  let summary = "Executes the body for each payload op";
+  let description = [{
+    This op has exactly one region with exactly one block ("body"). The body is
+    executed for each payload op that is associated to the target operand in an
+    unbatched fashion. I.e., the block argument ("iteration variable") is always
+    mapped to exactly one payload op.
+
+    This op always reads the target handle. Furthermore, it consumes the handle
+    if there is a transform op in the body that consumes the iteration variable.
+    This op does not return anything.
+
+    The transformations inside the body are applied in order of their
+    appearance. During application, if any transformation in the sequence fails,
+    the entire sequence fails immediately leaving the payload IR in potentially
+    invalid state, i.e., this operation offers no transformation rollback
+    capabilities.
+
+    This op generates as many handles as the terminating YieldOp has operands.
+    For each result, the payload ops of the corresponding YieldOp operand are
+    merged and mapped to the same resulting handle.
+  }];
+
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs Variadic<PDL_Operation>:$results);
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "$target (`->` type($results)^)? $body attr-dict";
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    /// Allow the dialect prefix to be omitted.
+    static StringRef getDefaultDialect() { return "transform"; }
+
+    BlockArgument getIterationVariable() {
+      return getBody().front().getArgument(0);
+    }
+
+    transform::YieldOp getYieldOp();
+  }];
+}
+
 def GetClosestIsolatedParentOp : TransformDialectOp<"get_closest_isolated_parent",
     [DeclareOpInterfaceMethods<TransformOpInterface>,
      NavigationTransformOpTrait, MemoryEffectsOpInterface]> {
@@ -106,8 +154,8 @@ def GetClosestIsolatedParentOp : TransformDialectOp<"get_closest_isolated_parent
     there usually is a top-level ModuleOp), the transformation is considered to
     have failed.
 
-    Ancestor ops follow the same order as the ops assocaited with the
-    operand, except for potential duplicates (multiple Payload IR ops assocaited
+    Ancestor ops follow the same order as the ops associated with the
+    operand, except for potential duplicates (multiple Payload IR ops associated
     with the operand have the same parent) for which the ancestor will only be
     listed once for the first time it occurs. For example, given the list
     "(childof(A), childof(B), childof(B), childof(A), childof(B))", the
@@ -154,11 +202,11 @@ def PDLMatchOp : TransformDialectOp<"pdl_match",
     Produces a Transform IR value associated with the list of Payload IR ops
     that matched the pattern. The order of results in the list is that of the
     Operation::walk, clients are advised not to rely on a specific order though.
-    If the operand is assocaited with multiple Payload IR ops, finds matching
+    If the operand is associated with multiple Payload IR ops, finds matching
     ops nested within each of those and produces a single list containing all
     of the matched ops.
 
-    The tranfsormation is considered successful regardless of whether some
+    The transformation is considered successful regardless of whether some
     Payload IR ops actually matched the pattern and only fails if the pattern
     could not be looked up or compiled.
   }];
@@ -174,6 +222,42 @@ def PDLMatchOp : TransformDialectOp<"pdl_match",
   let assemblyFormat = "$pattern_name `in` $root attr-dict";
 }
 
+def ReplicateOp : TransformDialectOp<"replicate",
+    [DeclareOpInterfaceMethods<TransformOpInterface>,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Lists payload ops multiple times in the new handle";
+  let description = [{
+    Produces a new handle associated with a list of payload IR ops that is
+    computed by repeating the list of payload IR ops associated with the
+    operand handle as many times as the "pattern" handle has associated
+    operations. For example, if pattern is associated with [op1, op2] and the
+    operand handle is associated with [op3, op4, op5], the resulting handle
+    will be associated with [op3, op4, op5, op3, op4, op5].
+
+    This transformation is useful to "align" the sizes of payload IR lists
+    before a transformation that expects, e.g., identically-sized lists. For
+    example, a transformation may be parameterized by same notional per-target 
+    size computed at runtime and supplied as another handle, the replication
+    allows this size to be computed only once and used for every target instead
+    of replicating the computation itself.
+
+    Note that it is undesirable to pass a handle with duplicate operations to
+    an operation that consumes the handle. Handle consumption often indicates
+    that the associated payload IR ops are destroyed, so having the same op
+    listed more than once will lead to double-free. Single-operand
+    MergeHandlesOp may be used to deduplicate the associated list of payload IR
+    ops when necessary. Furthermore, a combination of ReplicateOp and
+    MergeHandlesOp can be used to construct arbitrary lists with repetitions.
+  }];
+
+  let arguments = (ins PDL_Operation:$pattern,
+                       Variadic<PDL_Operation>:$handles);
+  let results = (outs Variadic<PDL_Operation>:$replicated);
+  let assemblyFormat =
+    "`num` `(` $pattern `)` $handles "
+    "custom<PDLOpTypedResults>(type($replicated), ref($handles)) attr-dict";
+}
+
 def SequenceOp : TransformDialectOp<"sequence",
     [DeclareOpInterfaceMethods<RegionBranchOpInterface,
         ["getSuccessorEntryOperands", "getSuccessorRegions",
@@ -187,9 +271,20 @@ def SequenceOp : TransformDialectOp<"sequence",
     The transformations indicated by the sequence are applied in order of their
     appearance. Each value produced by a transformation within the sequence
     corresponds to an operation or a group of operations in the payload IR.
-    During application, if any transformation in the sequence fails, the entire
-    sequence fails immediately leaving the payload IR in potentially invalid
-    state, i.e., this operation offers no transformation rollback capabilities.
+    The behavior of the operation when a nested transformation produces a
+    silenceable error is controlled by the `failure_propagation_mode` attribute.
+    When set to `propagate`, the failure of any nested transformation in the
+    sequence implies immediate failure of the entire sequence with a silenceable
+    error, and no further transformation is attempted. When set to `suppress`,
+    silenceable errors in nested operations are ignored and further
+    transformations are applied. Beware that even silenceable errors may leave
+    the payload IR in a state unsuitable for further transformations. It is
+    the responsibility of the caller to ensure the following transformations
+    are robust enough when errors are suppressed. Definite errors reported by
+    nested transformations abort the sequence regardless of the propagation
+    mode. The set of modes may be extended in the future, e.g., to collect
+    silenceable errors and report them after attempting all transformations in
+    the sequence.
 
     The entry block of this operation has a single argument that maps to either
     the operand if provided or the top-level container operation of the payload
@@ -198,12 +293,13 @@ def SequenceOp : TransformDialectOp<"sequence",
     another sequence.
   }];
 
-  let arguments = (ins Optional<PDL_Operation>:$root);
+  let arguments = (ins FailurePropagationMode:$failure_propagation_mode,
+                       Optional<PDL_Operation>:$root);
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$body);
 
   let assemblyFormat =
-    "($root^)? attr-dict-with-keyword regions (`:` type($results)^)?";
+    "($root^)? `failures` `(` $failure_propagation_mode `)` attr-dict-with-keyword regions (`:` type($results)^)?";
 
   let extraClassDeclaration = [{
     /// Allow the dialect prefix to be omitted.
@@ -233,7 +329,7 @@ def WithPDLPatternsOp : TransformDialectOp<"with_pdl_patterns",
         pdl.rewrite %0 with "transform.dialect"
       }
 
-      sequence %arg0 {
+      sequence %arg0 failures(propagate) {
       ^bb0(%arg1: !pdl.operation):
         %1 = pdl_match @my_pattern in %arg1
         // Use %1 as handle
@@ -276,7 +372,7 @@ def YieldOp : TransformDialectOp<"yield", [Terminator]> {
   }];
 
   let arguments = (ins 
-    Arg<Variadic<AnyType>, "Opration handles yielded back to the parent",
+    Arg<Variadic<AnyType>, "Operation handles yielded back to the parent",
         [TransformMappingRead]>:$operands);
   let assemblyFormat = "operands attr-dict (`:` type($operands)^)?";
 

@@ -11,8 +11,8 @@
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/properties/property_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace property {
 namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
@@ -26,16 +26,16 @@ namespace oneapi {
 
 namespace property {
 namespace queue {
-class discard_events : public ::cl::sycl::detail::DataLessProperty<
-                           ::cl::sycl::detail::DiscardEvents> {};
+class discard_events
+    : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 } // namespace queue
 } // namespace property
 
 namespace cuda {
 namespace property {
 namespace queue {
-class use_default_stream : public ::cl::sycl::detail::DataLessProperty<
-                               ::cl::sycl::detail::UseDefaultStream> {};
+class use_default_stream : public ::sycl::detail::DataLessProperty<
+                               ::sycl::detail::UseDefaultStream> {};
 } // namespace queue
 } // namespace property
 } // namespace cuda
@@ -46,8 +46,8 @@ namespace property {
 namespace queue {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::queue' instead") cuda {
-class use_default_stream : public ::cl::sycl::ext::oneapi::cuda::property::
-                               queue::use_default_stream {};
+class use_default_stream
+    : public ::sycl::ext::oneapi::cuda::property::queue::use_default_stream {};
 // clang-format off
 } // namespace cuda
 // clang-format on
@@ -86,5 +86,5 @@ template <>
 struct is_property_of<ext::oneapi::cuda::property::queue::use_default_stream,
                       queue> : std::true_type {};
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

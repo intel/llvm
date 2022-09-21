@@ -68,7 +68,7 @@ def lto_O: Joined<["--"], "lto-O">,
     HelpText<"Set optimization level for LTO (default: 2)">,
     MetaVarName<"<opt-level>">,
     Group<grp_lld>;
-def thinlto_cache_policy: Joined<["--"], "thinlto-cache-policy=">,
+def thinlto_cache_policy_eq: Joined<["--"], "thinlto-cache-policy=">,
     HelpText<"Pruning policy for the ThinLTO cache">,
     Group<grp_lld>;
 def O : JoinedOrSeparate<["-"], "O">,
@@ -77,11 +77,11 @@ def start_lib: Flag<["--"], "start-lib">,
     HelpText<"Start a grouping of objects that should be treated as if they were together in an archive">;
 def end_lib: Flag<["--"], "end-lib">,
     HelpText<"End a grouping of objects that should be treated as if they were together in an archive">;
-def no_warn_dylib_install_name: Joined<["--"], "no-warn-dylib-install-name">,
-    HelpText<"Do not warn on -install-name if -dylib is not passed (default)">,
+def no_warn_dylib_install_name: Flag<["--"], "no-warn-dylib-install-name">,
+    HelpText<"Do not warn on -install_name if -dylib is not passed (default)">,
     Group<grp_lld>;
-def warn_dylib_install_name: Joined<["--"], "warn-dylib-install-name">,
-    HelpText<"Warn on -install-name if -dylib is not passed">,
+def warn_dylib_install_name: Flag<["--"], "warn-dylib-install-name">,
+    HelpText<"Warn on -install_name if -dylib is not passed">,
     Group<grp_lld>;
 def call_graph_profile_sort: Flag<["--"], "call-graph-profile-sort">,
     HelpText<"Reorder sections with call graph profile (default)">,
@@ -89,7 +89,7 @@ def call_graph_profile_sort: Flag<["--"], "call-graph-profile-sort">,
 def no_call_graph_profile_sort : Flag<["--"], "no-call-graph-profile-sort">,
     HelpText<"Do not reorder sections with call graph profile">,
     Group<grp_lld>;
-def print_symbol_order: Joined<["--"], "print-symbol-order=">,
+def print_symbol_order_eq: Joined<["--"], "print-symbol-order=">,
     HelpText<"Print a symbol order specified by --call-graph-profile-sort into the specified file">,
     Group<grp_lld>;
 
@@ -240,6 +240,14 @@ def force_load : Separate<["-"], "force_load">,
 def force_load_swift_libs : Flag<["-"], "force_load_swift_libs">,
     HelpText<"Apply -force_load to libraries listed in LC_LINKER_OPTIONS whose names start with 'swift'">,
     Group<grp_libs>;
+def load_hidden : Separate<["-"], "load_hidden">,
+    MetaVarName<"<path>">,
+    HelpText<"Load all symbols from static library with hidden visibility">,
+    Group<grp_libs>;
+def hidden_l : Joined<["-"], "hidden-l">,
+    MetaVarName<"<name>">,
+    HelpText<"Like -l<name>, but load all symbols with hidden visibility">,
+    Group<grp_libs>;
 
 def grp_content : OptionGroup<"content">, HelpText<"ADDITIONAL CONTENT">;
 
@@ -315,7 +323,7 @@ def no_branch_islands : Flag<["-"], "no_branch_islands">,
     Flags<[HelpHidden]>,
     Group<grp_opts>;
 def no_deduplicate : Flag<["-"], "no_deduplicate">,
-    HelpText<"Disable code deduplicaiton (synonym for `--icf=none')">,
+    HelpText<"Disable code deduplication (synonym for `--icf=none')">,
     Alias<icf_eq>, AliasArgs<["none"]>,
     Group<grp_opts>;
 
@@ -505,7 +513,6 @@ def reexported_symbols_list : Separate<["-"], "reexported_symbols_list">,
 def alias : MultiArg<["-"], "alias", 2>,
     MetaVarName<"<symbol_name> <alternate_name>">,
     HelpText<"Create a symbol alias with default global visibility">,
-    Flags<[HelpHidden]>,
     Group<grp_resolve>;
 def alias_list : Separate<["-"], "alias_list">,
     MetaVarName<"<file>">,
@@ -971,6 +978,12 @@ def mcpu : Separate<["-"], "mcpu">,
 def no_dtrace_dof : Flag<["-"], "no_dtrace_dof">,
     HelpText<"Disable dtrace-dof processing (default).">,
     Group<grp_rare>;
+def objc_stubs_fast : Flag<["-"], "objc_stubs_fast">,
+    HelpText<"Produce larger stubs for Objective-C method calls with fewer jumps (default).">,
+    Group<grp_rare>;
+def objc_stubs_small : Flag<["-"], "objc_stubs_small">,
+    HelpText<"Produce smaller stubs for Objective-C method calls with more jumps.">,
+    Group<grp_rare>;
 
 def grp_deprecated : OptionGroup<"deprecated">, HelpText<"DEPRECATED">;
 
@@ -1175,7 +1188,7 @@ def allow_simulator_linking_to_macosx_dylibs : Flag<["-"], "allow_simulator_link
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def bitcode_process_mode : Flag<["-"], "bitcode_process_mode">,
+def bitcode_process_mode : Separate<["-"], "bitcode_process_mode">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
@@ -1260,8 +1273,7 @@ def ignore_optimization_hints : Flag<["-"], "ignore_optimization_hints">,
     HelpText<"Ignore Linker Optimization Hints">,
     Group<grp_undocumented>;
 def init_offsets : Flag<["-"], "init_offsets">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Store __TEXT segment offsets of static initializers">,
     Group<grp_undocumented>;
 def keep_dwarf_unwind : Flag<["-"], "keep_dwarf_unwind">,
     HelpText<"This option is undocumented in ld64">,

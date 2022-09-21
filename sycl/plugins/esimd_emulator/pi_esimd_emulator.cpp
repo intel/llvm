@@ -14,8 +14,8 @@
 
 #include <stdint.h>
 
+#include <detail/accessor_impl.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -35,6 +35,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -624,7 +625,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValue("cl_khr_fp64");
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(Device->VersionStr.c_str());
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
@@ -1116,8 +1117,8 @@ _pi_mem::~_pi_mem() {
     Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
   }
 
-  cl::sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
-                                  "Surface Deletion Failure from CM_EMU");
+  sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
+                              "Surface Deletion Failure from CM_EMU");
 
   for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
     mapit = Mappings.erase(mapit);

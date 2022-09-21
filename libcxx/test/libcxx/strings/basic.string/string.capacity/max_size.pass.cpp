@@ -64,7 +64,7 @@ bool test() {
 
 #if _LIBCPP_ABI_VERSION == 1
 
-# if defined(__x86_64__)
+# if defined(__x86_64__) || defined(__i386__)
   full_size();
 # elif defined(__APPLE__) && defined(__aarch64__)
   half_size();
@@ -75,6 +75,12 @@ bool test() {
   full_size();
 #   endif
 # elif defined(__powerpc__) || defined(__powerpc64__)
+#   ifdef __BIG_ENDIAN__
+  half_size();
+#   else
+  full_size();
+#   endif
+# elif defined(__sparc64__)
   half_size();
 # elif defined(_WIN32)
   full_size();

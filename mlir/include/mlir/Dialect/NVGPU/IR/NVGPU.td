@@ -35,7 +35,7 @@ def NVGPU_Dialect : Dialect {
 
   let useDefaultTypePrinterParser = 1;
 
-  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
+  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 }
 
 /// Device-side synchronization token.
@@ -53,8 +53,10 @@ def NVGPU_DeviceAsyncToken : DialectType<
 class NVGPU_Op<string mnemonic, list<Trait> traits = []> :
   Op<NVGPU_Dialect, mnemonic, traits> {}
 
-def NVGPU_LdMatrixOp : NVGPU_Op<"ldmatrix",
-                                [MemoryEffects<[MemRead]>]> {
+def NVGPU_LdMatrixOp : NVGPU_Op<"ldmatrix", [
+                                MemoryEffects<[MemRead]>,
+                                PredOpTrait<"srcMemref and res have same element type", 
+                                            TCresVTEtIsSameAsOp<0, 0>>]> {
   let description = [{
   The `nvgpu.ldmatrix` op represents loading a matrix fragment from
   memory. The load source and result type must be compatible with lowering
@@ -79,9 +81,14 @@ def NVGPU_LdMatrixOp : NVGPU_Op<"ldmatrix",
   let assemblyFormat = [{
     $srcMemref`[` $indices `]` attr-dict `:` type($srcMemref) `->` type($res)
   }];
+
+  let hasVerifier = 1;
 }
 
-def NVGPU_MmaSyncOp : NVGPU_Op<"mma.sync", [NoSideEffect]> {
+def NVGPU_MmaSyncOp : NVGPU_Op<"mma.sync", [
+                               NoSideEffect,
+                               PredOpTrait<"matrixA and matrixB have same element type", 
+                                           TCopVTEtIsSameAs<0, 1>>]> {
   let description = [{
   The `nvgpu.mma.sync` op represents the distributed form of a collective
   matrix-multiply-and-accumulate (mma) operation that is compatible with
@@ -103,20 +110,33 @@ def NVGPU_MmaSyncOp : NVGPU_Op<"mma.sync", [NoSideEffect]> {
     (vector<4x2xf16>, vector<2x2xf16>, vector<2x2xf16>) -> vector<2x2xf16>
   ```
   }];
-  let arguments = (ins AnyVector:$matrixA, AnyVector:$matrixB,
-                       AnyVector:$matrixC, I64ArrayAttr:$mmaShape);
+  let arguments = (ins AnyVector:$matrixA, 
+                       AnyVector:$matrixB,
+                       AnyVector:$matrixC, 
+                       I64ArrayAttr:$mmaShape,
+                       OptionalAttr<UnitAttr>:$tf32Enabled
+                       );
 
   let results = (outs AnyVector:$res);
+
+  let builders = [
+    OpBuilder<(ins "Value":$matrixA, 
+                   "Value":$matrixB, 
+                   "Value":$matrixC, 
+                   "ArrayAttr":$mmaShape)>
+  ];
 
   let assemblyFormat = [{
     `(` $matrixA`,` $matrixB`,` $matrixC `)` attr-dict
     `:` `(` type($matrixA) `,` type($matrixB) `,` type($matrixC) `)` `->` type($res)
   }];
+
+  let hasVerifier = 1;
 }
 
 
-def NVGPU_DeviceAsyncCopyOp : NVGPU_Op<"device_async_copy",
-  [AttrSizedOperandSegments]> {
+def NVGPU_DeviceAsyncCopyOp : NVGPU_Op<"device_async_copy", [
+                                       AttrSizedOperandSegments]> {
   let summary = "device-side asynchronous copy";
   let description = [{
     The `gpu.device_async_copy` op initiates an asynchronous copy operation of
@@ -131,6 +151,14 @@ def NVGPU_DeviceAsyncCopyOp : NVGPU_Op<"device_async_copy",
     `bypassL1` attribute is hint to the backend and hardware that
     the copy should by pass the L1 cache, this may be dropped by the backend or
     hardware. 
+    `dstElements` attribute is the total number of elements written to 
+    destination (shared memory).
+    `srcElements` argument is the total number of elements read from 
+    source (global memory).
+    
+    srcElements` is an optional argument and when present it only reads 
+    srcElements number of elements from the source global memory and zero fills 
+    the rest of the elements in the destination shared memory.
 
     In order to do a copy and wait for the result we need the following
     combination:
@@ -163,10 +191,11 @@ def NVGPU_DeviceAsyncCopyOp : NVGPU_Op<"device_async_copy",
                        Variadic<Index>:$dstIndices,
                        Arg<AnyMemRef, "", [MemRead]>:$src,
                        Variadic<Index>:$srcIndices,
-                       IndexAttr:$numElements,
+                       IndexAttr:$dstElements,
+                       Optional<Index>:$srcElements,
                        OptionalAttr<UnitAttr>:$bypassL1);
   let assemblyFormat = [{
-    $src `[` $srcIndices `]` `,` $dst `[` $dstIndices `]` `,` $numElements
+    $src `[` $srcIndices `]` `,` $dst `[` $dstIndices `]` `,` $dstElements (`,` $srcElements^)?
       attr-dict `:` type($src) `to` type($dst)
   }];
   let hasVerifier = 1;

@@ -19,7 +19,7 @@
 // PI CUDA kernels carry an additional argument for the implicit global offset.
 #define NUM_IMPLICIT_ARGS 1
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaKernelsTest : public ::testing::Test {
 

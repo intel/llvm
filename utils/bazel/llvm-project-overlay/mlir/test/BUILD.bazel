@@ -7,8 +7,9 @@ load("//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 package(
     default_visibility = ["//visibility:public"],
     features = ["layering_check"],
-    licenses = ["notice"],
 )
+
+licenses(["notice"])
 
 cc_library(
     name = "IRProducingAPITest",
@@ -308,6 +309,7 @@ cc_library(
         "//mlir:SCFDialect",
         "//mlir:SCFTransforms",
         "//mlir:TensorDialect",
+        "//mlir:TensorTilingInterfaceImpl",
         "//mlir:TilingInterface",
         "//mlir:Transforms",
     ],
@@ -517,6 +519,30 @@ cc_library(
         "//mlir:MemRefTransforms",
         "//mlir:Pass",
         "//mlir:Transforms",
+    ],
+)
+
+cc_library(
+    name = "TestNVGPU",
+    srcs = glob(["lib/Dialect/NVGPU/*.cpp"]),
+    defines = ["MLIR_CUDA_CONVERSIONS_ENABLED"],
+    includes = ["lib/Dialect/Test"],
+    deps = [
+        "//mlir:AffineDialect",
+        "//mlir:Analysis",
+        "//mlir:FuncDialect",
+        "//mlir:GPUDialect",
+        "//mlir:IR",
+        "//mlir:LLVMDialect",
+        "//mlir:LinalgDialect",
+        "//mlir:LinalgTransforms",
+        "//mlir:MemRefDialect",
+        "//mlir:NVGPUDialect",
+        "//mlir:NVGPUTransforms",
+        "//mlir:Pass",
+        "//mlir:SCFDialect",
+        "//mlir:Support",
+        "//mlir:TransformUtils",
     ],
 )
 

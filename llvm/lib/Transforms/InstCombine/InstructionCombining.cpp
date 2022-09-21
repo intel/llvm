@@ -523,11 +523,12 @@ bool InstCombinerImpl::SimplifyAssociativeOrCommutative(BinaryOperator &I) {
       // Transform: "(A op C1) op (B op C2)" ==> "(A op B) op (C1 op C2)"
       // if C1 and C2 are constants.
       Value *A, *B;
-      Constant *C1, *C2;
+      Constant *C1, *C2, *CRes;
       if (Op0 && Op1 &&
           Op0->getOpcode() == Opcode && Op1->getOpcode() == Opcode &&
           match(Op0, m_OneUse(m_BinOp(m_Value(A), m_Constant(C1)))) &&
-          match(Op1, m_OneUse(m_BinOp(m_Value(B), m_Constant(C2))))) {
+          match(Op1, m_OneUse(m_BinOp(m_Value(B), m_Constant(C2)))) &&
+          (CRes = ConstantFoldBinaryOpOperands(Opcode, C1, C2, DL))) {
         bool IsNUW = hasNoUnsignedWrap(I) &&
            hasNoUnsignedWrap(*Op0) &&
            hasNoUnsignedWrap(*Op1);
@@ -544,7 +545,7 @@ bool InstCombinerImpl::SimplifyAssociativeOrCommutative(BinaryOperator &I) {
         InsertNewInstWith(NewBO, I);
         NewBO->takeName(Op1);
         replaceOperand(I, 0, NewBO);
-        replaceOperand(I, 1, ConstantExpr::get(Opcode, C1, C2));
+        replaceOperand(I, 1, CRes);
         // Conservatively clear the optional flags, since they may not be
         // preserved by the reassociation.
         ClearSubclassDataAfterReassociation(I);
@@ -638,7 +639,7 @@ Value *InstCombinerImpl::tryFactorization(BinaryOperator &I,
   assert(A && B && C && D && "All values must be provided");
 
   Value *V = nullptr;
-  Value *SimplifiedInst = nullptr;
+  Value *RetVal = nullptr;
   Value *LHS = I.getOperand(0), *RHS = I.getOperand(1);
   Instruction::BinaryOps TopLevelOpcode = I.getOpcode();
 
@@ -646,7 +647,7 @@ Value *InstCombinerImpl::tryFactorization(BinaryOperator &I,
   bool InnerCommutative = Instruction::isCommutative(InnerOpcode);
 
   // Does "X op' (Y op Z)" always equal "(X op' Y) op (X op' Z)"?
-  if (leftDistributesOverRight(InnerOpcode, TopLevelOpcode))
+  if (leftDistributesOverRight(InnerOpcode, TopLevelOpcode)) {
     // Does the instruction have the form "(A op' B) op (A op' D)" or, in the
     // commutative case, "(A op' B) op (C op' A)"?
     if (A == C || (InnerCommutative && A == D)) {
@@ -655,17 +656,18 @@ Value *InstCombinerImpl::tryFactorization(BinaryOperator &I,
       // Consider forming "A op' (B op D)".
       // If "B op D" simplifies then it can be formed with no cost.
       V = simplifyBinOp(TopLevelOpcode, B, D, SQ.getWithInstruction(&I));
-      // If "B op D" doesn't simplify then only go on if both of the existing
+
+      // If "B op D" doesn't simplify then only go on if one of the existing
       // operations "A op' B" and "C op' D" will be zapped as no longer used.
-      if (!V && LHS->hasOneUse() && RHS->hasOneUse())
+      if (!V && (LHS->hasOneUse() || RHS->hasOneUse()))
         V = Builder.CreateBinOp(TopLevelOpcode, B, D, RHS->getName());
-      if (V) {
-        SimplifiedInst = Builder.CreateBinOp(InnerOpcode, A, V);
-      }
+      if (V)
+        RetVal = Builder.CreateBinOp(InnerOpcode, A, V);
     }
+  }
 
   // Does "(X op Y) op' Z" always equal "(X op' Z) op (Y op' Z)"?
-  if (!SimplifiedInst && rightDistributesOverLeft(TopLevelOpcode, InnerOpcode))
+  if (!RetVal && rightDistributesOverLeft(TopLevelOpcode, InnerOpcode)) {
     // Does the instruction have the form "(A op' B) op (C op' B)" or, in the
     // commutative case, "(A op' B) op (B op' D)"?
     if (B == D || (InnerCommutative && B == C)) {
@@ -675,61 +677,56 @@ Value *InstCombinerImpl::tryFactorization(BinaryOperator &I,
       // If "A op C" simplifies then it can be formed with no cost.
       V = simplifyBinOp(TopLevelOpcode, A, C, SQ.getWithInstruction(&I));
 
-      // If "A op C" doesn't simplify then only go on if both of the existing
+      // If "A op C" doesn't simplify then only go on if one of the existing
       // operations "A op' B" and "C op' D" will be zapped as no longer used.
-      if (!V && LHS->hasOneUse() && RHS->hasOneUse())
+      if (!V && (LHS->hasOneUse() || RHS->hasOneUse()))
         V = Builder.CreateBinOp(TopLevelOpcode, A, C, LHS->getName());
-      if (V) {
-        SimplifiedInst = Builder.CreateBinOp(InnerOpcode, V, B);
-      }
-    }
-
-  if (SimplifiedInst) {
-    ++NumFactor;
-    SimplifiedInst->takeName(&I);
-
-    // Check if we can add NSW/NUW flags to SimplifiedInst. If so, set them.
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(SimplifiedInst)) {
-      if (isa<OverflowingBinaryOperator>(SimplifiedInst)) {
-        bool HasNSW = false;
-        bool HasNUW = false;
-        if (isa<OverflowingBinaryOperator>(&I)) {
-          HasNSW = I.hasNoSignedWrap();
-          HasNUW = I.hasNoUnsignedWrap();
-        }
-
-        if (auto *LOBO = dyn_cast<OverflowingBinaryOperator>(LHS)) {
-          HasNSW &= LOBO->hasNoSignedWrap();
-          HasNUW &= LOBO->hasNoUnsignedWrap();
-        }
-
-        if (auto *ROBO = dyn_cast<OverflowingBinaryOperator>(RHS)) {
-          HasNSW &= ROBO->hasNoSignedWrap();
-          HasNUW &= ROBO->hasNoUnsignedWrap();
-        }
-
-        if (TopLevelOpcode == Instruction::Add &&
-            InnerOpcode == Instruction::Mul) {
-          // We can propagate 'nsw' if we know that
-          //  %Y = mul nsw i16 %X, C
-          //  %Z = add nsw i16 %Y, %X
-          // =>
-          //  %Z = mul nsw i16 %X, C+1
-          //
-          // iff C+1 isn't INT_MIN
-          const APInt *CInt;
-          if (match(V, m_APInt(CInt))) {
-            if (!CInt->isMinSignedValue())
-              BO->setHasNoSignedWrap(HasNSW);
-          }
-
-          // nuw can be propagated with any constant or nuw value.
-          BO->setHasNoUnsignedWrap(HasNUW);
-        }
-      }
+      if (V)
+        RetVal = Builder.CreateBinOp(InnerOpcode, V, B);
     }
   }
-  return SimplifiedInst;
+
+  if (!RetVal)
+    return nullptr;
+
+  ++NumFactor;
+  RetVal->takeName(&I);
+
+  // Try to add no-overflow flags to the final value.
+  if (isa<OverflowingBinaryOperator>(RetVal)) {
+    bool HasNSW = false;
+    bool HasNUW = false;
+    if (isa<OverflowingBinaryOperator>(&I)) {
+      HasNSW = I.hasNoSignedWrap();
+      HasNUW = I.hasNoUnsignedWrap();
+    }
+    if (auto *LOBO = dyn_cast<OverflowingBinaryOperator>(LHS)) {
+      HasNSW &= LOBO->hasNoSignedWrap();
+      HasNUW &= LOBO->hasNoUnsignedWrap();
+    }
+
+    if (auto *ROBO = dyn_cast<OverflowingBinaryOperator>(RHS)) {
+      HasNSW &= ROBO->hasNoSignedWrap();
+      HasNUW &= ROBO->hasNoUnsignedWrap();
+    }
+
+    if (TopLevelOpcode == Instruction::Add && InnerOpcode == Instruction::Mul) {
+      // We can propagate 'nsw' if we know that
+      //  %Y = mul nsw i16 %X, C
+      //  %Z = add nsw i16 %Y, %X
+      // =>
+      //  %Z = mul nsw i16 %X, C+1
+      //
+      // iff C+1 isn't INT_MIN
+      const APInt *CInt;
+      if (match(V, m_APInt(CInt)) && !CInt->isMinSignedValue())
+        cast<Instruction>(RetVal)->setHasNoSignedWrap(HasNSW);
+
+      // nuw can be propagated with any constant or nuw value.
+      cast<Instruction>(RetVal)->setHasNoUnsignedWrap(HasNUW);
+    }
+  }
+  return RetVal;
 }
 
 /// This tries to simplify binary operations which some other binary operation
@@ -993,6 +990,24 @@ Instruction *InstCombinerImpl::foldBinopOfSextBoolToSelect(BinaryOperator &BO) {
   return SelectInst::Create(X, TVal, FVal);
 }
 
+static Constant *constantFoldOperationIntoSelectOperand(
+    Instruction &I, SelectInst *SI, Value *SO) {
+  auto *ConstSO = dyn_cast<Constant>(SO);
+  if (!ConstSO)
+    return nullptr;
+
+  SmallVector<Constant *> ConstOps;
+  for (Value *Op : I.operands()) {
+    if (Op == SI)
+      ConstOps.push_back(ConstSO);
+    else if (auto *C = dyn_cast<Constant>(Op))
+      ConstOps.push_back(C);
+    else
+      llvm_unreachable("Operands should be select or constant");
+  }
+  return ConstantFoldInstOperands(&I, ConstOps, I.getModule()->getDataLayout());
+}
+
 static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
@@ -1100,8 +1115,17 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
     }
   }
 
-  Value *NewTV = foldOperationIntoSelectOperand(Op, TV, Builder);
-  Value *NewFV = foldOperationIntoSelectOperand(Op, FV, Builder);
+  // Make sure that one of the select arms constant folds successfully.
+  Value *NewTV = constantFoldOperationIntoSelectOperand(Op, SI, TV);
+  Value *NewFV = constantFoldOperationIntoSelectOperand(Op, SI, FV);
+  if (!NewTV && !NewFV)
+    return nullptr;
+
+  // Create an instruction for the arm that did not fold.
+  if (!NewTV)
+    NewTV = foldOperationIntoSelectOperand(Op, TV, Builder);
+  if (!NewFV)
+    NewFV = foldOperationIntoSelectOperand(Op, FV, Builder);
   return SelectInst::Create(SI->getCondition(), NewTV, NewFV, "", nullptr, SI);
 }
 
@@ -1256,6 +1280,11 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
         InV = PN->getIncomingValue(i);
       NewPN->addIncoming(InV, PN->getIncomingBlock(i));
     }
+  } else if (auto *EV = dyn_cast<ExtractValueInst>(&I)) {
+    for (unsigned i = 0; i != NumPHIValues; ++i)
+      NewPN->addIncoming(Builder.CreateExtractValue(PN->getIncomingValue(i),
+                                                    EV->getIndices(), "phi.ev"),
+                         PN->getIncomingBlock(i));
   } else {
     CastInst *CI = cast<CastInst>(&I);
     Type *RetTy = CI->getType();
@@ -1776,9 +1805,10 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
       //       for target-independent shuffle creation.
       if (I >= SrcVecNumElts || ShMask[I] < 0) {
         Constant *MaybeUndef =
-            ConstOp1 ? ConstantExpr::get(Opcode, UndefScalar, CElt)
-                     : ConstantExpr::get(Opcode, CElt, UndefScalar);
-        if (!match(MaybeUndef, m_Undef())) {
+            ConstOp1
+                ? ConstantFoldBinaryOpOperands(Opcode, UndefScalar, CElt, DL)
+                : ConstantFoldBinaryOpOperands(Opcode, CElt, UndefScalar, DL);
+        if (!MaybeUndef || !match(MaybeUndef, m_Undef())) {
           MayChange = false;
           break;
         }
@@ -2749,7 +2779,7 @@ static bool isAllocSiteRemovable(Instruction *AI,
             MemIntrinsic *MI = cast<MemIntrinsic>(II);
             if (MI->isVolatile() || MI->getRawDest() != PI)
               return false;
-            LLVM_FALLTHROUGH;
+            [[fallthrough]];
           }
           case Intrinsic::assume:
           case Intrinsic::invariant_start:
@@ -2772,13 +2802,14 @@ static bool isAllocSiteRemovable(Instruction *AI,
           continue;
         }
 
-        if (isFreeCall(I, &TLI) && getAllocationFamily(I, &TLI) == Family) {
+        if (getFreedOperand(cast<CallBase>(I), &TLI) == PI &&
+            getAllocationFamily(I, &TLI) == Family) {
           assert(Family);
           Users.emplace_back(I);
           continue;
         }
 
-        if (isReallocLikeFn(I, &TLI) &&
+        if (getReallocatedOperand(cast<CallBase>(I), &TLI) == PI &&
             getAllocationFamily(I, &TLI) == Family) {
           assert(Family);
           Users.emplace_back(I);
@@ -2803,7 +2834,7 @@ static bool isAllocSiteRemovable(Instruction *AI,
 }
 
 Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
-  assert(isa<AllocaInst>(MI) || isAllocRemovable(&cast<CallBase>(MI), &TLI));
+  assert(isa<AllocaInst>(MI) || isRemovableAlloc(&cast<CallBase>(MI), &TLI));
 
   // If we have a malloc call which is only used in any amount of comparisons to
   // null and free calls, delete the calls and replace the comparisons with true
@@ -3005,9 +3036,7 @@ static Instruction *tryToMoveFreeBeforeNullTest(CallInst &FI,
   return &FI;
 }
 
-Instruction *InstCombinerImpl::visitFree(CallInst &FI) {
-  Value *Op = FI.getArgOperand(0);
-
+Instruction *InstCombinerImpl::visitFree(CallInst &FI, Value *Op) {
   // free undef -> unreachable.
   if (isa<UndefValue>(Op)) {
     // Leave a marker since we can't modify the CFG here.
@@ -3022,12 +3051,10 @@ Instruction *InstCombinerImpl::visitFree(CallInst &FI) {
 
   // If we had free(realloc(...)) with no intervening uses, then eliminate the
   // realloc() entirely.
-  if (CallInst *CI = dyn_cast<CallInst>(Op)) {
-    if (CI->hasOneUse() && isReallocLikeFn(CI, &TLI)) {
-      return eraseInstFromFunction(
-          *replaceInstUsesWith(*CI, CI->getOperand(0)));
-    }
-  }
+  CallInst *CI = dyn_cast<CallInst>(Op);
+  if (CI && CI->hasOneUse())
+    if (Value *ReallocatedOp = getReallocatedOperand(CI, &TLI))
+      return eraseInstFromFunction(*replaceInstUsesWith(*CI, ReallocatedOp));
 
   // If we optimize for code size, try to move the call to free before the null
   // test so that simplify cfg can remove the empty block and dead code
@@ -3192,7 +3219,7 @@ Instruction *InstCombinerImpl::visitSwitchInst(SwitchInst &SI) {
 
   // Compute the number of leading bits we can ignore.
   // TODO: A better way to determine this would use ComputeNumSignBits().
-  for (auto &C : SI.cases()) {
+  for (const auto &C : SI.cases()) {
     LeadingKnownZeros = std::min(
         LeadingKnownZeros, C.getCaseValue()->getValue().countLeadingZeros());
     LeadingKnownOnes = std::min(
@@ -3216,6 +3243,70 @@ Instruction *InstCombinerImpl::visitSwitchInst(SwitchInst &SI) {
       Case.setValue(ConstantInt::get(SI.getContext(), TruncatedCase));
     }
     return replaceOperand(SI, 0, NewCond);
+  }
+
+  return nullptr;
+}
+
+Instruction *
+InstCombinerImpl::foldExtractOfOverflowIntrinsic(ExtractValueInst &EV) {
+  auto *WO = dyn_cast<WithOverflowInst>(EV.getAggregateOperand());
+  if (!WO)
+    return nullptr;
+
+  // extractvalue (any_mul_with_overflow X, -1), 0 --> -X
+  Intrinsic::ID OvID = WO->getIntrinsicID();
+  const APInt *C = nullptr;
+  if (match(WO->getRHS(), m_APIntAllowUndef(C))) {
+    if (*EV.idx_begin() == 0 &&
+        (OvID == Intrinsic::smul_with_overflow ||
+         OvID == Intrinsic::umul_with_overflow) &&
+        C->isAllOnes()) {
+      return BinaryOperator::CreateNeg(WO->getArgOperand(0));
+    }
+  }
+
+  // We're extracting from an overflow intrinsic. See if we're the only user.
+  // That allows us to simplify multiple result intrinsics to simpler things
+  // that just get one value.
+  if (!WO->hasOneUse())
+    return nullptr;
+
+  // Check if we're grabbing only the result of a 'with overflow' intrinsic
+  // and replace it with a traditional binary instruction.
+  if (*EV.idx_begin() == 0) {
+    Instruction::BinaryOps BinOp = WO->getBinaryOp();
+    Value *LHS = WO->getLHS(), *RHS = WO->getRHS();
+    // Replace the old instruction's uses with poison.
+    replaceInstUsesWith(*WO, PoisonValue::get(WO->getType()));
+    eraseInstFromFunction(*WO);
+    return BinaryOperator::Create(BinOp, LHS, RHS);
+  }
+
+  assert(*EV.idx_begin() == 1 && "Unexpected extract index for overflow inst");
+
+  // (usub LHS, RHS) overflows when LHS is unsigned-less-than RHS.
+  if (OvID == Intrinsic::usub_with_overflow)
+    return new ICmpInst(ICmpInst::ICMP_ULT, WO->getLHS(), WO->getRHS());
+
+  // If only the overflow result is used, and the right hand side is a
+  // constant (or constant splat), we can remove the intrinsic by directly
+  // checking for overflow.
+  if (C) {
+    // Compute the no-wrap range for LHS given RHS=C, then construct an
+    // equivalent icmp, potentially using an offset.
+    ConstantRange NWR = ConstantRange::makeExactNoWrapRegion(
+        WO->getBinaryOp(), *C, WO->getNoWrapKind());
+
+    CmpInst::Predicate Pred;
+    APInt NewRHSC, Offset;
+    NWR.getEquivalentICmp(Pred, NewRHSC, Offset);
+    auto *OpTy = WO->getRHS()->getType();
+    auto *NewLHS = WO->getLHS();
+    if (Offset != 0)
+      NewLHS = Builder.CreateAdd(NewLHS, ConstantInt::get(OpTy, Offset));
+    return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
+                        ConstantInt::get(OpTy, NewRHSC));
   }
 
   return nullptr;
@@ -3282,58 +3373,11 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
       return ExtractValueInst::Create(IV->getInsertedValueOperand(),
                                       makeArrayRef(exti, exte));
   }
-  if (WithOverflowInst *WO = dyn_cast<WithOverflowInst>(Agg)) {
-    // extractvalue (any_mul_with_overflow X, -1), 0 --> -X
-    Intrinsic::ID OvID = WO->getIntrinsicID();
-    if (*EV.idx_begin() == 0 &&
-        (OvID == Intrinsic::smul_with_overflow ||
-         OvID == Intrinsic::umul_with_overflow) &&
-        match(WO->getArgOperand(1), m_AllOnes())) {
-      return BinaryOperator::CreateNeg(WO->getArgOperand(0));
-    }
 
-    // We're extracting from an overflow intrinsic, see if we're the only user,
-    // which allows us to simplify multiple result intrinsics to simpler
-    // things that just get one value.
-    if (WO->hasOneUse()) {
-      // Check if we're grabbing only the result of a 'with overflow' intrinsic
-      // and replace it with a traditional binary instruction.
-      if (*EV.idx_begin() == 0) {
-        Instruction::BinaryOps BinOp = WO->getBinaryOp();
-        Value *LHS = WO->getLHS(), *RHS = WO->getRHS();
-        // Replace the old instruction's uses with poison.
-        replaceInstUsesWith(*WO, PoisonValue::get(WO->getType()));
-        eraseInstFromFunction(*WO);
-        return BinaryOperator::Create(BinOp, LHS, RHS);
-      }
+  if (Instruction *R = foldExtractOfOverflowIntrinsic(EV))
+    return R;
 
-      assert(*EV.idx_begin() == 1 &&
-             "unexpected extract index for overflow inst");
-
-      // If only the overflow result is used, and the right hand side is a
-      // constant (or constant splat), we can remove the intrinsic by directly
-      // checking for overflow.
-      const APInt *C;
-      if (match(WO->getRHS(), m_APInt(C))) {
-        // Compute the no-wrap range for LHS given RHS=C, then construct an
-        // equivalent icmp, potentially using an offset.
-        ConstantRange NWR =
-          ConstantRange::makeExactNoWrapRegion(WO->getBinaryOp(), *C,
-                                               WO->getNoWrapKind());
-
-        CmpInst::Predicate Pred;
-        APInt NewRHSC, Offset;
-        NWR.getEquivalentICmp(Pred, NewRHSC, Offset);
-        auto *OpTy = WO->getRHS()->getType();
-        auto *NewLHS = WO->getLHS();
-        if (Offset != 0)
-          NewLHS = Builder.CreateAdd(NewLHS, ConstantInt::get(OpTy, Offset));
-        return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
-                            ConstantInt::get(OpTy, NewRHSC));
-      }
-    }
-  }
-  if (LoadInst *L = dyn_cast<LoadInst>(Agg))
+  if (LoadInst *L = dyn_cast<LoadInst>(Agg)) {
     // If the (non-volatile) load only has one use, we can rewrite this to a
     // load from a GEP. This reduces the size of the load. If a load is used
     // only by extractvalue instructions then this either must have been
@@ -3360,6 +3404,12 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
       // the wrong spot, so use replaceInstUsesWith().
       return replaceInstUsesWith(EV, NL);
     }
+  }
+
+  if (auto *PN = dyn_cast<PHINode>(Agg))
+    if (Instruction *Res = foldOpIntoPhi(EV, PN))
+      return Res;
+
   // We could simplify extracts from other values. Note that nested extracts may
   // already be simplified implicitly by the above: extract (extract (insert) )
   // will be translated into extract ( insert ( extract ) ) first and then just
@@ -3854,21 +3904,15 @@ bool InstCombinerImpl::freezeOtherUses(FreezeInst &FI) {
   // *all* uses if the operand is an invoke/callbr and the use is in a phi on
   // the normal/default destination. This is why the domination check in the
   // replacement below is still necessary.
-  Instruction *MoveBefore = nullptr;
+  Instruction *MoveBefore;
   if (isa<Argument>(Op)) {
     MoveBefore = &FI.getFunction()->getEntryBlock().front();
     while (isa<AllocaInst>(MoveBefore))
       MoveBefore = MoveBefore->getNextNode();
-  } else if (auto *PN = dyn_cast<PHINode>(Op)) {
-    MoveBefore = PN->getParent()->getFirstNonPHI();
-  } else if (auto *II = dyn_cast<InvokeInst>(Op)) {
-    MoveBefore = II->getNormalDest()->getFirstNonPHI();
-  } else if (auto *CB = dyn_cast<CallBrInst>(Op)) {
-    MoveBefore = CB->getDefaultDest()->getFirstNonPHI();
   } else {
-    auto *I = cast<Instruction>(Op);
-    assert(!I->isTerminator() && "Cannot be a terminator");
-    MoveBefore = I->getNextNode();
+    MoveBefore = cast<Instruction>(Op)->getInsertionPointAfterDef();
+    if (!MoveBefore)
+      return false;
   }
 
   bool Changed = false;
@@ -4077,7 +4121,7 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock,
 
   SmallVector<DbgVariableIntrinsic *, 2> DIIClones;
   SmallSet<DebugVariable, 4> SunkVariables;
-  for (auto User : DbgUsersToSink) {
+  for (auto *User : DbgUsersToSink) {
     // A dbg.declare instruction should not be cloned, since there can only be
     // one per variable fragment. It should be left in the original place
     // because the sunk instruction is not an alloca (otherwise we could not be
@@ -4334,7 +4378,7 @@ public:
       const auto *MDScopeList = dyn_cast_or_null<MDNode>(ScopeList);
       if (!MDScopeList || !Container.insert(MDScopeList).second)
         return;
-      for (auto &MDOperand : MDScopeList->operands())
+      for (const auto &MDOperand : MDScopeList->operands())
         if (auto *MDScope = dyn_cast<MDNode>(MDOperand))
           Container.insert(MDScope);
     };

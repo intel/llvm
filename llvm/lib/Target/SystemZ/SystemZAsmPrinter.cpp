@@ -143,6 +143,9 @@ void SystemZAsmPrinter::emitCallInformation(CallType CT) {
 }
 
 void SystemZAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  SystemZ_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                          getSubtargetInfo().getFeatureBits());
+
   SystemZMCInstLower Lower(MF->getContext(), *this);
   MCInst LoweredMI;
   switch (MI->getOpcode()) {
@@ -812,10 +815,6 @@ bool SystemZAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
                  MCOperand::createImm(MI->getOperand(OpNo + 1).getImm()),
                  MI->getOperand(OpNo + 2).getReg(), OS);
   return false;
-}
-
-void SystemZAsmPrinter::emitEndOfAsmFile(Module &M) {
-  emitStackMaps(SM);
 }
 
 void SystemZAsmPrinter::emitFunctionBodyEnd() {

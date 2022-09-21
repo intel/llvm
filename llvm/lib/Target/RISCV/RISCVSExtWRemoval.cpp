@@ -275,7 +275,7 @@ static bool isSignExtendingOpW(MachineInstr &MI, MachineRegisterInfo &MRI,
     // SLLIW reads the lowest 5 bits, while SLLI reads lowest 6 bits
     if (MI.getOperand(2).getImm() >= 32)
       return false;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case RISCV::ADD:
   case RISCV::LD:
   case RISCV::LWU:
@@ -337,7 +337,7 @@ static bool isSignExtendedW(MachineInstr &OrigMI, MachineRegisterInfo &MRI,
     case RISCV::BSETI:
       if (MI->getOperand(2).getImm() >= 31)
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case RISCV::REM:
     case RISCV::ANDI:
     case RISCV::ORI:
@@ -443,8 +443,7 @@ bool RISCVSExtWRemoval::runOnMachineFunction(MachineFunction &MF) {
       MachineInstr *MI = &*I++;
 
       // We're looking for the sext.w pattern ADDIW rd, rs1, 0.
-      if (MI->getOpcode() != RISCV::ADDIW || !MI->getOperand(2).isImm() ||
-          MI->getOperand(2).getImm() != 0 || !MI->getOperand(1).isReg())
+      if (!RISCV::isSEXT_W(*MI))
         continue;
 
       // Input should be a virtual register.
@@ -457,7 +456,7 @@ bool RISCVSExtWRemoval::runOnMachineFunction(MachineFunction &MF) {
   }
 
   bool MadeChange = false;
-  for (auto MI : SExtWRemovalCands) {
+  for (auto *MI : SExtWRemovalCands) {
     SmallPtrSet<MachineInstr *, 4> FixableDef;
     Register SrcReg = MI->getOperand(1).getReg();
     MachineInstr &SrcMI = *MRI.getVRegDef(SrcReg);
@@ -479,7 +478,7 @@ bool RISCVSExtWRemoval::runOnMachineFunction(MachineFunction &MF) {
           BuildMI(MBB, Fixable, DL, ST.getInstrInfo()->get(Code));
       for (auto Op : Fixable->operands())
         Replacement.add(Op);
-      for (auto Op : Fixable->memoperands())
+      for (auto *Op : Fixable->memoperands())
         Replacement.addMemOperand(Op);
 
       LLVM_DEBUG(dbgs() << "Replacing " << *Fixable);

@@ -11,10 +11,10 @@
 #include <type_traits>
 
 // This test checks that concrete address spaces are not exposed in device code
-using namespace cl::sycl;
+using namespace sycl;
 
-using cl::sycl::access::mode;
-using cl::sycl::access::target;
+using sycl::access::mode;
+using sycl::access::target;
 
 int main() {
   range<1> Range(1);
@@ -31,7 +31,8 @@ int main() {
         GlobalBuf.get_access<mode::read, target::global_buffer>(Cgh);
     auto ConstantAcc =
         ConstantBuf.get_access<mode::read, target::constant_buffer>(Cgh);
-    accessor<int, 1, mode::read_write, target::local> LocalAcc(Range, Cgh);
+    local_accessor<int, 1> LocalAcc(Range, Cgh);
+    accessor<int, 1, mode::read_write, target::local> LocalAccDep(Range, Cgh);
 
     Cgh.single_task<class test>([=]() {
       static_assert(std::is_same<decltype(DeviceRWAcc[0]), int &>::value,
@@ -46,6 +47,8 @@ int main() {
                     "Incorrect type from constant accessor");
       static_assert(std::is_same<decltype(LocalAcc[0]), int &>::value,
                     "Incorrect type from local accessor");
+      static_assert(std::is_same<decltype(LocalAccDep[0]), int &>::value,
+                    "Incorrect type from access target::local");
     });
   });
 }

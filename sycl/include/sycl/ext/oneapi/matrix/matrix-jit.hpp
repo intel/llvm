@@ -13,8 +13,8 @@
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 #include <sycl/feature_test.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -38,6 +38,21 @@ SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::col_major,
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_a, __spv::MatrixLayout::PackedA)
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_b, __spv::MatrixLayout::PackedB)
 
+enum class matrix_use { matrix_a, matrix_b, accumulator, unnecessary };
+
+template <matrix_use Use> struct spv_matrix_use_traits {
+  static constexpr __spv::MatrixUse value = __spv::MatrixUse::MatrixA;
+};
+
+#define SPV_MATRIX_USE_TRAITS(USE, SPV_USE)                                    \
+  template <> struct spv_matrix_use_traits<USE> {                              \
+    static constexpr __spv::MatrixUse value = SPV_USE;                         \
+  };
+
+SPV_MATRIX_USE_TRAITS(matrix_use::matrix_a, __spv::MatrixUse::MatrixA)
+SPV_MATRIX_USE_TRAITS(matrix_use::matrix_b, __spv::MatrixUse::MatrixB)
+SPV_MATRIX_USE_TRAITS(matrix_use::accumulator, __spv::MatrixUse::Accumulator)
+SPV_MATRIX_USE_TRAITS(matrix_use::unnecessary, __spv::MatrixUse::Unnecessary)
 template <typename G> struct spv_scope_traits {};
 template <> struct spv_scope_traits<sycl::sub_group> {
   constexpr static auto value = __spv::Scope::Subgroup;
@@ -57,7 +72,9 @@ template <typename T, size_t NumRows, size_t NumCols,
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
-      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value> *spvm;
+      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value,
+      spv_scope_traits<Group>::value,
+      spv_matrix_use_traits<matrix_use::unnecessary>::value> *spvm;
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;
@@ -85,32 +102,36 @@ joint_matrix_load(Group sg,
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
-    res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
-                                     spv_matrix_layout_traits<Layout>::value>(
-            Ptr, stride, __spv::MatrixLayout::RowMajor,
-            spv_scope_traits<Group>::value);
+    res.spvm = __spirv_JointMatrixLoadINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<Layout>::value>(
+        Ptr, stride, __spv::MatrixLayout::RowMajor,
+        spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
-    res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
-                                     spv_matrix_layout_traits<Layout>::value>(
-            Ptr, stride, __spv::MatrixLayout::ColumnMajor,
-            spv_scope_traits<Group>::value);
+    res.spvm = __spirv_JointMatrixLoadINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<Layout>::value>(
+        Ptr, stride, __spv::MatrixLayout::ColumnMajor,
+        spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
-    res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
-                                     spv_matrix_layout_traits<Layout>::value>(
-            Ptr, stride, __spv::MatrixLayout::PackedA,
-            spv_scope_traits<Group>::value);
+    res.spvm = __spirv_JointMatrixLoadINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<Layout>::value>(
+        Ptr, stride, __spv::MatrixLayout::PackedA,
+        spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
-    res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
-                                     spv_matrix_layout_traits<Layout>::value>(
-            Ptr, stride, __spv::MatrixLayout::PackedB,
-            spv_scope_traits<Group>::value);
+    res.spvm = __spirv_JointMatrixLoadINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<Layout>::value>(
+        Ptr, stride, __spv::MatrixLayout::PackedB,
+        spv_scope_traits<Group>::value);
     break;
   }
 #else
@@ -137,28 +158,36 @@ joint_matrix_store(Group sg,
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
-                                  spv_matrix_layout_traits<MatL>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
-        spv_scope_traits<Group>::value);
+    __spirv_JointMatrixStoreINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<MatL>::value>(Ptr, src.spvm, stride,
+                                               __spv::MatrixLayout::RowMajor,
+                                               spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
-                                  spv_matrix_layout_traits<MatL>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
-        spv_scope_traits<Group>::value);
+    __spirv_JointMatrixStoreINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<MatL>::value>(Ptr, src.spvm, stride,
+                                               __spv::MatrixLayout::ColumnMajor,
+                                               spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
-                                  spv_matrix_layout_traits<MatL>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::PackedA,
-        spv_scope_traits<Group>::value);
+    __spirv_JointMatrixStoreINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<MatL>::value>(Ptr, src.spvm, stride,
+                                               __spv::MatrixLayout::PackedA,
+                                               spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
-    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
-                                  spv_matrix_layout_traits<MatL>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::PackedB,
-        spv_scope_traits<Group>::value);
+    __spirv_JointMatrixStoreINTEL<
+        T, NumRows, NumCols,
+        spv_matrix_use_traits<matrix_use::unnecessary>::value,
+        spv_matrix_layout_traits<MatL>::value>(Ptr, src.spvm, stride,
+                                               __spv::MatrixLayout::PackedB,
+                                               spv_scope_traits<Group>::value);
     break;
   }
 #else
@@ -216,10 +245,10 @@ joint_matrix_fill(Group sg,
   // functions
   (void)sg;
 #ifdef __SYCL_DEVICE_ONLY__
-  res.spvm =
-      __spirv_CompositeConstruct<T, NumRows, NumCols,
-                                 spv_matrix_layout_traits<Layout>::value>(
-          static_cast<T>(v));
+  res.spvm = __spirv_CompositeConstruct<
+      T, NumRows, NumCols,
+      spv_matrix_use_traits<matrix_use::unnecessary>::value,
+      spv_matrix_layout_traits<Layout>::value>(static_cast<T>(v));
 
 #else
   (void)res;
@@ -631,5 +660,5 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

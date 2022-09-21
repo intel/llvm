@@ -32,6 +32,14 @@ set(compile_opts
   -sycl-std=2020
   )
 
+if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
+  list(APPEND compile_opts
+    "-fno-sycl-libspirv"
+    "-fno-bundle-offload-arch"
+    "-nocudalib")
+endif()
+
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
@@ -123,6 +131,7 @@ set(imf_fallback_fp32_deps device.h device_imf.hpp imf_half.hpp
                            imf_utils/integer_misc.cpp
                            imf_utils/float_convert.cpp
                            imf_utils/half_convert.cpp
+                           imf_utils/simd_emulate.cpp
                            imf/imf_inline_fp32.cpp)
 set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp
                            imf_utils/double_convert.cpp

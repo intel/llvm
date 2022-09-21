@@ -8,13 +8,13 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 /// Declaring a specialization constant
 ///
 /// \ingroup sycl_api
-template <typename T> class specialization_id {
+template <typename T> class __SYCL_TYPE(specialization_id) specialization_id {
 public:
   using value_type = T;
 
@@ -34,5 +34,5 @@ private:
   T MDefaultValue;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

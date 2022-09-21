@@ -19,6 +19,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/ParallelCG.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/config.h"
@@ -344,6 +345,11 @@ bool LTOCodeGenerator::determineTarget() {
       Config.CPU = "cyclone";
   }
 
+  // If data-sections is not explicitly set or unset, set data-sections by
+  // default to match the behaviour of lld and gold plugin.
+  if (!codegen::getExplicitDataSections())
+    Config.Options.DataSections = true;
+
   TargetMach = createTargetMachine();
   assert(TargetMach && "Unable to create target machine");
 
@@ -520,6 +526,8 @@ bool LTOCodeGenerator::optimize() {
   // linker option in the old LTO API, but this call allows it to be specified
   // via the internal option. Must be done before WPD invoked via the optimizer
   // pipeline run below.
+  updatePublicTypeTestCalls(*MergedModule,
+                            /* WholeProgramVisibilityEnabledInLTO */ false);
   updateVCallVisibilityInModule(*MergedModule,
                                 /* WholeProgramVisibilityEnabledInLTO */ false,
                                 // FIXME: This needs linker information via a
@@ -538,6 +546,16 @@ bool LTOCodeGenerator::optimize() {
 
   // Add an appropriate DataLayout instance for this module...
   MergedModule->setDataLayout(TargetMach->createDataLayout());
+
+  if (!SaveIRBeforeOptPath.empty()) {
+    std::error_code EC;
+    raw_fd_ostream OS(SaveIRBeforeOptPath, EC, sys::fs::OF_None);
+    if (EC)
+      report_fatal_error(Twine("Failed to open ") + SaveIRBeforeOptPath +
+                         " to save optimized bitcode\n");
+    WriteBitcodeToFile(*MergedModule, OS,
+                       /* ShouldPreserveUseListOrder */ true);
+  }
 
   ModuleSummaryIndex CombinedIndex(false);
   TargetMach = createTargetMachine();

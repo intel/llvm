@@ -2025,7 +2025,6 @@ define <16 x i8> @combine_and_or_shuffle(<16 x i8> %x, <16 x i8> %y) {
 ; SSE2-NEXT:    packuswb %xmm0, %xmm0
 ; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0],xmm3[0],xmm0[1],xmm3[1],xmm0[2],xmm3[2],xmm0[3],xmm3[3],xmm0[4],xmm3[4],xmm0[5],xmm3[5],xmm0[6],xmm3[6],xmm0[7],xmm3[7]
 ; SSE2-NEXT:    por %xmm2, %xmm0
-; SSE2-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; SSE2-NEXT:    retq
 ;
 ; SSSE3-LABEL: combine_and_or_shuffle:
@@ -3353,6 +3352,56 @@ define <2 x i64> @PR55157(ptr %0) {
   ret <2 x i64> %7
 }
 declare <16 x i8> @llvm.x86.sse2.pavg.b(<16 x i8>, <16 x i8>)
+
+; SelectionDAG::isSplatValue - incorrect handling of undef sub-elements
+define <2 x i64> @PR56520(<16 x i8> %0) {
+; SSE-LABEL: PR56520:
+; SSE:       # %bb.0:
+; SSE-NEXT:    pxor %xmm1, %xmm1
+; SSE-NEXT:    pcmpeqb %xmm0, %xmm1
+; SSE-NEXT:    movd %xmm1, %eax
+; SSE-NEXT:    movsbl %al, %eax
+; SSE-NEXT:    movd %eax, %xmm0
+; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
+; SSE-NEXT:    retq
+;
+; AVX1-LABEL: PR56520:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; AVX1-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
+; AVX1-NEXT:    vmovd %xmm0, %eax
+; AVX1-NEXT:    movsbl %al, %eax
+; AVX1-NEXT:    vmovd %eax, %xmm0
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
+; AVX1-NEXT:    retq
+;
+; AVX2-SLOW-LABEL: PR56520:
+; AVX2-SLOW:       # %bb.0:
+; AVX2-SLOW-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; AVX2-SLOW-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
+; AVX2-SLOW-NEXT:    vmovd %xmm0, %eax
+; AVX2-SLOW-NEXT:    movsbl %al, %eax
+; AVX2-SLOW-NEXT:    vmovd %eax, %xmm0
+; AVX2-SLOW-NEXT:    vpbroadcastq %xmm0, %xmm0
+; AVX2-SLOW-NEXT:    retq
+;
+; AVX2-FAST-LABEL: PR56520:
+; AVX2-FAST:       # %bb.0:
+; AVX2-FAST-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; AVX2-FAST-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
+; AVX2-FAST-NEXT:    vmovd %xmm0, %eax
+; AVX2-FAST-NEXT:    movsbl %al, %eax
+; AVX2-FAST-NEXT:    vmovd %eax, %xmm0
+; AVX2-FAST-NEXT:    vpshufb {{.*#+}} xmm0 = xmm0[0,1,2,3],zero,zero,zero,zero,xmm0[0,1,2,3],zero,zero,zero,zero
+; AVX2-FAST-NEXT:    retq
+  %2 = icmp eq <16 x i8> zeroinitializer, %0
+  %3 = extractelement <16 x i1> %2, i64 0
+  %4 = sext i1 %3 to i32
+  %5 = insertelement <2 x i32> zeroinitializer, i32 %4, i64 0
+  %6 = zext <2 x i32> %5 to <2 x i64>
+  %7 = shufflevector <2 x i64> %6, <2 x i64> zeroinitializer, <2 x i32> zeroinitializer
+  ret <2 x i64> %7
+}
 
 ; Test case reported on D105827
 define void @SpinningCube() {

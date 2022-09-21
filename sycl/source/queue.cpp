@@ -17,8 +17,8 @@
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -74,8 +74,11 @@ context queue::get_context() const { return impl->get_context(); }
 
 device queue::get_device() const { return impl->get_device(); }
 
-bool queue::is_host() const { return impl->is_host(); }
-
+bool queue::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "queue::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
@@ -124,12 +127,11 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 }
 
 event queue::discard_or_return(const event &Event) {
-  if (impl->MDiscardEvents) {
-    using detail::event_impl;
-    auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
-    return detail::createSyclObjFromImpl<event>(Impl);
-  }
-  return Event;
+  if (!(impl->MDiscardEvents))
+    return Event;
+  using detail::event_impl;
+  auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
+  return detail::createSyclObjFromImpl<event>(Impl);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,
@@ -163,21 +165,20 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-template <info::queue Param>
-typename info::param_traits<info::queue, Param>::return_type
+template <typename Param>
+typename detail::is_queue_info_desc<Param>::return_type
 queue::get_info() const {
   return impl->get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(ParamType, Param, RetType)                    \
-  template __SYCL_EXPORT RetType queue::get_info<info::ParamType::Param>()     \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT queue::get_info<info::queue::Desc>() const;
 
 #include <sycl/info/queue_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <typename PropertyT> bool queue::has_property() const {
+template <typename PropertyT> bool queue::has_property() const noexcept {
   return impl->has_property<PropertyT>();
 }
 
@@ -186,7 +187,7 @@ template <typename PropertyT> PropertyT queue::get_property() const {
 }
 
 template __SYCL_EXPORT bool
-queue::has_property<property::queue::enable_profiling>() const;
+queue::has_property<property::queue::enable_profiling>() const noexcept;
 template __SYCL_EXPORT property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
@@ -211,5 +212,5 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

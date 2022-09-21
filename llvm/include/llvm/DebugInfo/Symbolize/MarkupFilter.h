@@ -17,57 +17,147 @@
 
 #include "Markup.h"
 
+#include <map>
+
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
 namespace symbolize {
 
+class LLVMSymbolizer;
+
 /// Filter to convert parsed log symbolizer markup elements into human-readable
 /// text.
 class MarkupFilter {
 public:
-  MarkupFilter(raw_ostream &OS, Optional<bool> ColorsEnabled = llvm::None);
+  MarkupFilter(raw_ostream &OS, LLVMSymbolizer &Symbolizer,
+               Optional<bool> ColorsEnabled = llvm::None);
 
-  /// Begins a logical \p Line of markup.
+  /// Filters a line containing symbolizer markup and writes the human-readable
+  /// results to the output stream.
   ///
-  /// This must be called for each line of the input stream before calls to
-  /// filter() for elements of that line. The provided \p Line must be the same
-  /// one that was passed to parseLine() to produce the elements to be later
-  /// passed to filter().
-  ///
-  /// This informs the filter that a new line is beginning and establishes a
-  /// context for error location reporting.
-  void beginLine(StringRef Line);
+  /// Invalid or unimplemented markup elements are removed. Some output may be
+  /// deferred until future filter() or finish() call.
+  void filter(StringRef Line);
 
-  /// Handle a \p Node of symbolizer markup.
-  ///
-  /// If the node is a recognized, valid markup element, it is replaced with a
-  /// human-readable string. If the node isn't an element or the element isn't
-  /// recognized, it is output verbatim. If the element is recognized but isn't
-  /// valid, it is omitted from the output.
-  void filter(const MarkupNode &Node);
+  /// Records that the input stream has ended and writes any deferred output.
+  void finish();
 
 private:
+  struct Module {
+    uint64_t ID;
+    std::string Name;
+    SmallVector<uint8_t> BuildID;
+  };
+
+  struct MMap {
+    uint64_t Addr;
+    uint64_t Size;
+    const Module *Mod;
+    std::string Mode; // Lowercase
+    uint64_t ModuleRelativeAddr;
+
+    bool contains(uint64_t Addr) const;
+    uint64_t getModuleRelativeAddr(uint64_t Addr) const;
+  };
+
+  // An informational module line currently being constructed. As many mmap
+  // elements as possible are folded into one ModuleInfo line.
+  struct ModuleInfoLine {
+    const Module *Mod;
+
+    SmallVector<const MMap *> MMaps = {};
+  };
+
+  // The semantics of a possible program counter value.
+  enum class PCType {
+    // The address is a return address and must be adjusted to point to the call
+    // itself.
+    ReturnAddress,
+    // The address is the precise location in the code and needs no adjustment.
+    PreciseCode,
+  };
+
+  bool tryContextualElement(const MarkupNode &Node,
+                            const SmallVector<MarkupNode> &DeferredNodes);
+  bool tryMMap(const MarkupNode &Element,
+               const SmallVector<MarkupNode> &DeferredNodes);
+  bool tryReset(const MarkupNode &Element,
+                const SmallVector<MarkupNode> &DeferredNodes);
+  bool tryModule(const MarkupNode &Element,
+                 const SmallVector<MarkupNode> &DeferredNodes);
+
+  void beginModuleInfoLine(const Module *M);
+  void endAnyModuleInfoLine();
+
+  void filterNode(const MarkupNode &Node);
+
+  bool tryPresentation(const MarkupNode &Node);
+  bool trySymbol(const MarkupNode &Node);
+  bool tryPC(const MarkupNode &Node);
+  bool tryBackTrace(const MarkupNode &Node);
+  bool tryData(const MarkupNode &Node);
+
   bool trySGR(const MarkupNode &Node);
 
   void highlight();
+  void highlightValue();
   void restoreColor();
   void resetColor();
 
+  void printRawElement(const MarkupNode &Element);
+  void printValue(Twine Value);
+
+  Optional<Module> parseModule(const MarkupNode &Element) const;
+  Optional<MMap> parseMMap(const MarkupNode &Element) const;
+
+  Optional<uint64_t> parseAddr(StringRef Str) const;
+  Optional<uint64_t> parseModuleID(StringRef Str) const;
+  Optional<uint64_t> parseSize(StringRef Str) const;
+  Optional<SmallVector<uint8_t>> parseBuildID(StringRef Str) const;
+  Optional<std::string> parseMode(StringRef Str) const;
+  Optional<PCType> parsePCType(StringRef Str) const;
+  Optional<uint64_t> parseFrameNumber(StringRef Str) const;
+
   bool checkTag(const MarkupNode &Node) const;
-  bool checkNumFields(const MarkupNode &Node, size_t Size) const;
+  bool checkNumFields(const MarkupNode &Element, size_t Size) const;
+  bool checkNumFieldsAtLeast(const MarkupNode &Element, size_t Size) const;
+  bool checkNumFieldsAtMost(const MarkupNode &Element, size_t Size) const;
 
   void reportTypeError(StringRef Str, StringRef TypeName) const;
   void reportLocation(StringRef::iterator Loc) const;
 
+  const MMap *getOverlappingMMap(const MMap &Map) const;
+  const MMap *getContainingMMap(uint64_t Addr) const;
+
+  uint64_t adjustAddr(uint64_t Addr, PCType Type) const;
+
+  StringRef lineEnding() const;
+
   raw_ostream &OS;
+  LLVMSymbolizer &Symbolizer;
   const bool ColorsEnabled;
 
+  MarkupParser Parser;
+
+  // Current line being filtered.
   StringRef Line;
 
+  // A module info line currently being built. This incorporates as much mmap
+  // information as possible before being emitted.
+  Optional<ModuleInfoLine> MIL;
+
+  // SGR state.
   Optional<raw_ostream::Colors> Color;
   bool Bold = false;
+
+  // Map from Module ID to Module.
+  DenseMap<uint64_t, std::unique_ptr<Module>> Modules;
+
+  // Ordered map from starting address to mmap.
+  std::map<uint64_t, MMap> MMaps;
 };
 
 } // end namespace symbolize

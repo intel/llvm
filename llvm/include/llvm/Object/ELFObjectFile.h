@@ -176,7 +176,7 @@ public:
 
   StringRef getELFTypeName() const {
     uint8_t Type = getELFType();
-    for (auto &EE : ElfSymbolTypes) {
+    for (const auto &EE : ElfSymbolTypes) {
       if (EE.Value == Type) {
         return EE.AltName;
       }
@@ -457,6 +457,8 @@ public:
   elf_symbol_iterator_range getDynamicSymbolIterators() const override;
 
   bool isRelocatableObject() const override;
+
+  void createFakeSections() { EF.createFakeSections(); }
 };
 
 using ELF32LEObjectFile = ELFObjectFile<ELF32LE>;

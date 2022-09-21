@@ -9,8 +9,6 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
 
-namespace sycl = cl::sycl;
-
 int main() {
   sycl::vec v1(1);
   static_assert(std::is_same<decltype(v1), sycl::vec<int, 1>>::value);

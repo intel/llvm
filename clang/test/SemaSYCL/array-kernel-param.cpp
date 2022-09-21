@@ -380,9 +380,9 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct' lvalue <NoOp>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'NonDecomposedStruct' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}}'NonDecomposedStruct' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .

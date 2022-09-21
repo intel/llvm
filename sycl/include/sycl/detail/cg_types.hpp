@@ -19,18 +19,18 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // The structure represents kernel argument.
 class ArgDesc {
 public:
-  ArgDesc(cl::sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
+  ArgDesc(sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
           int Index)
       : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
 
-  cl::sycl::detail::kernel_param_kind_t MType;
+  sycl::detail::kernel_param_kind_t MType;
   void *MPtr;
   int MSize;
   int MIndex;
@@ -218,12 +218,11 @@ public:
 };
 
 class InteropTask {
-  std::function<void(cl::sycl::interop_handler)> MFunc;
+  std::function<void(sycl::interop_handler)> MFunc;
 
 public:
-  InteropTask(std::function<void(cl::sycl::interop_handler)> Func)
-      : MFunc(Func) {}
-  void call(cl::sycl::interop_handler &h) { MFunc(h); }
+  InteropTask(std::function<void(sycl::interop_handler)> Func) : MFunc(Func) {}
+  void call(sycl::interop_handler &h) { MFunc(h); }
 };
 
 class HostTask {
@@ -398,7 +397,7 @@ public:
   }
 
   template <typename ArgT = KernelArgType>
-  enable_if_t<std::is_same<ArgT, cl::sycl::group<Dims>>::value>
+  enable_if_t<std::is_same<ArgT, sycl::group<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> NGroups(InitializedVal<Dims, range>::template get<0>());
 
@@ -428,5 +427,5 @@ public:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

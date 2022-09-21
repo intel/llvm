@@ -7,8 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/threads/thread.h"
+#include "config/linux/app.h"
+#include "src/__support/CPP/string_view.h"
 #include "src/__support/CPP/atomic.h"
 #include "src/__support/CPP/error.h"
+#include "src/__support/CPP/stringstream.h"
 #include "src/__support/OSUtil/syscall.h"           // For syscall functions.
 #include "src/__support/threads/linux/futex_word.h" // For FutexWordType
 
@@ -16,7 +19,10 @@
 #include <arm_acle.h>
 #endif
 
+#include <errno.h>
+#include <fcntl.h>
 #include <linux/futex.h>
+#include <linux/prctl.h> // For PR_SET_NAME
 #include <linux/sched.h> // For CLONE_* flags.
 #include <stdint.h>
 #include <sys/mman.h>    // For PROT_* and MAP_* definitions.
@@ -32,6 +38,7 @@ static constexpr long MMAP_SYSCALL_NUMBER = SYS_mmap;
 #error "SYS_mmap or SYS_mmap2 not available on the target platform"
 #endif
 
+static constexpr size_t NAME_SIZE_MAX = 16; // Includes the null terminator
 static constexpr size_t DEFAULT_STACK_SIZE = (1 << 16); // 64KB
 static constexpr uint32_t CLEAR_TID_VALUE = 0xABCD1234;
 static constexpr unsigned CLONE_SYSCALL_FLAGS =
@@ -42,11 +49,10 @@ static constexpr unsigned CLONE_SYSCALL_FLAGS =
     | CLONE_THREAD  // Same thread group as the parent.
     | CLONE_SYSVSEM // Share a single list of System V semaphore adjustment
                     // values
-    | CLONE_PARENT_SETTID   // Set child thread ID in |ptid| of the parent.
-    | CLONE_CHILD_CLEARTID; // Let the kernel clear the tid address
-                            // wake the joining thread.
-// TODO: Add the CLONE_SETTLS flag and setup the TLS area correctly
-// when making the clone syscall.
+    | CLONE_PARENT_SETTID  // Set child thread ID in |ptid| of the parent.
+    | CLONE_CHILD_CLEARTID // Let the kernel clear the tid address
+                           // wake the joining thread.
+    | CLONE_SETTLS;        // Setup the thread pointer of the new thread.
 
 static inline cpp::ErrorOr<void *> alloc_stack(size_t size) {
   long mmap_result =
@@ -75,10 +81,18 @@ struct Thread;
 // If different architecture in future requires higher alignment, then we
 // can add a platform specific alignment spec.
 struct alignas(STACK_ALIGNMENT) StartArgs {
-  Thread *thread;
+  ThreadAttributes *thread_attrib;
   ThreadRunner runner;
   void *arg;
 };
+
+static void cleanup_thread_resources(ThreadAttributes *attrib) {
+  // Cleanup the TLS before the stack as the TLS information is stored on
+  // the stack.
+  cleanup_tls(attrib->tls, attrib->tls_size);
+  if (attrib->owned_stack)
+    free_stack(attrib->stack, attrib->stack_size);
+}
 
 __attribute__((always_inline)) inline uintptr_t get_start_args_addr() {
 // NOTE: For __builtin_frame_address to work reliably across compilers,
@@ -99,30 +113,24 @@ __attribute__((always_inline)) inline uintptr_t get_start_args_addr() {
 #endif
 }
 
-static void start_thread() __attribute__((noinline)) {
+__attribute__((noinline))
+static void start_thread() {
   auto *start_args = reinterpret_cast<StartArgs *>(get_start_args_addr());
-  auto *thread = start_args->thread;
-  auto *attrib = thread->attrib;
-  long retval;
+  auto *attrib = start_args->thread_attrib;
+  self.attrib = attrib;
+  self.attrib->atexit_callback_mgr = internal::get_thread_atexit_callback_mgr();
+
   if (attrib->style == ThreadStyle::POSIX) {
     attrib->retval.posix_retval =
         start_args->runner.posix_runner(start_args->arg);
-    retval = long(attrib->retval.posix_retval);
+    thread_exit(ThreadReturnValue(attrib->retval.posix_retval),
+                ThreadStyle::POSIX);
   } else {
     attrib->retval.stdc_retval =
         start_args->runner.stdc_runner(start_args->arg);
-    retval = long(attrib->retval.stdc_retval);
+    thread_exit(ThreadReturnValue(attrib->retval.stdc_retval),
+                ThreadStyle::STDC);
   }
-
-  uint32_t joinable_state = uint32_t(DetachState::JOINABLE);
-  if (!thread->attrib->detach_state.compare_exchange_strong(
-          joinable_state, uint32_t(DetachState::EXITING))) {
-    // Thread is detached so cleanup the resources.
-    if (thread->attrib->owned_stack)
-      free_stack(thread->attrib->stack, thread->attrib->stack_size);
-  }
-
-  __llvm_libc::syscall(SYS_exit, retval);
 }
 
 int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
@@ -139,6 +147,9 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
     owned_stack = true;
   }
 
+  TLSDescriptor tls;
+  init_tls(tls);
+
   // When the new thread is spawned by the kernel, the new thread gets the
   // stack we pass to the clone syscall. However, this stack is empty and does
   // not have any local vars present in this function. Hence, one cannot
@@ -154,9 +165,6 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
   adjusted_stack &= ~(uintptr_t(STACK_ALIGNMENT) - 1);
 
   auto *start_args = reinterpret_cast<StartArgs *>(adjusted_stack);
-  start_args->thread = this;
-  start_args->runner = runner;
-  start_args->arg = arg;
 
   attrib =
       reinterpret_cast<ThreadAttributes *>(adjusted_stack + sizeof(StartArgs));
@@ -166,11 +174,17 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
   attrib->stack = stack;
   attrib->stack_size = size;
   attrib->owned_stack = owned_stack;
+  attrib->tls = tls.addr;
+  attrib->tls_size = tls.size;
+
+  start_args->thread_attrib = attrib;
+  start_args->runner = runner;
+  start_args->arg = arg;
 
   auto clear_tid = reinterpret_cast<cpp::Atomic<FutexWordType> *>(
       adjusted_stack + sizeof(StartArgs) + sizeof(ThreadAttributes));
   clear_tid->val = CLEAR_TID_VALUE;
-  platform_data = clear_tid;
+  attrib->platform_data = clear_tid;
 
   // The clone syscall takes arguments in an architecture specific order.
   // Also, we want the result of the syscall to be in a register as the child
@@ -182,14 +196,14 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
       SYS_clone, CLONE_SYSCALL_FLAGS, adjusted_stack,
       &attrib->tid,    // The address where the child tid is written
       &clear_tid->val, // The futex where the child thread status is signalled
-      0                // Set TLS to null for now.
+      tls.tp           // The thread pointer value for the new thread.
   );
 #elif defined(LLVM_LIBC_ARCH_AARCH64)
   long register clone_result asm("x0");
   clone_result = __llvm_libc::syscall(
       SYS_clone, CLONE_SYSCALL_FLAGS, adjusted_stack,
       &attrib->tid,   // The address where the child tid is written
-      0,              // Set TLS to null for now.
+      tls.tp,         // The thread pointer value for the new thread.
       &clear_tid->val // The futex where the child thread status is signalled
   );
 #else
@@ -204,8 +218,7 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
 #endif
     start_thread();
   } else if (clone_result < 0) {
-    if (attrib->owned_stack)
-      free_stack(attrib->stack, attrib->stack_size);
+    cleanup_thread_resources(attrib);
     return -clone_result;
   }
 
@@ -220,8 +233,7 @@ int Thread::join(ThreadReturnValue &retval) {
   else
     retval.stdc_retval = attrib->retval.stdc_retval;
 
-  if (attrib->owned_stack)
-    free_stack(attrib->stack, attrib->stack_size);
+  cleanup_thread_resources(attrib);
 
   return 0;
 }
@@ -238,8 +250,8 @@ int Thread::detach() {
   // and free up resources.
   wait();
 
-  if (attrib->owned_stack)
-    free_stack(attrib->stack, attrib->stack_size);
+  cleanup_thread_resources(attrib);
+
   return int(DetachType::CLEANUP);
 }
 
@@ -248,13 +260,138 @@ void Thread::wait() {
   // If not, it is a spurious wake and we should continue to wait on
   // the futex.
   auto *clear_tid =
-      reinterpret_cast<cpp::Atomic<FutexWordType> *>(platform_data);
+      reinterpret_cast<cpp::Atomic<FutexWordType> *>(attrib->platform_data);
   while (clear_tid->load() != 0) {
     // We cannot do a FUTEX_WAIT_PRIVATE here as the kernel does a
     // FUTEX_WAKE and not a FUTEX_WAKE_PRIVATE.
     __llvm_libc::syscall(SYS_futex, &clear_tid->val, FUTEX_WAIT,
                          CLEAR_TID_VALUE, nullptr);
   }
+}
+
+bool Thread::operator==(const Thread &thread) const {
+  return attrib->tid == thread.attrib->tid;
+}
+
+static constexpr cpp::string_view THREAD_NAME_PATH_PREFIX("/proc/self/task/");
+static constexpr size_t THREAD_NAME_PATH_SIZE =
+    THREAD_NAME_PATH_PREFIX.size() +
+    IntegerToString::dec_bufsize<int>() + // Size of tid
+    1 +                                   // For '/' character
+    5; // For the file name "comm" and the nullterminator.
+
+static void construct_thread_name_file_path(cpp::StringStream &stream,
+                                            int tid) {
+  stream << THREAD_NAME_PATH_PREFIX << tid << '/' << cpp::string_view("comm")
+         << cpp::StringStream::ENDS;
+}
+
+int Thread::set_name(const cpp::string_view &name) {
+  if (name.size() >= NAME_SIZE_MAX)
+    return ERANGE;
+
+  if (*this == self) {
+    // If we are setting the name of the current thread, then we can
+    // use the syscall to set the name.
+    int retval = __llvm_libc::syscall(SYS_prctl, PR_SET_NAME, name.data());
+    if (retval < 0)
+      return -retval;
+    else
+      return 0;
+  }
+
+  char path_name_buffer[THREAD_NAME_PATH_SIZE];
+  cpp::StringStream path_stream(path_name_buffer);
+  construct_thread_name_file_path(path_stream, attrib->tid);
+#ifdef SYS_open
+  int fd = __llvm_libc::syscall(SYS_open, path_name_buffer, O_RDWR);
+#else
+  int fd = __llvm_libc::syscall(SYS_openat, AT_FDCWD, path_name_buffer, O_RDWR);
+#endif
+  if (fd < 0)
+    return -fd;
+
+  int retval = __llvm_libc::syscall(SYS_write, fd, name.data(), name.size());
+  __llvm_libc::syscall(SYS_close, fd);
+
+  if (retval < 0)
+    return -retval;
+  else if (retval != int(name.size()))
+    return EIO;
+  else
+    return 0;
+}
+
+int Thread::get_name(cpp::StringStream &name) const {
+  if (name.bufsize() < NAME_SIZE_MAX)
+    return ERANGE;
+
+  char name_buffer[NAME_SIZE_MAX];
+
+  if (*this == self) {
+    // If we are getting the name of the current thread, then we can
+    // use the syscall to get the name.
+    int retval = __llvm_libc::syscall(SYS_prctl, PR_GET_NAME, name_buffer);
+    if (retval < 0)
+      return -retval;
+    name << name_buffer;
+    return 0;
+  }
+
+  char path_name_buffer[THREAD_NAME_PATH_SIZE];
+  cpp::StringStream path_stream(path_name_buffer);
+  construct_thread_name_file_path(path_stream, attrib->tid);
+#ifdef SYS_open
+  int fd = __llvm_libc::syscall(SYS_open, path_name_buffer, O_RDONLY);
+#else
+  int fd =
+      __llvm_libc::syscall(SYS_openat, AT_FDCWD, path_name_buffer, O_RDONLY);
+#endif
+  if (fd < 0)
+    return -fd;
+
+  int retval = __llvm_libc::syscall(SYS_read, fd, name_buffer, NAME_SIZE_MAX);
+  __llvm_libc::syscall(SYS_close, fd);
+  if (retval < 0)
+    return -retval;
+  if (retval == NAME_SIZE_MAX)
+    return ERANGE;
+  if (name_buffer[retval - 1] == '\n')
+    name_buffer[retval - 1] = '\0';
+  else
+    name_buffer[retval] = '\0';
+  name << name_buffer;
+  return 0;
+}
+
+void thread_exit(ThreadReturnValue retval, ThreadStyle style) {
+  auto attrib = self.attrib;
+
+  // The very first thing we do is to call the thread's atexit callbacks.
+  // These callbacks could be the ones registered by the language runtimes,
+  // for example, the destructors of thread local objects. They can also
+  // be destructors of the TSS objects set using API like pthread_setspecific.
+  // NOTE: We cannot call the atexit callbacks as part of the 
+  // cleanup_thread_resources function as that function can be called from a
+  // different thread. The destructors of thread local and TSS objects should
+  // be called by the thread which owns them.
+  internal::call_atexit_callbacks(attrib);
+
+  uint32_t joinable_state = uint32_t(DetachState::JOINABLE);
+  if (!attrib->detach_state.compare_exchange_strong(
+          joinable_state, uint32_t(DetachState::EXITING))) {
+    // Thread is detached so cleanup the resources.
+    cleanup_thread_resources(attrib);
+
+    // Set the CLEAR_TID address to nullptr to prevent the kernel
+    // from signalling at a non-existent futex location.
+    __llvm_libc::syscall(SYS_set_tid_address, 0);
+  }
+
+  if (style == ThreadStyle::POSIX)
+    __llvm_libc::syscall(SYS_exit, retval.posix_retval);
+  else
+    __llvm_libc::syscall(SYS_exit, retval.stdc_retval);
 }
 
 } // namespace __llvm_libc

@@ -143,9 +143,7 @@ define void @func_10() nounwind {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[INDVARS_IV_NEXT:%.*]], [[LOOP]] ], [ 0, [[ENTRY:%.*]] ]
-; CHECK-NEXT:    store i64 [[INDVARS_IV]], i64* null, align 8
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
+; CHECK-NEXT:    store i64 0, i64* null, align 8
 ; CHECK-NEXT:    br i1 false, label [[LOOP]], label [[RETURN:%.*]]
 ; CHECK:       return:
 ; CHECK-NEXT:    ret void
@@ -640,7 +638,7 @@ define i1 @func_18(i16* %tmp20, i32* %len.addr) {
 ; CHECK-NEXT:    [[TMP29:%.*]] = icmp eq i16 [[TMP26]], 0
 ; CHECK-NEXT:    br i1 [[TMP29]], label [[BB1]], label [[BB2_LOOPEXIT]]
 ; CHECK:       bb1:
-; CHECK-NEXT:    [[TMP30]] = add nuw i32 [[VAR_1]], 1
+; CHECK-NEXT:    [[TMP30]] = add nuw nsw i32 [[VAR_1]], 1
 ; CHECK-NEXT:    [[TMP31:%.*]] = icmp eq i32 [[VAR_0]], 0
 ; CHECK-NEXT:    br i1 [[TMP31]], label [[BB3:%.*]], label [[BB0]]
 ; CHECK:       bb2.loopexit:
@@ -1005,7 +1003,7 @@ define i32 @func_26(i32 %start) {
 ; CHECK:       checked.2:
 ; CHECK-NEXT:    br i1 true, label [[BACKEDGE]], label [[FAIL]]
 ; CHECK:       backedge:
-; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 758394
+; CHECK-NEXT:    [[IV_NEXT]] = add nsw i32 [[IV]], 758394
 ; CHECK-NEXT:    [[LOOP_COND:%.*]] = call i1 @cond_func()
 ; CHECK-NEXT:    br i1 [[LOOP_COND]], label [[LOOP]], label [[EXIT:%.*]]
 ; CHECK:       fail:
@@ -1057,7 +1055,7 @@ define i32 @func_27(i32 %start) {
 ; CHECK:       checked.2:
 ; CHECK-NEXT:    br i1 [[C3]], label [[BACKEDGE]], label [[FAIL]]
 ; CHECK:       backedge:
-; CHECK-NEXT:    [[IV_NEXT]] = add i32 [[IV]], 758394
+; CHECK-NEXT:    [[IV_NEXT]] = add nsw i32 [[IV]], 758394
 ; CHECK-NEXT:    [[LOOP_COND:%.*]] = call i1 @cond_func()
 ; CHECK-NEXT:    br i1 [[LOOP_COND]], label [[LOOP]], label [[EXIT:%.*]]
 ; CHECK:       fail:

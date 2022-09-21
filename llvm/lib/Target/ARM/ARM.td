@@ -556,6 +556,15 @@ def FeatureAAPCSFrameChainLeaf : SubtargetFeature<"aapcs-frame-chain-leaf",
                                                   "for leaf functions",
                                                   [FeatureAAPCSFrameChain]>;
 
+// Assume that lock-free 32-bit atomics are available, even if the target
+// and operating system combination would not usually provide them. The user
+// is responsible for providing any necessary __sync implementations. Code
+// built with this feature is not ABI-compatible with code built without this
+// feature, if atomic variables are exposed across the ABI boundary.
+def FeatureAtomics32 : SubtargetFeature<
+    "atomics-32", "HasForced32BitAtomics", "true",
+    "Assume that lock-free 32-bit atomics are available">;
+
 //===----------------------------------------------------------------------===//
 // ARM architecture class
 //
@@ -719,6 +728,24 @@ def FeatureHardenSlsBlr : SubtargetFeature<"harden-sls-blr",
 def FeatureHardenSlsNoComdat : SubtargetFeature<"harden-sls-nocomdat",
   "HardenSlsNoComdat", "true",
   "Generate thunk code for SLS mitigation in the normal text section">;
+
+//===----------------------------------------------------------------------===//
+// Endianness of instruction encodings in memory.
+//
+// In the current Arm architecture, this is usually little-endian regardless of
+// data endianness. But before Armv7 it was typical for instruction endianness
+// to match data endianness, so that a big-endian system was consistently big-
+// endian. And Armv7-R can be configured to use big-endian instructions.
+//
+// Additionally, even when targeting Armv7-A, big-endian instructions can be
+// found in relocatable object files, because the Arm ABI specifies that the
+// linker byte-reverses them depending on the target architecture.
+//
+// So we have a feature here to indicate that instructions are stored big-
+// endian, which you can set when instantiating an MCDisassembler.
+def ModeBigEndianInstructions : SubtargetFeature<"big-endian-instructions",
+    "BigEndianInstructions", "true",
+     "Expect instructions to be stored big-endian.">;
 
 //===----------------------------------------------------------------------===//
 // ARM Processor subtarget features.

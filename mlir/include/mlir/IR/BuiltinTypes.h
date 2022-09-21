@@ -9,8 +9,9 @@
 #ifndef MLIR_IR_BUILTINTYPES_H
 #define MLIR_IR_BUILTINTYPES_H
 
-#include "BuiltinAttributeInterfaces.h"
-#include "SubElementInterfaces.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/SubElementInterfaces.h"
 
 namespace llvm {
 class BitVector;
@@ -20,8 +21,6 @@ struct fltSemantics;
 //===----------------------------------------------------------------------===//
 // Tablegen Interface Declarations
 //===----------------------------------------------------------------------===//
-
-#include "mlir/IR/BuiltinTypeInterfaces.h.inc"
 
 namespace mlir {
 class AffineExpr;
@@ -192,9 +191,6 @@ public:
     memorySpace = newMemorySpace;
     return *this;
   }
-
-  // [deprecated] `setMemorySpace(Attribute)` should be used instead.
-  Builder &setMemorySpace(unsigned newMemorySpace);
 
   operator MemRefType() {
     return MemRefType::get(shape, elementType, layout, memorySpace);
@@ -439,26 +435,6 @@ LogicalResult getStridesAndOffset(MemRefType t,
 LogicalResult getStridesAndOffset(MemRefType t,
                                   SmallVectorImpl<AffineExpr> &strides,
                                   AffineExpr &offset);
-
-/// Given a list of strides (in which MemRefType::getDynamicStrideOrOffset()
-/// represents a dynamic value), return the single result AffineMap which
-/// represents the linearized strided layout map. Dimensions correspond to the
-/// offset followed by the strides in order. Symbols are inserted for each
-/// dynamic dimension in order. A stride cannot take value `0`.
-///
-/// Examples:
-/// =========
-///
-///   1. For offset: 0 strides: ?, ?, 1 return
-///         (i, j, k)[M, N]->(M * i + N * j + k)
-///
-///   2. For offset: 3 strides: 32, ?, 16 return
-///         (i, j, k)[M]->(3 + 32 * i + M * j + 16 * k)
-///
-///   3. For offset: ? strides: ?, ?, ? return
-///         (i, j, k)[off, M, N, P]->(off + M * i + N * j + P * k)
-AffineMap makeStridedLinearLayoutMap(ArrayRef<int64_t> strides, int64_t offset,
-                                     MLIRContext *context);
 
 /// Return a version of `t` with identity layout if it can be determined
 /// statically that the layout is the canonical contiguous strided layout.

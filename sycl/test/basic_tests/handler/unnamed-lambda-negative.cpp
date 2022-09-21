@@ -2,7 +2,7 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
   // expected-error@sycl/kernel.hpp:* {{No kernel name provided without -fsycl-unnamed-lambda enabled!}}
   // expected-note@+1 {{in instantiation of function template}}
@@ -10,19 +10,19 @@ int main() {
 
   // expected-error@sycl/kernel.hpp:* {{No kernel name provided without -fsycl-unnamed-lambda enabled!}}
   // expected-note@+1 {{in instantiation of function template}}
-  q.parallel_for(cl::sycl::range<1>{1}, [=](cl::sycl::item<1>){});
+  q.parallel_for(sycl::range<1>{1}, [=](sycl::item<1>) {});
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     // expected-error@sycl/kernel.hpp:* {{No kernel name provided without -fsycl-unnamed-lambda enabled!}}
     // expected-note@+1 {{in instantiation of function template}}
     cgh.single_task([=](){});
 
     // expected-error@sycl/kernel.hpp:* {{No kernel name provided without -fsycl-unnamed-lambda enabled!}}
     // expected-note@+1 {{in instantiation of function template}}
-    cgh.parallel_for(cl::sycl::range<1>{1}, [=](cl::sycl::item<1>){});
+    cgh.parallel_for(sycl::range<1>{1}, [=](sycl::item<1>) {});
 
     // expected-error@sycl/kernel.hpp:* {{No kernel name provided without -fsycl-unnamed-lambda enabled!}}
     // expected-note@+1 {{in instantiation of function template}}
-    cgh.parallel_for_work_group(cl::sycl::range<1>{1}, [=](cl::sycl::group<1>){});
+    cgh.parallel_for_work_group(sycl::range<1>{1}, [=](sycl::group<1>) {});
   });
 }

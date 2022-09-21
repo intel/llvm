@@ -32,6 +32,39 @@
 
 using namespace llvm;
 
+bool IntrinsicInst::mayLowerToFunctionCall(Intrinsic::ID IID) {
+  switch (IID) {
+  case Intrinsic::objc_autorelease:
+  case Intrinsic::objc_autoreleasePoolPop:
+  case Intrinsic::objc_autoreleasePoolPush:
+  case Intrinsic::objc_autoreleaseReturnValue:
+  case Intrinsic::objc_copyWeak:
+  case Intrinsic::objc_destroyWeak:
+  case Intrinsic::objc_initWeak:
+  case Intrinsic::objc_loadWeak:
+  case Intrinsic::objc_loadWeakRetained:
+  case Intrinsic::objc_moveWeak:
+  case Intrinsic::objc_release:
+  case Intrinsic::objc_retain:
+  case Intrinsic::objc_retainAutorelease:
+  case Intrinsic::objc_retainAutoreleaseReturnValue:
+  case Intrinsic::objc_retainAutoreleasedReturnValue:
+  case Intrinsic::objc_retainBlock:
+  case Intrinsic::objc_storeStrong:
+  case Intrinsic::objc_storeWeak:
+  case Intrinsic::objc_unsafeClaimAutoreleasedReturnValue:
+  case Intrinsic::objc_retainedObject:
+  case Intrinsic::objc_unretainedObject:
+  case Intrinsic::objc_unretainedPointer:
+  case Intrinsic::objc_retain_autorelease:
+  case Intrinsic::objc_sync_enter:
+  case Intrinsic::objc_sync_exit:
+    return true;
+  default:
+    return false;
+  }
+}
+
 //===----------------------------------------------------------------------===//
 /// DbgVariableIntrinsic - This is the common base class for debug info
 /// intrinsics for variables.
@@ -223,13 +256,13 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
 bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
   Optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
   if (Except) {
-    if (Except.getValue() != fp::ebIgnore)
+    if (Except.value() != fp::ebIgnore)
       return false;
   }
 
   Optional<RoundingMode> Rounding = getRoundingMode();
   if (Rounding) {
-    if (Rounding.getValue() != RoundingMode::NearestTiesToEven)
+    if (Rounding.value() != RoundingMode::NearestTiesToEven)
       return false;
   }
 
@@ -364,13 +397,13 @@ VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
 MaybeAlign VPIntrinsic::getPointerAlignment() const {
   Optional<unsigned> PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID());
   assert(PtrParamOpt && "no pointer argument!");
-  return getParamAlign(PtrParamOpt.getValue());
+  return getParamAlign(PtrParamOpt.value());
 }
 
 /// \return The pointer operand of this load,store, gather or scatter.
 Value *VPIntrinsic::getMemoryPointerParam() const {
   if (auto PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID()))
-    return getArgOperand(PtrParamOpt.getValue());
+    return getArgOperand(PtrParamOpt.value());
   return nullptr;
 }
 
@@ -391,7 +424,7 @@ Value *VPIntrinsic::getMemoryDataParam() const {
   auto DataParamOpt = getMemoryDataParamPos(getIntrinsicID());
   if (!DataParamOpt)
     return nullptr;
-  return getArgOperand(DataParamOpt.getValue());
+  return getArgOperand(DataParamOpt.value());
 }
 
 Optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
@@ -694,8 +727,10 @@ unsigned BinaryOpIntrinsic::getNoWrapKind() const {
     return OverflowingBinaryOperator::NoUnsignedWrap;
 }
 
-const GCStatepointInst *GCProjectionInst::getStatepoint() const {
+const Value *GCProjectionInst::getStatepoint() const {
   const Value *Token = getArgOperand(0);
+  if (isa<UndefValue>(Token))
+    return Token;
 
   // This takes care both of relocates for call statepoints and relocates
   // on normal path of invoke statepoint.
@@ -714,13 +749,23 @@ const GCStatepointInst *GCProjectionInst::getStatepoint() const {
 }
 
 Value *GCRelocateInst::getBasePtr() const {
-  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+  auto Statepoint = getStatepoint();
+  if (isa<UndefValue>(Statepoint))
+    return UndefValue::get(Statepoint->getType());
+
+  auto *GCInst = cast<GCStatepointInst>(Statepoint);
+  if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getBasePtrIndex());
-  return *(getStatepoint()->arg_begin() + getBasePtrIndex());
+  return *(GCInst->arg_begin() + getBasePtrIndex());
 }
 
 Value *GCRelocateInst::getDerivedPtr() const {
-  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+  auto *Statepoint = getStatepoint();
+  if (isa<UndefValue>(Statepoint))
+    return UndefValue::get(Statepoint->getType());
+
+  auto *GCInst = cast<GCStatepointInst>(Statepoint);
+  if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getDerivedPtrIndex());
-  return *(getStatepoint()->arg_begin() + getDerivedPtrIndex());
+  return *(GCInst->arg_begin() + getDerivedPtrIndex());
 }

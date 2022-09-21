@@ -634,6 +634,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_COLD;
   case Attribute::DisableSanitizerInstrumentation:
     return bitc::ATTR_KIND_DISABLE_SANITIZER_INSTRUMENTATION;
+  case Attribute::FnRetThunkExtern:
+    return bitc::ATTR_KIND_FNRETTHUNK_EXTERN;
   case Attribute::Hot:
     return bitc::ATTR_KIND_HOT;
   case Attribute::ElementType:
@@ -696,6 +698,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NOCF_CHECK;
   case Attribute::NoProfile:
     return bitc::ATTR_KIND_NO_PROFILE;
+  case Attribute::SkipProfile:
+    return bitc::ATTR_KIND_SKIP_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
   case Attribute::NoSanitizeBounds:
@@ -1027,8 +1031,8 @@ void ModuleBitcodeWriter::writeTypeTable() {
         TypeVals.push_back(true);
       break;
     }
-    case Type::DXILPointerTyID:
-      llvm_unreachable("DXIL pointers cannot be added to IR modules");
+    case Type::TypedPointerTyID:
+      llvm_unreachable("Typed pointers cannot be added to IR modules");
     }
 
     // Emit the finished record.
@@ -1232,7 +1236,7 @@ static_assert(sizeof(GlobalValue::SanitizerMetadata) <= sizeof(unsigned),
 static unsigned
 serializeSanitizerMetadata(const GlobalValue::SanitizerMetadata &Meta) {
   return Meta.NoAddress | (Meta.NoHWAddress << 1) |
-         (Meta.NoMemtag << 2) | (Meta.IsDynInit << 3);
+         (Meta.Memtag << 2) | (Meta.IsDynInit << 3);
 }
 
 /// Emit top-level description of module, including target triple, inline asm,
@@ -4102,8 +4106,9 @@ void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
 
   for (const GlobalAlias &A : M.aliases()) {
     auto *Aliasee = A.getAliaseeObject();
-    if (!Aliasee->hasName())
-      // Nameless function don't have an entry in the summary, skip it.
+    // Skip ifunc and nameless functions which don't have an entry in the
+    // summary.
+    if (!Aliasee->hasName() || isa<GlobalIFunc>(Aliasee))
       continue;
     auto AliasId = VE.getValueID(&A);
     auto AliaseeId = VE.getValueID(Aliasee);

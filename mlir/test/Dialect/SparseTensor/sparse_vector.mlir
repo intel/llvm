@@ -1,12 +1,12 @@
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=0 vl=16" -cse -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=none vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC0
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=1 vl=16" -cse -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=dense-inner-loop vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC1
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16" -cse -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=any-storage-inner-loop vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC2
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16 enable-simd-index32=true" -cse -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=any-storage-inner-loop vl=16 enable-simd-index32=true" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC3
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=4 enable-vla-vectorization=true" -cse -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=any-storage-inner-loop vl=4 enable-vla-vectorization=true" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC4
 
 #DenseVector = #sparse_tensor.encoding<{ dimLevelType = [ "dense" ] }>
@@ -585,7 +585,7 @@ func.func @mul_ds(%arga: tensor<512x1024xf32, #SparseMatrix>, %argb: tensor<512x
 // CHECK-VEC4:       return
 //
 func.func @add_dense(%arga: tensor<32x64xf64, #SparseMatrix>,
-                %argx: tensor<33x64xf64> {linalg.inplaceable = true}) -> tensor<33x64xf64> {
+                %argx: tensor<33x64xf64>) -> tensor<33x64xf64> {
   %0 = linalg.generic #trait_affine
      ins(%arga: tensor<32x64xf64, #SparseMatrix>)
     outs(%argx: tensor<33x64xf64>) {

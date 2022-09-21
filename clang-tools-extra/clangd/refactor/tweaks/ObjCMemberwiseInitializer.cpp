@@ -40,7 +40,7 @@ static std::string getTypeStr(const QualType &OrigT, const Decl &D,
   QualType T = OrigT;
   PrintingPolicy Policy(D.getASTContext().getLangOpts());
   Policy.SuppressStrongLifetime = true;
-  std::string Prefix = "";
+  std::string Prefix;
   // If the nullability is specified via a property attribute, use the shorter
   // `nullable` form for the method parameter.
   if (PropertyAttributes & ObjCPropertyAttribute::kind_nullability) {
@@ -145,8 +145,8 @@ initializerForParams(const SmallVector<MethodParameter, 8> &Params,
     Stream << llvm::formatv("- (instancetype)initWith{0}:({1}){2}",
                             capitalize(First.Name.trim().str()), First.Type,
                             First.Name);
-    for (auto It = Params.begin() + 1; It != Params.end(); ++It)
-      Stream << llvm::formatv(" {0}:({1}){0}", It->Name, It->Type);
+    for (const auto &It : llvm::drop_begin(Params))
+      Stream << llvm::formatv(" {0}:({1}){0}", It.Name, It.Type);
 
     if (GenerateImpl) {
       Stream <<
@@ -172,7 +172,7 @@ initializerForParams(const SmallVector<MethodParameter, 8> &Params,
 /// properties and instance variables.
 class ObjCMemberwiseInitializer : public Tweak {
 public:
-  const char *id() const override final;
+  const char *id() const final;
   llvm::StringLiteral kind() const override {
     return CodeAction::REFACTOR_KIND;
   }

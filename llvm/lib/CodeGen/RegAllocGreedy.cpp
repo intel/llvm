@@ -135,6 +135,12 @@ static cl::opt<bool> GreedyRegClassPriorityTrumpsGlobalness(
              "more important then whether the range is global"),
     cl::Hidden);
 
+static cl::opt<bool> GreedyReverseLocalAssignment(
+    "greedy-reverse-local-assignment",
+    cl::desc("Reverse allocation order of local live ranges, such that "
+             "shorter local live ranges will tend to be allocated first"),
+    cl::Hidden);
+
 static RegisterRegAlloc greedyRegAlloc("greedy", "greedy register allocator",
                                        createGreedyRegisterAllocator);
 
@@ -180,16 +186,7 @@ FunctionPass* llvm::createGreedyRegisterAllocator() {
   return new RAGreedy();
 }
 
-namespace llvm {
-FunctionPass* createGreedyRegisterAllocator(
-  std::function<bool(const TargetRegisterInfo &TRI,
-                     const TargetRegisterClass &RC)> Ftor);
-
-}
-
-FunctionPass* llvm::createGreedyRegisterAllocator(
-  std::function<bool(const TargetRegisterInfo &TRI,
-                     const TargetRegisterClass &RC)> Ftor) {
+FunctionPass *llvm::createGreedyRegisterAllocator(RegClassFilterFunc Ftor) {
   return new RAGreedy(Ftor);
 }
 
@@ -202,8 +199,6 @@ void RAGreedy::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addRequired<MachineBlockFrequencyInfo>();
   AU.addPreserved<MachineBlockFrequencyInfo>();
-  AU.addRequired<AAResultsWrapperPass>();
-  AU.addPreserved<AAResultsWrapperPass>();
   AU.addRequired<LiveIntervals>();
   AU.addPreserved<LiveIntervals>();
   AU.addRequired<SlotIndexes>();
@@ -284,16 +279,28 @@ void RAGreedy::enqueueImpl(const LiveInterval *LI) { enqueue(Queue, LI); }
 void RAGreedy::enqueue(PQueue &CurQueue, const LiveInterval *LI) {
   // Prioritize live ranges by size, assigning larger ranges first.
   // The queue holds (size, reg) pairs.
-  const unsigned Size = LI->getSize();
   const Register Reg = LI->reg();
   assert(Reg.isVirtual() && "Can only enqueue virtual registers");
-  unsigned Prio;
 
   auto Stage = ExtraInfo->getOrInitStage(Reg);
   if (Stage == RS_New) {
     Stage = RS_Assign;
     ExtraInfo->setStage(Reg, Stage);
   }
+
+  unsigned Ret = PriorityAdvisor->getPriority(*LI);
+
+  // The virtual register number is a tie breaker for same-sized ranges.
+  // Give lower vreg numbers higher priority to assign them first.
+  CurQueue.push(std::make_pair(Ret, ~Reg));
+}
+
+unsigned DefaultPriorityAdvisor::getPriority(const LiveInterval &LI) const {
+  const unsigned Size = LI.getSize();
+  const Register Reg = LI.reg();
+  unsigned Prio;
+  LiveRangeStage Stage = RA.getExtraInfo().getStage(LI);
+
   if (Stage == RS_Split) {
     // Unsplit ranges that couldn't be allocated immediately are deferred until
     // everything else has been allocated.
@@ -308,25 +315,24 @@ void RAGreedy::enqueue(PQueue &CurQueue, const LiveInterval *LI) {
   } else {
     // Giant live ranges fall back to the global assignment heuristic, which
     // prevents excessive spilling in pathological cases.
-    bool ReverseLocal = TRI->reverseLocalAssignment();
     const TargetRegisterClass &RC = *MRI->getRegClass(Reg);
-    bool ForceGlobal =
-        !ReverseLocal && (Size / SlotIndex::InstrDist) >
-                             (2 * RegClassInfo.getNumAllocatableRegs(&RC));
+    bool ForceGlobal = !ReverseLocalAssignment &&
+                       (Size / SlotIndex::InstrDist) >
+                           (2 * RegClassInfo.getNumAllocatableRegs(&RC));
     unsigned GlobalBit = 0;
 
-    if (Stage == RS_Assign && !ForceGlobal && !LI->empty() &&
-        LIS->intervalIsInOneMBB(*LI)) {
+    if (Stage == RS_Assign && !ForceGlobal && !LI.empty() &&
+        LIS->intervalIsInOneMBB(LI)) {
       // Allocate original local ranges in linear instruction order. Since they
       // are singly defined, this produces optimal coloring in the absence of
       // global interference and other constraints.
-      if (!ReverseLocal)
-        Prio = LI->beginIndex().getInstrDistance(Indexes->getLastIndex());
+      if (!ReverseLocalAssignment)
+        Prio = LI.beginIndex().getInstrDistance(Indexes->getLastIndex());
       else {
         // Allocating bottom up may allow many short LRGs to be assigned first
         // to one of the cheap registers. This could be much faster for very
         // large blocks on targets with many physical registers.
-        Prio = Indexes->getZeroIndex().getInstrDistance(LI->endIndex());
+        Prio = Indexes->getZeroIndex().getInstrDistance(LI.endIndex());
       }
     } else {
       // Allocate global and split ranges in long->short order. Long ranges that
@@ -347,9 +353,8 @@ void RAGreedy::enqueue(PQueue &CurQueue, const LiveInterval *LI) {
     if (VRM->hasKnownPreference(Reg))
       Prio |= (1u << 30);
   }
-  // The virtual register number is a tie breaker for same-sized ranges.
-  // Give lower vreg numbers higher priority to assign them first.
-  CurQueue.push(std::make_pair(Prio, ~Reg));
+
+  return Prio;
 }
 
 const LiveInterval *RAGreedy::dequeue() { return dequeue(Queue); }
@@ -2375,11 +2380,25 @@ RAGreedy::RAGreedyStats RAGreedy::computeStats(MachineBasicBlock &MBB) {
   };
   for (MachineInstr &MI : MBB) {
     if (MI.isCopy()) {
-      MachineOperand &Dest = MI.getOperand(0);
-      MachineOperand &Src = MI.getOperand(1);
-      if (Dest.isReg() && Src.isReg() && Dest.getReg().isVirtual() &&
-          Src.getReg().isVirtual())
-        ++Stats.Copies;
+      const MachineOperand &Dest = MI.getOperand(0);
+      const MachineOperand &Src = MI.getOperand(1);
+      Register SrcReg = Src.getReg();
+      Register DestReg = Dest.getReg();
+      // Only count `COPY`s with a virtual register as source or destination.
+      if (SrcReg.isVirtual() || DestReg.isVirtual()) {
+        if (SrcReg.isVirtual()) {
+          SrcReg = VRM->getPhys(SrcReg);
+          if (Src.getSubReg())
+            SrcReg = TRI->getSubReg(SrcReg, Src.getSubReg());
+        }
+        if (DestReg.isVirtual()) {
+          DestReg = VRM->getPhys(DestReg);
+          if (Dest.getSubReg())
+            DestReg = TRI->getSubReg(DestReg, Dest.getSubReg());
+        }
+        if (SrcReg != DestReg)
+          ++Stats.Copies;
+      }
       continue;
     }
 
@@ -2530,7 +2549,6 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   Bundles = &getAnalysis<EdgeBundles>();
   SpillPlacer = &getAnalysis<SpillPlacement>();
   DebugVars = &getAnalysis<LiveDebugVariables>();
-  AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
 
   initializeCSRCost();
 
@@ -2540,9 +2558,14 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
           ? GreedyRegClassPriorityTrumpsGlobalness
           : TRI->regClassPriorityTrumpsGlobalness(*MF);
 
+  ReverseLocalAssignment = GreedyReverseLocalAssignment.getNumOccurrences()
+                               ? GreedyReverseLocalAssignment
+                               : TRI->reverseLocalAssignment();
+
   ExtraInfo.emplace();
   EvictAdvisor =
       getAnalysis<RegAllocEvictionAdvisorAnalysis>().getAdvisor(*MF, *this);
+  PriorityAdvisor = std::make_unique<DefaultPriorityAdvisor>(*MF, *this);
 
   VRAI = std::make_unique<VirtRegAuxInfo>(*MF, *LIS, *VRM, *Loops, *MBFI);
   SpillerInstance.reset(createInlineSpiller(*this, *MF, *VRM, *VRAI));
@@ -2552,7 +2575,7 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   LLVM_DEBUG(LIS->dump());
 
   SA.reset(new SplitAnalysis(*VRM, *LIS, *Loops));
-  SE.reset(new SplitEditor(*SA, *AA, *LIS, *VRM, *DomTree, *MBFI, *VRAI));
+  SE.reset(new SplitEditor(*SA, *LIS, *VRM, *DomTree, *MBFI, *VRAI));
 
   IntfCache.init(MF, Matrix->getLiveUnions(), Indexes, LIS, TRI);
   GlobalCand.resize(32);  // This will grow as needed.

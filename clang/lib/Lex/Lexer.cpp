@@ -1462,11 +1462,11 @@ static bool isAllowedIDChar(uint32_t C, const LangOptions &LangOpts) {
     return false;
   } else if (LangOpts.DollarIdents && '$' == C) {
     return true;
-  } else if (LangOpts.CPlusPlus) {
+  } else if (LangOpts.CPlusPlus || LangOpts.C2x) {
     // A non-leading codepoint must have the XID_Continue property.
     // XIDContinueRanges doesn't contains characters also in XIDStartRanges,
     // so we need to check both tables.
-    // '_' doesn't have the XID_Continue property but is allowed in C++.
+    // '_' doesn't have the XID_Continue property but is allowed in C and C++.
     static const llvm::sys::UnicodeCharSet XIDStartChars(XIDStartRanges);
     static const llvm::sys::UnicodeCharSet XIDContinueChars(XIDContinueRanges);
     return C == '_' || XIDStartChars.contains(C) ||
@@ -1483,13 +1483,13 @@ static bool isAllowedIDChar(uint32_t C, const LangOptions &LangOpts) {
 }
 
 static bool isAllowedInitiallyIDChar(uint32_t C, const LangOptions &LangOpts) {
+  assert(C > 0x7F && "isAllowedInitiallyIDChar called with an ASCII codepoint");
   if (LangOpts.AsmPreprocessor) {
     return false;
   }
-  if (LangOpts.CPlusPlus) {
+  if (LangOpts.CPlusPlus || LangOpts.C2x) {
     static const llvm::sys::UnicodeCharSet XIDStartChars(XIDStartRanges);
-    // '_' doesn't have the XID_Start property but is allowed in C++.
-    return C == '_' || XIDStartChars.contains(C);
+    return XIDStartChars.contains(C);
   }
   if (!isAllowedIDChar(C, LangOpts))
     return false;
@@ -2392,13 +2392,37 @@ bool Lexer::SkipLineComment(Token &Result, const char *CurPtr,
   //
   // This loop terminates with CurPtr pointing at the newline (or end of buffer)
   // character that ends the line comment.
+
+  // C++23 [lex.phases] p1
+  // Diagnose invalid UTF-8 if the corresponding warning is enabled, emitting a
+  // diagnostic only once per entire ill-formed subsequence to avoid
+  // emiting to many diagnostics (see http://unicode.org/review/pr-121.html).
+  bool UnicodeDecodingAlreadyDiagnosed = false;
+
   char C;
   while (true) {
     C = *CurPtr;
     // Skip over characters in the fast loop.
-    while (C != 0 &&                // Potentially EOF.
-           C != '\n' && C != '\r')  // Newline or DOS-style newline.
+    while (isASCII(C) && C != 0 &&   // Potentially EOF.
+           C != '\n' && C != '\r') { // Newline or DOS-style newline.
       C = *++CurPtr;
+      UnicodeDecodingAlreadyDiagnosed = false;
+    }
+
+    if (!isASCII(C)) {
+      unsigned Length = llvm::getUTF8SequenceSize(
+          (const llvm::UTF8 *)CurPtr, (const llvm::UTF8 *)BufferEnd);
+      if (Length == 0) {
+        if (!UnicodeDecodingAlreadyDiagnosed && !isLexingRawMode())
+          Diag(CurPtr, diag::warn_invalid_utf8_in_comment);
+        UnicodeDecodingAlreadyDiagnosed = true;
+        ++CurPtr;
+      } else {
+        UnicodeDecodingAlreadyDiagnosed = false;
+        CurPtr += Length;
+      }
+      continue;
+    }
 
     const char *NextLine = CurPtr;
     if (C != 0) {
@@ -2665,6 +2689,12 @@ bool Lexer::SkipBlockComment(Token &Result, const char *CurPtr,
   if (C == '/')
     C = *CurPtr++;
 
+  // C++23 [lex.phases] p1
+  // Diagnose invalid UTF-8 if the corresponding warning is enabled, emitting a
+  // diagnostic only once per entire ill-formed subsequence to avoid
+  // emiting to many diagnostics (see http://unicode.org/review/pr-121.html).
+  bool UnicodeDecodingAlreadyDiagnosed = false;
+
   while (true) {
     // Skip over all non-interesting characters until we find end of buffer or a
     // (probably ending) '/' character.
@@ -2673,14 +2703,21 @@ bool Lexer::SkipBlockComment(Token &Result, const char *CurPtr,
         // doesn't check for '\0'.
         !(PP && PP->getCodeCompletionFileLoc() == FileLoc)) {
       // While not aligned to a 16-byte boundary.
-      while (C != '/' && ((intptr_t)CurPtr & 0x0F) != 0)
+      while (C != '/' && (intptr_t)CurPtr % 16 != 0) {
+        if (!isASCII(C))
+          goto MultiByteUTF8;
         C = *CurPtr++;
-
+      }
       if (C == '/') goto FoundSlash;
 
 #ifdef __SSE2__
       __m128i Slashes = _mm_set1_epi8('/');
-      while (CurPtr+16 <= BufferEnd) {
+      while (CurPtr + 16 < BufferEnd) {
+        int Mask = _mm_movemask_epi8(*(const __m128i *)CurPtr);
+        if (LLVM_UNLIKELY(Mask != 0)) {
+          goto MultiByteUTF8;
+        }
+        // look for slashes
         int cmp = _mm_movemask_epi8(_mm_cmpeq_epi8(*(const __m128i*)CurPtr,
                                     Slashes));
         if (cmp != 0) {
@@ -2693,21 +2730,38 @@ bool Lexer::SkipBlockComment(Token &Result, const char *CurPtr,
         CurPtr += 16;
       }
 #elif __ALTIVEC__
+      __vector unsigned char LongUTF = {0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                                        0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                                        0x80, 0x80, 0x80, 0x80};
       __vector unsigned char Slashes = {
         '/', '/', '/', '/',  '/', '/', '/', '/',
         '/', '/', '/', '/',  '/', '/', '/', '/'
       };
-      while (CurPtr + 16 <= BufferEnd &&
-             !vec_any_eq(*(const __vector unsigned char *)CurPtr, Slashes))
+      while (CurPtr + 16 < BufferEnd) {
+        if (LLVM_UNLIKELY(
+                vec_any_ge(*(const __vector unsigned char *)CurPtr, LongUTF)))
+          goto MultiByteUTF8;
+        if (vec_any_eq(*(const __vector unsigned char *)CurPtr, Slashes)) {
+          break;
+        }
         CurPtr += 16;
+      }
+
 #else
-      // Scan for '/' quickly.  Many block comments are very large.
-      while (CurPtr[0] != '/' &&
-             CurPtr[1] != '/' &&
-             CurPtr[2] != '/' &&
-             CurPtr[3] != '/' &&
-             CurPtr+4 < BufferEnd) {
-        CurPtr += 4;
+      while (CurPtr + 16 < BufferEnd) {
+        bool HasNonASCII = false;
+        for (unsigned I = 0; I < 16; ++I)
+          HasNonASCII |= !isASCII(CurPtr[I]);
+
+        if (LLVM_UNLIKELY(HasNonASCII))
+          goto MultiByteUTF8;
+
+        bool HasSlash = false;
+        for (unsigned I = 0; I < 16; ++I)
+          HasSlash |= CurPtr[I] == '/';
+        if (HasSlash)
+          break;
+        CurPtr += 16;
       }
 #endif
 
@@ -2715,9 +2769,30 @@ bool Lexer::SkipBlockComment(Token &Result, const char *CurPtr,
       C = *CurPtr++;
     }
 
-    // Loop to scan the remainder.
-    while (C != '/' && C != '\0')
+    // Loop to scan the remainder, warning on invalid UTF-8
+    // if the corresponding warning is enabled, emitting a diagnostic only once
+    // per sequence that cannot be decoded.
+    while (C != '/' && C != '\0') {
+      if (isASCII(C)) {
+        UnicodeDecodingAlreadyDiagnosed = false;
+        C = *CurPtr++;
+        continue;
+      }
+    MultiByteUTF8:
+      // CurPtr is 1 code unit past C, so to decode
+      // the codepoint, we need to read from the previous position.
+      unsigned Length = llvm::getUTF8SequenceSize(
+          (const llvm::UTF8 *)CurPtr - 1, (const llvm::UTF8 *)BufferEnd);
+      if (Length == 0) {
+        if (!UnicodeDecodingAlreadyDiagnosed && !isLexingRawMode())
+          Diag(CurPtr - 1, diag::warn_invalid_utf8_in_comment);
+        UnicodeDecodingAlreadyDiagnosed = true;
+      } else {
+        UnicodeDecodingAlreadyDiagnosed = false;
+        CurPtr += Length - 1;
+      }
       C = *CurPtr++;
+    }
 
     if (C == '/') {
   FoundSlash:
@@ -2830,7 +2905,7 @@ void Lexer::ReadToEndOfLine(SmallVectorImpl<char> *Result) {
         break;
       }
       // FALL THROUGH.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case '\r':
     case '\n':
       // Okay, we found the end of the line. First, back up past the \0, \r, \n.
@@ -3212,7 +3287,10 @@ llvm::Optional<uint32_t> Lexer::tryReadNumericUCN(const char *&StartPtr,
   }
 
   if (Delimited && PP) {
-    Diag(BufferPtr, diag::ext_delimited_escape_sequence) << /*delimited*/ 0;
+    Diag(BufferPtr, PP->getLangOpts().CPlusPlus2b
+                        ? diag::warn_cxx2b_delimited_escape_sequence
+                        : diag::ext_delimited_escape_sequence)
+        << /*delimited*/ 0 << (PP->getLangOpts().CPlusPlus ? 1 : 0);
   }
 
   if (Result) {
@@ -3290,13 +3368,16 @@ llvm::Optional<uint32_t> Lexer::tryReadNamedUCN(const char *&StartPtr,
     // recover after having emitted a diagnostic.
     if (!LooseMatch)
       return llvm::None;
-    // We do not offer missspelled character names suggestions here
+    // We do not offer misspelled character names suggestions here
     // as the set of what would be a valid suggestion depends on context,
     // and we should not make invalid suggestions.
   }
 
   if (Diagnose && PP && !LooseMatch)
-    Diag(BufferPtr, diag::ext_delimited_escape_sequence) << /*named*/ 1;
+    Diag(BufferPtr, PP->getLangOpts().CPlusPlus2b
+                        ? diag::warn_cxx2b_delimited_escape_sequence
+                        : diag::ext_delimited_escape_sequence)
+        << /*named*/ 1 << (PP->getLangOpts().CPlusPlus ? 1 : 0);
 
   if (LooseMatch)
     Res = LooseMatch->CodePoint;
@@ -3510,7 +3591,7 @@ LexNextToken:
   case '\r':
     if (CurPtr[0] == '\n')
       (void)getAndAdvanceChar(CurPtr, Result);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case '\n':
     // If we are inside a preprocessor directive and we see the end of line,
     // we know we are done with the directive, so return an EOD token.
@@ -3707,7 +3788,7 @@ LexNextToken:
       return LexCharConstant(Result, ConsumeChar(CurPtr, SizeTmp, Result),
                              tok::wide_char_constant);
     // FALL THROUGH, treating L like the start of an identifier.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   // C99 6.4.2: Identifiers.
   case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':

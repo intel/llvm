@@ -192,20 +192,21 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
     if (isElemental) {
     } else if (dummy.type.attrs().test(
                    characteristics::TypeAndShape::Attr::AssumedRank)) {
-    } else if (!dummy.type.attrs().test(
-                   characteristics::TypeAndShape::Attr::AssumedShape) &&
+    } else if (dummy.type.Rank() > 0 &&
+        !dummy.type.attrs().test(
+            characteristics::TypeAndShape::Attr::AssumedShape) &&
         !dummy.type.attrs().test(
             characteristics::TypeAndShape::Attr::DeferredShape) &&
         (actualType.Rank() > 0 || IsArrayElement(actual))) {
       // Sequence association (15.5.2.11) applies -- rank need not match
       // if the actual argument is an array or array element designator,
-      // and the dummy is not assumed-shape or an INTENT(IN) pointer
-      // that's standing in for an assumed-shape dummy.
+      // and the dummy is an array, but not assumed-shape or an INTENT(IN)
+      // pointer that's standing in for an assumed-shape dummy.
     } else {
-      // Let CheckConformance accept scalars; storage association
+      // Let CheckConformance accept actual scalars; storage association
       // cases are checked here below.
       CheckConformance(messages, dummy.type.shape(), actualType.shape(),
-          evaluate::CheckConformanceFlags::EitherScalarExpandable,
+          evaluate::CheckConformanceFlags::RightScalarExpandable,
           "dummy argument", "actual argument");
     }
   } else {
@@ -386,17 +387,13 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
     reason = "INTENT(OUT)";
   } else if (dummy.intent == common::Intent::InOut) {
     reason = "INTENT(IN OUT)";
-  } else if (dummyIsAsynchronous) {
-    reason = "ASYNCHRONOUS";
-  } else if (dummyIsVolatile) {
-    reason = "VOLATILE";
   }
   if (reason && scope) {
     bool vectorSubscriptIsOk{isElemental || dummyIsValue}; // 15.5.2.4(21)
     if (auto why{WhyNotModifiable(
             messages.at(), actual, *scope, vectorSubscriptIsOk)}) {
       if (auto *msg{messages.Say(
-              "Actual argument associated with %s %s must be definable"_err_en_US, // C1158
+              "Actual argument associated with %s %s must be definable"_err_en_US,
               reason, dummyName)}) {
         msg->Attach(*why);
       }
@@ -602,12 +599,13 @@ static void CheckProcedureArg(evaluate::ActualArgument &arg,
             }
           }
           if (interface.HasExplicitInterface()) {
-            if (!interface.IsCompatibleWith(argInterface)) {
+            std::string whyNot;
+            if (!interface.IsCompatibleWith(argInterface, &whyNot)) {
               // 15.5.2.9(1): Explicit interfaces must match
               if (argInterface.HasExplicitInterface()) {
                 messages.Say(
-                    "Actual procedure argument has interface incompatible with %s"_err_en_US,
-                    dummyName);
+                    "Actual procedure argument has interface incompatible with %s: %s"_err_en_US,
+                    dummyName, whyNot);
                 return;
               } else if (proc.IsPure()) {
                 messages.Say(
@@ -663,7 +661,9 @@ static void CheckProcedureArg(evaluate::ActualArgument &arg,
     if (interface.HasExplicitInterface() && dummyIsPointer &&
         dummy.intent != common::Intent::In) {
       const Symbol *last{GetLastSymbol(*expr)};
-      if (!(last && IsProcedurePointer(*last))) {
+      if (!(last && IsProcedurePointer(*last)) &&
+          !(dummy.intent == common::Intent::Default &&
+              IsNullProcedurePointer(*expr))) {
         // 15.5.2.9(5) -- dummy procedure POINTER
         // Interface compatibility has already been checked above
         messages.Say(
@@ -731,14 +731,23 @@ static void CheckExplicitInterfaceArg(evaluate::ActualArgument &arg,
                     IsBOZLiteral(*expr)) {
                   // ok
                 } else if (object.type.type().IsTypelessIntrinsicArgument() &&
-                    evaluate::IsNullPointer(*expr)) {
+                    evaluate::IsNullObjectPointer(*expr)) {
                   // ok, ASSOCIATED(NULL())
                 } else if ((object.attrs.test(characteristics::DummyDataObject::
                                     Attr::Pointer) ||
                                object.attrs.test(characteristics::
                                        DummyDataObject::Attr::Optional)) &&
-                    evaluate::IsNullPointer(*expr)) {
+                    evaluate::IsNullObjectPointer(*expr)) {
                   // ok, FOO(NULL())
+                } else if (object.attrs.test(characteristics::DummyDataObject::
+                                   Attr::Allocatable) &&
+                    evaluate::IsNullPointer(*expr)) {
+                  // Unsupported extension that more or less naturally falls
+                  // out of other Fortran implementations that pass separate
+                  // base address and descriptor address physical arguments
+                  messages.Say(
+                      "Null actual argument '%s' may not be associated with allocatable %s"_err_en_US,
+                      expr->AsFortran(), dummyName);
                 } else {
                   messages.Say(
                       "Actual argument '%s' associated with %s is not a variable or typed expression"_err_en_US,

@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_BINARYFORMAT_OFFLOADING_H
-#define LLVM_BINARYFORMAT_OFFLOADING_H
+#ifndef LLVM_OBJECT_OFFLOADBINARY_H
+#define LLVM_OBJECT_OFFLOADBINARY_H
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -80,7 +80,7 @@ public:
   /// Serialize the contents of \p File to a binary buffer to be read later.
   static std::unique_ptr<MemoryBuffer> write(const OffloadingImage &);
 
-  static uint64_t getAlignment() { return alignof(Header); }
+  static uint64_t getAlignment() { return 8; }
 
   ImageKind getImageKind() const { return TheEntry->TheImageKind; }
   OffloadKind getOffloadKind() const { return TheEntry->TheOffloadKind; }
@@ -150,6 +150,28 @@ private:
   /// Location of the metadata entries within the binary.
   const Entry *TheEntry;
 };
+
+/// A class to contain the binary information for a single OffloadBinary that
+/// owns its memory.
+class OffloadFile : public OwningBinary<OffloadBinary> {
+public:
+  using TargetID = std::pair<StringRef, StringRef>;
+
+  OffloadFile(std::unique_ptr<OffloadBinary> Binary,
+              std::unique_ptr<MemoryBuffer> Buffer)
+      : OwningBinary<OffloadBinary>(std::move(Binary), std::move(Buffer)) {}
+
+  /// We use the Triple and Architecture pair to group linker inputs together.
+  /// This conversion function lets us use these inputs in a hash-map.
+  operator TargetID() const {
+    return std::make_pair(getBinary()->getTriple(), getBinary()->getArch());
+  }
+};
+
+/// Extracts embedded device offloading code from a memory \p Buffer to a list
+/// of \p Binaries.
+Error extractOffloadBinaries(MemoryBufferRef Buffer,
+                             SmallVectorImpl<OffloadFile> &Binaries);
 
 /// Convert a string \p Name to an image kind.
 ImageKind getImageKind(StringRef Name);

@@ -66,8 +66,8 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
     maybeLexMin = poly.findIntegerLexMin();
 
     if (!hasSample) {
-      EXPECT_FALSE(maybeSample.hasValue());
-      if (maybeSample.hasValue()) {
+      EXPECT_FALSE(maybeSample.has_value());
+      if (maybeSample.has_value()) {
         llvm::errs() << "findIntegerSample gave sample: ";
         dump(*maybeSample);
       }
@@ -78,7 +78,7 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
         dump(*maybeLexMin);
       }
     } else {
-      ASSERT_TRUE(maybeSample.hasValue());
+      ASSERT_TRUE(maybeSample.has_value());
       EXPECT_TRUE(poly.containsPoint(*maybeSample));
 
       ASSERT_FALSE(maybeLexMin.isEmpty());
@@ -86,7 +86,7 @@ static void checkSample(bool hasSample, const IntegerPolyhedron &poly,
         EXPECT_TRUE(Simplex(poly).isUnbounded());
       }
       if (maybeLexMin.isBounded()) {
-        EXPECT_TRUE(poly.containsPoint(*maybeLexMin));
+        EXPECT_TRUE(poly.containsPointNoLocal(*maybeLexMin));
       }
     }
     break;
@@ -410,6 +410,9 @@ TEST(IntegerPolyhedronTest, FindSampleTest) {
   checkSample(true, parsePoly("(x, y, z) : (2 * x - 1 >= 0, x - y - 1 == 0, "
                               "y - z == 0)"));
 
+  // Test with a local id.
+  checkSample(true, parsePoly("(x) : (x == 5*(x floordiv 2))"));
+
   // Regression tests for the computation of dual coefficients.
   checkSample(false, parsePoly("(x, y, z) : ("
                                "6*x - 4*y + 9*z + 2 >= 0,"
@@ -617,10 +620,13 @@ static void checkDivisionRepresentation(
   // Check that the `dividends` and `expectedDividends` match. If the
   // denominator for a division is zero, we ignore its dividend.
   EXPECT_TRUE(divs.getNumDivs() == expectedDividends.size());
-  for (unsigned i = 0, e = divs.getNumDivs(); i < e; ++i)
-    if (divs.hasRepr(i))
-      for (unsigned j = 0, f = divs.getNumVars() + 1; j < f; ++j)
+  for (unsigned i = 0, e = divs.getNumDivs(); i < e; ++i) {
+    if (divs.hasRepr(i)) {
+      for (unsigned j = 0, f = divs.getNumVars() + 1; j < f; ++j) {
         EXPECT_TRUE(expectedDividends[i][j] == divs.getDividend(i)[j]);
+      }
+    }
+  }
 }
 
 TEST(IntegerPolyhedronTest, computeLocalReprSimple) {

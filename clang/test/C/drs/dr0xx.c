@@ -203,7 +203,7 @@ _Static_assert(THIS$AND$THAT(1, 1) == 2, "fail"); /* expected-warning 2 {{'$' in
  * Note: the rule changed in C99 to be different than the resolution to DR029,
  * so it's not clear there's value in implementing this DR.
  */
-_Static_assert(__builtin_types_compatible_p(struct S { int a; }, union U { int a; }), "fail"); /* expected-error {{static_assert failed due to requirement '__builtin_types_compatible_p(struct S, union U)': fail}} */
+_Static_assert(__builtin_types_compatible_p(struct S { int a; }, union U { int a; }), "fail"); /* expected-error {{static assertion failed due to requirement '__builtin_types_compatible_p(struct S, union U)': fail}} */
 
 /* WG14 DR031: yes
  * Can constant expressions overflow?
@@ -363,7 +363,7 @@ char *dr064_1(int i, int *pi) {
 }
 
 char *dr064_2(int i, int *pi) {
-  return (*pi = i, 0); /* expected-warning {{incompatible integer to pointer conversion returning 'int' from a function with result type 'char *'}} */
+  return (*pi = i, 0); /* expected-error {{incompatible integer to pointer conversion returning 'int' from a function with result type 'char *'}} */
 }
 
 /* WG14 DR068: yes

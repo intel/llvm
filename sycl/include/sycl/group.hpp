@@ -24,8 +24,8 @@
 #include <sycl/range.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class Builder;
 
@@ -49,7 +49,8 @@ static inline void workGroupBarrier() {
 //   class can be used to wrap the data. This class very simply constructs
 //   private data for a given group across the entire group.The id of the
 //   current work-item is passed to any access to grab the correct data.
-template <typename T, int Dimensions = 1> class private_memory {
+template <typename T, int Dimensions = 1>
+class __SYCL_TYPE(private_memory) private_memory {
 public:
   // Construct based directly off the number of work-items
   private_memory(const group<Dimensions> &G) {
@@ -90,7 +91,7 @@ private:
 /// within a parallel execution.
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1> class group {
+template <int Dimensions = 1> class __SYCL_TYPE(group) group {
 public:
 #ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
   using id_type = id<Dimensions>;
@@ -556,5 +557,5 @@ template <int Dims> group<Dims> this_group() {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

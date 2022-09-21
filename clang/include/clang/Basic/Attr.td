@@ -221,6 +221,7 @@ class DeclArgument<DeclNode kind, string name, bit opt = 0, bit fake = 0>
 //   OMPTraitProperty := {Kind}
 //
 class OMPTraitInfoArgument<string name> : Argument<name, 0>;
+class VariadicOMPInteropInfoArgument<string name> : Argument<name, 0>;
 
 class TypeArgument<string name, bit opt = 0> : Argument<name, opt>;
 class UnsignedArgument<string name, bit opt = 0> : Argument<name, opt>;
@@ -409,6 +410,9 @@ def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
 def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
 def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
+def TargetWindows : TargetSpec {
+  let OSes = ["Win32"];
+}
 def TargetHasDLLImportExport : TargetSpec {
   let CustomCode = [{ Target.getTriple().hasDLLImportExport() }];
 }
@@ -628,6 +632,9 @@ class DeclOrTypeAttr : InheritableAttr;
 
 /// A attribute is either a declaration attribute or a statement attribute.
 class DeclOrStmtAttr : InheritableAttr;
+
+/// An attribute class for HLSL Annotations.
+class HLSLAnnotationAttr : InheritableAttr;
 
 /// A target-specific attribute.  This class is meant to be used as a mixin
 /// with InheritableAttr or Attr depending on the attribute's needs.
@@ -1095,7 +1102,7 @@ def CmseNSCall : TypeAttr, TargetSpecificAttr<TargetARM> {
 def Cold : InheritableAttr {
   let Spellings = [GCC<"cold">];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [ColdFunctionEntryDocs];
   let SimpleHandler = 1;
 }
 
@@ -1247,17 +1254,17 @@ def CUDAShared : InheritableAttr {
 }
 def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 
-def SYCLDevice : InheritableAttr {
-  let Spellings = [GNU<"sycl_device">];
-  let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLDeviceDocs];
-}
-
 def GlobalStorageNonLocalVar : SubsetSubject<Var,
                                              [{S->hasGlobalStorage() &&
                                                !S->isLocalVarDeclOrParm()}],
                                              "global variables">;
+
+def SYCLDevice : InheritableAttr {
+  let Spellings = [GNU<"sycl_device">];
+  let Subjects = SubjectList<[Function, GlobalStorageNonLocalVar]>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLDeviceDocs];
+}
 
 def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];
@@ -1279,6 +1286,23 @@ def SYCLSpecialClass: InheritableAttr {
   let Subjects = SubjectList<[CXXRecord]>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLSpecialClassDocs];
+}
+
+def SYCLType: InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "sycl_type">];
+  let Subjects = SubjectList<[CXXRecord, Enum], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Args = [EnumArgument<"Type", "SYCLType",
+                           ["accessor", "local_accessor", "spec_constant",
+                            "specialization_id", "kernel_handler", "buffer_location",
+                            "no_alias", "accessor_property_list", "group",
+                            "private_memory", "aspect"],
+                           ["accessor", "local_accessor", "spec_constant",
+                            "specialization_id", "kernel_handler", "buffer_location",
+                            "no_alias", "accessor_property_list", "group",
+                            "private_memory", "aspect"]>];
+  // Only used internally by SYCL implementation
+  let Documentation = [InternalOnly];
 }
 
 def SYCLDeviceHas : InheritableAttr {
@@ -2055,7 +2079,7 @@ def GNUInline : InheritableAttr {
 def Hot : InheritableAttr {
   let Spellings = [GCC<"hot">];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [HotFunctionEntryDocs];
   let SimpleHandler = 1;
 }
 def : MutualExclusions<[Hot, Cold]>;
@@ -2331,23 +2355,6 @@ def : MutualExclusions<[SYCLIntelFPGAIVDep,
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
-def SYCLIntelFPGAPipeline : InheritableAttr {
-  let Spellings = [CXX11<"intel","fpga_pipeline">];
-  let Args = [ExprArgument<"Value", /*optional*/1>];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                              ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Documentation = [SYCLIntelFPGAPipelineAttrDocs];
-  let IsStmtDependent = 1;
-}
-
-def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
-                        SYCLIntelFPGAPipeline]>;
-def : MutualExclusions<[SYCLIntelFPGAIVDep,
-                        SYCLIntelFPGAPipeline]>;
-def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
-                        SYCLIntelFPGAPipeline]>;
-
 def SYCLIntelFPGALoopCount : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_count_min">,
                    CXX11<"intel", "loop_count_max">,
@@ -2380,9 +2387,6 @@ def SYCLIntelFPGAMaxInterleaving : StmtAttr {
 def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
                         SYCLIntelFPGAMaxInterleaving]>;
 
-def : MutualExclusions<[SYCLIntelFPGAPipeline,
-                        SYCLIntelFPGAMaxInterleaving]>;
-
 def SYCLIntelFPGASpeculatedIterations : StmtAttr {
   let Spellings = [CXX11<"intel", "speculated_iterations">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
@@ -2395,9 +2399,6 @@ def SYCLIntelFPGASpeculatedIterations : StmtAttr {
 def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
                         SYCLIntelFPGASpeculatedIterations]>;
 
-def : MutualExclusions<[SYCLIntelFPGAPipeline,
-                        SYCLIntelFPGASpeculatedIterations]>;
-
 def SYCLIntelFPGANofusion : StmtAttr {
   let Spellings = [CXX11<"intel","nofusion">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
@@ -2406,6 +2407,18 @@ def SYCLIntelFPGANofusion : StmtAttr {
   let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
+
+def SYCLIntelFPGAMaxReinvocationDelay : StmtAttr {
+  let Spellings = [CXX11<"intel", "max_reinvocation_delay">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Args = [ExprArgument<"NExpr">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let IsStmtDependent = 1;
+  let Documentation = [SYCLIntelFPGAMaxReinvocationDelayAttrDocs];
+}
+def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
+                        SYCLIntelFPGAMaxReinvocationDelay]>;
 
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
@@ -2907,6 +2920,13 @@ def NoEscape : Attr {
   let Documentation = [NoEscapeDocs];
 }
 
+def MaybeUndef : InheritableAttr {
+  let Spellings = [Clang<"maybe_undef">];
+  let Subjects = SubjectList<[ParmVar]>;
+  let Documentation = [MaybeUndefDocs];
+  let SimpleHandler = 1;
+}
+
 def AssumeAligned : InheritableAttr {
   let Spellings = [GCC<"assume_aligned">];
   let Subjects = SubjectList<[ObjCMethod, Function]>;
@@ -2960,6 +2980,13 @@ def NoThrow : InheritableAttr {
   let Spellings = [GCC<"nothrow">, Declspec<"nothrow">];
   let Subjects = SubjectList<[FunctionLike]>;
   let Documentation = [NoThrowDocs];
+}
+
+def NoUwtable : InheritableAttr {
+  let Spellings = [Clang<"nouwtable">];
+  let Subjects = SubjectList<[FunctionLike]>;
+  let Documentation = [NoUwtableDocs];
+  let SimpleHandler = 1;
 }
 
 def NvWeak : IgnoredAttr {
@@ -3629,7 +3656,7 @@ def Target : InheritableAttr {
     template<class Compare>
     ParsedTargetAttr parse(Compare cmp) const {
       ParsedTargetAttr Attrs = parse();
-      llvm::sort(std::begin(Attrs.Features), std::end(Attrs.Features), cmp);
+      llvm::sort(Attrs.Features, cmp);
       return Attrs;
     }
 
@@ -4408,10 +4435,10 @@ def MSAllocator : InheritableAttr {
   let Documentation = [MSAllocatorDocs];
 }
 
-def CFGuard : InheritableAttr {
+def CFGuard : InheritableAttr, TargetSpecificAttr<TargetWindows> {
   // Currently only the __declspec(guard(nocf)) modifier is supported. In future
   // we might also want to support __declspec(guard(suppress)).
-  let Spellings = [Declspec<"guard">];
+  let Spellings = [Declspec<"guard">, Clang<"guard">];
   let Subjects = SubjectList<[Function]>;
   let Args = [EnumArgument<"Guard", "GuardArg", ["nocf"], ["nocf"]>];
   let Documentation = [CFGuardDocs];
@@ -4745,14 +4772,19 @@ def OMPDeclareVariant : InheritableAttr {
     OMPTraitInfoArgument<"TraitInfos">,
     VariadicExprArgument<"AdjustArgsNothing">,
     VariadicExprArgument<"AdjustArgsNeedDevicePtr">,
-    VariadicEnumArgument<"AppendArgs", "InteropType",
-                     ["target", "targetsync", "target,targetsync"],
-                     ["Target", "TargetSync", "Target_TargetSync"]>
+    VariadicOMPInteropInfoArgument<"AppendArgs">,
   ];
   let AdditionalMembers = [{
     OMPTraitInfo &getTraitInfo() { return *traitInfos; }
     void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
         const;
+    static StringRef getInteropTypeString(const OMPInteropInfo *I) {
+      if (I->IsTarget && I->IsTargetSync)
+        return "target,targetsync";
+      if (I->IsTarget)
+        return "target";
+      return "targetsync";
+    }
   }];
 }
 
@@ -4923,7 +4955,7 @@ def HLSLNumThreads: InheritableAttr {
   let Documentation = [NumThreadsDocs];
 }
 
-def HLSLSV_GroupIndex: InheritableAttr {
+def HLSLSV_GroupIndex: HLSLAnnotationAttr {
   let Spellings = [HLSLSemantic<"SV_GroupIndex">];
   let Subjects = SubjectList<[ParmVar, GlobalVar]>;
   let LangOpts = [HLSL];
@@ -4934,17 +4966,37 @@ def HLSLShader : InheritableAttr {
   let Spellings = [Microsoft<"shader">];
   let Subjects = SubjectList<[HLSLEntry]>;
   let LangOpts = [HLSL];
-  let Args = [EnumArgument<"Type", "ShaderType",
-                           ["pixel", "vertex", "geometry", "hull", "domain",
-                            "compute", "raygeneration", "intersection",
-                            "anyhit", "closesthit", "miss", "callable", "mesh",
-                            "amplification"],
-                           ["Pixel", "Vertex", "Geometry", "Hull", "Domain",
-                            "Compute", "RayGeneration", "Intersection",
-                            "AnyHit", "ClosestHit", "Miss", "Callable", "Mesh",
-                            "Amplification"]
-                           >];
+  // NOTE:
+  // order for the enum should match order in llvm::Triple::EnvironmentType.
+  // ShaderType will be converted to llvm::Triple::EnvironmentType like
+  //   (llvm::Triple::EnvironmentType)((uint32_t)ShaderType +
+  //      (uint32_t)llvm::Triple::EnvironmentType::Pixel).
+  // This will avoid update code for convert when new shader type is added.
+  let Args = [
+    EnumArgument<"Type", "ShaderType",
+                 [
+                   "pixel", "vertex", "geometry", "hull", "domain", "compute",
+                   "library", "raygeneration", "intersection", "anyHit",
+                   "closestHit", "miss", "callable", "mesh", "amplification"
+                 ],
+                 [
+                   "Pixel", "Vertex", "Geometry", "Hull", "Domain", "Compute",
+                   "Library", "RayGeneration", "Intersection", "AnyHit",
+                   "ClosestHit", "Miss", "Callable", "Mesh", "Amplification"
+                 ]>
+  ];
   let Documentation = [HLSLSV_ShaderTypeAttrDocs];
+}
+
+def HLSLResource : InheritableAttr {
+  let Spellings = [];
+  let Subjects = SubjectList<[Struct]>;
+  let LangOpts = [HLSL];
+  let Args = [EnumArgument<"ResourceType", "ResourceClass",
+                           ["SRV", "UAV", "CBuffer", "Sampler"],
+                           ["SRV", "UAV", "CBuffer", "Sampler"]
+                           >];
+  let Documentation = [InternalOnly];
 }
 
 def RandomizeLayout : InheritableAttr {
@@ -4961,3 +5013,14 @@ def NoRandomizeLayout : InheritableAttr {
   let LangOpts = [COnly];
 }
 def : MutualExclusions<[RandomizeLayout, NoRandomizeLayout]>;
+
+def FunctionReturnThunks : InheritableAttr,
+    TargetSpecificAttr<TargetAnyX86> {
+  let Spellings = [GCC<"function_return">];
+  let Args = [EnumArgument<"ThunkType", "Kind",
+    ["keep", "thunk-extern"],
+    ["Keep", "Extern"]
+  >];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [FunctionReturnThunksDocs];
+}

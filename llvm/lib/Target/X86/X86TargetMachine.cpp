@@ -86,6 +86,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86TileConfigPass(PR);
   initializeX86FastPreTileConfigPass(PR);
   initializeX86FastTileConfigPass(PR);
+  initializeX86KCFIPass(PR);
   initializeX86LowerTileCopyPass(PR);
   initializeX86ExpandPseudoPass(PR);
   initializeX86ExecutionDomainFixPass(PR);
@@ -100,6 +101,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86OptimizeLEAPassPass(PR);
   initializeX86PartialReductionPass(PR);
   initializePseudoProbeInserterPass(PR);
+  initializeX86ReturnThunksPass(PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -253,8 +255,12 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
 
   StringRef CPU =
       CPUAttr.isValid() ? CPUAttr.getValueAsString() : (StringRef)TargetCPU;
-  StringRef TuneCPU =
-      TuneAttr.isValid() ? TuneAttr.getValueAsString() : (StringRef)CPU;
+  // "x86-64" is a default target setting for many front ends. In these cases,
+  // they actually request for "generic" tuning unless the "tune-cpu" was
+  // specified.
+  StringRef TuneCPU = TuneAttr.isValid() ? TuneAttr.getValueAsString()
+                      : CPU == "x86-64"  ? "generic"
+                                         : (StringRef)CPU;
   StringRef FS =
       FSAttr.isValid() ? FSAttr.getValueAsString() : (StringRef)TargetFS;
 
@@ -537,7 +543,10 @@ void X86PassConfig::addPostRegAlloc() {
     addPass(createX86LoadValueInjectionLoadHardeningPass());
 }
 
-void X86PassConfig::addPreSched2() { addPass(createX86ExpandPseudoPass()); }
+void X86PassConfig::addPreSched2() {
+  addPass(createX86ExpandPseudoPass());
+  addPass(createX86KCFIPass());
+}
 
 void X86PassConfig::addPreEmitPass() {
   if (getOptLevel() != CodeGenOpt::None) {
@@ -575,6 +584,7 @@ void X86PassConfig::addPreEmitPass2() {
   // hand inspection of the codegen output.
   addPass(createX86SpeculativeExecutionSideEffectSuppression());
   addPass(createX86IndirectThunksPass());
+  addPass(createX86ReturnThunksPass());
 
   // Insert extra int3 instructions after trailing call instructions to avoid
   // issues in the unwinder.
@@ -600,17 +610,18 @@ void X86PassConfig::addPreEmitPass2() {
   // Insert pseudo probe annotation for callsite profiling
   addPass(createPseudoProbeInserter());
 
-  // On Darwin platforms, BLR_RVMARKER pseudo instructions are lowered to
-  // bundles.
-  if (TT.isOSDarwin())
-    addPass(createUnpackMachineBundles([](const MachineFunction &MF) {
-      // Only run bundle expansion if there are relevant ObjC runtime functions
-      // present in the module.
-      const Function &F = MF.getFunction();
-      const Module *M = F.getParent();
-      return M->getFunction("objc_retainAutoreleasedReturnValue") ||
-             M->getFunction("objc_unsafeClaimAutoreleasedReturnValue");
-    }));
+  // KCFI indirect call checks are lowered to a bundle, and on Darwin platforms,
+  // also CALL_RVMARKER.
+  addPass(createUnpackMachineBundles([&TT](const MachineFunction &MF) {
+    // Only run bundle expansion if the module uses kcfi, or there are relevant
+    // ObjC runtime functions present in the module.
+    const Function &F = MF.getFunction();
+    const Module *M = F.getParent();
+    return M->getModuleFlag("kcfi") ||
+           (TT.isOSDarwin() &&
+            (M->getFunction("objc_retainAutoreleasedReturnValue") ||
+             M->getFunction("objc_unsafeClaimAutoreleasedReturnValue")));
+  }));
 }
 
 bool X86PassConfig::addPostFastRegAllocRewrite() {

@@ -28,9 +28,9 @@ using namespace mlir;
 namespace {
 static llvm::omp::ScheduleKind
 convertToScheduleKind(Optional<omp::ClauseScheduleKind> schedKind) {
-  if (!schedKind.hasValue())
+  if (!schedKind.has_value())
     return llvm::omp::OMP_SCHEDULE_Default;
-  switch (schedKind.getValue()) {
+  switch (schedKind.value()) {
   case omp::ClauseScheduleKind::Static:
     return llvm::omp::OMP_SCHEDULE_Static;
   case omp::ClauseScheduleKind::Dynamic:
@@ -701,6 +701,27 @@ convertOmpTaskOp(omp::TaskOp taskOp, llvm::IRBuilderBase &builder,
   return bodyGenStatus;
 }
 
+/// Converts an OpenMP taskgroup construct into LLVM IR using OpenMPIRBuilder.
+static LogicalResult
+convertOmpTaskgroupOp(omp::TaskGroupOp tgOp, llvm::IRBuilderBase &builder,
+                      LLVM::ModuleTranslation &moduleTranslation) {
+  using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
+  LogicalResult bodyGenStatus = success();
+  if (!tgOp.task_reduction_vars().empty() || !tgOp.allocate_vars().empty()) {
+    return tgOp.emitError("unhandled clauses for translation to LLVM IR");
+  }
+  auto bodyCB = [&](InsertPointTy allocaIP, InsertPointTy codegenIP) {
+    builder.restoreIP(codegenIP);
+    convertOmpOpRegions(tgOp.region(), "omp.taskgroup.region", builder,
+                        moduleTranslation, bodyGenStatus);
+  };
+  InsertPointTy allocaIP = findAllocaInsertPoint(builder, moduleTranslation);
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
+  builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createTaskgroup(
+      ompLoc, allocaIP, bodyCB));
+  return bodyGenStatus;
+}
+
 /// Converts an OpenMP workshare loop into LLVM IR using OpenMPIRBuilder.
 static LogicalResult
 convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
@@ -912,11 +933,6 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   SmallVector<llvm::CanonicalLoopInfo *> loopInfos;
   SmallVector<llvm::OpenMPIRBuilder::InsertPointTy> bodyInsertPoints;
   LogicalResult bodyGenStatus = success();
-
-  // TODO: The code generation for if clause is not supported yet.
-  if (loop.if_expr())
-    return failure();
-
   auto bodyGen = [&](llvm::OpenMPIRBuilder::InsertPointTy ip, llvm::Value *iv) {
     // Make sure further conversions know about the induction variable.
     moduleTranslation.mapValue(
@@ -971,7 +987,18 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   llvm::CanonicalLoopInfo *loopInfo =
       ompBuilder->collapseLoops(ompLoc.DL, loopInfos, {});
 
-  ompBuilder->applySimd(ompLoc.DL, loopInfo);
+  llvm::ConstantInt *simdlen = nullptr;
+  if (llvm::Optional<uint64_t> simdlenVar = loop.simdlen())
+    simdlen = builder.getInt64(simdlenVar.value());
+
+  llvm::ConstantInt *safelen = nullptr;
+  if (llvm::Optional<uint64_t> safelenVar = loop.safelen())
+    safelen = builder.getInt64(safelenVar.value());
+
+  ompBuilder->applySimd(
+      loopInfo,
+      loop.if_expr() ? moduleTranslation.lookupValue(loop.if_expr()) : nullptr,
+      simdlen, safelen);
 
   builder.restoreIP(afterIP);
   return success();
@@ -1283,7 +1310,8 @@ convertOmpThreadprivate(Operation &opInst, llvm::IRBuilderBase &builder,
     return opInst.emitError("Addressing symbol not found");
   LLVM::AddressOfOp addressOfOp = dyn_cast<LLVM::AddressOfOp>(symOp);
 
-  LLVM::GlobalOp global = addressOfOp.getGlobal();
+  LLVM::GlobalOp global =
+      addressOfOp.getGlobal(moduleTranslation.symbolTable());
   llvm::GlobalValue *globalValue = moduleTranslation.lookupGlobal(global);
   llvm::Value *data =
       builder.CreateBitCast(globalValue, builder.getInt8PtrTy());
@@ -1398,6 +1426,9 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
       })
       .Case([&](omp::TaskOp op) {
         return convertOmpTaskOp(op, builder, moduleTranslation);
+      })
+      .Case([&](omp::TaskGroupOp op) {
+        return convertOmpTaskgroupOp(op, builder, moduleTranslation);
       })
       .Case<omp::YieldOp, omp::TerminatorOp, omp::ReductionDeclareOp,
             omp::CriticalDeclareOp>([](auto op) {

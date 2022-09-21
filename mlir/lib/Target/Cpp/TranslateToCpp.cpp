@@ -645,8 +645,7 @@ static LogicalResult printOperation(CppEmitter &emitter,
   }
 
   // Declare variables for basic block arguments.
-  for (auto it = std::next(blocks.begin()); it != blocks.end(); ++it) {
-    Block &block = *it;
+  for (Block &block : llvm::drop_begin(blocks)) {
     for (BlockArgument &arg : block.getArguments()) {
       if (emitter.hasValueInScope(arg))
         return functionOp.emitOpError(" block argument #")
@@ -824,7 +823,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
   if (auto type = attr.dyn_cast<TypeAttr>())
     return emitType(loc, type.getValue());
 
-  return emitError(loc, "cannot emit attribute of type ") << attr.getType();
+  return emitError(loc, "cannot emit attribute: ") << attr;
 }
 
 LogicalResult CppEmitter::emitOperands(Operation &op) {

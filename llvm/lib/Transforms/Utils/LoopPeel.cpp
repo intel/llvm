@@ -29,6 +29,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -133,7 +134,7 @@ static Optional<unsigned> calculateIterationsToInvariance(
   // Place infinity to map to avoid infinite recursion for cycled Phis. Such
   // cycles can never stop on an invariant.
   IterationsToInvariance[Phi] = None;
-  Optional<unsigned> ToInvariance = None;
+  Optional<unsigned> ToInvariance;
 
   if (L->isLoopInvariant(Input))
     ToInvariance = 1u;
@@ -330,7 +331,7 @@ static unsigned countToEliminateCompares(Loop &L, unsigned MaxPeelCount,
 
 /// This "heuristic" exactly matches implicit behavior which used to exist
 /// inside getLoopEstimatedTripCount.  It was added here to keep an
-/// improvement inside that API from causing peeling to become more agressive.
+/// improvement inside that API from causing peeling to become more aggressive.
 /// This should probably be removed.
 static bool violatesLegacyMultiExitLoopCheck(Loop *L) {
   BasicBlock *Latch = L->getLoopLatch();
@@ -532,7 +533,7 @@ static void initBranchWeights(BasicBlock *Header, BranchInst *LatchBR,
                               uint64_t &ExitWeight,
                               uint64_t &FallThroughWeight) {
   uint64_t TrueWeight, FalseWeight;
-  if (!LatchBR->extractProfMetadata(TrueWeight, FalseWeight))
+  if (!extractBranchWeights(*LatchBR, TrueWeight, FalseWeight))
     return;
   unsigned HeaderIdx = LatchBR->getSuccessor(0) == Header ? 0 : 1;
   ExitWeight = HeaderIdx ? TrueWeight : FalseWeight;

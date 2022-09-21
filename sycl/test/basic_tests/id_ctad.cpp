@@ -11,10 +11,10 @@
 
 using namespace std;
 int main() {
-  cl::sycl::id one_dim_id(64);
-  cl::sycl::id two_dim_id(64, 1);
-  cl::sycl::id three_dim_id(64, 1, 2);
-  static_assert(std::is_same<decltype(one_dim_id), cl::sycl::id<1>>::value);
-  static_assert(std::is_same<decltype(two_dim_id), cl::sycl::id<2>>::value);
-  static_assert(std::is_same<decltype(three_dim_id), cl::sycl::id<3>>::value);
+  sycl::id one_dim_id(64);
+  sycl::id two_dim_id(64, 1);
+  sycl::id three_dim_id(64, 1, 2);
+  static_assert(std::is_same<decltype(one_dim_id), sycl::id<1>>::value);
+  static_assert(std::is_same<decltype(two_dim_id), sycl::id<2>>::value);
+  static_assert(std::is_same<decltype(three_dim_id), sycl::id<3>>::value);
 }

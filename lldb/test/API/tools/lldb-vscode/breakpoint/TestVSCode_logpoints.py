@@ -3,7 +3,6 @@ Test lldb-vscode logpoints feature.
 """
 
 
-import unittest2
 import vscode
 import shutil
 from lldbsuite.test.decorators import *
@@ -14,8 +13,6 @@ import os
 
 
 class TestVSCode_logpoints(lldbvscode_testcase.VSCodeTestCaseBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         lldbvscode_testcase.VSCodeTestCaseBase.setUp(self)

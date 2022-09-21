@@ -91,7 +91,7 @@ Status OptionValuePathMappings::SetValueFromString(llvm::StringRef value,
     }
     m_path_mappings.Clear(m_notify_changes);
     // Fall through to append case
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case eVarSetOperationAppend:
     if (argc < 2 || (argc & 1)) {
       error.SetErrorString("append operation takes one or more path pairs");
@@ -174,7 +174,7 @@ Status OptionValuePathMappings::SetValueFromString(llvm::StringRef value,
       }
 
       // Sort and then erase in reverse so indexes are always valid
-      llvm::sort(remove_indexes.begin(), remove_indexes.end());
+      llvm::sort(remove_indexes);
       for (auto index : llvm::reverse(remove_indexes))
         m_path_mappings.Remove(index, m_notify_changes);
       NotifyValueChanged();

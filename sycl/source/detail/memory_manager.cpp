@@ -9,9 +9,9 @@
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
-#include <sycl/detail/memory_manager.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -23,8 +23,8 @@
 #include <xpti/xpti_trace_framework.hpp>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -243,15 +243,6 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
-void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
-                                       void *ImageBuf) {
-  (void)TargetContext;
-  (void)ImageBuf;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated release operation",
-                      PI_ERROR_INVALID_OPERATION);
-}
-
 void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
                                   SYCLMemObjI *MemObj, void *MemAllocation,
                                   void *UserPtr) {
@@ -282,29 +273,18 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                              OutEvent);
 }
 
-void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
-                                         void *MemBuf, SYCLMemObjI *MemObj) {
-  (void)TargetContext;
-  (void)MemBuf;
-  (void)MemObj;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated allocation operation",
-                      PI_ERROR_INVALID_OPERATION);
-}
-
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
                                         const sycl::property_list &) {
-  // Can return user pointer directly if it points to writable memory.
-  if (UserPtr && HostPtrReadOnly == false)
+  std::ignore = HostPtrReadOnly;
+  std::ignore = Size;
+
+  // Can return user pointer directly if it is not a nullptr.
+  if (UserPtr)
     return UserPtr;
 
-  void *NewMem = MemObj->allocateHostMem();
-  // Need to initialize new memory if user provides pointer to read only
-  // memory.
-  if (UserPtr && HostPtrReadOnly == true)
-    std::memcpy((char *)NewMem, (char *)UserPtr, Size);
-  return NewMem;
+  return MemObj->allocateHostMem();
+  ;
 }
 
 void *MemoryManager::allocateInteropMemObject(
@@ -331,8 +311,7 @@ static RT::PiMemFlags getMemObjCreationFlags(void *UserPtr,
   RT::PiMemFlags Result =
       HostPtrReadOnly ? PI_MEM_ACCESS_READ_ONLY : PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
-    Result |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
-                              : PI_MEM_FLAGS_HOST_PTR_USE;
+    Result |= PI_MEM_FLAGS_HOST_PTR_USE;
   return Result;
 }
 
@@ -861,10 +840,11 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent *OutEvent) {
-  sycl::context Context = SrcQueue->get_context();
+  assert(!SrcQueue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_usm.");
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
-    if (!Context.is_host() && !DepEvents.empty()) {
+    if (!DepEvents.empty()) {
       SrcQueue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
           SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
           OutEvent);
@@ -876,24 +856,21 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
 
-  if (Context.is_host()) {
-    std::memcpy(DstMem, SrcMem, Len);
-  } else {
-    const detail::plugin &Plugin = SrcQueue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
-                                                  /* blocking */ false, DstMem,
-                                                  SrcMem, Len, DepEvents.size(),
-                                                  DepEvents.data(), OutEvent);
-  }
+  const detail::plugin &Plugin = SrcQueue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
+                                                /* blocking */ false, DstMem,
+                                                SrcMem, Len, DepEvents.size(),
+                                                DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent *OutEvent) {
-  sycl::context Context = Queue->get_context();
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_usm.");
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
-    if (!Context.is_host() && !DepEvents.empty()) {
+    if (!DepEvents.empty()) {
       Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -904,73 +881,35 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_ERROR_INVALID_VALUE);
 
-  if (Context.is_host()) {
-    std::memset(Mem, Pattern, Length);
-  } else {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
-        Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-        DepEvents.data(), OutEvent);
-  }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
+      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
+      DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<RT::PiEvent> DepEvents,
                                  RT::PiEvent *OutEvent) {
-  sycl::context Context = Queue->get_context();
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in prefetch_usm.");
 
-  if (Context.is_host()) {
-    // TODO: Potentially implement prefetch on the host.
-  } else {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
-        Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
-        DepEvents.size(), DepEvents.data(), OutEvent);
-  }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
+      Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
+      DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, pi_mem_advice Advice,
                                std::vector<RT::PiEvent> /*DepEvents*/,
                                RT::PiEvent *OutEvent) {
-  sycl::context Context = Queue->get_context();
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in advise_usm.");
 
-  if (!Context.is_host()) {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
-                                                     Length, Advice, OutEvent);
-  }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
+                                                   Length, Advice, OutEvent);
 }
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
-                             void *DstMem, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  copy_usm(SrcMem, Queue, Len, DstMem, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                             int Pattern, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  fill_usm(DstMem, Queue, Len, Pattern, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
-                                 std::vector<RT::PiEvent> DepEvents,
-                                 RT::PiEvent &OutEvent) {
-  prefetch_usm(Ptr, Queue, Len, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
-                               pi_mem_advice Advice,
-                               std::vector<RT::PiEvent> DepEvents,
-                               RT::PiEvent &OutEvent) {
-  advise_usm(Ptr, Queue, Len, Advice, DepEvents, &OutEvent);
-}
-
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

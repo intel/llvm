@@ -13,6 +13,7 @@
 #include "lldb/Core/ValueObjectMemory.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Host/OptionParser.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
@@ -274,7 +275,7 @@ public:
   OptionValueUInt64 m_num_per_line;
   bool m_output_as_binary = false;
   OptionValueString m_view_as_type;
-  bool m_force;
+  bool m_force = false;
   OptionValueUInt64 m_offset;
   OptionValueLanguage m_language_for_type;
 };
@@ -426,7 +427,7 @@ protected:
           switch (type_str[type_str.size() - 1]) {
           case '*':
             ++pointer_count;
-            LLVM_FALLTHROUGH;
+            [[fallthrough]];
           case ' ':
           case '\t':
             type_str.erase(type_str.size() - 1);
@@ -1658,7 +1659,7 @@ class CommandObjectMemoryRegion : public CommandObjectParsed {
 public:
   class OptionGroupMemoryRegion : public OptionGroup {
   public:
-    OptionGroupMemoryRegion() : OptionGroup(), m_all(false, false) {}
+    OptionGroupMemoryRegion() : m_all(false, false) {}
 
     ~OptionGroupMemoryRegion() override = default;
 
@@ -1738,7 +1739,7 @@ protected:
     const llvm::Optional<std::vector<addr_t>> &dirty_page_list =
         range_info.GetDirtyPageList();
     if (dirty_page_list) {
-      const size_t page_count = dirty_page_list.getValue().size();
+      const size_t page_count = dirty_page_list.value().size();
       result.AppendMessageWithFormat(
           "Modified memory (dirty) page list provided, %zu entries.\n",
           page_count);

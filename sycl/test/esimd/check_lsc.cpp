@@ -13,7 +13,7 @@
 
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 // --- Postive tests.
 

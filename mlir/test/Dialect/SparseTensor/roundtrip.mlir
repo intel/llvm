@@ -15,12 +15,12 @@ func.func @sparse_new(%arg0: !llvm.ptr<i8>) -> tensor<128xf64, #SparseVector> {
 
 #SparseVector = #sparse_tensor.encoding<{dimLevelType = ["compressed"]}>
 
-// CHECK-LABEL: func @sparse_release(
+// CHECK-LABEL: func @sparse_dealloc(
 // CHECK-SAME: %[[A:.*]]: tensor<128xf64, #{{.*}}>
-//       CHECK: sparse_tensor.release %[[A]] : tensor<128xf64, #{{.*}}>
+//       CHECK: bufferization.dealloc_tensor %[[A]] : tensor<128xf64, #{{.*}}>
 //       CHECK: return
-func.func @sparse_release(%arg0: tensor<128xf64, #SparseVector>) {
-  sparse_tensor.release %arg0 : tensor<128xf64, #SparseVector>
+func.func @sparse_dealloc(%arg0: tensor<128xf64, #SparseVector>) {
+  bufferization.dealloc_tensor %arg0 : tensor<128xf64, #SparseVector>
   return
 }
 
@@ -267,4 +267,97 @@ func.func @sparse_unary(%arg0: f64) -> i64 {
     }
     absent={}
   return %r : i64
+}
+
+// -----
+
+#SparseMatrix = #sparse_tensor.encoding<{dimLevelType = ["compressed", "compressed"]}>
+
+// CHECK-LABEL: func @sparse_reduce_2d_to_1d(
+//  CHECK-SAME:   %[[A:.*]]: f64, %[[B:.*]]: f64) -> f64 {
+//       CHECK:   %[[Z:.*]] = arith.constant 0.000000e+00 : f64
+//       CHECK:   %[[C1:.*]] = sparse_tensor.reduce %[[A]], %[[B]], %[[Z]] : f64 {
+//       CHECK:       ^bb0(%[[A1:.*]]: f64, %[[B1:.*]]: f64):
+//       CHECK:         sparse_tensor.yield %[[A1]] : f64
+//       CHECK:     }
+//       CHECK:   return %[[C1]] : f64
+//       CHECK: }
+func.func @sparse_reduce_2d_to_1d(%arg0: f64, %arg1: f64) -> f64 {
+  %cf0 = arith.constant 0.0 : f64
+  %r = sparse_tensor.reduce %arg0, %arg1, %cf0 : f64 {
+      ^bb0(%x: f64, %y: f64):
+        sparse_tensor.yield %x : f64
+    }
+  return %r : f64
+}
+
+// -----
+
+#SparseMatrix = #sparse_tensor.encoding<{dimLevelType = ["compressed", "compressed"]}>
+
+// CHECK-LABEL: func @concat_sparse_sparse(
+//  CHECK-SAME:   %[[A0:.*]]: tensor<2x4xf64
+//  CHECK-SAME:   %[[A1:.*]]: tensor<3x4xf64
+//  CHECK-SAME:   %[[A2:.*]]: tensor<4x4xf64
+//       CHECK:   %[[TMP0:.*]] = sparse_tensor.concatenate %[[A0]], %[[A1]], %[[A2]] {dimension = 0 : index} :
+//  CHECK-SAME:   tensor<2x4xf64
+//  CHECK-SAME:   tensor<3x4xf64
+//  CHECK-SAME:   tensor<4x4xf64
+//  CHECK-SAME:   tensor<9x4xf64
+//       CHECK:   return %[[TMP0]] : tensor<9x4xf64
+func.func @concat_sparse_sparse(%arg0: tensor<2x4xf64, #SparseMatrix>,
+                                %arg1: tensor<3x4xf64, #SparseMatrix>,
+                                %arg2: tensor<4x4xf64, #SparseMatrix>) -> tensor<9x4xf64, #SparseMatrix> {
+  %0 = sparse_tensor.concatenate %arg0, %arg1, %arg2 {dimension = 0 : index}
+       : tensor<2x4xf64, #SparseMatrix>,
+         tensor<3x4xf64, #SparseMatrix>,
+         tensor<4x4xf64, #SparseMatrix> to tensor<9x4xf64, #SparseMatrix>
+  return %0 : tensor<9x4xf64, #SparseMatrix>
+}
+
+// -----
+
+
+// CHECK: func @sparse_storage_new(
+//  CHECK-SAME: %[[A0:.*0]]: memref<?xf64>,
+//  CHECK-SAME: %[[A1:.*1]]: memref<?xf64>,
+//  CHECK-SAME: %[[A2:.*]]: f64
+//       CHECK: %[[TMP_0:.*]] = sparse_tensor.storage(%[[A0]], %[[A1]], %[[A2]])
+//       CHECK: return %[[TMP_0]] : tuple<memref<?xf64>, memref<?xf64>, f64>
+func.func @sparse_storage_new(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: f64) ->
+                               tuple<memref<?xf64>, memref<?xf64>, f64> {
+  %0 = sparse_tensor.storage(%arg0, %arg1, %arg2)
+       : memref<?xf64>, memref<?xf64>, f64 to tuple<memref<?xf64>, memref<?xf64>, f64>
+  return %0 : tuple<memref<?xf64>, memref<?xf64>, f64>
+}
+
+// -----
+
+// CHECK-LABEL: func @sparse_storage_get(
+//  CHECK-SAME:   %[[A0:.*]]: tuple<memref<?xf64>, memref<?xf64>, f64>
+//       CHECK:   %[[TMP0:.*]] = sparse_tensor.storage_get %[[A0]][0] :
+//  CHECK-SAME:     tuple<memref<?xf64>, memref<?xf64>, f64>
+//  CHECK-SAME:     to memref<?xf64>
+//       CHECK:   return %[[TMP0]] : memref<?xf64>
+func.func @sparse_storage_get(%arg0: tuple<memref<?xf64>, memref<?xf64>, f64>) -> memref<?xf64> {
+  %0 = sparse_tensor.storage_get %arg0[0]
+       : tuple<memref<?xf64>, memref<?xf64>, f64> to memref<?xf64>
+  return %0 : memref<?xf64>
+}
+
+// -----
+
+// CHECK-LABEL: func @sparse_storage_set(
+//  CHECK-SAME:   %[[A0:.*]]: tuple<memref<?xf64>, memref<?xf64>, f64>,
+//  CHECK-SAME:   %[[A1:.*]]: memref<?xf64>
+//       CHECK:   %[[TMP0:.*]] = sparse_tensor.storage_set %[[A0]][0], %[[A1]] :
+//  CHECK-SAME:     tuple<memref<?xf64>, memref<?xf64>, f64>,
+//  CHECK-SAME:     memref<?xf64>
+//  CHECK-SAME:     to tuple<memref<?xf64>, memref<?xf64>, f64>
+//       CHECK:   return %0 : tuple<memref<?xf64>, memref<?xf64>, f64>
+func.func @sparse_storage_set(%arg0: tuple<memref<?xf64>, memref<?xf64>, f64>, %arg1: memref<?xf64>) -> tuple<memref<?xf64>, memref<?xf64>, f64> {
+  %0 = sparse_tensor.storage_set %arg0[0], %arg1
+       : tuple<memref<?xf64>, memref<?xf64>, f64>, memref<?xf64> to
+         tuple<memref<?xf64>, memref<?xf64>, f64>
+  return %0 : tuple<memref<?xf64>, memref<?xf64>, f64>
 }

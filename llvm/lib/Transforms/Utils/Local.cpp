@@ -439,6 +439,10 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     return true;
   }
 
+  if (auto *CB = dyn_cast<CallBase>(I))
+    if (isRemovableAlloc(CB, TLI))
+      return true;
+
   if (!I->willReturn())
     return false;
 
@@ -489,16 +493,13 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     }
   }
 
-  if (isAllocationFn(I, TLI) && isAllocRemovable(cast<CallBase>(I), TLI))
-    return true;
-
-  if (CallInst *CI = isFreeCall(I, TLI))
-    if (Constant *C = dyn_cast<Constant>(CI->getArgOperand(0)))
-      return C->isNullValue() || isa<UndefValue>(C);
-
-  if (auto *Call = dyn_cast<CallBase>(I))
+  if (auto *Call = dyn_cast<CallBase>(I)) {
+    if (Value *FreedOp = getFreedOperand(Call, TLI))
+      if (Constant *C = dyn_cast<Constant>(FreedOp))
+        return C->isNullValue() || isa<UndefValue>(C);
     if (isMathLibCallNoop(Call, TLI))
       return true;
+  }
 
   // Non-volatile atomic loads from constants can be removed.
   if (auto *LI = dyn_cast<LoadInst>(I))
@@ -637,7 +638,7 @@ bool llvm::RecursivelyDeleteDeadPHINode(PHINode *PN,
     // won't prove fruitful.
     if (!Visited.insert(I).second) {
       // Break the cycle and delete the instruction and its operands.
-      I->replaceAllUsesWith(UndefValue::get(I->getType()));
+      I->replaceAllUsesWith(PoisonValue::get(I->getType()));
       (void)RecursivelyDeleteTriviallyDeadInstructions(I, TLI, MSSAU);
       return true;
     }
@@ -750,8 +751,8 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
   // If BB has single-entry PHI nodes, fold them.
   while (PHINode *PN = dyn_cast<PHINode>(DestBB->begin())) {
     Value *NewVal = PN->getIncomingValue(0);
-    // Replace self referencing PHI with undef, it must be dead.
-    if (NewVal == PN) NewVal = UndefValue::get(PN->getType());
+    // Replace self referencing PHI with poison, it must be dead.
+    if (NewVal == PN) NewVal = PoisonValue::get(PN->getType());
     PN->replaceAllUsesWith(NewVal);
     PN->eraseFromParent();
   }
@@ -1086,18 +1087,6 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
         }
       }
       ++BBI;
-    }
-  }
-
-  // We cannot fold the block if it's a branch to an already present callbr
-  // successor because that creates duplicate successors.
-  for (BasicBlock *PredBB : predecessors(BB)) {
-    if (auto *CBI = dyn_cast<CallBrInst>(PredBB->getTerminator())) {
-      if (Succ == CBI->getDefaultDest())
-        return false;
-      for (unsigned i = 0, e = CBI->getNumIndirectDests(); i != e; ++i)
-        if (Succ == CBI->getIndirectDest(i))
-          return false;
     }
   }
 
@@ -1586,7 +1575,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
     WorkList.push_back(AI);
     while (!WorkList.empty()) {
       const Value *V = WorkList.pop_back_val();
-      for (auto &AIUse : V->uses()) {
+      for (const auto &AIUse : V->uses()) {
         User *U = AIUse.getUser();
         if (StoreInst *SI = dyn_cast<StoreInst>(U)) {
           if (AIUse.getOperandNo() == 1)
@@ -1652,12 +1641,12 @@ void llvm::insertDebugValuesForPHIs(BasicBlock *BB,
   // propagate the info through the new PHI. If we use more than one new PHI in
   // a single destination BB with the same old dbg.value, merge the updates so
   // that we get a single new dbg.value with all the new PHIs.
-  for (auto PHI : InsertedPHIs) {
+  for (auto *PHI : InsertedPHIs) {
     BasicBlock *Parent = PHI->getParent();
     // Avoid inserting an intrinsic into an EH block.
     if (Parent->getFirstNonPHI()->isEHPad())
       continue;
-    for (auto VI : PHI->operand_values()) {
+    for (auto *VI : PHI->operand_values()) {
       auto V = DbgValueMap.find(VI);
       if (V != DbgValueMap.end()) {
         auto *DbgII = cast<DbgVariableIntrinsic>(V->second);
@@ -1734,8 +1723,8 @@ void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
           replaceOneDbgValueForAlloca(DVI, NewAllocaAddress, Builder, Offset);
 }
 
-/// Where possible to salvage debug information for \p I do so
-/// and return True. If not possible mark undef and return False.
+/// Where possible to salvage debug information for \p I do so.
+/// If not possible mark undef.
 void llvm::salvageDebugInfo(Instruction &I) {
   SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
   findDbgUsers(DbgUsers, &I);
@@ -2105,7 +2094,7 @@ llvm::removeAllNonTerminatorAndEHPadInstructions(BasicBlock *BB) {
     // Delete the next to last instruction.
     Instruction *Inst = &*--EndInst->getIterator();
     if (!Inst->use_empty() && !Inst->getType()->isTokenTy())
-      Inst->replaceAllUsesWith(UndefValue::get(Inst->getType()));
+      Inst->replaceAllUsesWith(PoisonValue::get(Inst->getType()));
     if (Inst->isEHPad() || Inst->getType()->isTokenTy()) {
       EndInst = Inst;
       continue;
@@ -2144,7 +2133,7 @@ unsigned llvm::changeToUnreachable(Instruction *I, bool PreserveLCSSA,
   BasicBlock::iterator BBI = I->getIterator(), BBE = BB->end();
   while (BBI != BBE) {
     if (!BBI->use_empty())
-      BBI->replaceAllUsesWith(UndefValue::get(BBI->getType()));
+      BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));
     BB->getInstList().erase(BBI++);
     ++NumInstrsRemoved;
   }

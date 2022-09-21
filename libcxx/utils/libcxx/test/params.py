@@ -38,6 +38,10 @@ _warningFlags = [
   # TODO(mordante) investigate a solution for this issue.
   '-Wno-tautological-compare',
 
+  # -Wstringop-overread and -Wstringop-overflow seem to be a bit buggy currently
+  '-Wno-stringop-overread',
+  '-Wno-stringop-overflow',
+
   # These warnings should be enabled in order to support the MSVC
   # team using the test suite; They enable the warnings below and
   # expect the test suite to be clean.
@@ -77,6 +81,7 @@ DEFAULT_PARAMETERS = [
             default=lambda cfg: next(s for s in reversed(_allStandards) if getStdFlag(cfg, s)),
             actions=lambda std: [
               AddFeature(std),
+              AddSubstitution('%{cxx_std}', re.sub('\+','x', std)),
               AddCompileFlag(lambda cfg: getStdFlag(cfg, std)),
             ]),
 
@@ -131,7 +136,7 @@ DEFAULT_PARAMETERS = [
               [AddCompileFlag('-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER')]
             ),
 
-  Parameter(name='use_sanitizer', choices=['', 'Address', 'Undefined', 'Memory', 'MemoryWithOrigins', 'Thread', 'DataFlow', 'Leaks'], type=str, default='',
+  Parameter(name='use_sanitizer', choices=['', 'Address', 'HWAddress', 'Undefined', 'Memory', 'MemoryWithOrigins', 'Thread', 'DataFlow', 'Leaks'], type=str, default='',
             help="An optional sanitizer to enable when building and running the test suite.",
             actions=lambda sanitizer: filter(None, [
               AddFlag('-g -fno-omit-frame-pointer') if sanitizer else None,
@@ -141,6 +146,9 @@ DEFAULT_PARAMETERS = [
 
               AddFlag('-fsanitize=address') if sanitizer == 'Address' else None,
               AddFeature('asan')            if sanitizer == 'Address' else None,
+
+              AddFlag('-fsanitize=hwaddress') if sanitizer == 'HWAddress' else None,
+              AddFeature('hwasan')            if sanitizer == 'HWAddress' else None,
 
               AddFlag('-fsanitize=memory')               if sanitizer in ['Memory', 'MemoryWithOrigins'] else None,
               AddFeature('msan')                         if sanitizer in ['Memory', 'MemoryWithOrigins'] else None,
@@ -152,19 +160,22 @@ DEFAULT_PARAMETERS = [
               AddFlag('-fsanitize=dataflow') if sanitizer == 'DataFlow' else None,
               AddFlag('-fsanitize=leaks') if sanitizer == 'Leaks' else None,
 
-              AddFeature('sanitizer-new-delete') if sanitizer in ['Address', 'Memory', 'MemoryWithOrigins', 'Thread'] else None,
+              AddFeature('sanitizer-new-delete') if sanitizer in ['Address', 'HWAddress', 'Memory', 'MemoryWithOrigins', 'Thread'] else None,
             ])),
 
   Parameter(name='enable_experimental', choices=[True, False], type=bool, default=True,
-            help="Whether to enable tests for experimental C++ libraries (typically Library Fundamentals TSes).",
-            actions=lambda experimental: [] if not experimental else [
-              AddFeature('c++experimental'),
+            help="Whether to enable tests for experimental C++ Library features.",
+            actions=lambda experimental: [
               # When linking in MSVC mode via the Clang driver, a -l<foo>
               # maps to <foo>.lib, so we need to use -llibc++experimental here
               # to make it link against the static libc++experimental.lib.
               # We can't check for the feature 'msvc' in available_features
               # as those features are added after processing parameters.
-              PrependLinkFlag(lambda config: '-llibc++experimental' if _isMSVC(config) else '-lc++experimental')
+              AddFeature('c++experimental'),
+              PrependLinkFlag(lambda cfg: '-llibc++experimental' if _isMSVC(cfg) else '-lc++experimental'),
+              AddCompileFlag('-D_LIBCPP_ENABLE_EXPERIMENTAL'),
+            ] if experimental else [
+              AddFeature('libcpp-has-no-incomplete-format'),
             ]),
 
   Parameter(name='long_tests', choices=[True, False], type=bool, default=True,

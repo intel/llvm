@@ -105,7 +105,7 @@ X86InstrInfo::isCoalescableExtInstr(const MachineInstr &MI,
       // It's not always legal to reference the low 8-bit of the larger
       // register in 32-bit mode.
       return false;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case X86::MOVSX32rr16:
   case X86::MOVZX32rr16:
   case X86::MOVSX64rr16:
@@ -742,8 +742,8 @@ static bool regIsPICBase(Register BaseReg, const MachineRegisterInfo &MRI) {
   return isPICBase;
 }
 
-bool X86InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                     AAResults *AA) const {
+bool X86InstrInfo::isReallyTriviallyReMaterializable(
+    const MachineInstr &MI) const {
   switch (MI.getOpcode()) {
   default:
     // This function should only be called for opcodes with the ReMaterializable
@@ -869,7 +869,7 @@ bool X86InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
         MI.getOperand(1 + X86::AddrScaleAmt).isImm() &&
         MI.getOperand(1 + X86::AddrIndexReg).isReg() &&
         MI.getOperand(1 + X86::AddrIndexReg).getReg() == 0 &&
-        MI.isDereferenceableInvariantLoad(AA)) {
+        MI.isDereferenceableInvariantLoad()) {
       Register BaseReg = MI.getOperand(1 + X86::AddrBaseReg).getReg();
       if (BaseReg == 0 || BaseReg == X86::RIP)
         return true;
@@ -1249,6 +1249,8 @@ MachineInstr *X86InstrInfo::convertToThreeAddressWithLEA(unsigned MIOpc,
   if (LV) {
     // Update live variables.
     LV->getVarInfo(InRegLEA).Kills.push_back(NewMI);
+    if (InRegLEA2)
+      LV->getVarInfo(InRegLEA2).Kills.push_back(NewMI);
     LV->getVarInfo(OutRegLEA).Kills.push_back(ExtMI);
     if (IsKill)
       LV->replaceKillInstruction(Src, MI, *InsMI);
@@ -1337,6 +1339,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
   bool Is64Bit = Subtarget.is64Bit();
 
   bool Is8BitOp = false;
+  unsigned NumRegOperands = 2;
   unsigned MIOpc = MI.getOpcode();
   switch (MIOpc) {
   default: llvm_unreachable("Unreachable!");
@@ -1385,11 +1388,14 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
       MIB.add(ImplicitOp);
     NewMI = MIB;
 
+    // Add kills if classifyLEAReg created a new register.
+    if (LV && SrcReg != Src.getReg())
+      LV->getVarInfo(SrcReg).Kills.push_back(NewMI);
     break;
   }
   case X86::SHL8ri:
     Is8BitOp = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case X86::SHL16ri: {
     assert(MI.getNumOperands() >= 3 && "Unknown shift instruction!");
     unsigned ShAmt = getTruncatedShiftCount(MI, 2);
@@ -1416,6 +1422,10 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
       MIB.add(ImplicitOp);
 
     NewMI = addOffset(MIB, 1);
+
+    // Add kills if classifyLEAReg created a new register.
+    if (LV && SrcReg != Src.getReg())
+      LV->getVarInfo(SrcReg).Kills.push_back(NewMI);
     break;
   }
   case X86::DEC64r:
@@ -1438,12 +1448,15 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
 
     NewMI = addOffset(MIB, -1);
 
+    // Add kills if classifyLEAReg created a new register.
+    if (LV && SrcReg != Src.getReg())
+      LV->getVarInfo(SrcReg).Kills.push_back(NewMI);
     break;
   }
   case X86::DEC8r:
   case X86::INC8r:
     Is8BitOp = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case X86::DEC16r:
   case X86::INC16r:
     return convertToThreeAddressWithLEA(MIOpc, MI, LV, LIS, Is8BitOp);
@@ -1485,14 +1498,21 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
       MIB.add(ImplicitOp2);
 
     NewMI = addRegReg(MIB, SrcReg, isKill, SrcReg2, isKill2);
-    if (LV && Src2.isKill())
-      LV->replaceKillInstruction(SrcReg2, MI, *NewMI);
+
+    // Add kills if classifyLEAReg created a new register.
+    if (LV) {
+      if (SrcReg2 != Src2.getReg())
+        LV->getVarInfo(SrcReg2).Kills.push_back(NewMI);
+      if (SrcReg != SrcReg2 && SrcReg != Src.getReg())
+        LV->getVarInfo(SrcReg).Kills.push_back(NewMI);
+    }
+    NumRegOperands = 3;
     break;
   }
   case X86::ADD8rr:
   case X86::ADD8rr_DB:
     Is8BitOp = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case X86::ADD16rr:
   case X86::ADD16rr_DB:
     return convertToThreeAddressWithLEA(MIOpc, MI, LV, LIS, Is8BitOp);
@@ -1525,12 +1545,16 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
       MIB.add(ImplicitOp);
 
     NewMI = addOffset(MIB, MI.getOperand(2));
+
+    // Add kills if classifyLEAReg created a new register.
+    if (LV && SrcReg != Src.getReg())
+      LV->getVarInfo(SrcReg).Kills.push_back(NewMI);
     break;
   }
   case X86::ADD8ri:
   case X86::ADD8ri_DB:
     Is8BitOp = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case X86::ADD16ri:
   case X86::ADD16ri8:
   case X86::ADD16ri_DB:
@@ -1729,6 +1753,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
               .add(MI.getOperand(2))
               .add(Src)
               .add(MI.getOperand(3));
+    NumRegOperands = 4;
     break;
   }
   }
@@ -1736,10 +1761,11 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
   if (!NewMI) return nullptr;
 
   if (LV) {  // Update live variables
-    if (Src.isKill())
-      LV->replaceKillInstruction(Src.getReg(), MI, *NewMI);
-    if (Dest.isDead())
-      LV->replaceKillInstruction(Dest.getReg(), MI, *NewMI);
+    for (unsigned I = 0; I < NumRegOperands; ++I) {
+      MachineOperand &Op = MI.getOperand(I);
+      if (Op.isDead() || Op.isKill())
+        LV->replaceKillInstruction(Op.getReg(), MI, *NewMI);
+    }
   }
 
   MachineBasicBlock &MBB = *MI.getParent();
@@ -2021,7 +2047,7 @@ MachineInstr *X86InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool NewMI,
                                                        OpIdx1, OpIdx2);
       }
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case X86::PBLENDWrri:
   case X86::VBLENDPDYrri:
   case X86::VBLENDPSYrri:
@@ -2772,18 +2798,18 @@ X86::getX86ConditionCode(CmpInst::Predicate Predicate) {
   default: break;
   // Floating-point Predicates
   case CmpInst::FCMP_UEQ: CC = X86::COND_E;       break;
-  case CmpInst::FCMP_OLT: NeedSwap = true;        LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_OLT: NeedSwap = true;        [[fallthrough]];
   case CmpInst::FCMP_OGT: CC = X86::COND_A;       break;
-  case CmpInst::FCMP_OLE: NeedSwap = true;        LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_OLE: NeedSwap = true;        [[fallthrough]];
   case CmpInst::FCMP_OGE: CC = X86::COND_AE;      break;
-  case CmpInst::FCMP_UGT: NeedSwap = true;        LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_UGT: NeedSwap = true;        [[fallthrough]];
   case CmpInst::FCMP_ULT: CC = X86::COND_B;       break;
-  case CmpInst::FCMP_UGE: NeedSwap = true;        LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_UGE: NeedSwap = true;        [[fallthrough]];
   case CmpInst::FCMP_ULE: CC = X86::COND_BE;      break;
   case CmpInst::FCMP_ONE: CC = X86::COND_NE;      break;
   case CmpInst::FCMP_UNO: CC = X86::COND_P;       break;
   case CmpInst::FCMP_ORD: CC = X86::COND_NP;      break;
-  case CmpInst::FCMP_OEQ:                         LLVM_FALLTHROUGH;
+  case CmpInst::FCMP_OEQ:                         [[fallthrough]];
   case CmpInst::FCMP_UNE: CC = X86::COND_INVALID; break;
 
   // Integer Predicates
@@ -3074,44 +3100,6 @@ bool X86InstrInfo::AnalyzeBranchImpl(
 
     // Working from the bottom, handle the first conditional branch.
     if (Cond.empty()) {
-      MachineBasicBlock *TargetBB = I->getOperand(0).getMBB();
-      if (AllowModify && UnCondBrIter != MBB.end() &&
-          MBB.isLayoutSuccessor(TargetBB)) {
-        // If we can modify the code and it ends in something like:
-        //
-        //     jCC L1
-        //     jmp L2
-        //   L1:
-        //     ...
-        //   L2:
-        //
-        // Then we can change this to:
-        //
-        //     jnCC L2
-        //   L1:
-        //     ...
-        //   L2:
-        //
-        // Which is a bit more efficient.
-        // We conditionally jump to the fall-through block.
-        BranchCode = GetOppositeBranchCondition(BranchCode);
-        MachineBasicBlock::iterator OldInst = I;
-
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(X86::JCC_1))
-          .addMBB(UnCondBrIter->getOperand(0).getMBB())
-          .addImm(BranchCode);
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(X86::JMP_1))
-          .addMBB(TargetBB);
-
-        OldInst->eraseFromParent();
-        UnCondBrIter->eraseFromParent();
-
-        // Restart the analysis.
-        UnCondBrIter = MBB.end();
-        I = MBB.end();
-        continue;
-      }
-
       FBB = TBB;
       TBB = I->getOperand(0).getMBB();
       Cond.push_back(MachineOperand::CreateImm(BranchCode));
@@ -3892,6 +3880,10 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         Register DestReg, int FrameIdx,
                                         const TargetRegisterClass *RC,
                                         const TargetRegisterInfo *TRI) const {
+  const MachineFunction &MF = *MBB.getParent();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
+         "Load size exceeds stack slot");
   if (RC->getID() == X86::TILERegClassID) {
     unsigned Opc = X86::TILELOADD;
     // tileloadd (%sp, %idx), %tmm
@@ -3913,8 +3905,6 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc), DestReg),
                       FrameIdx);
   } else {
-    const MachineFunction &MF = *MBB.getParent();
-    const MachineFrameInfo &MFI = MF.getFrameInfo();
     unsigned Alignment = std::max<uint32_t>(TRI->getSpillSize(*RC), 16);
     bool isAligned =
         (Subtarget.getFrameLowering()->getStackAlign() >= Alignment) ||
@@ -4091,6 +4081,17 @@ inline static bool isDefConvertible(const MachineInstr &MI, bool &NoSignFlag,
                                     bool &ClearsOverflowFlag) {
   NoSignFlag = false;
   ClearsOverflowFlag = false;
+
+  // "ELF Handling for Thread-Local Storage" specifies that x86-64 GOTTPOFF, and
+  // i386 GOTNTPOFF/INDNTPOFF relocations can convert an ADD to a LEA during
+  // Initial Exec to Local Exec relaxation. In these cases, we must not depend
+  // on the EFLAGS modification of ADD actually happening in the final binary.
+  if (MI.getOpcode() == X86::ADD64rm || MI.getOpcode() == X86::ADD32rm) {
+    unsigned Flags = MI.getOperand(5).getTargetFlags();
+    if (Flags == X86II::MO_GOTTPOFF || Flags == X86II::MO_INDNTPOFF ||
+        Flags == X86II::MO_GOTNTPOFF)
+      return false;
+  }
 
   switch (MI.getOpcode()) {
   default: return false;
@@ -4466,7 +4467,7 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
         // can't do the optimization.
         if (NoSignFlag)
           return false;
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case X86::COND_O: case X86::COND_NO:
         // If OF is used, the instruction needs to clear it like CmpZero does.
         if (!ClearsOverflowFlag)
@@ -9397,8 +9398,8 @@ namespace {
       }
 
       // Visit the children of this block in the dominator tree.
-      for (auto I = Node->begin(), E = Node->end(); I != E; ++I) {
-        Changed |= VisitNode(*I, TLSBaseAddrReg);
+      for (auto &I : *Node) {
+        Changed |= VisitNode(I, TLSBaseAddrReg);
       }
 
       return Changed;

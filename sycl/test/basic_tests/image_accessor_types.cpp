@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 class mod_image;
 int main() {
   half4 src[16];

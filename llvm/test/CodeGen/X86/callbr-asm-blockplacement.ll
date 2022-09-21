@@ -50,8 +50,9 @@ define i32 @foo(i32 %arg, ptr %arg3) nounwind {
 ; CHECK-NEXT:    #NO_APP
 ; CHECK-NEXT:  # %bb.4: # %bb17
 ; CHECK-NEXT:    callq widget@PLT
-; CHECK-NEXT:  .Ltmp0: # Block address taken
-; CHECK-NEXT:  .LBB0_5: # %bb18
+; CHECK-NEXT:  .LBB0_5: # Block address taken
+; CHECK-NEXT:    # %bb18
+; CHECK-NEXT:    # Label of block must be emitted
 ; CHECK-NEXT:    movw $0, 14(%rbx)
 ; CHECK-NEXT:    addq $8, %rsp
 ; CHECK-NEXT:    popq %rbx
@@ -85,7 +86,7 @@ bb8:                                              ; preds = %bb8, %bb5
 bb15:                                             ; preds = %bb8
   %tmp16 = getelementptr [0 x %struct.wibble], ptr @global, i64 0, i64 %tmp4, i32 2
   store ptr %tmp9, ptr %tmp16
-  callbr void asm sideeffect "", "i"(ptr blockaddress(@foo, %bb18))
+  callbr void asm sideeffect "", "!i"()
           to label %bb17 [label %bb18]
 
 bb17:                                             ; preds = %bb15

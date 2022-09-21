@@ -435,6 +435,7 @@ enum : unsigned {
   EF_ARM_ABI_FLOAT_SOFT = 0x00000200U, // EABI_VER5
   EF_ARM_VFP_FLOAT = 0x00000400U,      // Legacy pre EABI_VER5
   EF_ARM_ABI_FLOAT_HARD = 0x00000400U, // EABI_VER5
+  EF_ARM_BE8 = 0x00800000U,
   EF_ARM_EABI_UNKNOWN = 0x00000000U,
   EF_ARM_EABI_VER1 = 0x01000000U,
   EF_ARM_EABI_VER2 = 0x02000000U,
@@ -898,6 +899,26 @@ enum : unsigned {
 // ELF Relocation types for CSKY
 enum {
 #include "ELFRelocs/CSKY.def"
+};
+
+// LoongArch Specific e_flags
+enum : unsigned {
+  // Reference: https://github.com/loongson/LoongArch-Documentation.
+  // The last commit hash (main branch) is
+  // 99016636af64d02dee05e39974d4c1e55875c45b.
+  // Note that there is an open PR
+  // https://github.com/loongson/LoongArch-Documentation/pull/47
+  // talking about using 0x1, 0x2, 0x3 for ILP32S/F/D and use EI_CLASS to
+  // distinguish LP64 and ILP32. If this PR get merged, we will update
+  // the definition here.
+  // Base ABI Types.
+  EF_LOONGARCH_BASE_ABI_LP64S = 0x1,  // LP64 soft-float ABI
+  EF_LOONGARCH_BASE_ABI_LP64F = 0x2,  // LP64 single-float ABI
+  EF_LOONGARCH_BASE_ABI_LP64D = 0x3,  // LP64 double-float ABI
+  EF_LOONGARCH_BASE_ABI_ILP32S = 0x5, // ILP32 soft-float ABI
+  EF_LOONGARCH_BASE_ABI_ILP32F = 0x6, // ILP32 single-float ABI
+  EF_LOONGARCH_BASE_ABI_ILP32D = 0x7, // ILP32 double-float ABI
+  EF_LOONGARCH_BASE_ABI_MASK = 0x7,   // Mask for selecting base ABI
 };
 
 // ELF Relocation types for LoongArch
@@ -1366,6 +1387,8 @@ enum {
   // These all contain stack unwind tables.
   PT_ARM_EXIDX = 0x70000001,
   PT_ARM_UNWIND = 0x70000001,
+  // MTE memory tag segment type
+  PT_AARCH64_MEMTAG_MTE = 0x70000002,
 
   // MIPS program header types.
   PT_MIPS_REGINFO = 0x70000000,  // Register usage information.
@@ -1575,6 +1598,7 @@ enum {
   NT_GNU_BUILD_ID = 3,
   NT_GNU_GOLD_VERSION = 4,
   NT_GNU_PROPERTY_TYPE_0 = 5,
+  FDO_PACKAGING_METADATA = 0xcafe1a7e,
 };
 
 // Android note types.

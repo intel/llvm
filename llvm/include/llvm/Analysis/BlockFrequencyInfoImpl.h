@@ -1278,9 +1278,9 @@ bool BlockFrequencyInfoImpl<BT>::computeMassInLoop(LoopData &Loop) {
       }
       LLVM_DEBUG(dbgs() << getBlockName(HeaderNode)
                         << " has irr loop header weight "
-                        << HeaderWeight.getValue() << "\n");
+                        << HeaderWeight.value() << "\n");
       NumHeadersWithWeight++;
-      uint64_t HeaderWeightValue = HeaderWeight.getValue();
+      uint64_t HeaderWeightValue = HeaderWeight.value();
       if (!MinHeaderWeight || HeaderWeightValue < MinHeaderWeight)
         MinHeaderWeight = HeaderWeightValue;
       if (HeaderWeightValue) {
@@ -1442,7 +1442,7 @@ void BlockFrequencyInfoImpl<BT>::iterativeInference(
   // Successors[I] holds unique sucessors of the I-th block
   auto Successors = std::vector<std::vector<size_t>>(Freq.size());
   for (size_t I = 0; I < Freq.size(); I++) {
-    for (auto &Jump : ProbMatrix[I]) {
+    for (const auto &Jump : ProbMatrix[I]) {
       Successors[Jump.first].push_back(I);
     }
   }
@@ -1472,7 +1472,7 @@ void BlockFrequencyInfoImpl<BT>::iterativeInference(
     // (1.0 - SelfProb), where SelfProb is the sum of probabilities on the edges
     Scaled64 NewFreq;
     Scaled64 OneMinusSelfProb = Scaled64::getOne();
-    for (auto &Jump : ProbMatrix[I]) {
+    for (const auto &Jump : ProbMatrix[I]) {
       if (Jump.first == I) {
         OneMinusSelfProb -= Jump.second;
       } else {
@@ -1732,10 +1732,10 @@ raw_ostream &BlockFrequencyInfoImpl<BT>::print(raw_ostream &OS) const {
     if (Optional<uint64_t> ProfileCount =
         BlockFrequencyInfoImplBase::getBlockProfileCount(
             F->getFunction(), getNode(&BB)))
-      OS << ", count = " << ProfileCount.getValue();
+      OS << ", count = " << ProfileCount.value();
     if (Optional<uint64_t> IrrLoopHeaderWeight =
         BB.getIrrLoopHeaderWeight())
-      OS << ", irr_loop_header_weight = " << IrrLoopHeaderWeight.getValue();
+      OS << ", irr_loop_header_weight = " << IrrLoopHeaderWeight.value();
     OS << "\n";
   }
 

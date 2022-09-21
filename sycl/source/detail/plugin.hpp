@@ -22,8 +22,8 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
@@ -112,7 +112,7 @@ public:
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = cl::sycl::runtime_error>
+  template <typename Exception = sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     char *message = nullptr;
     if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
@@ -148,10 +148,10 @@ public:
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {
     if (pi_result != PI_SUCCESS) {
-      throw cl::sycl::runtime_error(
-          std::string(context) + " API failed with error: " +
-              cl::sycl::detail::codeToString(pi_result),
-          pi_result);
+      throw sycl::runtime_error(std::string(context) +
+                                    " API failed with error: " +
+                                    sycl::detail::codeToString(pi_result),
+                                pi_result);
     }
   }
 
@@ -212,7 +212,7 @@ public:
 
   /// Calls the API, traces the call, checks the result
   ///
-  /// \throw cl::sycl::runtime_exception if the call was not successful.
+  /// \throw sycl::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
@@ -296,5 +296,5 @@ private:
   std::vector<int> LastDeviceIds;
 }; // class plugin
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

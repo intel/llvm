@@ -14,7 +14,7 @@
 #include "gtest/gtest.h"
 
 #include <array>
-
+#include <utility>
 
 using namespace llvm;
 
@@ -29,13 +29,13 @@ void OptionalWorksInConstexpr() {
   constexpr Optional<int> x2{};
   static_assert(!x1.has_value() && !x2.has_value(),
                 "Default construction and hasValue() are contexpr");
-  static_assert(!x1.hasValue() && !x2.hasValue(),
+  static_assert(!x1.has_value() && !x2.has_value(),
                 "Default construction and hasValue() are contexpr");
   constexpr auto y1 = Optional<int>(3);
   constexpr Optional<int> y2{3};
   static_assert(y1.value() == y2.value() && y1.value() == 3,
                 "Construction with value and getValue() are constexpr");
-  static_assert(y1.getValue() == y2.getValue() && y1.getValue() == 3,
+  static_assert(y1.value() == y2.value() && y1.value() == 3,
                 "Construction with value and getValue() are constexpr");
   static_assert(Optional<int>{3} >= 2 && Optional<int>{1} < Optional<int>{2},
                 "Comparisons work in constexpr");
@@ -201,7 +201,7 @@ TEST(OptionalTest, NullCopyConstructionTest) {
 
 TEST(OptionalTest, InPlaceConstructionNonDefaultConstructibleTest) {
   NonDefaultConstructible::ResetCounts();
-  { Optional<NonDefaultConstructible> A{in_place, 1}; }
+  { Optional<NonDefaultConstructible> A{std::in_place, 1}; }
   EXPECT_EQ(0u, NonDefaultConstructible::CopyConstructions);
   EXPECT_EQ(0u, NonDefaultConstructible::CopyAssignments);
   EXPECT_EQ(1u, NonDefaultConstructible::Destructions);
@@ -210,11 +210,9 @@ TEST(OptionalTest, InPlaceConstructionNonDefaultConstructibleTest) {
 TEST(OptionalTest, GetValueOr) {
   Optional<int> A;
   EXPECT_EQ(42, A.value_or(42));
-  EXPECT_EQ(42, A.getValueOr(42));
 
   A = 5;
   EXPECT_EQ(5, A.value_or(42));
-  EXPECT_EQ(5, A.getValueOr(42));
 }
 
 struct MultiArgConstructor {
@@ -249,17 +247,17 @@ static_assert(!std::is_trivially_copyable<Optional<MultiArgConstructor>>::value,
 TEST(OptionalTest, Emplace) {
   MultiArgConstructor::ResetCounts();
   Optional<MultiArgConstructor> A;
-  
+
   A.emplace(1, 2);
   EXPECT_TRUE(A.has_value());
-  EXPECT_TRUE(A.hasValue());
+  EXPECT_TRUE(A.has_value());
   EXPECT_EQ(1, A->x);
   EXPECT_EQ(2, A->y);
   EXPECT_EQ(0u, MultiArgConstructor::Destructions);
 
   A.emplace(5, false);
   EXPECT_TRUE(A.has_value());
-  EXPECT_TRUE(A.hasValue());
+  EXPECT_TRUE(A.has_value());
   EXPECT_EQ(5, A->x);
   EXPECT_EQ(-5, A->y);
   EXPECT_EQ(1u, MultiArgConstructor::Destructions);
@@ -268,14 +266,14 @@ TEST(OptionalTest, Emplace) {
 TEST(OptionalTest, InPlaceConstructionMultiArgConstructorTest) {
   MultiArgConstructor::ResetCounts();
   {
-    Optional<MultiArgConstructor> A{in_place, 1, 2};
+    Optional<MultiArgConstructor> A{std::in_place, 1, 2};
     EXPECT_TRUE(A.has_value());
-    EXPECT_TRUE(A.hasValue());
+    EXPECT_TRUE(A.has_value());
     EXPECT_EQ(1, A->x);
     EXPECT_EQ(2, A->y);
-    Optional<MultiArgConstructor> B{in_place, 5, false};
+    Optional<MultiArgConstructor> B{std::in_place, 5, false};
     EXPECT_TRUE(B.has_value());
-    EXPECT_TRUE(B.hasValue());
+    EXPECT_TRUE(B.has_value());
     EXPECT_EQ(5, B->x);
     EXPECT_EQ(-5, B->y);
     EXPECT_EQ(0u, MultiArgConstructor::Destructions);
@@ -286,7 +284,7 @@ TEST(OptionalTest, InPlaceConstructionMultiArgConstructorTest) {
 TEST(OptionalTest, InPlaceConstructionAndEmplaceEquivalentTest) {
   MultiArgConstructor::ResetCounts();
   {
-    Optional<MultiArgConstructor> A{in_place, 1, 2};
+    Optional<MultiArgConstructor> A{std::in_place, 1, 2};
     Optional<MultiArgConstructor> B;
     B.emplace(1, 2);
     EXPECT_EQ(0u, MultiArgConstructor::Destructions);
@@ -444,7 +442,7 @@ TEST(OptionalTest, ImmovableEmplace) {
 
 TEST(OptionalTest, ImmovableInPlaceConstruction) {
   Immovable::ResetCounts();
-  Optional<Immovable> A{in_place, 4};
+  Optional<Immovable> A{std::in_place, 4};
   EXPECT_TRUE((bool)A);
   EXPECT_EQ(4, A->val);
   EXPECT_EQ(1u, Immovable::Constructions);
@@ -605,21 +603,38 @@ TEST(OptionalTest, MoveValueOr) {
   EXPECT_EQ(2u, MoveOnly::Destructions);
 }
 
-TEST(OptionalTest, MoveGetValueOr) {
+TEST(OptionalTest, Transform) {
+  Optional<int> A;
+
+  Optional<int> B = A.transform([&](int N) { return N + 1; });
+  EXPECT_FALSE(B.has_value());
+
+  A = 3;
+  Optional<int> C = A.transform([&](int N) { return N + 1; });
+  EXPECT_TRUE(C.has_value());
+  EXPECT_EQ(4, C.value());
+}
+
+TEST(OptionalTest, MoveTransform) {
   Optional<MoveOnly> A;
 
   MoveOnly::ResetCounts();
-  EXPECT_EQ(42, std::move(A).getValueOr(MoveOnly(42)).val);
-  EXPECT_EQ(1u, MoveOnly::MoveConstructions);
+  Optional<int> B =
+      std::move(A).transform([&](const MoveOnly &M) { return M.val + 2; });
+  EXPECT_FALSE(B.has_value());
+  EXPECT_EQ(0u, MoveOnly::MoveConstructions);
   EXPECT_EQ(0u, MoveOnly::MoveAssignments);
-  EXPECT_EQ(2u, MoveOnly::Destructions);
+  EXPECT_EQ(0u, MoveOnly::Destructions);
 
   A = MoveOnly(5);
   MoveOnly::ResetCounts();
-  EXPECT_EQ(5, std::move(A).getValueOr(MoveOnly(42)).val);
-  EXPECT_EQ(1u, MoveOnly::MoveConstructions);
+  Optional<int> C =
+      std::move(A).transform([&](const MoveOnly &M) { return M.val + 2; });
+  EXPECT_TRUE(C.has_value());
+  EXPECT_EQ(7, C.value());
+  EXPECT_EQ(0u, MoveOnly::MoveConstructions);
   EXPECT_EQ(0u, MoveOnly::MoveAssignments);
-  EXPECT_EQ(2u, MoveOnly::Destructions);
+  EXPECT_EQ(0u, MoveOnly::Destructions);
 }
 
 struct EqualTo {

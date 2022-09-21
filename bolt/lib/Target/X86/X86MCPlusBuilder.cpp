@@ -574,7 +574,7 @@ public:
     }
   };
 
-  virtual std::unique_ptr<MCInstMatcher>
+  std::unique_ptr<MCInstMatcher>
   matchAdd(std::unique_ptr<MCInstMatcher> A,
            std::unique_ptr<MCInstMatcher> B) const override {
     return std::unique_ptr<MCInstMatcher>(
@@ -612,7 +612,7 @@ public:
     }
   };
 
-  virtual std::unique_ptr<MCInstMatcher>
+  std::unique_ptr<MCInstMatcher>
   matchLoadAddr(std::unique_ptr<MCInstMatcher> Target) const override {
     return std::unique_ptr<MCInstMatcher>(new LEAMatcher(std::move(Target)));
   }
@@ -1002,7 +1002,7 @@ public:
         if (isUpper8BitReg(Operand.getReg()))
           return true;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       return false;
     }
@@ -1091,18 +1091,24 @@ public:
       bool IsLoad = MCII.mayLoad();
       bool IsStore = MCII.mayStore();
       // Is it LEA? (deals with memory but is not loading nor storing)
-      if (!IsLoad && !IsStore)
-        return false;
+      if (!IsLoad && !IsStore) {
+        I = {0, IsLoad, IsStore, false, false};
+        break;
+      }
       uint8_t Sz = getMemDataSize(Inst, MemOpNo);
       I = {Sz, IsLoad, IsStore, false, false};
       break;
     }
+    // Report simple stack accesses
+    case X86::MOV8rm: I = {1, true, false, false, true}; break;
     case X86::MOV16rm: I = {2, true, false, false, true}; break;
     case X86::MOV32rm: I = {4, true, false, false, true}; break;
     case X86::MOV64rm: I = {8, true, false, false, true}; break;
+    case X86::MOV8mr: I = {1, false, true, true, true};  break;
     case X86::MOV16mr: I = {2, false, true, true, true};  break;
     case X86::MOV32mr: I = {4, false, true, true, true};  break;
     case X86::MOV64mr: I = {8, false, true, true, true};  break;
+    case X86::MOV8mi: I = {1, false, true, false, true}; break;
     case X86::MOV16mi: I = {2, false, true, false, true}; break;
     case X86::MOV32mi: I = {4, false, true, false, true}; break;
     } // end switch (Inst.getOpcode())

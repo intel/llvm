@@ -64,6 +64,7 @@ set(sources
   X86InstrFoldTables.cpp
   X86InstrInfo.cpp
   X86EvexToVex.cpp
+  X86KCFI.cpp
   X86LegalizerInfo.cpp
   X86LoadValueInjectionLoadHardening.cpp
   X86LoadValueInjectionRetHardening.cpp
@@ -75,6 +76,7 @@ set(sources
   X86PartialReduction.cpp
   X86RegisterBankInfo.cpp
   X86RegisterInfo.cpp
+  X86ReturnThunks.cpp
   X86SelectionDAGInfo.cpp
   X86ShuffleDecodeConstantPool.cpp
   X86SpeculativeLoadHardening.cpp

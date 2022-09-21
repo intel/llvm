@@ -16,8 +16,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Object/Archive.h"
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 
 class ArchiveFile;
 class DylibFile;
@@ -42,6 +41,8 @@ public:
                       bool isPrivateExtern, bool isThumb,
                       bool isReferencedDynamically, bool noDeadStrip,
                       bool isWeakDefCanBeHidden);
+
+  Defined *aliasDefined(Defined *src, StringRef target);
 
   Symbol *addUndefined(StringRef name, InputFile *, bool isWeakRef);
 
@@ -78,7 +79,6 @@ void treatUndefinedSymbol(const Undefined &, const InputSection *,
 
 extern std::unique_ptr<SymbolTable> symtab;
 
-} // namespace macho
-} // namespace lld
+} // namespace lld::macho
 
 #endif

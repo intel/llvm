@@ -6,11 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
+
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+namespace mlir {
+namespace arith {
+#define GEN_PASS_DEF_ARITHMETICEXPANDOPS
+#include "mlir/Dialect/Arithmetic/Transforms/Passes.h.inc"
+} // namespace arith
+} // namespace mlir
 
 using namespace mlir;
 
@@ -159,7 +166,7 @@ public:
     Location loc = op.getLoc();
     // If any operand is NaN, 'cmp' will be true (and 'select' returns 'lhs').
     static_assert(pred == arith::CmpFPredicate::UGT ||
-                  pred == arith::CmpFPredicate::ULT,
+                      pred == arith::CmpFPredicate::ULT,
                   "pred must be either UGT or ULT");
     Value cmp = rewriter.create<arith::CmpFOp>(loc, pred, lhs, rhs);
     Value select = rewriter.create<arith::SelectOp>(loc, cmp, lhs, rhs);
@@ -189,7 +196,7 @@ public:
 };
 
 struct ArithmeticExpandOpsPass
-    : public ArithmeticExpandOpsBase<ArithmeticExpandOpsPass> {
+    : public arith::impl::ArithmeticExpandOpsBase<ArithmeticExpandOpsPass> {
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());

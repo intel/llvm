@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/accessor_impl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/interop_handle.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
@@ -51,5 +51,5 @@ pi_native_handle interop_handle::getNativeQueue() const {
   return MQueue->getNative();
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

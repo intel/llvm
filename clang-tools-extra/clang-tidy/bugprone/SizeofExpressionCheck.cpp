@@ -87,9 +87,9 @@ void SizeofExpressionCheck::registerMatchers(MatchFinder *Finder) {
   const auto ConstantExpr = ignoringParenImpCasts(
       anyOf(integerLiteral(), unaryOperator(hasUnaryOperand(IntegerExpr)),
             binaryOperator(hasLHS(IntegerExpr), hasRHS(IntegerExpr))));
-  const auto IntegerCallExpr = ignoringParenImpCasts(
-      callExpr(anyOf(hasType(isInteger()), hasType(enumType())),
-               unless(isInTemplateInstantiation())));
+  const auto IntegerCallExpr = ignoringParenImpCasts(callExpr(
+      anyOf(hasType(isInteger()), hasType(hasCanonicalType(enumType()))),
+      unless(isInTemplateInstantiation())));
   const auto SizeOfExpr = sizeOfExpr(hasArgumentOfType(
       hasUnqualifiedDesugaredType(type().bind("sizeof-arg-type"))));
   const auto SizeOfZero =

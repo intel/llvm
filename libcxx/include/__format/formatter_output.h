@@ -10,13 +10,18 @@
 #ifndef _LIBCPP___FORMAT_FORMATTER_OUTPUT_H
 #define _LIBCPP___FORMAT_FORMATTER_OUTPUT_H
 
-#include <__algorithm/copy.h>
-#include <__algorithm/copy_n.h>
-#include <__algorithm/fill_n.h>
-#include <__algorithm/transform.h>
+#include <__algorithm/in_out_result.h>
+#include <__algorithm/ranges_copy.h>
+#include <__algorithm/ranges_fill_n.h>
+#include <__algorithm/ranges_transform.h>
+#include <__concepts/same_as.h>
 #include <__config>
+#include <__format/buffer.h>
+#include <__format/concepts.h>
 #include <__format/formatter.h>
 #include <__format/parser_std_format_spec.h>
+#include <__format/unicode.h>
+#include <__iterator/back_insert_iterator.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
 #include <cstddef>
@@ -33,8 +38,8 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace __formatter {
 
-_LIBCPP_HIDE_FROM_ABI constexpr char __hex_to_upper(char c) {
-  switch (c) {
+_LIBCPP_HIDE_FROM_ABI constexpr char __hex_to_upper(char __c) {
+  switch (__c) {
   case 'a':
     return 'A';
   case 'b':
@@ -48,7 +53,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr char __hex_to_upper(char c) {
   case 'f':
     return 'F';
   }
-  return c;
+  return __c;
 }
 
 struct _LIBCPP_TYPE_VIS __padding_size_result {
@@ -59,14 +64,11 @@ struct _LIBCPP_TYPE_VIS __padding_size_result {
 _LIBCPP_HIDE_FROM_ABI constexpr __padding_size_result
 __padding_size(size_t __size, size_t __width, __format_spec::__alignment __align) {
   _LIBCPP_ASSERT(__width > __size, "don't call this function when no padding is required");
-  _LIBCPP_ASSERT(__align != __format_spec::__alignment::__default,
-                 "the caller should adjust the default to the value required by the type");
-  _LIBCPP_ASSERT(__align != __format_spec::__alignment::__zero_padding,
-                 "the caller should have handled the zero-padding");
+  _LIBCPP_ASSERT(
+      __align != __format_spec::__alignment::__zero_padding, "the caller should have handled the zero-padding");
 
   size_t __fill = __width - __size;
   switch (__align) {
-  case __format_spec::__alignment::__default:
   case __format_spec::__alignment::__zero_padding:
     __libcpp_unreachable();
 
@@ -78,22 +80,77 @@ __padding_size(size_t __size, size_t __width, __format_spec::__alignment __align
     // __before = floor(__fill, 2);
     // __after = ceil(__fill, 2);
     size_t __before = __fill / 2;
-    size_t __after = __fill - __before;
+    size_t __after  = __fill - __before;
     return {__before, __after};
   }
+  case __format_spec::__alignment::__default:
   case __format_spec::__alignment::__right:
     return {__fill, 0};
   }
   __libcpp_unreachable();
 }
 
+/// Copy wrapper.
+///
+/// This uses a "mass output function" of __format::__output_buffer when possible.
+template <__fmt_char_type _CharT, __fmt_char_type _OutCharT = _CharT>
+_LIBCPP_HIDE_FROM_ABI auto __copy(basic_string_view<_CharT> __str, output_iterator<const _OutCharT&> auto __out_it)
+    -> decltype(__out_it) {
+  if constexpr (_VSTD::same_as<decltype(__out_it), _VSTD::back_insert_iterator<__format::__output_buffer<_OutCharT>>>) {
+    __out_it.__get_container()->__copy(__str);
+    return __out_it;
+  } else {
+    return std::ranges::copy(__str, _VSTD::move(__out_it)).out;
+  }
+}
+
+template <__fmt_char_type _CharT, __fmt_char_type _OutCharT = _CharT>
+_LIBCPP_HIDE_FROM_ABI auto
+__copy(const _CharT* __first, const _CharT* __last, output_iterator<const _OutCharT&> auto __out_it)
+    -> decltype(__out_it) {
+  return __formatter::__copy(basic_string_view{__first, __last}, _VSTD::move(__out_it));
+}
+
+template <__fmt_char_type _CharT, __fmt_char_type _OutCharT = _CharT>
+_LIBCPP_HIDE_FROM_ABI auto __copy(const _CharT* __first, size_t __n, output_iterator<const _OutCharT&> auto __out_it)
+    -> decltype(__out_it) {
+  return __formatter::__copy(basic_string_view{__first, __n}, _VSTD::move(__out_it));
+}
+
+/// Transform wrapper.
+///
+/// This uses a "mass output function" of __format::__output_buffer when possible.
+template <__fmt_char_type _CharT, __fmt_char_type _OutCharT = _CharT, class _UnaryOperation>
+_LIBCPP_HIDE_FROM_ABI auto
+__transform(const _CharT* __first,
+            const _CharT* __last,
+            output_iterator<const _OutCharT&> auto __out_it,
+            _UnaryOperation __operation) -> decltype(__out_it) {
+  if constexpr (_VSTD::same_as<decltype(__out_it), _VSTD::back_insert_iterator<__format::__output_buffer<_OutCharT>>>) {
+    __out_it.__get_container()->__transform(__first, __last, _VSTD::move(__operation));
+    return __out_it;
+  } else {
+    return std::ranges::transform(__first, __last, _VSTD::move(__out_it), __operation).out;
+  }
+}
+
+/// Fill wrapper.
+///
+/// This uses a "mass output function" of __format::__output_buffer when possible.
+template <__fmt_char_type _CharT, output_iterator<const _CharT&> _OutIt>
+_LIBCPP_HIDE_FROM_ABI _OutIt __fill(_OutIt __out_it, size_t __n, _CharT __value) {
+  if constexpr (_VSTD::same_as<decltype(__out_it), _VSTD::back_insert_iterator<__format::__output_buffer<_CharT>>>) {
+    __out_it.__get_container()->__fill(__n, __value);
+    return __out_it;
+  } else {
+    return std::ranges::fill_n(_VSTD::move(__out_it), __n, __value);
+  }
+}
+
 template <class _OutIt, class _CharT>
 _LIBCPP_HIDE_FROM_ABI _OutIt __write_using_decimal_separators(_OutIt __out_it, const char* __begin, const char* __first,
                                                               const char* __last, string&& __grouping, _CharT __sep,
                                                               __format_spec::__parsed_specifications<_CharT> __specs) {
-  _LIBCPP_ASSERT(__specs.__alignment_ != __format_spec::__alignment::__default,
-                 "the caller should adjust the default to the value required by the type");
-
   int __size = (__first - __begin) +    // [sign][prefix]
                (__last - __first) +     // data
                (__grouping.size() - 1); // number of separator characters
@@ -101,22 +158,22 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __write_using_decimal_separators(_OutIt __out_it, c
   __padding_size_result __padding = {0, 0};
   if (__specs.__alignment_ == __format_spec::__alignment::__zero_padding) {
     // Write [sign][prefix].
-    __out_it = _VSTD::copy(__begin, __first, _VSTD::move(__out_it));
+    __out_it = __formatter::__copy(__begin, __first, _VSTD::move(__out_it));
 
     if (__specs.__width_ > __size) {
       // Write zero padding.
       __padding.__before_ = __specs.__width_ - __size;
-      __out_it = _VSTD::fill_n(_VSTD::move(__out_it), __specs.__width_ - __size, _CharT('0'));
+      __out_it            = __formatter::__fill(_VSTD::move(__out_it), __specs.__width_ - __size, _CharT('0'));
     }
   } else {
     if (__specs.__width_ > __size) {
       // Determine padding and write padding.
       __padding = __padding_size(__size, __specs.__width_, __specs.__alignment_);
 
-      __out_it = _VSTD::fill_n(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
+      __out_it = __formatter::__fill(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
     }
     // Write [sign][prefix].
-    __out_it = _VSTD::copy(__begin, __first, _VSTD::move(__out_it));
+    __out_it = __formatter::__copy(__begin, __first, _VSTD::move(__out_it));
   }
 
   auto __r = __grouping.rbegin();
@@ -137,10 +194,10 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __write_using_decimal_separators(_OutIt __out_it, c
   while (true) {
     if (__specs.__std_.__type_ == __format_spec::__type::__hexadecimal_upper_case) {
       __last = __first + *__r;
-      __out_it = _VSTD::transform(__first, __last, _VSTD::move(__out_it), __hex_to_upper);
+      __out_it = __formatter::__transform(__first, __last, _VSTD::move(__out_it), __hex_to_upper);
       __first = __last;
     } else {
-      __out_it = _VSTD::copy_n(__first, *__r, _VSTD::move(__out_it));
+      __out_it = __formatter::__copy(__first, *__r, _VSTD::move(__out_it));
       __first += *__r;
     }
 
@@ -151,7 +208,7 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __write_using_decimal_separators(_OutIt __out_it, c
     *__out_it++ = __sep;
   }
 
-  return _VSTD::fill_n(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
+  return __formatter::__fill(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
 }
 
 /// Writes the input to the output with the required padding.
@@ -159,12 +216,10 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __write_using_decimal_separators(_OutIt __out_it, c
 /// Since the output column width is specified the function can be used for
 /// ASCII and Unicode output.
 ///
-/// \pre [\a __first, \a __last) is a valid range.
 /// \pre \a __size <= \a __width. Using this function when this pre-condition
 ///      doesn't hold incurs an unwanted overhead.
 ///
-/// \param __first     Pointer to the first element to write.
-/// \param __last      Pointer beyond the last element to write.
+/// \param __str       The string to write.
 /// \param __out_it    The output iterator to write to.
 /// \param __specs     The parsed formatting specifications.
 /// \param __size      The (estimated) output column width. When the elements
@@ -178,28 +233,42 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __write_using_decimal_separators(_OutIt __out_it, c
 /// conversion, which means the [\a __first, \a __last) always contains elements
 /// of the type \c char.
 template <class _CharT, class _ParserCharT>
-_LIBCPP_HIDE_FROM_ABI auto __write(const _CharT* __first, const _CharT* __last,
-                                   output_iterator<const _CharT&> auto __out_it,
-                                   __format_spec::__parsed_specifications<_ParserCharT> __specs, ptrdiff_t __size)
-    -> decltype(__out_it) {
-  _LIBCPP_ASSERT(__first <= __last, "Not a valid range");
-
+_LIBCPP_HIDE_FROM_ABI auto
+__write(basic_string_view<_CharT> __str,
+        output_iterator<const _CharT&> auto __out_it,
+        __format_spec::__parsed_specifications<_ParserCharT> __specs,
+        ptrdiff_t __size) -> decltype(__out_it) {
   if (__size >= __specs.__width_)
-    return _VSTD::copy(__first, __last, _VSTD::move(__out_it));
+    return __formatter::__copy(__str, _VSTD::move(__out_it));
 
   __padding_size_result __padding = __formatter::__padding_size(__size, __specs.__width_, __specs.__std_.__alignment_);
-  __out_it = _VSTD::fill_n(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
-  __out_it = _VSTD::copy(__first, __last, _VSTD::move(__out_it));
-  return _VSTD::fill_n(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
+  __out_it                        = __formatter::__fill(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
+  __out_it                        = __formatter::__copy(__str, _VSTD::move(__out_it));
+  return __formatter::__fill(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
+}
+
+template <class _CharT, class _ParserCharT>
+_LIBCPP_HIDE_FROM_ABI auto
+__write(const _CharT* __first,
+        const _CharT* __last,
+        output_iterator<const _CharT&> auto __out_it,
+        __format_spec::__parsed_specifications<_ParserCharT> __specs,
+        ptrdiff_t __size) -> decltype(__out_it) {
+  _LIBCPP_ASSERT(__first <= __last, "Not a valid range");
+  return __formatter::__write(basic_string_view{__first, __last}, _VSTD::move(__out_it), __specs, __size);
 }
 
 /// \overload
+///
 /// Calls the function above where \a __size = \a __last - \a __first.
 template <class _CharT, class _ParserCharT>
-_LIBCPP_HIDE_FROM_ABI auto __write(const _CharT* __first, const _CharT* __last,
-                                   output_iterator<const _CharT&> auto __out_it,
-                                   __format_spec::__parsed_specifications<_ParserCharT> __specs) -> decltype(__out_it) {
-  return __write(__first, __last, _VSTD::move(__out_it), __specs, __last - __first);
+_LIBCPP_HIDE_FROM_ABI auto
+__write(const _CharT* __first,
+        const _CharT* __last,
+        output_iterator<const _CharT&> auto __out_it,
+        __format_spec::__parsed_specifications<_ParserCharT> __specs) -> decltype(__out_it) {
+  _LIBCPP_ASSERT(__first <= __last, "Not a valid range");
+  return __formatter::__write(__first, __last, _VSTD::move(__out_it), __specs, __last - __first);
 }
 
 template <class _CharT, class _ParserCharT, class _UnaryOperation>
@@ -211,12 +280,12 @@ _LIBCPP_HIDE_FROM_ABI auto __write_transformed(const _CharT* __first, const _Cha
 
   ptrdiff_t __size = __last - __first;
   if (__size >= __specs.__width_)
-    return _VSTD::transform(__first, __last, _VSTD::move(__out_it), __op);
+    return __formatter::__transform(__first, __last, _VSTD::move(__out_it), __op);
 
   __padding_size_result __padding = __padding_size(__size, __specs.__width_, __specs.__alignment_);
-  __out_it = _VSTD::fill_n(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
-  __out_it = _VSTD::transform(__first, __last, _VSTD::move(__out_it), __op);
-  return _VSTD::fill_n(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
+  __out_it                        = __formatter::__fill(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
+  __out_it                        = __formatter::__transform(__first, __last, _VSTD::move(__out_it), __op);
+  return __formatter::__fill(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
 }
 
 /// Writes additional zero's for the precision before the exponent.
@@ -241,84 +310,62 @@ _LIBCPP_HIDE_FROM_ABI auto __write_using_trailing_zeros(
 
   __padding_size_result __padding =
       __padding_size(__size + __num_trailing_zeros, __specs.__width_, __specs.__alignment_);
-  __out_it = _VSTD::fill_n(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
-  __out_it = _VSTD::copy(__first, __exponent, _VSTD::move(__out_it));
-  __out_it = _VSTD::fill_n(_VSTD::move(__out_it), __num_trailing_zeros, _CharT('0'));
-  __out_it = _VSTD::copy(__exponent, __last, _VSTD::move(__out_it));
-  return _VSTD::fill_n(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
+  __out_it = __formatter::__fill(_VSTD::move(__out_it), __padding.__before_, __specs.__fill_);
+  __out_it = __formatter::__copy(__first, __exponent, _VSTD::move(__out_it));
+  __out_it = __formatter::__fill(_VSTD::move(__out_it), __num_trailing_zeros, _CharT('0'));
+  __out_it = __formatter::__copy(__exponent, __last, _VSTD::move(__out_it));
+  return __formatter::__fill(_VSTD::move(__out_it), __padding.__after_, __specs.__fill_);
 }
 
-#  ifndef _LIBCPP_HAS_NO_UNICODE
+/// Writes a string using format's width estimation algorithm.
+///
+/// \pre !__specs.__has_precision()
+///
+/// \note When \c _LIBCPP_HAS_NO_UNICODE is defined the function assumes the
+/// input is ASCII.
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI auto __write_unicode_no_precision(basic_string_view<_CharT> __str,
-                                                        output_iterator<const _CharT&> auto __out_it,
-                                                        __format_spec::__parsed_specifications<_CharT> __specs)
-    -> decltype(__out_it) {
+_LIBCPP_HIDE_FROM_ABI auto __write_string_no_precision(
+    basic_string_view<_CharT> __str,
+    output_iterator<const _CharT&> auto __out_it,
+    __format_spec::__parsed_specifications<_CharT> __specs) -> decltype(__out_it) {
+  _LIBCPP_ASSERT(!__specs.__has_precision(), "use __write_string");
 
-  _LIBCPP_ASSERT(!__specs.__has_precision(), "use __write_unicode");
   // No padding -> copy the string
   if (!__specs.__has_width())
-    return _VSTD::copy(__str.begin(), __str.end(), _VSTD::move(__out_it));
+    return __formatter::__copy(__str, _VSTD::move(__out_it));
 
-  // Non Unicode part larger than width -> copy the string
-  auto __last = __format_spec::__detail::__estimate_column_width_fast(__str.begin(), __str.end());
-  ptrdiff_t __size = __last - __str.begin();
-  if (__size >= __specs.__width_)
-    return _VSTD::copy(__str.begin(), __str.end(), _VSTD::move(__out_it));
-
-  // Is there a non Unicode part?
-  if (__last != __str.end()) {
-    // Non Unicode and Unicode part larger than width -> copy the string
-    __format_spec::__detail::__column_width_result __column_width =
-        __format_spec::__detail::__estimate_column_width(__last, __str.end(), __specs.__width_);
-    __size += __column_width.__width; // Note this new size is used when __size < __specs.__width_
-    if (__size >= __specs.__width_)
-      return _VSTD::copy(__str.begin(), __str.end(), _VSTD::move(__out_it));
-  }
-
-  return __formatter::__write(__str.begin(), __str.end(), _VSTD::move(__out_it), __specs, __size);
+  // Note when the estimated width is larger than size there's no padding. So
+  // there's no reason to get the real size when the estimate is larger than or
+  // equal to the minimum field width.
+  size_t __size =
+      __format_spec::__estimate_column_width(__str, __specs.__width_, __format_spec::__column_width_rounding::__up)
+          .__width_;
+  return __formatter::__write(__str, _VSTD::move(__out_it), __specs, __size);
 }
-#  endif
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI auto __write_unicode(basic_string_view<_CharT> __str,
-                                           output_iterator<const _CharT&> auto __out_it,
-                                           __format_spec::__parsed_specifications<_CharT> __specs)
-    -> decltype(__out_it) {
-#  ifndef _LIBCPP_HAS_NO_UNICODE
+_LIBCPP_HIDE_FROM_ABI int __truncate(basic_string_view<_CharT>& __str, int __precision) {
+  __format_spec::__column_width_result<_CharT> __result =
+      __format_spec::__estimate_column_width(__str, __precision, __format_spec::__column_width_rounding::__down);
+  __str = basic_string_view<_CharT>{__str.begin(), __result.__last_};
+  return __result.__width_;
+}
+
+/// Writes a string using format's width estimation algorithm.
+///
+/// \note When \c _LIBCPP_HAS_NO_UNICODE is defined the function assumes the
+/// input is ASCII.
+template <class _CharT>
+_LIBCPP_HIDE_FROM_ABI auto __write_string(
+    basic_string_view<_CharT> __str,
+    output_iterator<const _CharT&> auto __out_it,
+    __format_spec::__parsed_specifications<_CharT> __specs) -> decltype(__out_it) {
   if (!__specs.__has_precision())
-    return __formatter::__write_unicode_no_precision(__str, _VSTD::move(__out_it), __specs);
+    return __formatter::__write_string_no_precision(__str, _VSTD::move(__out_it), __specs);
 
-  // Non unicode part larger than precision -> truncate the output and use the normal write operation.
-  auto __last = __format_spec::__detail::__estimate_column_width_fast(__str.begin(), __str.end());
-  ptrdiff_t __size = __last - __str.begin();
-  if (__size >= __specs.__precision_)
-    return __formatter::__write(__str.begin(), __str.begin() + __specs.__precision_, _VSTD::move(__out_it), __specs,
-                                __specs.__precision_);
+  int __size = __formatter::__truncate(__str, __specs.__precision_);
 
-  // No non Unicode part, implies __size <  __specs.__precision_ -> use normal write operation
-  if (__last == __str.end())
-    return __formatter::__write(__str.begin(), __str.end(), _VSTD::move(__out_it), __specs, __str.size());
-
-  __format_spec::__detail::__column_width_result __column_width =
-      __format_spec::__detail::__estimate_column_width(__last, __str.end(), __specs.__precision_ - __size);
-  __size += __column_width.__width;
-  // Truncate the output
-  if (__column_width.__ptr != __str.end())
-    __str.remove_suffix(__str.end() - __column_width.__ptr);
-
-  return __formatter::__write(__str.begin(), __str.end(), _VSTD::move(__out_it), __specs, __size);
-
-#  else
-  if (__specs.__has_precision()) {
-    ptrdiff_t __size = __str.size();
-    if (__size > __specs.__precision_)
-      return __formatter::__write(__str.begin(), __str.begin() + __specs.__precision_, _VSTD::move(__out_it), __specs,
-                                  __specs.__precision_);
-  }
-  return __formatter::__write(__str.begin(), __str.end(), _VSTD::move(__out_it), __specs, __str.size());
-
-#  endif
+  return __write(__str.begin(), __str.end(), _VSTD::move(__out_it), __specs, __size);
 }
 
 } // namespace __formatter

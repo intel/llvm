@@ -624,6 +624,46 @@ define i64 @test_roundeven_ui64(double %x) {
   ret i64 %b
 }
 
+define double @test_floor_double(double %x) {
+; CHECKIFD-LABEL: test_floor_double:
+; CHECKIFD:       # %bb.0:
+; CHECKIFD-NEXT:    tail floor@plt
+  %a = call double @llvm.floor.f64(double %x)
+  ret double %a
+}
+
+define double @test_ceil_double(double %x) {
+; CHECKIFD-LABEL: test_ceil_double:
+; CHECKIFD:       # %bb.0:
+; CHECKIFD-NEXT:    tail ceil@plt
+  %a = call double @llvm.ceil.f64(double %x)
+  ret double %a
+}
+
+define double @test_trunc_double(double %x) {
+; CHECKIFD-LABEL: test_trunc_double:
+; CHECKIFD:       # %bb.0:
+; CHECKIFD-NEXT:    tail trunc@plt
+  %a = call double @llvm.trunc.f64(double %x)
+  ret double %a
+}
+
+define double @test_round_double(double %x) {
+; CHECKIFD-LABEL: test_round_double:
+; CHECKIFD:       # %bb.0:
+; CHECKIFD-NEXT:    tail round@plt
+  %a = call double @llvm.round.f64(double %x)
+  ret double %a
+}
+
+define double @test_roundeven_double(double %x) {
+; CHECKIFD-LABEL: test_roundeven_double:
+; CHECKIFD:       # %bb.0:
+; CHECKIFD-NEXT:    tail roundeven@plt
+  %a = call double @llvm.roundeven.f64(double %x)
+  ret double %a
+}
+
 declare double @llvm.floor.f64(double)
 declare double @llvm.ceil.f64(double)
 declare double @llvm.trunc.f64(double)

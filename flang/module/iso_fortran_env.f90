@@ -130,8 +130,10 @@ module iso_fortran_env
 
   integer, parameter :: input_unit = 5, output_unit = 6
   integer, parameter :: error_unit = 0
-  integer, parameter :: iostat_end = -1, iostat_eor = -2
-  integer, parameter :: iostat_inquire_internal_unit = -1
+  integer, parameter :: iostat_end = FORTRAN_RUNTIME_IOSTAT_END
+  integer, parameter :: iostat_eor = FORTRAN_RUNTIME_IOSTAT_EOR
+  integer, parameter :: iostat_inquire_internal_unit = &
+                          FORTRAN_RUNTIME_IOSTAT_INQUIRE_INTERNAL_UNIT
 
   integer, parameter :: character_storage_size = 8
   integer, parameter :: file_storage_size = 8
@@ -145,13 +147,13 @@ module iso_fortran_env
   integer, parameter :: stat_unlocked_failed_image = FORTRAN_RUNTIME_STAT_UNLOCKED_FAILED_IMAGE
 
   interface compiler_options
-    character(len=80) function compiler_options()
-    end function compiler_options
+    character(len=80) function compiler_options_1()
+    end function compiler_options_1
   end interface compiler_options
 
   interface compiler_version
-    character(len=80) function compiler_version()
-    end function compiler_version
+    character(len=80) function compiler_version_1()
+    end function compiler_version_1
   end interface compiler_version
 
 end module iso_fortran_env

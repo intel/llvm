@@ -269,8 +269,8 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   // Clone metadata from the old function, including debug info descriptor.
   SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
   F.getAllMetadata(MDs);
-  for (auto MD : MDs)
-    NF->addMetadata(MD.first, *MD.second);
+  for (auto [KindID, Node] : MDs)
+    NF->addMetadata(KindID, *Node);
 
   // Fix up any BlockAddresses that refer to the function.
   F.replaceAllUsesWith(ConstantExpr::getBitCast(NF, F.getType()));
@@ -1113,8 +1113,8 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // Clone metadata from the old function, including debug info descriptor.
   SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
   F->getAllMetadata(MDs);
-  for (auto MD : MDs)
-    NF->addMetadata(MD.first, *MD.second);
+  for (auto [KindID, Node] : MDs)
+    NF->addMetadata(KindID, *Node);
 
   if (IsNVPTXKernel(F))
     UpdateNVPTXMetadata(*(F->getParent()), F, NF);

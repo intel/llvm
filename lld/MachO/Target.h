@@ -20,8 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 class Symbol;
@@ -58,6 +57,12 @@ public:
   virtual void writeStubHelperEntry(uint8_t *buf, const Symbol &,
                                     uint64_t entryAddr) const = 0;
 
+  virtual void writeObjCMsgSendStub(uint8_t *buf, Symbol *sym,
+                                    uint64_t stubsAddr, uint64_t stubOffset,
+                                    uint64_t selrefsVA, uint64_t selectorIndex,
+                                    uint64_t gotAddr,
+                                    uint64_t msgSendIndex) const = 0;
+
   // Symbols may be referenced via either the GOT or the stubs section,
   // depending on the relocation type. prepareSymbolRelocation() will set up the
   // GOT/stubs entries, and resolveSymbolVA() will return the addresses of those
@@ -65,12 +70,17 @@ public:
   // on a level of address indirection.
   virtual void relaxGotLoad(uint8_t *loc, uint8_t type) const = 0;
 
-  virtual const RelocAttrs &getRelocAttrs(uint8_t type) const = 0;
-
   virtual uint64_t getPageSize() const = 0;
 
   virtual void populateThunk(InputSection *thunk, Symbol *funcSym) {
     llvm_unreachable("target does not use thunks");
+  }
+
+  const RelocAttrs &getRelocAttrs(uint8_t type) const {
+    assert(type < relocAttrs.size() && "invalid relocation type");
+    if (type >= relocAttrs.size())
+      return invalidRelocAttrs;
+    return relocAttrs[type];
   }
 
   bool hasAttr(uint8_t type, RelocAttrBits bit) const {
@@ -79,8 +89,16 @@ public:
 
   bool usesThunks() const { return thunkSize > 0; }
 
-  virtual void applyOptimizationHints(uint8_t *buf, const ConcatInputSection *,
-                                      llvm::ArrayRef<uint64_t>) const {};
+  // For now, handleDtraceReloc only implements -no_dtrace_dof, and ensures
+  // that the linking would not fail even when there are user-provided dtrace
+  // symbols. However, unlike ld64, lld currently does not emit __dof sections.
+  virtual void handleDtraceReloc(const Symbol *sym, const Reloc &r,
+                                 uint8_t *loc) const {
+    llvm_unreachable("Unsupported architecture for dtrace symbols");
+  }
+
+  virtual void applyOptimizationHints(uint8_t *buf,
+                                      const ConcatInputSection *) const {};
 
   uint32_t magic;
   llvm::MachO::CPUType cpuType;
@@ -91,6 +109,8 @@ public:
   size_t stubSize;
   size_t stubHelperHeaderSize;
   size_t stubHelperEntrySize;
+  size_t objcStubsFastSize;
+  size_t objcStubsAlignment;
   uint8_t p2WordSize;
   size_t wordSize;
 
@@ -101,6 +121,8 @@ public:
   uint32_t modeDwarfEncoding;
   uint8_t subtractorRelocType;
   uint8_t unsignedRelocType;
+
+  llvm::ArrayRef<RelocAttrs> relocAttrs;
 
   // We contrive this value as sufficiently far from any valid address that it
   // will always be out-of-range for any architecture. UINT64_MAX is not a
@@ -148,7 +170,6 @@ struct ILP32 {
 
 extern TargetInfo *target;
 
-} // namespace macho
-} // namespace lld
+} // namespace lld::macho
 
 #endif

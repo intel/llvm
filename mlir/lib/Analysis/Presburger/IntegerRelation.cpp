@@ -21,6 +21,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/Debug.h"
+#include <numeric>
 
 #define DEBUG_TYPE "presburger"
 
@@ -537,7 +538,7 @@ static void eliminateFromConstraint(IntegerRelation *constraints,
     return;
   int64_t pivotCoeff = constraints->atEq(pivotRow, pivotCol);
   int64_t sign = (leadCoeff * pivotCoeff > 0) ? -1 : 1;
-  int64_t lcm = mlir::lcm(pivotCoeff, leadCoeff);
+  int64_t lcm = std::lcm(pivotCoeff, leadCoeff);
   int64_t pivotMultiplier = sign * (lcm / std::abs(pivotCoeff));
   int64_t rowMultiplier = lcm / std::abs(leadCoeff);
 
@@ -658,7 +659,7 @@ bool IntegerRelation::isEmptyByGCDTest() const {
   for (unsigned i = 0, e = getNumEqualities(); i < e; ++i) {
     uint64_t gcd = std::abs(atEq(i, 0));
     for (unsigned j = 1; j < numCols - 1; ++j) {
-      gcd = llvm::GreatestCommonDivisor64(gcd, std::abs(atEq(i, j)));
+      gcd = std::gcd(gcd, (uint64_t)std::abs(atEq(i, j)));
     }
     int64_t v = std::abs(atEq(i, numCols - 1));
     if (gcd > 0 && (v % gcd != 0)) {
@@ -1108,8 +1109,7 @@ Optional<uint64_t> IntegerRelation::computeVolume() const {
   bool hasUnboundedVar = false;
   for (unsigned i = 0, e = getNumDimAndSymbolVars(); i < e; ++i) {
     dim[i] = 1;
-    MaybeOptimum<int64_t> min, max;
-    std::tie(min, max) = simplex.computeIntegerBounds(dim);
+    auto [min, max] = simplex.computeIntegerBounds(dim);
     dim[i] = 0;
 
     assert((!min.isEmpty() && !max.isEmpty()) &&
@@ -1456,7 +1456,7 @@ Optional<int64_t> IntegerRelation::getConstantBoundOnDimSize(
                                /*eqIndices=*/nullptr, /*offset=*/0,
                                /*num=*/getNumDimVars());
 
-  Optional<int64_t> minDiff = None;
+  Optional<int64_t> minDiff;
   unsigned minLbPosition = 0, minUbPosition = 0;
   for (auto ubPos : ubIndices) {
     for (auto lbPos : lbIndices) {
@@ -1539,7 +1539,7 @@ IntegerRelation::computeConstantLowerOrUpperBound(unsigned pos) {
     // If it doesn't, there isn't a bound on it.
     return None;
 
-  Optional<int64_t> minOrMaxConst = None;
+  Optional<int64_t> minOrMaxConst;
 
   // Take the max across all const lower bounds (or min across all constant
   // upper bounds).
@@ -1802,7 +1802,7 @@ void IntegerRelation::fourierMotzkinEliminate(unsigned pos, bool darkShadow,
                          getNumEqualities(), getNumCols() - 1, newSpace);
 
   // This will be used to check if the elimination was integer exact.
-  unsigned lcmProducts = 1;
+  bool allLCMsAreOne = true;
 
   // Let x be the variable we are eliminating.
   // For each lower bound, lb <= c_l*x, and each upper bound c_u*x <= ub, (note
@@ -1828,10 +1828,12 @@ void IntegerRelation::fourierMotzkinEliminate(unsigned pos, bool darkShadow,
         if (l == pos)
           continue;
         assert(lbCoeff >= 1 && ubCoeff >= 1 && "bounds wrongly identified");
-        int64_t lcm = mlir::lcm(lbCoeff, ubCoeff);
+        int64_t lcm = std::lcm(lbCoeff, ubCoeff);
         ineq.push_back(atIneq(ubPos, l) * (lcm / ubCoeff) +
                        atIneq(lbPos, l) * (lcm / lbCoeff));
-        lcmProducts *= lcm;
+        assert(lcm > 0 && "lcm should be positive!");
+        if (lcm != 1)
+          allLCMsAreOne = false;
       }
       if (darkShadow) {
         // The dark shadow is a convex subset of the exact integer shadow. If
@@ -1844,9 +1846,9 @@ void IntegerRelation::fourierMotzkinEliminate(unsigned pos, bool darkShadow,
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "FM isResultIntegerExact: " << (lcmProducts == 1)
+  LLVM_DEBUG(llvm::dbgs() << "FM isResultIntegerExact: " << allLCMsAreOne
                           << "\n");
-  if (lcmProducts == 1 && isResultIntegerExact)
+  if (allLCMsAreOne && isResultIntegerExact)
     *isResultIntegerExact = true;
 
   // Copy over the constraints not involving this variable.
@@ -1998,14 +2000,14 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
   int64_t lbFloorDivisor, otherLbFloorDivisor;
   for (unsigned d = 0, e = getNumDimVars(); d < e; ++d) {
     auto extent = getConstantBoundOnDimSize(d, &lb, &lbFloorDivisor, &ub);
-    if (!extent.hasValue())
+    if (!extent.has_value())
       // TODO: symbolic extents when necessary.
       // TODO: handle union if a dimension is unbounded.
       return failure();
 
     auto otherExtent = otherCst.getConstantBoundOnDimSize(
         d, &otherLb, &otherLbFloorDivisor, &otherUb);
-    if (!otherExtent.hasValue() || lbFloorDivisor != otherLbFloorDivisor)
+    if (!otherExtent.has_value() || lbFloorDivisor != otherLbFloorDivisor)
       // TODO: symbolic extents when necessary.
       return failure();
 
@@ -2026,10 +2028,10 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
       // Uncomparable - check for constant lower/upper bounds.
       auto constLb = getConstantBound(BoundType::LB, d);
       auto constOtherLb = otherCst.getConstantBound(BoundType::LB, d);
-      if (!constLb.hasValue() || !constOtherLb.hasValue())
+      if (!constLb.has_value() || !constOtherLb.has_value())
         return failure();
       std::fill(minLb.begin(), minLb.end(), 0);
-      minLb.back() = std::min(constLb.getValue(), constOtherLb.getValue());
+      minLb.back() = std::min(constLb.value(), constOtherLb.value());
     }
 
     // Do the same for ub's but max of upper bounds. Identify max.
@@ -2042,10 +2044,10 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
       // Uncomparable - check for constant lower/upper bounds.
       auto constUb = getConstantBound(BoundType::UB, d);
       auto constOtherUb = otherCst.getConstantBound(BoundType::UB, d);
-      if (!constUb.hasValue() || !constOtherUb.hasValue())
+      if (!constUb.has_value() || !constOtherUb.has_value())
         return failure();
       std::fill(maxUb.begin(), maxUb.end(), 0);
-      maxUb.back() = std::max(constUb.getValue(), constOtherUb.getValue());
+      maxUb.back() = std::max(constUb.value(), constOtherUb.value());
     }
 
     std::fill(newLb.begin(), newLb.end(), 0);

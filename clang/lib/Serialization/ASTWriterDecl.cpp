@@ -167,7 +167,7 @@ namespace clang {
       }
 
       Record.push_back(typeParams->size());
-      for (auto typeParam : *typeParams) {
+      for (auto *typeParam : *typeParams) {
         Record.AddDeclRef(typeParam);
       }
       Record.AddSourceLocation(typeParams->getLAngleLoc());
@@ -585,6 +585,9 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
   switch (D->getTemplatedKind()) {
   case FunctionDecl::TK_NonTemplate:
     break;
+  case FunctionDecl::TK_DependentNonTemplate:
+    Record.AddDeclRef(D->getInstantiatedFromDecl());
+    break;
   case FunctionDecl::TK_FunctionTemplate:
     Record.AddDeclRef(D->getDescribedFunctionTemplate());
     break;
@@ -658,7 +661,7 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
   }
 
   Record.push_back(D->param_size());
-  for (auto P : D->parameters())
+  for (auto *P : D->parameters())
     Record.AddDeclRef(P);
   Code = serialization::DECL_FUNCTION;
 }

@@ -8,7 +8,7 @@
 
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 void kernel() __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, sizeof(int));

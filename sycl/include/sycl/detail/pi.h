@@ -47,9 +47,14 @@
 // 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 // 9.11 Use values of OpenCL enums directly, rather than including `<CL/cl.h>`;
 // NOTE that this results in a changed API for `piProgramGetBuildInfo`.
+// 10.12 Change enum value PI_MEM_ADVICE_UNKNOWN from 0 to 999, and set enum
+// PI_MEM_ADVISE_RESET to 0.
+// 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS queue property.
+// 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
+// piDeviceGetInfo.
 
-#define _PI_H_VERSION_MAJOR 9
-#define _PI_H_VERSION_MINOR 11
+#define _PI_H_VERSION_MAJOR 10
+#define _PI_H_VERSION_MINOR 14
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -269,6 +274,7 @@ typedef enum {
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   // Return true if sub-device should do its own program build
   PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
+  PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY = 0x10029,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
@@ -404,7 +410,7 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
-  PI_MEM_ADVICE_UNKNOWN,
+  PI_MEM_ADVICE_RESET = 0,
   PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
   PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
   PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 103,
@@ -415,6 +421,7 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 108,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 109,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 110,
+  PI_MEM_ADVICE_UNKNOWN = 999,
 } _pi_mem_advice;
 
 typedef enum {
@@ -561,6 +568,7 @@ constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
 constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;

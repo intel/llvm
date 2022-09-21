@@ -9,6 +9,7 @@
 #include "CommandObjectLog.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Host/OptionParser.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionValueEnumeration.h"
@@ -22,36 +23,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-
-static constexpr OptionEnumValueElement g_log_handler_type[] = {
-    {
-        eLogHandlerDefault,
-        "default",
-        "Use the default (stream) log handler",
-    },
-    {
-        eLogHandlerStream,
-        "stream",
-        "Write log messages to the debugger output stream or to a file if one "
-        "is specified. A buffer size (in bytes) can be specified with -b. If "
-        "no buffer size is specified the output is unbuffered.",
-    },
-    {
-        eLogHandlerCircular,
-        "circular",
-        "Write log messages to a fixed size circular buffer. A buffer size "
-        "(number of messages) must be specified with -b.",
-    },
-    {
-        eLogHandlerSystem,
-        "os",
-        "Write log messages to the operating system log.",
-    },
-};
-
-static constexpr OptionEnumValues LogHandlerType() {
-  return OptionEnumValues(g_log_handler_type);
-}
 
 #define LLDB_OPTIONS_log_enable
 #include "CommandOptions.inc"
@@ -430,7 +401,7 @@ protected:
           m_options.log_file, flags, lldb::eFilePermissionsFileDefault, false);
       if (!file) {
         result.AppendErrorWithFormat("Unable to open log file '%s': %s",
-                                     m_options.log_file.GetCString(),
+                                     m_options.log_file.GetPath().c_str(),
                                      llvm::toString(file.takeError()).c_str());
         return false;
       }

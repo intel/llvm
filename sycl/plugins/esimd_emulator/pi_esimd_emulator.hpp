@@ -14,11 +14,12 @@
 
 #pragma once
 
+#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/pi.h>
+
 #include <atomic>
 #include <cassert>
-#include <iostream>
 #include <mutex>
-#include <sycl/detail/pi.h>
 #include <unordered_map>
 
 #include <malloc.h>

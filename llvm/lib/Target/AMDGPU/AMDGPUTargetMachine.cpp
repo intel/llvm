@@ -329,6 +329,11 @@ static cl::opt<bool> EnablePromoteKernelArguments(
     cl::desc("Enable promotion of flat kernel pointer arguments to global"),
     cl::Hidden, cl::init(true));
 
+static cl::opt<bool> EnableMaxIlpSchedStrategy(
+    "amdgpu-enable-max-ilp-scheduling-strategy",
+    cl::desc("Enable scheduling strategy to maximize ILP for a single wave."),
+    cl::Hidden, cl::init(false));
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
@@ -426,9 +431,16 @@ createGCNMaxOccupancyMachineScheduler(MachineSchedContext *C) {
   if (ST.shouldClusterStores())
     DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createIGroupLPDAGMutation());
-  DAG->addMutation(createSchedBarrierDAGMutation());
   DAG->addMutation(createAMDGPUMacroFusionDAGMutation());
   DAG->addMutation(createAMDGPUExportClusteringDAGMutation());
+  return DAG;
+}
+
+static ScheduleDAGInstrs *
+createGCNMaxILPMachineScheduler(MachineSchedContext *C) {
+  ScheduleDAGMILive *DAG =
+      new GCNScheduleDAGMILive(C, std::make_unique<GCNMaxILPSchedStrategy>(C));
+  DAG->addMutation(createIGroupLPDAGMutation());
   return DAG;
 }
 
@@ -470,19 +482,23 @@ GCNMaxOccupancySchedRegistry("gcn-max-occupancy",
                              createGCNMaxOccupancyMachineScheduler);
 
 static MachineSchedRegistry
-IterativeGCNMaxOccupancySchedRegistry("gcn-max-occupancy-experimental",
-  "Run GCN scheduler to maximize occupancy (experimental)",
-  createIterativeGCNMaxOccupancyMachineScheduler);
+    GCNMaxILPSchedRegistry("gcn-max-ilp", "Run GCN scheduler to maximize ilp",
+                           createGCNMaxILPMachineScheduler);
 
-static MachineSchedRegistry
-GCNMinRegSchedRegistry("gcn-minreg",
-  "Run GCN iterative scheduler for minimal register usage (experimental)",
-  createMinRegScheduler);
+static MachineSchedRegistry IterativeGCNMaxOccupancySchedRegistry(
+    "gcn-iterative-max-occupancy-experimental",
+    "Run GCN scheduler to maximize occupancy (experimental)",
+    createIterativeGCNMaxOccupancyMachineScheduler);
 
-static MachineSchedRegistry
-GCNILPSchedRegistry("gcn-ilp",
-  "Run GCN iterative scheduler for ILP scheduling (experimental)",
-  createIterativeILPMachineScheduler);
+static MachineSchedRegistry GCNMinRegSchedRegistry(
+    "gcn-iterative-minreg",
+    "Run GCN iterative scheduler for minimal register usage (experimental)",
+    createMinRegScheduler);
+
+static MachineSchedRegistry GCNILPSchedRegistry(
+    "gcn-iterative-ilp",
+    "Run GCN iterative scheduler for ILP scheduling (experimental)",
+    createIterativeILPMachineScheduler);
 
 static StringRef computeDataLayout(const Triple &TT) {
   if (TT.getArch() == Triple::r600) {
@@ -555,11 +571,14 @@ StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
 }
 
 /// Predicate for Internalize pass.
+/// Functions with the 'sycl-module-id' attribute are SYCL_EXTERNAL functions
+/// and must be preserved.
 static bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
     return F->isDeclaration() || F->getName().startswith("__asan_") ||
            F->getName().startswith("__sanitizer_") ||
-           AMDGPU::isEntryFunctionCC(F->getCallingConv());
+           AMDGPU::isEntryFunctionCC(F->getCallingConv()) ||
+           F->hasFnAttribute("sycl-module-id");
 
   GV.removeDeadConstantUsers();
   return !GV.use_empty();
@@ -935,14 +954,15 @@ public:
 
   ScheduleDAGInstrs *
   createPostMachineScheduler(MachineSchedContext *C) const override {
-    ScheduleDAGMI *DAG = createGenericSchedPostRA(C);
+    ScheduleDAGMI *DAG = new GCNPostScheduleDAGMILive(
+        C, std::make_unique<PostGenericScheduler>(C),
+        /*RemoveKillFlags=*/true);
     const GCNSubtarget &ST = C->MF->getSubtarget<GCNSubtarget>();
     DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
     if (ST.shouldClusterStores())
       DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
     DAG->addMutation(ST.createFillMFMAShadowMutation(DAG->TII));
     DAG->addMutation(createIGroupLPDAGMutation());
-    DAG->addMutation(createSchedBarrierDAGMutation());
     if (isPassEnabled(EnableVOPD, CodeGenOpt::Less))
       DAG->addMutation(createVOPDPairingMutation());
     return DAG;
@@ -999,7 +1019,6 @@ void AMDGPUPassConfig::addEarlyCSEOrGVNPass() {
 void AMDGPUPassConfig::addStraightLineScalarOptimizationPasses() {
   addPass(createLICMPass());
   addPass(createSeparateConstOffsetFromGEPPass());
-  addPass(createSpeculativeExecutionPass());
   // ReassociateGEPs exposes more opportunities for SLSR. See
   // the example in reassociate-geps-and-slsr.ll.
   addPass(createStraightLineStrengthReducePass());
@@ -1169,6 +1188,10 @@ ScheduleDAGInstrs *GCNPassConfig::createMachineScheduler(
   const GCNSubtarget &ST = C->MF->getSubtarget<GCNSubtarget>();
   if (ST.enableSIScheduler())
     return createSIMachineScheduler(C);
+
+  if (EnableMaxIlpSchedStrategy)
+    return createGCNMaxILPMachineScheduler(C);
+
   return createGCNMaxOccupancyMachineScheduler(C);
 }
 
@@ -1604,6 +1627,9 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
        parseAndCheckArgument(YamlMFI.ArgInfo->PrivateSegmentSize,
                              AMDGPU::SGPR_32RegClass,
                              MFI->ArgInfo.PrivateSegmentSize, 0, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->LDSKernelId,
+                             AMDGPU::SGPR_32RegClass,
+                             MFI->ArgInfo.LDSKernelId, 0, 1) ||
        parseAndCheckArgument(YamlMFI.ArgInfo->WorkGroupIDX,
                              AMDGPU::SGPR_32RegClass, MFI->ArgInfo.WorkGroupIDX,
                              0, 1) ||

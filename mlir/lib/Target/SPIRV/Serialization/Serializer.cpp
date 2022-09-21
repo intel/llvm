@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
@@ -23,6 +24,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/Debug.h"
+#include <cstdint>
 
 #define DEBUG_TYPE "spirv-serialization"
 
@@ -192,8 +194,11 @@ void Serializer::processExtension() {
 }
 
 void Serializer::processMemoryModel() {
-  uint32_t mm = module->getAttrOfType<IntegerAttr>("memory_model").getInt();
-  uint32_t am = module->getAttrOfType<IntegerAttr>("addressing_model").getInt();
+  auto mm = static_cast<uint32_t>(
+      module->getAttrOfType<spirv::MemoryModelAttr>("memory_model").getValue());
+  auto am = static_cast<uint32_t>(
+      module->getAttrOfType<spirv::AddressingModelAttr>("addressing_model")
+          .getValue());
 
   encodeInstructionInto(memoryModel, spirv::Opcode::OpMemoryModel, {am, mm});
 }
@@ -593,6 +598,27 @@ LogicalResult Serializer::prepareBasicType(
     return success();
   }
 
+  if (auto jointMatrixType = type.dyn_cast<spirv::JointMatrixINTELType>()) {
+    uint32_t elementTypeID = 0;
+    if (failed(processTypeImpl(loc, jointMatrixType.getElementType(),
+                               elementTypeID, serializationCtx))) {
+      return failure();
+    }
+    typeEnum = spirv::Opcode::OpTypeJointMatrixINTEL;
+    auto getConstantOp = [&](uint32_t id) {
+      auto attr = IntegerAttr::get(IntegerType::get(type.getContext(), 32), id);
+      return prepareConstantInt(loc, attr);
+    };
+    operands.push_back(elementTypeID);
+    operands.push_back(getConstantOp(jointMatrixType.getRows()));
+    operands.push_back(getConstantOp(jointMatrixType.getColumns()));
+    operands.push_back(getConstantOp(
+        static_cast<uint32_t>(jointMatrixType.getMatrixLayout())));
+    operands.push_back(
+        getConstantOp(static_cast<uint32_t>(jointMatrixType.getScope())));
+    return success();
+  }
+
   if (auto matrixType = type.dyn_cast<spirv::MatrixType>()) {
     uint32_t elementTypeID = 0;
     if (failed(processTypeImpl(loc, matrixType.getColumnType(), elementTypeID,
@@ -769,7 +795,8 @@ uint32_t Serializer::prepareConstantBool(Location loc, BoolAttr boolAttr,
 
   // Process the type for this bool literal
   uint32_t typeID = 0;
-  if (failed(processType(loc, boolAttr.getType(), typeID))) {
+  if (failed(
+          processType(loc, boolAttr.cast<IntegerAttr>().getType(), typeID))) {
     return 0;
   }
 

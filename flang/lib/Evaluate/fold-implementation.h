@@ -70,6 +70,8 @@ public:
   Expr<T> TRANSPOSE(FunctionRef<T> &&);
   Expr<T> UNPACK(FunctionRef<T> &&);
 
+  Expr<T> TRANSFER(FunctionRef<T> &&);
+
 private:
   FoldingContext &context_;
 };
@@ -340,11 +342,9 @@ template <typename T> Expr<T> Folder<T>::Folding(Designator<T> &&designator) {
           return std::move(*specific);
         }
       }
-      if (auto length{ToInt64(Fold(context_, substring->LEN()))}) {
-        if (*length == 0) {
-          return Expr<T>{Constant<T>{Scalar<T>{}}};
-        }
-      }
+      // We used to fold zero-length substrings into zero-length
+      // constants here, but that led to problems in variable
+      // definition contexts.
     }
   } else if constexpr (T::category == TypeCategory::Real) {
     if (auto *zPart{std::get_if<ComplexPart>(&designator.u)}) {
@@ -1013,6 +1013,17 @@ template <typename T> Expr<T> Folder<T>::UNPACK(FunctionRef<T> &&funcRef) {
       PackageConstant<T>(std::move(resultElements), *vector, mask->shape())};
 }
 
+std::optional<Expr<SomeType>> FoldTransfer(
+    FoldingContext &, const ActualArguments &);
+
+template <typename T> Expr<T> Folder<T>::TRANSFER(FunctionRef<T> &&funcRef) {
+  if (auto folded{FoldTransfer(context_, funcRef.arguments())}) {
+    return DEREF(UnwrapExpr<Expr<T>>(*folded));
+  } else {
+    return Expr<T>{std::move(funcRef)};
+  }
+}
+
 template <typename T>
 Expr<T> FoldMINorMAX(
     FoldingContext &context, FunctionRef<T> &&funcRef, Ordering order) {
@@ -1119,6 +1130,8 @@ Expr<T> FoldOperation(FoldingContext &context, FunctionRef<T> &&funcRef) {
       return Folder<T>{context}.RESHAPE(std::move(funcRef));
     } else if (name == "spread") {
       return Folder<T>{context}.SPREAD(std::move(funcRef));
+    } else if (name == "transfer") {
+      return Folder<T>{context}.TRANSFER(std::move(funcRef));
     } else if (name == "transpose") {
       return Folder<T>{context}.TRANSPOSE(std::move(funcRef));
     } else if (name == "unpack") {

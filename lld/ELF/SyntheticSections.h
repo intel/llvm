@@ -28,32 +28,10 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Threading.h"
 
-namespace lld {
-namespace elf {
+namespace lld::elf {
 class Defined;
 struct PhdrEntry;
 class SymbolTableBaseSection;
-
-class SyntheticSection : public InputSection {
-public:
-  SyntheticSection(uint64_t flags, uint32_t type, uint32_t alignment,
-                   StringRef name)
-      : InputSection(nullptr, flags, type, alignment, {}, name,
-                     InputSectionBase::Synthetic) {}
-
-  virtual ~SyntheticSection() = default;
-  virtual void writeTo(uint8_t *buf) = 0;
-  virtual size_t getSize() const = 0;
-  virtual void finalizeContents() {}
-  // If the section has the SHF_ALLOC flag and the size may be changed if
-  // thunks are added, update the section size.
-  virtual bool updateAllocSize() { return false; }
-  virtual bool isNeeded() const { return true; }
-
-  static bool classof(const SectionBase *d) {
-    return d->kind() == InputSectionBase::Synthetic;
-  }
-};
 
 struct CieRecord {
   EhSectionPiece *cie = nullptr;
@@ -72,8 +50,6 @@ public:
   static bool classof(const SectionBase *d) {
     return SyntheticSection::classof(d) && d->name == ".eh_frame";
   }
-
-  void addSection(EhInputSection *sec);
 
   SmallVector<EhInputSection *, 0> sections;
   size_t numFdes = 0;
@@ -811,7 +787,6 @@ private:
     llvm::support::ulittle32_t constantPoolOff;
   };
 
-  void initOutputSize();
   size_t computeSymtabSize() const;
 
   // Each chunk contains information gathered from debug sections of a
@@ -1199,9 +1174,19 @@ public:
   size_t getSize() const override;
 };
 
+class PackageMetadataNote : public SyntheticSection {
+public:
+  PackageMetadataNote()
+      : SyntheticSection(llvm::ELF::SHF_ALLOC, llvm::ELF::SHT_NOTE,
+                         /*alignment=*/4, ".note.package") {}
+  void writeTo(uint8_t *buf) override;
+  size_t getSize() const override;
+};
+
 InputSection *createInterpSection();
 MergeInputSection *createCommentSection();
 template <class ELFT> void splitSections();
+void combineEhSections();
 
 template <typename ELFT> void writeEhdr(uint8_t *buf, Partition &part);
 template <typename ELFT> void writePhdrs(uint8_t *buf, Partition &part);
@@ -1230,6 +1215,7 @@ struct Partition {
   std::unique_ptr<GnuHashTableSection> gnuHashTab;
   std::unique_ptr<HashTableSection> hashTab;
   std::unique_ptr<MemtagAndroidNote> memtagAndroidNote;
+  std::unique_ptr<PackageMetadataNote> packageMetadataNote;
   std::unique_ptr<RelocationBaseSection> relaDyn;
   std::unique_ptr<RelrBaseSection> relrDyn;
   std::unique_ptr<VersionDefinitionSection> verDef;
@@ -1279,7 +1265,6 @@ struct InStruct {
 
 extern InStruct in;
 
-} // namespace elf
-} // namespace lld
+} // namespace lld::elf
 
 #endif

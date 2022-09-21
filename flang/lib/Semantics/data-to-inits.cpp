@@ -541,8 +541,8 @@ static void PopulateWithComponentDefaults(SymbolDataInitialization &init,
             if (auto dyType{evaluate::DynamicType::From(component)}) {
               if (auto extents{evaluate::GetConstantExtents(
                       foldingContext, component)}) {
-                if (auto extant{init.image.AsConstant(
-                        foldingContext, *dyType, *extents, componentOffset)}) {
+                if (auto extant{init.image.AsConstant(foldingContext, *dyType,
+                        *extents, false /*don't pad*/, componentOffset)}) {
                   initialized = !(*extant == *object->init());
                 }
               }
@@ -821,7 +821,7 @@ static bool ProcessScopes(const Scope &scope,
   case Scope::Kind::MainProgram:
   case Scope::Kind::Subprogram:
   case Scope::Kind::BlockData:
-  case Scope::Kind::Block: {
+  case Scope::Kind::BlockConstruct: {
     std::list<std::list<SymbolRef>> associations{GetStorageAssociations(scope)};
     for (const std::list<SymbolRef> &associated : associations) {
       if (std::find_if(associated.begin(), associated.end(), [](SymbolRef ref) {
@@ -862,7 +862,7 @@ void ConstructInitializer(const Symbol &symbol,
         CHECK(!procDesignator->GetComponent());
         mutableProc.set_init(DEREF(procDesignator->GetSymbol()));
       } else {
-        CHECK(evaluate::IsNullPointer(*expr));
+        CHECK(evaluate::IsNullProcedurePointer(*expr));
         mutableProc.set_init(nullptr);
       }
     } else {

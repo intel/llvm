@@ -32,3 +32,81 @@ add_integration_test(
     libc.src.pthread.pthread_create
     libc.src.pthread.pthread_join
 )
+
+add_integration_test(
+  pthread_equal_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_equal_test.cpp
+  LOADER
+    libc.loader.linux.crt1
+  DEPENDS
+    libc.include.pthread
+    libc.src.errno.errno
+    libc.src.pthread.pthread_mutex_destroy
+    libc.src.pthread.pthread_mutex_init
+    libc.src.pthread.pthread_mutex_lock
+    libc.src.pthread.pthread_mutex_unlock
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_equal
+    libc.src.pthread.pthread_join
+    libc.src.pthread.pthread_self
+)
+
+add_integration_test(
+  pthread_name_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_name_test.cpp
+  LOADER
+    libc.loader.linux.crt1
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.errno.errno
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_getname_np
+    libc.src.pthread.pthread_join
+    libc.src.pthread.pthread_mutex_destroy
+    libc.src.pthread.pthread_mutex_init
+    libc.src.pthread.pthread_mutex_lock
+    libc.src.pthread.pthread_mutex_unlock
+    libc.src.pthread.pthread_self
+    libc.src.pthread.pthread_setname_np
+)
+
+add_integration_test(
+  pthread_exit_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_exit_test.cpp
+  LOADER
+    libc.loader.linux.crt1
+  DEPENDS
+    libc.include.pthread
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_exit
+    libc.src.pthread.pthread_join
+)
+
+add_integration_test(
+  pthread_tss_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_tss_test.cpp
+  LOADER
+    libc.loader.linux.crt1
+  DEPENDS
+    libc.include.pthread
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_exit
+    libc.src.pthread.pthread_join
+    libc.src.pthread.pthread_key_create
+    libc.src.pthread.pthread_key_delete
+    libc.src.pthread.pthread_getspecific
+    libc.src.pthread.pthread_setspecific
+)

@@ -151,10 +151,9 @@ public:
             std::enable_if_t<detect_has_print_method<AttrOrType>::value>
                 *sfinae = nullptr>
   void printStrippedAttrOrType(ArrayRef<AttrOrType> attrOrTypes) {
-    llvm::interleaveComma(attrOrTypes, getStream(),
-                          [this](AttrOrType attrOrType) {
-                            printStrippedAttrOrType(attrOrType);
-                          });
+    llvm::interleaveComma(
+        attrOrTypes, getStream(),
+        [this](AttrOrType attrOrType) { printStrippedAttrOrType(attrOrType); });
   }
 
   /// SFINAE for printing the provided attribute in the context of an operation
@@ -273,15 +272,14 @@ operator<<(AsmPrinterT &p, double value) {
 // Support printing anything that isn't convertible to one of the other
 // streamable types, even if it isn't exactly one of them. For example, we want
 // to print FunctionType with the Type version above, not have it match this.
-template <
-    typename AsmPrinterT, typename T,
-    typename std::enable_if<!std::is_convertible<T &, Value &>::value &&
-                                !std::is_convertible<T &, Type &>::value &&
-                                !std::is_convertible<T &, Attribute &>::value &&
-                                !std::is_convertible<T &, ValueRange>::value &&
-                                !std::is_convertible<T &, APFloat &>::value &&
-                                !llvm::is_one_of<T, bool, float, double>::value,
-                            T>::type * = nullptr>
+template <typename AsmPrinterT, typename T,
+          std::enable_if_t<!std::is_convertible<T &, Value &>::value &&
+                               !std::is_convertible<T &, Type &>::value &&
+                               !std::is_convertible<T &, Attribute &>::value &&
+                               !std::is_convertible<T &, ValueRange>::value &&
+                               !std::is_convertible<T &, APFloat &>::value &&
+                               !llvm::is_one_of<T, bool, float, double>::value,
+                           T> * = nullptr>
 inline std::enable_if_t<std::is_base_of<AsmPrinter, AsmPrinterT>::value,
                         AsmPrinterT &>
 operator<<(AsmPrinterT &p, const T &other) {
@@ -430,9 +428,9 @@ inline OpAsmPrinter &operator<<(OpAsmPrinter &p, Value value) {
 }
 
 template <typename T,
-          typename std::enable_if<std::is_convertible<T &, ValueRange>::value &&
-                                      !std::is_convertible<T &, Value &>::value,
-                                  T>::type * = nullptr>
+          std::enable_if_t<std::is_convertible<T &, ValueRange>::value &&
+                               !std::is_convertible<T &, Value &>::value,
+                           T> * = nullptr>
 inline OpAsmPrinter &operator<<(OpAsmPrinter &p, const T &values) {
   p.printOperands(values);
   return p;
@@ -571,45 +569,6 @@ public:
   /// Parse a quoted string token if present.
   virtual ParseResult parseOptionalString(std::string *string) = 0;
 
-  /// Parse a given keyword.
-  ParseResult parseKeyword(StringRef keyword, const Twine &msg = "") {
-    auto loc = getCurrentLocation();
-    if (parseOptionalKeyword(keyword))
-      return emitError(loc, "expected '") << keyword << "'" << msg;
-    return success();
-  }
-
-  /// Parse a keyword into 'keyword'.
-  ParseResult parseKeyword(StringRef *keyword) {
-    auto loc = getCurrentLocation();
-    if (parseOptionalKeyword(keyword))
-      return emitError(loc, "expected valid keyword");
-    return success();
-  }
-
-  /// Parse the given keyword if present.
-  virtual ParseResult parseOptionalKeyword(StringRef keyword) = 0;
-
-  /// Parse a keyword, if present, into 'keyword'.
-  virtual ParseResult parseOptionalKeyword(StringRef *keyword) = 0;
-
-  /// Parse a keyword, if present, and if one of the 'allowedValues',
-  /// into 'keyword'
-  virtual ParseResult
-  parseOptionalKeyword(StringRef *keyword,
-                       ArrayRef<StringRef> allowedValues) = 0;
-
-  /// Parse a keyword or a quoted string.
-  ParseResult parseKeywordOrString(std::string *result) {
-    if (failed(parseOptionalKeywordOrString(result)))
-      return emitError(getCurrentLocation())
-             << "expected valid keyword or string";
-    return success();
-  }
-
-  /// Parse an optional keyword or string.
-  virtual ParseResult parseOptionalKeywordOrString(std::string *result) = 0;
-
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;
 
@@ -645,7 +604,7 @@ public:
   ParseResult parseInteger(IntT &result) {
     auto loc = getCurrentLocation();
     OptionalParseResult parseResult = parseOptionalInteger(result);
-    if (!parseResult.hasValue())
+    if (!parseResult.has_value())
       return emitError(loc, "expected integer value");
     return *parseResult;
   }
@@ -660,7 +619,7 @@ public:
     // Parse the unsigned variant.
     APInt uintResult;
     OptionalParseResult parseResult = parseOptionalInteger(uintResult);
-    if (!parseResult.hasValue() || failed(*parseResult))
+    if (!parseResult.has_value() || failed(*parseResult))
       return parseResult;
 
     // Try to convert to the provided integer type.  sextOrTrunc is correct even
@@ -715,6 +674,115 @@ public:
   }
 
   //===--------------------------------------------------------------------===//
+  // Keyword Parsing
+  //===--------------------------------------------------------------------===//
+
+  /// This class represents a StringSwitch like class that is useful for parsing
+  /// expected keywords. On construction, it invokes `parseKeyword` and
+  /// processes each of the provided cases statements until a match is hit. The
+  /// provided `ResultT` must be assignable from `failure()`.
+  template <typename ResultT = ParseResult>
+  class KeywordSwitch {
+  public:
+    KeywordSwitch(AsmParser &parser)
+        : parser(parser), loc(parser.getCurrentLocation()) {
+      if (failed(parser.parseKeywordOrCompletion(&keyword)))
+        result = failure();
+    }
+
+    /// Case that uses the provided value when true.
+    KeywordSwitch &Case(StringLiteral str, ResultT value) {
+      return Case(str, [&](StringRef, SMLoc) { return std::move(value); });
+    }
+    KeywordSwitch &Default(ResultT value) {
+      return Default([&](StringRef, SMLoc) { return std::move(value); });
+    }
+    /// Case that invokes the provided functor when true. The parameters passed
+    /// to the functor are the keyword, and the location of the keyword (in case
+    /// any errors need to be emitted).
+    template <typename FnT>
+    std::enable_if_t<!std::is_convertible<FnT, ResultT>::value, KeywordSwitch &>
+    Case(StringLiteral str, FnT &&fn) {
+      if (result)
+        return *this;
+
+      // If the word was empty, record this as a completion.
+      if (keyword.empty())
+        parser.codeCompleteExpectedTokens(str);
+      else if (keyword == str)
+        result.emplace(std::move(fn(keyword, loc)));
+      return *this;
+    }
+    template <typename FnT>
+    std::enable_if_t<!std::is_convertible<FnT, ResultT>::value, KeywordSwitch &>
+    Default(FnT &&fn) {
+      if (!result)
+        result.emplace(fn(keyword, loc));
+      return *this;
+    }
+
+    /// Returns true if this switch has a value yet.
+    bool hasValue() const { return result.has_value(); }
+
+    /// Return the result of the switch.
+    [[nodiscard]] operator ResultT() {
+      if (!result)
+        return parser.emitError(loc, "unexpected keyword: ") << keyword;
+      return std::move(*result);
+    }
+
+  private:
+    /// The parser used to construct this switch.
+    AsmParser &parser;
+
+    /// The location of the keyword, used to emit errors as necessary.
+    SMLoc loc;
+
+    /// The parsed keyword itself.
+    StringRef keyword;
+
+    /// The result of the switch statement or none if currently unknown.
+    Optional<ResultT> result;
+  };
+
+  /// Parse a given keyword.
+  ParseResult parseKeyword(StringRef keyword) {
+    return parseKeyword(keyword, "");
+  }
+  virtual ParseResult parseKeyword(StringRef keyword, const Twine &msg) = 0;
+
+  /// Parse a keyword into 'keyword'.
+  ParseResult parseKeyword(StringRef *keyword) {
+    auto loc = getCurrentLocation();
+    if (parseOptionalKeyword(keyword))
+      return emitError(loc, "expected valid keyword");
+    return success();
+  }
+
+  /// Parse the given keyword if present.
+  virtual ParseResult parseOptionalKeyword(StringRef keyword) = 0;
+
+  /// Parse a keyword, if present, into 'keyword'.
+  virtual ParseResult parseOptionalKeyword(StringRef *keyword) = 0;
+
+  /// Parse a keyword, if present, and if one of the 'allowedValues',
+  /// into 'keyword'
+  virtual ParseResult
+  parseOptionalKeyword(StringRef *keyword,
+                       ArrayRef<StringRef> allowedValues) = 0;
+
+  /// Parse a keyword or a quoted string.
+  ParseResult parseKeywordOrString(std::string *result) {
+    if (failed(parseOptionalKeywordOrString(result)))
+      return emitError(getCurrentLocation())
+             << "expected valid keyword or string";
+    return success();
+  }
+
+  /// Parse an optional keyword or string.
+  virtual ParseResult parseOptionalKeywordOrString(std::string *result) = 0;
+
+  //===--------------------------------------------------------------------===//
   // Attribute/Type Parsing
   //===--------------------------------------------------------------------===//
 
@@ -723,14 +791,14 @@ public:
   /// unlike `OpBuilder::getType`, this method does not implicitly insert a
   /// context parameter.
   template <typename T, typename... ParamsT>
-  T getChecked(SMLoc loc, ParamsT &&...params) {
+  auto getChecked(SMLoc loc, ParamsT &&...params) {
     return T::getChecked([&] { return emitError(loc); },
                          std::forward<ParamsT>(params)...);
   }
   /// A variant of `getChecked` that uses the result of `getNameLoc` to emit
   /// errors.
   template <typename T, typename... ParamsT>
-  T getChecked(ParamsT &&...params) {
+  auto getChecked(ParamsT &&...params) {
     return T::getChecked([&] { return emitError(getNameLoc()); },
                          std::forward<ParamsT>(params)...);
   }
@@ -907,7 +975,7 @@ public:
                                              StringRef attrName,
                                              NamedAttrList &attrs) {
     OptionalParseResult parseResult = parseOptionalAttribute(result, type);
-    if (parseResult.hasValue() && succeeded(*parseResult))
+    if (parseResult.has_value() && succeeded(*parseResult))
       attrs.append(attrName, result);
     return parseResult;
   }
@@ -954,8 +1022,17 @@ public:
   template <typename ResourceT>
   FailureOr<ResourceT> parseResourceHandle() {
     SMLoc handleLoc = getCurrentLocation();
-    FailureOr<AsmDialectResourceHandle> handle = parseResourceHandle(
-        getContext()->getOrLoadDialect<typename ResourceT::Dialect>());
+
+    // Try to load the dialect that owns the handle.
+    auto *dialect =
+        getContext()->getOrLoadDialect<typename ResourceT::Dialect>();
+    if (!dialect) {
+      return emitError(handleLoc)
+             << "dialect '" << ResourceT::Dialect::getDialectNamespace()
+             << "' is unknown";
+    }
+
+    FailureOr<AsmDialectResourceHandle> handle = parseResourceHandle(dialect);
     if (failed(handle))
       return failure();
     if (auto *result = dyn_cast<ResourceT>(&*handle))
@@ -1126,6 +1203,17 @@ protected:
   virtual FailureOr<AsmDialectResourceHandle>
   parseResourceHandle(Dialect *dialect) = 0;
 
+  //===--------------------------------------------------------------------===//
+  // Code Completion
+  //===--------------------------------------------------------------------===//
+
+  /// Parse a keyword, or an empty string if the current location signals a code
+  /// completion.
+  virtual ParseResult parseKeywordOrCompletion(StringRef *keyword) = 0;
+
+  /// Signal the code completion of a set of expected tokens.
+  virtual void codeCompleteExpectedTokens(ArrayRef<StringRef> tokens) = 0;
+
 private:
   AsmParser(const AsmParser &) = delete;
   void operator=(const AsmParser &) = delete;
@@ -1267,37 +1355,25 @@ public:
   /// Resolve a list of operands to SSA values, emitting an error on failure, or
   /// appending the results to the list on success. This method should be used
   /// when all operands have the same type.
-  ParseResult resolveOperands(ArrayRef<UnresolvedOperand> operands, Type type,
+  template <typename Operands = ArrayRef<UnresolvedOperand>>
+  ParseResult resolveOperands(Operands &&operands, Type type,
                               SmallVectorImpl<Value> &result) {
-    for (auto elt : operands)
-      if (resolveOperand(elt, type, result))
+    for (const UnresolvedOperand &operand : operands)
+      if (resolveOperand(operand, type, result))
         return failure();
     return success();
+  }
+  template <typename Operands = ArrayRef<UnresolvedOperand>>
+  ParseResult resolveOperands(Operands &&operands, Type type, SMLoc loc,
+                              SmallVectorImpl<Value> &result) {
+    return resolveOperands(std::forward<Operands>(operands), type, result);
   }
 
   /// Resolve a list of operands and a list of operand types to SSA values,
   /// emitting an error and returning failure, or appending the results
   /// to the list on success.
-  ParseResult resolveOperands(ArrayRef<UnresolvedOperand> operands,
-                              ArrayRef<Type> types, SMLoc loc,
-                              SmallVectorImpl<Value> &result) {
-    if (operands.size() != types.size())
-      return emitError(loc)
-             << operands.size() << " operands present, but expected "
-             << types.size();
-
-    for (unsigned i = 0, e = operands.size(); i != e; ++i)
-      if (resolveOperand(operands[i], types[i], result))
-        return failure();
-    return success();
-  }
-  template <typename Operands>
-  ParseResult resolveOperands(Operands &&operands, Type type, SMLoc loc,
-                              SmallVectorImpl<Value> &result) {
-    return resolveOperands(std::forward<Operands>(operands),
-                           ArrayRef<Type>(type), loc, result);
-  }
-  template <typename Operands, typename Types>
+  template <typename Operands = ArrayRef<UnresolvedOperand>,
+            typename Types = ArrayRef<Type>>
   std::enable_if_t<!std::is_convertible<Types, Type>::value, ParseResult>
   resolveOperands(Operands &&operands, Types &&types, SMLoc loc,
                   SmallVectorImpl<Value> &result) {
@@ -1307,8 +1383,8 @@ public:
       return emitError(loc)
              << operandSize << " operands present, but expected " << typeSize;
 
-    for (auto it : llvm::zip(operands, types))
-      if (resolveOperand(std::get<0>(it), std::get<1>(it), result))
+    for (auto [operand, type] : llvm::zip(operands, types))
+      if (resolveOperand(operand, type, result))
         return failure();
     return success();
   }
@@ -1413,9 +1489,9 @@ public:
   ParseResult parseAssignmentList(SmallVectorImpl<Argument> &lhs,
                                   SmallVectorImpl<UnresolvedOperand> &rhs) {
     OptionalParseResult result = parseOptionalAssignmentList(lhs, rhs);
-    if (!result.hasValue())
+    if (!result.has_value())
       return emitError(getCurrentLocation(), "expected '('");
-    return result.getValue();
+    return result.value();
   }
 
   virtual OptionalParseResult

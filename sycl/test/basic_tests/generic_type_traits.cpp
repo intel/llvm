@@ -6,8 +6,8 @@
 #include <sycl/half_type.hpp>
 #include <sycl/sycl.hpp>
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 using i_t = int;
 using f_t = float;

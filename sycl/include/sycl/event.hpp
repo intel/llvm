@@ -12,15 +12,21 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class context;
+
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
+
 namespace detail {
 class event_impl;
 }
@@ -58,16 +64,11 @@ public:
 
   bool operator!=(const event &rhs) const;
 
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-#ifdef __SYCL_INTERNAL_API
-  cl_event get() const;
-#endif
-
   /// Checks if this event is a SYCL host event.
   ///
   /// \return true if this event is a SYCL host event.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Return the list of events that this event waits for.
@@ -105,8 +106,8 @@ public:
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_event_info_desc<Param>::return_type get_info() const;
 
   /// Queries this SYCL event for profiling information.
   ///
@@ -119,23 +120,14 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
+  template <typename Param>
+  typename detail::is_event_profiling_info_desc<Param>::return_type
   get_profiling_info() const;
 
   /// Returns the backend associated with this platform.
   ///
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
-
-  /// Gets the native handle of the SYCL event.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, event> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
-  }
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
@@ -157,14 +149,14 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::event> {
-  size_t operator()(const cl::sycl::event &e) const {
-    return hash<std::shared_ptr<cl::sycl::detail::event_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(e));
+template <> struct hash<sycl::event> {
+  size_t operator()(const sycl::event &e) const {
+    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
+        sycl::detail::getSyclObjImpl(e));
   }
 };
 } // namespace std

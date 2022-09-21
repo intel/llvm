@@ -14,8 +14,8 @@
 void foo() {}
 
 int main() {
-  cl::sycl::queue Q;
-  Q.submit([](cl::sycl::handler &Cgh) {
+  sycl::queue Q;
+  Q.submit([](sycl::handler &Cgh) {
     Cgh.single_task<class KernelFunction>([]() { foo(); });
   });
   return 0;

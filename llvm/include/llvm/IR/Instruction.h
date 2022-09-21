@@ -149,6 +149,13 @@ public:
   /// it takes constant time.
   bool comesBefore(const Instruction *Other) const;
 
+  /// Get the first insertion point at which the result of this instruction
+  /// is defined. This is *not* the directly following instruction in a number
+  /// of cases, e.g. phi nodes or terminators that return values. This function
+  /// may return null if the insertion after the definition is not possible,
+  /// e.g. due to a catchswitch terminator.
+  Instruction *getInsertionPointAfterDef();
+
   //===--------------------------------------------------------------------===//
   // Subclass classification.
   //===--------------------------------------------------------------------===//
@@ -171,10 +178,6 @@ public:
   /// It checks if this instruction is the only user of at least one of
   /// its operands.
   bool isOnlyUserOfAnyOperand();
-
-  bool isIndirectTerminator() const {
-    return isIndirectTerminator(getOpcode());
-  }
 
   static const char* getOpcodeName(unsigned OpCode);
 
@@ -236,17 +239,6 @@ public:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  /// Returns true if the OpCode is a terminator with indirect targets.
-  static inline bool isIndirectTerminator(unsigned OpCode) {
-    switch (OpCode) {
-    case Instruction::IndirectBr:
-    case Instruction::CallBr:
       return true;
     default:
       return false;
@@ -349,11 +341,6 @@ public:
 
   /// Sets the AA metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
-
-  /// Retrieve the raw weight values of a conditional branch or select.
-  /// Returns true on success with profile weights filled in.
-  /// Returns false if no metadata or invalid metadata was found.
-  bool extractProfMetadata(uint64_t &TrueVal, uint64_t &FalseVal) const;
 
   /// Retrieve total raw weight values of a branch.
   /// Returns true on success with profile total weights filled in.

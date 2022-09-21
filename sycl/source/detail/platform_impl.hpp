@@ -16,8 +16,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class device_selector;
@@ -69,9 +69,7 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
@@ -139,6 +137,14 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+  /// Queries the device_impl cache to return a shared_ptr for the
+  /// device_impl corresponding to the PiDevice.
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl> getDeviceImpl(RT::PiDevice PiDevice);
+
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
   /// a new entry to the cache
@@ -183,6 +189,8 @@ public:
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
 private:
+  std::shared_ptr<device_impl> getDeviceImplHelper(RT::PiDevice PiDevice);
+
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
@@ -191,5 +199,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

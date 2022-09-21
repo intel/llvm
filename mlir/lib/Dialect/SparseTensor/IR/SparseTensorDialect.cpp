@@ -13,6 +13,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
 using namespace mlir::sparse_tensor;
@@ -48,7 +49,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
     return {};
   // Process the data from the parsed dictionary value into struct-like data.
   SmallVector<SparseTensorEncodingAttr::DimLevelType, 4> dlt;
-  AffineMap map = {};
+  AffineMap dimOrd = {};
   unsigned ptr = 0;
   unsigned ind = 0;
   for (const NamedAttribute &attr : dict) {
@@ -71,8 +72,20 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
           dlt.push_back(SparseTensorEncodingAttr::DimLevelType::Dense);
         } else if (strVal == "compressed") {
           dlt.push_back(SparseTensorEncodingAttr::DimLevelType::Compressed);
+        } else if (strVal == "compressed-nu") {
+          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::CompressedNu);
+        } else if (strVal == "compressed-no") {
+          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::CompressedNo);
+        } else if (strVal == "compressed-nu-no") {
+          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::CompressedNuNo);
         } else if (strVal == "singleton") {
           dlt.push_back(SparseTensorEncodingAttr::DimLevelType::Singleton);
+        } else if (strVal == "singleton-nu") {
+          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::SingletonNu);
+        } else if (strVal == "singleton-no") {
+          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::SingletonNo);
+        } else if (strVal == "singleton-nu-no") {
+          dlt.push_back(SparseTensorEncodingAttr::DimLevelType::SingletonNuNo);
         } else {
           parser.emitError(parser.getNameLoc(),
                            "unexpected dimension level type: ")
@@ -87,7 +100,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
                          "expected an affine map for dimension ordering");
         return {};
       }
-      map = affineAttr.getValue();
+      dimOrd = affineAttr.getValue();
     } else if (attr.getName() == "pointerBitWidth") {
       auto intAttr = attr.getValue().dyn_cast<IntegerAttr>();
       if (!intAttr) {
@@ -112,7 +125,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
   }
   // Construct struct-like storage for attribute.
   return parser.getChecked<SparseTensorEncodingAttr>(parser.getContext(), dlt,
-                                                     map, ptr, ind);
+                                                     dimOrd, ptr, ind);
 }
 
 void SparseTensorEncodingAttr::print(AsmPrinter &printer) const {
@@ -126,18 +139,40 @@ void SparseTensorEncodingAttr::print(AsmPrinter &printer) const {
     case DimLevelType::Compressed:
       printer << "\"compressed\"";
       break;
+    case DimLevelType::CompressedNu:
+      printer << "\"compressed-nu\"";
+      break;
+    case DimLevelType::CompressedNo:
+      printer << "\"compressed-no\"";
+      break;
+    case DimLevelType::CompressedNuNo:
+      printer << "\"compressed-nu-no\"";
+      break;
     case DimLevelType::Singleton:
       printer << "\"singleton\"";
+      break;
+    case DimLevelType::SingletonNu:
+      printer << "\"singleton-nu\"";
+      break;
+    case DimLevelType::SingletonNo:
+      printer << "\"singleton-no\"";
+      break;
+    case DimLevelType::SingletonNuNo:
+      printer << "\"singleton-nu-no\"";
       break;
     }
     if (i != e - 1)
       printer << ", ";
   }
   printer << " ]";
-  if (getDimOrdering())
+  // Print remaining members only for non-default values.
+  if (getDimOrdering() && !getDimOrdering().isIdentity())
     printer << ", dimOrdering = affine_map<" << getDimOrdering() << ">";
-  printer << ", pointerBitWidth = " << getPointerBitWidth()
-          << ", indexBitWidth = " << getIndexBitWidth() << " }>";
+  if (getPointerBitWidth())
+    printer << ", pointerBitWidth = " << getPointerBitWidth();
+  if (getIndexBitWidth())
+    printer << ", indexBitWidth = " << getIndexBitWidth();
+  printer << " }>";
 }
 
 LogicalResult SparseTensorEncodingAttr::verify(
@@ -357,15 +392,153 @@ LogicalResult UnaryOp::verify() {
   return success();
 }
 
+LogicalResult ConcatenateOp::verify() {
+  auto dstTp = getType().cast<RankedTensorType>();
+  uint64_t concatDim = getDimension().getZExtValue();
+  unsigned rank = dstTp.getRank();
+
+  if (getInputs().size() <= 1)
+    return emitError("Need at least two tensors to concatenate.");
+
+  for (auto type : getInputs().getTypes()) {
+    auto shape = type.cast<RankedTensorType>().getShape();
+    for (auto dim : shape) {
+      if (dim == ShapedType::kDynamicSize)
+        return emitError("Only statically-sized input tensors are supported.");
+    }
+  }
+
+  if (concatDim >= rank)
+    return emitError(llvm::formatv(
+        "Failed to concatentate tensors with rank={0} on dimension={1}.", rank,
+        concatDim));
+
+  for (size_t i = 0; i < getInputs().size(); i++) {
+    Value input = getInputs()[i];
+    auto inputRank = input.getType().cast<RankedTensorType>().getRank();
+    if (inputRank != rank)
+      return emitError(
+          llvm::formatv("The input tensor ${0} has a different rank (rank={1}) "
+                        "from the output tensor (rank={2}).",
+                        i, inputRank, rank));
+  }
+
+  for (unsigned i = 0; i < rank; i++) {
+    auto dstDim = dstTp.getShape()[i];
+    if (i == concatDim) {
+      if (dstDim != ShapedType::kDynamicSize) {
+        unsigned sumDim = 0;
+        for (auto src : getInputs()) {
+          // If we reach here, all inputs should have static shapes.
+          auto d = src.getType().cast<RankedTensorType>().getShape()[i];
+          sumDim += d;
+        }
+        // If all dimension are statically known, the sum of all the input
+        // dimensions should be equal to the output dimension.
+        if (sumDim != dstDim)
+          return emitError(
+              "The concatenation dimension of the output tensor should be the "
+              "sum of all the concatenation dimensions of the input tensors.");
+      }
+    } else {
+      int prev = dstDim;
+      for (auto src : getInputs()) {
+        auto d = src.getType().cast<RankedTensorType>().getShape()[i];
+        if (prev != ShapedType::kDynamicSize && d != prev)
+          return emitError("All dimensions (expect for the concatenating one) "
+                           "should be equal.");
+        prev = d;
+      }
+    }
+  }
+
+  return success();
+}
+
+LogicalResult ReduceOp::verify() {
+  Type inputType = getX().getType();
+  LogicalResult regionResult = success();
+
+  // Check correct number of block arguments and return type.
+  Region &formula = getRegion();
+  if (!formula.empty()) {
+    regionResult = verifyNumBlockArgs(
+        this, formula, "reduce", TypeRange{inputType, inputType}, inputType);
+    if (failed(regionResult))
+      return regionResult;
+  }
+
+  return success();
+}
+
 LogicalResult YieldOp::verify() {
   // Check for compatible parent.
   auto *parentOp = (*this)->getParentOp();
-  if (auto binaryOp = dyn_cast<BinaryOp>(parentOp))
-    return success();
-  if (auto unaryOp = dyn_cast<UnaryOp>(parentOp))
+  if (isa<BinaryOp>(parentOp) || isa<UnaryOp>(parentOp) ||
+      isa<ReduceOp>(parentOp))
     return success();
 
-  return emitOpError("expected parent op to be sparse_tensor binary or unary");
+  return emitOpError(
+      "expected parent op to be sparse_tensor unary, binary, or reduce");
+}
+
+//===----------------------------------------------------------------------===//
+// Sparse Tensor Storage Operation.
+//===----------------------------------------------------------------------===//
+
+LogicalResult StorageOp::verify() {
+  auto retTypes = getResult().getType().getTypes();
+  if (retTypes.size() != getInputs().size())
+    return emitError("The number of inputs is inconsistent with output tuple");
+
+  for (auto pair : llvm::zip(getInputs(), retTypes)) {
+    auto input = std::get<0>(pair);
+    auto retTy = std::get<1>(pair);
+
+    if (input.getType() != retTy)
+      return emitError(llvm::formatv("Type mismatch between input (type={0}) "
+                                     "and output tuple element (type={1})",
+                                     input.getType(), retTy));
+  }
+  return success();
+}
+
+LogicalResult StorageGetOp::verify() {
+  uint64_t extractIdx = getIdx().getZExtValue();
+  auto innerTypeArray = getStorage().getType().getTypes();
+  if (extractIdx >= innerTypeArray.size())
+    return emitError(llvm::formatv(
+        "Out-of-bound access with index={0} on tuple with length={1}",
+        extractIdx, innerTypeArray.size()));
+
+  auto expectedTy = getStorage().getType().getType(extractIdx);
+  auto returnTy = getResult().getType();
+  if (expectedTy != returnTy)
+    return emitError(llvm::formatv(
+        "Type mismatch between the returning type (type={0}) and the "
+        "corresponding element type at index {1} (type={2})",
+        expectedTy, extractIdx, returnTy));
+  return success();
+}
+
+LogicalResult StorageSetOp::verify() {
+  uint64_t setIdx = getIdx().getZExtValue();
+  SmallVector<Type, 8> expectedElemTy(getStorage().getType().getTypes());
+  if (setIdx >= expectedElemTy.size())
+    return emitError(llvm::formatv(
+        "Out-of-bound access with index = {0} on tuple with length={1}", setIdx,
+        expectedElemTy.size()));
+
+  // Updates the element type after storage_set.
+  expectedElemTy[setIdx] = getValue().getType();
+  auto expectedTy = TupleType::get(getContext(), expectedElemTy);
+  auto returnTy = getResult().getType();
+  if (expectedTy != returnTy)
+    return emitError(
+        llvm::formatv("Type mismatch between the returning type "
+                      "(type={0}) and the expected type (type={1})",
+                      returnTy, expectedTy));
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

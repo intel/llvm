@@ -35,8 +35,8 @@ typedef struct _ze_image_handle_t *ze_image_handle_t;
 typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Forward declarations
@@ -66,12 +66,6 @@ template <> struct interop<backend::ext_oneapi_level_zero, queue> {
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
   using type = ze_driver_handle_t;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-#endif
 
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
@@ -134,45 +128,12 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
   using type = ze_event_handle_t;
 };
 
-struct OptionalDevice {
-  OptionalDevice() : DeviceImpl(nullptr) {}
-  OptionalDevice(device dev) : DeviceImpl(getSyclObjImpl(dev)) {}
-
-  operator device() const {
-    if (!DeviceImpl)
-      throw runtime_error("No device has been set.", PI_ERROR_INVALID_DEVICE);
-    return createSyclObjFromImpl<device>(DeviceImpl);
-  }
-
-  OptionalDevice &operator=(OptionalDevice &Other) {
-    DeviceImpl = Other.DeviceImpl;
-    return *this;
-  }
-  OptionalDevice &operator=(device &Other) {
-    DeviceImpl = getSyclObjImpl(Other);
-    return *this;
-  }
-
-private:
-  std::shared_ptr<device_impl> DeviceImpl;
-
-  friend bool OptionalDeviceHasDevice(const OptionalDevice &Dev);
-};
-
-// Inspector function in the detail namespace to avoid exposing
-// OptionalDevice::hasDevice to user-space.
-inline bool OptionalDeviceHasDevice(const OptionalDevice &Dev) {
-  return Dev.DeviceImpl != nullptr;
-}
-
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
 
-    // TODO: Change this to be device when the deprecated constructor is
-    // removed.
-    OptionalDevice Device;
+    device Device;
 
     type()
         : Ownership(ext::oneapi::level_zero::ownership::transfer), Device() {}
@@ -220,16 +181,6 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, platform> {
   using type = ze_driver_handle_t;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-#endif
-
 template <bundle_state State>
 struct BackendInput<backend::ext_oneapi_level_zero, kernel_bundle<State>> {
   struct type {
@@ -269,5 +220,5 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

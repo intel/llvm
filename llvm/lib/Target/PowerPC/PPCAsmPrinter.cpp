@@ -140,12 +140,11 @@ protected:
             MCSymbol *>
       TOC;
   const PPCSubtarget *Subtarget = nullptr;
-  StackMaps SM;
 
 public:
   explicit PPCAsmPrinter(TargetMachine &TM,
                          std::unique_ptr<MCStreamer> Streamer)
-      : AsmPrinter(TM, std::move(Streamer)), SM(*this) {}
+      : AsmPrinter(TM, std::move(Streamer)) {}
 
   StringRef getPassName() const override { return "PowerPC Assembly Printer"; }
 
@@ -171,8 +170,6 @@ public:
                        const char *ExtraCode, raw_ostream &O) override;
   bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
                              const char *ExtraCode, raw_ostream &O) override;
-
-  void emitEndOfAsmFile(Module &M) override;
 
   void LowerSTACKMAP(StackMaps &SM, const MachineInstr &MI);
   void LowerPATCHPOINT(StackMaps &SM, const MachineInstr &MI);
@@ -427,10 +424,6 @@ PPCAsmPrinter::lookUpOrCreateTOCEntry(const MCSymbol *Sym,
   return TOCEntry;
 }
 
-void PPCAsmPrinter::emitEndOfAsmFile(Module &M) {
-  emitStackMaps(SM);
-}
-
 void PPCAsmPrinter::LowerSTACKMAP(StackMaps &SM, const MachineInstr &MI) {
   unsigned NumNOPBytes = MI.getOperand(1).getImm();
   
@@ -659,6 +652,9 @@ static MCSymbol *getMCSymbolForTOCPseudoMO(const MachineOperand &MO,
 /// the current output stream.
 ///
 void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  PPC_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                      getSubtargetInfo().getFeatureBits());
+
   MCInst TmpInst;
   const bool IsPPC64 = Subtarget->isPPC64();
   const bool IsAIX = Subtarget->isAIXABI();
@@ -2561,7 +2557,7 @@ void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
       SmallString<128> Name;
       StringRef Prefix = ".";
       Name += Prefix;
-      Name += I.first.first->getName();
+      Name += cast<MCSymbolXCOFF>(I.first.first)->getSymbolTableName();
       MCSymbol *S = OutContext.getOrCreateSymbol(Name);
       TCEntry = cast<MCSectionXCOFF>(
           getObjFileLowering().getSectionForTOCEntry(S, TM));

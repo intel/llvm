@@ -3,7 +3,7 @@
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 
-typedef cl::sycl::private_memory<cl::sycl::id<1>, 1> dummy;
+typedef sycl::private_memory<sycl::id<1>, 1> dummy;
 
 // private_memory must have Val field of unique_ptr<T [], ...> type
 

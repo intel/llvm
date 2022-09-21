@@ -222,7 +222,7 @@ TEST(SerializationTest, BinaryConversions) {
   std::string Serialized = llvm::to_string(Out);
 
   auto In2 = readIndexFile(Serialized);
-  ASSERT_TRUE(bool(In2)) << In.takeError();
+  ASSERT_TRUE(bool(In2)) << In2.takeError();
   ASSERT_TRUE(In2->Symbols);
   ASSERT_TRUE(In2->Refs);
   ASSERT_TRUE(In2->Relations);
@@ -391,7 +391,7 @@ TEST(SerializationTest, NoCrashOnBadArraySize) {
 // Check we detect invalid string table size size without allocating it first.
 // If this detection fails, the test should allocate a huge array and crash.
 TEST(SerializationTest, NoCrashOnBadStringTableSize) {
-  if (!llvm::zlib::isAvailable()) {
+  if (!llvm::compression::zlib::isAvailable()) {
     log("skipping test, no zlib");
     return;
   }

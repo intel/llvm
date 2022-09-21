@@ -204,7 +204,7 @@ static Error readInitExpr(wasm::WasmInitExpr &Expr,
 
   if (Expr.Extended) {
     Ctx.Ptr = Start;
-    while (1) {
+    while (true) {
       uint8_t Opcode = readOpcode(Ctx);
       switch (Opcode) {
       case wasm::WASM_OPCODE_I32_CONST:
@@ -640,9 +640,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Info.Name = Import.Field;
         }
         Signature = &Signatures[Import.SigIndex];
-        if (!Import.Module.empty()) {
-          Info.ImportModule = Import.Module;
-        }
+        Info.ImportModule = Import.Module;
       }
       break;
 
@@ -672,9 +670,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Info.Name = Import.Field;
         }
         GlobalType = &Import.Global;
-        if (!Import.Module.empty()) {
-          Info.ImportModule = Import.Module;
-        }
+        Info.ImportModule = Import.Module;
       }
       break;
 
@@ -704,9 +700,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Info.Name = Import.Field;
         }
         TableType = &Import.Table;
-        if (!Import.Module.empty()) {
-          Info.ImportModule = Import.Module;
-        }
+        Info.ImportModule = Import.Module;
       }
       break;
 
@@ -769,9 +763,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Info.Name = Import.Field;
         }
         Signature = &Signatures[Import.SigIndex];
-        if (!Import.Module.empty()) {
-          Info.ImportModule = Import.Module;
-        }
+        Info.ImportModule = Import.Module;
       }
       break;
     }

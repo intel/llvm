@@ -17,6 +17,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "llvm/Support/Debug.h"
 
 //===----------------------------------------------------------------------===//
@@ -38,16 +39,26 @@ namespace bufferization {
 using namespace mlir;
 using namespace bufferization;
 
-/// Attribute name used to mark region arguments that can be bufferized
-/// in-place during linalg comprehensive bufferization.
-constexpr const ::llvm::StringLiteral
-    bufferization::BufferizableOpInterface::kInplaceableAttrName;
-
-/// Return the owner of the given value.
-static Operation *getOwnerOfValue(Value value) {
+Operation *bufferization::getOwnerOfValue(Value value) {
   if (auto opResult = value.dyn_cast<OpResult>())
     return opResult.getDefiningOp();
   return value.cast<BlockArgument>().getOwner()->getParentOp();
+}
+
+bool bufferization::allocationDoesNotEscape(OpResult opResult) {
+#ifndef NDEBUG
+  auto bufferizableOp = opResult.getDefiningOp<BufferizableOpInterface>();
+  assert(bufferizableOp && bufferizableOp.bufferizesToAllocation(opResult) &&
+         "expected op that bufferizes to an allocation");
+#endif // NDEBUG
+
+  Operation *op = opResult.getDefiningOp();
+  // If there is no 'escape' attribute, we cannot say for sure.
+  if (!op->hasAttr(BufferizationDialect::kEscapeAttrName))
+    return false;
+  auto attr =
+      op->getAttrOfType<ArrayAttr>(BufferizationDialect::kEscapeAttrName);
+  return !attr[opResult.getResultNumber()].cast<BoolAttr>().getValue();
 }
 
 /// Create an AllocTensorOp for the given shaped value. If `copy` is set, the
@@ -193,6 +204,29 @@ LogicalResult BufferizableOpInterface::resolveTensorOpOperandConflicts(
   }
 
   return success();
+}
+
+bool bufferization::shouldDeallocateOpResult(
+    OpResult opResult, const BufferizationOptions &options) {
+  Operation *op = opResult.getOwner();
+  assert(options.dynCastBufferizableOp(op).bufferizesToAllocation(opResult) &&
+         "expected that op allocates");
+
+  AnalysisState analysisState(options);
+  if (op->hasAttr(BufferizationDialect::kEscapeAttrName)) {
+    // AllocTensorOp has one result.
+    ArrayAttr escapeAttr =
+        op->getAttr(BufferizationDialect::kEscapeAttrName).cast<ArrayAttr>();
+    return !escapeAttr[0].cast<BoolAttr>().getValue();
+  }
+
+  // No "escape" annotation found.
+  if (options.createDeallocs) {
+    // Perform an ad-hoc analysis.
+    return !analysisState.isTensorYielded(opResult);
+  }
+
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -534,47 +568,69 @@ FailureOr<Value> bufferization::getBuffer(RewriterBase &rewriter, Value value,
       .getResult();
 }
 
+FailureOr<BaseMemRefType> bufferization::detail::defaultGetBufferType(
+    Value value, const BufferizationOptions &options,
+    const DenseMap<Value, BaseMemRefType> &fixedTypes) {
+  assert(value.getType().isa<TensorType>() && "expected tensor type");
+
+  // No further analysis is possible for a block argument.
+  if (value.isa<BlockArgument>())
+    return bufferization::getMemRefType(value, options);
+
+  // Value is an OpResult.
+  Operation *op = getOwnerOfValue(value);
+  auto opResult = value.cast<OpResult>();
+  auto bufferizableOp = cast<BufferizableOpInterface>(op);
+  AnalysisState state(options);
+  auto aliasingOperands = bufferizableOp.getAliasingOpOperand(opResult, state);
+  if (!aliasingOperands.empty() &&
+      bufferizableOp.bufferRelation(opResult, state) ==
+          BufferRelation::Equivalent) {
+    // If the OpResult has an equivalent OpOperand, both OpResult and
+    // OpOperand bufferize to the exact same buffer type.
+    Value equivalentOperand = aliasingOperands.front()->get();
+    return getBufferType(equivalentOperand, options, fixedTypes);
+  }
+
+  // If we do not know the memory space and there is no default memory space,
+  // report a failure.
+  if (!options.defaultMemorySpace.has_value())
+    return op->emitError("could not infer memory space");
+
+  return getMemRefType(value, options, /*layout=*/{},
+                       *options.defaultMemorySpace);
+}
+
 /// Return the buffer type for a given Value (tensor) after bufferization.
 FailureOr<BaseMemRefType>
 bufferization::getBufferType(Value value, const BufferizationOptions &options) {
+  DenseMap<Value, BaseMemRefType> fixedTypes;
+  return getBufferType(value, options, fixedTypes);
+}
+
+/// Return the buffer type for a given Value (tensor) after bufferization.
+FailureOr<BaseMemRefType> bufferization::getBufferType(
+    Value value, const BufferizationOptions &options,
+    const DenseMap<Value, BaseMemRefType> &fixedTypes) {
   assert(value.getType().isa<TensorType>() && "unexpected non-tensor type");
+
+  // If the `value` is in `fixedTypes`, return the mapped type.
+  const auto &it = fixedTypes.find(value);
+  if (it != fixedTypes.end())
+    return it->second;
+
+  // Try querying BufferizableOpInterface.
   Operation *op = getOwnerOfValue(value);
+  auto bufferizableOp = options.dynCastBufferizableOp(op);
+  if (bufferizableOp)
+    return bufferizableOp.getBufferType(value, options, fixedTypes);
 
-  // ToTensorOp: Take buffer type directly from the op.
-  if (auto toTensorOp = value.getDefiningOp<bufferization::ToTensorOp>())
-    return toTensorOp.getMemref().getType().cast<BaseMemRefType>();
-
-  // If value is a bbArg of a bufferizable op: query op interface.
-  if (auto bbArg = value.dyn_cast<BlockArgument>())
-    if (auto bufferizableOp =
-            options.dynCastBufferizableOp(bbArg.getOwner()->getParentOp()))
-      return bufferizableOp.getBufferType(bbArg, options);
-
-  // Check value is a new buffer allocation with a memory space attribute. In
-  // that case we can at least infer the memory space.
-  Optional<unsigned> memorySpace = None;
-  if (auto opResult = value.dyn_cast<OpResult>()) {
-    if (auto bufferizableOp =
-            options.dynCastBufferizableOp(opResult.getDefiningOp())) {
-      if (bufferizableOp.bufferizesToAllocation(opResult)) {
-        FailureOr<unsigned> queriedMemorySpace =
-            bufferizableOp.getMemorySpace(opResult);
-        if (!failed(queriedMemorySpace))
-          memorySpace = *queriedMemorySpace;
-      }
-    }
-  }
-
-  // If we still do not know the memory space, use the default memory space (if
-  // any).
-  if (!memorySpace.hasValue())
-    memorySpace = options.defaultMemorySpace;
-
-  // If we still do not know the memory space, report a failure.
-  if (!memorySpace.hasValue())
+  // Op is not bufferizable.
+  if (!options.defaultMemorySpace.has_value())
     return op->emitError("could not infer memory space");
 
-  return getMemRefType(value, options, /*layout=*/{}, *memorySpace);
+  return getMemRefType(value, options, /*layout=*/{},
+                       *options.defaultMemorySpace);
 }
 
 void bufferization::replaceOpWithBufferizedValues(RewriterBase &rewriter,
@@ -728,4 +784,14 @@ bufferization::getMemRefTypeWithStaticIdentityLayout(TensorType tensorType,
   return MemRefType::get(rankedTensorType.getShape(),
                          rankedTensorType.getElementType(), layout,
                          memorySpaceAttr);
+}
+
+bool bufferization::detail::defaultIsRepetitiveRegion(
+    BufferizableOpInterface bufferizableOp, unsigned index) {
+  assert(index < bufferizableOp->getNumRegions() && "invalid region index");
+  auto regionInterface =
+      dyn_cast<RegionBranchOpInterface>(bufferizableOp.getOperation());
+  if (!regionInterface)
+    return false;
+  return regionInterface.isRepetitiveRegion(index);
 }

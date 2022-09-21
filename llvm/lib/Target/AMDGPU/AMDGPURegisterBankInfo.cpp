@@ -471,7 +471,7 @@ AMDGPURegisterBankInfo::getInstrAlternativeMappings(
       return addMappingFromTable<1>(MI, MRI, {{ 0 }}, Table);
     }
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case TargetOpcode::G_FCONSTANT:
   case TargetOpcode::G_FRAME_INDEX:
@@ -1806,6 +1806,7 @@ AMDGPURegisterBankInfo::splitBufferOffsets(MachineIRBuilder &B,
   unsigned ImmOffset;
   const LLT S32 = LLT::scalar(32);
 
+  // TODO: Use AMDGPU::getBaseWithConstantOffset() instead.
   std::tie(BaseReg, ImmOffset) = getBaseWithConstantOffset(*B.getMRI(),
                                                            OrigOffset);
 
@@ -2367,7 +2368,7 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
         llvm_unreachable("lowerAbsToMaxNeg should have succeeded");
       return;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case AMDGPU::G_ADD:
   case AMDGPU::G_SUB:
@@ -3717,7 +3718,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       break;
     }
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case AMDGPU::G_PTR_ADD:
   case AMDGPU::G_PTRMASK:
@@ -3743,7 +3744,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_UBFX:
     if (isSALUMapping(MI))
       return getDefaultMappingSOP(MI);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case AMDGPU::G_SADDSAT: // FIXME: Could lower sat ops for SALU
   case AMDGPU::G_SSUBSAT:
@@ -3906,7 +3907,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       break;
     }
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case AMDGPU::G_MERGE_VALUES:
   case AMDGPU::G_CONCAT_VECTORS: {
@@ -4353,7 +4354,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       unsigned IdxSize = MRI.getType(IdxReg).getSizeInBits();
       unsigned IdxBank = getRegBankID(IdxReg, MRI, AMDGPU::SGPRRegBankID);
       OpdsMapping[3] = AMDGPU::getValueMapping(IdxBank, IdxSize);
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case Intrinsic::amdgcn_readfirstlane: {
       unsigned DstSize = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
@@ -4426,7 +4427,15 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_mfma_i32_16x16x32_i8:
     case Intrinsic::amdgcn_mfma_i32_32x32x16_i8:
     case Intrinsic::amdgcn_mfma_f32_16x16x8_xf32:
-    case Intrinsic::amdgcn_mfma_f32_32x32x4_xf32: {
+    case Intrinsic::amdgcn_mfma_f32_32x32x4_xf32:
+    case Intrinsic::amdgcn_mfma_f32_16x16x32_bf8_bf8:
+    case Intrinsic::amdgcn_mfma_f32_16x16x32_bf8_fp8:
+    case Intrinsic::amdgcn_mfma_f32_16x16x32_fp8_bf8:
+    case Intrinsic::amdgcn_mfma_f32_16x16x32_fp8_fp8:
+    case Intrinsic::amdgcn_mfma_f32_32x32x16_bf8_bf8:
+    case Intrinsic::amdgcn_mfma_f32_32x32x16_bf8_fp8:
+    case Intrinsic::amdgcn_mfma_f32_32x32x16_fp8_bf8:
+    case Intrinsic::amdgcn_mfma_f32_32x32x16_fp8_fp8: {
       // Default for MAI intrinsics.
       // srcC can also be an immediate which can be folded later.
       // FIXME: Should we eventually add an alternative mapping with AGPR src
@@ -4451,7 +4460,15 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_smfmac_f32_16x16x32_bf16:
     case Intrinsic::amdgcn_smfmac_f32_32x32x16_bf16:
     case Intrinsic::amdgcn_smfmac_i32_16x16x64_i8:
-    case Intrinsic::amdgcn_smfmac_i32_32x32x32_i8: {
+    case Intrinsic::amdgcn_smfmac_i32_32x32x32_i8:
+    case Intrinsic::amdgcn_smfmac_f32_16x16x64_bf8_bf8:
+    case Intrinsic::amdgcn_smfmac_f32_16x16x64_bf8_fp8:
+    case Intrinsic::amdgcn_smfmac_f32_16x16x64_fp8_bf8:
+    case Intrinsic::amdgcn_smfmac_f32_16x16x64_fp8_fp8:
+    case Intrinsic::amdgcn_smfmac_f32_32x32x32_bf8_bf8:
+    case Intrinsic::amdgcn_smfmac_f32_32x32x32_bf8_fp8:
+    case Intrinsic::amdgcn_smfmac_f32_32x32x32_fp8_bf8:
+    case Intrinsic::amdgcn_smfmac_f32_32x32x32_fp8_fp8: {
       // vdst, srcA, srcB, srcC, idx
       OpdsMapping[0] = getAGPROpMapping(MI.getOperand(0).getReg(), MRI, *TRI);
       OpdsMapping[2] = getVGPROpMapping(MI.getOperand(2).getReg(), MRI, *TRI);

@@ -40,6 +40,7 @@
 #include "llvm/Support/xxhash.h"
 
 #include <atomic>
+#include <thread>
 
 namespace llvm {
 static std::string uniqueKey(llvm::StringRef S) { return utostr(xxHash64(S)); }
@@ -373,7 +374,7 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
         if (!ID)
           continue;
 
-        std::string IDString = buildIDToString(ID.getValue());
+        std::string IDString = buildIDToString(ID.value());
         if (isDebugBinary(Object)) {
           std::lock_guard<sys::RWMutex> DebugBinariesGuard(DebugBinariesMutex);
           DebugBinaries[IDString] = FilePath;
@@ -435,7 +436,7 @@ Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
       }
     }
     if (Path)
-      return Path.getValue();
+      return Path.value();
   }
 
   // Try federation.
@@ -466,7 +467,7 @@ Expected<std::string> DebuginfodCollection::findDebugBinaryPath(BuildIDRef ID) {
     }
   }
   if (Path)
-    return Path.getValue();
+    return Path.value();
 
   // Try federation.
   return getCachedOrDownloadDebuginfo(ID);

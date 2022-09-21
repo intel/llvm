@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTImporter.h"
-#include "clang/AST/ASTImporterSharedState.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
+#include "clang/AST/ASTImporterSharedState.h"
 #include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -34,6 +34,7 @@
 #include "clang/AST/LambdaCapture.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
@@ -58,8 +59,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -183,13 +184,13 @@ namespace clang {
 
     // Use this instead of Importer.importInto .
     template <typename ImportT>
-    LLVM_NODISCARD Error importInto(ImportT &To, const ImportT &From) {
+    [[nodiscard]] Error importInto(ImportT &To, const ImportT &From) {
       return Importer.importInto(To, From);
     }
 
     // Use this to import pointers of specific type.
     template <typename ImportT>
-    LLVM_NODISCARD Error importInto(ImportT *&To, ImportT *From) {
+    [[nodiscard]] Error importInto(ImportT *&To, ImportT *From) {
       auto ToOrErr = Importer.Import(From);
       if (ToOrErr)
         To = cast_or_null<ImportT>(*ToOrErr);
@@ -244,8 +245,8 @@ namespace clang {
     // then to the already imported Decl.  Returns a bool value set to true if
     // the `FromD` had been imported before.
     template <typename ToDeclT, typename FromDeclT, typename... Args>
-    LLVM_NODISCARD bool GetImportedOrCreateDecl(ToDeclT *&ToD, FromDeclT *FromD,
-                                                Args &&... args) {
+    [[nodiscard]] bool GetImportedOrCreateDecl(ToDeclT *&ToD, FromDeclT *FromD,
+                                               Args &&...args) {
       // There may be several overloads of ToDeclT::Create. We must make sure
       // to call the one which would be chosen by the arguments, thus we use a
       // wrapper for the overload set.
@@ -260,8 +261,8 @@ namespace clang {
     // GetImportedOrCreateDecl<TypeAliasDecl>(ToTypedef, FromD, ...);
     template <typename NewDeclT, typename ToDeclT, typename FromDeclT,
               typename... Args>
-    LLVM_NODISCARD bool GetImportedOrCreateDecl(ToDeclT *&ToD, FromDeclT *FromD,
-                                                Args &&... args) {
+    [[nodiscard]] bool GetImportedOrCreateDecl(ToDeclT *&ToD, FromDeclT *FromD,
+                                               Args &&...args) {
       CallOverloadedCreateFun<NewDeclT> OC;
       return GetImportedOrCreateSpecialDecl(ToD, OC, FromD,
                                             std::forward<Args>(args)...);
@@ -270,9 +271,9 @@ namespace clang {
     // used, e.g. CXXRecordDecl::CreateLambda .
     template <typename ToDeclT, typename CreateFunT, typename FromDeclT,
               typename... Args>
-    LLVM_NODISCARD bool
+    [[nodiscard]] bool
     GetImportedOrCreateSpecialDecl(ToDeclT *&ToD, CreateFunT CreateFun,
-                                   FromDeclT *FromD, Args &&... args) {
+                                   FromDeclT *FromD, Args &&...args) {
       if (Importer.getImportDeclErrorIfAny(FromD)) {
         ToD = nullptr;
         return true; // Already imported but with error.
@@ -1005,7 +1006,7 @@ ASTNodeImporter::import(const Designator &D) {
 
 template <>
 Expected<LambdaCapture> ASTNodeImporter::import(const LambdaCapture &From) {
-  VarDecl *Var = nullptr;
+  ValueDecl *Var = nullptr;
   if (From.capturesVariable()) {
     if (auto VarOrErr = import(From.getCapturedVar()))
       Var = *VarOrErr;
@@ -3115,6 +3116,11 @@ Error ASTNodeImporter::ImportTemplateInformation(
   case FunctionDecl::TK_FunctionTemplate:
     return Error::success();
 
+  case FunctionDecl::TK_DependentNonTemplate:
+    if (Expected<FunctionDecl *> InstFDOrErr =
+            import(FromFD->getInstantiatedFromDecl()))
+      ToFD->setInstantiatedFromDecl(*InstFDOrErr);
+    return Error::success();
   case FunctionDecl::TK_MemberSpecialization: {
     TemplateSpecializationKind TSK = FromFD->getTemplateSpecializationKind();
 
@@ -3220,9 +3226,12 @@ Error ASTNodeImporter::ImportFunctionDeclBody(FunctionDecl *FromFD,
 }
 
 // Returns true if the given D has a DeclContext up to the TranslationUnitDecl
-// which is equal to the given DC.
+// which is equal to the given DC, or D is equal to DC.
 static bool isAncestorDeclContextOf(const DeclContext *DC, const Decl *D) {
-  const DeclContext *DCi = D->getDeclContext();
+  const DeclContext *DCi = dyn_cast<DeclContext>(D);
+  if (!DCi)
+    DCi = D->getDeclContext();
+  assert(DCi && "Declaration should have a context");
   while (DCi != D->getTranslationUnitDecl()) {
     if (DCi == DC)
       return true;
@@ -3231,40 +3240,179 @@ static bool isAncestorDeclContextOf(const DeclContext *DC, const Decl *D) {
   return false;
 }
 
-static bool hasTypeDeclaredInsideFunction(QualType T, const FunctionDecl *FD) {
-  if (T.isNull())
-    return false;
-  if (const auto *RecordT = T->getAs<RecordType>()) {
-    const RecordDecl *RD = RecordT->getDecl();
-    assert(RD);
-    if (isAncestorDeclContextOf(FD, RD)) {
-      assert(RD->getLexicalDeclContext() == RD->getDeclContext());
-      return true;
-    }
-    if (const auto *RDTempl = dyn_cast<ClassTemplateSpecializationDecl>(RD))
-      return llvm::count_if(RDTempl->getTemplateArgs().asArray(),
-                            [FD](const TemplateArgument &Arg) {
-                              return hasTypeDeclaredInsideFunction(
-                                  Arg.getAsType(), FD);
-                            });
+// Returns true if the statement S has a parent declaration that has a
+// DeclContext that is inside (or equal to) DC. In a specific use case if DC is
+// a FunctionDecl, check if statement S resides in the body of the function.
+static bool isAncestorDeclContextOf(const DeclContext *DC, const Stmt *S) {
+  ParentMapContext &ParentC = DC->getParentASTContext().getParentMapContext();
+  DynTypedNodeList Parents = ParentC.getParents(*S);
+  while (!Parents.empty()) {
+    if (const Decl *PD = Parents.begin()->get<Decl>())
+      return isAncestorDeclContextOf(DC, PD);
+    Parents = ParentC.getParents(*Parents.begin());
   }
   return false;
 }
+
+namespace {
+/// Check if a type has any reference to a declaration that is inside the body
+/// of a function.
+/// The \c CheckType(QualType) function should be used to determine
+/// this property.
+///
+/// The type visitor visits one type object only (not recursive).
+/// To find all referenced declarations we must discover all type objects until
+/// the canonical type is reached (walk over typedef and similar objects). This
+/// is done by loop over all "sugar" type objects. For every such type we must
+/// check all declarations that are referenced from it. For this check the
+/// visitor is used. In the visit functions all referenced declarations except
+/// the one that follows in the sugar chain (if any) must be checked. For this
+/// check the same visitor is re-used (it has no state-dependent data).
+///
+/// The visit functions have 3 possible return values:
+///  - True, found a declaration inside \c ParentDC.
+///  - False, found declarations only outside \c ParentDC and it is not possible
+///    to find more declarations (the "sugar" chain does not continue).
+///  - Empty optional value, found no declarations or only outside \c ParentDC,
+///    but it is possible to find more declarations in the type "sugar" chain.
+/// The loop over the "sugar" types can be implemented by using type visit
+/// functions only (call \c CheckType with the desugared type). With the current
+/// solution no visit function is needed if the type has only a desugared type
+/// as data.
+class IsTypeDeclaredInsideVisitor
+    : public TypeVisitor<IsTypeDeclaredInsideVisitor, Optional<bool>> {
+public:
+  IsTypeDeclaredInsideVisitor(const FunctionDecl *ParentDC)
+      : ParentDC(ParentDC) {}
+
+  bool CheckType(QualType T) {
+    // Check the chain of "sugar" types.
+    // The "sugar" types are typedef or similar types that have the same
+    // canonical type.
+    if (Optional<bool> Res = Visit(T.getTypePtr()))
+      return *Res;
+    QualType DsT =
+        T.getSingleStepDesugaredType(ParentDC->getParentASTContext());
+    while (DsT != T) {
+      if (Optional<bool> Res = Visit(DsT.getTypePtr()))
+        return *Res;
+      T = DsT;
+      DsT = T.getSingleStepDesugaredType(ParentDC->getParentASTContext());
+    }
+    return false;
+  }
+
+  Optional<bool> VisitTagType(const TagType *T) {
+    if (auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(T->getDecl()))
+      for (const auto &Arg : Spec->getTemplateArgs().asArray())
+        if (checkTemplateArgument(Arg))
+          return true;
+    return isAncestorDeclContextOf(ParentDC, T->getDecl());
+  }
+
+  Optional<bool> VisitPointerType(const PointerType *T) {
+    return CheckType(T->getPointeeType());
+  }
+
+  Optional<bool> VisitReferenceType(const ReferenceType *T) {
+    return CheckType(T->getPointeeTypeAsWritten());
+  }
+
+  Optional<bool> VisitTypedefType(const TypedefType *T) {
+    const TypedefNameDecl *TD = T->getDecl();
+    assert(TD);
+    return isAncestorDeclContextOf(ParentDC, TD);
+  }
+
+  Optional<bool> VisitUsingType(const UsingType *T) {
+    if (T->getFoundDecl() &&
+        isAncestorDeclContextOf(ParentDC, T->getFoundDecl()))
+      return true;
+
+    return {};
+  }
+
+  Optional<bool>
+  VisitTemplateSpecializationType(const TemplateSpecializationType *T) {
+    for (const auto &Arg : T->template_arguments())
+      if (checkTemplateArgument(Arg))
+        return true;
+    // This type is a "sugar" to a record type, it can have a desugared type.
+    return {};
+  }
+
+  Optional<bool> VisitConstantArrayType(const ConstantArrayType *T) {
+    if (T->getSizeExpr() && isAncestorDeclContextOf(ParentDC, T->getSizeExpr()))
+      return true;
+
+    return CheckType(T->getElementType());
+  }
+
+  Optional<bool> VisitVariableArrayType(const VariableArrayType *T) {
+    llvm_unreachable(
+        "Variable array should not occur in deduced return type of a function");
+  }
+
+  Optional<bool> VisitIncompleteArrayType(const IncompleteArrayType *T) {
+    llvm_unreachable("Incomplete array should not occur in deduced return type "
+                     "of a function");
+  }
+
+  Optional<bool> VisitDependentArrayType(const IncompleteArrayType *T) {
+    llvm_unreachable("Dependent array should not occur in deduced return type "
+                     "of a function");
+  }
+
+private:
+  const DeclContext *const ParentDC;
+
+  bool checkTemplateArgument(const TemplateArgument &Arg) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::Null:
+      return false;
+    case TemplateArgument::Integral:
+      return CheckType(Arg.getIntegralType());
+    case TemplateArgument::Type:
+      return CheckType(Arg.getAsType());
+    case TemplateArgument::Expression:
+      return isAncestorDeclContextOf(ParentDC, Arg.getAsExpr());
+    case TemplateArgument::Declaration:
+      // FIXME: The declaration in this case is not allowed to be in a function?
+      return isAncestorDeclContextOf(ParentDC, Arg.getAsDecl());
+    case TemplateArgument::NullPtr:
+      // FIXME: The type is not allowed to be in the function?
+      return CheckType(Arg.getNullPtrType());
+    case TemplateArgument::Pack:
+      for (const auto &PackArg : Arg.getPackAsArray())
+        if (checkTemplateArgument(PackArg))
+          return true;
+      return false;
+    case TemplateArgument::Template:
+      // Templates can not be defined locally in functions.
+      // A template passed as argument can be not in ParentDC.
+      return false;
+    case TemplateArgument::TemplateExpansion:
+      // Templates can not be defined locally in functions.
+      // A template passed as argument can be not in ParentDC.
+      return false;
+    }
+    llvm_unreachable("Unknown TemplateArgument::ArgKind enum");
+  };
+};
+} // namespace
 
 bool ASTNodeImporter::hasAutoReturnTypeDeclaredInside(FunctionDecl *D) {
   QualType FromTy = D->getType();
   const auto *FromFPT = FromTy->getAs<FunctionProtoType>();
   assert(FromFPT && "Must be called on FunctionProtoType");
-  if (const AutoType *AutoT = FromFPT->getReturnType()->getContainedAutoType())
-    return hasTypeDeclaredInsideFunction(AutoT->getDeducedType(), D);
-  if (const auto *TypedefT = FromFPT->getReturnType()->getAs<TypedefType>()) {
-    const TypedefNameDecl *TD = TypedefT->getDecl();
-    assert(TD);
-    if (isAncestorDeclContextOf(D, TD)) {
-      assert(TD->getLexicalDeclContext() == TD->getDeclContext());
-      return true;
-    }
+
+  QualType RetT = FromFPT->getReturnType();
+  if (isa<AutoType>(RetT.getTypePtr())) {
+    FunctionDecl *Def = D->getDefinition();
+    IsTypeDeclaredInsideVisitor Visitor(Def ? Def : D);
+    return Visitor.CheckType(RetT);
   }
+
   return false;
 }
 
@@ -3450,7 +3598,7 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   // Import the function parameters.
   SmallVector<ParmVarDecl *, 8> Parameters;
-  for (auto P : D->parameters()) {
+  for (auto *P : D->parameters()) {
     if (Expected<ParmVarDecl *> ToPOrErr = import(P))
       Parameters.push_back(*ToPOrErr);
     else
@@ -7191,7 +7339,7 @@ ExpectedStmt ASTNodeImporter::VisitBinaryOperator(BinaryOperator *E) {
   return BinaryOperator::Create(
       Importer.getToContext(), ToLHS, ToRHS, E->getOpcode(), ToType,
       E->getValueKind(), E->getObjectKind(), ToOperatorLoc,
-      E->getFPFeatures(Importer.getFromContext().getLangOpts()));
+      E->getFPFeatures());
 }
 
 ExpectedStmt ASTNodeImporter::VisitConditionalOperator(ConditionalOperator *E) {
@@ -7302,7 +7450,7 @@ ASTNodeImporter::VisitCompoundAssignOperator(CompoundAssignOperator *E) {
   return CompoundAssignOperator::Create(
       Importer.getToContext(), ToLHS, ToRHS, E->getOpcode(), ToType,
       E->getValueKind(), E->getObjectKind(), ToOperatorLoc,
-      E->getFPFeatures(Importer.getFromContext().getLangOpts()),
+      E->getFPFeatures(),
       ToComputationLHSType, ToComputationResultType);
 }
 

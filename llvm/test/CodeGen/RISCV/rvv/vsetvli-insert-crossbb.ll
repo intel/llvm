@@ -91,13 +91,11 @@ define <vscale x 1 x double> @test3(i64 %avl, i8 zeroext %cond, <vscale x 1 x do
 ; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    vfadd.vv v9, v8, v9
 ; CHECK-NEXT:    vfmul.vv v8, v9, v8
-; CHECK-NEXT:    # implicit-def: $x10
 ; CHECK-NEXT:    ret
 ; CHECK-NEXT:  .LBB2_2: # %if.else
 ; CHECK-NEXT:    vsetvli a0, a0, e64, m1, ta, mu
 ; CHECK-NEXT:    vfsub.vv v9, v8, v9
 ; CHECK-NEXT:    vfmul.vv v8, v9, v8
-; CHECK-NEXT:    # implicit-def: $x10
 ; CHECK-NEXT:    ret
 entry:
   %tobool = icmp eq i8 %cond, 0
@@ -839,7 +837,7 @@ define <vscale x 2 x i32> @pre_lmul(<vscale x 2 x i32> %x, <vscale x 2 x i32> %y
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    andi a1, a0, 1
 ; CHECK-NEXT:    vsetvli a0, zero, e64, m1, ta, mu
-; CHECK-NEXT:    vsetvli a2, zero, e32, m1, ta, mu
+; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
 ; CHECK-NEXT:    vadd.vv v8, v8, v9
 ; CHECK-NEXT:    beqz a1, .LBB18_2
 ; CHECK-NEXT:  # %bb.1: # %if

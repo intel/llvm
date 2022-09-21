@@ -1058,6 +1058,45 @@ func.func @store_to_load_negative_tensor(%arg0 : tensor<4x4xf32>,
 
 // -----
 
+// CHECK-LABEL: func @store_to_load_tensor_broadcast
+//  CHECK-SAME: (%[[ARG:.*]]: tensor<4x4xf32>, %[[V0:.*]]: vector<4x2xf32>)
+//       CHECK:   %[[B:.*]] = vector.broadcast %[[V0]] : vector<4x2xf32> to vector<6x4x2xf32>
+//       CHECK:   %[[T:.*]] = vector.transpose %[[B]], [1, 2, 0] : vector<6x4x2xf32> to vector<4x2x6xf32>
+//       CHECK:   return %[[T]] : vector<4x2x6xf32>
+func.func @store_to_load_tensor_broadcast(%arg0 : tensor<4x4xf32>,
+  %v0 : vector<4x2xf32>) -> vector<4x2x6xf32> {
+  %c0 = arith.constant 0 : index
+  %cf0 = arith.constant 0.0 : f32
+  %w0 = vector.transfer_write %v0, %arg0[%c0, %c0] {in_bounds = [true, true]} :
+    vector<4x2xf32>, tensor<4x4xf32>
+  %0 = vector.transfer_read %w0[%c0, %c0], %cf0 {in_bounds = [true, true, true],
+  permutation_map = affine_map<(d0, d1) -> (d0, d1, 0)>} :
+    tensor<4x4xf32>, vector<4x2x6xf32>
+  return %0 : vector<4x2x6xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @store_to_load_tensor_perm_broadcast
+//  CHECK-SAME: (%[[ARG:.*]]: tensor<4x4x4xf32>, %[[V0:.*]]: vector<4x1xf32>)
+//       CHECK:   %[[B:.*]] = vector.broadcast %[[V0]] : vector<4x1xf32> to vector<100x5x4x1xf32>
+//       CHECK:   %[[T:.*]] = vector.transpose %[[B]], [3, 0, 2, 1] : vector<100x5x4x1xf32> to vector<1x100x4x5xf32>
+//       CHECK:   return %[[T]] : vector<1x100x4x5xf32>
+func.func @store_to_load_tensor_perm_broadcast(%arg0 : tensor<4x4x4xf32>,
+  %v0 : vector<4x1xf32>) -> vector<1x100x4x5xf32> {
+  %c0 = arith.constant 0 : index
+  %cf0 = arith.constant 0.0 : f32
+  %w0 = vector.transfer_write %v0, %arg0[%c0, %c0, %c0] {in_bounds = [true, true],
+  permutation_map = affine_map<(d0, d1, d2) -> (d2, d1)>} :
+    vector<4x1xf32>, tensor<4x4x4xf32>
+  %0 = vector.transfer_read %w0[%c0, %c0, %c0], %cf0 {in_bounds = [true, true, true, true],
+  permutation_map = affine_map<(d0, d1, d2) -> (d1, 0, d2, 0)>} :
+    tensor<4x4x4xf32>, vector<1x100x4x5xf32>
+  return %0 : vector<1x100x4x5xf32>
+}
+
+// -----
+
 
 // CHECK-LABEL: func @dead_store_tensor
 //   CHECK-DAG:      %[[C0:.*]] = arith.constant 0 : index
@@ -1281,9 +1320,9 @@ func.func @do_not_swap_extract_slice_transfer_write(%arg0 : vector<8xf32>,
 // -----
 
 // CHECK-LABEL: func @vector_multi_reduction_single_parallel(
-//  CHECK-SAME:     %[[v:.*]]: vector<2xf32>
-func.func @vector_multi_reduction_single_parallel(%arg0: vector<2xf32>) -> vector<2xf32> {
-    %0 = vector.multi_reduction <mul>, %arg0 [] : vector<2xf32> to vector<2xf32>
+//  CHECK-SAME:     %[[v:.*]]: vector<2xf32>,
+func.func @vector_multi_reduction_single_parallel(%arg0: vector<2xf32>, %acc: vector<2xf32>) -> vector<2xf32> {
+    %0 = vector.multi_reduction <mul>, %arg0, %acc [] : vector<2xf32> to vector<2xf32>
 
 //       CHECK:     return %[[v]] : vector<2xf32>
     return %0 : vector<2xf32>
@@ -1446,6 +1485,13 @@ func.func @shuffle_1d() -> vector<4xi32> {
   %v1 = arith.constant dense<[3, 4, 5]> : vector<3xi32>
   %shuffle = vector.shuffle %v0, %v1 [3, 2, 5, 1] : vector<3xi32>, vector<3xi32>
   return %shuffle : vector<4xi32>
+}
+
+// CHECK-LABEL: func @shuffle_canonicalize_0d
+func.func @shuffle_canonicalize_0d(%v0 : vector<i32>, %v1 : vector<i32>) -> vector<1xi32> {
+  // CHECK: vector.broadcast %{{.*}} : vector<i32> to vector<1xi32>
+  %shuffle = vector.shuffle %v0, %v1 [0] : vector<i32>, vector<i32>
+  return %shuffle : vector<1xi32>
 }
 
 // CHECK-LABEL: func @shuffle_fold1
@@ -1614,6 +1660,18 @@ func.func @reduce_one_element_vector_mulf(%a : vector<1xf32>, %b: f32) -> f32 {
 //       CHECK: vector.reduction
 func.func @dont_reduce_one_element_vector(%a : vector<4xf32>) -> f32 {
   %s = vector.reduction <add>, %a : vector<4xf32> into f32
+  return %s : f32
+}
+
+// -----
+
+// CHECK-LABEL: func @reduce_one_element_vector_maxf
+//  CHECK-SAME: (%[[V:.+]]: vector<1xf32>, %[[B:.+]]: f32)
+//       CHECK:   %[[A:.+]] = vector.extract %[[V]][0] : vector<1xf32>
+//       CHECK:   %[[S:.+]] = arith.maxf %[[A]], %[[B]] : f32
+//       CHECK:   return %[[S]]
+func.func @reduce_one_element_vector_maxf(%a : vector<1xf32>, %b: f32) -> f32 {
+  %s = vector.reduction <maxf>, %a, %b : vector<1xf32> into f32
   return %s : f32
 }
 

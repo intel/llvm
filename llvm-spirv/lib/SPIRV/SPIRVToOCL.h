@@ -70,7 +70,7 @@ public:
   /// containing {[get_image_width | get_image_dim], get_image_array_size}
   /// for all images except image1d_t which is always converted into
   /// get_image_width returning scalar result.
-  void visitCallSPRIVImageQuerySize(CallInst *CI);
+  void visitCallSPIRVImageQuerySize(CallInst *CI);
 
   /// Transform __spirv_(NonUniform)Group* to {work_group|sub_group}_*.
   ///
@@ -222,6 +222,12 @@ public:
   /// - OCL1.2: barrier
   virtual void visitCallSPIRVControlBarrier(CallInst *CI) = 0;
 
+  /// Transform split __spirv_ControlBarrierArriveINTEL and
+  /// __spirv_ControlBarrierWaitINTEL barrier to:
+  /// - OCL2.0: overload with a memory_scope argument
+  /// - OCL1.2: overload with no memory_scope argument
+  virtual void visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) = 0;
+
   /// Transform __spirv_EnqueueKernel to __enqueue_kernel
   virtual void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) = 0;
 
@@ -263,19 +269,22 @@ private:
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
   /// Transform SPV-IR image opaque type into OpenCL representation,
   /// example: spirv.Image._void_1_0_0_0_0_0_1 => opencl.image2d_wo_t
-  std::string getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
+  static std::string
+  getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
   /// Transform SPV-IR pipe opaque type into OpenCL representation,
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
-  std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
+  static std::string
+  getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
-  void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
+  void getParameterTypes(CallInst *CI, SmallVectorImpl<Type *> &Tys);
 
-  std::string translateOpaqueType(StringRef STName);
+  static std::string translateOpaqueType(StringRef STName);
 
   /// Mutate the argument list based on (optional) image operands at position
-  /// ImOpArgIndex.
+  /// ImOpArgIndex.  Set IsSigned according to any SignExtend/ZeroExtend Image
+  /// Operands present in Args, or default to signed if there are none.
   void mutateArgsForImageOperands(std::vector<Value *> &Args,
-                                  unsigned ImOpArgIndex);
+                                  unsigned ImOpArgIndex, bool &IsSigned);
 
 protected:
   Module *M;
@@ -303,6 +312,11 @@ public:
   ///   __spirv_ControlBarrier(execScope, memScope, sema) =>
   ///       barrier(flag(sema))
   void visitCallSPIRVControlBarrier(CallInst *CI) override;
+
+  /// Transform split __spirv_ControlBarrierArriveINTEL and
+  /// __spirv_ControlBarrierWaitINTEL barrier to overloads without a
+  /// memory_scope argument.
+  void visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) override;
 
   /// Transform __spirv_OpAtomic functions. It firstly conduct generic
   /// mutations for all builtins and then mutate some of them seperately
@@ -392,6 +406,11 @@ public:
   ///    __spirv_ControlBarrier(execScope, memScope, sema) =>
   ///         sub_group_barrier(flag(sema), map(memScope))
   void visitCallSPIRVControlBarrier(CallInst *CI) override;
+
+  /// Transform split __spirv_ControlBarrierArriveINTEL and
+  /// __spirv_ControlBarrierWaitINTEL barrier to overloads with a
+  /// memory_scope argument.
+  void visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) override;
 
   /// Transform __spirv_Atomic* to atomic_*.
   ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>

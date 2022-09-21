@@ -7763,16 +7763,14 @@ public:
   ///
   /// \param C AST context.
   /// \param InteropVar The interop variable.
-  /// \param PrefExprs The list of preference expressions.
-  /// \param IsTarget Uses the 'target' interop-type.
-  /// \param IsTargetSync Uses the 'targetsync' interop-type.
+  /// \param InteropInfo The interop-type and prefer_type list.
   /// \param StartLoc Starting location of the clause.
   /// \param LParenLoc Location of '('.
   /// \param VarLoc Location of the interop variable.
   /// \param EndLoc Ending location of the clause.
   static OMPInitClause *Create(const ASTContext &C, Expr *InteropVar,
-                               ArrayRef<Expr *> PrefExprs, bool IsTarget,
-                               bool IsTargetSync, SourceLocation StartLoc,
+                               OMPInteropInfo &InteropInfo,
+                               SourceLocation StartLoc,
                                SourceLocation LParenLoc, SourceLocation VarLoc,
                                SourceLocation EndLoc);
 
@@ -8391,14 +8389,14 @@ private:
   /// \param StartLoc Starting location of the clause.
   /// \param LParenLoc Location of '('.
   /// \param EndLoc Ending location of the clause.
-  /// \param N Number of allocators asssociated with the clause.
+  /// \param N Number of allocators associated with the clause.
   OMPUsesAllocatorsClause(SourceLocation StartLoc, SourceLocation LParenLoc,
                           SourceLocation EndLoc, unsigned N)
       : OMPClause(llvm::omp::OMPC_uses_allocators, StartLoc, EndLoc),
         LParenLoc(LParenLoc), NumOfAllocators(N) {}
 
   /// Build an empty clause.
-  /// \param N Number of allocators asssociated with the clause.
+  /// \param N Number of allocators associated with the clause.
   ///
   explicit OMPUsesAllocatorsClause(unsigned N)
       : OMPClause(llvm::omp::OMPC_uses_allocators, SourceLocation(),
@@ -8492,14 +8490,14 @@ class OMPAffinityClause final
   /// \param LParenLoc Location of '('.
   /// \param ColonLoc Location of ':'.
   /// \param EndLoc Ending location of the clause.
-  /// \param N Number of locators asssociated with the clause.
+  /// \param N Number of locators associated with the clause.
   OMPAffinityClause(SourceLocation StartLoc, SourceLocation LParenLoc,
                     SourceLocation ColonLoc, SourceLocation EndLoc, unsigned N)
       : OMPVarListClause<OMPAffinityClause>(llvm::omp::OMPC_affinity, StartLoc,
                                             LParenLoc, EndLoc, N) {}
 
   /// Build an empty clause.
-  /// \param N Number of locators asssociated with the clause.
+  /// \param N Number of locators associated with the clause.
   ///
   explicit OMPAffinityClause(unsigned N)
       : OMPVarListClause<OMPAffinityClause>(llvm::omp::OMPC_affinity,

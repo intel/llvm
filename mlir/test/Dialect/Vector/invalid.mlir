@@ -57,6 +57,13 @@ func.func @shuffle_rank_mismatch(%arg0: vector<2xf32>, %arg1: vector<4x2xf32>) {
 }
 
 // -----
+ 
+func.func @shuffle_rank_mismatch_0d(%arg0: vector<f32>, %arg1: vector<1xf32>) {
+  // expected-error@+1 {{'vector.shuffle' op rank mismatch}}
+  %1 = vector.shuffle %arg0, %arg1 [0, 1] : vector<f32>, vector<1xf32>
+}
+
+// -----
 
 func.func @shuffle_trailing_dim_size_mismatch(%arg0: vector<2x2xf32>, %arg1: vector<2x4xf32>) {
   // expected-error@+1 {{'vector.shuffle' op dimension mismatch}}
@@ -1138,9 +1145,16 @@ func.func @reduce_unsupported_rank(%arg0: vector<4x16xf32>) -> f32 {
 
 // -----
 
-func.func @multi_reduce_invalid_type(%arg0: vector<4x16xf32>) -> f32 {
-  // expected-error@+1 {{'vector.multi_reduction' op inferred type(s) 'vector<4xf32>' are incompatible with return type(s) of operation 'vector<16xf32>'}}
-  %0 = vector.multi_reduction <mul>, %arg0 [1] : vector<4x16xf32> to vector<16xf32>
+func.func @multi_reduce_invalid_type(%arg0: vector<4x16xf32>, %acc: vector<16xf32>) -> f32 {
+  // expected-error@+1 {{'vector.multi_reduction' op destination type 'vector<16xf32>' is incompatible with source type 'vector<4x16xf32>'}}
+  %0 = vector.multi_reduction <mul>, %arg0, %acc [1] : vector<4x16xf32> to vector<16xf32>
+}
+
+// -----
+
+func.func @transpose_rank_mismatch_0d(%arg0: vector<f32>) {
+  // expected-error@+1 {{'vector.transpose' op vector result rank mismatch: 1}}
+  %0 = vector.transpose %arg0, [] : vector<f32> to vector<100xf32>
 }
 
 // -----
@@ -1148,6 +1162,13 @@ func.func @multi_reduce_invalid_type(%arg0: vector<4x16xf32>) -> f32 {
 func.func @transpose_rank_mismatch(%arg0: vector<4x16x11xf32>) {
   // expected-error@+1 {{'vector.transpose' op vector result rank mismatch: 1}}
   %0 = vector.transpose %arg0, [2, 1, 0] : vector<4x16x11xf32> to vector<100xf32>
+}
+
+// -----
+ 
+func.func @transpose_length_mismatch_0d(%arg0: vector<f32>) {
+  // expected-error@+1 {{'vector.transpose' op transposition length mismatch: 1}}
+  %0 = vector.transpose %arg0, [1] : vector<f32> to vector<f32>
 }
 
 // -----
@@ -1305,7 +1326,7 @@ func.func @gather_memref_mismatch(%base: memref<?x?xf64>, %indices: vector<16xi3
 func.func @gather_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>,
                            %mask: vector<16xi1>, %pass_thru: vector<16xf32>) {
   %c0 = arith.constant 0 : index
-  // expected-error@+1 {{'vector.gather' op result #0 must be  of ranks 1, but got 'vector<2x16xf32>'}}
+  // expected-error@+1 {{'vector.gather' op expected result dim to match indices dim}}
   %0 = vector.gather %base[%c0][%indices], %mask, %pass_thru
     : memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf32> into vector<2x16xf32>
 }

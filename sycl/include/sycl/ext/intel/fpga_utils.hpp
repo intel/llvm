@@ -12,8 +12,8 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 
@@ -33,5 +33,5 @@ struct _GetValue<_Type, _T1, _T...> {
 } // namespace intel
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

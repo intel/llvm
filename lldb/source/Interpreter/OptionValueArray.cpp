@@ -218,7 +218,7 @@ Status OptionValueArray::SetArgs(const Args &args, VarSetOperationType op) {
         if (num_remove_indexes) {
           // Sort and then erase in reverse so indexes are always valid
           if (num_remove_indexes > 1) {
-            llvm::sort(remove_indexes.begin(), remove_indexes.end());
+            llvm::sort(remove_indexes);
             for (std::vector<int>::const_reverse_iterator
                      pos = remove_indexes.rbegin(),
                      end = remove_indexes.rend();
@@ -279,7 +279,7 @@ Status OptionValueArray::SetArgs(const Args &args, VarSetOperationType op) {
   case eVarSetOperationAssign:
     m_values.clear();
     // Fall through to append case
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case eVarSetOperationAppend:
     for (size_t i = 0; i < argc; ++i) {
       lldb::OptionValueSP value_sp(CreateValueFromCStringForTypeMask(

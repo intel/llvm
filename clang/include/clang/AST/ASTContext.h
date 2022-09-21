@@ -130,6 +130,7 @@ class TemplateDecl;
 class TemplateParameterList;
 class TemplateTemplateParmDecl;
 class TemplateTypeParmDecl;
+class TypeConstraint;
 class UnresolvedSetIterator;
 class UsingShadowDecl;
 class VarTemplateDecl;
@@ -471,6 +472,9 @@ class ASTContext : public RefCountedBase<ASTContext> {
     void resolve(ASTContext &Ctx);
   };
   llvm::DenseMap<Module*, PerModuleInitializers*> ModuleInitializers;
+
+  /// For module code-gen cases, this is the top-level module we are building.
+  Module *TopLevelModule = nullptr;
 
   static constexpr unsigned ConstantArrayTypesLog2InitSize = 8;
   static constexpr unsigned GeneralTypesLog2InitSize = 9;
@@ -1074,6 +1078,12 @@ public:
 
   /// Get the initializations to perform when importing a module, if any.
   ArrayRef<Decl*> getModuleInitializers(Module *M);
+
+  /// Set the (C++20) module we are building.
+  void setModuleForCodeGen(Module *M) { TopLevelModule = M; }
+
+  /// Get module under construction, nullptr if this is not a C++20 module.
+  Module *getModuleForCodeGen() const { return TopLevelModule; }
 
   TranslationUnitDecl *getTranslationUnitDecl() const {
     return TUDecl->getMostRecentDecl();
@@ -2669,6 +2679,18 @@ public:
   /// that they may be used in declarations of the same template.
   bool isSameTemplateParameter(const NamedDecl *X, const NamedDecl *Y) const;
 
+  /// Determine whether two 'requires' expressions are similar enough that they
+  /// may be used in re-declarations.
+  ///
+  /// Use of 'requires' isn't mandatory, works with constraints expressed in
+  /// other ways too.
+  bool isSameConstraintExpr(const Expr *XCE, const Expr *YCE) const;
+
+  /// Determine whether two type contraint are similar enough that they could
+  /// used in declarations of the same template.
+  bool isSameTypeConstraint(const TypeConstraint *XTC,
+                            const TypeConstraint *YTC) const;
+
   /// Determine whether two default template arguments are similar enough
   /// that they may be used in declarations of the same template.
   bool isSameDefaultTemplateArgument(const NamedDecl *X,
@@ -2712,6 +2734,10 @@ public:
 
   /// Return number of constant array elements.
   uint64_t getConstantArrayElementCount(const ConstantArrayType *CA) const;
+
+  /// Return number of elements initialized in an ArrayInitLoopExpr.
+  uint64_t
+  getArrayInitLoopExprElementCount(const ArrayInitLoopExpr *AILE) const;
 
   /// Perform adjustment on the parameter type of a function.
   ///
@@ -2803,14 +2829,20 @@ public:
   bool typesAreBlockPointerCompatible(QualType, QualType);
 
   bool isObjCIdType(QualType T) const {
+    if (const auto *ET = dyn_cast<ElaboratedType>(T))
+      T = ET->getNamedType();
     return T == getObjCIdType();
   }
 
   bool isObjCClassType(QualType T) const {
+    if (const auto *ET = dyn_cast<ElaboratedType>(T))
+      T = ET->getNamedType();
     return T == getObjCClassType();
   }
 
   bool isObjCSelType(QualType T) const {
+    if (const auto *ET = dyn_cast<ElaboratedType>(T))
+      T = ET->getNamedType();
     return T == getObjCSelType();
   }
 
@@ -3179,11 +3211,11 @@ OPT_LIST(V)
 
 #undef OPT_LIST
 
-    LLVM_NODISCARD ObjCEncOptions keepingOnly(ObjCEncOptions Mask) const {
+    [[nodiscard]] ObjCEncOptions keepingOnly(ObjCEncOptions Mask) const {
       return Bits & Mask.Bits;
     }
 
-    LLVM_NODISCARD ObjCEncOptions forComponentType() const {
+    [[nodiscard]] ObjCEncOptions forComponentType() const {
       ObjCEncOptions Mask = ObjCEncOptions()
                                 .setIsOutermostType()
                                 .setIsStructField();

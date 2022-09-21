@@ -8,7 +8,8 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -24,8 +25,8 @@ class EAMTestKernel2;
 const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs2 = 4;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs1; }
@@ -54,8 +55,8 @@ template <> struct KernelInfo<EAMTestKernel2> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 template <typename T>
 static sycl::unittest::PiImage
@@ -148,23 +149,8 @@ inline pi_result redefinedProgramBuild(
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -189,23 +175,8 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
@@ -238,23 +209,8 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 // TODO : Add check for linking 2 device images together when implemented.
 
 TEST(Link_Compile_Options, check_sycl_build) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);

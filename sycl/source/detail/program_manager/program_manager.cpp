@@ -37,11 +37,11 @@
 #include <sstream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -383,7 +383,7 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
 static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
                                 const char *PropName) {
   pi_device_binary_property Prop = Img.getProperty(PropName);
-  return Prop && (pi::DeviceBinaryProperty(Prop).asUint32() != 0);
+  return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
@@ -901,7 +901,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
 
-  // TODO: There may be cases with cl::sycl::program class usage in source code
+  // TODO: There may be cases with sycl::program class usage in source code
   // that will result in a multi-device context. This case needs to be handled
   // here or at the program_impl class level
 
@@ -963,9 +963,9 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
-  std::string DevExtList =
-      get_device_info<std::string, info::device::extensions>::get(
-          Device, Context->getPlugin());
+  std::string DevExtList = get_device_info_string(
+      Device, PiInfoCode<info::device::extensions>::value,
+      Context->getPlugin());
   const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not
@@ -1084,7 +1084,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 }
 
 static ProgramManager::KernelArgMask
-createKernelArgMask(const pi::ByteArray &Bytes) {
+createKernelArgMask(const ByteArray &Bytes) {
   const int NBytesForSize = 8;
   const int NBitsInElement = 8;
   std::uint64_t SizeInBits = 0;
@@ -1102,7 +1102,7 @@ createKernelArgMask(const pi::ByteArray &Bytes) {
 
 void ProgramManager::cacheKernelUsesAssertInfo(OSModuleHandle M,
                                                RTDeviceBinaryImage &Img) {
-  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
+  const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
       Img.getAssertUsed();
   if (AssertUsedRange.isAvailable())
     for (const auto &Prop : AssertUsedRange) {
@@ -1129,14 +1129,14 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg, M);
 
     // Fill the kernel argument mask map
-    const pi::DeviceBinaryImage::PropertyRange &KPOIRange =
+    const RTDeviceBinaryImage::PropertyRange &KPOIRange =
         Img->getKernelParamOptInfo();
     if (KPOIRange.isAvailable()) {
       KernelNameToArgMaskMap &ArgMaskMap =
           m_EliminatedKernelArgMasks[Img.get()];
       for (const auto &Info : KPOIRange)
         ArgMaskMap[Info->Name] =
-            createKernelArgMask(pi::DeviceBinaryProperty(Info).asByteArray());
+            createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
     }
 
     // Fill maps for kernel bundles
@@ -1226,8 +1226,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
         auto DeviceGlobals = Img->getDeviceGlobals();
         for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
-          pi::ByteArray DeviceGlobalInfo =
-              pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
+          ByteArray DeviceGlobalInfo =
+              DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
           // The supplied device_global info property is expected to contain:
           // * 8 bytes - Size of the property.
@@ -1391,10 +1391,10 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
 // mask, sycl runtime won't know which fallback device libraries are needed. In
 // such case, the safest way is to load all fallback device libraries.
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
-  const pi::DeviceBinaryImage::PropertyRange &DLMRange =
+  const RTDeviceBinaryImage::PropertyRange &DLMRange =
       Img.getDeviceLibReqMask();
   if (DLMRange.isAvailable())
-    return pi::DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
+    return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
   else
     return 0xFFFFFFFF;
 }
@@ -2046,11 +2046,11 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
-  cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
+  sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization

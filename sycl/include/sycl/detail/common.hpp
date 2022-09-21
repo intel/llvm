@@ -21,9 +21,21 @@
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
 // -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+// The check for output iterator is commented out as it blocks set_final_data
+// with void * argument to be used.
+// TODO: Align these checks with the SYCL specification when the behaviour
+// with void * is clarified.
+template <typename DataT>
+using EnableIfOutputPointerT = detail::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+
+template <typename DataT>
+using EnableIfOutputIteratorT = detail::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
@@ -83,12 +95,36 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
+// The C++ FE may instrument user calls with code location metadata.
+// If it does then that will appear as an extra last argument.
+// Having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
+// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
+// _CODELOCARG(&CodeLoc).
+
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+#define _CODELOCONLYPARAM(a)                                                   \
+  const detail::code_location a = detail::code_location::current()
+#define _CODELOCPARAM(a)                                                       \
+  , const detail::code_location a = detail::code_location::current()
+#define _CODELOCPARAMDEF(a) , const detail::code_location a
+
+#define _CODELOCARG(a)
+#define _CODELOCFW(a) , a
+#else
+#define _CODELOCONLYPARAM(a)
+#define _CODELOCPARAM(a)
+
+#define _CODELOCARG(a) const detail::code_location a = {}
+#define _CODELOCFW(a)
+#endif
+
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
+
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
@@ -99,8 +135,8 @@ static inline std::string codeToString(pi_int32 code) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -116,14 +152,14 @@ static inline std::string codeToString(pi_int32 code) {
                           "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 // TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != PI_SUCCESS) {                                                  \
-      std::cerr << __SYCL_PI_ERROR_REPORT                                      \
-                << cl::sycl::detail::codeToString(code) << std::endl;          \
+      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
+                << std::endl;                                                  \
     }                                                                          \
   }
 #endif
@@ -137,15 +173,15 @@ static inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       std::string err_str =                                                    \
           str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT +                                       \
-                    cl::sycl::detail::codeToString(code) + err_str,            \
+      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
+                    err_str,                                                   \
                 code);                                                         \
     }                                                                          \
   }
 #define __SYCL_REPORT_PI_ERR_TO_EXC_THROW(code, exc, str)                      \
   __SYCL_REPORT_PI_ERR_TO_EXC(code, exc, str)
 #define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, cl::sycl::runtime_error, nullptr)
+  __SYCL_REPORT_PI_ERR_TO_EXC(code, sycl::runtime_error, nullptr)
 #else
 #define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
   __SYCL_REPORT_PI_ERR_TO_STREAM(code)
@@ -157,7 +193,7 @@ static inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       throw sycl::exception(sycl::make_error_code(errc),                       \
                             __SYCL_PI_ERROR_REPORT +                           \
-                                cl::sycl::detail::codeToString(code));         \
+                                sycl::detail::codeToString(code));             \
     }                                                                          \
   }
 #define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
@@ -185,8 +221,8 @@ static inline std::string codeToString(pi_int32 code) {
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.
@@ -202,6 +238,7 @@ namespace detail {
 //   template <class T>
 //   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
 template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
+  assert(SyclObject.impl && "every constructor should create an impl");
   return SyclObject.impl;
 }
 
@@ -244,33 +281,33 @@ template <template <int> class T> struct InitializedVal<3, T> {
 };
 
 /// Helper class for the \c NDLoop.
-template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
+template <int NDims, int Dim, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
 struct NDLoopIterateImpl {
-  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
-                    const LoopBoundTy<NDIMS> &Stride,
-                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
-                    LoopIndexTy<NDIMS> &Index) {
-    constexpr size_t AdjIdx = NDIMS - 1 - DIM;
+  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
+                    const LoopBoundTy<NDims> &Stride,
+                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDims> &Index) {
+    constexpr size_t AdjIdx = NDims - 1 - Dim;
     for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
          Index[AdjIdx] += Stride[AdjIdx]) {
 
-      NDLoopIterateImpl<NDIMS, DIM - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+      NDLoopIterateImpl<NDims, Dim - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
           LowerBound, Stride, UpperBound, f, Index};
     }
   }
 };
 
-// Specialization for DIM=0 to terminate recursion
-template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
+// Specialization for Dim=0 to terminate recursion
+template <int NDims, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
-struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
-  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
-                    const LoopBoundTy<NDIMS> &Stride,
-                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
-                    LoopIndexTy<NDIMS> &Index) {
+struct NDLoopIterateImpl<NDims, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
+  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
+                    const LoopBoundTy<NDims> &Stride,
+                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDims> &Index) {
 
-    constexpr size_t AdjIdx = NDIMS - 1;
+    constexpr size_t AdjIdx = NDims - 1;
     for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
          Index[AdjIdx] += Stride[AdjIdx]) {
 
@@ -279,43 +316,43 @@ struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
   }
 };
 
-/// Generates an NDIMS-dimensional perfect loop nest. The purpose of this class
+/// Generates an NDims-dimensional perfect loop nest. The purpose of this class
 /// is to better support handling of situations where there must be a loop nest
 /// over a multi-dimensional space - it allows to avoid generating unnecessary
 /// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
 /// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
 /// Loop is unrolled in a reverse directions, i.e. ID = 0 is the inner-most one.
-template <int NDIMS> struct NDLoop {
+template <int NDims> struct NDLoop {
   /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
   /// stride. Applies \c f at each iteration, passing current index of
-  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  /// \c LoopIndexTy<NDims> type as the parameter.
   template <template <int> class LoopBoundTy, typename FuncTy,
             template <int> class LoopIndexTy = LoopBoundTy>
-  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDIMS> &UpperBound,
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDims> &UpperBound,
                                            FuncTy f) {
-    const LoopIndexTy<NDIMS> LowerBound =
-        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
-    const LoopBoundTy<NDIMS> Stride =
-        InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
-    LoopIndexTy<NDIMS> Index =
-        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
+    const LoopIndexTy<NDims> LowerBound =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+    const LoopBoundTy<NDims> Stride =
+        InitializedVal<NDims, LoopBoundTy>::template get<1>();
+    LoopIndexTy<NDims> Index =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
 
-    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
   }
 
   /// Generates ND loop nest with \c LowerBound .. \c UpperBound bounds and
   /// stride \c Stride. Applies \c f at each iteration, passing current index of
-  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  /// \c LoopIndexTy<NDims> type as the parameter.
   template <template <int> class LoopBoundTy, typename FuncTy,
             template <int> class LoopIndexTy = LoopBoundTy>
-  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDIMS> &LowerBound,
-                                           const LoopBoundTy<NDIMS> &Stride,
-                                           const LoopBoundTy<NDIMS> &UpperBound,
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDims> &LowerBound,
+                                           const LoopBoundTy<NDims> &Stride,
+                                           const LoopBoundTy<NDims> &UpperBound,
                                            FuncTy f) {
-    LoopIndexTy<NDIMS> Index =
-        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
-    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+    LoopIndexTy<NDims> Index =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
   }
 };
@@ -354,6 +391,21 @@ template <typename T> struct InlineVariableHelper {
 };
 
 template <typename T> constexpr T InlineVariableHelper<T>::value;
+
+// The function extends or truncates number of dimensions of objects of id
+// or ranges classes. When extending the new values are filled with
+// DefaultValue, truncation just removes extra values.
+template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
+static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
+  T<NewDim> NewObj = detail::InitializedVal<NewDim, T>::template get<0>();
+  const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
+  for (int I = 0; I < CopyDims; ++I)
+    NewObj[I] = OldObj[I];
+  for (int I = CopyDims; I < NewDim; ++I)
+    NewObj[I] = DefaultValue;
+  return NewObj;
+}
+
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -10,11 +10,12 @@
 
 #include <sycl/backend.hpp>
 #include <sycl/context.hpp>
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace cuda {
@@ -50,13 +51,6 @@ inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
   ret.push_back(native);
 
   return ret;
-}
-
-// Specialisation of non-free context get_native
-template <>
-inline backend_return_t<backend::ext_oneapi_cuda, context>
-context::get_native<backend::ext_oneapi_cuda>() const {
-  return sycl::get_native<backend::ext_oneapi_cuda, context>(*this);
 }
 
 // Specialisation of interop_handles get_native_context
@@ -95,9 +89,9 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, true, Handler,
+                            TargetContext, nullptr, true, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

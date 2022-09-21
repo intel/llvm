@@ -25,7 +25,7 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#if _LIBCPP_STD_VER > 17
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -40,7 +40,7 @@ struct __fn {
       return !std::invoke(__comp, __rhs, __lhs);
     };
 
-    return std::__lower_bound_impl<_RangesIterOps>(__first, __last, __value, __comp_lhs_rhs_swapped, __proj);
+    return std::__lower_bound_impl<_RangeAlgPolicy>(__first, __last, __value, __comp_lhs_rhs_swapped, __proj);
   }
 
   template <forward_range _Range, class _Type, class _Proj = identity,
@@ -54,7 +54,7 @@ struct __fn {
       return !std::invoke(__comp, __rhs, __lhs);
     };
 
-    return std::__lower_bound_impl<_RangesIterOps>(ranges::begin(__r),
+    return std::__lower_bound_impl<_RangeAlgPolicy>(ranges::begin(__r),
                                                    ranges::end(__r),
                                                    __value,
                                                    __comp_lhs_rhs_swapped,
@@ -70,6 +70,6 @@ inline namespace __cpo {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#endif // _LIBCPP_STD_VER > 17
 
 #endif // _LIBCPP___ALGORITHM_RANGES_UPPER_BOUND_H

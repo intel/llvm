@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
@@ -40,8 +40,8 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
@@ -401,5 +401,5 @@ private:
   std::mutex m_DeviceGlobalsMutex;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

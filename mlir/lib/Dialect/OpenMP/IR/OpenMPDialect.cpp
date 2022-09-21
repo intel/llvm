@@ -578,6 +578,13 @@ LogicalResult SimdLoopOp::verify() {
   if (this->lowerBound().empty()) {
     return emitOpError() << "empty lowerbound for simd loop operation";
   }
+  if (this->simdlen().has_value() && this->safelen().has_value() &&
+      this->simdlen().value() > this->safelen().value()) {
+    return emitOpError()
+           << "simdlen clause and safelen clause are both present, but the "
+              "simdlen value is not less than or equal to safelen value";
+  }
+
   return success();
 }
 
@@ -684,11 +691,11 @@ LogicalResult TaskGroupOp::verify() {
 // TaskLoopOp
 //===----------------------------------------------------------------------===//
 SmallVector<Value> TaskLoopOp::getReductionVars() {
-  SmallVector<Value> all_reduction_nvars(in_reduction_vars().begin(),
-                                         in_reduction_vars().end());
-  all_reduction_nvars.insert(all_reduction_nvars.end(),
-                             reduction_vars().begin(), reduction_vars().end());
-  return all_reduction_nvars;
+  SmallVector<Value> allReductionNvars(in_reduction_vars().begin(),
+                                       in_reduction_vars().end());
+  allReductionNvars.insert(allReductionNvars.end(), reduction_vars().begin(),
+                           reduction_vars().end());
+  return allReductionNvars;
 }
 
 LogicalResult TaskLoopOp::verify() {
@@ -700,7 +707,7 @@ LogicalResult TaskLoopOp::verify() {
           verifyReductionVarList(*this, in_reductions(), in_reduction_vars())))
     return failure();
 
-  if (reduction_vars().size() > 0 && nogroup())
+  if (!reduction_vars().empty() && nogroup())
     return emitError("if a reduction clause is present on the taskloop "
                      "directive, the nogroup clause must not be specified");
   for (auto var : reduction_vars()) {
@@ -836,6 +843,34 @@ LogicalResult AtomicWriteOp::verify() {
 // Verifier for AtomicUpdateOp
 //===----------------------------------------------------------------------===//
 
+bool AtomicUpdateOp::isNoOp() {
+  YieldOp yieldOp = dyn_cast<omp::YieldOp>(getFirstOp());
+  return (yieldOp &&
+          yieldOp.results().front() == getRegion().front().getArgument(0));
+}
+
+Value AtomicUpdateOp::getWriteOpVal() {
+  YieldOp yieldOp = dyn_cast<omp::YieldOp>(getFirstOp());
+  if (yieldOp &&
+      yieldOp.results().front() != getRegion().front().getArgument(0))
+    return yieldOp.results().front();
+  return nullptr;
+}
+
+LogicalResult AtomicUpdateOp::canonicalize(AtomicUpdateOp op,
+                                           PatternRewriter &rewriter) {
+  if (op.isNoOp()) {
+    rewriter.eraseOp(op);
+    return success();
+  }
+  if (Value writeVal = op.getWriteOpVal()) {
+    rewriter.replaceOpWithNewOp<AtomicWriteOp>(
+        op, op.x(), writeVal, op.hint_valAttr(), op.memory_order_valAttr());
+    return success();
+  }
+  return failure();
+}
+
 LogicalResult AtomicUpdateOp::verify() {
   if (auto mo = memory_order_val()) {
     if (*mo == ClauseMemoryOrderKind::Acq_rel ||
@@ -844,6 +879,9 @@ LogicalResult AtomicUpdateOp::verify() {
           "memory-order must not be acq_rel or acquire for atomic updates");
     }
   }
+
+  if (region().getNumArguments() != 1)
+    return emitError("the region must accept exactly one argument");
 
   if (x().getType().cast<PointerLikeType>().getElementType() !=
       region().getArgument(0).getType()) {
@@ -855,12 +893,6 @@ LogicalResult AtomicUpdateOp::verify() {
 }
 
 LogicalResult AtomicUpdateOp::verifyRegions() {
-  if (region().getNumArguments() != 1)
-    return emitError("the region must accept exactly one argument");
-
-  if (region().front().getOperations().size() < 2)
-    return emitError() << "the update region must have at least two operations "
-                          "(binop and terminator)";
 
   YieldOp yieldOp = *region().getOps<YieldOp>().begin();
 

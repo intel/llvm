@@ -15,6 +15,7 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -251,7 +252,7 @@ static Optional<Type> convertArrayType(spirv::ArrayType type,
   unsigned stride = type.getArrayStride();
   Type elementType = type.getElementType();
   auto sizeInBytes = elementType.cast<spirv::SPIRVType>().getSizeInBytes();
-  if (stride != 0 && !(sizeInBytes && *sizeInBytes == stride))
+  if (stride != 0 && (!sizeInBytes || *sizeInBytes != stride))
     return llvm::None;
 
   auto llvmElementType = converter.convertType(elementType);
@@ -574,8 +575,9 @@ public:
           op, dstType, adaptor.composite(), index);
       return success();
     }
+
     rewriter.replaceOpWithNewOp<LLVM::ExtractValueOp>(
-        op, dstType, adaptor.composite(), op.indices());
+        op, adaptor.composite(), LLVM::convertArrayToIndices(op.indices()));
     return success();
   }
 };
@@ -604,8 +606,10 @@ public:
           op, dstType, adaptor.composite(), adaptor.object(), index);
       return success();
     }
+
     rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
-        op, dstType, adaptor.composite(), adaptor.object(), op.indices());
+        op, adaptor.composite(), adaptor.object(),
+        LLVM::convertArrayToIndices(op.indices()));
     return success();
   }
 };
@@ -643,15 +647,15 @@ public:
     // this entry point's execution mode. We set it to be:
     //   __spv__{SPIR-V module name}_{function name}_execution_mode_info_{mode}
     ModuleOp module = op->getParentOfType<ModuleOp>();
-    IntegerAttr executionModeAttr = op.execution_modeAttr();
+    spirv::ExecutionModeAttr executionModeAttr = op.execution_modeAttr();
     std::string moduleName;
-    if (module.getName().hasValue())
-      moduleName = "_" + module.getName().getValue().str();
+    if (module.getName().has_value())
+      moduleName = "_" + module.getName().value().str();
     else
       moduleName = "";
-    std::string executionModeInfoName =
-        llvm::formatv("__spv_{0}_{1}_execution_mode_info_{2}", moduleName,
-                      op.fn().str(), executionModeAttr.getValue());
+    std::string executionModeInfoName = llvm::formatv(
+        "__spv_{0}_{1}_execution_mode_info_{2}", moduleName, op.fn().str(),
+        static_cast<uint32_t>(executionModeAttr.getValue()));
 
     MLIRContext *context = rewriter.getContext();
     OpBuilder::InsertionGuard guard(rewriter);
@@ -684,22 +688,19 @@ public:
     // Initialize the struct and set the execution mode value.
     rewriter.setInsertionPoint(block, block->begin());
     Value structValue = rewriter.create<LLVM::UndefOp>(loc, structType);
-    Value executionMode =
-        rewriter.create<LLVM::ConstantOp>(loc, llvmI32Type, executionModeAttr);
-    structValue = rewriter.create<LLVM::InsertValueOp>(
-        loc, structType, structValue, executionMode,
-        ArrayAttr::get(context,
-                       {rewriter.getIntegerAttr(rewriter.getI32Type(), 0)}));
+    Value executionMode = rewriter.create<LLVM::ConstantOp>(
+        loc, llvmI32Type,
+        rewriter.getI32IntegerAttr(
+            static_cast<uint32_t>(executionModeAttr.getValue())));
+    structValue = rewriter.create<LLVM::InsertValueOp>(loc, structValue,
+                                                       executionMode, 0);
 
     // Insert extra operands if they exist into execution mode info struct.
     for (unsigned i = 0, e = values.size(); i < e; ++i) {
       auto attr = values.getValue()[i];
       Value entry = rewriter.create<LLVM::ConstantOp>(loc, llvmI32Type, attr);
       structValue = rewriter.create<LLVM::InsertValueOp>(
-          loc, structType, structValue, entry,
-          ArrayAttr::get(context,
-                         {rewriter.getIntegerAttr(rewriter.getI32Type(), 1),
-                          rewriter.getIntegerAttr(rewriter.getI32Type(), i)}));
+          loc, structValue, entry, ArrayRef<int64_t>({1, i}));
     }
     rewriter.create<LLVM::ReturnOp>(loc, ArrayRef<Value>({structValue}));
     rewriter.eraseOp(op);
@@ -866,12 +867,12 @@ public:
 };
 
 class InverseSqrtPattern
-    : public SPIRVToLLVMConversion<spirv::GLSLInverseSqrtOp> {
+    : public SPIRVToLLVMConversion<spirv::GLInverseSqrtOp> {
 public:
-  using SPIRVToLLVMConversion<spirv::GLSLInverseSqrtOp>::SPIRVToLLVMConversion;
+  using SPIRVToLLVMConversion<spirv::GLInverseSqrtOp>::SPIRVToLLVMConversion;
 
   LogicalResult
-  matchAndRewrite(spirv::GLSLInverseSqrtOp op, OpAdaptor adaptor,
+  matchAndRewrite(spirv::GLInverseSqrtOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto srcType = op.getType();
     auto dstType = typeConverter.convertType(srcType);
@@ -1191,12 +1192,12 @@ public:
   }
 };
 
-class TanPattern : public SPIRVToLLVMConversion<spirv::GLSLTanOp> {
+class TanPattern : public SPIRVToLLVMConversion<spirv::GLTanOp> {
 public:
-  using SPIRVToLLVMConversion<spirv::GLSLTanOp>::SPIRVToLLVMConversion;
+  using SPIRVToLLVMConversion<spirv::GLTanOp>::SPIRVToLLVMConversion;
 
   LogicalResult
-  matchAndRewrite(spirv::GLSLTanOp tanOp, OpAdaptor adaptor,
+  matchAndRewrite(spirv::GLTanOp tanOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto dstType = typeConverter.convertType(tanOp.getType());
     if (!dstType)
@@ -1216,12 +1217,12 @@ public:
 ///   -----------
 ///   exp(2x) + 1
 ///
-class TanhPattern : public SPIRVToLLVMConversion<spirv::GLSLTanhOp> {
+class TanhPattern : public SPIRVToLLVMConversion<spirv::GLTanhOp> {
 public:
-  using SPIRVToLLVMConversion<spirv::GLSLTanhOp>::SPIRVToLLVMConversion;
+  using SPIRVToLLVMConversion<spirv::GLTanhOp>::SPIRVToLLVMConversion;
 
   LogicalResult
-  matchAndRewrite(spirv::GLSLTanhOp tanhOp, OpAdaptor adaptor,
+  matchAndRewrite(spirv::GLTanhOp tanhOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto srcType = tanhOp.getType();
     auto dstType = typeConverter.convertType(srcType);
@@ -1379,8 +1380,9 @@ public:
     int vector1Size = vector1.getType().cast<VectorType>().getNumElements();
     int vector2Size = vector2.getType().cast<VectorType>().getNumElements();
     if (vector1Size == vector2Size) {
-      rewriter.replaceOpWithNewOp<LLVM::ShuffleVectorOp>(op, vector1, vector2,
-                                                         components);
+      rewriter.replaceOpWithNewOp<LLVM::ShuffleVectorOp>(
+          op, vector1, vector2,
+          LLVM::convertArrayToIndices<int32_t>(components));
       return success();
     }
 
@@ -1391,8 +1393,8 @@ public:
     auto llvmI32Type = IntegerType::get(context, 32);
     Value targetOp = rewriter.create<LLVM::UndefOp>(loc, dstType);
     for (unsigned i = 0; i < componentsArray.size(); i++) {
-      if (componentsArray[i].isa<IntegerAttr>())
-        op.emitError("unable to support non-constant component");
+      if (!componentsArray[i].isa<IntegerAttr>())
+        return op.emitError("unable to support non-constant component");
 
       int indexVal = componentsArray[i].cast<IntegerAttr>().getInt();
       if (indexVal == -1)
@@ -1515,18 +1517,18 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       ErasePattern<spirv::EntryPointOp>, ExecutionModePattern,
 
       // GLSL extended instruction set ops
-      DirectConversionPattern<spirv::GLSLCeilOp, LLVM::FCeilOp>,
-      DirectConversionPattern<spirv::GLSLCosOp, LLVM::CosOp>,
-      DirectConversionPattern<spirv::GLSLExpOp, LLVM::ExpOp>,
-      DirectConversionPattern<spirv::GLSLFAbsOp, LLVM::FAbsOp>,
-      DirectConversionPattern<spirv::GLSLFloorOp, LLVM::FFloorOp>,
-      DirectConversionPattern<spirv::GLSLFMaxOp, LLVM::MaxNumOp>,
-      DirectConversionPattern<spirv::GLSLFMinOp, LLVM::MinNumOp>,
-      DirectConversionPattern<spirv::GLSLLogOp, LLVM::LogOp>,
-      DirectConversionPattern<spirv::GLSLSinOp, LLVM::SinOp>,
-      DirectConversionPattern<spirv::GLSLSMaxOp, LLVM::SMaxOp>,
-      DirectConversionPattern<spirv::GLSLSMinOp, LLVM::SMinOp>,
-      DirectConversionPattern<spirv::GLSLSqrtOp, LLVM::SqrtOp>,
+      DirectConversionPattern<spirv::GLCeilOp, LLVM::FCeilOp>,
+      DirectConversionPattern<spirv::GLCosOp, LLVM::CosOp>,
+      DirectConversionPattern<spirv::GLExpOp, LLVM::ExpOp>,
+      DirectConversionPattern<spirv::GLFAbsOp, LLVM::FAbsOp>,
+      DirectConversionPattern<spirv::GLFloorOp, LLVM::FFloorOp>,
+      DirectConversionPattern<spirv::GLFMaxOp, LLVM::MaxNumOp>,
+      DirectConversionPattern<spirv::GLFMinOp, LLVM::MinNumOp>,
+      DirectConversionPattern<spirv::GLLogOp, LLVM::LogOp>,
+      DirectConversionPattern<spirv::GLSinOp, LLVM::SinOp>,
+      DirectConversionPattern<spirv::GLSMaxOp, LLVM::SMaxOp>,
+      DirectConversionPattern<spirv::GLSMinOp, LLVM::SMinOp>,
+      DirectConversionPattern<spirv::GLSqrtOp, LLVM::SqrtOp>,
       InverseSqrtPattern, TanPattern, TanhPattern,
 
       // Logical ops
@@ -1585,10 +1587,10 @@ void mlir::encodeBindAttribute(ModuleOp module) {
       if (descriptorSet && binding) {
         // Encode these numbers into the variable's symbolic name. If the
         // SPIR-V module has a name, add it at the beginning.
-        auto moduleAndName = spvModule.getName().hasValue()
-                                 ? spvModule.getName().getValue().str() + "_" +
-                                       op.sym_name().str()
-                                 : op.sym_name().str();
+        auto moduleAndName =
+            spvModule.getName().has_value()
+                ? spvModule.getName().value().str() + "_" + op.sym_name().str()
+                : op.sym_name().str();
         std::string name =
             llvm::formatv("{0}_descriptor_set{1}_binding{2}", moduleAndName,
                           std::to_string(descriptorSet.getInt()),

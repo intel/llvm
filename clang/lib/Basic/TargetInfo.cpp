@@ -45,6 +45,7 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   IntWidth = IntAlign = 32;
   LongWidth = LongAlign = 32;
   LongLongWidth = LongLongAlign = 64;
+  Int128Align = 128;
 
   // Fixed point default bit widths
   ShortAccumWidth = ShortAccumAlign = 16;
@@ -207,11 +208,11 @@ const char *TargetInfo::getTypeConstantSuffix(IntType T) const {
   case UnsignedChar:
     if (getCharWidth() < getIntWidth())
       return "";
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case UnsignedShort:
     if (getShortWidth() < getIntWidth())
       return "";
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case UnsignedInt:      return "U";
   case UnsignedLong:     return "UL";
   case UnsignedLongLong: return "ULL";
@@ -503,7 +504,7 @@ bool TargetInfo::initFeatureMap(
 TargetInfo::CallingConvKind
 TargetInfo::getCallingConvKind(bool ClangABICompat4) const {
   if (getCXXABI() != TargetCXXABI::Microsoft &&
-      (ClangABICompat4 || getTriple().getOS() == llvm::Triple::PS4))
+      (ClangABICompat4 || getTriple().isPS4()))
     return CCK_ClangABI4OrPS4;
   return CCK_Default;
 }

@@ -324,7 +324,8 @@ class isFloatType<ValueType SrcVT> {
 
 // XXX - do v2i16 instructions?
 class isIntType<ValueType SrcVT> {
-  bit ret = !or(!eq(SrcVT.Value, i16.Value),
+  bit ret = !or(!eq(SrcVT.Value, i8.Value),
+                !eq(SrcVT.Value, i16.Value),
                 !eq(SrcVT.Value, i32.Value),
                 !eq(SrcVT.Value, i64.Value),
                 !eq(SrcVT.Value, v4i16.Value),
@@ -1411,6 +1412,10 @@ class IntSDWAInputModsMatchClass <int opSize> : AsmOperandClass {
 
 def Int16SDWAInputModsMatchClass : IntSDWAInputModsMatchClass<16>;
 def Int32SDWAInputModsMatchClass : IntSDWAInputModsMatchClass<32>;
+def Bin32SDWAInputModsMatchClass : IntSDWAInputModsMatchClass<32> {
+  let Name = "SDWAWithBin32InputMods";
+  let ParserMethod = "parseRegOrImm";
+}
 
 class IntSDWAInputMods <IntSDWAInputModsMatchClass matchClass> :
   InputMods <matchClass> {
@@ -1419,6 +1424,7 @@ class IntSDWAInputMods <IntSDWAInputModsMatchClass matchClass> :
 
 def Int16SDWAInputMods : IntSDWAInputMods<Int16SDWAInputModsMatchClass>;
 def Int32SDWAInputMods : IntSDWAInputMods<Int32SDWAInputModsMatchClass>;
+def Bin32SDWAInputMods : IntSDWAInputMods<Bin32SDWAInputModsMatchClass>;
 
 def IntVRegInputModsMatchClass : AsmOperandClass {
   let Name = "VRegWithIntInputMods";
@@ -1897,94 +1903,94 @@ class getInsVOP3OpSel <RegisterOperand Src0RC, RegisterOperand Src1RC,
 
 class getInsDPPBase <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
                  RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod> {
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld> {
 
-  dag ret = !if (!eq(NumSrcArgs, 0),
+  dag ret = !if(!eq(NumSrcArgs, 0),
                 // VOP1 without input operands (V_NOP)
                 (ins ),
-            !if (!eq(NumSrcArgs, 1),
-              !if (HasModifiers,
-                // VOP1_DPP with modifiers
-                (ins OldRC:$old, Src0Mod:$src0_modifiers,
-                     Src0RC:$src0)
-              /* else */,
-                // VOP1_DPP without modifiers
-                (ins OldRC:$old, Src0RC:$src0)
-              /* endif */),
-            !if (!eq(NumSrcArgs, 2),
-              !if (HasModifiers,
-                // VOP2_DPP with modifiers
-                (ins OldRC:$old,
-                     Src0Mod:$src0_modifiers, Src0RC:$src0,
-                     Src1Mod:$src1_modifiers, Src1RC:$src1)
-              /* else */,
-                // VOP2_DPP without modifiers
-                (ins OldRC:$old,
-                     Src0RC:$src0, Src1RC:$src1)
+                !con(
+                  !if(HasOld ,(ins OldRC:$old), (ins)),
+                  !if (!eq(NumSrcArgs, 1),
+                    !if (HasModifiers,
+                      // VOP1_DPP with modifiers
+                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0)
+                    /* else */,
+                      // VOP1_DPP without modifiers
+                      (ins Src0RC:$src0)
+                    /* endif */),
+                  !if (!eq(NumSrcArgs, 2),
+                    !if (HasModifiers,
+                      // VOP2_DPP with modifiers
+                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
+                       Src1Mod:$src1_modifiers, Src1RC:$src1)
+                    /* else */,
+                      // VOP2_DPP without modifiers
+                      (ins Src0RC:$src0, Src1RC:$src1)
+                    )
+                    /* NumSrcArgs == 3, VOP3 */,
+                    !if (HasModifiers,
+                      // VOP3_DPP with modifiers
+                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
+                       Src1Mod:$src1_modifiers, Src1RC:$src1,
+                       Src2Mod:$src2_modifiers, Src2RC:$src2)
+                    /* else */,
+                      // VOP3_DPP without modifiers
+                      (ins Src0RC:$src0, Src1RC:$src1,
+                       Src2RC:$src2)
+                      )
+                    )
+                  )
                 )
-              /* NumSrcArgs == 3, VOP3 */,
-              !if (HasModifiers,
-                // VOP3_DPP with modifiers
-                (ins OldRC:$old,
-                     Src0Mod:$src0_modifiers, Src0RC:$src0,
-                     Src1Mod:$src1_modifiers, Src1RC:$src1,
-                     Src2Mod:$src2_modifiers, Src2RC:$src2)
-              /* else */,
-                // VOP3_DPP without modifiers
-                (ins OldRC:$old,
-                     Src0RC:$src0, Src1RC:$src1,
-                     Src2RC:$src2)
-                )
-             /* endif */)));
+            );
 }
 
 class getInsDPP <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
                  RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod> {
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld = 1> {
   dag ret = !con(getInsDPPBase<OldRC, Src0RC, Src1RC, Src2RC, NumSrcArgs,
-                           HasModifiers, Src0Mod, Src1Mod, Src2Mod>.ret,
+                           HasModifiers, Src0Mod, Src1Mod, Src2Mod, HasOld>.ret,
                  (ins dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
                      bank_mask:$bank_mask, bound_ctrl:$bound_ctrl));
 }
 
 class getInsDPP16 <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
                  RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod> {
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld = 1> {
   dag ret = !con(getInsDPP<OldRC, Src0RC, Src1RC, Src2RC, NumSrcArgs,
-                           HasModifiers, Src0Mod, Src1Mod, Src2Mod>.ret,
+                           HasModifiers, Src0Mod, Src1Mod, Src2Mod, HasOld>.ret,
                  (ins FI:$fi));
 }
 
 class getInsDPP8 <RegisterOperand OldRC, RegisterClass Src0RC, RegisterClass Src1RC,
                  RegisterClass Src2RC, int NumSrcArgs, bit HasModifiers,
-                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod> {
+                 Operand Src0Mod, Operand Src1Mod, Operand Src2Mod, bit HasOld = 1> {
   dag ret = !con(getInsDPPBase<OldRC, Src0RC, Src1RC, Src2RC, NumSrcArgs,
-                           HasModifiers, Src0Mod, Src1Mod, Src2Mod>.ret,
+                           HasModifiers, Src0Mod, Src1Mod, Src2Mod, HasOld>.ret,
                  (ins dpp8:$dpp8, FI:$fi));
 }
 
-class getInsVOP3DPPBase<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs> {
+class getInsVOP3DPPBase<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld> {
   dag old = ( ins OldRC:$old );
   dag base = VOP3Base;
   dag ret =  !con(
-                !if(!ne(NumSrcArgs, 0), old, (ins)),
+                !if(!and(HasOld,!ne(NumSrcArgs, 0)), old, (ins)),
                 base
               );
 }
 
-class getInsVOP3DPP<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs> {
-  dag ret = !con(getInsVOP3DPPBase<VOP3Base,OldRC,NumSrcArgs>.ret,
+class getInsVOP3DPP<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld = 1> {
+  dag ret = !con(getInsVOP3DPPBase<VOP3Base,OldRC,NumSrcArgs,HasOld>.ret,
                  (ins dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
                      bank_mask:$bank_mask, bound_ctrl:$bound_ctrl));
 }
 
-class getInsVOP3DPP16<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs> {
-  dag ret = !con(getInsVOP3DPP<VOP3Base,OldRC,NumSrcArgs>.ret,
+class getInsVOP3DPP16<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld = 1> {
+  dag ret = !con(getInsVOP3DPP<VOP3Base,OldRC,NumSrcArgs,HasOld>.ret,
                  (ins FI:$fi));
 }
 
-class getInsVOP3DPP8<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs> {
-  dag ret = !con(getInsVOP3DPPBase<VOP3Base,OldRC,NumSrcArgs>.ret,
+class getInsVOP3DPP8<dag VOP3Base, RegisterOperand OldRC, int NumSrcArgs, bit HasOld = 1> {
+  dag ret = !con(getInsVOP3DPPBase<VOP3Base,OldRC,NumSrcArgs,HasOld>.ret,
                  (ins dpp8:$dpp8, FI:$fi));
 }
 
@@ -2382,8 +2388,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field ValueType Src1VT = ArgVT[2];
   field ValueType Src2VT = ArgVT[3];
   field RegisterOperand DstRC = getVALUDstForVT<DstVT>.ret;
+  field RegisterOperand DstRCDPP = DstRC;
   field RegisterOperand DstRC64 = DstRC;
-  field RegisterOperand DstRCDPP = getVALUDstForVT<DstVT>.ret;
+  field RegisterOperand DstRCVOP3DPP = DstRC64;
   field RegisterOperand DstRCSDWA = getSDWADstForVT<DstVT>.ret;
   field RegisterOperand Src0RC32 = getVOPSrc0ForVT<Src0VT>.ret;
   field RegisterOperand Src1RC32 = RegisterOperand<getVregSrcForVT<Src1VT>.ret>;
@@ -2478,9 +2485,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field dag Outs32 = Outs;
   field dag Outs64 = !if(HasDst,(outs DstRC64:$vdst),(outs));
   field dag OutsDPP = getOutsDPP<HasDst, DstVT, DstRCDPP>.ret;
-  field dag OutsDPP8 = getOutsDPP<HasDst, DstVT, DstRCDPP>.ret;
-  field dag OutsVOP3DPP = OutsDPP;
-  field dag OutsVOP3DPP8 = OutsDPP8;
+  field dag OutsDPP8 = OutsDPP;
+  field dag OutsVOP3DPP = getOutsDPP<HasDst, DstVT, DstRCVOP3DPP>.ret;
+  field dag OutsVOP3DPP8 = OutsVOP3DPP;
   field dag OutsSDWA = getOutsSDWA<HasDst, DstVT, DstRCSDWA>.ret;
 
   field dag Ins32 = getIns32<Src0RC32, Src1RC32, NumSrcArgs>.ret;
@@ -2507,9 +2514,9 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field dag InsVOP3Base = getInsVOP3Base<Src0VOP3DPP, Src1VOP3DPP,
                   Src2VOP3DPP, NumSrcArgs, HasClamp, HasModifiers, HasSrc2Mods, HasOMod,
                   Src0ModDPP, Src1ModDPP, Src2ModVOP3DPP, HasOpSel, IsVOP3P>.ret;
-  field dag InsVOP3DPP = getInsVOP3DPP<InsVOP3Base, DstRCDPP, NumSrcArgs>.ret;
-  field dag InsVOP3DPP16 = getInsVOP3DPP16<InsVOP3Base, DstRCDPP, NumSrcArgs>.ret;
-  field dag InsVOP3DPP8 = getInsVOP3DPP8<InsVOP3Base, DstRCDPP, NumSrcArgs>.ret;
+  field dag InsVOP3DPP = getInsVOP3DPP<InsVOP3Base, DstRCVOP3DPP, NumSrcArgs>.ret;
+  field dag InsVOP3DPP16 = getInsVOP3DPP16<InsVOP3Base, DstRCVOP3DPP, NumSrcArgs>.ret;
+  field dag InsVOP3DPP8 = getInsVOP3DPP8<InsVOP3Base, DstRCVOP3DPP, NumSrcArgs>.ret;
   field dag InsSDWA = getInsSDWA<Src0SDWA, Src1SDWA, NumSrcArgs,
                                  HasSDWAOMod, Src0ModSDWA, Src1ModSDWA,
                                  DstVT>.ret;
@@ -2665,6 +2672,8 @@ def VOP_V4I32_I64_I64_V4I32       : VOPProfile <[v4i32,  i64,   i64,   v4i32]>;
 def VOP_V16I32_I64_I64_V16I32     : VOPProfile <[v16i32, i64,   i64,   v16i32]>;
 def VOP_V4F32_V2F32_V2F32_V4F32   : VOPProfile <[v4f32,  v2f32, v2f32, v4f32]>;
 def VOP_V16F32_V2F32_V2F32_V16F32 : VOPProfile <[v16f32, v2f32, v2f32, v16f32]>;
+def VOP_V4F32_I64_I64_V4F32       : VOPProfile <[v4f32,  i64,   i64,   v4f32]>;
+def VOP_V16F32_I64_I64_V16F32     : VOPProfile <[v16f32, i64,   i64,   v16f32]>;
 
 def VOP_V4F32_V4F16_V8F16_I32     : VOPProfile <[v4f32,  v4f16, v8f16, i32]>;
 def VOP_V16F32_V4F16_V8F16_I32    : VOPProfile <[v16f32, v4f16, v8f16, i32]>;
@@ -2672,6 +2681,8 @@ def VOP_V4F32_V4I16_V8I16_I32     : VOPProfile <[v4f32,  v4i16, v8i16, i32]>;
 def VOP_V16F32_V4I16_V8I16_I32    : VOPProfile <[v16f32, v4i16, v8i16, i32]>;
 def VOP_V4I32_V2I32_V4I32_I32     : VOPProfile <[v4i32,  v2i32, v4i32, i32]>;
 def VOP_V16I32_V2I32_V4I32_I32    : VOPProfile <[v16i32, v2i32, v4i32, i32]>;
+def VOP_V4F32_V2I32_V4I32_I32     : VOPProfile <[v4f32,  v2i32, v4i32, i32]>;
+def VOP_V16F32_V2I32_V4I32_I32    : VOPProfile <[v16f32, v2i32, v4i32, i32]>;
 
 class Commutable_REV <string revOp, bit isOrig> {
   string RevOp = revOp;

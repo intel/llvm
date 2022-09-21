@@ -404,7 +404,7 @@ bool TGParser::resolve(const ForeachLoop &Loop, SubstStack &Substs,
   }
 
   bool Error = false;
-  for (auto Elt : *LI) {
+  for (auto *Elt : *LI) {
     if (Loop.IterVar)
       Substs.emplace_back(Loop.IterVar->getNameInit(), Elt);
     Error = resolve(Loop.Entries, Substs, Final, Dest);
@@ -3391,6 +3391,8 @@ bool TGParser::ParseClass() {
         !CurRec->getTemplateArgs().empty())
       return TokError("Class '" + CurRec->getNameInitAsString() +
                       "' already defined");
+
+    CurRec->updateClassLoc(Lex.getLoc());
   } else {
     // If this is the first reference to this class, create and add it.
     auto NewRec =

@@ -4,7 +4,7 @@
 // __sycl_getScalar2020SpecConstantValue gets inlined.
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr specialization_id<unsigned int> SPEC_CONST(1024);
 

@@ -12,6 +12,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -20,8 +21,8 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declarations
 class device;
 class platform;
@@ -159,9 +160,8 @@ public:
   /// Queries this SYCL context for information.
   ///
   /// The return type depends on information being queried.
-  template <info::context param>
-  typename info::param_traits<info::context, param>::return_type
-  get_info() const;
+  template <typename Param>
+  typename detail::is_context_info_desc<Param>::return_type get_info() const;
 
   context(const context &rhs) = default;
 
@@ -178,7 +178,7 @@ public:
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   /// Gets the specified property of this context.
   ///
@@ -200,6 +200,8 @@ public:
   /// Checks if this context is a SYCL host context.
   ///
   /// \return true if this context is a SYCL host context.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Returns the backend associated with this context.
@@ -216,15 +218,6 @@ public:
   ///
   /// \return a vector of valid SYCL device instances.
   std::vector<device> get_devices() const;
-
-  /// Gets the native handle of the SYCL context.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, context> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, context>>(getNative());
-  }
 
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
@@ -249,14 +242,14 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::context> {
-  size_t operator()(const cl::sycl::context &Context) const {
-    return hash<std::shared_ptr<cl::sycl::detail::context_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Context));
+template <> struct hash<sycl::context> {
+  size_t operator()(const sycl::context &Context) const {
+    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
+        sycl::detail::getSyclObjImpl(Context));
   }
 };
 } // namespace std

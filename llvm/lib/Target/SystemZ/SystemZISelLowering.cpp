@@ -1404,8 +1404,12 @@ static SDValue convertValVTToLocVT(SelectionDAG &DAG, const SDLoc &DL,
     return DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Value);
   case CCValAssign::BCvt: {
     assert(VA.getLocVT() == MVT::i64 || VA.getLocVT() == MVT::i128);
-    assert(VA.getValVT().isVector() || VA.getValVT() == MVT::f64 ||
-           VA.getValVT() == MVT::f128);
+    assert(VA.getValVT().isVector() || VA.getValVT() == MVT::f32 ||
+           VA.getValVT() == MVT::f64 || VA.getValVT() == MVT::f128);
+    // For an f32 vararg we need to first promote it to an f64 and then
+    // bitcast it to an i64.
+    if (VA.getValVT() == MVT::f32 && VA.getLocVT() == MVT::i64)
+      Value = DAG.getNode(ISD::FP_EXTEND, DL, MVT::f64, Value);
     MVT BitCastToType = VA.getValVT().isVector() && VA.getLocVT() == MVT::i64
                             ? MVT::v2i64
                             : VA.getLocVT();
@@ -3033,7 +3037,7 @@ SDValue SystemZTargetLowering::lowerVectorSETCC(SelectionDAG &DAG,
     // Handle tests for order using (or (ogt y x) (oge x y)).
   case ISD::SETUO:
     Invert = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::SETO: {
     assert(IsFP && "Unexpected integer comparison");
     SDValue LT = getVectorCmp(DAG, getVectorComparison(ISD::SETOGT, Mode),
@@ -3050,7 +3054,7 @@ SDValue SystemZTargetLowering::lowerVectorSETCC(SelectionDAG &DAG,
     // Handle <> tests using (or (ogt y x) (ogt x y)).
   case ISD::SETUEQ:
     Invert = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::SETONE: {
     assert(IsFP && "Unexpected integer comparison");
     SDValue LT = getVectorCmp(DAG, getVectorComparison(ISD::SETOGT, Mode),
@@ -7316,7 +7320,7 @@ SystemZTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     case Intrinsic::s390_vupllh:
     case Intrinsic::s390_vupllf:
       IsLogical = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Intrinsic::s390_vuphb:  // VECTOR UNPACK HIGH
     case Intrinsic::s390_vuphh:
     case Intrinsic::s390_vuphf:
@@ -7553,7 +7557,7 @@ static void createPHIsForSelects(SmallVector<MachineInstr*, 8> &Selects,
   // destination registers, and the registers that went into the PHI.
   DenseMap<unsigned, std::pair<unsigned, unsigned>> RegRewriteTable;
 
-  for (auto MI : Selects) {
+  for (auto *MI : Selects) {
     Register DestReg = MI->getOperand(0).getReg();
     Register TrueReg = MI->getOperand(1).getReg();
     Register FalseReg = MI->getOperand(2).getReg();
@@ -7599,35 +7603,32 @@ SystemZTargetLowering::emitSelect(MachineInstr &MI,
   SmallVector<MachineInstr*, 8> DbgValues;
   Selects.push_back(&MI);
   unsigned Count = 0;
-  for (MachineBasicBlock::iterator NextMIIt =
-         std::next(MachineBasicBlock::iterator(MI));
-       NextMIIt != MBB->end(); ++NextMIIt) {
-    if (isSelectPseudo(*NextMIIt)) {
-      assert(NextMIIt->getOperand(3).getImm() == CCValid &&
+  for (MachineInstr &NextMI : llvm::make_range(
+           std::next(MachineBasicBlock::iterator(MI)), MBB->end())) {
+    if (isSelectPseudo(NextMI)) {
+      assert(NextMI.getOperand(3).getImm() == CCValid &&
              "Bad CCValid operands since CC was not redefined.");
-      if (NextMIIt->getOperand(4).getImm() == CCMask ||
-          NextMIIt->getOperand(4).getImm() == (CCValid ^ CCMask)) {
-        Selects.push_back(&*NextMIIt);
+      if (NextMI.getOperand(4).getImm() == CCMask ||
+          NextMI.getOperand(4).getImm() == (CCValid ^ CCMask)) {
+        Selects.push_back(&NextMI);
         continue;
       }
       break;
     }
-    if (NextMIIt->definesRegister(SystemZ::CC) ||
-        NextMIIt->usesCustomInsertionHook())
+    if (NextMI.definesRegister(SystemZ::CC) || NextMI.usesCustomInsertionHook())
       break;
     bool User = false;
-    for (auto SelMI : Selects)
-      if (NextMIIt->readsVirtualRegister(SelMI->getOperand(0).getReg())) {
+    for (auto *SelMI : Selects)
+      if (NextMI.readsVirtualRegister(SelMI->getOperand(0).getReg())) {
         User = true;
         break;
       }
-    if (NextMIIt->isDebugInstr()) {
+    if (NextMI.isDebugInstr()) {
       if (User) {
-        assert(NextMIIt->isDebugValue() && "Unhandled debug opcode.");
-        DbgValues.push_back(&*NextMIIt);
+        assert(NextMI.isDebugValue() && "Unhandled debug opcode.");
+        DbgValues.push_back(&NextMI);
       }
-    }
-    else if (User || ++Count > 20)
+    } else if (User || ++Count > 20)
       break;
   }
 
@@ -7664,11 +7665,11 @@ SystemZTargetLowering::emitSelect(MachineInstr &MI,
   //  ...
   MBB = JoinMBB;
   createPHIsForSelects(Selects, StartMBB, FalseMBB, MBB);
-  for (auto SelMI : Selects)
+  for (auto *SelMI : Selects)
     SelMI->eraseFromParent();
 
   MachineBasicBlock::iterator InsertPos = MBB->getFirstNonPHI();
-  for (auto DbgMI : DbgValues)
+  for (auto *DbgMI : DbgValues)
     MBB->splice(InsertPos, StartMBB, DbgMI);
 
   return JoinMBB;

@@ -18,14 +18,15 @@
 
 #include <pi_opencl.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <iostream>
 #include <limits>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -413,17 +414,30 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
+  // Check that unexpected bits are not set.
+  assert(!(properties &
+           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
+             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+
+  // Properties supported by OpenCL backend.
+  cl_command_queue_properties SupportByOpenCL =
+      CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
+      CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
+
   if (platVer.find("OpenCL 1.0") != std::string::npos ||
       platVer.find("OpenCL 1.1") != std::string::npos ||
       platVer.find("OpenCL 1.2") != std::string::npos) {
     *queue = cast<pi_queue>(clCreateCommandQueue(
         cast<cl_context>(context), cast<cl_device_id>(device),
-        cast<cl_command_queue_properties>(properties), &ret_err));
+        cast<cl_command_queue_properties>(properties) & SupportByOpenCL,
+        &ret_err));
     return cast<pi_result>(ret_err);
   }
 
   cl_queue_properties CreationFlagProperties[] = {
-      CL_QUEUE_PROPERTIES, cast<cl_command_queue_properties>(properties), 0};
+      CL_QUEUE_PROPERTIES,
+      cast<cl_command_queue_properties>(properties) & SupportByOpenCL, 0};
   *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
       cast<cl_context>(context), cast<cl_device_id>(device),
       CreationFlagProperties, &ret_err));
@@ -847,6 +861,21 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
   (void)param_value_size;
   size_t ret_val;
   cl_int ret_err;
+
+  std::shared_ptr<void> implicit_input_value;
+  if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE && !input_value) {
+    // OpenCL needs an input value for PI_KERNEL_MAX_SUB_GROUP_SIZE so if no
+    // value is given we use the max work item sizes of the device to avoid
+    // truncation of max sub-group size.
+    implicit_input_value = std::shared_ptr<size_t[]>(new size_t[3]);
+    pi_result pi_ret_err = piDeviceGetInfo(
+        device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, 3 * sizeof(size_t),
+        implicit_input_value.get(), nullptr);
+    if (pi_ret_err != PI_SUCCESS)
+      return pi_ret_err;
+    input_value = implicit_input_value.get();
+  }
+
   ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
       cast<cl_kernel>(kernel), cast<cl_device_id>(device),
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,

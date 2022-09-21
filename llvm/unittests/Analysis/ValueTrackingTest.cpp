@@ -202,7 +202,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero1) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero2) {
@@ -213,7 +213,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero2) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero3) {
@@ -224,7 +224,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero3) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero4) {
@@ -235,7 +235,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero4) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero5) {
@@ -246,7 +246,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero5) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero6) {
@@ -257,7 +257,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero6) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero7) {
@@ -268,7 +268,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero7) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero8) {
@@ -279,7 +279,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero8) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero1) {
@@ -290,7 +290,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero1) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero2) {
@@ -301,7 +301,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero2) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero3) {
@@ -312,7 +312,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero3) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero4) {
@@ -323,7 +323,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero4) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero5) {
@@ -334,7 +334,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero5) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero6) {
@@ -345,7 +345,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero6) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero7) {
@@ -356,7 +356,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero7) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero8) {
@@ -367,7 +367,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero8) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZeroVecUndef) {
@@ -1343,6 +1343,18 @@ TEST_F(ValueTrackingTest, IsImpliedConditionAnd2) {
   EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
   EXPECT_EQ(isImpliedCondition(A, A3, DL), false);
   EXPECT_EQ(isImpliedCondition(A, A4, DL), None);
+}
+
+TEST_F(ValueTrackingTest, IsImpliedConditionAndVec) {
+  parseAssembly(R"(
+    define void @test(<2 x i8> %x, <2 x i8> %y) {
+      %A = icmp ult <2 x i8> %x, %y
+      %A2 = icmp ule <2 x i8> %x, %y
+      ret void
+    }
+  )");
+  const DataLayout &DL = M->getDataLayout();
+  EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
 }
 
 TEST_F(ValueTrackingTest, IsImpliedConditionOr) {

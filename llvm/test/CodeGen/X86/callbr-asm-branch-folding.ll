@@ -55,8 +55,9 @@ define dso_local void @n(ptr %o, i32 %p, i32 %u) nounwind {
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    #NO_APP
 ; CHECK-NEXT:    jmp .LBB0_9
-; CHECK-NEXT:  .Ltmp0: # Block address taken
-; CHECK-NEXT:  # %bb.7: # %if.then20.critedge
+; CHECK-NEXT:  .LBB0_7: # Block address taken
+; CHECK-NEXT:    # %if.then20.critedge
+; CHECK-NEXT:    # Label of block must be emitted
 ; CHECK-NEXT:    movl j(%rip), %edi
 ; CHECK-NEXT:    movslq %eax, %rcx
 ; CHECK-NEXT:    movl $1, %esi
@@ -116,7 +117,7 @@ if.end12:                                         ; preds = %if.end8
   br i1 %tobool13, label %if.else, label %if.then14
 
 if.then14:                                        ; preds = %if.end12
-  callbr void asm sideeffect "", "i,~{dirflag},~{fpsr},~{flags}"(ptr blockaddress(@n, %if.then20.critedge))
+  callbr void asm sideeffect "", "!i,~{dirflag},~{fpsr},~{flags}"()
           to label %cleanup [label %if.then20.critedge]
 
 if.then20.critedge:                               ; preds = %if.then14

@@ -348,6 +348,39 @@ static Type parseCooperativeMatrixType(SPIRVDialect const &dialect,
   return CooperativeMatrixNVType::get(elementTy, scope, dims[0], dims[1]);
 }
 
+// joint-matrix-type ::= `!spv.jointmatrix` `<`rows `x` columns `x` element-type
+//                                                       `,` layout `,` scope`>`
+static Type parseJointMatrixType(SPIRVDialect const &dialect,
+                                 DialectAsmParser &parser) {
+  if (parser.parseLess())
+    return Type();
+
+  SmallVector<int64_t, 2> dims;
+  SMLoc countLoc = parser.getCurrentLocation();
+  if (parser.parseDimensionList(dims, /*allowDynamic=*/false))
+    return Type();
+
+  if (dims.size() != 2) {
+    parser.emitError(countLoc, "expected rows and columns size");
+    return Type();
+  }
+
+  auto elementTy = parseAndVerifyType(dialect, parser);
+  if (!elementTy)
+    return Type();
+  MatrixLayout matrixLayout;
+  if (parser.parseComma() ||
+      parseEnumKeywordAttr(matrixLayout, parser, "matrixLayout <id>"))
+    return Type();
+  Scope scope;
+  if (parser.parseComma() || parseEnumKeywordAttr(scope, parser, "scope <id>"))
+    return Type();
+  if (parser.parseGreater())
+    return Type();
+  return JointMatrixINTELType::get(elementTy, scope, dims[0], dims[1],
+                                   matrixLayout);
+}
+
 // TODO: Reorder methods to be utilities first and parse*Type
 // methods in alphabetical order
 //
@@ -483,7 +516,8 @@ namespace {
 // parseAndVerify does the actual parsing and verification of individual
 // elements. This is a functor since parsing the last element of the list
 // (termination condition) needs partial specialization.
-template <typename ParseType, typename... Args> struct ParseCommaSeparatedList {
+template <typename ParseType, typename... Args>
+struct ParseCommaSeparatedList {
   Optional<std::tuple<ParseType, Args...>>
   operator()(SPIRVDialect const &dialect, DialectAsmParser &parser) const {
     auto parseVal = parseAndVerify<ParseType>(dialect, parser);
@@ -496,14 +530,15 @@ template <typename ParseType, typename... Args> struct ParseCommaSeparatedList {
     auto remainingValues = ParseCommaSeparatedList<Args...>{}(dialect, parser);
     if (!remainingValues)
       return llvm::None;
-    return std::tuple_cat(std::tuple<ParseType>(parseVal.getValue()),
-                          remainingValues.getValue());
+    return std::tuple_cat(std::tuple<ParseType>(parseVal.value()),
+                          remainingValues.value());
   }
 };
 
 // Partial specialization of the function to parse a comma separated list of
 // specs to parse the last element of the list.
-template <typename ParseType> struct ParseCommaSeparatedList<ParseType> {
+template <typename ParseType>
+struct ParseCommaSeparatedList<ParseType> {
   Optional<std::tuple<ParseType>> operator()(SPIRVDialect const &dialect,
                                              DialectAsmParser &parser) const {
     if (auto value = parseAndVerify<ParseType>(dialect, parser))
@@ -571,7 +606,7 @@ static ParseResult parseStructMemberDecorations(
   SMLoc offsetLoc = parser.getCurrentLocation();
   StructType::OffsetInfo offset = 0;
   OptionalParseResult offsetParseResult = parser.parseOptionalInteger(offset);
-  if (offsetParseResult.hasValue()) {
+  if (offsetParseResult.has_value()) {
     if (failed(*offsetParseResult))
       return failure();
 
@@ -588,7 +623,7 @@ static ParseResult parseStructMemberDecorations(
     return success();
 
   // If there was an offset, make sure to parse the comma.
-  if (offsetParseResult.hasValue() && parser.parseComma())
+  if (offsetParseResult.has_value() && parser.parseComma())
     return failure();
 
   // Check for spirv::Decorations.
@@ -607,11 +642,11 @@ static ParseResult parseStructMemberDecorations(
 
       memberDecorationInfo.emplace_back(
           static_cast<uint32_t>(memberTypes.size() - 1), 1,
-          memberDecoration.getValue(), memberDecorationValue.getValue());
+          memberDecoration.value(), memberDecorationValue.value());
     } else {
       memberDecorationInfo.emplace_back(
           static_cast<uint32_t>(memberTypes.size() - 1), 0,
-          memberDecoration.getValue(), 0);
+          memberDecoration.value(), 0);
     }
     return success();
   };
@@ -751,6 +786,8 @@ Type SPIRVDialect::parseType(DialectAsmParser &parser) const {
     return parseArrayType(*this, parser);
   if (keyword == "coopmatrix")
     return parseCooperativeMatrixType(*this, parser);
+  if (keyword == "jointmatrix")
+    return parseJointMatrixType(*this, parser);
   if (keyword == "image")
     return parseImageType(*this, parser);
   if (keyword == "ptr")
@@ -857,6 +894,13 @@ static void print(CooperativeMatrixNVType type, DialectAsmPrinter &os) {
   os << ">";
 }
 
+static void print(JointMatrixINTELType type, DialectAsmPrinter &os) {
+  os << "jointmatrix<" << type.getRows() << "x" << type.getColumns() << "x";
+  os << type.getElementType() << ", "
+     << stringifyMatrixLayout(type.getMatrixLayout());
+  os << ", " << stringifyScope(type.getScope()) << ">";
+}
+
 static void print(MatrixType type, DialectAsmPrinter &os) {
   os << "matrix<" << type.getNumColumns() << " x " << type.getColumnType();
   os << ">";
@@ -864,9 +908,9 @@ static void print(MatrixType type, DialectAsmPrinter &os) {
 
 void SPIRVDialect::printType(Type type, DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
-      .Case<ArrayType, CooperativeMatrixNVType, PointerType, RuntimeArrayType,
-            ImageType, SampledImageType, StructType, MatrixType>(
-          [&](auto type) { print(type, os); })
+      .Case<ArrayType, CooperativeMatrixNVType, JointMatrixINTELType,
+            PointerType, RuntimeArrayType, ImageType, SampledImageType,
+            StructType, MatrixType>([&](auto type) { print(type, os); })
       .Default([](Type) { llvm_unreachable("unhandled SPIR-V type"); });
 }
 

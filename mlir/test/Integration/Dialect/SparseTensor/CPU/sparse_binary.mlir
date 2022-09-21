@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 #SparseVector = #sparse_tensor.encoding<{dimLevelType = ["compressed"]}>
@@ -43,27 +43,26 @@
 module {
   // Creates a new sparse vector using the minimum values from two input sparse vectors.
   // When there is no overlap, include the present value in the output.
-  func.func @vector_min(%arga: tensor<?xf64, #SparseVector>,
-                        %argb: tensor<?xf64, #SparseVector>) -> tensor<?xf64, #SparseVector> {
+  func.func @vector_min(%arga: tensor<?xi32, #SparseVector>,
+                        %argb: tensor<?xi32, #SparseVector>) -> tensor<?xi32, #SparseVector> {
     %c = arith.constant 0 : index
-    %d = tensor.dim %arga, %c : tensor<?xf64, #SparseVector>
-    %xv = bufferization.alloc_tensor(%d) : tensor<?xf64, #SparseVector>
+    %d = tensor.dim %arga, %c : tensor<?xi32, #SparseVector>
+    %xv = bufferization.alloc_tensor(%d) : tensor<?xi32, #SparseVector>
     %0 = linalg.generic #trait_vec_op
-       ins(%arga, %argb: tensor<?xf64, #SparseVector>, tensor<?xf64, #SparseVector>)
-        outs(%xv: tensor<?xf64, #SparseVector>) {
-        ^bb(%a: f64, %b: f64, %x: f64):
-          %1 = sparse_tensor.binary %a, %b : f64, f64 to f64
+       ins(%arga, %argb: tensor<?xi32, #SparseVector>, tensor<?xi32, #SparseVector>)
+        outs(%xv: tensor<?xi32, #SparseVector>) {
+        ^bb(%a: i32, %b: i32, %x: i32):
+          %1 = sparse_tensor.binary %a, %b : i32, i32 to i32
             overlap={
-              ^bb0(%a0: f64, %b0: f64):
-                %cmp = arith.cmpf "olt", %a0, %b0 : f64
-                %2 = arith.select %cmp, %a0, %b0: f64
-                sparse_tensor.yield %2 : f64
+              ^bb0(%a0: i32, %b0: i32):
+                %2 = arith.minsi %a0, %b0: i32
+                sparse_tensor.yield %2 : i32
             }
             left=identity
             right=identity
-          linalg.yield %1 : f64
-    } -> tensor<?xf64, #SparseVector>
-    return %0 : tensor<?xf64, #SparseVector>
+          linalg.yield %1 : i32
+    } -> tensor<?xi32, #SparseVector>
+    return %0 : tensor<?xi32, #SparseVector>
   }
 
   // Creates a new sparse vector by multiplying a sparse vector with a dense vector.
@@ -353,10 +352,8 @@ module {
     vector.print %1 : vector<16xf64>
     // Dump the dense vector to verify structure is correct.
     %dv = sparse_tensor.convert %arg0 : tensor<?xf64, #SparseVector> to tensor<?xf64>
-    %2 = bufferization.to_memref %dv : memref<?xf64>
-    %3 = vector.transfer_read %2[%c0], %d0: memref<?xf64>, vector<32xf64>
+    %3 = vector.transfer_read %dv[%c0], %d0: tensor<?xf64>, vector<32xf64>
     vector.print %3 : vector<32xf64>
-    memref.dealloc %2 : memref<?xf64>
     return
   }
 
@@ -369,10 +366,8 @@ module {
     vector.print %1 : vector<24xi32>
     // Dump the dense vector to verify structure is correct.
     %dv = sparse_tensor.convert %arg0 : tensor<?xi32, #SparseVector> to tensor<?xi32>
-    %2 = bufferization.to_memref %dv : memref<?xi32>
-    %3 = vector.transfer_read %2[%c0], %d0: memref<?xi32>, vector<32xi32>
+    %3 = vector.transfer_read %dv[%c0], %d0: tensor<?xi32>, vector<32xi32>
     vector.print %3 : vector<32xi32>
-    memref.dealloc %2 : memref<?xi32>
     return
   }
 
@@ -380,10 +375,8 @@ module {
     %d0 = arith.constant 0.0 : f64
     %c0 = arith.constant 0 : index
     %dm = sparse_tensor.convert %arg0 : tensor<?x?xf64, #DCSR> to tensor<?x?xf64>
-    %0 = bufferization.to_memref %dm : memref<?x?xf64>
-    %1 = vector.transfer_read %0[%c0, %c0], %d0: memref<?x?xf64>, vector<4x8xf64>
+    %1 = vector.transfer_read %dm[%c0, %c0], %d0: tensor<?x?xf64>, vector<4x8xf64>
     vector.print %1 : vector<4x8xf64>
-    memref.dealloc %0 : memref<?x?xf64>
     return
   }
 
@@ -392,16 +385,13 @@ module {
     %du = arith.constant -1.0 : f64
 
     %c = sparse_tensor.convert %A : tensor<4x4xf64, #DCSR> to tensor<4x4xf64>
-    %m = bufferization.to_memref %c : memref<4x4xf64>
-    %v = vector.transfer_read %m[%c0, %c0], %du: memref<4x4xf64>, vector<4x4xf64>
+    %v = vector.transfer_read %c[%c0, %c0], %du: tensor<4x4xf64>, vector<4x4xf64>
     vector.print %v : vector<4x4xf64>
 
     %1 = sparse_tensor.values %A : tensor<4x4xf64, #DCSR> to memref<?xf64>
     %2 = vector.transfer_read %1[%c0], %du: memref<?xf64>, vector<16xf64>
     vector.print %2 : vector<16xf64>
 
-    // Release the resources.
-    memref.dealloc %m : memref<4x4xf64>
     return
   }
 
@@ -410,16 +400,13 @@ module {
     %du = arith.constant -1 : i8
 
     %c = sparse_tensor.convert %A : tensor<4x4xi8, #DCSR> to tensor<4x4xi8>
-    %m = bufferization.to_memref %c : memref<4x4xi8>
-    %v = vector.transfer_read %m[%c0, %c0], %du: memref<4x4xi8>, vector<4x4xi8>
+    %v = vector.transfer_read %c[%c0, %c0], %du: tensor<4x4xi8>, vector<4x4xi8>
     vector.print %v : vector<4x4xi8>
 
     %1 = sparse_tensor.values %A : tensor<4x4xi8, #DCSR> to memref<?xi8>
     %2 = vector.transfer_read %1[%c0], %du: memref<?xi8>, vector<16xi8>
     vector.print %2 : vector<16xi8>
-
-    // Release the resources.
-    memref.dealloc %m : memref<4x4xi8>
+  
     return
   }
 
@@ -440,8 +427,13 @@ module {
       [0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 0., 1., 2., 3., 4., 5., 6., 7., 8., 9.,
        0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 0., 1.]
     > : tensor<32xf64>
+    %v1_si = arith.fptosi %v1 : tensor<32xf64> to tensor<32xi32>
+    %v2_si = arith.fptosi %v2 : tensor<32xf64> to tensor<32xi32>
+
     %sv1 = sparse_tensor.convert %v1 : tensor<32xf64> to tensor<?xf64, #SparseVector>
     %sv2 = sparse_tensor.convert %v2 : tensor<32xf64> to tensor<?xf64, #SparseVector>
+    %sv1_si = sparse_tensor.convert %v1_si : tensor<32xi32> to tensor<?xi32, #SparseVector>
+    %sv2_si = sparse_tensor.convert %v2_si : tensor<32xi32> to tensor<?xi32, #SparseVector>
     %dv3 = tensor.cast %v3 : tensor<32xf64> to tensor<?xf64>
 
     // Setup sparse matrices.
@@ -471,9 +463,9 @@ module {
     %sm4 = sparse_tensor.convert %m4 : tensor<4x4xf64> to tensor<4x4xf64, #DCSR>
 
     // Call sparse vector kernels.
-    %0 = call @vector_min(%sv1, %sv2)
-       : (tensor<?xf64, #SparseVector>,
-          tensor<?xf64, #SparseVector>) -> tensor<?xf64, #SparseVector>
+    %0 = call @vector_min(%sv1_si, %sv2_si)
+       : (tensor<?xi32, #SparseVector>,
+          tensor<?xi32, #SparseVector>) -> tensor<?xi32, #SparseVector>
     %1 = call @vector_mul(%sv1, %dv3)
       : (tensor<?xf64, #SparseVector>,
          tensor<?xf64>) -> tensor<?xf64, #SparseVector>
@@ -506,7 +498,7 @@ module {
     // CHECK-NEXT: ( 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 4, 0, 0, 5, 6, 0, 0, 0, 0, 0, 0, 7, 8, 0, 9 )
     // CHECK-NEXT: ( 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, -1, -1, -1, -1, -1, -1 )
     // CHECK-NEXT: ( 0, 11, 0, 12, 13, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 15, 0, 16, 0, 0, 17, 0, 0, 0, 0, 0, 0, 18, 19, 0, 20 )
-    // CHECK-NEXT: ( 1, 11, 2, 13, 14, 3, 15, 4, 16, 5, 6, 7, 8, 9, -1, -1 )
+    // CHECK-NEXT: ( 1, 11, 2, 13, 14, 3, 15, 4, 16, 5, 6, 7, 8, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 )
     // CHECK-NEXT: ( 1, 11, 0, 2, 13, 0, 0, 0, 0, 0, 14, 3, 0, 0, 0, 0, 15, 4, 16, 0, 5, 6, 0, 0, 0, 0, 0, 0, 7, 8, 0, 9 )
     // CHECK-NEXT: ( 0, 6, 3, 28, 0, 6, 56, 72, 9, -1, -1, -1, -1, -1, -1, -1 )
     // CHECK-NEXT: ( 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 28, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 56, 72, 0, 9 )
@@ -530,7 +522,7 @@ module {
     //
     call @dump_vec(%sv1) : (tensor<?xf64, #SparseVector>) -> ()
     call @dump_vec(%sv2) : (tensor<?xf64, #SparseVector>) -> ()
-    call @dump_vec(%0) : (tensor<?xf64, #SparseVector>) -> ()
+    call @dump_vec_i32(%0) : (tensor<?xi32, #SparseVector>) -> ()
     call @dump_vec(%1) : (tensor<?xf64, #SparseVector>) -> ()
     call @dump_vec(%2) : (tensor<?xf64, #SparseVector>) -> ()
     call @dump_vec_i32(%3) : (tensor<?xi32, #SparseVector>) -> ()
@@ -543,23 +535,25 @@ module {
     call @dump_mat_4x4(%11) : (tensor<4x4xf64, #DCSR>) -> ()
 
     // Release the resources.
-    sparse_tensor.release %sv1 : tensor<?xf64, #SparseVector>
-    sparse_tensor.release %sv2 : tensor<?xf64, #SparseVector>
-    sparse_tensor.release %sm1 : tensor<?x?xf64, #DCSR>
-    sparse_tensor.release %sm2 : tensor<?x?xf64, #DCSR>
-    sparse_tensor.release %sm3 : tensor<4x4xf64, #DCSR>
-    sparse_tensor.release %sm4 : tensor<4x4xf64, #DCSR>
-    sparse_tensor.release %0 : tensor<?xf64, #SparseVector>
-    sparse_tensor.release %1 : tensor<?xf64, #SparseVector>
-    sparse_tensor.release %2 : tensor<?xf64, #SparseVector>
-    sparse_tensor.release %3 : tensor<?xi32, #SparseVector>
-    sparse_tensor.release %5 : tensor<?x?xf64, #DCSR>
-    sparse_tensor.release %6 : tensor<4x4xf64, #DCSR>
-    sparse_tensor.release %7 : tensor<4x4xf64, #DCSR>
-    sparse_tensor.release %8 : tensor<4x4xf64, #DCSR>
-    sparse_tensor.release %9 : tensor<4x4xf64, #DCSR>
-    sparse_tensor.release %10 : tensor<4x4xi8, #DCSR>
-    sparse_tensor.release %11 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %sv1 : tensor<?xf64, #SparseVector>
+    bufferization.dealloc_tensor %sv2 : tensor<?xf64, #SparseVector>
+    bufferization.dealloc_tensor %sv1_si : tensor<?xi32, #SparseVector>
+    bufferization.dealloc_tensor %sv2_si : tensor<?xi32, #SparseVector>
+    bufferization.dealloc_tensor %sm1 : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %sm2 : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %sm3 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %sm4 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %0 : tensor<?xi32, #SparseVector>
+    bufferization.dealloc_tensor %1 : tensor<?xf64, #SparseVector>
+    bufferization.dealloc_tensor %2 : tensor<?xf64, #SparseVector>
+    bufferization.dealloc_tensor %3 : tensor<?xi32, #SparseVector>
+    bufferization.dealloc_tensor %5 : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %6 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %7 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %8 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %9 : tensor<4x4xf64, #DCSR>
+    bufferization.dealloc_tensor %10 : tensor<4x4xi8, #DCSR>
+    bufferization.dealloc_tensor %11 : tensor<4x4xf64, #DCSR>
     return
   }
 }

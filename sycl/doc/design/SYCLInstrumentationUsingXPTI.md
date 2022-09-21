@@ -97,7 +97,7 @@ language constructs (2) The instrumentation that handles capturing the
 relevant metadata.
 
 1. In order to capture end-user source code information, we have implemented
-`cl::sycl::detail::code_location` class that uses the builtin functions
+`sycl::detail::code_location` class that uses the builtin functions
 in the compiler. However, equivalent implementations are unavailable on
 Windows and separate cross-platform implementation might be used in the
 future. To mitigate this, the Windows implementation will always report
@@ -314,6 +314,26 @@ application.
 ## SYCL Stream `"sycl.experimental.level_zero.debug"` Notification Signatures
 
 This stream transfers events about Level Zero API calls and their function
+arguments made by SYCL application.
+
+| Trace Point Type           | Parameter Description | Metadata |
+| :------------------------: | :-------------------- | :------- |
+| `function_with_args_begin` | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::function_with_args_begin` that marks the beginning of a function</li> <li> **parent**: Event ID created for all functions in the `sycl.pi.debug` layer.</li> <li> **event**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **instance**: Unique ID to allow the correlation of the `function_with_args_begin` event with the `function_with_args_end` event. </li> <li> **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, and arguments. </li></div>                                                                                                                 | None     |
+| `function_with_args_end`   | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::function_with_args_end` that marks the beginning of a function</li> <li> **parent**: Event ID created for all functions in the `sycl.pi.debug` layer.</li> <li> **event**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **instance**: Unique ID to allow the correlation of the `function_with_args_begin` event with the `function_with_args_end` event. This value is guaranteed to be the same value  received by the trace event for the corresponding `function_with_args_begin` </li> <li> **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value. </li></div> | None     |
+
+## SYCL Stream `"sycl.experimental.cuda.call"` Notification Signatures
+
+This stream transfers events about CUDA Driver API calls made by SYCL
+application.
+
+| Trace Point Type | Parameter Description | Metadata |
+| :--------------: | :-------------------- | :------- |
+| `function_begin` | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::function_begin` that marks the beginning of a function</li> <li> **parent**: Event ID created for all functions in the `sycl.pi` layer.</li> <li> **event**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **instance**: Unique ID to allow the correlation of the `function_begin` event with the `function_end` event. </li> <li> **user_data**: Name of the function being called sent in as `const char *` </li></div>                                                                                                                 | None     |
+| `function_end`   | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::function_end` that marks the beginning of a function</li> <li> **parent**: Event ID created for all functions in the `sycl.pi` layer.</li> <li> **event**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **instance**: Unique ID to allow the correlation of the `function_begin` event with the `function_end` event. This value is guaranteed to be the same value  received by the trace event for the corresponding `function_begin` </li> <li> **user_data**: Name of the function being called sent in as `const char *` </li></div> | None     |
+
+## SYCL Stream `"sycl.experimental.cuda.debug"` Notification Signatures
+
+This stream transfers events about CUDA Driver API calls and their function
 arguments made by SYCL application.
 
 | Trace Point Type           | Parameter Description | Metadata |

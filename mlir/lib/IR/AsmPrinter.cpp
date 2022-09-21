@@ -20,6 +20,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
@@ -930,8 +931,7 @@ private:
 };
 } // namespace
 
-SSANameState::SSANameState(
-    Operation *op, const OpPrintingFlags &printerFlags)
+SSANameState::SSANameState(Operation *op, const OpPrintingFlags &printerFlags)
     : printerFlags(printerFlags) {
   llvm::SaveAndRestore<unsigned> valueIDSaver(nextValueID);
   llvm::SaveAndRestore<unsigned> argumentIDSaver(nextArgumentID);
@@ -1476,6 +1476,9 @@ protected:
   void printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
                                      bool allowHex);
 
+  /// Print a dense array attribute.
+  void printDenseArrayAttr(DenseArrayAttr attr);
+
   void printDialectAttribute(Attribute attr);
   void printDialectType(Type type);
 
@@ -1724,14 +1727,10 @@ static void printSymbolReference(StringRef symbolRef, raw_ostream &os) {
 // Print out a valid ElementsAttr that is succinct and can represent any
 // potential shape/type, for use when eliding a large ElementsAttr.
 //
-// We choose to use an opaque ElementsAttr literal with conspicuous content to
-// hopefully alert readers to the fact that this has been elided.
-//
-// Unfortunately, neither of the strings of an opaque ElementsAttr literal will
-// accept the string "elided". The first string must be a registered dialect
-// name and the latter must be a hex constant.
+// We choose to use a dense resource ElementsAttr literal with conspicuous
+// content to hopefully alert readers to the fact that this has been elided.
 static void printElidedElementsAttr(raw_ostream &os) {
-  os << R"(opaque<"elided_large_const", "0xDEADBEEF">)";
+  os << R"(dense_resource<__elided__>)";
 }
 
 LogicalResult AsmPrinter::Impl::printAlias(Attribute attr) {
@@ -1753,7 +1752,6 @@ void AsmPrinter::Impl::printAttribute(Attribute attr,
   if (succeeded(printAlias(attr)))
     return;
 
-  auto attrType = attr.getType();
   if (!isa<BuiltinDialect>(attr.getDialect())) {
     printDialectAttribute(attr);
   } else if (auto opaqueAttr = attr.dyn_cast<OpaqueAttr>()) {
@@ -1769,7 +1767,8 @@ void AsmPrinter::Impl::printAttribute(Attribute attr,
     os << '}';
 
   } else if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
-    if (attrType.isSignlessInteger(1)) {
+    Type intType = intAttr.getType();
+    if (intType.isSignlessInteger(1)) {
       os << (intAttr.getValue().getBoolValue() ? "true" : "false");
 
       // Boolean integer attributes always elides the type.
@@ -1780,18 +1779,18 @@ void AsmPrinter::Impl::printAttribute(Attribute attr,
     // signless 1-bit values.  Indexes, signed values, and multi-bit signless
     // values print as signed.
     bool isUnsigned =
-        attrType.isUnsignedInteger() || attrType.isSignlessInteger(1);
+        intType.isUnsignedInteger() || intType.isSignlessInteger(1);
     intAttr.getValue().print(os, !isUnsigned);
 
     // IntegerAttr elides the type if I64.
-    if (typeElision == AttrTypeElision::May && attrType.isSignlessInteger(64))
+    if (typeElision == AttrTypeElision::May && intType.isSignlessInteger(64))
       return;
 
   } else if (auto floatAttr = attr.dyn_cast<FloatAttr>()) {
     printFloatValue(floatAttr.getValue(), os);
 
     // FloatAttr elides the type if F64.
-    if (typeElision == AttrTypeElision::May && attrType.isF64())
+    if (typeElision == AttrTypeElision::May && floatAttr.getType().isF64())
       return;
 
   } else if (auto strAttr = attr.dyn_cast<StringAttr>()) {
@@ -1830,15 +1829,6 @@ void AsmPrinter::Impl::printAttribute(Attribute attr,
       printSymbolReference(nestedRef.getValue(), os);
     }
 
-  } else if (auto opaqueAttr = attr.dyn_cast<OpaqueElementsAttr>()) {
-    if (printerFlags.shouldElideElementsAttr(opaqueAttr)) {
-      printElidedElementsAttr(os);
-    } else {
-      os << "opaque<" << opaqueAttr.getDialect() << ", ";
-      printHexString(opaqueAttr.getValue());
-      os << ">";
-    }
-
   } else if (auto intOrFpEltAttr = attr.dyn_cast<DenseIntOrFPElementsAttr>()) {
     if (printerFlags.shouldElideElementsAttr(intOrFpEltAttr)) {
       printElidedElementsAttr(os);
@@ -1871,49 +1861,47 @@ void AsmPrinter::Impl::printAttribute(Attribute attr,
       }
       os << '>';
     }
-  } else if (auto denseArrayAttr = attr.dyn_cast<DenseArrayBaseAttr>()) {
-    typeElision = AttrTypeElision::Must;
-    switch (denseArrayAttr.getElementType()) {
-    case DenseArrayBaseAttr::EltType::I8:
-      os << "[:i8 ";
-      break;
-    case DenseArrayBaseAttr::EltType::I16:
-      os << "[:i16 ";
-      break;
-    case DenseArrayBaseAttr::EltType::I32:
-      os << "[:i32 ";
-      break;
-    case DenseArrayBaseAttr::EltType::I64:
-      os << "[:i64 ";
-      break;
-    case DenseArrayBaseAttr::EltType::F32:
-      os << "[:f32 ";
-      break;
-    case DenseArrayBaseAttr::EltType::F64:
-      os << "[:f64 ";
-      break;
+  } else if (auto stridedLayoutAttr = attr.dyn_cast<StridedLayoutAttr>()) {
+    stridedLayoutAttr.print(os);
+  } else if (auto denseArrayAttr = attr.dyn_cast<DenseArrayAttr>()) {
+    os << "array<";
+    if (typeElision != AttrTypeElision::Must)
+      printType(denseArrayAttr.getType().getElementType());
+    if (!denseArrayAttr.empty()) {
+      if (typeElision != AttrTypeElision::Must)
+        os << ": ";
+      printDenseArrayAttr(denseArrayAttr);
     }
-    denseArrayAttr.printWithoutBraces(os);
-    os << "]";
+    os << ">";
+    return;
+  } else if (auto resourceAttr = attr.dyn_cast<DenseResourceElementsAttr>()) {
+    os << "dense_resource<";
+    printResourceHandle(resourceAttr.getRawHandle());
+    os << ">";
   } else if (auto locAttr = attr.dyn_cast<LocationAttr>()) {
     printLocation(locAttr);
   } else {
     llvm::report_fatal_error("Unknown builtin attribute");
   }
   // Don't print the type if we must elide it, or if it is a None type.
-  if (typeElision != AttrTypeElision::Must && !attrType.isa<NoneType>()) {
-    os << " : ";
-    printType(attrType);
+  if (typeElision != AttrTypeElision::Must) {
+    if (auto typedAttr = attr.dyn_cast<TypedAttr>()) {
+      Type attrType = typedAttr.getType();
+      if (!attrType.isa<NoneType>()) {
+        os << " : ";
+        printType(attrType);
+      }
+    }
   }
 }
 
 /// Print the integer element of a DenseElementsAttr.
 static void printDenseIntElement(const APInt &value, raw_ostream &os,
-                                 bool isSigned) {
-  if (value.getBitWidth() == 1)
+                                 Type type) {
+  if (type.isInteger(1))
     os << (value.getBoolValue() ? "true" : "false");
   else
-    value.print(os, isSigned);
+    value.print(os, !type.isUnsignedInteger());
 }
 
 static void
@@ -2007,14 +1995,13 @@ void AsmPrinter::Impl::printDenseIntOrFPElementsAttr(
     // printDenseElementsAttrImpl. This lambda was hitting a bug in gcc 9.1,9.2
     // and hence was replaced.
     if (complexElementType.isa<IntegerType>()) {
-      bool isSigned = !complexElementType.isUnsignedInteger();
       auto valueIt = attr.value_begin<std::complex<APInt>>();
       printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
         auto complexValue = *(valueIt + index);
         os << "(";
-        printDenseIntElement(complexValue.real(), os, isSigned);
+        printDenseIntElement(complexValue.real(), os, complexElementType);
         os << ",";
-        printDenseIntElement(complexValue.imag(), os, isSigned);
+        printDenseIntElement(complexValue.imag(), os, complexElementType);
         os << ")";
       });
     } else {
@@ -2029,10 +2016,9 @@ void AsmPrinter::Impl::printDenseIntOrFPElementsAttr(
       });
     }
   } else if (elementType.isIntOrIndex()) {
-    bool isSigned = !elementType.isUnsignedInteger();
     auto valueIt = attr.value_begin<APInt>();
     printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-      printDenseIntElement(*(valueIt + index), os, isSigned);
+      printDenseIntElement(*(valueIt + index), os, elementType);
     });
   } else {
     assert(elementType.isa<FloatType>() && "unexpected element type");
@@ -2048,6 +2034,31 @@ void AsmPrinter::Impl::printDenseStringElementsAttr(
   ArrayRef<StringRef> data = attr.getRawStringData();
   auto printFn = [&](unsigned index) { printEscapedString(data[index]); };
   printDenseElementsAttrImpl(attr.isSplat(), attr.getType(), os, printFn);
+}
+
+void AsmPrinter::Impl::printDenseArrayAttr(DenseArrayAttr attr) {
+  Type type = attr.getElementType();
+  unsigned bitwidth = type.isInteger(1) ? 8 : type.getIntOrFloatBitWidth();
+  unsigned byteSize = bitwidth / 8;
+  ArrayRef<char> data = attr.getRawData();
+
+  auto printElementAt = [&](unsigned i) {
+    APInt value(bitwidth, 0);
+    if (bitwidth) {
+      llvm::LoadIntFromMemory(
+          value, reinterpret_cast<const uint8_t *>(data.begin() + byteSize * i),
+          byteSize);
+    }
+    // Print the data as-is or as a float.
+    if (type.isIntOrIndex()) {
+      printDenseIntElement(value, getStream(), type);
+    } else {
+      APFloat fltVal(type.cast<FloatType>().getFloatSemantics(), value);
+      printFloatValue(fltVal, getStream());
+    }
+  };
+  llvm::interleaveComma(llvm::seq<unsigned>(0, attr.size()), getStream(),
+                        printElementAt);
 }
 
 void AsmPrinter::Impl::printType(Type type) {
@@ -2685,8 +2696,9 @@ private:
                    uint32_t dataAlignment) final {
       printFn(key, [&](raw_ostream &os) {
         // Store the blob in a hex string containing the alignment and the data.
+        llvm::support::ulittle32_t dataAlignmentLE(dataAlignment);
         os << "\"0x"
-           << llvm::toHex(StringRef(reinterpret_cast<char *>(&dataAlignment),
+           << llvm::toHex(StringRef(reinterpret_cast<char *>(&dataAlignmentLE),
                                     sizeof(dataAlignment)))
            << llvm::toHex(StringRef(data.data(), data.size())) << "\"";
       });

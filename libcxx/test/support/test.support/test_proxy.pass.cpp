@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 #include "MoveOnly.h"
 #include "test_iterators.h"
@@ -58,10 +57,20 @@ constexpr void testProxy() {
     p4 = std::move(p3);
     assert(p4.data.get() == 8);
 
-    int i = 5, j = 6;
+    // `T` is a reference type.
+    int i = 5, j = 6, k = 7, x = 8;
     Proxy<int&> p5{i};
+    // `Other` is a prvalue.
     p5 = Proxy<int&>{j};
     assert(p5.data == 6);
+    // `Other` is a const lvalue.
+    const Proxy<int&> p_ref{k};
+    p5 = p_ref;
+    assert(p5.data == 7);
+    // `Other` is an xvalue.
+    Proxy<int&> px{x};
+    p5 = std::move(px);
+    assert(p5.data == 8);
   }
 
   // const assignment
@@ -87,6 +96,18 @@ constexpr void testProxy() {
     Proxy<int> p2{6};
     assert(p1 != p2);
     assert(p1 < p2);
+
+    // Comparing `T` and `T&`.
+    int i = 5, j = 6;
+    Proxy<int&> p_ref{i};
+    Proxy<const int&> p_cref{j};
+    assert(p1 == p_ref);
+    assert(p2 == p_cref);
+    assert(p_ref == p1);
+    assert(p_cref == p2);
+    assert(p_ref == p_ref);
+    assert(p_cref == p_cref);
+    assert(p_ref != p_cref);
   }
 }
 
@@ -271,7 +292,7 @@ constexpr bool test() {
   return true;
 }
 
-int main(int, const char**) {
+int main(int, char**) {
   test();
   static_assert(test());
 

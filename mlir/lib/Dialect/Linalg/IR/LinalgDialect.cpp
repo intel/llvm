@@ -96,8 +96,7 @@ void addNamedOpBuilderImpl(
 template <typename... OpTypes>
 void addNamedOpBuilders(
     llvm::StringMap<LinalgDialect::RegionBuilderFunType> &map) {
-  (void)std::initializer_list<int>{0,
-                                   (addNamedOpBuilderImpl<OpTypes>(map), 0)...};
+  (addNamedOpBuilderImpl<OpTypes>(map), ...);
 }
 
 void mlir::linalg::LinalgDialect::initialize() {
@@ -125,19 +124,6 @@ void mlir::linalg::LinalgDialect::initialize() {
 
 LogicalResult LinalgDialect::verifyOperationAttribute(Operation *op,
                                                       NamedAttribute attr) {
-  using bufferization::BufferizableOpInterface;
-
-  if (attr.getName() == BufferizableOpInterface::kInplaceableAttrName) {
-    if (!attr.getValue().isa<BoolAttr>()) {
-      return op->emitError()
-             << "'" << BufferizableOpInterface::kInplaceableAttrName
-             << "' is expected to be a boolean attribute";
-    }
-    if (!isa<FunctionOpInterface>(op))
-      return op->emitError() << "expected " << attr.getName()
-                             << " to be used on function-like operations";
-    return success();
-  }
   if (attr.getName() == LinalgDialect::kMemoizedIndexingMapsAttrName)
     return success();
   return op->emitError() << "attribute '" << attr.getName()

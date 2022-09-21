@@ -67,7 +67,11 @@ enum {
   /// This instruction is an X-Form memory operation.
   XFormMemOp = 0x1 << NewDef_Shift,
   /// This instruction is prefixed.
-  Prefixed = 0x1 << (NewDef_Shift+1)
+  Prefixed = 0x1 << (NewDef_Shift + 1),
+  /// This instruction produced a sign extended result.
+  SExt32To64 = 0x1 << (NewDef_Shift + 2),
+  /// This instruction produced a zero extended result.
+  ZExt32To64 = 0x1 << (NewDef_Shift + 3)
 };
 } // end namespace PPCII
 
@@ -294,6 +298,12 @@ public:
   bool isPrefixed(unsigned Opcode) const {
     return get(Opcode).TSFlags & PPCII::Prefixed;
   }
+  bool isSExt32To64(unsigned Opcode) const {
+    return get(Opcode).TSFlags & PPCII::SExt32To64;
+  }
+  bool isZExt32To64(unsigned Opcode) const {
+    return get(Opcode).TSFlags & PPCII::ZExt32To64;
+  }
 
   /// Check if Opcode corresponds to a call instruction that should be marked
   /// with the NOTOC relocation.
@@ -495,8 +505,7 @@ public:
                              unsigned &SubIdx) const override;
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
 
@@ -688,19 +697,20 @@ public:
 
   bool isTOCSaveMI(const MachineInstr &MI) const;
 
-  bool isSignOrZeroExtended(const MachineInstr &MI, bool SignExt,
-                            const unsigned PhiDepth) const;
+  std::pair<bool, bool>
+  isSignOrZeroExtended(const unsigned Reg, const unsigned BinOpDepth,
+                       const MachineRegisterInfo *MRI) const;
 
-  /// Return true if the output of the instruction is always a sign-extended,
-  /// i.e. 0 to 31-th bits are same as 32-th bit.
-  bool isSignExtended(const MachineInstr &MI, const unsigned depth = 0) const {
-    return isSignOrZeroExtended(MI, true, depth);
+  // Return true if the register is sign-extended from 32 to 64 bits.
+  bool isSignExtended(const unsigned Reg,
+                      const MachineRegisterInfo *MRI) const {
+    return isSignOrZeroExtended(Reg, 0, MRI).first;
   }
 
-  /// Return true if the output of the instruction is always zero-extended,
-  /// i.e. 0 to 31-th bits are all zeros
-  bool isZeroExtended(const MachineInstr &MI, const unsigned depth = 0) const {
-   return isSignOrZeroExtended(MI, false, depth);
+  // Return true if the register is zero-extended from 32 to 64 bits.
+  bool isZeroExtended(const unsigned Reg,
+                      const MachineRegisterInfo *MRI) const {
+    return isSignOrZeroExtended(Reg, 0, MRI).second;
   }
 
   bool convertToImmediateForm(MachineInstr &MI,

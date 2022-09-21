@@ -245,6 +245,22 @@ Check for uninitialized values being returned to the caller.
    return x; // warn
  }
 
+.. _core-uninitialized-NewArraySize:
+
+core.uninitialized.NewArraySize (C++)
+"""""""""""""""""""""""""""""""""""""
+
+Check if the element count in new[] is garbage or undefined.
+
+.. code-block:: cpp
+
+  void test() {
+    int n;
+    int *arr = new int[n]; // warn: Element count in new[] is a garbage value
+    delete[] arr;
+  }
+
+
 .. _cplusplus-checkers:
 
 
@@ -952,7 +968,7 @@ Check the size argument passed into C string functions for common erroneous patt
 unix.cstring.NullArg (C)
 """""""""""""""""""""""""
 Check for null pointers being passed as arguments to C string functions:
-``strlen, strnlen, strcpy, strncpy, strcat, strncat, strcmp, strncmp, strcasecmp, strncasecmp``.
+``strlen, strnlen, strcpy, strncpy, strcat, strncat, strcmp, strncmp, strcasecmp, strncasecmp, wcslen, wcsnlen``.
 
 .. code-block:: c
 
@@ -2699,7 +2715,7 @@ Check stream handling functions: ``fopen, tmpfile, fclose, fread, fwrite, fseek,
 
 alpha.unix.cstring.BufferOverlap (C)
 """"""""""""""""""""""""""""""""""""
-Checks for overlap in two buffer arguments. Applies to:  ``memcpy, mempcpy``.
+Checks for overlap in two buffer arguments. Applies to:  ``memcpy, mempcpy, wmemcpy, wmempcpy``.
 
 .. code-block:: c
 
@@ -2712,7 +2728,7 @@ Checks for overlap in two buffer arguments. Applies to:  ``memcpy, mempcpy``.
 
 alpha.unix.cstring.NotNullTerminated (C)
 """"""""""""""""""""""""""""""""""""""""
-Check for arguments which are not null-terminated strings; applies to: ``strlen, strnlen, strcpy, strncpy, strcat, strncat``.
+Check for arguments which are not null-terminated strings; applies to: ``strlen, strnlen, strcpy, strncpy, strcat, strncat, wcslen, wcsnlen``.
 
 .. code-block:: c
 
@@ -2724,12 +2740,24 @@ Check for arguments which are not null-terminated strings; applies to: ``strlen,
 
 alpha.unix.cstring.OutOfBounds (C)
 """"""""""""""""""""""""""""""""""
-Check for out-of-bounds access in string functions; applies to:`` strncopy, strncat``.
+Check for out-of-bounds access in string functions, such as:
+``memcpy, bcopy, strcpy, strncpy, strcat, strncat, memmove, memcmp, memset`` and more.
+
+This check also works with string literals, except there is a known bug in that
+the analyzer cannot detect embedded NULL characters when determining the string length.
 
 .. code-block:: c
 
- void test() {
-   int y = strlen((char *)&test); // warn
+ void test1() {
+   const char str[] = "Hello world";
+   char buffer[] = "Hello world";
+   memcpy(buffer, str, sizeof(str) + 1); // warn
+ }
+
+ void test2() {
+   const char str[] = "Hello world";
+   char buffer[] = "Helloworld";
+   memcpy(buffer, str, sizeof(str)); // warn
  }
 
 .. _alpha-unix-cstring-UninitializedRead:

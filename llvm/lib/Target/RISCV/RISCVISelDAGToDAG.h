@@ -49,6 +49,8 @@ public:
   bool SelectFrameAddrRegImm(SDValue Addr, SDValue &Base, SDValue &Offset);
   bool SelectAddrRegImm(SDValue Addr, SDValue &Base, SDValue &Offset);
 
+  bool tryShrinkShlLogicImm(SDNode *Node);
+
   bool selectShiftMask(SDValue N, unsigned ShiftWidth, SDValue &ShAmt);
   bool selectShiftMaskXLen(SDValue N, SDValue &ShAmt) {
     return selectShiftMask(N, Subtarget->getXLen(), ShAmt);
@@ -128,9 +130,9 @@ public:
 #include "RISCVGenDAGISel.inc"
 
 private:
-  bool doPeepholeLoadStoreADDI(SDNode *Node);
   bool doPeepholeSExtW(SDNode *Node);
   bool doPeepholeMaskedRVV(SDNode *Node);
+  bool doPeepholeMergeVVMFold();
 };
 
 namespace RISCV {

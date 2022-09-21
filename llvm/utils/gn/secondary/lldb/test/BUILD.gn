@@ -53,8 +53,10 @@ write_lit_cfg("lit_api_site_cfg") {
   output = lldb_lit_api_site_cfg_file
   extra_values = [
     "LLDB_BUILD_INTEL_PT=0",
-    "LLDB_DOTEST_ARGS=",
+    "LLDB_TEST_COMMON_ARGS=",
+    "LLDB_TEST_USER_ARGS=",
     "LLDB_ENABLE_PYTHON=0",
+    "LLDB_HAS_LIBCXX=",  # FIXME: support this (?)
     "LLDB_LIBS_DIR=",  # FIXME: for shared builds only (?)
     "LLDB_TEST_ARCH=$current_cpu",
     "LLDB_TEST_COMPILER=" + rebase_path("$root_build_dir/bin/clang"),
@@ -70,6 +72,7 @@ write_lit_cfg("lit_api_site_cfg") {
     "LLVM_BUILD_MODE=.",
     "LLVM_ENABLE_SHARED_LIBS=0",
     "LLVM_HOST_TRIPLE=$llvm_current_triple",
+    "LLVM_INCLUDE_DIR=" + rebase_path("$root_out_dir/include"),
     "LLVM_USE_SANITIZER=",
     "Lua_EXECUTABLE=",
     "LLDB_FRAMEWORK_DIR=XXX_framework_dir",
@@ -163,12 +166,12 @@ group("test") {
     "//llvm/tools/llvm-objcopy:symlinks",
     "//llvm/tools/llvm-pdbutil",
     "//llvm/tools/llvm-readobj:symlinks",
-    "//llvm/tools/split-file",
     "//llvm/tools/yaml2obj",
     "//llvm/utils/FileCheck",
     "//llvm/utils/count",
     "//llvm/utils/llvm-lit",
     "//llvm/utils/not",
+    "//llvm/utils/split-file",
   ]
   testonly = true
 }

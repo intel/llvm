@@ -2,9 +2,6 @@
 Test some ARM instruction emulation.
 """
 
-from __future__ import print_function
-
-
 import os
 import lldb
 from lldbsuite.test.decorators import *
@@ -20,7 +17,7 @@ class ARMEmulationTestCase(TestBase):
         files = os.listdir(test_dir)
         thumb_files = list()
         for f in files:
-            if '-thumb.dat' in f:
+            if f.endswith('-thumb.dat'):
                 thumb_files.append(f)
 
         for f in thumb_files:
@@ -33,7 +30,7 @@ class ARMEmulationTestCase(TestBase):
         files = os.listdir(test_dir)
         arm_files = list()
         for f in files:
-            if '-arm.dat' in f:
+            if f.endswith('-arm.dat'):
                 arm_files.append(f)
 
         for f in arm_files:
@@ -49,4 +46,5 @@ class ARMEmulationTestCase(TestBase):
             print('\nRunning test ' + os.path.basename(filename))
             print(output)
 
-        self.assertTrue(success, 'Emulation test succeeded.')
+        self.assertTrue(success, 'Emulation test {} failed.'.format(
+                        filename))

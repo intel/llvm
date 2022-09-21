@@ -12,8 +12,8 @@
 #include <sycl/detail/property_list_base.hpp>
 #include <sycl/properties/property_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 template <typename... PropsT> class accessor_property_list;
@@ -47,7 +47,7 @@ public:
     return get_property_helper<PropT>();
   }
 
-  template <typename PropT> bool has_property() const {
+  template <typename PropT> bool has_property() const noexcept {
     return has_property_helper<PropT>();
   }
 
@@ -61,9 +61,14 @@ public:
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
 private:
+  property_list(
+      std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
+      std::vector<std::shared_ptr<detail::PropertyWithDataBase>> PropsWithData)
+      : sycl::detail::PropertyListBase(DataLessProps, PropsWithData) {}
+
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

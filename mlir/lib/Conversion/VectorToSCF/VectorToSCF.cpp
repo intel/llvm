@@ -14,7 +14,6 @@
 
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -25,6 +24,11 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTVECTORTOSCF
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using vector::TransferReadOp;
@@ -90,12 +94,12 @@ static void getXferIndices(OpBuilder &b, OpTy xferOp, Value iv,
   indices.append(prevIndices.begin(), prevIndices.end());
 
   Location loc = xferOp.getLoc();
-  bool isBroadcast = !dim.hasValue();
+  bool isBroadcast = !dim.has_value();
   if (!isBroadcast) {
     AffineExpr d0, d1;
     bindDims(xferOp.getContext(), d0, d1);
-    Value offset = adaptor.getIndices()[dim.getValue()];
-    indices[dim.getValue()] =
+    Value offset = adaptor.getIndices()[dim.value()];
+    indices[dim.value()] =
         makeComposedAffineApply(b, loc, d0 + d1, {offset, iv});
   }
 }
@@ -357,7 +361,7 @@ struct Strategy<TransferReadOp> {
   static void getBufferIndices(TransferReadOp xferOp,
                                SmallVector<Value, 8> &indices) {
     auto storeOp = getStoreOp(xferOp);
-    auto prevIndices = memref::StoreOpAdaptor(storeOp).indices();
+    auto prevIndices = memref::StoreOpAdaptor(storeOp).getIndices();
     indices.append(prevIndices.begin(), prevIndices.end());
   }
 
@@ -463,7 +467,7 @@ struct Strategy<TransferWriteOp> {
   static void getBufferIndices(TransferWriteOp xferOp,
                                SmallVector<Value, 8> &indices) {
     auto loadOp = xferOp.getVector().getDefiningOp<memref::LoadOp>();
-    auto prevIndices = memref::LoadOpAdaptor(loadOp).indices();
+    auto prevIndices = memref::LoadOpAdaptor(loadOp).getIndices();
     indices.append(prevIndices.begin(), prevIndices.end());
   }
 
@@ -880,9 +884,8 @@ struct UnrollTransferReadConversion
   void getInsertionIndices(TransferReadOp xferOp,
                            SmallVector<int64_t, 8> &indices) const {
     if (auto insertOp = getInsertOp(xferOp)) {
-      llvm::for_each(insertOp.getPosition(), [&](Attribute attr) {
+      for (Attribute attr : insertOp.getPosition())
         indices.push_back(attr.dyn_cast<IntegerAttr>().getInt());
-      });
     }
   }
 
@@ -1008,9 +1011,8 @@ struct UnrollTransferWriteConversion
   void getExtractionIndices(TransferWriteOp xferOp,
                             SmallVector<int64_t, 8> &indices) const {
     if (auto extractOp = getExtractOp(xferOp)) {
-      llvm::for_each(extractOp.getPosition(), [&](Attribute attr) {
+      for (Attribute attr : extractOp.getPosition())
         indices.push_back(attr.dyn_cast<IntegerAttr>().getInt());
-      });
     }
   }
 
@@ -1283,7 +1285,7 @@ void mlir::populateVectorToSCFConversionPatterns(
 namespace {
 
 struct ConvertVectorToSCFPass
-    : public ConvertVectorToSCFBase<ConvertVectorToSCFPass> {
+    : public impl::ConvertVectorToSCFBase<ConvertVectorToSCFPass> {
   ConvertVectorToSCFPass() = default;
   ConvertVectorToSCFPass(const VectorTransferToSCFOptions &options) {
     this->fullUnroll = options.unroll;

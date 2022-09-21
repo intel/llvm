@@ -40,6 +40,7 @@ public:
     TLSSupported = true;
     IntWidth = IntAlign = 32;
     LongWidth = LongLongWidth = LongAlign = LongLongAlign = 64;
+    Int128Align = 64;
     PointerWidth = PointerAlign = 64;
     LongDoubleWidth = 128;
     LongDoubleAlign = 64;
@@ -122,6 +123,14 @@ public:
   }
 
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
+
+  bool isValidTuneCPUName(StringRef Name) const override {
+    return isValidCPUName(Name);
+  }
+
+  void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const override {
+    fillValidCPUList(Values);
+  }
 
   bool setCPU(const std::string &Name) override {
     CPU = Name;

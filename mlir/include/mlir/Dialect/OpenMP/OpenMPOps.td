@@ -28,6 +28,9 @@ def OpenMP_Dialect : Dialect {
   let cppNamespace = "::mlir::omp";
   let dependentDialects = ["::mlir::LLVM::LLVMDialect"];
   let useDefaultAttributePrinterParser = 1;
+
+  // TODO: Flip to _Prefixed.
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 // OmpCommon requires definition of OpenACC_Dialect.
@@ -122,7 +125,7 @@ def ParallelOp : OpenMP_Op<"parallel", [
   }];
 }
 
-def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {
+def TerminatorOp : OpenMP_Op<"terminator", [Terminator, NoSideEffect]> {
   let summary = "terminator for OpenMP regions";
   let description = [{
     A terminator operation for regions that appear in the body of OpenMP
@@ -237,7 +240,7 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments,
 def SingleOp : OpenMP_Op<"single", [AttrSizedOperandSegments]> {
   let summary = "single directive";
   let description = [{
-    The single construct specifies that the associated structured block is 
+    The single construct specifies that the associated structured block is
     executed by only one of the threads in the team (not necessarily the
     master thread), in the context of its implicit task. The other threads
     in the team, which do not execute the block, wait at an implicit barrier
@@ -342,7 +345,7 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
              OptionalAttr<ScheduleModifierAttr>:$schedule_modifier,
              UnitAttr:$simd_modifier,
              UnitAttr:$nowait,
-             Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$ordered_val,
+             ConfinedAttr<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$ordered_val,
              OptionalAttr<OrderKindAttr>:$order_val,
              UnitAttr:$inclusive);
 
@@ -392,33 +395,43 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
 }
 
 //===----------------------------------------------------------------------===//
-// Simd construct [2.9.3.1] 
+// Simd construct [2.9.3.1]
 //===----------------------------------------------------------------------===//
 
 def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
                          AllTypesMatch<["lowerBound", "upperBound", "step"]>]> {
  let summary = "simd loop construct";
   let description = [{
-    The simd construct can be applied to a loop to indicate that the loop can be 
-    transformed into a SIMD loop (that is, multiple iterations of the loop can 
-    be executed concurrently using SIMD instructions).. The lower and upper 
-    bounds specify a half-open range: the range includes the lower bound but 
+    The simd construct can be applied to a loop to indicate that the loop can be
+    transformed into a SIMD loop (that is, multiple iterations of the loop can
+    be executed concurrently using SIMD instructions).. The lower and upper
+    bounds specify a half-open range: the range includes the lower bound but
     does not include the upper bound. If the `inclusive` attribute is specified
     then the upper bound is also included.
 
     The body region can contain any number of blocks. The region is terminated
     by "omp.yield" instruction without operands.
 
+    Collapsed loops are represented by the simd-loop having a list of indices,
+    bounds and steps where the size of the list is equal to the collapse value.
+
     When an if clause is present and evaluates to false, the preferred number of
     iterations to be executed concurrently is one, regardless of whether
     a simdlen clause is speciﬁed.
+
+    When a simdlen clause is present, the preferred number of iterations to be
+    executed concurrently is the value provided to the simdlen clause.
+
+    The safelen clause specifies that no two concurrent iterations within a
+    SIMD chunk can have a distance in the logical iteration space that is
+    greater than or equal to the value given in the clause.
     ```
     omp.simdloop <clauses>
     for (%i1, %i2) : index = (%c0, %c0) to (%c10, %c10) step (%c1, %c1) {
       // block operations
       omp.yield
     }
-    ``` 
+    ```
   }];
 
   // TODO: Add other clauses
@@ -426,12 +439,16 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
              Variadic<IntLikeType>:$upperBound,
              Variadic<IntLikeType>:$step,
              Optional<I1>:$if_expr,
+             ConfinedAttr<OptionalAttr<I64Attr>, [IntPositive]>:$simdlen,
+             ConfinedAttr<OptionalAttr<I64Attr>, [IntPositive]>:$safelen,
              UnitAttr:$inclusive
      );
- 
+
   let regions = (region AnyRegion:$region);
   let assemblyFormat = [{
     oilist(`if` `(` $if_expr `)`
+          |`simdlen` `(` $simdlen  `)`
+          |`safelen` `(` $safelen  `)`
     ) `for` custom<LoopControl>($region, $lowerBound, $upperBound, $step,
                                   type($step), $inclusive) attr-dict
   }];
@@ -441,15 +458,15 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
     unsigned getNumLoops() { return lowerBound().size(); }
 
   }];
- 
+
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1; 
+  let hasVerifier = 1;
 }
 
 
 def YieldOp : OpenMP_Op<"yield",
     [NoSideEffect, ReturnLike, Terminator,
-     ParentOneOf<["WsLoopOp", "ReductionDeclareOp", 
+     ParentOneOf<["WsLoopOp", "ReductionDeclareOp",
      "AtomicUpdateOp", "SimdLoopOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
@@ -959,7 +976,7 @@ def OrderedOp : OpenMP_Op<"ordered"> {
   }];
 
   let arguments = (ins OptionalAttr<ClauseDependAttr>:$depend_type_val,
-             Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$num_loops_val,
+             ConfinedAttr<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$num_loops_val,
              Variadic<AnyType>:$depend_vec_vars);
 
   let assemblyFormat = [{
@@ -1035,10 +1052,10 @@ def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>]> {
 
   let arguments = (ins OpenMP_PointerLikeType:$x,
                        OpenMP_PointerLikeType:$v,
-                       DefaultValuedAttr<I64Attr, "0">:$hint_val,
+                       DefaultValuedOptionalAttr<I64Attr, "0">:$hint_val,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order_val);
   let assemblyFormat = [{
-    $v `=` $x 
+    $v `=` $x
     oilist( `memory_order` `(` custom<ClauseAttr>($memory_order_val) `)`
           | `hint` `(` custom<SynchronizationHint>($hint_val) `)`)
     `:` type($x) attr-dict
@@ -1082,7 +1099,7 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
 
   let arguments = (ins OpenMP_PointerLikeType:$address,
                        AnyType:$value,
-                       DefaultValuedAttr<I64Attr, "0">:$hint_val,
+                       DefaultValuedOptionalAttr<I64Attr, "0">:$hint_val,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order_val);
   let assemblyFormat = [{
     $address `=` $value
@@ -1109,7 +1126,8 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
 }
 
 def AtomicUpdateOp : OpenMP_Op<"atomic.update",
-                               [SingleBlockImplicitTerminator<"YieldOp">]> {
+                               [SingleBlockImplicitTerminator<"YieldOp">,
+                                RecursiveSideEffects]> {
 
   let summary = "performs an atomic update";
 
@@ -1142,8 +1160,10 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
     operations.
   }];
 
-  let arguments = (ins OpenMP_PointerLikeType:$x,
-                       DefaultValuedAttr<I64Attr, "0">:$hint_val,
+  let arguments = (ins Arg<OpenMP_PointerLikeType,
+                           "Address of variable to be updated",
+                           [MemRead, MemWrite]>:$x,
+                       DefaultValuedOptionalAttr<I64Attr, "0">:$hint_val,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order_val);
   let regions = (region SizedRegion<1>:$region);
   let assemblyFormat = [{
@@ -1153,10 +1173,19 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
   }];
   let hasVerifier = 1;
   let hasRegionVerifier = 1;
+  let hasCanonicalizeMethod = 1;
   let extraClassDeclaration = [{
     Operation* getFirstOp() {
       return &getRegion().front().getOperations().front();
     }
+
+    /// Returns true if the new value is same as old value and the operation is
+    /// a no-op, false otherwise.
+    bool isNoOp();
+
+    /// Returns the new value if the operation is equivalent to just a write
+    /// operation. Otherwise, returns nullptr.
+    Value getWriteOpVal();
   }];
 }
 
@@ -1196,7 +1225,7 @@ def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
 
   }];
 
-  let arguments = (ins DefaultValuedAttr<I64Attr, "0">:$hint_val,
+  let arguments = (ins DefaultValuedOptionalAttr<I64Attr, "0">:$hint_val,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order_val);
   let regions = (region SizedRegion<1>:$region);
   let assemblyFormat = [{
@@ -1231,7 +1260,8 @@ def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
 // [5.1] 2.21.2 threadprivate Directive
 //===----------------------------------------------------------------------===//
 
-def ThreadprivateOp : OpenMP_Op<"threadprivate"> {
+def ThreadprivateOp : OpenMP_Op<"threadprivate",
+                                [AllTypesMatch<["sym_addr", "tls_addr"]>]> {
   let summary = "threadprivate directive";
   let description = [{
     The threadprivate directive specifies that variables are replicated, with
@@ -1308,7 +1338,8 @@ def CancellationPointOp : OpenMP_Op<"cancellationpoint"> {
 // 2.19.5.7 declare reduction Directive
 //===----------------------------------------------------------------------===//
 
-def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol]> {
+def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol,
+                                                         IsolatedFromAbove]> {
   let summary = "declares a reduction kind";
 
   let description = [{

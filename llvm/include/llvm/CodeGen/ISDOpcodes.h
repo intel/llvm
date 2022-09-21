@@ -1292,6 +1292,12 @@ enum NodeType {
   // Outputs: output chain, glue
   STACKMAP,
 
+  // The `llvm.experimental.patchpoint.*` intrinsic.
+  // Operands: input chain, [glue], reg-mask, <id>, <numShadowBytes>, callee,
+  //   <numArgs>, cc, ...
+  // Outputs: [rv], output chain, glue
+  PATCHPOINT,
+
 // Vector Predication
 #define BEGIN_REGISTER_VP_SDNODE(VPSDID, ...) VPSDID,
 #include "llvm/IR/VPIntrinsics.def"
@@ -1479,6 +1485,11 @@ inline unsigned getUnorderedFlavor(CondCode Cond) {
 /// Return the operation corresponding to !(X op Y), where 'op' is a valid
 /// SetCC operation.
 CondCode getSetCCInverse(CondCode Operation, EVT Type);
+
+inline bool isExtOpcode(unsigned Opcode) {
+  return Opcode == ISD::ANY_EXTEND || Opcode == ISD::ZERO_EXTEND ||
+         Opcode == ISD::SIGN_EXTEND;
+}
 
 namespace GlobalISel {
 /// Return the operation corresponding to !(X op Y), where 'op' is a valid

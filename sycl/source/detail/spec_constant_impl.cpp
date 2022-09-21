@@ -9,15 +9,15 @@
 #include <detail/spec_constant_impl.hpp>
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/util.hpp>
 #include <sycl/exception.hpp>
 
 #include <cstring>
-#include <iostream>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {
@@ -50,5 +50,5 @@ std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

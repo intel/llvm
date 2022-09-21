@@ -76,10 +76,6 @@ Pass <arg> to fatbinary invocation
 
 Pass <arg> to the ptxas assembler
 
-.. option:: -Z<arg>
-
-.. option:: -a<arg>, --profile-blocks
-
 .. option:: -all\_load
 
 .. option:: -allowable\_client <arg>
@@ -579,10 +575,6 @@ Print the library path for the currently used compiler runtime library ("libgcc.
 
 .. option:: -print-multi-lib, --print-multi-lib
 
-.. option:: -print-multiarch, --print-multiarch
-
-Print the multiarch target triple
-
 .. option:: -print-prog-name=<name>, --print-prog-name=<name>, --print-prog-name <arg>
 
 Print the full program path of <name>
@@ -831,6 +823,8 @@ Only run the driver.
 
 .. option:: -fsyntax-only
 
+Run the preprocessor, parser and semantic analysis stages
+
 .. option:: -module-file-info
 
 Provide information about a particular module file
@@ -857,9 +851,9 @@ no effect during actions that do not perform compilation.
 
 Pass <arg> to the assembler
 
-.. option:: -Xclang <arg>
+.. option:: -Xclang <arg>, -Xclang=<arg>
 
-Pass <arg> to the clang compiler
+Pass <arg> to clang -cc1
 
 .. option:: -Xopenmp-target <arg>
 
@@ -892,6 +886,10 @@ Require member pointer base types to be complete if they would be significant un
 .. option:: -fcrash-diagnostics-dir=<dir>
 
 Put crash-report files in <dir>
+
+.. option:: -fcrash-diagnostics=<arg>, -fcrash-diagnostics (equivalent to -fcrash-diagnostics=compiler)
+
+Set level of crash diagnostic reporting, (option: off, compiler, all)
 
 .. option:: -fdeclspec, -fno-declspec
 
@@ -1003,11 +1001,11 @@ Enable control flow integrity (CFI) checks for cross-DSO calls.
 
 Generalize pointers in CFI indirect call type signature checks
 
-.. option:: -fsanitize-coverage-allowlist=<arg>, -fsanitize-coverage-whitelist=<arg>
+.. option:: -fsanitize-coverage-allowlist=<arg>
 
 Restrict sanitizer coverage instrumentation exclusively to modules and functions that match the provided special case list, except the blocked ones
 
-.. option:: -fsanitize-coverage-ignorelist=<arg>, -fsanitize-coverage-blacklist=<arg>
+.. option:: -fsanitize-coverage-ignorelist=<arg>
 
 Disable sanitizer coverage instrumentation for modules and functions that match the provided special case list, even the allowed ones
 
@@ -1145,7 +1143,9 @@ Include path management
 
 Flags controlling how ``#include``\s are resolved to files.
 
-.. option:: -I<dir>, --include-directory <arg>, --include-directory=<arg>
+.. program:: clang3
+.. option:: -I<dir>, /I<dir>, -I<dir>, --include-directory <arg>, --include-directory=<arg>
+.. program:: clang
 
 Add directory to include search path. For C++ inputs, if
 there are multiple -I options, these directories are searched
@@ -1761,6 +1761,10 @@ Enable support for exception handling
 
 .. option:: -fexec-charset=<arg>
 
+.. option:: -fexperimental-library, -fno-experimental-library
+
+Control whether unstable and experimental library features are enabled. This option enables various library features that are either experimental (also known as TSes), or have been but are not stable yet in the selected Standard Library implementation. It is not recommended to use this option in production code, since neither ABI nor API stability are guaranteed. This is intended to provide a preview of features that will ship in the future for experimentation purposes
+
 .. option:: -fexperimental-new-constant-interpreter
 
 Enable the experimental new constant interpreter
@@ -1896,6 +1900,10 @@ Enable support for ignoring exception handling constructs
 Implicitly search the file system for module map files.
 
 .. option:: -fimplicit-modules, -fno-implicit-modules
+
+.. option:: -finline-max-stacksize=<arg>
+
+Suppress inlining of functions whose stack size exceeds the given value
 
 .. option:: -finput-charset=<arg>
 
@@ -2173,10 +2181,6 @@ Enable all Clang extensions for OpenMP directives and clauses
 
 Set rpath on OpenMP executables
 
-.. option:: -fopenmp-new-driver
-
-Use the new driver for OpenMP offloading.
-
 .. option:: -fopenmp-offload-mandatory
 
 Do not create a host fallback if offloading to the device fails.
@@ -2297,6 +2301,10 @@ Instrument only functions from files where names don't match all the regexes sep
 
 Instrument only functions from files where names match any regex separated by a semi-colon
 
+.. option:: -fprofile-function-groups=<N>
+
+Partition functions into N groups and select only functions in group i to be instrumented using -fprofile-selected-function-group
+
 .. option:: -fprofile-generate, -fno-profile-generate
 
 Generate instrumented code to collect execution counts into default.profraw (overridden by LLVM\_PROFILE\_FILE env var)
@@ -2347,6 +2355,10 @@ Specifies that the sample profile is accurate. If the sample
 .. program:: clang
 
 Enable sample-based profile guided optimizations
+
+.. option:: -fprofile-selected-function-group=<i>
+
+Partition functions into N groups using -fprofile-function-groups and select only functions in group i to be instrumented. The valid range is 0 to N-1 inclusive
 
 .. option:: -fprofile-update=<method>
 
@@ -2520,6 +2532,10 @@ Emit full debug info for all types used by the program
 
 Enable optimizations based on the strict definition of an enum's value range
 
+.. option:: -fstrict-flex-arrays=<n>
+
+Enable optimizations based on the strict definition of flexible arrays. <n> must be '0', '1' or '2'.
+
 .. option:: -fstrict-float-cast-overflow, -fno-strict-float-cast-overflow
 
 Assume that overflowing float-to-int casts are undefined (default)
@@ -2579,6 +2595,12 @@ can be analyzed with chrome://tracing or `Speedscope App
 
 Minimum time granularity (in microseconds) traced by time profiler
 
+.. program:: clang1
+.. option:: -ftime-trace=<arg>
+.. program:: clang
+
+Similar to -ftime-trace. Specify the JSON file or a directory which will contain the JSON file
+
 .. option:: -ftls-model=<arg>
 
  <arg> must be 'global-dynamic', 'local-dynamic', 'initial-exec' or 'local-exec'.
@@ -2632,10 +2654,6 @@ Turn on loop unroller
 .. option:: -funsigned-bitfields
 
 .. option:: -funsigned-char, -fno-unsigned-char, --unsigned-char
-
-.. option:: -funstable, -fno-unstable
-
-Enable unstable and experimental features
 
 .. option:: -funwind-tables, -fno-unwind-tables
 
@@ -2707,7 +2725,7 @@ The visibility for definitions without an explicit DLL export class \[-fvisibili
 
 .. option:: -fvisibility=<arg>
 
-Set the default symbol visibility for all global declarations. <arg> must be 'hidden' or 'default'.
+Set the default symbol visibility for all global definitions. <arg> must be 'default', 'protected', 'internal' or 'hidden'.
 
 .. option:: -fwasm-exceptions
 
@@ -2755,11 +2773,7 @@ Only instrument 1 of N groups
 
 Don't instrument functions with loops unless they also meet the minimum function size
 
-.. option:: -fxray-instruction-threshold<arg>
-
-.. program:: clang1
 .. option:: -fxray-instruction-threshold=<arg>
-.. program:: clang
 
 Sets the minimum function size to instrument with XRay
 
@@ -3030,12 +3044,18 @@ Set Fuchsia API level
 .. option:: -mabi=<arg>
 
 .. program:: clang1
+.. option:: -mabi=quadword-atomics
+.. program:: clang
+
+Enable quadword atomics ABI on AIX (AIX PPC64 only). Uses lqarx/stqcx. instructions.
+
+.. program:: clang2
 .. option:: -mabi=vec-default
 .. program:: clang
 
 Enable the default Altivec ABI on AIX (AIX only). Uses only volatile vector registers.
 
-.. program:: clang2
+.. program:: clang3
 .. option:: -mabi=vec-extabi
 .. program:: clang
 
@@ -3131,6 +3151,10 @@ Insert calls to fentry at function entry (x86/SystemZ only)
 
 .. option:: -mfpu=<arg>
 
+.. option:: -mfunction-return=<arg>
+
+Replace returns with jumps to \`\`\_\_x86\_return\_thunk\`\` (x86 only, error otherwise). <arg> must be 'keep' or 'thunk-extern'.
+
 .. option:: -mgeneral-regs-only
 
 Generate code which only uses the general purpose registers (AArch64/x86 only)
@@ -3165,7 +3189,13 @@ Not emit the visibility attribute for asm in AIX OS or give all symbols 'unspeci
 
 (integrated-as) Emit an object file which can be used with an incremental linker
 
-.. option:: -miphoneos-version-min=<arg>, -mios-version-min=<arg>
+.. option:: -mindirect-branch-cs-prefix
+
+Add cs prefix to call and jmp to indirect thunk
+
+.. option:: -mios-version-min=<arg>, -miphoneos-version-min=<arg>
+
+Set iOS deployment target
 
 .. option:: -mkernel
 
@@ -3181,9 +3211,9 @@ Enable only control-flow mitigations for Load Value Injection (LVI)
 
 Enable all mitigations for Load Value Injection (LVI)
 
-.. option:: -mmacosx-version-min=<arg>, -mmacos-version-min=<arg>
+.. option:: -mmacos-version-min=<arg>, -mmacosx-version-min=<arg>
 
-Set Mac OS X deployment target
+Set macOS deployment target
 
 .. option:: -mmcu=<arg>
 
@@ -3285,6 +3315,10 @@ Use the given offset for addressing the stack-protector guard
 
 Use the given reg for addressing the stack-protector guard
 
+.. option:: -mstack-protector-guard-symbol=<arg>
+
+Use the given symbol for addressing the stack-protector guard
+
 .. option:: -mstack-protector-guard=<arg>
 
 Use the given guard (global, tls) for addressing the stack-protector guard
@@ -3321,7 +3355,7 @@ Specify bit size of immediate TLS offsets (AArch64 ELF only): 12 (for 4KB) \| 24
 .. option:: -mtune=<arg>
 .. program:: clang
 
-Only supported on X86 and RISC-V. Otherwise accepted for compatibility with GCC.
+Only supported on AArch64, PowerPC, RISC-V, SystemZ, and X86
 
 .. option:: -mtvos-version-min=<arg>, -mappletvos-version-min=<arg>
 
@@ -4255,9 +4289,7 @@ Pass <arg> to the linker
 
 Pass <arg> to the offload linkers or the ones idenfied by -<triple>
 
-.. program:: clang1
 .. option:: -Z
-.. program:: clang
 
 .. option:: -b<arg>
 
@@ -4327,23 +4359,45 @@ undef all system defines
 
 Pass -z <arg> to the linker
 
+<clang-cl options>
+==================
+CL.EXE COMPATIBILITY OPTIONS
+
+<clang-cl compile-only options>
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+</M group>
+----------
+</volatile group>
+-----------------
+<clang-cl ignored options>
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 <clang-dxc options>
 ===================
 dxc compatibility options
 
-.. program:: clang3
+.. program:: clang4
+.. option:: --E<arg>, /E<arg>, -E<arg>
+.. program:: clang
+
+Entry point name
+
+.. program:: clang5
 .. option:: /T<profile>, -T<profile>
 .. program:: clang
 
 Set target profile. <profile> must be 'ps_6_0', ' ps_6_1', ' ps_6_2', ' ps_6_3', ' ps_6_4', ' ps_6_5', ' ps_6_6', ' ps_6_7', 'vs_6_0', ' vs_6_1', ' vs_6_2', ' vs_6_3', ' vs_6_4', ' vs_6_5', ' vs_6_6', ' vs_6_7', 'gs_6_0', ' gs_6_1', ' gs_6_2', ' gs_6_3', ' gs_6_4', ' gs_6_5', ' gs_6_6', ' gs_6_7', 'hs_6_0', ' hs_6_1', ' hs_6_2', ' hs_6_3', ' hs_6_4', ' hs_6_5', ' hs_6_6', ' hs_6_7', 'ds_6_0', ' ds_6_1', ' ds_6_2', ' ds_6_3', ' ds_6_4', ' ds_6_5', ' ds_6_6', ' ds_6_7', 'cs_6_0', ' cs_6_1', ' cs_6_2', ' cs_6_3', ' cs_6_4', ' cs_6_5', ' cs_6_6', ' cs_6_7', 'lib_6_3', ' lib_6_4', ' lib_6_5', ' lib_6_6', ' lib_6_7', ' lib_6_x', 'ms_6_5', ' ms_6_6', ' ms_6_7', 'as_6_5', ' as_6_6' or ' as_6_7'.
 
-.. program:: clang4
+.. program:: clang6
 .. option:: /emit-pristine-llvm, -emit-pristine-llvm, /fcgl, -fcgl
 .. program:: clang
 
 Emit pristine LLVM IR from the frontend by not running any LLVM passes at all.Same as -S + -emit-llvm + -disable-llvm-passes.
 
-.. program:: clang5
+.. option:: -hlsl-entry <arg>
+
+Entry point name for hlsl
+
+.. program:: clang7
 .. option:: /hlsl-no-stdinc, -hlsl-no-stdinc
 .. program:: clang
 

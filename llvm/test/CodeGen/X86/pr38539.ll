@@ -6,33 +6,13 @@
 define void @f() {
 ; X64-LABEL: f:
 ; X64:       # %bb.0: # %BB
-; X64-NEXT:    movb (%rax), %al
+; X64-NEXT:    movzbl (%rax), %eax
 ; X64-NEXT:    cmpb $0, (%rax)
 ; X64-NEXT:    setne (%rax)
 ; X64-NEXT:    leaq -{{[0-9]+}}(%rsp), %rax
 ; X64-NEXT:    movq %rax, (%rax)
 ; X64-NEXT:    movb $0, (%rax)
 ; X64-NEXT:    retq
-;
-; X86-LABEL: f:
-; X86:       # %bb.0: # %BB
-; X86-NEXT:    pushl %ebp
-; X86-NEXT:    .cfi_def_cfa_offset 8
-; X86-NEXT:    .cfi_offset %ebp, -8
-; X86-NEXT:    movl %esp, %ebp
-; X86-NEXT:    .cfi_def_cfa_register %ebp
-; X86-NEXT:    andl $-8, %esp
-; X86-NEXT:    subl $16, %esp
-; X86-NEXT:    movb (%eax), %al
-; X86-NEXT:    cmpb $0, (%eax)
-; X86-NEXT:    setne (%eax)
-; X86-NEXT:    leal -{{[0-9]+}}(%esp), %eax
-; X86-NEXT:    movl %eax, (%eax)
-; X86-NEXT:    movb $0, (%eax)
-; X86-NEXT:    movl %ebp, %esp
-; X86-NEXT:    popl %ebp
-; X86-NEXT:    .cfi_def_cfa %esp, 4
-; X86-NEXT:    retl
 BB:
   %A30 = alloca i66
   %L17 = load i66, ptr %A30
@@ -61,7 +41,7 @@ BB:
 define void @g() {
 ; X64-LABEL: g:
 ; X64:       # %bb.0: # %BB
-; X64-NEXT:    movb (%rax), %al
+; X64-NEXT:    movzbl (%rax), %eax
 ; X64-NEXT:    cmpb $0, (%rax)
 ; X64-NEXT:    setne (%rax)
 ; X64-NEXT:    leaq -{{[0-9]+}}(%rsp), %rax
@@ -78,7 +58,7 @@ define void @g() {
 ; X86-NEXT:    .cfi_def_cfa_register %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    movb (%eax), %al
+; X86-NEXT:    movzbl (%eax), %eax
 ; X86-NEXT:    cmpb $0, (%eax)
 ; X86-NEXT:    setne (%eax)
 ; X86-NEXT:    leal -{{[0-9]+}}(%esp), %eax

@@ -13,6 +13,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/stl.hpp>
@@ -20,14 +21,24 @@
 #include <memory>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declarations
 class device_selector;
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
+
+namespace ext {
+namespace oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace oneapi
+} // namespace ext
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
@@ -35,7 +46,7 @@ auto getDeviceComparisonLambda();
 /// \ingroup sycl_api
 class __SYCL_EXPORT device {
 public:
-  /// Constructs a SYCL device instance as a host device.
+  /// Constructs a SYCL device instance using the default device.
   device();
 
   /// Constructs a SYCL device instance from an OpenCL cl_device_id
@@ -49,8 +60,21 @@ public:
   /// Constructs a SYCL device instance using the device selected
   /// by the DeviceSelector provided.
   ///
-  /// \param DeviceSelector SYCL device selector to be used (see 4.6.1.1).
+  /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   explicit device(const device_selector &DeviceSelector);
+
+#if __cplusplus >= 201703L
+  /// Constructs a SYCL device instance using the device
+  /// identified by the device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit device(const DeviceSelector &deviceSelector)
+      : device(detail::select_device(deviceSelector)) {}
+#endif
 
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
@@ -75,6 +99,8 @@ public:
   /// Check if device is a host device
   ///
   /// \return true if SYCL device is a host device
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Check if device is a CPU device
@@ -157,9 +183,8 @@ public:
   /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <info::device param>
-  typename info::param_traits<info::device, param>::return_type
-  get_info() const;
+  template <typename Param>
+  typename detail::is_device_info_desc<Param>::return_type get_info() const;
 
   /// Check SYCL extension support by device
   ///
@@ -183,19 +208,6 @@ public:
   ///
   /// \return the backend associated with this device.
   backend get_backend() const noexcept;
-
-  /// Gets the native handle of the SYCL device.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, device> get_native() const {
-    // In CUDA CUdevice isn't an opaque pointer, unlike a lot of the others,
-    // but instead a 32-bit int (on all relevant systems). Different
-    // backends use the same function for this purpose so static_cast is
-    // needed in some cases but not others, so a C-style cast was chosen.
-    return (backend_return_t<Backend, device>)getNative();
-  }
 
   /// Indicates if the SYCL device has the given feature.
   ///
@@ -223,16 +235,20 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   friend auto detail::getDeviceComparisonLambda();
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::device> {
-  size_t operator()(const cl::sycl::device &Device) const {
-    return hash<std::shared_ptr<cl::sycl::detail::device_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Device));
+template <> struct hash<sycl::device> {
+  size_t operator()(const sycl::device &Device) const {
+    return hash<std::shared_ptr<sycl::detail::device_impl>>()(
+        sycl::detail::getSyclObjImpl(Device));
   }
 };
 } // namespace std

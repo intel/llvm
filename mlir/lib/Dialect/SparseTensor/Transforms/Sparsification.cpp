@@ -50,7 +50,7 @@ enum SortMask {
 };
 
 // Reduction kinds.
-enum Reduction { kNoReduc, kSum, kProduct, kAnd, kOr, kXor };
+enum Reduction { kNoReduc, kSum, kProduct, kAnd, kOr, kXor, kCustom };
 
 // Code generation.
 struct CodeGen {
@@ -61,9 +61,8 @@ struct CodeGen {
         indices(numTensors, std::vector<Value>(numLoops)),
         highs(numTensors, std::vector<Value>(numLoops)),
         pidxs(numTensors, std::vector<Value>(numLoops)),
-        idxs(numTensors, std::vector<Value>(numLoops)), redVal(), sparseOut(op),
-        outerParNest(nest), lexIdx(), lexVal(), expValues(), expFilled(),
-        expAdded(), expCount(), curVecMask() {}
+        idxs(numTensors, std::vector<Value>(numLoops)), sparseOut(op),
+        outerParNest(nest) {}
   /// Sparsification options.
   SparsificationOptions options;
   /// Universal dense indices and upper bounds (by index). The loops array
@@ -88,6 +87,7 @@ struct CodeGen {
   unsigned redExp = -1u;
   Value redVal;
   Reduction redKind = kNoReduc;
+  unsigned redCustom = -1u;
   // Sparse tensor as output. Implemented either through direct injective
   // insertion in lexicographic index order (where indices are updated
   // in the temporary array `lexIdx`) or through access pattern expansion
@@ -147,8 +147,6 @@ static Dim toDim(const SparseTensorEncodingAttr &enc, unsigned d) {
     SparseTensorEncodingAttr::DimLevelType tp = enc.getDimLevelType()[d];
     if (tp == SparseTensorEncodingAttr::DimLevelType::Compressed)
       return Dim::kSparse;
-    if (tp == SparseTensorEncodingAttr::DimLevelType::Singleton)
-      return Dim::kSingle;
   }
   return Dim::kDense;
 }
@@ -308,17 +306,6 @@ static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
   return true;
 }
 
-/// Returns true if tensor has an in-place annotation.
-static bool isInPlace(Value val) {
-  if (auto arg = val.dyn_cast<BlockArgument>())
-    if (auto funcOp = dyn_cast<func::FuncOp>(arg.getOwner()->getParentOp()))
-      if (auto attr = funcOp.getArgAttrOfType<BoolAttr>(
-              arg.getArgNumber(),
-              bufferization::BufferizableOpInterface::kInplaceableAttrName))
-        return attr.getValue();
-  return false;
-}
-
 /// Returns true if tensor materializes uninitialized into the computation.
 static bool isMaterializing(Value val) {
   return val.getDefiningOp<linalg::InitTensorOp>() ||
@@ -355,9 +342,8 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
     return true;
   // A tensor expression with a sparse output tensor that changes its values
   // but not its nonzero structure, an operation called "simply dynamic" in
-  // [Bik96,Ch9], is also admissable without special codegen, provided
-  // the tensor's underlying sparse storage scheme can be modified in-place.
-  if (merger.isSingleCondition(tensor, exp) && isInPlace(lhs->get()))
+  // [Bik96,Ch9], is also admissable without special codegen.
+  if (merger.isSingleCondition(tensor, exp))
     return true;
   // Accept "truly dynamic" if the output tensor materializes uninitialized
   // into the computation and insertions occur in lexicographic index order.
@@ -388,6 +374,7 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
 static vector::CombiningKind getCombiningKind(Reduction kind) {
   switch (kind) {
   case kNoReduc:
+  case kCustom:
     break;
   case kSum:
     return vector::CombiningKind::ADD;
@@ -423,6 +410,8 @@ static Reduction getReduction(Kind kind) {
     return kOr;
   case Kind::kXorI:
     return kXor;
+  case Kind::kReduce:
+    return kCustom;
   default:
     llvm_unreachable("unexpected reduction operator");
   }
@@ -437,6 +426,7 @@ static Value genVectorReducInit(CodeGen &codegen, OpBuilder &builder,
   Value r = codegen.redVal;
   switch (codegen.redKind) {
   case kNoReduc:
+  case kCustom:
     break;
   case kSum:
   case kXor:
@@ -469,6 +459,11 @@ static void updateReduc(Merger &merger, CodeGen &codegen, Value reduc) {
   codegen.redVal = merger.exp(codegen.redExp).val = reduc;
 }
 
+/// Extracts identity from custom reduce.
+static Value getCustomRedId(Operation *op) {
+  return dyn_cast<sparse_tensor::ReduceOp>(op).getIdentity();
+}
+
 //===----------------------------------------------------------------------===//
 // Sparse compiler synthesis methods (statements and expressions).
 //===----------------------------------------------------------------------===//
@@ -486,37 +481,19 @@ static Value genOutputBuffer(CodeGen &codegen, OpBuilder &builder,
   OpOperand *lhs = op.getOutputOperand(0);
   Value tensor = lhs->get();
   bool isInit = op.isInitTensor(lhs);
-  // An output tensor that is in-place can simply materialize from the buffer
-  // of the tensor that appears in the outs() clause. For updates, this has
-  // the advantage that only the nonzero value are involved in the computation,
-  // keeping the operation O(nnz). In all other cases, we are forced to zero
-  // out the buffer to enforce the assumption above, which may negatively
-  // impact running complexity (viz. O(n^2 + nnz) vs. O(nnz) for matrices).
+  // An output tensor can simply materialize from the buffer of the tensor that
+  // appears in the outs() clause. For updates, this has the advantage that only
+  // the nonzero value are involved in the computation, keeping the operation
+  // O(nnz). In all other cases, we are forced to zero out the buffer to enforce
+  // the assumption above, which may negatively impact running complexity
+  // (viz. O(n^2 + nnz) vs. O(nnz) for matrices).
   // TODO: use better analysis to avoid zeroing out the buffer?
-  if (isInPlace(tensor)) {
-    Value init =
-        builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
-    if (!isInit) {
-      Value zero = constantZero(builder, loc, denseTp.getElementType());
-      builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{init});
-    }
-    return init;
-  }
-  // By default, a new buffer is allocated which is either set to zero (when
-  // no updates occur or the tensor materializes into this computation) or
-  // initialized to the value of the tensor defined in the outs() clause.
-  // This is always correct (since it enforces all assumptions above) but
-  // may negatively impact running complexity as explained above.
-  Value alloc = builder.create<memref::AllocOp>(loc, denseTp, args);
-  if (!isInit || isMaterializing(tensor)) {
+  Value init = builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
+  if (!isInit) {
     Value zero = constantZero(builder, loc, denseTp.getElementType());
-    builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{alloc});
-  } else {
-    Value init =
-        builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
-    builder.create<memref::CopyOp>(loc, init, alloc);
+    builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{init});
   }
-  return alloc;
+  return init;
 }
 
 /// Local bufferization of all dense and sparse data structures.
@@ -759,6 +736,25 @@ static Value genInsertionLoad(CodeGen &codegen, OpBuilder &builder,
   return builder.create<memref::LoadOp>(loc, codegen.expValues, index);
 }
 
+/// Generates insertion code to implement dynamic tensor load for reduction.
+static Value genInsertionLoadReduce(Merger &merger, CodeGen &codegen,
+                                    OpBuilder &builder, linalg::GenericOp op,
+                                    OpOperand *t) {
+  Location loc = op.getLoc();
+  Value identity = getCustomRedId(merger.exp(codegen.redCustom).op);
+  // Direct lexicographic index order, tensor loads as identity.
+  if (!codegen.expValues) {
+    return identity;
+  }
+  // Load from expanded access pattern if filled, identity otherwise.
+  Value index = genIndex(codegen, op, t);
+  Value isFilled =
+      builder.create<memref::LoadOp>(loc, codegen.expFilled, index);
+  Value valAtIndex =
+      builder.create<memref::LoadOp>(loc, codegen.expValues, index);
+  return builder.create<arith::SelectOp>(loc, isFilled, valAtIndex, identity);
+}
+
 /// Generates insertion code to implement dynamic tensor store.
 static void genInsertionStore(CodeGen &codegen, OpBuilder &builder,
                               linalg::GenericOp op, OpOperand *t, Value rhs) {
@@ -813,8 +809,11 @@ static Value genTensorLoad(Merger &merger, CodeGen &codegen, OpBuilder &builder,
   }
   // Load during insertion.
   OpOperand *t = op.getInputAndOutputOperands()[merger.exp(exp).tensor];
-  if (t == codegen.sparseOut)
+  if (t == codegen.sparseOut) {
+    if (codegen.redCustom != -1u)
+      return genInsertionLoadReduce(merger, codegen, builder, op, t);
     return genInsertionLoad(codegen, builder, op, t);
+  }
   // Actual load.
   SmallVector<Value, 4> args;
   Value ptr = genSubscript(codegen, builder, op, t, args);
@@ -964,7 +963,7 @@ static Value relinkBranch(CodeGen &codegen, RewriterBase &rewriter,
                           Block *block, Value e, unsigned ldx) {
   if (Operation *def = e.getDefiningOp()) {
     if (auto indexOp = dyn_cast<linalg::IndexOp>(def))
-      return genIndexValue(codegen, rewriter, indexOp.dim(), ldx);
+      return genIndexValue(codegen, rewriter, indexOp.getDim(), ldx);
     if (def->getBlock() == block) {
       for (unsigned i = 0, n = def->getNumOperands(); i < n; i++)
         def->setOperand(
@@ -986,6 +985,11 @@ static Value genExp(Merger &merger, CodeGen &codegen, RewriterBase &rewriter,
     return genInvariantValue(merger, codegen, rewriter, exp);
   if (merger.exp(exp).kind == Kind::kIndex)
     return genIndexValue(codegen, rewriter, merger.exp(exp).index, ldx);
+  if (merger.exp(exp).kind == Kind::kReduce) {
+    // Make custom reduction identity accessible for expanded access pattern.
+    assert(codegen.redCustom == -1u);
+    codegen.redCustom = exp;
+  }
   Value v0 =
       genExp(merger, codegen, rewriter, op, merger.exp(exp).children.e0, ldx);
   Value v1 =
@@ -993,8 +997,11 @@ static Value genExp(Merger &merger, CodeGen &codegen, RewriterBase &rewriter,
   Value ee = merger.buildExp(rewriter, loc, exp, v0, v1);
   if (ee && (merger.exp(exp).kind == Kind::kUnary ||
              merger.exp(exp).kind == Kind::kBinary ||
-             merger.exp(exp).kind == Kind::kBinaryBranch))
+             merger.exp(exp).kind == Kind::kBinaryBranch ||
+             merger.exp(exp).kind == Kind::kReduce))
     ee = relinkBranch(codegen, rewriter, ee.getParentBlock(), ee, ldx);
+  if (merger.exp(exp).kind == Kind::kReduce)
+    codegen.redCustom = -1u;
   return ee;
 }
 
@@ -1022,7 +1029,7 @@ static bool isInvariantAffine(const CodeGen &codegen, AffineExpr a,
 /// Hoists loop invariant tensor loads for which indices have been exhausted.
 static void genInvariants(Merger &merger, CodeGen &codegen, OpBuilder &builder,
                           linalg::GenericOp op, unsigned exp, unsigned ldx,
-                          bool atStart, Kind last = Kind::kTensor) {
+                          bool atStart, unsigned last = 0) {
   if (exp == -1u)
     return;
   if (merger.exp(exp).kind == Kind::kTensor) {
@@ -1043,8 +1050,11 @@ static void genInvariants(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     if (lhs == t) {
       // Start or end a scalarized reduction
       if (atStart) {
-        Value load = genTensorLoad(merger, codegen, builder, op, exp);
-        codegen.redKind = getReduction(last);
+        Kind kind = merger.exp(last).kind;
+        Value load = kind == Kind::kReduce
+                         ? getCustomRedId(merger.exp(last).op)
+                         : genTensorLoad(merger, codegen, builder, op, exp);
+        codegen.redKind = getReduction(kind);
         codegen.redExp = exp;
         updateReduc(merger, codegen, load);
       } else {
@@ -1064,11 +1074,10 @@ static void genInvariants(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     // Traverse into the binary operations. Note that we only hoist
     // tensor loads, since subsequent MLIR/LLVM passes know how to
     // deal with all other kinds of derived loop invariants.
-    Kind last = merger.exp(exp).kind;
     unsigned e0 = merger.exp(exp).children.e0;
     unsigned e1 = merger.exp(exp).children.e1;
-    genInvariants(merger, codegen, builder, op, e0, ldx, atStart, last);
-    genInvariants(merger, codegen, builder, op, e1, ldx, atStart, last);
+    genInvariants(merger, codegen, builder, op, e0, ldx, atStart, exp);
+    genInvariants(merger, codegen, builder, op, e1, ldx, atStart, exp);
   }
 }
 
@@ -1768,9 +1777,9 @@ public:
 
     // Builds the tensor expression for the Linalg operation in SSA form.
     Optional<unsigned> optExp = merger.buildTensorExpFromLinalg(op);
-    if (!optExp.hasValue())
+    if (!optExp.has_value())
       return failure();
-    unsigned exp = optExp.getValue();
+    unsigned exp = optExp.value();
 
     // Rejects an inadmissable tensor expression.
     OpOperand *sparseOut = nullptr;
@@ -1820,7 +1829,7 @@ private:
       auto convert = rewriter.create<ConvertOp>(tval.getLoc(), dstTp, tval);
       op->setOperand(tensor, convert);
       rewriter.setInsertionPointAfter(op);
-      rewriter.create<ReleaseOp>(tval.getLoc(), convert);
+      rewriter.create<bufferization::DeallocTensorOp>(tval.getLoc(), convert);
       return success();
     }
     // Cannot be resolved with a single conversion.
@@ -1832,79 +1841,6 @@ private:
   SparsificationOptions options;
 };
 
-/// Sparse rewriting rule for expand shape operator.
-struct ExpandShapeRewriter : public OpRewritePattern<tensor::ExpandShapeOp> {
-public:
-  using OpRewritePattern<tensor::ExpandShapeOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExpandShapeOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op->getLoc();
-    auto encDst = getSparseTensorEncoding(op.result().getType());
-    auto encSrc = getSparseTensorEncoding(op.src().getType());
-    // Since a pure dense expansion is very cheap (change of view), for
-    // sparse2dense or dense2sparse, we can simply unfuse a sparse
-    // conversion from the actual expansion operation itself.
-    if (encDst && encSrc) {
-      return failure(); // TODO: implement sparse2sparse
-    } else if (encSrc) {
-      RankedTensorType rtp = op.src().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto convert = rewriter.create<ConvertOp>(loc, denseTp, op.src());
-      op->setOperand(0, convert);
-      return success();
-    } else if (encDst) {
-      RankedTensorType rtp = op.result().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto reshape = rewriter.create<tensor::ExpandShapeOp>(
-          loc, denseTp, op.src(), op.getReassociation());
-      Value convert = rewriter.create<ConvertOp>(loc, rtp, reshape);
-      rewriter.replaceOp(op, convert);
-      return success();
-    }
-    return failure();
-  }
-};
-
-/// Sparse rewriting rule for collapse shape operator.
-struct CollapseShapeRewriter
-    : public OpRewritePattern<tensor::CollapseShapeOp> {
-public:
-  using OpRewritePattern<tensor::CollapseShapeOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::CollapseShapeOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op->getLoc();
-    auto encDst = getSparseTensorEncoding(op.result().getType());
-    auto encSrc = getSparseTensorEncoding(op.src().getType());
-    // Since a pure dense collapse is very cheap (change of view), for
-    // sparse2dense or dense2sparse, we can simply unfuse a sparse
-    // conversion from the actual collapse operation itself.
-    if (encDst && encSrc) {
-      return failure(); // TODO: implement sparse2sparse
-    } else if (encSrc) {
-      RankedTensorType rtp = op.src().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto convert = rewriter.create<ConvertOp>(loc, denseTp, op.src());
-      op->setOperand(0, convert);
-      return success();
-    } else if (encDst) {
-      RankedTensorType rtp = op.result().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto reshape = rewriter.create<tensor::CollapseShapeOp>(
-          loc, denseTp, op.src(), op.getReassociation());
-      Value convert = rewriter.create<ConvertOp>(loc, rtp, reshape);
-      rewriter.replaceOp(op, convert);
-      return success();
-    }
-    return failure();
-  }
-};
-
 } // namespace
 
 /// Populates the given patterns list with rewriting rules required for
@@ -1912,6 +1848,4 @@ public:
 void mlir::populateSparsificationPatterns(
     RewritePatternSet &patterns, const SparsificationOptions &options) {
   patterns.add<GenericOpSparsifier>(patterns.getContext(), options);
-  patterns.add<ExpandShapeRewriter, CollapseShapeRewriter>(
-      patterns.getContext());
 }

@@ -1679,6 +1679,17 @@ void BuildLockset::checkAccess(const Expr *Exp, AccessKind AK,
     return;
   }
 
+  if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
+    switch (BO->getOpcode()) {
+    case BO_PtrMemD: // .*
+      return checkAccess(BO->getLHS(), AK, POK);
+    case BO_PtrMemI: // ->*
+      return checkPtAccess(BO->getLHS(), AK, POK);
+    default:
+      return;
+    }
+  }
+
   if (const auto *AE = dyn_cast<ArraySubscriptExpr>(Exp)) {
     checkPtAccess(AE->getLHS(), AK, POK);
     return;
@@ -2002,7 +2013,7 @@ void BuildLockset::VisitCallExpr(const CallExpr *Exp) {
       case OO_LessLessEqual:
       case OO_GreaterGreaterEqual:
         checkAccess(OE->getArg(1), AK_Read);
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case OO_PlusPlus:
       case OO_MinusMinus:
         checkAccess(OE->getArg(0), AK_Written);
@@ -2015,7 +2026,7 @@ void BuildLockset::VisitCallExpr(const CallExpr *Exp) {
           // Grrr.  operator* can be multiplication...
           checkPtAccess(OE->getArg(0), AK_Read);
         }
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       default: {
         // TODO: get rid of this, and rely on pass-by-ref instead.
         const Expr *Obj = OE->getArg(0);

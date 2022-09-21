@@ -142,13 +142,14 @@ bool CodeGenAction::beginSourceFileAction() {
   // Create a LoweringBridge
   const common::IntrinsicTypeDefaultKinds &defKinds =
       ci.getInvocation().getSemanticsContext().defaultKinds();
-  fir::KindMapping kindMap(mlirCtx.get(),
-      llvm::ArrayRef<fir::KindTy>{fir::fromDefaultKinds(defKinds)});
+  fir::KindMapping kindMap(mlirCtx.get(), llvm::ArrayRef<fir::KindTy>{
+                                              fir::fromDefaultKinds(defKinds)});
   lower::LoweringBridge lb = Fortran::lower::LoweringBridge::create(
-      *mlirCtx, defKinds, ci.getInvocation().getSemanticsContext().intrinsics(),
+      *mlirCtx, ci.getInvocation().getSemanticsContext(), defKinds,
+      ci.getInvocation().getSemanticsContext().intrinsics(),
       ci.getInvocation().getSemanticsContext().targetCharacteristics(),
       ci.getParsing().allCooked(), ci.getInvocation().getTargetOpts().triple,
-      kindMap);
+      kindMap, ci.getInvocation().getLoweringOpts());
 
   // Create a parse tree and lower it to FIR
   Fortran::parser::Program &parseTree{*ci.getParsing().parseTree()};
@@ -425,8 +426,8 @@ void GetDefinitionAction::executeAction() {
       clang::DiagnosticsEngine::Error, "Symbol not found");
 
   auto gdv = ci.getInvocation().getFrontendOpts().getDefVals;
-  auto charBlock{cs.GetCharBlockFromLineAndColumns(
-      gdv.line, gdv.startColumn, gdv.endColumn)};
+  auto charBlock{cs.GetCharBlockFromLineAndColumns(gdv.line, gdv.startColumn,
+                                                   gdv.endColumn)};
   if (!charBlock) {
     ci.getDiagnostics().Report(diagID);
     return;
@@ -479,11 +480,29 @@ CodeGenAction::~CodeGenAction() = default;
 
 #include "flang/Tools/CLOptions.inc"
 
+static llvm::OptimizationLevel
+mapToLevel(const Fortran::frontend::CodeGenOptions &opts) {
+  switch (opts.OptimizationLevel) {
+  default:
+    llvm_unreachable("Invalid optimization level!");
+  case 0:
+    return llvm::OptimizationLevel::O0;
+  case 1:
+    return llvm::OptimizationLevel::O1;
+  case 2:
+    return llvm::OptimizationLevel::O2;
+  case 3:
+    return llvm::OptimizationLevel::O3;
+  }
+}
+
 // Lower the previously generated MLIR module into an LLVM IR module
 void CodeGenAction::generateLLVMIR() {
   assert(mlirModule && "The MLIR module has not been generated yet.");
 
   CompilerInstance &ci = this->getInstance();
+  auto opts = ci.getInvocation().getCodeGenOpts();
+  llvm::OptimizationLevel level = mapToLevel(opts);
 
   fir::support::loadDialects(*mlirCtx);
   fir::support::registerLLVMTranslation(*mlirCtx);
@@ -495,7 +514,7 @@ void CodeGenAction::generateLLVMIR() {
   pm.enableVerifier(/*verifyPasses=*/true);
 
   // Create the pass pipeline
-  fir::createMLIRToLLVMPassPipeline(pm);
+  fir::createMLIRToLLVMPassPipeline(pm, level);
   mlir::applyPassManagerCLOptions(pm);
 
   // run the pass manager
@@ -509,6 +528,14 @@ void CodeGenAction::generateLLVMIR() {
   llvm::Optional<llvm::StringRef> moduleName = mlirModule->getName();
   llvmModule = mlir::translateModuleToLLVMIR(
       *mlirModule, *llvmCtx, moduleName ? *moduleName : "FIRModule");
+
+  // Set PIC/PIE level LLVM module flags.
+  if (opts.PICLevel > 0) {
+    llvmModule->setPICLevel(static_cast<llvm::PICLevel::Level>(opts.PICLevel));
+    if (opts.IsPIE)
+      llvmModule->setPIELevel(
+          static_cast<llvm::PIELevel::Level>(opts.PICLevel));
+  }
 
   if (!llvmModule) {
     unsigned diagID = ci.getDiagnostics().getCustomDiagID(
@@ -552,11 +579,12 @@ void CodeGenAction::setUpTargetMachine() {
   assert(theTarget && "Failed to create Target");
 
   // Create `TargetMachine`
-  llvm::CodeGenOpt::Level OptLevel =
-      getCGOptLevel(ci.getInvocation().getCodeGenOpts());
+  const auto &CGOpts = ci.getInvocation().getCodeGenOpts();
+  llvm::CodeGenOpt::Level OptLevel = getCGOptLevel(CGOpts);
   tm.reset(theTarget->createTargetMachine(
       theTriple, /*CPU=*/"",
-      /*Features=*/"", llvm::TargetOptions(), /*Reloc::Model=*/llvm::None,
+      /*Features=*/"", llvm::TargetOptions(),
+      /*Reloc::Model=*/CGOpts.getRelocationModel(),
       /*CodeModel::Model=*/llvm::None, OptLevel));
   assert(tm && "Failed to create TargetMachine");
 }
@@ -628,22 +656,6 @@ static void generateMachineCodeOrAssemblyImpl(clang::DiagnosticsEngine &diags,
 
   // Run the passes
   codeGenPasses.run(llvmModule);
-}
-
-static llvm::OptimizationLevel
-mapToLevel(const Fortran::frontend::CodeGenOptions &opts) {
-  switch (opts.OptimizationLevel) {
-  default:
-    llvm_unreachable("Invalid optimization level!");
-  case 0:
-    return llvm::OptimizationLevel::O0;
-  case 1:
-    return llvm::OptimizationLevel::O1;
-  case 2:
-    return llvm::OptimizationLevel::O2;
-  case 3:
-    return llvm::OptimizationLevel::O3;
-  }
 }
 
 void CodeGenAction::runOptimizationPipeline(llvm::raw_pwrite_stream &os) {

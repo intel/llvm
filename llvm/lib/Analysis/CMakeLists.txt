@@ -2,10 +2,7 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
   include(TensorFlowCompile)
   set(LLVM_INLINER_MODEL_PATH_DEFAULT "models/inliner-Oz")
 
-  # This url points to the most recent most which is known to be compatible with
-  # LLVM. When better models are published, this url should be updated to aid
-  # discoverability.
-  set(LLVM_INLINER_MODEL_CURRENT_URL "https://github.com/google/ml-compiler-opt/releases/download/inlining-Oz-v1.1/inlining-Oz-99f0063-v1.1.tar.gz")
+  set(LLVM_INLINER_MODEL_CURRENT_URL "<UNSPECIFIED>")
 
   if (DEFINED LLVM_HAVE_TF_AOT)
     tf_find_and_compile(
@@ -21,7 +18,17 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
   endif()
 
   if (DEFINED LLVM_HAVE_TF_API)
-    list(APPEND MLLinkDeps ${tensorflow_c_api} ${tensorflow_fx})
+    if (LLVM_HAVE_TFLITE)
+      build_proto(
+        tensorflow/core/protobuf/error_codes
+        tensorflow/core/example/feature
+        tensorflow/core/example/example)
+      list(APPEND MLLinkDeps 
+        tensorflow-lite::tensorflow-lite
+        protobuf::libprotobuf)
+    else()
+      list(APPEND MLLinkDeps ${tensorflow_c_api} ${tensorflow_fx})
+    endif()
   endif()
 endif()
 
@@ -75,6 +82,7 @@ add_llvm_component_library(LLVMAnalysis
   IndirectCallPromotionAnalysis.cpp
   InlineCost.cpp
   InlineAdvisor.cpp
+  InlineOrder.cpp
   InlineSizeEstimatorAnalysis.cpp
   InstCount.cpp
   InstructionPrecedenceTracking.cpp
@@ -101,6 +109,7 @@ add_llvm_component_library(LLVMAnalysis
   MemoryBuiltins.cpp
   MemoryDependenceAnalysis.cpp
   MemoryLocation.cpp
+  MemoryProfileInfo.cpp
   MemorySSA.cpp
   MemorySSAUpdater.cpp
   ModelUnderTrainingRunner.cpp
@@ -131,10 +140,12 @@ add_llvm_component_library(LLVMAnalysis
   SyncDependenceAnalysis.cpp
   SyntheticCountsUtils.cpp
   TFUtils.cpp
-  TensorSpec.cpp
+  TFLiteUtils.cpp
   TargetLibraryInfo.cpp
   TargetTransformInfo.cpp
+  TensorSpec.cpp
   Trace.cpp
+  TrainingLogger.cpp
   TypeBasedAliasAnalysis.cpp
   TypeMetadataUtils.cpp
   ScopedNoAliasAA.cpp

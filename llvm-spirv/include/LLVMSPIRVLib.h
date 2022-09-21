@@ -156,6 +156,9 @@ bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
                             const SPIRV::TranslatorOpts &Opts);
 
 /// \brief Mangle OpenCL builtin function function name.
+/// If any type in ArgTypes is a pointer type, it should be represented as a
+/// TypedPointerType instead, to faithfully represent the pointer element types
+/// for name mangling.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
                          ArrayRef<Type *> ArgTypes, std::string &MangledName);
 

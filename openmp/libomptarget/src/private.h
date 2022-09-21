@@ -42,7 +42,8 @@ extern int target(ident_t *Loc, DeviceTy &Device, void *HostPtr, int32_t ArgNum,
                   void **ArgBases, void **Args, int64_t *ArgSizes,
                   int64_t *ArgTypes, map_var_info_t *ArgNames,
                   void **ArgMappers, int32_t TeamNum, int32_t ThreadLimit,
-                  int IsTeamConstruct, AsyncInfoTy &AsyncInfo);
+                  uint64_t Tripcount, int IsTeamConstruct,
+                  AsyncInfoTy &AsyncInfo);
 
 extern void handleTargetOutcome(bool Success, ident_t *Loc);
 extern bool checkDeviceAndCtors(int64_t &DeviceID, ident_t *Loc);
@@ -66,7 +67,7 @@ struct MapComponentInfoTy {
 // components are dynamically decided, so we utilize C++ STL vector
 // implementation here.
 struct MapperComponentsTy {
-  std::vector<MapComponentInfoTy> Components;
+  llvm::SmallVector<MapComponentInfoTy> Components;
   int32_t size() { return Components.size(); }
 };
 
@@ -186,7 +187,6 @@ printKernelArguments(const ident_t *Loc, const int64_t DeviceId,
   }
 }
 
-#ifdef OMPTARGET_PROFILE_ENABLED
 #include "llvm/Support/TimeProfiler.h"
 #define TIMESCOPE() llvm::TimeTraceScope TimeScope(__FUNCTION__)
 #define TIMESCOPE_WITH_IDENT(IDENT)                                            \
@@ -199,6 +199,5 @@ printKernelArguments(const ident_t *Loc, const int64_t DeviceId,
 #define TIMESCOPE()
 #define TIMESCOPE_WITH_IDENT(IDENT)
 #define TIMESCOPE_WITH_NAME_AND_IDENT(NAME, IDENT)
-#endif
 
 #endif

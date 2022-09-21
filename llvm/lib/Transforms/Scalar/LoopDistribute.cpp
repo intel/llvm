@@ -397,7 +397,7 @@ public:
         continue;
 
       auto PartI = I->getData();
-      for (auto PartJ : make_range(std::next(ToBeMerged.member_begin(I)),
+      for (auto *PartJ : make_range(std::next(ToBeMerged.member_begin(I)),
                                    ToBeMerged.member_end())) {
         PartJ->moveTo(*PartI);
       }
@@ -461,16 +461,14 @@ public:
     // update PH to point to the newly added preheader.
     BasicBlock *TopPH = OrigPH;
     unsigned Index = getSize() - 1;
-    for (auto I = std::next(PartitionContainer.rbegin()),
-              E = PartitionContainer.rend();
-         I != E; ++I, --Index, TopPH = NewLoop->getLoopPreheader()) {
-      auto *Part = &*I;
+    for (auto &Part : llvm::drop_begin(llvm::reverse(PartitionContainer))) {
+      NewLoop = Part.cloneLoopWithPreheader(TopPH, Pred, Index, LI, DT);
 
-      NewLoop = Part->cloneLoopWithPreheader(TopPH, Pred, Index, LI, DT);
-
-      Part->getVMap()[ExitBlock] = TopPH;
-      Part->remapInstructions();
-      setNewLoopID(OrigLoopID, Part);
+      Part.getVMap()[ExitBlock] = TopPH;
+      Part.remapInstructions();
+      setNewLoopID(OrigLoopID, &Part);
+      --Index;
+      TopPH = NewLoop->getLoopPreheader();
     }
     Pred->getTerminator()->replaceUsesOfWith(OrigPH, TopPH);
 
@@ -602,7 +600,7 @@ private:
                              : LLVMLoopDistributeFollowupCoincident});
     if (PartitionID) {
       Loop *NewLoop = Part->getDistributedLoop();
-      NewLoop->setLoopID(PartitionID.getValue());
+      NewLoop->setLoopID(PartitionID.value());
     }
   }
 };
@@ -635,7 +633,7 @@ public:
     Accesses.append(Instructions.begin(), Instructions.end());
 
     LLVM_DEBUG(dbgs() << "Backward dependences:\n");
-    for (auto &Dep : Dependences)
+    for (const auto &Dep : Dependences)
       if (Dep.isPossiblyBackward()) {
         // Note that the designations source and destination follow the program
         // order, i.e. source is always first.  (The direction is given by the
@@ -717,7 +715,7 @@ public:
                                      *Dependences);
 
     int NumUnsafeDependencesActive = 0;
-    for (auto &InstDep : MID) {
+    for (const auto &InstDep : MID) {
       Instruction *I = InstDep.Inst;
       // We update NumUnsafeDependencesActive post-instruction, catch the
       // start of a dependence directly via NumUnsafeDependencesStartOrEnd.
@@ -826,7 +824,7 @@ public:
                              {LLVMLoopDistributeFollowupAll,
                               LLVMLoopDistributeFollowupFallback},
                              "llvm.loop.distribute.", true)
-              .getValue();
+              .value();
       LVer.getNonVersionedLoop()->setLoopID(UnversionedLoopID);
     }
 

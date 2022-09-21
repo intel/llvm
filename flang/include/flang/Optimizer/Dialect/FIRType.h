@@ -87,6 +87,14 @@ inline bool conformsWithPassByRef(mlir::Type t) {
 /// Is `t` a derived (record) type?
 inline bool isa_derived(mlir::Type t) { return t.isa<fir::RecordType>(); }
 
+/// Is `t` type(c_ptr) or type(c_funptr)?
+inline bool isa_builtin_cptr_type(mlir::Type t) {
+  if (auto recTy = t.dyn_cast_or_null<fir::RecordType>())
+    return recTy.getName().endswith("T__builtin_c_ptr") ||
+           recTy.getName().endswith("T__builtin_c_funptr");
+  return false;
+}
+
 /// Is `t` a FIR dialect aggregate type?
 inline bool isa_aggregate(mlir::Type t) {
   return t.isa<SequenceType, mlir::TupleType>() || fir::isa_derived(t);
@@ -155,7 +163,7 @@ inline bool characterWithDynamicLen(mlir::Type t) {
 /// Returns true iff `seqTy` has either an unknown shape or a non-constant shape
 /// (where rank > 0).
 inline bool sequenceWithNonConstantShape(fir::SequenceType seqTy) {
-  return seqTy.hasUnknownShape() || !seqTy.hasConstantShape();
+  return seqTy.hasUnknownShape() || seqTy.hasDynamicExtents();
 }
 
 /// Returns true iff the type `t` does not have a constant size.

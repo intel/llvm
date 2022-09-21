@@ -3,11 +3,18 @@
 
 // CHECK-LABEL: func @gpu_gcn_raw_buffer_load_i32
 func.func @gpu_gcn_raw_buffer_load_i32(%buf: memref<64xi32>, %idx: i32) -> i32 {
+  // CHECK: %[[ptr:.*]] = llvm.ptrtoint
+  // CHECK: %[[lowHalf:.*]] = llvm.trunc %[[ptr]] : i64 to i32
+  // CHECK: %[[resource_1:.*]] = llvm.insertelement %[[lowHalf]]
+  // CHECK: %[[highHalfI64:.*]] = llvm.lshr %[[ptr]]
+  // CHECK: %[[highHalfI32:.*]] = llvm.trunc %[[highHalfI64]] : i64 to i32
+  // CHECK: %[[highHalf:.*]] = llvm.and %[[highHalfI32]], %{{.*}} : i32
+  // CHECK: %[[resource_2:.*]] = llvm.insertelement %[[highHalf]], %[[resource_1]]
   // CHECK: %[[numRecords:.*]] = llvm.mlir.constant(256 : i32)
-  // CHECK: llvm.insertelement{{.*}}%[[numRecords]]
+  // CHECK: %[[resource_3:.*]] = llvm.insertelement %[[numRecords]], %[[resource_2]]
   // CHECK: %[[word3:.*]] = llvm.mlir.constant(159744 : i32)
   // RDNA: %[[word3:.*]] = llvm.mlir.constant(822243328 : i32)
-  // CHECK: %[[resource:.*]] = llvm.insertelement{{.*}}%[[word3]]
+  // CHECK: %[[resource:.*]] = llvm.insertelement %[[word3]], %[[resource_3]]
   // CHECK: %[[ret:.*]] = rocdl.raw.buffer.load %[[resource]], %{{.*}}, %{{.*}}, %{{.*}} : i32
   // CHECK: return %[[ret]]
   %0 = amdgpu.raw_buffer_load {boundsCheck = true} %buf[%idx] : memref<64xi32>, i32 -> i32
@@ -99,5 +106,12 @@ func.func @gpu_gcn_raw_buffer_atomic_fadd_f32(%value: f32, %buf: memref<64xf32>,
   // CHECK: %[[resource:.*]] = llvm.insertelement{{.*}}%[[word3]]
   // CHECK: rocdl.raw.buffer.atomic.fadd %{{.*}} %[[resource]], %{{.*}}, %{{.*}}, %{{.*}} : f32
   amdgpu.raw_buffer_atomic_fadd {boundsCheck = true} %value -> %buf[%idx] : f32 -> memref<64xf32>, i32
+  func.return
+}
+
+// CHECK-LABEL: func @lds_barrier
+func.func @lds_barrier() {
+  // CHECK: llvm.inline_asm has_side_effects asm_dialect = att "s_waitcnt lgkmcnt(0)\0As_barrier"
+  amdgpu.lds_barrier
   func.return
 }

@@ -63,6 +63,10 @@ def LongDoublePtr : PtrType<LongDoubleType>;
 def IntMaxTType : NamedType<"intmax_t">;
 def UIntMaxTType : NamedType<"uintmax_t">;
 
+def OffTType : NamedType<"off_t">;
+def OffTPtr : PtrType<OffTType>;
+def SSizeTType : NamedType<"ssize_t">;
+
 // _Noreturn is really not a type, but it is convenient to treat it as a type.
 def NoReturn : NamedType<"_Noreturn void">;
 
@@ -106,6 +110,8 @@ def AtexitHandlerT : NamedType<"__atexithandler_t">;
 def FILE : NamedType<"FILE">;
 def FILEPtr : PtrType<FILE>;
 def FILERestrictedPtr : RestrictedPtrType<FILE>;
+
+def PThreadTType : NamedType<"pthread_t">;
 
 //added because __assert_fail needs it.
 def UnsignedType : NamedType<"unsigned">;

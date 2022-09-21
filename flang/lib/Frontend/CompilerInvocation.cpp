@@ -90,6 +90,25 @@ static bool parseShowColorsArgs(const llvm::opt::ArgList &args,
           llvm::sys::Process::StandardErrHasColors());
 }
 
+/// Extracts the optimisation level from \a args.
+static unsigned getOptimizationLevel(llvm::opt::ArgList &args,
+                                     clang::DiagnosticsEngine &diags) {
+  unsigned defaultOpt = llvm::CodeGenOpt::None;
+
+  if (llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_O_Group)) {
+    if (a->getOption().matches(clang::driver::options::OPT_O0))
+      return llvm::CodeGenOpt::None;
+
+    assert(a->getOption().matches(clang::driver::options::OPT_O));
+
+    return getLastArgIntValue(args, clang::driver::options::OPT_O, defaultOpt,
+                              diags);
+  }
+
+  return defaultOpt;
+}
+
 bool Fortran::frontend::parseDiagnosticArgs(clang::DiagnosticOptions &opts,
                                             llvm::opt::ArgList &args) {
   opts.ShowColors = parseShowColorsArgs(args);
@@ -100,13 +119,44 @@ bool Fortran::frontend::parseDiagnosticArgs(clang::DiagnosticOptions &opts,
 static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
                              llvm::opt::ArgList &args,
                              clang::DiagnosticsEngine &diags) {
-  unsigned defaultOpt = llvm::CodeGenOpt::None;
-  opts.OptimizationLevel = clang::getLastArgIntValue(
-      args, clang::driver::options::OPT_O, defaultOpt, diags);
+  opts.OptimizationLevel = getOptimizationLevel(args, diags);
 
   if (args.hasFlag(clang::driver::options::OPT_fdebug_pass_manager,
                    clang::driver::options::OPT_fno_debug_pass_manager, false))
     opts.DebugPassManager = 1;
+
+  // -mrelocation-model option.
+  if (const llvm::opt::Arg *A =
+          args.getLastArg(clang::driver::options::OPT_mrelocation_model)) {
+    llvm::StringRef ModelName = A->getValue();
+    auto RM = llvm::StringSwitch<llvm::Optional<llvm::Reloc::Model>>(ModelName)
+                  .Case("static", llvm::Reloc::Static)
+                  .Case("pic", llvm::Reloc::PIC_)
+                  .Case("dynamic-no-pic", llvm::Reloc::DynamicNoPIC)
+                  .Case("ropi", llvm::Reloc::ROPI)
+                  .Case("rwpi", llvm::Reloc::RWPI)
+                  .Case("ropi-rwpi", llvm::Reloc::ROPI_RWPI)
+                  .Default(llvm::None);
+    if (RM.has_value())
+      opts.setRelocationModel(*RM);
+    else
+      diags.Report(clang::diag::err_drv_invalid_value)
+          << A->getAsString(args) << ModelName;
+  }
+
+  // -pic-level and -pic-is-pie option.
+  if (int PICLevel = getLastArgIntValue(
+          args, clang::driver::options::OPT_pic_level, 0, diags)) {
+    if (PICLevel > 2)
+      diags.Report(clang::diag::err_drv_invalid_value)
+          << args.getLastArg(clang::driver::options::OPT_pic_level)
+                 ->getAsString(args)
+          << PICLevel;
+
+    opts.PICLevel = PICLevel;
+    if (args.hasArg(clang::driver::options::OPT_pic_is_pie))
+      opts.IsPIE = 1;
+  }
 }
 
 /// Parses all target input arguments and populates the target
@@ -746,11 +796,14 @@ void CompilerInvocation::setFortranOpts() {
 
   // Add the directory supplied through -J/-module-dir to the list of search
   // directories
-  if (moduleDirJ.compare(".") != 0)
+  if (moduleDirJ != ".")
     fortranOptions.searchDirectories.emplace_back(moduleDirJ);
 
   if (frontendOptions.instrumentedParse)
     fortranOptions.instrumentedParse = true;
+
+  if (frontendOptions.showColors)
+    fortranOptions.showColors = true;
 
   if (frontendOptions.needProvenanceRangeToCharBlockMappings)
     fortranOptions.needProvenanceRangeToCharBlockMappings = true;
@@ -773,4 +826,13 @@ void CompilerInvocation::setSemanticsOpts(
       .set_warnOnNonstandardUsage(getEnableConformanceChecks())
       .set_warningsAreErrors(getWarnAsErr())
       .set_moduleFileSuffix(getModuleFileSuffix());
+}
+
+/// Set \p loweringOptions controlling lowering behavior based
+/// on the \p optimizationLevel.
+void CompilerInvocation::setLoweringOptions() {
+  const auto &codegenOpts = getCodeGenOpts();
+
+  // Lower TRANSPOSE as a runtime call under -O0.
+  loweringOpts.setOptimizeTranspose(codegenOpts.OptimizationLevel > 0);
 }

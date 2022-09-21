@@ -183,6 +183,10 @@ OPTIONS
 
   When disassembling, do not print the raw bytes of each instruction.
 
+.. option:: --offloading
+
+  Display the content of the LLVM offloading section.
+
 .. option:: --prefix=<prefix>
 
   When disassembling with the :option:`--source` option, prepend ``prefix`` to
@@ -308,7 +312,11 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Disassemble just the specified symbol's instructions.
 
-.. option:: --dyld_info
+.. option:: --chained-fixups
+
+  Print chained fixup information.
+
+.. option:: --dyld-info
 
   Print bind and rebase information used by dyld to resolve external
   references in a final linked binary.
@@ -377,10 +385,6 @@ MACH-O ONLY OPTIONS AND COMMANDS
 .. option:: --objc-meta-data
 
   Display the Objective-C runtime meta data.
-
-.. option:: --offloading
-
-  Display the content of the LLVM offloading section.
 
 .. option:: --private-header
 

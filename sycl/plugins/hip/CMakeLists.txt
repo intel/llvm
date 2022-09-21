@@ -4,10 +4,16 @@ set(SYCL_BUILD_PI_HIP_PLATFORM "AMD" CACHE STRING "PI HIP platform, AMD or NVIDI
 
 message(STATUS "Including the PI API HIP backend for ${SYCL_BUILD_PI_HIP_PLATFORM}.")
 
-# Set default HIP include dirs
-set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "/opt/rocm/hip/include" CACHE STRING "HIP include dir")
-set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "/opt/rocm/hsa/include" CACHE STRING "HSA include dir")
-set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
+# Set default ROCm installation directory
+set(SYCL_BUILD_PI_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
+
+if(NOT EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}")
+  message(FATAL_ERROR "Couldn't find ROCm installation in '${SYCL_BUILD_PI_HIP_ROCM_DIR}',"
+                      " please set SYCL_BUILD_PI_HIP_ROCM_DIR to the path of the ROCm installation.")
+endif()
+
+# Set HIP include dirs
+set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include;${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
 
 # Create pi_hip library
 add_sycl_plugin(hip
@@ -23,12 +29,11 @@ set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   # Import HIP runtime library
-  set(SYCL_BUILD_PI_HIP_AMD_LIBRARY "/opt/rocm/hip/lib/libamdhip64.so" CACHE STRING "HIP AMD runtime library")
   add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
   set_target_properties(
     rocmdrv PROPERTIES
-      IMPORTED_LOCATION                    ${SYCL_BUILD_PI_HIP_AMD_LIBRARY}
+      IMPORTED_LOCATION                    "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib/libamdhip64.so"
       INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
       INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
   )

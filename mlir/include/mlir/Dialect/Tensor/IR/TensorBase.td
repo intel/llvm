@@ -51,7 +51,7 @@ def Tensor_Dialect : Dialect {
     "complex::ComplexDialect",
   ];
 
-  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
+  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 }
 
 #endif // TENSOR_BASE

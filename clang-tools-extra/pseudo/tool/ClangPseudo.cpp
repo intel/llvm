@@ -8,6 +8,8 @@
 
 #include "clang-pseudo/Bracket.h"
 #include "clang-pseudo/DirectiveTree.h"
+#include "clang-pseudo/Disambiguate.h"
+#include "clang-pseudo/Forest.h"
 #include "clang-pseudo/GLR.h"
 #include "clang-pseudo/Language.h"
 #include "clang-pseudo/Token.h"
@@ -18,18 +20,19 @@
 #include "clang/Basic/LangOptions.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 
+using clang::pseudo::ForestNode;
+using clang::pseudo::Token;
 using clang::pseudo::TokenStream;
 using llvm::cl::desc;
 using llvm::cl::init;
 using llvm::cl::opt;
 
-static opt<bool> PrintGrammar("print-grammar", desc("Print the grammar."));
+static opt<bool> PrintGrammar("print-grammar", desc("Print the grammar"));
 static opt<bool> PrintGraph("print-graph",
                             desc("Print the LR graph for the grammar"));
 static opt<bool> PrintTable("print-table",
@@ -43,17 +46,23 @@ static opt<bool>
 static opt<bool>
     StripDirectives("strip-directives",
                     desc("Strip directives and select conditional sections"));
+static opt<bool> Disambiguate("disambiguate",
+                              desc("Choose best tree from parse forest"));
 static opt<bool> PrintStatistics("print-statistics", desc("Print GLR parser statistics"));
 static opt<bool> PrintForest("print-forest", desc("Print parse forest"));
+static opt<bool> ForestAbbrev("forest-abbrev", desc("Abbreviate parse forest"),
+                              init(true));
+static opt<std::string> HTMLForest("html-forest",
+                                   desc("output file for HTML forest"));
 static opt<std::string> StartSymbol("start-symbol",
-                                    desc("specify the start symbol to parse"),
+                                    desc("Specify the start symbol to parse"),
                                     init("translation-unit"));
 
 static std::string readOrDie(llvm::StringRef Path) {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
       llvm::MemoryBuffer::getFile(Path);
   if (std::error_code EC = Text.getError()) {
-    llvm::errs() << "Error: can't read grammar file '" << Path
+    llvm::errs() << "Error: can't read file '" << Path
                  << "': " << EC.message() << "\n";
     ::exit(1);
   }
@@ -62,6 +71,10 @@ static std::string readOrDie(llvm::StringRef Path) {
 
 namespace clang {
 namespace pseudo {
+// Defined in HTMLForest.cpp
+void writeHTMLForest(llvm::raw_ostream &OS, const Grammar &,
+                     const ForestNode &Root, const Disambiguation &,
+                     const TokenStream &);
 namespace {
 
 struct NodeStats {
@@ -147,8 +160,24 @@ int main(int argc, char *argv[]) {
     auto &Root =
         glrParse(clang::pseudo::ParseParams{*ParseableStream, Arena, GSS},
                  *StartSymID, Lang);
-    if (PrintForest)
-      llvm::outs() << Root.dumpRecursive(Lang.G, /*Abbreviated=*/true);
+    // If we're disambiguating, we'll print at the end instead.
+    if (PrintForest && !Disambiguate)
+      llvm::outs() << Root.dumpRecursive(Lang.G, /*Abbreviated=*/ForestAbbrev);
+    clang::pseudo::Disambiguation Disambig;
+    if (Disambiguate)
+      Disambig = clang::pseudo::disambiguate(&Root, {});
+
+    if (HTMLForest.getNumOccurrences()) {
+      std::error_code EC;
+      llvm::raw_fd_ostream HTMLOut(HTMLForest, EC);
+      if (EC) {
+        llvm::errs() << "Couldn't write " << HTMLForest << ": " << EC.message()
+                     << "\n";
+        return 2;
+      }
+      clang::pseudo::writeHTMLForest(HTMLOut, Lang.G, Root, Disambig,
+                                     *ParseableStream);
+    }
 
     if (PrintStatistics) {
       llvm::outs() << "Forest bytes: " << Arena.bytes()
@@ -156,9 +185,8 @@ int main(int argc, char *argv[]) {
       llvm::outs() << "GSS bytes: " << GSS.bytes()
                    << " nodes: " << GSS.nodesCreated() << "\n";
 
-      for (auto &P :
-           {std::make_pair("Ambiguous", clang::pseudo::ForestNode::Ambiguous),
-            std::make_pair("Opaque", clang::pseudo::ForestNode::Opaque)}) {
+      for (auto &P : {std::make_pair("Ambiguous", ForestNode::Ambiguous),
+                      std::make_pair("Opaque", ForestNode::Opaque)}) {
         clang::pseudo::NodeStats Stats(
             Root, [&](const auto &N) { return N.kind() == P.second; });
         llvm::outs() << "\n" << Stats.Total << " " << P.first << " nodes:\n";
@@ -166,6 +194,47 @@ int main(int argc, char *argv[]) {
           llvm::outs() << llvm::formatv("  {0,3} {1}\n", S.second,
                                         Lang.G.symbolName(S.first));
       }
+
+      // Metrics for how imprecise parsing was.
+      // These are rough but aim to be:
+      // - linear: if we eliminate half the errors the metric should halve
+      // - length-independent
+      unsigned UnparsedTokens = 0; // Tokens covered by Opaque. (not unique)
+      unsigned Misparses = 0;      // Sum of alternatives-1
+      llvm::DenseSet<const ForestNode *> Visited;
+      auto DFS = [&](const ForestNode &N, Token::Index End, auto &DFS) -> void {
+        if (N.kind() == ForestNode::Opaque) {
+          UnparsedTokens += End - N.startTokenIndex();
+        } else if (N.kind() == ForestNode::Ambiguous) {
+          Misparses += N.alternatives().size() - 1;
+          for (const auto *C : N.alternatives())
+            if (Visited.insert(C).second)
+              DFS(*C, End, DFS);
+        } else if (N.kind() == ForestNode::Sequence) {
+          for (unsigned I = 0, E = N.children().size(); I < E; ++I)
+            if (Visited.insert(N.children()[I]).second)
+              DFS(*N.children()[I],
+                  I + 1 == N.children().size()
+                      ? End
+                      : N.children()[I + 1]->startTokenIndex(),
+                  DFS);
+        }
+      };
+      unsigned Len = ParseableStream->tokens().size();
+      DFS(Root, Len, DFS);
+      llvm::outs() << "\n";
+      llvm::outs() << llvm::formatv("Ambiguity: {0} misparses/token\n",
+                                    double(Misparses) / Len);
+      llvm::outs() << llvm::formatv("Unparsed: {0}%\n",
+                                    100.0 * UnparsedTokens / Len);
+    }
+
+    if (Disambiguate && PrintForest) {
+      ForestNode *DisambigRoot = &Root;
+      removeAmbiguities(DisambigRoot, Disambig);
+      llvm::outs() << "Disambiguated tree:\n";
+      llvm::outs() << DisambigRoot->dumpRecursive(Lang.G,
+                                                  /*Abbreviated=*/ForestAbbrev);
     }
   }
 

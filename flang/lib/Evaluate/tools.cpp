@@ -771,7 +771,7 @@ inline const ProcedureRef *UnwrapProcedureRef(const Expr<T> &expr) {
 
 // IsObjectPointer()
 bool IsObjectPointer(const Expr<SomeType> &expr, FoldingContext &context) {
-  if (IsNullPointer(expr)) {
+  if (IsNullObjectPointer(expr)) {
     return true;
   } else if (IsProcedurePointerTarget(expr)) {
     return false;
@@ -788,14 +788,28 @@ bool IsBareNullPointer(const Expr<SomeType> *expr) {
   return expr && std::holds_alternative<NullPointer>(expr->u);
 }
 
-// IsNullPointer()
-struct IsNullPointerHelper {
+// IsNullObjectPointetr, IsNullProcedurePointer(), IsNullPointer()
+template <bool IS_PROC_PTR> struct IsNullPointerHelper {
   template <typename A> bool operator()(const A &) const { return false; }
+  bool operator()(const ProcedureRef &call) const {
+    if constexpr (IS_PROC_PTR) {
+      const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
+      return intrinsic &&
+          intrinsic->characteristics.value().attrs.test(
+              characteristics::Procedure::Attr::NullPointer);
+    } else {
+      return false;
+    }
+  }
   template <typename T> bool operator()(const FunctionRef<T> &call) const {
-    const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
-    return intrinsic &&
-        intrinsic->characteristics.value().attrs.test(
-            characteristics::Procedure::Attr::NullPointer);
+    if constexpr (IS_PROC_PTR) {
+      return false;
+    } else {
+      const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
+      return intrinsic &&
+          intrinsic->characteristics.value().attrs.test(
+              characteristics::Procedure::Attr::NullPointer);
+    }
   }
   bool operator()(const NullPointer &) const { return true; }
   template <typename T> bool operator()(const Parentheses<T> &x) const {
@@ -806,8 +820,14 @@ struct IsNullPointerHelper {
   }
 };
 
+bool IsNullObjectPointer(const Expr<SomeType> &expr) {
+  return IsNullPointerHelper<false>{}(expr);
+}
+bool IsNullProcedurePointer(const Expr<SomeType> &expr) {
+  return IsNullPointerHelper<true>{}(expr);
+}
 bool IsNullPointer(const Expr<SomeType> &expr) {
-  return IsNullPointerHelper{}(expr);
+  return IsNullObjectPointer(expr) || IsNullProcedurePointer(expr);
 }
 
 // GetSymbolVector()
@@ -939,26 +959,14 @@ std::optional<std::string> FindImpureCall(
   return FindImpureCallHelper{context}(proc);
 }
 
-// Compare procedure characteristics for equality except that rhs may be
-// Pure or Elemental when lhs is not.
-static bool CharacteristicsMatch(const characteristics::Procedure &lhs,
-    const characteristics::Procedure &rhs) {
-  using Attr = characteristics::Procedure::Attr;
-  auto lhsAttrs{lhs.attrs};
-  lhsAttrs.set(
-      Attr::Pure, lhs.attrs.test(Attr::Pure) || rhs.attrs.test(Attr::Pure));
-  lhsAttrs.set(Attr::Elemental,
-      lhs.attrs.test(Attr::Elemental) || rhs.attrs.test(Attr::Elemental));
-  return lhsAttrs == rhs.attrs && lhs.functionResult == rhs.functionResult &&
-      lhs.dummyArguments == rhs.dummyArguments;
-}
-
 // Common handling for procedure pointer compatibility of left- and right-hand
 // sides.  Returns nullopt if they're compatible.  Otherwise, it returns a
 // message that needs to be augmented by the names of the left and right sides
+// and the content of the "whyNotCompatible" string.
 std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
     const std::optional<characteristics::Procedure> &lhsProcedure,
-    const characteristics::Procedure *rhsProcedure) {
+    const characteristics::Procedure *rhsProcedure,
+    const SpecificIntrinsic *specificIntrinsic, std::string &whyNotCompatible) {
   std::optional<parser::MessageFixedText> msg;
   if (!lhsProcedure) {
     msg = "In assignment to object %s, the target '%s' is a procedure"
@@ -966,25 +974,26 @@ std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
   } else if (!rhsProcedure) {
     msg = "In assignment to procedure %s, the characteristics of the target"
           " procedure '%s' could not be determined"_err_en_US;
-  } else if (CharacteristicsMatch(*lhsProcedure, *rhsProcedure)) {
+  } else if (lhsProcedure->IsCompatibleWith(
+                 *rhsProcedure, &whyNotCompatible, specificIntrinsic)) {
     // OK
   } else if (isCall) {
     msg = "Procedure %s associated with result of reference to function '%s'"
-          " that is an incompatible procedure pointer"_err_en_US;
+          " that is an incompatible procedure pointer: %s"_err_en_US;
   } else if (lhsProcedure->IsPure() && !rhsProcedure->IsPure()) {
     msg = "PURE procedure %s may not be associated with non-PURE"
           " procedure designator '%s'"_err_en_US;
-  } else if (lhsProcedure->IsFunction() && !rhsProcedure->IsFunction()) {
+  } else if (lhsProcedure->IsFunction() && rhsProcedure->IsSubroutine()) {
     msg = "Function %s may not be associated with subroutine"
           " designator '%s'"_err_en_US;
-  } else if (!lhsProcedure->IsFunction() && rhsProcedure->IsFunction()) {
+  } else if (lhsProcedure->IsSubroutine() && rhsProcedure->IsFunction()) {
     msg = "Subroutine %s may not be associated with function"
           " designator '%s'"_err_en_US;
   } else if (lhsProcedure->HasExplicitInterface() &&
       !rhsProcedure->HasExplicitInterface()) {
     // Section 10.2.2.4, paragraph 3 prohibits associating a procedure pointer
-    // with an explicit interface with a procedure whose characteristics don't
-    // match.  That's the case if the target procedure has an implicit
+    // that has an explicit interface with a procedure whose characteristics
+    // don't match.  That's the case if the target procedure has an implicit
     // interface.  But this case is allowed by several other compilers as long
     // as the explicit interface can be called via an implicit interface.
     if (!lhsProcedure->CanBeCalledViaImplicitInterface()) {
@@ -995,14 +1004,15 @@ std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
   } else if (!lhsProcedure->HasExplicitInterface() &&
       rhsProcedure->HasExplicitInterface()) {
     // OK if the target can be called via an implicit interface
-    if (!rhsProcedure->CanBeCalledViaImplicitInterface()) {
+    if (!rhsProcedure->CanBeCalledViaImplicitInterface() &&
+        !specificIntrinsic) {
       msg = "Procedure %s with implicit interface may not be associated "
             "with procedure designator '%s' with explicit interface that "
             "cannot be called via an implicit interface"_err_en_US;
     }
   } else {
     msg = "Procedure %s associated with incompatible procedure"
-          " designator '%s'"_err_en_US;
+          " designator '%s': %s"_err_en_US;
   }
   return msg;
 }
@@ -1257,7 +1267,8 @@ bool IsElementalProcedure(const Symbol &original) {
           IsElementalProcedure(*procInterface);
     }
   } else if (const auto *details{symbol.detailsIf<ProcBindingDetails>()}) {
-    return IsElementalProcedure(details->symbol());
+    return !details->symbol().attrs().test(Attr::INTRINSIC) &&
+        IsElementalProcedure(details->symbol());
   } else if (!IsProcedure(symbol)) {
     return false;
   }
@@ -1472,6 +1483,13 @@ bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name) {
   }
 }
 
+bool IsBuiltinCPtr(const Symbol &symbol) {
+  if (const DeclTypeSpec *declType = symbol.GetType())
+    if (const DerivedTypeSpec *derived = declType->AsDerived())
+      return IsIsoCType(derived);
+  return false;
+}
+
 bool IsIsoCType(const DerivedTypeSpec *derived) {
   return IsBuiltinDerivedType(derived, "c_ptr") ||
       IsBuiltinDerivedType(derived, "c_funptr");
@@ -1491,21 +1509,20 @@ bool IsEventTypeOrLockType(const DerivedTypeSpec *derivedTypeSpec) {
 }
 
 int CountLenParameters(const DerivedTypeSpec &type) {
-  return std::count_if(type.parameters().begin(), type.parameters().end(),
-      [](const auto &pair) { return pair.second.isLen(); });
+  return llvm::count_if(
+      type.parameters(), [](const auto &pair) { return pair.second.isLen(); });
 }
 
 int CountNonConstantLenParameters(const DerivedTypeSpec &type) {
-  return std::count_if(
-      type.parameters().begin(), type.parameters().end(), [](const auto &pair) {
-        if (!pair.second.isLen()) {
-          return false;
-        } else if (const auto &expr{pair.second.GetExplicit()}) {
-          return !IsConstantExpr(*expr);
-        } else {
-          return true;
-        }
-      });
+  return llvm::count_if(type.parameters(), [](const auto &pair) {
+    if (!pair.second.isLen()) {
+      return false;
+    } else if (const auto &expr{pair.second.GetExplicit()}) {
+      return !IsConstantExpr(*expr);
+    } else {
+      return true;
+    }
+  });
 }
 
 // Are the type parameters of type1 compile-time compatible with the

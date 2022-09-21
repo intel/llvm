@@ -365,20 +365,15 @@ static SmallVector<uint8_t> parseBuildIDArg(const opt::InputArgList &Args,
   return BuildID;
 }
 
-// Symbolize the markup from stdin and write the result to stdout.
-static void filterMarkup(const opt::InputArgList &Args) {
-  MarkupParser Parser;
-  MarkupFilter Filter(outs(), parseColorArg(Args));
-  for (std::string InputString; std::getline(std::cin, InputString);) {
+// Symbolize markup from stdin and write the result to stdout.
+static void filterMarkup(const opt::InputArgList &Args, LLVMSymbolizer &Symbolizer) {
+  MarkupFilter Filter(outs(), Symbolizer, parseColorArg(Args));
+  std::string InputString;
+  while (std::getline(std::cin, InputString)) {
     InputString += '\n';
-    Parser.parseLine(InputString);
-    Filter.beginLine(InputString);
-    while (Optional<MarkupNode> Element = Parser.nextNode())
-      Filter.filter(*Element);
+    Filter.filter(InputString);
   }
-  Parser.flush();
-  while (Optional<MarkupNode> Element = Parser.nextNode())
-    Filter.filter(*Element);
+  Filter.finish();
 }
 
 ExitOnError ExitOnErr;
@@ -442,8 +437,19 @@ int main(int argc, char **argv) {
     }
   }
 
+  LLVMSymbolizer Symbolizer(Opts);
+
+  // A debuginfod lookup could succeed if a HTTP client is available and at
+  // least one backing URL is configured.
+  bool ShouldUseDebuginfodByDefault =
+      HTTPClient::isAvailable() &&
+      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
+  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
+                   ShouldUseDebuginfodByDefault))
+    enableDebuginfod(Symbolizer);
+
   if (Args.hasArg(OPT_filter_markup)) {
-    filterMarkup(Args);
+    filterMarkup(Args, Symbolizer);
     return 0;
   }
 
@@ -462,17 +468,6 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
   SmallVector<uint8_t> BuildID = parseBuildIDArg(Args, OPT_build_id_EQ);
-
-  LLVMSymbolizer Symbolizer(Opts);
-
-  // A debuginfod lookup could succeed if a HTTP client is available and at
-  // least one backing URL is configured.
-  bool ShouldUseDebuginfodByDefault =
-      HTTPClient::isAvailable() &&
-      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
-  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
-                   ShouldUseDebuginfodByDefault))
-    enableDebuginfod(Symbolizer);
 
   std::unique_ptr<DIPrinter> Printer;
   if (Style == OutputStyle::GNU)

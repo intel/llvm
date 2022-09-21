@@ -14,6 +14,7 @@
 #define LLVM_EXECUTIONENGINE_ORC_MEMORYMAPPER_H
 
 #include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/Support/Process.h"
 
 #include <mutex>
 
@@ -40,6 +41,9 @@ public:
   };
 
   using OnReservedFunction = unique_function<void(Expected<ExecutorAddrRange>)>;
+
+  // Page size of the target process
+  virtual unsigned int getPageSize() = 0;
 
   /// Reserves address space in executor process
   virtual void reserve(size_t NumBytes, OnReservedFunction OnReserved) = 0;
@@ -74,9 +78,13 @@ public:
   virtual ~MemoryMapper();
 };
 
-class InProcessMemoryMapper final : public MemoryMapper {
+class InProcessMemoryMapper : public MemoryMapper {
 public:
-  InProcessMemoryMapper() {}
+  InProcessMemoryMapper(size_t PageSize);
+
+  static Expected<std::unique_ptr<InProcessMemoryMapper>> Create();
+
+  unsigned int getPageSize() override { return PageSize; }
 
   void reserve(size_t NumBytes, OnReservedFunction OnReserved) override;
 
@@ -94,6 +102,7 @@ public:
 
 private:
   struct Allocation {
+    size_t Size;
     std::vector<shared::WrapperFunctionCall> DeinitializationActions;
   };
   using AllocationMap = DenseMap<ExecutorAddr, Allocation>;
@@ -107,6 +116,56 @@ private:
   std::mutex Mutex;
   ReservationMap Reservations;
   AllocationMap Allocations;
+
+  size_t PageSize;
+};
+
+class SharedMemoryMapper final : public MemoryMapper {
+public:
+  struct SymbolAddrs {
+    ExecutorAddr Instance;
+    ExecutorAddr Reserve;
+    ExecutorAddr Initialize;
+    ExecutorAddr Deinitialize;
+    ExecutorAddr Release;
+  };
+
+  SharedMemoryMapper(ExecutorProcessControl &EPC, SymbolAddrs SAs,
+                     size_t PageSize);
+
+  static Expected<std::unique_ptr<SharedMemoryMapper>>
+  Create(ExecutorProcessControl &EPC, SymbolAddrs SAs);
+
+  unsigned int getPageSize() override { return PageSize; }
+
+  void reserve(size_t NumBytes, OnReservedFunction OnReserved) override;
+
+  char *prepare(ExecutorAddr Addr, size_t ContentSize) override;
+
+  void initialize(AllocInfo &AI, OnInitializedFunction OnInitialized) override;
+
+  void deinitialize(ArrayRef<ExecutorAddr> Allocations,
+                    OnDeinitializedFunction OnDeInitialized) override;
+
+  void release(ArrayRef<ExecutorAddr> Reservations,
+               OnReleasedFunction OnRelease) override;
+
+  ~SharedMemoryMapper() override;
+
+private:
+  struct Reservation {
+    void *LocalAddr;
+    size_t Size;
+  };
+
+  ExecutorProcessControl &EPC;
+  SymbolAddrs SAs;
+
+  std::mutex Mutex;
+
+  std::map<ExecutorAddr, Reservation> Reservations;
+
+  size_t PageSize;
 };
 
 } // namespace orc

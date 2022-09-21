@@ -34,10 +34,10 @@ struct A {
 
 struct POD {
   A a[2];
-  // FIXME: cl::sycl::vec class is not a POD type in our implementation by some
+  // FIXME: sycl::vec class is not a POD type in our implementation by some
   // reason, but there are no limitations for vector types from spec constatns
   // design point of view.
-  cl::sycl::vec<int, 2> b;
+  sycl::vec<int, 2> b;
 };
 
 class MyInt32Const;
@@ -55,16 +55,16 @@ class MyPODConst;
   sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       p.set_spec_constant<MyInt32Const>(rt_val);
 
-  cl::sycl::ONEAPI::experimental::spec_constant<POD, MyPODConst> pod =
+  sycl::ONEAPI::experimental::spec_constant<POD, MyPODConst> pod =
       p.set_spec_constant<MyPODConst>(gold);
 
   p.build_with_kernel_type<MyKernel>();
   sycl::buffer<int, 1> buf(vec.data(), vec.size());
   sycl::buffer<POD, 1> buf(vec_pod.data(), vec_pod.size());
 
-  q.submit([&](cl::sycl::handler &cgh) {
-    auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
-    auto acc_pod = buf.get_access<cl::sycl::access::mode::write>(cgh);
+  q.submit([&](sycl::handler &cgh) {
+    auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+    auto acc_pod = buf.get_access<sycl::access::mode::write>(cgh);
     cgh.single_task<MyKernel>(
         p.get_kernel<MyKernel>(),
         [=]() {
@@ -169,7 +169,7 @@ struct A {
 sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
     p.set_spec_constant<MyInt32Const>(rt_val);
 
-cl::sycl::ONEAPI::experimental::spec_constant<A, MyPODConst> pod =
+sycl::ONEAPI::experimental::spec_constant<A, MyPODConst> pod =
     p.set_spec_constant<MyPODConst>(gold);
 // ...
   i32.get();
@@ -335,7 +335,7 @@ struct A {
 sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
     p.set_spec_constant<MyInt32Const>(rt_val);
 
-cl::sycl::ONEAPI::experimental::spec_constant<A, MyPODConst> pod =
+sycl::ONEAPI::experimental::spec_constant<A, MyPODConst> pod =
     p.set_spec_constant<MyPODConst>(gold);
 // ...
   i32.get();
@@ -428,7 +428,7 @@ specialization constant:
 ```
 // user code:
 class MyIn32Constant;
-cl::sycl::ONEAPI::experimental::spec_constant<int, MyInt32Const> i32(0);
+sycl::ONEAPI::experimental::spec_constant<int, MyInt32Const> i32(0);
 // integration header:
 template <> struct sycl::detail::SpecConstantInfo<::MyInt32Const> {
   static constexpr const char* getName() {

@@ -52,7 +52,7 @@ namespace lldb_private {
 ///
 /// Sample usage:
 ///
-///  TraceCursorUP cursor = trace.GetTrace(thread);
+///  TraceCursorSP cursor = trace.GetTrace(thread);
 ///
 ///  for (; cursor->HasValue(); cursor->Next()) {
 ///     TraceItemKind kind = cursor->GetItemKind();
@@ -92,18 +92,6 @@ namespace lldb_private {
 ///   You can read more in the documentation of these methods.
 class TraceCursor {
 public:
-  /// Helper enum to indicate the reference point when invoking
-  /// \a TraceCursor::Seek().
-  /// The following values are inspired by \a std::istream::seekg.
-  enum class SeekType {
-    /// The beginning of the trace, i.e the oldest item.
-    Beginning = 0,
-    /// The current position in the trace.
-    Current,
-    /// The end of the trace, i.e the most recent item.
-    End
-  };
-
   /// Create a cursor that initially points to the end of the trace, i.e. the
   /// most recent item.
   TraceCursor(lldb::ThreadSP thread_sp);
@@ -208,14 +196,14 @@ public:
   ///
   /// \return
   ///     \b true if and only if the cursor ends up pointing to a valid item.
-  virtual bool Seek(int64_t offset, SeekType origin) = 0;
+  virtual bool Seek(int64_t offset, lldb::TraceCursorSeekType origin) = 0;
 
   /// \return
   ///   The \a ExecutionContextRef of the backing thread from the creation time
   ///   of this cursor.
   ExecutionContextRef &GetExecutionContextRef();
 
-  /// Instruction, event or error information
+  /// Trace item information (instructions, errors and events)
   /// \{
 
   /// \return
@@ -235,8 +223,7 @@ public:
   bool IsEvent() const;
 
   /// \return
-  ///     The specific kind of event the cursor is pointing at, or \b
-  ///     TraceEvent::eTraceEventNone if the cursor not pointing to an event.
+  ///     The specific kind of event the cursor is pointing at.
   virtual lldb::TraceEvent GetEventType() const = 0;
 
   /// \return
@@ -255,17 +242,44 @@ public:
   ///     The load address of the instruction the cursor is pointing at.
   virtual lldb::addr_t GetLoadAddress() const = 0;
 
-  /// Get the hardware counter of a given type associated with the current
-  /// instruction. Each architecture might support different counters. It might
-  /// happen that only some instructions of an entire trace have a given counter
-  /// associated with them.
+  /// Get the CPU associated with the current trace item.
   ///
-  /// \param[in] counter_type
-  ///    The counter type.
+  /// This call might not be O(1), so it's suggested to invoke this method
+  /// whenever an eTraceEventCPUChanged event is fired.
+  ///
   /// \return
-  ///    The value of the counter or \b llvm::None if not available.
-  virtual llvm::Optional<uint64_t>
-  GetCounter(lldb::TraceCounter counter_type) const = 0;
+  ///    The requested CPU id, or LLDB_INVALID_CPU_ID if this information is
+  ///    not available for the current item.
+  virtual lldb::cpu_id_t GetCPU() const = 0;
+
+  /// Get the last hardware clock value that was emitted before the current
+  /// trace item.
+  ///
+  /// This call might not be O(1), so it's suggested to invoke this method
+  /// whenever an eTraceEventHWClockTick event is fired.
+  ///
+  /// \return
+  ///     The requested HW clock value, or \a llvm::None if this information is
+  ///     not available for the current item.
+  virtual llvm::Optional<uint64_t> GetHWClock() const = 0;
+
+  /// Get the approximate wall clock time in nanoseconds at which the current
+  /// trace item was executed. Each trace plug-in has a different definition for
+  /// what time 0 means.
+  ///
+  /// \return
+  ///     The approximate wall clock time for the trace item, or \a llvm::None
+  ///     if not available.
+  virtual llvm::Optional<double> GetWallClockTime() const = 0;
+
+  /// Get some metadata associated with a synchronization point event. As
+  /// different trace technologies might have different values for this,
+  /// we return a string for flexibility.
+  ///
+  /// \return
+  ///     A string representing some metadata associated with a
+  ///     \a eTraceEventSyncPoint event. \b None if no metadata is available.
+  virtual llvm::Optional<std::string> GetSyncPointMetadata() const = 0;
   /// \}
 
 protected:

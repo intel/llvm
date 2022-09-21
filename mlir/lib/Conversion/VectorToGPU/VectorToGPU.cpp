@@ -15,7 +15,6 @@
 #include "NvGpuSupport.h"
 #include "mlir/Conversion/VectorToGPU/VectorToGPU.h"
 
-#include "../PassDetail.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -30,6 +29,11 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTVECTORTOGPU
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -78,9 +82,10 @@ static bool contractSupportsMMAMatrixType(vector::ContractionOp contract,
   // The contract needs to represent a matmul to be able to convert to
   // MMAMatrix matmul.
   if (!useNvGpu &&
-      contract.getIndexingMaps() != infer({{m, k}, {k, n}, {m, n}}))
+      contract.getIndexingMapsArray() != infer({{m, k}, {k, n}, {m, n}}))
     return false;
-  if (useNvGpu && contract.getIndexingMaps() != infer({{m, k}, {n, k}, {m, n}}))
+  if (useNvGpu &&
+      contract.getIndexingMapsArray() != infer({{m, k}, {n, k}, {m, n}}))
     return false;
 
   return true;
@@ -290,7 +295,7 @@ struct PrepareContractToGPUMMA
     bindDims(rewriter.getContext(), m, n, k);
     static constexpr std::array<int64_t, 2> perm = {1, 0};
     auto iteratorTypes = op.getIteratorTypes().getValue();
-    SmallVector<AffineMap, 4> maps = op.getIndexingMaps();
+    SmallVector<AffineMap, 4> maps = op.getIndexingMapsArray();
     if (!(isParallelIterator(iteratorTypes[0]) &&
           isParallelIterator(iteratorTypes[1]) &&
           isReductionIterator(iteratorTypes[2])))
@@ -686,8 +691,8 @@ convertContractOpToMmaSync(vector::ContractionOp op,
   int64_t m = op.getLhs().getType().cast<VectorType>().getShape()[0];
   int64_t n = op.getRhs().getType().cast<VectorType>().getShape()[0];
   int64_t k = op.getLhs().getType().cast<VectorType>().getShape()[1];
-  Value matmul = b.create<nvgpu::MmaSyncOp>(
-      op.getLoc(), opC.getType(), opA, opB, opC, b.getI64ArrayAttr({m, n, k}));
+  Value matmul = b.create<nvgpu::MmaSyncOp>(op.getLoc(), opA, opB, opC,
+                                            b.getI64ArrayAttr({m, n, k}));
   valueMapping[op.getResult()] = matmul;
   return success();
 }
@@ -697,8 +702,8 @@ static void convertConstantOp(arith::ConstantOp op,
                               llvm::DenseMap<Value, Value> &valueMapping) {
   assert(constantSupportsMMAMatrixType(op));
   OpBuilder b(op);
-  Attribute splat =
-      op.getValue().cast<SplatElementsAttr>().getSplatValue<Attribute>();
+  auto splat =
+      op.getValue().cast<SplatElementsAttr>().getSplatValue<TypedAttr>();
   auto scalarConstant =
       b.create<arith::ConstantOp>(op.getLoc(), splat.getType(), splat);
   const char *fragType = inferFragType(op);
@@ -881,7 +886,7 @@ LogicalResult mlir::convertVectorToNVVMCompatibleMMASync(Operation *rootOp) {
 namespace {
 
 struct ConvertVectorToGPUPass
-    : public ConvertVectorToGPUBase<ConvertVectorToGPUPass> {
+    : public impl::ConvertVectorToGPUBase<ConvertVectorToGPUPass> {
 
   explicit ConvertVectorToGPUPass(bool useNvGpu_) {
     useNvGpu.setValue(useNvGpu_);

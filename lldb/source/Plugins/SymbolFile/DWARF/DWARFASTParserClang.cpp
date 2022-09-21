@@ -608,7 +608,7 @@ DWARFASTParserClang::ParseTypeModifier(const SymbolContext &sc,
     }
     // Fall through to base type below in case we can handle the type
     // there...
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case DW_TAG_base_type:
     resolve_state = Type::ResolveState::Full;
@@ -1248,6 +1248,20 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
         lldbassert(function_decl);
 
         if (function_decl) {
+          // Attach an asm(<mangled_name>) label to the FunctionDecl.
+          // This ensures that clang::CodeGen emits function calls
+          // using symbols that are mangled according to the DW_AT_linkage_name.
+          // If we didn't do this, the external symbols wouldn't exactly
+          // match the mangled name LLDB knows about and the IRExecutionUnit
+          // would have to fall back to searching object files for
+          // approximately matching function names. The motivating
+          // example is generating calls to ABI-tagged template functions.
+          // This is done separately for member functions in
+          // AddMethodToCXXRecordType.
+          if (attrs.mangled_name)
+            function_decl->addAttr(clang::AsmLabelAttr::CreateImplicit(
+                m_ast.getASTContext(), attrs.mangled_name, /*literal=*/false));
+
           LinkDeclContextToDIE(function_decl, die);
 
           if (!function_param_decls.empty()) {
@@ -1278,8 +1292,9 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
       Type::eEncodingIsUID, &attrs.decl, clang_type, Type::ResolveState::Full);
 }
 
-TypeSP DWARFASTParserClang::ParseArrayType(const DWARFDIE &die,
-                                           ParsedDWARFTypeAttributes &attrs) {
+TypeSP
+DWARFASTParserClang::ParseArrayType(const DWARFDIE &die,
+                                    const ParsedDWARFTypeAttributes &attrs) {
   SymbolFileDWARF *dwarf = die.GetDWARF();
 
   DEBUG_PRINTF("0x%8.8" PRIx64 ": %s (\"%s\")\n", die.GetID(),
@@ -1292,17 +1307,18 @@ TypeSP DWARFASTParserClang::ParseArrayType(const DWARFDIE &die,
     return nullptr;
 
   llvm::Optional<SymbolFile::ArrayInfo> array_info = ParseChildArrayInfo(die);
+  uint32_t byte_stride = attrs.byte_stride;
+  uint32_t bit_stride = attrs.bit_stride;
   if (array_info) {
-    attrs.byte_stride = array_info->byte_stride;
-    attrs.bit_stride = array_info->bit_stride;
+    byte_stride = array_info->byte_stride;
+    bit_stride = array_info->bit_stride;
   }
-  if (attrs.byte_stride == 0 && attrs.bit_stride == 0)
-    attrs.byte_stride = element_type->GetByteSize(nullptr).value_or(0);
+  if (byte_stride == 0 && bit_stride == 0)
+    byte_stride = element_type->GetByteSize(nullptr).value_or(0);
   CompilerType array_element_type = element_type->GetForwardCompilerType();
   RequireCompleteType(array_element_type);
 
-  uint64_t array_element_bit_stride =
-      attrs.byte_stride * 8 + attrs.bit_stride;
+  uint64_t array_element_bit_stride = byte_stride * 8 + bit_stride;
   CompilerType clang_type;
   if (array_info && array_info->element_orders.size() > 0) {
     uint64_t num_elements = 0;
@@ -1928,7 +1944,7 @@ bool DWARFASTParserClang::ParseTemplateDIE(
   }
   case DW_TAG_GNU_template_template_param:
     is_template_template_argument = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case DW_TAG_template_type_parameter:
   case DW_TAG_template_value_parameter: {
     DWARFAttributes attributes;
@@ -2278,6 +2294,39 @@ size_t DWARFASTParserClang::ParseChildEnumerators(
   return enumerators_added;
 }
 
+ConstString
+DWARFASTParserClang::ConstructDemangledNameFromDWARF(const DWARFDIE &die) {
+  bool is_static = false;
+  bool is_variadic = false;
+  bool has_template_params = false;
+  unsigned type_quals = 0;
+  std::vector<CompilerType> param_types;
+  std::vector<clang::ParmVarDecl *> param_decls;
+  StreamString sstr;
+
+  DWARFDeclContext decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
+  sstr << decl_ctx.GetQualifiedName();
+
+  clang::DeclContext *containing_decl_ctx =
+      GetClangDeclContextContainingDIE(die, nullptr);
+  ParseChildParameters(containing_decl_ctx, die, true, is_static, is_variadic,
+                       has_template_params, param_types, param_decls,
+                       type_quals);
+  sstr << "(";
+  for (size_t i = 0; i < param_types.size(); i++) {
+    if (i > 0)
+      sstr << ", ";
+    sstr << param_types[i].GetTypeName();
+  }
+  if (is_variadic)
+    sstr << ", ...";
+  sstr << ")";
+  if (type_quals & clang::Qualifiers::Const)
+    sstr << " const";
+
+  return ConstString(sstr.GetString());
+}
+
 Function *
 DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
                                             const DWARFDIE &die,
@@ -2292,7 +2341,7 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
   int call_file = 0;
   int call_line = 0;
   int call_column = 0;
-  DWARFExpression frame_base;
+  DWARFExpressionList frame_base;
 
   const dw_tag_t tag = die.Tag();
 
@@ -2315,35 +2364,7 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
       // If the mangled name is not present in the DWARF, generate the
       // demangled name using the decl context. We skip if the function is
       // "main" as its name is never mangled.
-      bool is_static = false;
-      bool is_variadic = false;
-      bool has_template_params = false;
-      unsigned type_quals = 0;
-      std::vector<CompilerType> param_types;
-      std::vector<clang::ParmVarDecl *> param_decls;
-      StreamString sstr;
-
-      DWARFDeclContext decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
-      sstr << decl_ctx.GetQualifiedName();
-
-      clang::DeclContext *containing_decl_ctx =
-          GetClangDeclContextContainingDIE(die, nullptr);
-      ParseChildParameters(containing_decl_ctx, die, true, is_static,
-                           is_variadic, has_template_params, param_types,
-                           param_decls, type_quals);
-      sstr << "(";
-      for (size_t i = 0; i < param_types.size(); i++) {
-        if (i > 0)
-          sstr << ", ";
-        sstr << param_types[i].GetTypeName();
-      }
-      if (is_variadic)
-        sstr << ", ...";
-      sstr << ")";
-      if (type_quals & clang::Qualifiers::Const)
-        sstr << " const";
-
-      func_name.SetValue(ConstString(sstr.GetString()), false);
+      func_name.SetValue(ConstructDemangledNameFromDWARF(die), false);
     } else
       func_name.SetValue(ConstString(name), false);
 
@@ -2390,6 +2411,7 @@ struct MemberAttributes {
   uint64_t data_bit_offset = UINT64_MAX;
   AccessType accessibility = eAccessNone;
   llvm::Optional<uint64_t> byte_size;
+  llvm::Optional<DWARFFormValue> const_value_form;
   DWARFFormValue encoding_form;
   /// Indicates the byte offset of the word from the base address of the
   /// structure.
@@ -2435,6 +2457,9 @@ MemberAttributes::MemberAttributes(const DWARFDIE &die,
         break;
       case DW_AT_byte_size:
         byte_size = form_value.Unsigned();
+        break;
+      case DW_AT_const_value:
+        const_value_form = form_value;
         break;
       case DW_AT_data_bit_offset:
         data_bit_offset = form_value.Unsigned();
@@ -2587,12 +2612,65 @@ void DWARFASTParserClang::ParseObjCProperty(
       propAttrs.prop_getter_name, propAttrs.prop_attributes, &metadata));
 }
 
+llvm::Expected<llvm::APInt> DWARFASTParserClang::ExtractIntFromFormValue(
+    const CompilerType &int_type, const DWARFFormValue &form_value) const {
+  clang::QualType qt = ClangUtil::GetQualType(int_type);
+  assert(qt->isIntegralOrEnumerationType());
+  TypeSystemClang &ts = *llvm::cast<TypeSystemClang>(int_type.GetTypeSystem());
+  clang::ASTContext &ast = ts.getASTContext();
+
+  const unsigned type_bits = ast.getIntWidth(qt);
+  const bool is_unsigned = qt->isUnsignedIntegerType();
+
+  // The maximum int size supported at the moment by this function. Limited
+  // by the uint64_t return type of DWARFFormValue::Signed/Unsigned.
+  constexpr std::size_t max_bit_size = 64;
+
+  // For values bigger than 64 bit (e.g. __int128_t values),
+  // DWARFFormValue's Signed/Unsigned functions will return wrong results so
+  // emit an error for now.
+  if (type_bits > max_bit_size) {
+    auto msg = llvm::formatv("Can only parse integers with up to {0} bits, but "
+                             "given integer has {1} bits.",
+                             max_bit_size, type_bits);
+    return llvm::createStringError(llvm::inconvertibleErrorCode(), msg.str());
+  }
+
+  // Construct an APInt with the maximum bit size and the given integer.
+  llvm::APInt result(max_bit_size, form_value.Unsigned(), !is_unsigned);
+
+  // Calculate how many bits are required to represent the input value.
+  // For unsigned types, take the number of active bits in the APInt.
+  // For signed types, ask APInt how many bits are required to represent the
+  // signed integer.
+  const unsigned required_bits =
+      is_unsigned ? result.getActiveBits() : result.getMinSignedBits();
+
+  // If the input value doesn't fit into the integer type, return an error.
+  if (required_bits > type_bits) {
+    std::string value_as_str = is_unsigned
+                                   ? std::to_string(form_value.Unsigned())
+                                   : std::to_string(form_value.Signed());
+    auto msg = llvm::formatv("Can't store {0} value {1} in integer with {2} "
+                             "bits.",
+                             (is_unsigned ? "unsigned" : "signed"),
+                             value_as_str, type_bits);
+    return llvm::createStringError(llvm::inconvertibleErrorCode(), msg.str());
+  }
+
+  // Trim the result to the bit width our the int type.
+  if (result.getBitWidth() > type_bits)
+    result = result.trunc(type_bits);
+  return result;
+}
+
 void DWARFASTParserClang::ParseSingleMember(
     const DWARFDIE &die, const DWARFDIE &parent_die,
     const lldb_private::CompilerType &class_clang_type,
     lldb::AccessType default_accessibility,
     lldb_private::ClangASTImporter::LayoutInfo &layout_info,
     FieldInfo &last_field_info) {
+  Log *log = GetLog(DWARFLog::TypeCompletion | DWARFLog::Lookups);
   // This function can only parse DW_TAG_member.
   assert(die.Tag() == DW_TAG_member);
 
@@ -2623,9 +2701,27 @@ void DWARFASTParserClang::ParseSingleMember(
     if (var_type) {
       if (attrs.accessibility == eAccessNone)
         attrs.accessibility = eAccessPublic;
-      TypeSystemClang::AddVariableToRecordType(
-          class_clang_type, attrs.name, var_type->GetForwardCompilerType(),
-          attrs.accessibility);
+      CompilerType ct = var_type->GetForwardCompilerType();
+      clang::VarDecl *v = TypeSystemClang::AddVariableToRecordType(
+          class_clang_type, attrs.name, ct, attrs.accessibility);
+      if (!v) {
+        LLDB_LOG(log, "Failed to add variable to the record type");
+        return;
+      }
+
+      bool unused;
+      // TODO: Support float/double static members as well.
+      if (!attrs.const_value_form || !ct.IsIntegerOrEnumerationType(unused))
+        return;
+      llvm::Expected<llvm::APInt> const_value_or_err =
+          ExtractIntFromFormValue(ct, *attrs.const_value_form);
+      if (!const_value_or_err) {
+        LLDB_LOG_ERROR(log, const_value_or_err.takeError(),
+                       "Failed to add const value to variable {1}: {0}",
+                       v->getQualifiedNameAsString());
+        return;
+      }
+      TypeSystemClang::SetIntegerInitializerForVariable(v, *const_value_or_err);
     }
     return;
   }
@@ -2654,7 +2750,7 @@ void DWARFASTParserClang::ParseSingleMember(
 
   uint64_t field_bit_offset = (attrs.member_byte_offset == UINT32_MAX
                                    ? 0
-                                   : (attrs.member_byte_offset * 8));
+                                   : (attrs.member_byte_offset * 8ULL));
 
   if (attrs.bit_size > 0) {
     FieldInfo this_field_info;

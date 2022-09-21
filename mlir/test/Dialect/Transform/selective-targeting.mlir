@@ -3,7 +3,7 @@
 // CHECK-LABEL: func.func @matmul_tensors_1(
 func.func @matmul_tensors_1(
   %arg0: tensor<128x128xf32>, %arg1: tensor<128x128xf32>,
-  %arg2: tensor<128x128xf32> {linalg.inplaceable = true})
+  %arg2: tensor<128x128xf32>)
     -> tensor<128x128xf32> {
   // This operation is marked for tiling only.
   // CHECK-COUNT-3: scf.for
@@ -19,7 +19,7 @@ func.func @matmul_tensors_1(
 
 func.func @matmul_tensors_2(
   %arg0: tensor<128x128xf32>, %arg1: tensor<128x128xf32>,
-  %arg2: tensor<128x128xf32> {linalg.inplaceable = true})
+  %arg2: tensor<128x128xf32>)
     -> tensor<128x128xf32> {
   // This operation is marked f
   // This operation is marked for tiling and vectorization.
@@ -37,7 +37,7 @@ func.func @matmul_tensors_2(
 
 func.func @matmul_tensors_3(
   %arg0: tensor<128x128xf32>, %arg1: tensor<128x128xf32>,
-  %arg2: tensor<128x128xf32> {linalg.inplaceable = true})
+  %arg2: tensor<128x128xf32>)
     -> tensor<128x128xf32> {
   // This operation is marked for vectorization only.
   // CHECK-NOT: scf.for
@@ -74,10 +74,10 @@ transform.with_pdl_patterns {
     rewrite %0 with "transform.dialect"
   }
 
-  transform.sequence %arg0 {
+  transform.sequence %arg0 failures(propagate) {
   ^bb1(%arg1: !pdl.operation):
     %0 = pdl_match @pdl_target_attrA in %arg1
-    transform.structured.tile %0 {sizes = [4, 4, 4]}
+    transform.structured.tile %0 [4, 4, 4]
     %1 = pdl_match @pdl_target_attrC in %arg1
     %2 = transform.get_closest_isolated_parent %1
     transform.structured.vectorize %2
@@ -89,7 +89,7 @@ transform.with_pdl_patterns {
 // CHECK-LABEL: @vectorize_one
 func.func @vectorize_one(
   %arg0: tensor<128x128xf32>, %arg1: tensor<128x128xf32>,
-  %arg2: tensor<128x128xf32> {linalg.inplaceable = true})
+  %arg2: tensor<128x128xf32>)
     -> tensor<128x128xf32> {
   // CHECK: vector.contract
   %0 = linalg.matmul {test.attrA}
@@ -101,7 +101,7 @@ func.func @vectorize_one(
 
 func.func @vectorize_none(
   %arg0: tensor<128x128xf32>, %arg1: tensor<128x128xf32>,
-  %arg2: tensor<128x128xf32> {linalg.inplaceable = true})
+  %arg2: tensor<128x128xf32>)
     -> tensor<128x128xf32> {
   // CHECK: linalg.matmul
   %0 = linalg.matmul ins(%arg0, %arg1: tensor<128x128xf32>, tensor<128x128xf32>)
@@ -121,7 +121,7 @@ transform.with_pdl_patterns {
     rewrite %0 with "transform.dialect"
   }
 
-  transform.sequence %arg0 {
+  transform.sequence %arg0 failures(propagate) {
   ^bb1(%arg1: !pdl.operation):
     %0 = pdl_match @pdl_target in %arg1
     %1 = get_closest_isolated_parent %0
@@ -134,7 +134,7 @@ transform.with_pdl_patterns {
 // CHECK-LABEL: @vectorize_all
 func.func @vectorize_all(
   %arg0: tensor<128x128xf32>, %arg1: tensor<128x128xf32>, %arg2: tensor<128x128xf32>,
-  %arg3: tensor<128x128xf32> {linalg.inplaceable = true})
+  %arg3: tensor<128x128xf32>)
     -> tensor<128x128xf32> {
   // CHECK: vector.contract
   %0 = linalg.matmul {test.attrA}
@@ -148,7 +148,7 @@ func.func @vectorize_all(
   return %1 : tensor<128x128xf32>
 }
 
-transform.sequence {
+transform.sequence failures(propagate) {
 ^bb0(%arg0: !pdl.operation):
   transform.structured.vectorize %arg0
 }

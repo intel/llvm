@@ -158,7 +158,7 @@ void DynoStats::operator+=(const DynoStats &Other) {
   }
 }
 
-DynoStats getDynoStats(const BinaryFunction &BF) {
+DynoStats getDynoStats(BinaryFunction &BF) {
   auto &BC = BF.getBinaryContext();
 
   DynoStats Stats(/*PrintAArch64Stats*/ BC.isAArch64());
@@ -169,9 +169,9 @@ DynoStats getDynoStats(const BinaryFunction &BF) {
 
   // Update enumeration of basic blocks for correct detection of branch'
   // direction.
-  BF.updateLayoutIndices();
+  BF.getLayout().updateLayoutIndices();
 
-  for (BinaryBasicBlock *const &BB : BF.layout()) {
+  for (BinaryBasicBlock *const BB : BF.getLayout().blocks()) {
     // The basic block execution count equals to the sum of incoming branch
     // frequencies. This may deviate from the sum of outgoing branches of the
     // basic block especially since the block may contain a function that

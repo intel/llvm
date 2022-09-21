@@ -192,8 +192,10 @@ static_assert(sizeof(StringPiece) == 16, "StringPiece is too big!");
 class CStringInputSection final : public InputSection {
 public:
   CStringInputSection(const Section &section, ArrayRef<uint8_t> data,
-                      uint32_t align)
-      : InputSection(CStringLiteralKind, section, data, align) {}
+                      uint32_t align, bool dedupLiterals)
+      : InputSection(CStringLiteralKind, section, data, align),
+        deduplicateLiterals(dedupLiterals) {}
+
   uint64_t getOffset(uint64_t off) const override;
   bool isLive(uint64_t off) const override { return getStringPiece(off).live; }
   void markLive(uint64_t off) override { getStringPiece(off).live = true; }
@@ -215,7 +217,7 @@ public:
   // string merging is enabled, so we want to inline.
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   llvm::CachedHashStringRef getCachedHashStringRef(size_t i) const {
-    assert(config->dedupLiterals);
+    assert(deduplicateLiterals);
     return {getStringRef(i), pieces[i].hash};
   }
 
@@ -223,6 +225,7 @@ public:
     return isec->kind() == CStringLiteralKind;
   }
 
+  bool deduplicateLiterals = false;
   std::vector<StringPiece> pieces;
 };
 
@@ -281,6 +284,7 @@ bool isCodeSection(const InputSection *);
 bool isCfStringSection(const InputSection *);
 bool isClassRefsSection(const InputSection *);
 bool isEhFrameSection(const InputSection *);
+bool isGccExceptTabSection(const InputSection *);
 
 extern std::vector<ConcatInputSection *> inputSections;
 
@@ -301,6 +305,7 @@ constexpr const char debugAbbrev[] = "__debug_abbrev";
 constexpr const char debugInfo[] = "__debug_info";
 constexpr const char debugLine[] = "__debug_line";
 constexpr const char debugStr[] = "__debug_str";
+constexpr const char debugStrOffs[] = "__debug_str_offs";
 constexpr const char ehFrame[] = "__eh_frame";
 constexpr const char gccExceptTab[] = "__gcc_except_tab";
 constexpr const char export_[] = "__export";
@@ -309,6 +314,7 @@ constexpr const char functionStarts[] = "__func_starts";
 constexpr const char got[] = "__got";
 constexpr const char header[] = "__mach_header";
 constexpr const char indirectSymbolTable[] = "__ind_sym_tab";
+constexpr const char initOffsets[] = "__init_offsets";
 constexpr const char const_[] = "__const";
 constexpr const char lazySymbolPtr[] = "__la_symbol_ptr";
 constexpr const char lazyBinding[] = "__lazy_binding";
@@ -320,7 +326,10 @@ constexpr const char objcCatList[] = "__objc_catlist";
 constexpr const char objcClassList[] = "__objc_classlist";
 constexpr const char objcClassRefs[] = "__objc_classrefs";
 constexpr const char objcConst[] = "__objc_const";
-constexpr const char objcImageInfo[] = "__objc_imageinfo";
+constexpr const char objCImageInfo[] = "__objc_imageinfo";
+constexpr const char objcStubs[] = "__objc_stubs";
+constexpr const char objcSelrefs[] = "__objc_selrefs";
+constexpr const char objcMethname[] = "__objc_methname";
 constexpr const char objcNonLazyCatList[] = "__objc_nlcatlist";
 constexpr const char objcNonLazyClassList[] = "__objc_nlclslist";
 constexpr const char objcProtoList[] = "__objc_protolist";

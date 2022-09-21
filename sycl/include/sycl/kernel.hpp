@@ -11,6 +11,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
@@ -18,15 +19,15 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-#ifdef __SYCL_INTERNAL_API
-class program;
-#endif
 class context;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
 class kernel_impl;
@@ -104,6 +105,8 @@ public:
   /// Check if the associated SYCL context is a SYCL host context.
   ///
   /// \return true if this SYCL kernel is a host kernel.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Get the context that this kernel is defined for.
@@ -124,88 +127,33 @@ public:
   /// \return a valid kernel_bundle<bundle_state::executable>
   kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
 
-  /// Get the program that this kernel is defined for.
-  ///
-  /// The value returned must be equal to that returned by
-  /// get_info<info::kernel::program>().
-  ///
-  /// \return a valid SYCL program
-#ifdef __SYCL_INTERNAL_API
-  program get_program() const;
-#endif
-
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
   ///
   /// \return depends on information being queried.
-  template <info::kernel param>
-  typename info::param_traits<info::kernel, param>::return_type
-  get_info() const;
+  template <typename Param>
+  typename detail::is_kernel_info_desc<Param>::return_type get_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
   ///
   /// \param Device is a valid SYCL device to query info for.
   /// \return depends on information being queried.
-  template <info::kernel_device_specific param>
-  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  template <typename Param>
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
   get_info(const device &Device) const;
 
   /// Query device-specific information from a kernel using the
   /// info::kernel_device_specific descriptor for a specific device and value.
+  /// max_sub_group_size is the only valid descriptor for this function.
   ///
   /// \param Device is a valid SYCL device.
-  /// \param Value depends on information being queried.
+  /// \param WGSize is the work-group size the sub-group size is requested for.
   /// \return depends on information being queried.
-  template <info::kernel_device_specific param>
-  typename info::param_traits<info::kernel_device_specific, param>::return_type
-  get_info(const device &Device,
-           typename info::param_traits<info::kernel_device_specific,
-                                       param>::input_type Value) const;
-
-  /// Query work-group information from a kernel using the
-  /// info::kernel_work_group descriptor for a specific device.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \return depends on information being queried.
-  template <info::kernel_work_group param>
-  __SYCL2020_DEPRECATED("get_work_group_info() is deprecated, use SYCL 2020 "
-                        "kernel_device_specific queries instead")
-  typename info::param_traits<info::kernel_work_group, param>::return_type
-      get_work_group_info(const device &Device) const;
-
-  /// Query sub-group information from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \return depends on information being queried.
-  template <info::kernel_sub_group param>
-  // clang-format off
-  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device) const;
-  // clang-format on
-
-  /// Query sub-group information from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device and value.
-  ///
-  /// \param Device is a valid SYCL device.
-  /// \param Value depends on information being queried.
-  /// \return depends on information being queried.
-  template <info::kernel_sub_group param>
-  // clang-format off
-  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
-  typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device,
-                     typename info::param_traits<info::kernel_sub_group,
-                     param>::input_type Value) const;
-  // clang-format on
-
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, kernel> get_native() const {
-    return detail::pi::cast<backend_return_t<Backend, kernel>>(getNative());
-  }
+  template <typename Param>
+  __SYCL2020_DEPRECATED("Use the overload without the second parameter")
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+      get_info(const device &Device, const range<3> &WGSize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
@@ -222,15 +170,18 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::kernel> {
-  size_t operator()(const cl::sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Kernel));
+template <> struct hash<sycl::kernel> {
+  size_t operator()(const sycl::kernel &Kernel) const {
+    return hash<std::shared_ptr<sycl::detail::kernel_impl>>()(
+        sycl::detail::getSyclObjImpl(Kernel));
   }
 };
 } // namespace std

@@ -94,27 +94,23 @@ static const char *const sameVariadicSizeValueRangeCalcCode = R"(
 /// the op has an attribute specifying the size of each operand/result segment
 /// (variadic or not).
 static const char *const attrSizedSegmentValueRangeCalcCode = R"(
-  const uint32_t *sizeAttrValueIt = &*sizeAttr.value_begin<uint32_t>();
-  if (sizeAttr.isSplat())
-    return {*sizeAttrValueIt * index, *sizeAttrValueIt};
-
   unsigned start = 0;
   for (unsigned i = 0; i < index; ++i)
-    start += sizeAttrValueIt[i];
-  return {start, sizeAttrValueIt[index]};
+    start += sizeAttr[i];
+  return {start, sizeAttr[index]};
 )";
 /// The code snippet to initialize the sizes for the value range calculation.
 ///
 /// {0}: The code to get the attribute.
 static const char *const adapterSegmentSizeAttrInitCode = R"(
   assert(odsAttrs && "missing segment size attribute for op");
-  auto sizeAttr = {0}.cast<::mlir::DenseIntElementsAttr>();
+  auto sizeAttr = {0}.cast<::mlir::DenseI32ArrayAttr>();
 )";
 /// The code snippet to initialize the sizes for the value range calculation.
 ///
 /// {0}: The code to get the attribute.
 static const char *const opSegmentSizeAttrInitCode = R"(
-  auto sizeAttr = {0}.cast<::mlir::DenseIntElementsAttr>();
+  auto sizeAttr = {0}.cast<::mlir::DenseI32ArrayAttr>();
 )";
 
 /// The logic to calculate the actual value range for a declared operand
@@ -124,13 +120,12 @@ static const char *const opSegmentSizeAttrInitCode = R"(
 /// {1}: The index of the main operand.
 static const char *const variadicOfVariadicAdaptorCalcCode = R"(
   auto tblgenTmpOperands = getODSOperands({1});
-  auto sizeAttrValues = {0}().getValues<uint32_t>();
-  auto sizeAttrIt = sizeAttrValues.begin();
+  auto sizes = {0}();
 
   ::llvm::SmallVector<::mlir::ValueRange> tblgenTmpOperandGroups;
-  for (int i = 0, e = ::llvm::size(sizeAttrValues); i < e; ++i, ++sizeAttrIt) {{
-    tblgenTmpOperandGroups.push_back(tblgenTmpOperands.take_front(*sizeAttrIt));
-    tblgenTmpOperands = tblgenTmpOperands.drop_front(*sizeAttrIt);
+  for (int i = 0, e = sizes.size(); i < e; ++i) {{
+    tblgenTmpOperandGroups.push_back(tblgenTmpOperands.take_front(sizes[i]));
+    tblgenTmpOperands = tblgenTmpOperands.drop_front(sizes[i]);
   }
   return tblgenTmpOperandGroups;
 )";
@@ -430,6 +425,9 @@ private:
   // Generates getters for named successors.
   void genNamedSuccessorGetters();
 
+  // Generates the method to populate default attributes.
+  void genPopulateDefaultAttributes();
+
   // Generates builder methods for the operation.
   void genBuilder();
 
@@ -575,7 +573,8 @@ static void populateSubstitutions(const OpOrAdaptorHelper &emitHelper,
   // Populate substitutions for attributes.
   auto &op = emitHelper.getOp();
   for (const auto &namedAttr : op.getAttributes())
-    ctx.addSubst(namedAttr.name, emitHelper.getAttr(namedAttr.name).str());
+    ctx.addSubst(namedAttr.name,
+                 emitHelper.getOp().getGetterName(namedAttr.name) + "()");
 
   // Populate substitutions for named operands.
   for (int i = 0, e = op.getNumOperands(); i < e; ++i) {
@@ -604,9 +603,8 @@ static void genNativeTraitAttrVerifier(MethodBody &body,
   // {3}: Emit error prefix.
   const char *const checkAttrSizedValueSegmentsCode = R"(
   {
-    auto sizeAttr = tblgen_{0}.cast<::mlir::DenseIntElementsAttr>();
-    auto numElements =
-        sizeAttr.getType().cast<::mlir::ShapedType>().getNumElements();
+    auto sizeAttr = tblgen_{0}.cast<::mlir::DenseI32ArrayAttr>();
+    auto numElements = sizeAttr.asArrayRef().size();
     if (numElements != {1})
       return {3}"'{0}' attribute for specifying {2} segments must have {1} "
                 "elements, but got ") << numElements;
@@ -823,6 +821,7 @@ OpEmitter::OpEmitter(const Operator &op,
   genAttrSetters();
   genOptionalAttrRemovers();
   genBuilder();
+  genPopulateDefaultAttributes();
   genParser();
   genPrinter();
   genVerifier();
@@ -953,7 +952,7 @@ static void emitAttrGetterWithReturnType(FmtContext &fctx,
   ERROR_IF_PRUNED(method, name, op);
   auto &body = method->body();
   body << "  auto attr = " << name << "Attr();\n";
-  if (attr.hasDefaultValue()) {
+  if (attr.hasDefaultValue() && attr.isOptional()) {
     // Returns the default value if not set.
     // TODO: this is inefficient, we are recreating the attribute for every
     // call. This should be set instead.
@@ -1153,6 +1152,25 @@ generateValueRangeStartAndEnd(Class &opClass, StringRef methodName,
   }
 }
 
+static std::string generateTypeForGetter(bool isAdaptor,
+                                         const NamedTypeConstraint &value) {
+  std::string str = "::mlir::Value";
+  /// If the CPPClassName is not a fully qualified type. Uses of types
+  /// across Dialect fail because they are not in the correct namespace. So we
+  /// dont generate TypedValue unless the type is fully qualified.
+  /// getCPPClassName doesn't return the fully qualified path for
+  /// `mlir::pdl::OperationType` see
+  /// https://github.com/llvm/llvm-project/issues/57279.
+  /// Adaptor will have values that are not from the type of their operation and
+  /// this is expected, so we dont generate TypedValue for Adaptor
+  if (!isAdaptor && value.constraint.getCPPClassName() != "::mlir::Type" &&
+      StringRef(value.constraint.getCPPClassName()).startswith("::"))
+    str = llvm::formatv("::mlir::TypedValue<{0}>",
+                        value.constraint.getCPPClassName())
+              .str();
+  return str;
+}
+
 // Generates the named operand getter methods for the given Operator `op` and
 // puts them in `opClass`.  Uses `rangeType` as the return type of getters that
 // return a range of operands (individual operands are `Value ` and each
@@ -1217,7 +1235,7 @@ static void generateNamedOperandGetters(const Operator &op, Class &opClass,
       continue;
     for (StringRef name : op.getGetterNames(operand.name)) {
       if (operand.isOptional()) {
-        m = opClass.addMethod("::mlir::Value", name);
+        m = opClass.addMethod(generateTypeForGetter(isAdaptor, operand), name);
         ERROR_IF_PRUNED(m, name, op);
         m->body() << "  auto operands = getODSOperands(" << i << ");\n"
                   << "  return operands.empty() ? ::mlir::Value() : "
@@ -1243,7 +1261,7 @@ static void generateNamedOperandGetters(const Operator &op, Class &opClass,
         ERROR_IF_PRUNED(m, name, op);
         m->body() << "  return getODSOperands(" << i << ");";
       } else {
-        m = opClass.addMethod("::mlir::Value", name);
+        m = opClass.addMethod(generateTypeForGetter(isAdaptor, operand), name);
         ERROR_IF_PRUNED(m, name, op);
         m->body() << "  return *getODSOperands(" << i << ").begin();";
       }
@@ -1366,7 +1384,8 @@ void OpEmitter::genNamedResultGetters() {
       continue;
     for (StringRef name : op.getGetterNames(result.name)) {
       if (result.isOptional()) {
-        m = opClass.addMethod("::mlir::Value", name);
+        m = opClass.addMethod(
+            generateTypeForGetter(/*isAdaptor=*/false, result), name);
         ERROR_IF_PRUNED(m, name, op);
         m->body()
             << "  auto results = getODSResults(" << i << ");\n"
@@ -1376,7 +1395,8 @@ void OpEmitter::genNamedResultGetters() {
         ERROR_IF_PRUNED(m, name, op);
         m->body() << "  return getODSResults(" << i << ");";
       } else {
-        m = opClass.addMethod("::mlir::Value", name);
+        m = opClass.addMethod(
+            generateTypeForGetter(/*isAdaptor=*/false, result), name);
         ERROR_IF_PRUNED(m, name, op);
         m->body() << "  return *getODSResults(" << i << ").begin();";
       }
@@ -1515,6 +1535,34 @@ void OpEmitter::genSeparateArgParamBuilder() {
         body << "  " << builderOpState << ".addTypes(" << resultNames[i]
              << ");\n";
       }
+
+      // Automatically create the 'result_segment_sizes' attribute using
+      // the length of the type ranges.
+      if (op.getTrait("::mlir::OpTrait::AttrSizedResultSegments")) {
+        std::string getterName = op.getGetterName(resultSegmentAttrName);
+        body << " " << builderOpState << ".addAttribute(" << getterName
+             << "AttrName(" << builderOpState << ".name), "
+             << "odsBuilder.getDenseI32ArrayAttr({";
+
+        interleaveComma(
+            llvm::seq<int>(0, op.getNumResults()), body, [&](int i) {
+              const NamedTypeConstraint &result = op.getResult(i);
+              if (!result.isVariableLength()) {
+                body << "1";
+              } else if (result.isOptional()) {
+                body << "(" << resultNames[i] << " ? 1 : 0)";
+              } else {
+                // VariadicOfVariadic of results are currently unsupported in
+                // MLIR, hence it can only be a simple variadic.
+                // TODO: Add implementation for VariadicOfVariadic results here
+                //       once supported.
+                assert(result.isVariadic());
+                body << "static_cast<int32_t>(" << resultNames[i] << ".size())";
+              }
+            });
+        body << "}));\n";
+      }
+
       return;
     case TypeParamKind::Collective: {
       int numResults = op.getNumResults();
@@ -1585,6 +1633,45 @@ void OpEmitter::genUseOperandAsResultTypeCollectiveParamBuilder() {
   SmallVector<std::string, 2> resultTypes(numResults, "operands[0].getType()");
   body << "  " << builderOpState << ".addTypes({"
        << llvm::join(resultTypes, ", ") << "});\n\n";
+}
+
+void OpEmitter::genPopulateDefaultAttributes() {
+  // All done if no attributes have default values.
+  if (llvm::all_of(op.getAttributes(), [](const NamedAttribute &named) {
+        return !named.attr.hasDefaultValue();
+      }))
+    return;
+
+  SmallVector<MethodParameter> paramList;
+  paramList.emplace_back("const ::mlir::RegisteredOperationName &", "opName");
+  paramList.emplace_back("::mlir::NamedAttrList &", "attributes");
+  auto *m = opClass.addStaticMethod("void", "populateDefaultAttrs", paramList);
+  ERROR_IF_PRUNED(m, "populateDefaultAttrs", op);
+  auto &body = m->body();
+  body.indent();
+
+  // Set default attributes that are unset.
+  body << "auto attrNames = opName.getAttributeNames();\n";
+  body << "::mlir::Builder " << odsBuilder
+       << "(attrNames.front().getContext());\n";
+  StringMap<int> attrIndex;
+  for (const auto &it : llvm::enumerate(emitHelper.getAttrMetadata())) {
+    attrIndex[it.value().first] = it.index();
+  }
+  for (const NamedAttribute &namedAttr : op.getAttributes()) {
+    auto &attr = namedAttr.attr;
+    if (!attr.hasDefaultValue() || attr.isOptional())
+      continue;
+    auto index = attrIndex[namedAttr.name];
+    body << "if (!attributes.get(attrNames[" << index << "])) {\n";
+    FmtContext fctx;
+    fctx.withBuilder(odsBuilder);
+    std::string defaultValue = std::string(
+        tgfmt(attr.getConstBuilderTemplate(), &fctx, attr.getDefaultValue()));
+    body.indent() << formatv(" attributes.append(attrNames[{0}], {1});\n",
+                             index, defaultValue);
+    body.unindent() << "}\n";
+  }
 }
 
 void OpEmitter::genInferredTypeCollectiveParamBuilder() {
@@ -1713,7 +1800,7 @@ void OpEmitter::genUseAttrAsResultTypeBuilder() {
   if (namedAttr.attr.isTypeAttr()) {
     resultType = "attr.getValue().cast<::mlir::TypeAttr>().getValue()";
   } else {
-    resultType = "attr.getValue().getType()";
+    resultType = "attr.getValue().cast<::mlir::TypedAttr>().getType()";
   }
 
   // Operands
@@ -1869,7 +1956,7 @@ void OpEmitter::buildParamList(SmallVectorImpl<MethodParameter> &paramList,
   auto numResults = op.getNumResults();
   resultTypeNames.reserve(numResults);
 
-  paramList.emplace_back("::mlir::OpBuilder &", "odsBuilder");
+  paramList.emplace_back("::mlir::OpBuilder &", odsBuilder);
   paramList.emplace_back("::mlir::OperationState &", builderOpState);
 
   switch (typeParamKind) {
@@ -2012,7 +2099,7 @@ void OpEmitter::genCodeForAddingArgAndRegionForBuilder(
            << op.getGetterName(
                   operand.constraint.getVariadicOfVariadicSegmentSizeAttr())
            << "AttrName(" << builderOpState << ".name), " << odsBuilder
-           << ".getI32TensorAttr(rangeSegments));"
+           << ".getDenseI32ArrayAttr(rangeSegments));"
            << "  }\n";
       continue;
     }
@@ -2027,7 +2114,7 @@ void OpEmitter::genCodeForAddingArgAndRegionForBuilder(
     std::string sizes = op.getGetterName(operandSegmentAttrName);
     body << "  " << builderOpState << ".addAttribute(" << sizes << "AttrName("
          << builderOpState << ".name), "
-         << "odsBuilder.getI32VectorAttr({";
+         << "odsBuilder.getDenseI32ArrayAttr({";
     interleaveComma(llvm::seq<int>(0, op.getNumOperands()), body, [&](int i) {
       const NamedTypeConstraint &operand = op.getOperand(i);
       if (!operand.isVariableLength()) {
@@ -2057,8 +2144,10 @@ void OpEmitter::genCodeForAddingArgAndRegionForBuilder(
     if (attr.isDerivedAttr() || inferredAttributes.contains(namedAttr.name))
       continue;
 
-    bool emitNotNullCheck =
-        attr.isOptional() || (attr.hasDefaultValue() && !isRawValueAttr);
+    // TODO(jpienaar): The wrapping of optional is different for default or not,
+    // so don't unwrap for default ones that would fail below.
+    bool emitNotNullCheck = (attr.isOptional() && !attr.hasDefaultValue()) ||
+                            (attr.hasDefaultValue() && !isRawValueAttr);
     if (emitNotNullCheck)
       body << formatv("  if ({0}) ", namedAttr.name) << "{\n";
 
@@ -2373,7 +2462,8 @@ void OpEmitter::genTypeInterfaceMethods() {
     } else {
       auto *attr =
           op.getArg(arg.operandOrAttributeIndex()).get<NamedAttribute *>();
-      body << "attributes.get(\"" << attr->name << "\").getType()";
+      body << "attributes.get(\"" << attr->name
+           << "\").cast<::mlir::TypedAttr>().getType()";
     }
     body << ";\n";
   }
@@ -2871,7 +2961,7 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
                         : "cast",
                     attr.getStorageType());
 
-    if (attr.hasDefaultValue()) {
+    if (attr.hasDefaultValue() && attr.isOptional()) {
       // Use the default value if attribute is not set.
       // TODO: this is inefficient, we are recreating the attribute for every
       // call. This should be set instead.
@@ -2879,7 +2969,7 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
           tgfmt(attr.getConstBuilderTemplate(), &fctx, attr.getDefaultValue()));
       body << "  if (!attr)\n    attr = " << defaultValue << ";\n";
     }
-    body << "  return attr;\n";
+    body << "return attr;\n";
   };
 
   {

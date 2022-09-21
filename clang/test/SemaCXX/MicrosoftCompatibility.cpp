@@ -120,7 +120,7 @@ namespace PR11826 {
   void f() {
     pair p0(3);
 #if _MSC_VER >= 1900
-    pair p = p0; // expected-error {{call to implicitly-deleted copy constructor of 'PR11826::pair'}}
+    pair p = p0; // expected-error {{call to implicitly-deleted copy constructor of 'pair'}}
 #else
     pair p = p0;
 #endif
@@ -140,7 +140,7 @@ namespace PR11826_for_symmetry {
     pair p0(3);
     pair p(4);
 #if _MSC_VER >= 1900
-    p = p0; // expected-error {{object of type 'PR11826_for_symmetry::pair' cannot be assigned because its copy assignment operator is implicitly deleted}}
+    p = p0; // expected-error {{object of type 'pair' cannot be assigned because its copy assignment operator is implicitly deleted}}
 #else
     p = p0;
 #endif
@@ -239,14 +239,14 @@ template void function_missing_typename<D>(const D::Type param);
 //MSVC allows forward enum declaration
 enum ENUM; // expected-warning {{forward references to 'enum' types are a Microsoft extension}}
 ENUM *var = 0;     
-ENUM var2 = (ENUM)3;
+ENUM var2 = (ENUM)0;
 enum ENUM1* var3 = 0;// expected-warning {{forward references to 'enum' types are a Microsoft extension}}
 
 enum ENUM1 { kA };
 enum ENUM1;  // This way round is fine.
 
 enum ENUM2 {
-	ENUM2_a = (enum ENUM2) 4,
+	ENUM2_a = (enum ENUM2) 0,
 	ENUM2_b = 0x9FFFFFFF, // expected-warning {{enumerator value is not representable in the underlying type 'int'}}
 	ENUM2_c = 0x100000000 // expected-warning {{enumerator value is not representable in the underlying type 'int'}}
 };

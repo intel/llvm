@@ -43,7 +43,7 @@
 class NotAProperty {};
 class NotASYCLObject {};
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   //----------------------------------------------------------------------------

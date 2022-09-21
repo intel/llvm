@@ -96,6 +96,7 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
   ctx->e.initialize(stdoutOS, stderrOS, exitEarly, disableOutput);
   ctx->e.cleanupCallback = []() {
     inputSections.clear();
+    ehInputSections.clear();
     outputSections.clear();
     symAux.clear();
 
@@ -197,6 +198,10 @@ std::vector<std::pair<MemoryBufferRef, uint64_t>> static getArchiveMembers(
   return v;
 }
 
+static bool isBitcode(MemoryBufferRef mb) {
+  return identify_magic(mb.getBuffer()) == llvm::file_magic::bitcode;
+}
+
 // Opens a file and create a file object. Path has to be resolved already.
 void LinkerDriver::addFile(StringRef path, bool withLOption) {
   using namespace sys::fs;
@@ -217,8 +222,12 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     return;
   case file_magic::archive: {
     if (inWholeArchive) {
-      for (const auto &p : getArchiveMembers(mbref))
-        files.push_back(createObjectFile(p.first, path, p.second));
+      for (const auto &p : getArchiveMembers(mbref)) {
+        if (isBitcode(p.first))
+          files.push_back(make<BitcodeFile>(p.first, path, p.second, false));
+        else
+          files.push_back(createObjFile(p.first, path));
+      }
       return;
     }
 
@@ -241,8 +250,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     InputFile::isInGroup = true;
     for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
       auto magic = identify_magic(p.first.getBuffer());
-      if (magic == file_magic::bitcode || magic == file_magic::elf_relocatable)
-        files.push_back(createLazyFile(p.first, path, p.second));
+      if (magic == file_magic::elf_relocatable)
+        files.push_back(createObjFile(p.first, path, true));
+      else if (magic == file_magic::bitcode)
+        files.push_back(make<BitcodeFile>(p.first, path, p.second, true));
       else
         warn(path + ": archive member '" + p.first.getBufferIdentifier() +
              "' is neither ET_REL nor LLVM bitcode");
@@ -267,11 +278,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
         make<SharedFile>(mbref, withLOption ? path::filename(path) : path));
     return;
   case file_magic::bitcode:
+    files.push_back(make<BitcodeFile>(mbref, "", 0, inLib));
+    break;
   case file_magic::elf_relocatable:
-    if (inLib)
-      files.push_back(createLazyFile(mbref, "", 0));
-    else
-      files.push_back(createObjectFile(mbref));
+    files.push_back(createObjFile(mbref, "", inLib));
     break;
   default:
     error(path + ": unknown file type");
@@ -281,7 +291,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
   if (Optional<std::string> path = searchLibrary(name))
-    addFile(*path, /*withLOption=*/true);
+    addFile(saver().save(*path), /*withLOption=*/true);
   else
     error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
 }
@@ -581,11 +591,6 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     if (errorCount())
       return;
 
-    // The Target instance handles target-specific stuff, such as applying
-    // relocations or writing a PLT section. It also contains target-dependent
-    // values such as a default image base address.
-    target = getTarget();
-
     link(args);
   }
 
@@ -597,7 +602,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
 }
 
 static std::string getRpath(opt::InputArgList &args) {
-  std::vector<StringRef> v = args::getStrings(args, OPT_rpath);
+  SmallVector<StringRef, 0> v = args::getStrings(args, OPT_rpath);
   return llvm::join(v.begin(), v.end(), ":");
 }
 
@@ -798,14 +803,11 @@ static OrphanHandlingPolicy getOrphanHandling(opt::InputArgList &args) {
 // Parse --build-id or --build-id=<style>. We handle "tree" as a
 // synonym for "sha1" because all our hash functions including
 // --build-id=sha1 are actually tree hashes for performance reasons.
-static std::pair<BuildIdKind, std::vector<uint8_t>>
+static std::pair<BuildIdKind, SmallVector<uint8_t, 0>>
 getBuildId(opt::InputArgList &args) {
-  auto *arg = args.getLastArg(OPT_build_id, OPT_build_id_eq);
+  auto *arg = args.getLastArg(OPT_build_id);
   if (!arg)
     return {BuildIdKind::None, {}};
-
-  if (arg->getOption().getID() == OPT_build_id)
-    return {BuildIdKind::Fast, {}};
 
   StringRef s = arg->getValue();
   if (s == "fast")
@@ -951,7 +953,7 @@ static bool getCompressDebugSections(opt::InputArgList &args) {
     return false;
   if (s != "zlib")
     error("unknown --compress-debug-sections value: " + s);
-  if (!zlib::isAvailable())
+  if (!compression::zlib::isAvailable())
     error("--compress-debug-sections: zlib is not available");
   return true;
 }
@@ -976,8 +978,8 @@ static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
 }
 
 // Parse the symbol ordering file and warn for any duplicate entries.
-static std::vector<StringRef> getSymbolOrderingFile(MemoryBufferRef mb) {
-  SetVector<StringRef> names;
+static SmallVector<StringRef, 0> getSymbolOrderingFile(MemoryBufferRef mb) {
+  SetVector<StringRef, SmallVector<StringRef, 0>> names;
   for (StringRef s : args::getLines(mb))
     if (!names.insert(s) && config->warnSymbolOrdering)
       warn(mb.getBufferIdentifier() + ": duplicate ordered symbol: " + s);
@@ -1123,8 +1125,13 @@ static void readConfigs(opt::InputArgList &args) {
   config->nostdlib = args.hasArg(OPT_nostdlib);
   config->oFormatBinary = isOutputFormatBinary(args);
   config->omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
+#if ENABLE_OPAQUE_POINTERS
+  config->opaquePointers = args.hasFlag(
+      OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, true);
+#else
   config->opaquePointers = args.hasFlag(
       OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, false);
+#endif
   config->optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
   config->optStatsFilename = args.getLastArgValue(OPT_plugin_opt_stats_file);
 
@@ -1144,6 +1151,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->optimize = args::getInteger(args, OPT_O, 1);
   config->orphanHandling = getOrphanHandling(args);
   config->outputFile = args.getLastArgValue(OPT_o);
+  config->packageMetadata = args.getLastArgValue(OPT_package_metadata);
   config->pie = args.hasFlag(OPT_pie, OPT_no_pie, false);
   config->printIcfSections =
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
@@ -1527,7 +1535,8 @@ static void setConfigs(opt::InputArgList &args) {
   // enable the debug checks for all targets, but currently not all targets
   // have support for reading Elf_Rel addends, so we only enable for a subset.
 #ifndef NDEBUG
-  bool checkDynamicRelocsDefault = m == EM_ARM || m == EM_386 || m == EM_MIPS ||
+  bool checkDynamicRelocsDefault = m == EM_AARCH64 || m == EM_ARM ||
+                                   m == EM_386 || m == EM_MIPS ||
                                    m == EM_X86_64 || m == EM_RISCV;
 #else
   bool checkDynamicRelocsDefault = false;
@@ -1612,7 +1621,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       break;
     case OPT_just_symbols:
       if (Optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
-        files.push_back(createObjectFile(*mb));
+        files.push_back(createObjFile(*mb));
         files.back()->justSymbols = true;
       }
       break;
@@ -1682,8 +1691,10 @@ void LinkerDriver::inferMachineType() {
 static uint64_t getMaxPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "max-page-size",
                                        target->defaultMaxPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("max-page-size: value isn't a power of 2");
+    return target->defaultMaxPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultMaxPageSize)
       warn("-z max-page-size set, but paging disabled by omagic or nmagic");
@@ -1697,8 +1708,10 @@ static uint64_t getMaxPageSize(opt::InputArgList &args) {
 static uint64_t getCommonPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "common-page-size",
                                        target->defaultCommonPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("common-page-size: value isn't a power of 2");
+    return target->defaultCommonPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultCommonPageSize)
       warn("-z common-page-size set, but paging disabled by omagic or nmagic");
@@ -1802,7 +1815,7 @@ static void handleUndefinedGlob(StringRef arg) {
   // Calling sym->extract() in the loop is not safe because it may add new
   // symbols to the symbol table, invalidating the current iterator.
   SmallVector<Symbol *, 0> syms;
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab->getSymbols())
     if (!sym->isPlaceholder() && pat->match(sym->getName()))
       syms.push_back(sym);
 
@@ -1988,7 +2001,7 @@ static void replaceCommonSymbols() {
 // --no-allow-shlib-undefined diagnostics. Similarly, demote lazy symbols.
 static void demoteSharedAndLazySymbols() {
   llvm::TimeTraceScope timeScope("Demote shared and lazy symbols");
-  for (Symbol *sym : symtab->symbols()) {
+  for (Symbol *sym : symtab->getSymbols()) {
     auto *s = dyn_cast<SharedSymbol>(sym);
     if (!(s && !cast<SharedFile>(s->file)->isNeeded) && !sym->isLazy())
       continue;
@@ -2035,7 +2048,7 @@ static void findKeepUniqueSections(opt::InputArgList &args) {
 
   // Symbols in the dynsym could be address-significant in other executables
   // or DSOs, so we conservatively mark them as address-significant.
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab->getSymbols())
     if (sym->includeInDynsym())
       markAddrsig(sym);
 
@@ -2233,6 +2246,49 @@ static std::vector<WrappedSymbol> addWrappedSymbols(opt::InputArgList &args) {
   return v;
 }
 
+static void combineVersionedSymbol(Symbol &sym,
+                                   DenseMap<Symbol *, Symbol *> &map) {
+  const char *suffix1 = sym.getVersionSuffix();
+  if (suffix1[0] != '@' || suffix1[1] == '@')
+    return;
+
+  // Check the existing symbol foo. We have two special cases to handle:
+  //
+  // * There is a definition of foo@v1 and foo@@v1.
+  // * There is a definition of foo@v1 and foo.
+  Defined *sym2 = dyn_cast_or_null<Defined>(symtab->find(sym.getName()));
+  if (!sym2)
+    return;
+  const char *suffix2 = sym2->getVersionSuffix();
+  if (suffix2[0] == '@' && suffix2[1] == '@' &&
+      strcmp(suffix1 + 1, suffix2 + 2) == 0) {
+    // foo@v1 and foo@@v1 should be merged, so redirect foo@v1 to foo@@v1.
+    map.try_emplace(&sym, sym2);
+    // If both foo@v1 and foo@@v1 are defined and non-weak, report a
+    // duplicate definition error.
+    if (sym.isDefined())
+      sym2->checkDuplicate(cast<Defined>(sym));
+    sym2->resolve(sym);
+    // Eliminate foo@v1 from the symbol table.
+    sym.symbolKind = Symbol::PlaceholderKind;
+    sym.isUsedInRegularObj = false;
+  } else if (auto *sym1 = dyn_cast<Defined>(&sym)) {
+    if (sym2->versionId > VER_NDX_GLOBAL
+            ? config->versionDefinitions[sym2->versionId].name == suffix1 + 1
+            : sym1->section == sym2->section && sym1->value == sym2->value) {
+      // Due to an assembler design flaw, if foo is defined, .symver foo,
+      // foo@v1 defines both foo and foo@v1. Unless foo is bound to a
+      // different version, GNU ld makes foo@v1 canonical and eliminates
+      // foo. Emulate its behavior, otherwise we would have foo or foo@@v1
+      // beside foo@v1. foo@v1 and foo combining does not apply if they are
+      // not defined in the same place.
+      map.try_emplace(sym2, &sym);
+      sym2->symbolKind = Symbol::PlaceholderKind;
+      sym2->isUsedInRegularObj = false;
+    }
+  }
+}
+
 // Do renaming for --wrap and foo@v1 by updating pointers to symbols.
 //
 // When this function is executed, only InputFiles and symbol table
@@ -2245,51 +2301,14 @@ static void redirectSymbols(ArrayRef<WrappedSymbol> wrapped) {
     map[w.sym] = w.wrap;
     map[w.real] = w.sym;
   }
-  for (Symbol *sym : symtab->symbols()) {
-    // Enumerate symbols with a non-default version (foo@v1). hasVersionSuffix
-    // filters out most symbols but is not sufficient.
-    if (!sym->hasVersionSuffix)
-      continue;
-    const char *suffix1 = sym->getVersionSuffix();
-    if (suffix1[0] != '@' || suffix1[1] == '@')
-      continue;
 
-    // Check the existing symbol foo. We have two special cases to handle:
-    //
-    // * There is a definition of foo@v1 and foo@@v1.
-    // * There is a definition of foo@v1 and foo.
-    Defined *sym2 = dyn_cast_or_null<Defined>(symtab->find(sym->getName()));
-    if (!sym2)
-      continue;
-    const char *suffix2 = sym2->getVersionSuffix();
-    if (suffix2[0] == '@' && suffix2[1] == '@' &&
-        strcmp(suffix1 + 1, suffix2 + 2) == 0) {
-      // foo@v1 and foo@@v1 should be merged, so redirect foo@v1 to foo@@v1.
-      map.try_emplace(sym, sym2);
-      // If both foo@v1 and foo@@v1 are defined and non-weak, report a duplicate
-      // definition error.
-      if (sym->isDefined())
-        sym2->checkDuplicate(cast<Defined>(*sym));
-      sym2->resolve(*sym);
-      // Eliminate foo@v1 from the symbol table.
-      sym->symbolKind = Symbol::PlaceholderKind;
-      sym->isUsedInRegularObj = false;
-    } else if (auto *sym1 = dyn_cast<Defined>(sym)) {
-      if (sym2->versionId > VER_NDX_GLOBAL
-              ? config->versionDefinitions[sym2->versionId].name == suffix1 + 1
-              : sym1->section == sym2->section && sym1->value == sym2->value) {
-        // Due to an assembler design flaw, if foo is defined, .symver foo,
-        // foo@v1 defines both foo and foo@v1. Unless foo is bound to a
-        // different version, GNU ld makes foo@v1 canonical and eliminates foo.
-        // Emulate its behavior, otherwise we would have foo or foo@@v1 beside
-        // foo@v1. foo@v1 and foo combining does not apply if they are not
-        // defined in the same place.
-        map.try_emplace(sym2, sym);
-        sym2->symbolKind = Symbol::PlaceholderKind;
-        sym2->isUsedInRegularObj = false;
-      }
-    }
-  }
+  // If there are version definitions (versionDefinitions.size() > 2), enumerate
+  // symbols with a non-default version (foo@v1) and check whether it should be
+  // combined with foo or foo@@v1.
+  if (config->versionDefinitions.size() > 2)
+    for (Symbol *sym : symtab->getSymbols())
+      if (sym->hasVersionSuffix)
+        combineVersionedSymbol(*sym, map);
 
   if (map.empty())
     return;
@@ -2316,7 +2335,7 @@ static void checkAndReportMissingFeature(StringRef config, uint32_t features,
   }
 }
 
-// To enable CET (x86's hardware-assited control flow enforcement), each
+// To enable CET (x86's hardware-assisted control flow enforcement), each
 // source file must be compiled with -fcf-protection. Object files compiled
 // with the flag contain feature flags indicating that they are compatible
 // with CET. We enable the feature only when all object files are compatible
@@ -2375,19 +2394,19 @@ static uint32_t getAndFeatures() {
   return ret;
 }
 
-static void initializeLocalSymbols(ELFFileBase *file) {
+static void initSectionsAndLocalSyms(ELFFileBase *file, bool ignoreComdats) {
   switch (config->ekind) {
   case ELF32LEKind:
-    cast<ObjFile<ELF32LE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF32LE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   case ELF32BEKind:
-    cast<ObjFile<ELF32BE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF32BE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   case ELF64LEKind:
-    cast<ObjFile<ELF64LE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF64LE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   case ELF64BEKind:
-    cast<ObjFile<ELF64BE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF64BE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   default:
     llvm_unreachable("");
@@ -2538,7 +2557,9 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // No more lazy bitcode can be extracted at this point. Do post parse work
   // like checking duplicate symbols.
-  parallelForEach(ctx->objectFiles, initializeLocalSymbols);
+  parallelForEach(ctx->objectFiles, [](ELFFileBase *file) {
+    initSectionsAndLocalSyms(file, /*ignoreComdats=*/false);
+  });
   parallelForEach(ctx->objectFiles, postParseObjectFile);
   parallelForEach(ctx->bitcodeFiles,
                   [](BitcodeFile *file) { file->postParse(); });
@@ -2622,7 +2643,9 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // compileBitcodeFiles may have produced lto.tmp object files. After this, no
   // more file will be added.
   auto newObjectFiles = makeArrayRef(ctx->objectFiles).slice(numObjsBeforeLTO);
-  parallelForEach(newObjectFiles, initializeLocalSymbols);
+  parallelForEach(newObjectFiles, [](ELFFileBase *file) {
+    initSectionsAndLocalSyms(file, /*ignoreComdats=*/true);
+  });
   parallelForEach(newObjectFiles, postParseObjectFile);
   for (const DuplicateSymbol &d : ctx->duplicates)
     reportDuplicate(*d.sym, d.file, d.section, d.value);
@@ -2644,10 +2667,16 @@ void LinkerDriver::link(opt::InputArgList &args) {
     // Now that we have a complete list of input files.
     // Beyond this point, no new files are added.
     // Aggregate all input sections into one place.
-    for (InputFile *f : ctx->objectFiles)
-      for (InputSectionBase *s : f->getSections())
-        if (s && s != &InputSection::discarded)
+    for (InputFile *f : ctx->objectFiles) {
+      for (InputSectionBase *s : f->getSections()) {
+        if (!s || s == &InputSection::discarded)
+          continue;
+        if (LLVM_UNLIKELY(isa<EhInputSection>(s)))
+          ehInputSections.push_back(cast<EhInputSection>(s));
+        else
           inputSections.push_back(s);
+      }
+    }
     for (BinaryFile *f : ctx->binaryFiles)
       for (InputSectionBase *s : f->getSections())
         inputSections.push_back(cast<InputSection>(s));
@@ -2769,9 +2798,6 @@ void LinkerDriver::link(opt::InputArgList &args) {
     for (SectionCommand *cmd : script->sectionCommands)
       if (auto *osd = dyn_cast<OutputDesc>(cmd))
         osd->osec.finalizeInputSections();
-    llvm::erase_if(inputSections, [](InputSectionBase *s) {
-      return isa<MergeInputSection>(s);
-    });
   }
 
   // Two input sections with different output sections should not be folded.

@@ -6,14 +6,15 @@ load("//llvm:tblgen.bzl", "gentbl")
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
 )
+
+licenses(["notice"])
 
 # TODO: Actually compute version info
 genrule(
     name = "config_version_gen",
     outs = ["include/lld/Common/Version.inc"],
-    cmd = "echo '#define LLD_VERSION_STRING \"15.0.0\"' > $@",
+    cmd = "echo '#define LLD_VERSION_STRING \"16.0.0\"' > $@",
 )
 
 genrule(
