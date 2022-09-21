@@ -9,6 +9,7 @@ set(LLVM_LINK_COMPONENTS
   InstCombine
   ScalarOpts
   Linker
+  Passes
   )
 
 get_property(LLVMGenXIntrinsics_SOURCE_DIR GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP)

@@ -46,7 +46,6 @@ public:
   bool backendCompatible(backend Backend);
   bool deviceTypeCompatible(info::device_type DeviceType);
   bool deviceNumberCompatible(int DeviceNum);
-  bool containsHost();
   friend std::ostream &operator<<(std::ostream &Out,
                                   const device_filter_list &List);
 };
