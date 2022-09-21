@@ -40,6 +40,9 @@ public:
   bool HasSubDeviceWildCard = false;
   std::optional<unsigned> SubDeviceNum = {};
 
+  bool HasSubSubDeviceWildCard = false; // two levels of sub-devices.
+  std::optional<unsigned> SubSubDeviceNum = {};
+
   ods_target(backend be) { Backend = be; };
   ods_target(){};
   friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
@@ -53,6 +56,7 @@ public:
   ods_target_list(const std::string &FilterString);
   std::vector<ods_target> &get() { return TargetList; }
   bool containsHost();
+  bool backendCompatible(backend Backend);
 };
 
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target);

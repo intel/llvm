@@ -101,7 +101,7 @@ static void Parse_ODS_Device(ods_target &Target,
     }
   }
 
-  if (DeviceSubPair.size() == 2) {
+  if (DeviceSubPair.size() >= 2) {
     // We have a subdevice.
     std::string_view SubDeviceStr = DeviceSubPair[1];
     // SubDeviceStr is wildcard or number.
@@ -117,10 +117,26 @@ static void Parse_ODS_Device(ods_target &Target,
         throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
       }
     }
-  } else if (DeviceSubPair.size() > 2) {
+  }
+  if (DeviceSubPair.size() == 3) {
+    // We have a sub-sub-device.
+    std::string_view SubSubDeviceStr = DeviceSubPair[2];
+    if (SubSubDeviceStr[0] == '*') {
+      Target.HasSubSubDeviceWildCard = true;
+    } else {
+      std::string SSDS(SubSubDeviceStr);
+      try {
+        Target.SubSubDeviceNum = std::stoi(SSDS);
+      } catch (...) {
+        std::stringstream ss;
+        ss << "error parsing sub-sub-device index: " << SSDS;
+        throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+      }
+    }
+  } else if (DeviceSubPair.size() > 3) {
     std::stringstream ss;
     ss << "error parsing " << DeviceStr
-       << "  Only one level of sub-devices supported at this time";
+       << "  Only two levels of sub-devices supported at this time";
     throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
   }
 }
@@ -202,6 +218,18 @@ bool ods_target_list::containsHost() {
         // All device numbers other than 0 are rejected.
         if (!Target.DeviceNum || Target.DeviceNum.value() == 0)
           return true;
+  }
+  return false;
+}
+
+// Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
+// 1. Filter backend is '*' which means ANY backend.
+// 2. Filter backend match exactly with the given 'Backend'
+bool ods_target_list::backendCompatible(backend Backend) {
+  for (const ods_target &Target : TargetList) {
+    backend TargetBackend = Target.Backend.value_or(backend::all);
+    if (TargetBackend == Backend || TargetBackend == backend::all)
+      return true;
   }
   return false;
 }

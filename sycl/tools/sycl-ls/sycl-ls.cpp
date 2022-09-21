@@ -135,6 +135,11 @@ int main(int argc, char **argv) {
     backend Backend = Platform.get_backend();
     auto PlatformName = Platform.get_info<info::platform::name>();
     const auto &Devices = Platform.get_devices();
+
+    // the device counting done here should have the same result as the counting
+    // done by SYCL itself. But technically, it is not the same method, as SYCL
+    // keeps a table of platforms:start_dev_index in each plugin.
+
     for (const auto &Device : Devices) {
       std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
                 << DeviceNums[Backend] << "] ";
