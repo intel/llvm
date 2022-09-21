@@ -16,7 +16,7 @@ def do_configure(args):
     llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
-    libclc_nvidia_target_names = 'nvptx64--;nvptx64--nvidiacl'
+    libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
@@ -115,6 +115,7 @@ def do_configure(args):
             libclc_targets_to_build += libclc_amd_target_names
         if libclc_nvidia_target_names not in libclc_targets_to_build:
             libclc_targets_to_build += libclc_nvidia_target_names
+        libclc_gen_remangled_variants = 'ON'
 
     if args.enable_plugin:
         sycl_enabled_plugins += args.enable_plugin
