@@ -117,7 +117,7 @@ protected:
 
   size_t getSize() const;
 
-  void handleRelease() const;
+  void handleRelease(bool DefaultAllocator) const;
 
   std::shared_ptr<detail::buffer_impl> impl;
 };
@@ -459,7 +459,11 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() { buffer_plain::handleRelease(); }
+  ~buffer() {
+    buffer_plain::handleRelease(
+        std::is_same<AllocatorT,
+                     detail::sycl_memory_object_allocator<T>>::value);
+  }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 

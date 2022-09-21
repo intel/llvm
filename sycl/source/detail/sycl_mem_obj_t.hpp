@@ -58,7 +58,7 @@ public:
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr),
-        MNotBlockingRelease(MAllocator->isDefault()) {}
+        MNoHostPtrProvided(true) {}
 
   SYCLMemObjT(const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
@@ -170,6 +170,7 @@ public:
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
+    MNoHostPtrProvided = false;
     if (!MHostPtrReadOnly && HostPtr) {
       set_final_data([HostPtr](const std::function<void(void *const Ptr)> &F) {
         F(HostPtr);
@@ -193,6 +194,7 @@ public:
 
   void handleHostData(const std::shared_ptr<void> &HostPtr,
                       const size_t RequiredAlign, bool IsConstPtr) {
+    MNoHostPtrProvided = false;
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = IsConstPtr;
     if (HostPtr) {
@@ -253,7 +255,8 @@ public:
 
   bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
 
-  void detachObjectIfNeeded(const std::shared_ptr<SYCLMemObjT> &self) const;
+  void detachObjectIfNeeded(const std::shared_ptr<SYCLMemObjT> &self,
+                            bool DefaultAllocator) const;
 
 protected:
   // An allocateMem helper that determines which host ptr to use
@@ -290,8 +293,11 @@ protected:
   // Field which holds user's shared_ptr in case of memory object is created
   // using constructor with shared_ptr.
   std::shared_ptr<const void> MSharedPtrStorage;
-  // Field to identify if dtor is not necessarily blocking
-  bool MNotBlockingRelease;
+  // Field to identify if dtor is not necessarily blocking.
+  // check for MUploadDataFunctor is not enough to define it since for case when
+  // we have read only HostPtr - MUploadDataFunctor is empty but delayed release
+  // must be not allowed.
+  bool MNoHostPtrProvided;
 };
 
 } // namespace detail

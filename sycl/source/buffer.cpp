@@ -121,7 +121,9 @@ void buffer_plain::addOrReplaceAccessorProperties(
 
 size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 
-void buffer_plain::handleRelease() const { impl->detachObjectIfNeeded(impl); }
+void buffer_plain::handleRelease(bool DefaultAllocator) const {
+  impl->detachObjectIfNeeded(impl, DefaultAllocator);
+}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

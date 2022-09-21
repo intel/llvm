@@ -31,7 +31,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr), MNotBlockingRelease(false) {
+      MSharedPtrStorage(nullptr), MNoHostPtrProvided(false) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -91,7 +91,7 @@ void SYCLMemObjT::updateHostMemory() {
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
   if (MRecord)
-    Scheduler::getInstance().removeMemoryObject(this, MNotBlockingRelease);
+    Scheduler::getInstance().removeMemoryObject(this);
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
@@ -148,9 +148,9 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
     HostPtrReadOnly = false;
 }
 
-void SYCLMemObjT::detachObjectIfNeeded(
-    const std::shared_ptr<SYCLMemObjT> &self) const {
-  if (self.use_count() == 1 && MNotBlockingRelease)
+void SYCLMemObjT::detachObjectIfNeeded(const std::shared_ptr<SYCLMemObjT> &self,
+                                       bool DefaultAllocator) const {
+  if (self.use_count() == 1 && MNoHostPtrProvided && DefaultAllocator)
     Scheduler::getInstance().deferMemObjRelease(self);
 }
 

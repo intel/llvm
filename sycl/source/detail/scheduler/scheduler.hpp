@@ -397,7 +397,7 @@ public:
   /// This member function is used by \ref buffer and \ref image.
   ///
   /// \param MemObj is a memory object that points to the buffer being removed.
-  void removeMemoryObject(detail::SYCLMemObjI *MemObj, bool NotBlockingRelease);
+  void removeMemoryObject(detail::SYCLMemObjI *MemObj);
 
   /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
   /// that all its commands have been waited for).
@@ -466,6 +466,8 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
+  bool isRecordReadyForRelease(MemObjRecord *Record);
+  void cleanupDeferredMemObjects(bool Blocking);
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
@@ -772,6 +774,9 @@ protected:
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
+
+  std::list<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
+  std::mutex MDeferredMemReleaseMutex;
 
   QueueImplPtr DefaultHostQueue;
 

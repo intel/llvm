@@ -258,9 +258,7 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
-void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
-                                   bool NotBlockingRelease) {
-  std::ignore = NotBlockingRelease;
+void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
   // objects, this is needed to guarantee that streamed data is printed and
@@ -412,6 +410,7 @@ Scheduler::~Scheduler() {
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
+  cleanupDeferredMemObjects(true);
   // There might be some commands scheduled for post enqueue cleanup that
   // haven't been freed because of the graph mutex being locked at the time,
   // clean them up now.
@@ -474,8 +473,12 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
-
+  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  MDeferredMemObjRelease.push_back(MemObj);
+  cleanupDeferredMemObjects(false);
 }
+
+void Scheduler::cleanupDeferredMemObjects(bool Blocking) {}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
