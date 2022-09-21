@@ -2029,11 +2029,11 @@ public:
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
-  iterator begin() noexcept {
+  iterator begin() const noexcept {
     return iterator::__get_begin(this, get_offset(), get_range());
   }
 
-  iterator end() noexcept {
+  iterator end() const noexcept {
     return iterator::__get_end(this, get_offset(), get_range());
   }
 

@@ -117,9 +117,7 @@ protected:
     _MLinearCurrent = __linearizeIndex(_MCurrent);
   }
 
-  id<_Dimensions> __get_current_id() const {
-    return _MBegin + _MCurrent;
-  }
+  id<_Dimensions> __get_current_id() const { return _MBegin + _MCurrent; }
 
   __accessor_iterator_base &operator++() {
     if constexpr (_IsReverse)
@@ -305,26 +303,27 @@ template <typename _DataT, int _Dimensions, access::mode _AccessMode,
 class __accessor_iterator : public __accessor_iterator_base<_Dimensions> {
   using _AccessorT = accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
                               _IsPlaceholder, _PropertyListT>;
-  _AccessorT *_MAccessorPtr;
+  const _AccessorT *_MAccessorPtr;
 
   using _BaseT = __accessor_iterator_base<_Dimensions>;
 
   friend class accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
                         _IsPlaceholder, _PropertyListT>;
 
-  __accessor_iterator(_AccessorT *_AccessorPtr, const id<_Dimensions> &_Begin,
+  __accessor_iterator(const _AccessorT *_AccessorPtr,
+                      const id<_Dimensions> &_Begin,
                       const id<_Dimensions> &_End,
                       const id<_Dimensions> &_Current)
       : __accessor_iterator_base<_Dimensions>(_Begin, _End, _Current),
         _MAccessorPtr(_AccessorPtr) {}
 
-  static __accessor_iterator __get_begin(_AccessorT *_AccessorPtr,
+  static __accessor_iterator __get_begin(const _AccessorT *_AccessorPtr,
                                          const id<_Dimensions> &_Begin,
                                          const id<_Dimensions> &_End) {
     return __accessor_iterator(_AccessorPtr, _Begin, _End, _Begin);
   }
 
-  static __accessor_iterator __get_end(_AccessorT *_AccessorPtr,
+  static __accessor_iterator __get_end(const _AccessorT *_AccessorPtr,
                                        const id<_Dimensions> &_Begin,
                                        const id<_Dimensions> &_End) {
     // As `.end()` iterator we use an iterator which points to the first element
