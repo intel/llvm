@@ -323,8 +323,7 @@ void device_filter_list::addFilter(device_filter &Filter) {
 // 2. Filter backend match exactly with the given 'Backend'
 bool device_filter_list::backendCompatible(backend Backend) {
   for (const device_filter &Filter : FilterList) {
-    backend FilterBackend =
-        Filter.Backend ? Filter.Backend.value() : backend::all;
+    backend FilterBackend = Filter.Backend.value_or(backend::all);
     if (FilterBackend == Backend || FilterBackend == backend::all)
       return true;
   }
@@ -334,7 +333,7 @@ bool device_filter_list::backendCompatible(backend Backend) {
 bool device_filter_list::deviceTypeCompatible(info::device_type DeviceType) {
   for (const device_filter &Filter : FilterList) {
     info::device_type FilterDevType =
-        Filter.DeviceType ? Filter.DeviceType.value() : info::device_type::all;
+        Filter.DeviceType.value_or(info::device_type::all);
     if (FilterDevType == DeviceType || FilterDevType == info::device_type::all)
       return true;
   }

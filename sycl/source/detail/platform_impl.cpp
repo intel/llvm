@@ -181,8 +181,7 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
-      backend FilterBackend =
-          Filter.Backend ? Filter.Backend.value() : backend::all;
+      backend FilterBackend = Filter.Backend.value_or(backend::all);
       // First, match the backend entry
       if (FilterBackend == Backend || FilterBackend == backend::all) {
         info::device_type FilterDevType =

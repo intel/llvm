@@ -33,7 +33,7 @@ compiler and runtime.
 
 With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of them, usually preferring a LevelZero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose sub-devices (aka "tiles") as individual devices.  
 
-A value for this environment value consists of a backend name, followed by a colon ( : ), followed by some sort of device specifier (a named device type, a wildcard symbol ( * ) , or an exact numeric device id).  This can optionally be followed by period ( . )  and then a sub-device specifier, which could be either a wilcard symbol ( * ) or an numeric index (using 0 based counting).   Commas can be used to string multiple device specifiers behind any backend.    Moreover, individual entries can be separated by semi-colons. 
+A value for this environment value consists of a backend name, followed by a colon ( : ), followed by a device specifier (a named device type, a wildcard symbol ( * ) , or an exact numeric device id).  This can optionally be followed by period ( . )  and then a sub-device specifier, which could be either a wildcard symbol ( * ) or an numeric index (using 0 based counting).   Commas can be used to string multiple device specifiers behind any backend.    Moreover, individual entries can be separated by semi-colons. 
 
 
 Possible values of `backend` are:
@@ -60,10 +60,10 @@ Common Usage Examples:
 -----------|---------
 | `ONEAPI_DEVICE_SELECTOR=opencl:*` | All the devices on the OpenCL platform are available |
 | `ONEAPI_DEVICE_SELECTOR=level_zero:gpu` | Only gpu devices on the LevelZero platform will be available.|
-| `ONEAPI_DEVICE_SELECTOR="opencl:gpu;level_zero:gpu"` | GPU devices from both Level Zero and OpenCL will be available. (Some sort of escaping (like quotation marks) will likely be needed when using semi-colon separated entries.) |
+| `ONEAPI_DEVICE_SELECTOR="opencl:gpu;level_zero:gpu"` | GPU devices from both Level Zero and OpenCL will be available. (Note that escaping (like quotation marks) will likely be needed when using semi-colon separated entries.) |
 | `ONEAPI_DEVICE_SELECTOR=opencl:gpu,cpu` | Only cpu and gpu devices on the OpenCL platform will be available.|
 | `ONEAPI_DEVICE_SELECTOR=opencl:0` | Device with numeric identifier of 0 chosen from the OpenCL platform. |
-| `ONEAPI_DEVICE_SELECTOR=hip:0,2` | Devices with numeric identifier of 0 and 2 are chosen from the Hip platform. |
+| `ONEAPI_DEVICE_SELECTOR=hip:0,2` | Devices with numeric identifier of 0 and 2 are chosen from the HIP platform. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices (aka tiles) from the OpenCL device identified by 0 will be available. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third tile (2 in 0 based counting) of the OpenCL device with numeric identifier 0 will be the sole device available.  |
 
