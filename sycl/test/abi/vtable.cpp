@@ -53,6 +53,8 @@ void foo(sycl::detail::SYCLMemObjAllocator &Allocator) {
 // CHECK-NEXT:   6 | void sycl::detail::SYCLMemObjAllocator::deallocate(void *, std::size_t) [pure]
 // CHECK-NEXT:   7 | std::size_t sycl::detail::SYCLMemObjAllocator::getValueSize() const [pure]
 // CHECK-NEXT:   8 | void sycl::detail::SYCLMemObjAllocator::setAlignment(std::size_t) [pure]
+// CHECK-NEXT:   9 | bool sycl::detail::SYCLMemObjAllocator::isDefault()
+
 
 void foo(sycl::device_selector &DeviceSelector) {
   (void)DeviceSelector.select_device();
