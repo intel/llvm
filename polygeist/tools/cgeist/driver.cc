@@ -54,6 +54,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include <fstream>
+#include <type_traits>
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
@@ -294,15 +295,22 @@ static void enableOptionsPM(mlir::PassManager &pm) {
   pm.enableTiming(timing);
 }
 
+static bool isFuncOpName(llvm::StringRef FuncOpName) {
+  return FuncOpName == mlir::func::FuncOp::getOperationName();
+}
+
 // MLIR canonicalization & cleanup.
-static int canonicalize(mlir::MLIRContext &context,
-                        mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::PassManager pm(&context);
+template <typename ModuleTy>
+static int canonicalize(mlir::MLIRContext &context, ModuleTy &module,
+                        llvm::StringRef FuncOpName) {
+  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
   enableOptionsPM(pm);
 
-  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+  mlir::OpPassManager &optPM = pm.nest(FuncOpName);
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
+
+  const auto IsFunc = isFuncOpName(FuncOpName);
 
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -317,7 +325,7 @@ static int canonicalize(mlir::MLIRContext &context,
   optPM.addPass(polygeist::createLoopRestructurePass());
   optPM.addPass(polygeist::replaceAffineCFGPass());
   optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  if (ScalarReplacement)
+  if (ScalarReplacement && IsFunc)
     optPM.addPass(mlir::createAffineScalarReplacementPass());
   if (ParallelLICM)
     optPM.addPass(polygeist::createParallelLICMPass());
@@ -335,7 +343,7 @@ static int canonicalize(mlir::MLIRContext &context,
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     optPM.addPass(polygeist::createRaiseSCFToAffinePass());
     optPM.addPass(polygeist::replaceAffineCFGPass());
-    if (ScalarReplacement)
+    if (ScalarReplacement && IsFunc)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
   }
   if (mlir::failed(pm.run(module.get()))) {
@@ -358,12 +366,13 @@ static int canonicalize(mlir::MLIRContext &context,
 }
 
 // Optimize the MLIR.
-static int optimize(mlir::MLIRContext &context,
-                    mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::PassManager pm(&context);
+template <typename ModuleTy>
+static int optimize(mlir::MLIRContext &context, ModuleTy &module,
+                    llvm::StringRef FuncOpName) {
+  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
   enableOptionsPM(pm);
 
-  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+  mlir::OpPassManager &optPM = pm.nest(FuncOpName);
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
@@ -378,7 +387,7 @@ static int optimize(mlir::MLIRContext &context,
       optPM.addPass(mlir::createLowerAffinePass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     pm.addPass(mlir::createInlinerPass());
-    mlir::OpPassManager &optPM2 = pm.nest<mlir::func::FuncOp>();
+    mlir::OpPassManager &optPM2 = pm.nest(FuncOpName);
     optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM2.addPass(mlir::createCSEPass());
     optPM2.addPass(polygeist::createMem2RegPass());
@@ -417,8 +426,9 @@ static int optimize(mlir::MLIRContext &context,
 }
 
 // CUDA specific optimization (add parallel loops around CUDA).
-static int optimizeCUDA(mlir::MLIRContext &context,
-                        mlir::OwningOpRef<mlir::ModuleOp> &module) {
+template <typename ModuleTy>
+static int optimizeCUDA(mlir::MLIRContext &context, ModuleTy &module,
+                        llvm::StringRef FuncOpName) {
   if (!CudaLower)
     return 0;
 
@@ -426,20 +436,22 @@ static int optimizeCUDA(mlir::MLIRContext &context,
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  mlir::PassManager pm(&context);
+  const auto IsFunc = isFuncOpName(FuncOpName);
+
+  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
   enableOptionsPM(pm);
 
-  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+  mlir::OpPassManager &optPM = pm.nest(FuncOpName);
   optPM.addPass(mlir::createLowerAffinePass());
   optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   pm.addPass(polygeist::createParallelLowerPass());
   pm.addPass(mlir::createSymbolDCEPass());
-  mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
+  mlir::OpPassManager &noptPM = pm.nest(FuncOpName);
   noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   noptPM.addPass(polygeist::createMem2RegPass());
   noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   pm.addPass(mlir::createInlinerPass());
-  mlir::OpPassManager &noptPM2 = pm.nest<mlir::func::FuncOp>();
+  mlir::OpPassManager &noptPM2 = pm.nest(FuncOpName);
   noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   noptPM2.addPass(polygeist::createMem2RegPass());
   noptPM2.addPass(polygeist::createCanonicalizeForPass());
@@ -475,7 +487,7 @@ static int optimizeCUDA(mlir::MLIRContext &context,
     noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     noptPM2.addPass(polygeist::replaceAffineCFGPass());
     noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    if (ScalarReplacement)
+    if (ScalarReplacement && IsFunc)
       noptPM2.addPass(mlir::createAffineScalarReplacementPass());
   }
   if (mlir::failed(pm.run(module.get()))) {
@@ -497,15 +509,17 @@ static int optimizeCUDA(mlir::MLIRContext &context,
   return 0;
 }
 
-static void finalizeCUDA(mlir::PassManager &pm) {
+static void finalizeCUDA(mlir::PassManager &pm, llvm::StringRef FuncOpName) {
   if (!CudaLower)
     return;
 
-  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
+  mlir::OpPassManager &optPM = pm.nest(FuncOpName);
 
   constexpr int unrollSize = 32;
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
+
+  const auto IsFunc = isFuncOpName(FuncOpName);
 
   optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   optPM.addPass(mlir::createCSEPass());
@@ -527,7 +541,7 @@ static void finalizeCUDA(mlir::PassManager &pm) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    if (ScalarReplacement)
+    if (ScalarReplacement && IsFunc)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
   }
   if (ToCPU == "continuation") {
@@ -566,21 +580,22 @@ static void finalizeCUDA(mlir::PassManager &pm) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    if (ScalarReplacement)
+    if (ScalarReplacement && IsFunc)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
   }
 }
 
-static int finalize(mlir::MLIRContext &context,
-                    mlir::OwningOpRef<mlir::ModuleOp> &module,
-                    llvm::DataLayout &DL, bool &LinkOMP) {
-  mlir::PassManager pm(&context);
+template <typename ModuleTy>
+static int finalize(mlir::MLIRContext &context, ModuleTy &module,
+                    llvm::DataLayout &DL, bool &LinkOMP,
+                    llvm::StringRef FuncOpName) {
+  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
   enableOptionsPM(pm);
 
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  finalizeCUDA(pm);
+  finalizeCUDA(pm, FuncOpName);
 
   pm.addPass(mlir::createSymbolDCEPass());
 
@@ -606,8 +621,9 @@ static int finalize(mlir::MLIRContext &context,
       module->dump();
     });
 
-    mlir::PassManager pm2(&context);
-    if (SCFOpenMP) {
+    mlir::PassManager pm2(&context, ModuleTy::OperationT::getOperationName());
+    if (SCFOpenMP &&
+        std::is_same<mlir::ModuleOp, typename ModuleTy::OperationT>::value) {
       pm2.addPass(createConvertSCFToOpenMPPass());
     }
     pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -615,7 +631,7 @@ static int finalize(mlir::MLIRContext &context,
       pm2.addPass(polygeist::createOpenMPOptPass());
       pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     }
-    pm2.nest<mlir::func::FuncOp>().addPass(polygeist::createMem2RegPass());
+    pm2.nest(FuncOpName).addPass(polygeist::createMem2RegPass());
     pm2.addPass(mlir::createCSEPass());
     pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     if (mlir::failed(pm2.run(module.get()))) {
@@ -636,7 +652,7 @@ static int finalize(mlir::MLIRContext &context,
 
     if (!EmitOpenMPIR) {
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
-      mlir::PassManager pm3(&context);
+      mlir::PassManager pm3(&context, ModuleTy::OperationT::getOperationName());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array
@@ -682,40 +698,46 @@ static int finalize(mlir::MLIRContext &context,
 }
 
 // Create and execute the MLIR transformations pipeline.
+template <typename ModuleTy>
 static int
-createAndExecutePassPipeline(mlir::MLIRContext &context,
-                             mlir::OwningOpRef<mlir::ModuleOp> &module,
-                             llvm::DataLayout &DL, llvm::Triple &triple, bool &LinkOMP) {
-  // MLIR canonicalization & cleanup.
-  int rc = canonicalize(context, module);
-  if (rc != 0) 
-    return rc;
+createAndExecutePassPipeline(mlir::MLIRContext &context, ModuleTy &module,
+                             llvm::DataLayout &DL, llvm::Triple &triple,
+                             bool &LinkOMP,
+                             llvm::ArrayRef<llvm::StringRef> FuncOpNames) {
+  for (const auto FuncOpName : FuncOpNames) {
+    // MLIR canonicalization & cleanup.
+    int rc = canonicalize(context, module, FuncOpName);
+    if (rc != 0)
+      return rc;
 
-  // MLIR optimizations.
-  rc = optimize(context, module);
-  if (rc != 0) 
-    return rc;
+    // MLIR optimizations.
+    rc = optimize(context, module, FuncOpName);
+    if (rc != 0)
+      return rc;
 
-  // CUDA specific MLIR optimizations.
-  rc = optimizeCUDA(context, module);
-  if (rc != 0) 
-    return rc;
+    // CUDA specific MLIR optimizations.
+    rc = optimizeCUDA(context, module, FuncOpName);
+    if (rc != 0)
+      return rc;
 
-  rc = finalize(context, module, DL, LinkOMP);
-  if (rc != 0) 
-    return rc;
+    rc = finalize(context, module, DL, LinkOMP, FuncOpName);
+    if (rc != 0)
+      return rc;
+  }
 
   return 0;
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
-static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
-                         mlir::MLIRContext &context, llvm::DataLayout &DL,
-                         llvm::Triple &triple,
+template <typename ModuleTy>
+static int compileModule(ModuleTy &module, mlir::MLIRContext &context,
+                         llvm::DataLayout &DL, llvm::Triple &triple,
                          const SmallVectorImpl<const char *> &LinkArgs,
-                         const char *Argv0) {
+                         const char *Argv0,
+                         llvm::ArrayRef<llvm::StringRef> FuncOpNames) {
   bool LinkOMP = FOpenMP;
-  int rc = createAndExecutePassPipeline(context, module, DL, triple, LinkOMP);
+  int rc = createAndExecutePassPipeline(context, module, DL, triple, LinkOMP,
+                                        FuncOpNames);
   if (rc != 0) {
     llvm::errs() << "Failed to execute pass pipeline correctly, rc = " << rc
                  << ".\n";
@@ -861,6 +883,7 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
                               const cl::list<std::string> &inputCommandArgs,
                               mlir::MLIRContext &context,
                               mlir::OwningOpRef<ModuleOp> &module,
+                              mlir::OwningOpRef<gpu::GPUModuleOp> &deviceModule,
                               llvm::DataLayout &DL, llvm::Triple &triple,
                               const char *Argv0, bool syclKernelsOnly) {
   assert(!inputFiles.empty() && "inputFiles should not be empty");
@@ -901,8 +924,23 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
   
   // Generate MLIR for the C/C++ files.
   std::string fn = (!syclKernelsOnly) ? cfunction.getValue() : "";
-  parseMLIR(Argv0, files, fn, includeDirs, defines, module, triple, DL,
-            commands);
+  parseMLIR(Argv0, files, fn, includeDirs, defines, module, deviceModule,
+            triple, DL, commands);
+}
+
+static bool hasKernels(mlir::gpu::GPUModuleOp deviceModule) {
+  return !deviceModule.getRegion().getOps<mlir::gpu::GPUFuncOp>().empty();
+}
+
+static std::pair<mlir::OwningOpRef<mlir::ModuleOp>,
+                 mlir::OwningOpRef<mlir::gpu::GPUModuleOp>>
+buildModules(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral SYCLModuleName{"sycl"};
+
+  mlir::OpBuilder Builder(&context);
+  const auto loc = Builder.getUnknownLoc();
+  return {mlir::ModuleOp::create(loc),
+          Builder.create<mlir::gpu::GPUModuleOp>(loc, SYCLModuleName)};
 }
 
 int main(int argc, char **argv) {
@@ -940,19 +978,29 @@ int main(int argc, char **argv) {
   mlir::MLIRContext context;
   registerDialects(context, syclKernelsOnly);
 
-  // Generate MLIR for the input files (in a single module).
-  mlir::OwningOpRef<mlir::ModuleOp> module(
-      mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc()));
+  // Generate MLIR for the input files.
+  auto modules = buildModules(context);
+  auto &module = modules.first;
+  auto &deviceModule = modules.second;
   llvm::DataLayout DL("");
   llvm::Triple triple;
-  processInputFiles(inputFileNames, inputCommandArgs, context, module, DL, triple, argv[0],
-                    syclKernelsOnly);
+  processInputFiles(inputFileNames, inputCommandArgs, context, module,
+                    deviceModule, DL, triple, argv[0], syclKernelsOnly);
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
     module->dump();
   });
 
+  // For now, we will work on the device code if SYCL kernels are found and on
+  // the host code otherwise.
+  //
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(module, context, DL, triple, LinkageArgs, argv[0]);
+  return hasKernels(*deviceModule)
+             ? compileModule(deviceModule, context, DL, triple, LinkageArgs,
+                             argv[0],
+                             {func::FuncOp::getOperationName(),
+                              gpu::GPUFuncOp::getOperationName()})
+             : compileModule(module, context, DL, triple, LinkageArgs, argv[0],
+                             {func::FuncOp::getOperationName()});
 }

@@ -15,6 +15,7 @@
 #include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
@@ -57,11 +58,13 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
   std::map<std::string, mlir::func::FuncOp> &functions;
+  std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   Preprocessor &PP;
   ASTContext &astContext;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
+  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -80,18 +83,21 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::func::FuncOp> &functions,
+      std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       Preprocessor &PP, ASTContext &astContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
-      CodeGenOptions &codegenops)
+      mlir::OwningOpRef<mlir::ModuleOp> &module,
+      mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
+      clang::SourceManager &SM, CodeGenOptions &codegenops)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
-        functions(functions), llvmGlobals(llvmGlobals),
-        llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
-        module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
-        codegenops(codegenops),
-        CGM(astContext, &SM.getFileManager().getVirtualFileSystem(), PP.getHeaderSearchInfo().getHeaderSearchOpts(),
+        functions(functions), deviceFunctions(deviceFunctions),
+        llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), PP(PP),
+        astContext(astContext), module(module), deviceModule(deviceModule),
+        SM(SM), lcontext(), llvmMod("tmp", lcontext), codegenops(codegenops),
+        CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
+            PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {
@@ -154,6 +160,7 @@ private:
   MLIRASTConsumer &Glob;
   mlir::func::FuncOp function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
+  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   mlir::OpBuilder builder;
   mlir::Location loc;
   mlir::Block *entryBlock;
@@ -235,6 +242,7 @@ public:
   LowerToInfo &LTInfo;
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
+              mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
               LowerToInfo &LTInfo);
 
   void init(mlir::func::FuncOp function, const FunctionDecl *fd);

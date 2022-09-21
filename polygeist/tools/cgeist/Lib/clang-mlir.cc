@@ -107,11 +107,13 @@ mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
   return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
 }
 
-MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
-                         mlir::OwningOpRef<mlir::ModuleOp> &module,
-                         LowerToInfo &LTInfo)
-    : Glob(Glob), module(module), builder(module->getContext()),
-      loc(builder.getUnknownLoc()), ThisCapture(nullptr), LTInfo(LTInfo) {}
+MLIRScanner::MLIRScanner(
+    MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
+    mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
+    LowerToInfo &LTInfo)
+    : Glob(Glob), module(module), deviceModule(deviceModule),
+      builder(module->getContext()), loc(builder.getUnknownLoc()),
+      ThisCapture(nullptr), LTInfo(LTInfo) {}
 
 void MLIRScanner::initSupportedFunctions() {
   // Functions needed for single_task with one dimensional write buffer.
@@ -4500,7 +4502,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     builder.setInsertionPointToStart(blk);
     mlir::Value res;
     if (auto init = VD->getInit()) {
-      MLIRScanner ms(*this, module, LTInfo);
+      MLIRScanner ms(*this, module, deviceModule, LTInfo);
       ms.setEntryAndAllocBlock(blk);
       res = ms.Visit(const_cast<Expr *>(init)).getValue(builder);
     } else {
@@ -4663,7 +4665,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   if (tryInit)
     if (auto init = VD->getInit()) {
-      MLIRScanner ms(*this, module, LTInfo);
+      MLIRScanner ms(*this, module, deviceModule, LTInfo);
       mlir::Block *B = new Block();
       ms.setEntryAndAllocBlock(B);
       OpBuilder builder(module->getContext());
@@ -4955,7 +4957,7 @@ void MLIRASTConsumer::run() {
     if (done.count(name))
       continue;
     done.insert(name);
-    MLIRScanner ms(*this, module, LTInfo);
+    MLIRScanner ms(*this, module, deviceModule, LTInfo);
     auto Function = GetOrCreateMLIRFunction(FD, true);
     ms.init(Function, FD);
 
@@ -5686,21 +5688,25 @@ public:
   std::set<std::string> emitIfFound;
   std::set<std::string> done;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
+  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
   std::map<std::string, mlir::func::FuncOp> functions;
+  std::map<std::string, mlir::FunctionOpInterface> deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
-  MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module)
-      : module(module) {
+  MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module,
+             mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule)
+      : module(module), deviceModule(deviceModule) {
     emitIfFound.insert(fn);
   }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
-        emitIfFound, done, llvmStringGlobals, globals, functions, llvmGlobals,
-        llvmFunctions, CI.getPreprocessor(), CI.getASTContext(), module,
-        CI.getSourceManager(), CI.getCodeGenOpts()));
+        emitIfFound, done, llvmStringGlobals, globals, functions,
+        deviceFunctions, llvmGlobals, llvmFunctions, CI.getPreprocessor(),
+        CI.getASTContext(), module, deviceModule, CI.getSourceManager(),
+        CI.getCodeGenOpts()));
   }
 };
 
@@ -5772,6 +5778,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
                       mlir::OwningOpRef<mlir::ModuleOp> &module,
+                      mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
                       llvm::Triple &triple, llvm::DataLayout &DL,
                       std::vector<std::string> InputCommandArgs) {
 
@@ -5912,7 +5919,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     CommandList.push_back(&InputCommandArgList);
   }
 
-  MLIRAction Act(fn, module);
+  MLIRAction Act(fn, module, deviceModule);
 
   for (const ArgStringList *args : CommandList) {
     std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
