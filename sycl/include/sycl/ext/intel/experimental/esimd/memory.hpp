@@ -536,7 +536,8 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter constraints.
+/// See comments in the  \ref lsc_block_load API for description and parameter
+/// constraints.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
