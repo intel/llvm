@@ -122,7 +122,7 @@ void buffer_plain::addOrReplaceAccessorProperties(
 size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 
 void buffer_plain::handleRelease(bool DefaultAllocator) const {
-  impl->detachObjectIfNeeded(impl, DefaultAllocator);
+  impl->detachMemoryObject(impl, DefaultAllocator);
 }
 
 } // namespace detail

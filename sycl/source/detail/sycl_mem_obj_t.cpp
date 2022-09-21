@@ -148,7 +148,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
     HostPtrReadOnly = false;
 }
 
-void SYCLMemObjT::detachObjectIfNeeded(const std::shared_ptr<SYCLMemObjT> &self,
+void SYCLMemObjT::detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &self,
                                        bool DefaultAllocator) const {
   if (self.use_count() == 1 && MNoHostPtrProvided && DefaultAllocator)
     Scheduler::getInstance().deferMemObjRelease(self);
