@@ -1,3 +1,5 @@
+// The test marked as XFAIL as a specific one to the old OpenMP offloading model, which was removed.
+// XFAIL: *
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 // RUN:   %clang -### --target=x86_64-unknown-linux-gnu -fopenmp -fno-openmp-new-driver -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx906 --libomptarget-amdgpu-bc-path=%S/Inputs/hip_dev_lib %s 2>&1 \

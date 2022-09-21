@@ -93,7 +93,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.offsets();
+        return $_op.getOffsets();
       }]
     >,
     InterfaceMethod<
@@ -105,7 +105,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.sizes();
+        return $_op.getSizes();
       }]
     >,
     InterfaceMethod<
@@ -117,7 +117,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.strides();
+        return $_op.getStrides();
       }]
     >,
     InterfaceMethod<
@@ -129,7 +129,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.static_offsets();
+        return $_op.getStaticOffsets();
       }]
     >,
     InterfaceMethod<
@@ -141,7 +141,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.static_sizes();
+        return $_op.getStaticSizes();
       }]
     >,
     InterfaceMethod<
@@ -153,7 +153,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.static_strides();
+        return $_op.getStaticStrides();
       }]
     >,
     InterfaceMethod<
@@ -165,8 +165,8 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return ::mlir::getMixedOffsets($_op, $_op.static_offsets(),
-                                       $_op.offsets());
+        return ::mlir::getMixedStridesOrOffsets($_op.getStaticOffsets(),
+                                                $_op.getOffsets());
       }]
     >,
     InterfaceMethod<
@@ -178,7 +178,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return ::mlir::getMixedSizes($_op, $_op.static_sizes(), $_op.sizes());
+        return ::mlir::getMixedSizes($_op.getStaticSizes(), $_op.sizes());
       }]
     >,
     InterfaceMethod<
@@ -190,8 +190,8 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return ::mlir::getMixedStrides($_op, $_op.static_strides(),
-                                       $_op.strides());
+        return ::mlir::getMixedStridesOrOffsets($_op.getStaticStrides(),
+                                                $_op.getStrides());
       }]
     >,
 
@@ -236,30 +236,6 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
           .template getAsValueRange<::mlir::IntegerAttr>().begin() + idx);
         return ::mlir::ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
       }]
-    >,
-    StaticInterfaceMethod<
-      /*desc=*/"Return constant that indicates the offset is dynamic",
-      /*retTy=*/"int64_t",
-      /*methodName=*/"getDynamicOffsetIndicator",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImpl=*/[{ return ::mlir::ShapedType::kDynamicStrideOrOffset; }]
-    >,
-    StaticInterfaceMethod<
-      /*desc=*/"Return constant that indicates the size is dynamic",
-      /*retTy=*/"int64_t",
-      /*methodName=*/"getDynamicSizeIndicator",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImpl=*/[{ return ::mlir::ShapedType::kDynamicSize; }]
-    >,
-    StaticInterfaceMethod<
-      /*desc=*/"Return constant that indicates the stride is dynamic",
-      /*retTy=*/"int64_t",
-      /*methodName=*/"getDynamicStrideIndicator",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImpl=*/[{ return ::mlir::ShapedType::kDynamicStrideOrOffset; }]
     >,
     InterfaceMethod<
       /*desc=*/[{

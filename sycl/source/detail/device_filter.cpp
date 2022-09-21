@@ -209,19 +209,6 @@ ods_target_list::ods_target_list(const std::string &envStr) {
   TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
 }
 
-bool ods_target_list::containsHost() {
-  for (const ods_target &Target : TargetList) {
-    if (Target.Backend == backend::host || Target.Backend == backend::all)
-      if (Target.DeviceType == info::device_type::host ||
-          Target.DeviceType == info::device_type::all)
-        // SYCL RT never creates more than one HOST device.
-        // All device numbers other than 0 are rejected.
-        if (!Target.DeviceNum || Target.DeviceNum.value() == 0)
-          return true;
-  }
-  return false;
-}
-
 // Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
@@ -256,6 +243,11 @@ device_filter::device_filter(const std::string &FilterString) {
   else {
     Backend = It->second;
     TripleValueID++;
+
+    if (Backend == backend::host)
+      std::cerr << "WARNING: The 'host' backend type is no longer supported in "
+                   "device filter."
+                << std::endl;
   }
 
   // Handle the optional 2nd field of the filter - device type.
@@ -272,6 +264,11 @@ device_filter::device_filter(const std::string &FilterString) {
     else {
       DeviceType = Iter->second;
       TripleValueID++;
+
+      if (DeviceType == info::device_type::host)
+        std::cerr << "WARNING: The 'host' device type is no longer supported "
+                     "in device filter."
+                  << std::endl;
     }
   }
 
@@ -285,8 +282,8 @@ device_filter::device_filter(const std::string &FilterString) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
           "\nPossible backend values are "
-          "{host,opencl,level_zero,cuda,hip,esimd_emulator,*}.\n"
-          "Possible device types are {host,cpu,gpu,acc,*}.\n"
+          "{opencl,level_zero,cuda,hip,esimd_emulator,*}.\n"
+          "Possible device types are {cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw sycl::invalid_parameter_error(Message, PI_ERROR_INVALID_VALUE);
     }
@@ -348,19 +345,6 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
   for (const device_filter &Filter : FilterList) {
     if (!Filter.DeviceNum || Filter.DeviceNum.value() == DeviceNum)
       return true;
-  }
-  return false;
-}
-
-bool device_filter_list::containsHost() {
-  for (const device_filter &Filter : FilterList) {
-    if (Filter.Backend == backend::host || Filter.Backend == backend::all)
-      if (Filter.DeviceType == info::device_type::host ||
-          Filter.DeviceType == info::device_type::all)
-        // SYCL RT never creates more than one HOST device.
-        // All device numbers other than 0 are rejected.
-        if (!Filter.DeviceNum || Filter.DeviceNum.value() == 0)
-          return true;
   }
   return false;
 }

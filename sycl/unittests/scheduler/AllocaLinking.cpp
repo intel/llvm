@@ -42,21 +42,16 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, AllocaLinking) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   // This host device constructor should be placed before Mock.redefine
   // because it overrides the real implementation of get_device_info
   // which is needed when creating a host device.
-  device HostDevice{host_selector()};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
-  queue Q;
-  unittest::PiMock Mock{Q};
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0]};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);

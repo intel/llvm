@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
-#include "../PassDetail.h"
+
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
@@ -20,7 +20,13 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallBitVector.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTMEMREFTOLLVM
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -71,10 +77,9 @@ struct AllocOpLowering : public AllocLikeOpLLVMLowering {
     // descriptor.
     Type elementPtrType = this->getElementPtrType(memRefType);
     auto allocFuncOp = getAllocFn(allocOp->getParentOfType<ModuleOp>());
-    auto results = createLLVMCall(rewriter, loc, allocFuncOp, {sizeBytes},
-                                  getVoidPtrType());
-    Value allocatedPtr =
-        rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, results[0]);
+    auto results = rewriter.create<LLVM::CallOp>(loc, allocFuncOp, sizeBytes);
+    Value allocatedPtr = rewriter.create<LLVM::BitcastOp>(loc, elementPtrType,
+                                                          results.getResult());
 
     Value alignedPtr = allocatedPtr;
     if (alignment) {
@@ -168,11 +173,10 @@ struct AlignedAllocOpLowering : public AllocLikeOpLLVMLowering {
 
     Type elementPtrType = this->getElementPtrType(memRefType);
     auto allocFuncOp = getAllocFn(allocOp->getParentOfType<ModuleOp>());
-    auto results =
-        createLLVMCall(rewriter, loc, allocFuncOp, {allocAlignment, sizeBytes},
-                       getVoidPtrType());
-    Value allocatedPtr =
-        rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, results[0]);
+    auto results = rewriter.create<LLVM::CallOp>(
+        loc, allocFuncOp, ValueRange({allocAlignment, sizeBytes}));
+    Value allocatedPtr = rewriter.create<LLVM::BitcastOp>(loc, elementPtrType,
+                                                          results.getResult());
 
     return std::make_tuple(allocatedPtr, allocatedPtr);
   }
@@ -183,9 +187,6 @@ struct AlignedAllocOpLowering : public AllocLikeOpLLVMLowering {
   /// Default layout to use in absence of the corresponding analysis.
   DataLayout defaultLayout;
 };
-
-// Out of line definition, required till C++17.
-constexpr uint64_t AlignedAllocOpLowering::kMinAlignedAllocAlignment;
 
 struct AllocaOpLowering : public AllocLikeOpLLVMLowering {
   AllocaOpLowering(LLVMTypeConverter &converter)
@@ -333,8 +334,7 @@ struct DeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
     Value casted = rewriter.create<LLVM::BitcastOp>(
         op.getLoc(), getVoidPtrType(),
         memref.allocatedPtr(rewriter, op.getLoc()));
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op, TypeRange(), SymbolRefAttr::get(freeFunc), casted);
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, freeFunc, casted);
     return success();
   }
 };
@@ -536,10 +536,8 @@ struct GenericAtomicRMWOpLowering
         loc, pairType, dataPtr, loopArgument, result, successOrdering,
         failureOrdering);
     // Extract the %new_loaded and %ok values from the pair.
-    Value newLoaded = rewriter.create<LLVM::ExtractValueOp>(
-        loc, valueType, cmpxchg, rewriter.getI64ArrayAttr({0}));
-    Value ok = rewriter.create<LLVM::ExtractValueOp>(
-        loc, boolType, cmpxchg, rewriter.getI64ArrayAttr({1}));
+    Value newLoaded = rewriter.create<LLVM::ExtractValueOp>(loc, cmpxchg, 0);
+    Value ok = rewriter.create<LLVM::ExtractValueOp>(loc, cmpxchg, 1);
 
     // Conditionally branch to the end or back to the loop depending on %ok.
     rewriter.create<LLVM::CondBrOp>(loc, ok, endBlock, ArrayRef<Value>(),
@@ -730,14 +728,12 @@ struct PrefetchOpLowering : public LoadStoreOpLowering<memref::PrefetchOp> {
 
     // Replace with llvm.prefetch.
     auto llvmI32Type = typeConverter->convertType(rewriter.getIntegerType(32));
-    auto isWrite = rewriter.create<LLVM::ConstantOp>(
-        loc, llvmI32Type, rewriter.getI32IntegerAttr(prefetchOp.getIsWrite()));
+    auto isWrite = rewriter.create<LLVM::ConstantOp>(loc, llvmI32Type,
+                                                     prefetchOp.getIsWrite());
     auto localityHint = rewriter.create<LLVM::ConstantOp>(
-        loc, llvmI32Type,
-        rewriter.getI32IntegerAttr(prefetchOp.getLocalityHint()));
+        loc, llvmI32Type, prefetchOp.getLocalityHint());
     auto isData = rewriter.create<LLVM::ConstantOp>(
-        loc, llvmI32Type,
-        rewriter.getI32IntegerAttr(prefetchOp.getIsDataCache()));
+        loc, llvmI32Type, prefetchOp.getIsDataCache());
 
     rewriter.replaceOpWithNewOp<LLVM::Prefetch>(prefetchOp, dataPtr, isWrite,
                                                 localityHint, isData);
@@ -892,9 +888,8 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
     Value targetOffset = targetDesc.offset(rewriter, loc);
     Value targetPtr = rewriter.create<LLVM::GEPOp>(loc, targetBasePtr.getType(),
                                                    targetBasePtr, targetOffset);
-    Value isVolatile = rewriter.create<LLVM::ConstantOp>(
-        loc, typeConverter->convertType(rewriter.getI1Type()),
-        rewriter.getBoolAttr(false));
+    Value isVolatile =
+        rewriter.create<LLVM::ConstantOp>(loc, rewriter.getBoolAttr(false));
     rewriter.create<LLVM::MemcpyOp>(loc, targetPtr, srcPtr, totalSize,
                                     isVolatile);
     rewriter.eraseOp(op);
@@ -911,8 +906,8 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
 
     // First make sure we have an unranked memref descriptor representation.
     auto makeUnranked = [&, this](Value ranked, BaseMemRefType type) {
-      auto rank = rewriter.create<LLVM::ConstantOp>(
-          loc, getIndexType(), rewriter.getIndexAttr(type.getRank()));
+      auto rank = rewriter.create<LLVM::ConstantOp>(loc, getIndexType(),
+                                                    type.getRank());
       auto *typeConverter = getTypeConverter();
       auto ptr =
           typeConverter->promoteOneMemRefDescriptor(loc, ranked, rewriter);
@@ -1527,8 +1522,7 @@ static void fillInStridesForCollapsedMemDescriptor(
           break;
         }
         Value one = rewriter.create<LLVM::ConstantOp>(
-            loc, typeConverter->convertType(rewriter.getI64Type()),
-            rewriter.getI32IntegerAttr(1));
+            loc, rewriter.getI64Type(), rewriter.getI32IntegerAttr(1));
         Value predNeOne = rewriter.create<LLVM::ICmpOp>(
             loc, LLVM::ICmpPredicate::ne, srcDesc.size(rewriter, loc, srcIndex),
             one);
@@ -2054,7 +2048,8 @@ void mlir::populateMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
 }
 
 namespace {
-struct MemRefToLLVMPass : public ConvertMemRefToLLVMBase<MemRefToLLVMPass> {
+struct MemRefToLLVMPass
+    : public impl::ConvertMemRefToLLVMBase<MemRefToLLVMPass> {
   MemRefToLLVMPass() = default;
 
   void runOnOperation() override {

@@ -88,14 +88,8 @@ redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
 }
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
-  queue Q;
-  unittest::PiMock Mock{Q};
+  unittest::PiMock Mock;
+  queue Q{Mock.getPlatform().get_devices()[0]};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
@@ -109,7 +103,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
       redefinedMemCreateWithNativeHandle);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
-  device HostDevice{host_selector{}};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 

@@ -251,13 +251,24 @@ OPTIONS
 
   Reads from standard input, converts contained
   :doc:`Symbolizer Markup </SymbolizerMarkupFormat>` into human-readable form,
-  and prints the results to standard output. Presently, only the following
-  markup elements are supported:
+  and prints the results to standard output. The following markup elements are
+  not yet supported:
 
-  * ``{{symbol}}``
-  * ``{{reset}}``
-  * ``{{module}}``
-  * ``{{mmap}}``
+  * ``{{{hexdict}}}``
+  * ``{{{dumpfile}}}``
+
+  The ``{{{bt}}}`` backtrace element reports frames using the following syntax:
+
+  ``#<number>[.<inline>] <address> <function> <file>:<line>:<col> (<module>+<relative address>)``
+
+  ``<inline>`` provides frame numbers for calls inlined into the caller
+  coresponding to ``<number>``. The inlined call numbers start at 1 and increase
+  from callee to caller.
+
+  ``<address>`` is an address inside the call instruction to the function.  The
+  address may not be the start of the instruction.  ``<relative address>`` is
+  the corresponding virtual offset in the ``<module>`` loaded at that address.
+
 
 .. _llvm-symbolizer-opt-f:
 

@@ -72,7 +72,7 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
-  if (Device.is_host())
+  if (getSyclObjImpl(Device)->is_host())
     return "HOST";
   else if (Device.is_cpu())
     return "CPU";
@@ -121,7 +121,7 @@ static void applyFuncOnFilteredArgs(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
-  if (Device.is_host())
+  if (getSyclObjImpl(Device)->is_host())
     return 0;
   else
     return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
@@ -214,6 +214,8 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
     const QueueImplPtr &WorkerQueue = getWorkerQueue();
+    // MWorkerQueue in command is always not null. So check if
+    // EventImpl->getWorkerQueue != nullptr is implicit.
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
@@ -410,12 +412,12 @@ void Command::waitForEvents(QueueImplPtr Queue,
 Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
-      MWorkerQueue(MEvent->getWorkerQueue()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
       MType(Type) {
   MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -1313,6 +1315,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
   }
 
   MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
 }
@@ -1494,6 +1497,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
   }
 
   MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
 }
@@ -2540,7 +2544,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
-    if (MQueue->get_device().is_host()) {
+    if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
     }
@@ -2554,7 +2558,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
-    if (MQueue->get_device().is_host() || PiEvents.empty()) {
+    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;

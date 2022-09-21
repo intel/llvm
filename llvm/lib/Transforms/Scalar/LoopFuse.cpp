@@ -428,7 +428,7 @@ using LoopVector = SmallVector<Loop *, 4>;
 // order. Thus, if FC0 comes *before* FC1 in a FusionCandidateSet, then FC0
 // dominates FC1 and FC1 post-dominates FC0.
 // std::set was chosen because we want a sorted data structure with stable
-// iterators. A subsequent patch to loop fusion will enable fusing non-ajdacent
+// iterators. A subsequent patch to loop fusion will enable fusing non-adjacent
 // loops by moving intervening code around. When this intervening code contains
 // loops, those loops will be moved also. The corresponding FusionCandidates
 // will also need to be moved accordingly. As this is done, having stable
@@ -529,7 +529,7 @@ private:
 #ifndef NDEBUG
 static void printLoopVector(const LoopVector &LV) {
   dbgs() << "****************************\n";
-  for (auto L : LV)
+  for (auto *L : LV)
     printLoop(*L, dbgs());
   dbgs() << "****************************\n";
 }
@@ -699,7 +699,7 @@ private:
   /// stating whether or not the two candidates are known at compile time to
   /// have the same TripCount. The second is the difference in the two
   /// TripCounts. This information can be used later to determine whether or not
-  /// peeling can be performed on either one of the candiates.
+  /// peeling can be performed on either one of the candidates.
   std::pair<bool, Optional<unsigned>>
   haveIdenticalTripCounts(const FusionCandidate &FC0,
                           const FusionCandidate &FC1) const {
@@ -743,7 +743,7 @@ private:
       return {false, None};
     }
 
-    Optional<unsigned> Difference = None;
+    Optional<unsigned> Difference;
     int Diff = TC0 - TC1;
 
     if (Diff > 0)

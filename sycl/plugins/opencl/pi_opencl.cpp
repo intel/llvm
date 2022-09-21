@@ -26,6 +26,7 @@
 #include <cstring>
 #include <limits>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -860,6 +861,21 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
   (void)param_value_size;
   size_t ret_val;
   cl_int ret_err;
+
+  std::shared_ptr<void> implicit_input_value;
+  if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE && !input_value) {
+    // OpenCL needs an input value for PI_KERNEL_MAX_SUB_GROUP_SIZE so if no
+    // value is given we use the max work item sizes of the device to avoid
+    // truncation of max sub-group size.
+    implicit_input_value = std::shared_ptr<size_t[]>(new size_t[3]);
+    pi_result pi_ret_err = piDeviceGetInfo(
+        device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, 3 * sizeof(size_t),
+        implicit_input_value.get(), nullptr);
+    if (pi_ret_err != PI_SUCCESS)
+      return pi_ret_err;
+    input_value = implicit_input_value.get();
+  }
+
   ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
       cast<cl_kernel>(kernel), cast<cl_device_id>(device),
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,

@@ -1,3 +1,15 @@
+//===- ProfDataUtils.cpp - Utility functions for MD_prof Metadata ---------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements utilities for working with Profiling Metadata.
+//
+//===----------------------------------------------------------------------===//
+
 #include "llvm/IR/ProfDataUtils.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
@@ -137,8 +149,10 @@ bool extractProfTotalWeight(const MDNode *ProfileData, uint64_t &TotalVal) {
       TotalVal += V->getValue().getZExtValue();
     }
     return true;
-  } else if (ProfDataName->getString().equals("VP") &&
-             ProfileData->getNumOperands() > 3) {
+  }
+
+  if (ProfDataName->getString().equals("VP") &&
+      ProfileData->getNumOperands() > 3) {
     TotalVal = mdconst::dyn_extract<ConstantInt>(ProfileData->getOperand(2))
                    ->getValue()
                    .getZExtValue();

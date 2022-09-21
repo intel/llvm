@@ -158,12 +158,6 @@ get_empty_interop_kernel_bundle_impl(const context &Ctx,
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles,
-                                                      bundle_state::input);
-}
-
-std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
           bundle_state State) {
   return std::make_shared<detail::kernel_bundle_impl>(Bundles, State);

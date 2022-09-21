@@ -69,10 +69,11 @@ public:
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
-  std::mutex &getHandlerExtendedMembersMutex();
   ThreadPool &getHostTaskThreadPool();
 
   static void registerDefaultContextReleaseHandler();
+
+  void unloadPlugins();
 
 private:
   friend void releaseDefaultContexts();
@@ -104,8 +105,6 @@ private:
   InstWithLock<device_filter_list> MDeviceFilterList;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
-  // The mutex for synchronizing accesses to handlers extended members
-  InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 };

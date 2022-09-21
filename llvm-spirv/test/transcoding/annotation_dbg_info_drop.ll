@@ -8,8 +8,8 @@
 ; RUN: FileCheck < %t.fpga_reg.spt %s --check-prefixes=CHECK,CHECK-SPV-FPGA_REG
 
 ; -- Check that reverse translation is not failed.
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-spirv -r %t.fpga_reg.spv -o %t.rev.fpga_reg.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.fpga_reg.spv -o %t.rev.fpga_reg.bc
 
 ; ModuleID = 'annotation_dbg_info_drop.cpp'
 source_filename = "annotation_dbg_info_drop.cpp"

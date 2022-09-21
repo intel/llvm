@@ -110,6 +110,9 @@ protected:
   // ReserveXRegister[i] - X#i is not available as a general purpose register.
   BitVector ReserveXRegister;
 
+  // ReserveXRegisterForRA[i] - X#i is not available for register allocator.
+  BitVector ReserveXRegisterForRA;
+
   // CustomCallUsedXRegister[i] - X#i call saved.
   BitVector CustomCallSavedXRegs;
 
@@ -196,7 +199,13 @@ public:
   }
 
   bool isXRegisterReserved(size_t i) const { return ReserveXRegister[i]; }
-  unsigned getNumXRegisterReserved() const { return ReserveXRegister.count(); }
+  bool isXRegisterReservedForRA(size_t i) const { return ReserveXRegisterForRA[i]; }
+  unsigned getNumXRegisterReserved() const {
+    BitVector AllReservedX(AArch64::GPR64commonRegClass.getNumRegs());
+    AllReservedX |= ReserveXRegister;
+    AllReservedX |= ReserveXRegisterForRA;
+    return AllReservedX.count();
+  }
   bool isXRegCustomCalleeSaved(size_t i) const {
     return CustomCallSavedXRegs[i];
   }
@@ -245,6 +254,7 @@ public:
   bool isTargetWindows() const { return TargetTriple.isOSWindows(); }
   bool isTargetAndroid() const { return TargetTriple.isAndroid(); }
   bool isTargetFuchsia() const { return TargetTriple.isOSFuchsia(); }
+  bool isWindowsArm64EC() const { return TargetTriple.isWindowsArm64EC(); }
 
   bool isTargetCOFF() const { return TargetTriple.isOSBinFormatCOFF(); }
   bool isTargetELF() const { return TargetTriple.isOSBinFormatELF(); }
@@ -352,6 +362,19 @@ public:
   }
 
   unsigned getVScaleForTuning() const { return VScaleForTuning; }
+
+  const char* getChkStkName() const {
+    if (isWindowsArm64EC())
+      return "__chkstk_arm64ec";
+    return "__chkstk";
+  }
+
+  const char* getSecurityCheckCookieName() const {
+    if (isWindowsArm64EC())
+      return "__security_check_cookie_arm64ec";
+    return "__security_check_cookie";
+  }
+
 };
 } // End llvm namespace
 
