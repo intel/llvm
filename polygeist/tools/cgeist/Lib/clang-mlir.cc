@@ -440,7 +440,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       LLVM_DEBUG({
         llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
         alloc.dump();
-        llvm::dbgs() << "\n"
+        llvm::dbgs() << "\n";
       });
 
       if (memspace != 0) {
@@ -454,7 +454,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       LLVM_DEBUG({
         llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
         alloc.dump();
-        llvm::dbgs() << "\n"
+        llvm::dbgs() << "\n";
       });
 
       if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
