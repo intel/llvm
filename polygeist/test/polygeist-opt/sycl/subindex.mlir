@@ -37,7 +37,7 @@ func.func @test_2(%arg0: memref<?x!sycl_accessor_1_i32_read_write_global_buffer>
 // CHECK-NEXT: [[ORIG_MEMREF5:%.*]] = llvm.insertvalue [[A4]], [[ORIG_MEMREF4]][4, 0]
 // CHECK-DAG: [[AlignedPtr:%.*]] = llvm.extractvalue [[ORIG_MEMREF5]][1] : !llvm.struct<(ptr<struct<(i32)>>, ptr<struct<(i32)>>, i64, array<1 x i64>, array<1 x i64>)>
 // CHECK-DAG: [[ZERO:%.*]] = llvm.mlir.constant(0 : i64) : i64
-// CHECK: [[GEP:%.*]] = llvm.getelementptr %{{.*}}[[[ZERO]], 0] : (!llvm.ptr<struct<(i32)>>, i64) -> !llvm.ptr<i32>
+// CHECK: [[GEP:%.*]] = llvm.getelementptr [[AlignedPtr]][[[ZERO]], 0] : (!llvm.ptr<struct<(i32)>>, i64) -> !llvm.ptr<i32>
 // CHECK: [[MEMREF:%.*]] = llvm.mlir.undef : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
 // CHECK: %{{.*}} = llvm.insertvalue [[GEP]], [[MEMREF]][0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
 
