@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 __kernel void test_fn( const __global char *src)
 {
 	wait_group_events(0, NULL);

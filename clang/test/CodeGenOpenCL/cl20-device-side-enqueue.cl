@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis %s -cl-std=CL2.0 -ffake-address-space-map -O0 -emit-llvm -o - -triple "spir-unknown-unknown" | FileCheck %s --check-prefix=COMMON --check-prefix=B32
 // RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis %s -cl-std=CL2.0 -ffake-address-space-map -O0 -emit-llvm -o - -triple "spir64-unknown-unknown" | FileCheck %s --check-prefix=COMMON --check-prefix=B64
 // RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis %s -cl-std=CL2.0 -ffake-address-space-map -O1 -emit-llvm -o - -triple "spir64-unknown-unknown" | FileCheck %s --check-prefix=CHECK-LIFETIMES

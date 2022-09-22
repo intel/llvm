@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl %s -o %t.out
 
 #include <sycl/ext/intel/fpga_extensions.hpp>

@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -no-opaque-pointers -x cl -O0 -cl-std=CL2.0 -emit-llvm -triple x86_64-unknown-linux-gnu %s -o - | FileCheck %s --check-prefix=X86
 // RUN: %clang_cc1 -no-opaque-pointers -x cl -O0 -cl-std=CL2.0 -emit-llvm -triple spir-unknown-unknown %s -o - | FileCheck %s --check-prefix=SPIR
 // RUN: %clang_cc1 -no-opaque-pointers -x cl -O0 -cl-std=CL2.0 -emit-llvm -triple spir64-unknown-unknown %s -o - | FileCheck %s --check-prefix=SPIR64

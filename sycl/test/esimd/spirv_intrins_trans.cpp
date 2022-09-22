@@ -1,5 +1,3 @@
-// XFAIL:*
-// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager -S -emit-llvm -x c++ %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll

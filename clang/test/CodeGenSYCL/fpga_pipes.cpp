@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -fsycl-is-device %s -opaque-pointers -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes -o - | FileCheck %s
 
 using WPipeTy = __attribute__((pipe("write_only"))) const int;

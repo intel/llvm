@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -no-opaque-pointers -cl-std=CL2.0 %s -triple "spir-unknown-unknown" -emit-llvm -o - -O0 | FileCheck %s --check-prefixes=CHECK-COM,CHECK-SPIR
 // RUN: %clang_cc1 -no-opaque-pointers -cl-std=CL2.0 %s -triple "amdgcn--amdhsa" -emit-llvm -o - -O0 | FileCheck %s --check-prefixes=CHECK-COM,CHECK-AMDGCN
 

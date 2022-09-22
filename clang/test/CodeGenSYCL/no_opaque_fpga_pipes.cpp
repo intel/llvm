@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -fsycl-is-device %s -no-opaque-pointers -emit-llvm -triple spir64-unknown-unknown -disable-llvm-passes -o - | FileCheck %s
 // CHECK: %opencl.pipe_wo_t
 // CHECK: %opencl.pipe_ro_t

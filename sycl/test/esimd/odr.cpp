@@ -1,5 +1,3 @@
-// XFAIL:*
-// FAILS WITH ENABLED OPAQUE POINTERS
 // The test checks that ESIMD headers don't break the ODR:
 // two SYCL sources including ESIMD headers can be compiled and linked into a
 // single executable w/o linker complaining about multiple symbol definitions.

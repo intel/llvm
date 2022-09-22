@@ -1,5 +1,3 @@
-; XFAIL:*
-; FAILS WITH ENABLED OPAQUE POINTERS
 ; RUN: opt -passes=sycl-propagate-aspects-usage -S < %s | FileCheck %s
 ;
 ; Test checks that the pass is able to collect all aspects used in a function

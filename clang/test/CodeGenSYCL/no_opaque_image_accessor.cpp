@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o %t.ll
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-1DRO
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-2DRO

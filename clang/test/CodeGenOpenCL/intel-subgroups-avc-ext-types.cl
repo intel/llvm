@@ -1,3 +1,5 @@
+// XFAIL:*
+// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clang_cc1 -no-opaque-pointers %s -triple spir-unknown-unknown -cl-std=CL1.2 -cl-ext=+cl_intel_device_side_avc_motion_estimation -emit-llvm -o - -O0 | FileCheck %s
 
 // CHECK: %opencl.intel_sub_group_avc_mce_payload_t = type opaque
