@@ -28,15 +28,15 @@
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt8:[0-9]+]] 8
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt20:[0-9]+]] 24
 
-// CHECK-SPIRV: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
-// CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
-// CHECK-SPIRV: TypePointer [[Int32LocPtrTy:[0-9]+]] 7 [[Int32Ty]]
-// CHECK-SPIRV: TypeDeviceEvent [[EventTy:[0-9]+]]
-// CHECK-SPIRV: TypePointer [[EventPtrTy:[0-9]+]] 8 [[EventTy]]
-// CHECK-SPIRV: TypeFunction [[BlockTy1:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
-// CHECK-SPIRV: TypeFunction [[BlockTy2:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
-// CHECK-SPIRV: TypeFunction [[BlockTy3:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
-// CHECK-SPIRV: ConstantNull [[EventPtrTy]] [[EventNull:[0-9]+]]
+// CHECK-SPIRV-DAG: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+// CHECK-SPIRV-DAG: TypeVoid [[VoidTy:[0-9]+]]
+// CHECK-SPIRV-DAG: TypePointer [[Int32LocPtrTy:[0-9]+]] 7 [[Int32Ty]]
+// CHECK-SPIRV-DAG: TypeDeviceEvent [[EventTy:[0-9]+]]
+// CHECK-SPIRV-DAG: TypePointer [[EventPtrTy:[0-9]+]] 8 [[EventTy]]
+// CHECK-SPIRV-DAG: TypeFunction [[BlockTy1:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
+// CHECK-SPIRV-DAG: TypeFunction [[BlockTy2:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
+// CHECK-SPIRV-DAG: TypeFunction [[BlockTy3:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
+// CHECK-SPIRV-DAG: ConstantNull [[EventPtrTy]] [[EventNull:[0-9]+]]
 
 // CHECK-LLVM: [[BlockTy1:%[0-9a-z\.]+]] = type { i32, i32, i8 addrspace(4)* }
 // CHECK-LLVM: [[BlockTy2:%[0-9a-z\.]+]] = type <{ i32, i32, i8 addrspace(4)*, i32 addrspace(1)*, i32, i8 }>

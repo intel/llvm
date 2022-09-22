@@ -1,5 +1,3 @@
-// XFAIL:*
-// FAILS WITH ENABLED OPAQUE POINTERS
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o -
 
 // Test checks for that no compile errors occur for
