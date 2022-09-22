@@ -49,11 +49,13 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
     return PI_SUCCESS;
   }
   default: {
+    constexpr const char *FallbackValue = "str";
+    constexpr size_t FallbackValueSize = std::strlen(FallbackValue) + 1;
     if (param_value_size_ret)
-      *param_value_size_ret = 3;
+      *param_value_size_ret = FallbackValueSize;
 
-    if (param_value && param_value_size >= 3)
-      *static_cast<const char **>(param_value) = "str";
+    if (param_value && param_value_size >= FallbackValueSize)
+      std::memcpy(param_value, FallbackValue, FallbackValueSize);
 
     return PI_SUCCESS;
   }
