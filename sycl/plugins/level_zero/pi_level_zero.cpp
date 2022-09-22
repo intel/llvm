@@ -822,7 +822,7 @@ static const int DeviceEventsSetting = [] {
 // If immediate commandlists are being used then use compatible event scopes.
 enum EventsScope _pi_device::eventsScope() {
   // Set default based on type of commandlists being used.
-  auto Default = useImmediateCommandLists() ? OnDemandHostVisibleProxy
+  auto Default = useImmediateCommandLists() ? AllHostVisible
                                             : LastCommandInBatchHostVisible;
   // Override the default if user has explicitly chosen the events scope.
   switch (DeviceEventsSetting) {
