@@ -2032,9 +2032,10 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
 
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
       auto OptFuncType = llvm::Optional<llvm::StringRef>{llvm::None};
-      if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
-        OptFuncType = RD->getName();
-      } else {
+      if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
+        if (!RD->getName().empty())
+          OptFuncType = RD->getName();
+      if (!OptFuncType) {
         /// JLE_QUEL::TODO
         /// Handle case where we can't get the parent because the callee is not
         /// a member function
