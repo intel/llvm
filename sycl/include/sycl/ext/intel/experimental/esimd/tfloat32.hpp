@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Implementation of SIMD tfloat32 type.
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
@@ -29,10 +31,8 @@ public:
 
   // Explicit conversion functions
   static storage_t from_float(const float &a) {
-
     storage_t tmp_uint = sycl::bit_cast<storage_t>(a);
     tmp_uint &= 0xFFFFE000u;
-
     return tmp_uint;
   }
   static float to_float(const storage_t &a) {

@@ -359,7 +359,7 @@ ESIMD_INLINE
   } else {
     using Treal = __raw_t<T>;
     if constexpr (!std::is_same_v<Treal, T>) {
-      simd<Treal, N> Values = convert<Treal>(vals);
+      simd<Treal, N> Values = vals.template bit_cast_view<Treal>();
       __esimd_scatter_scaled<Treal, N, decltype(si), TypeSizeLog2, scale>(
           mask.data(), si, glob_offset, offsets.data(), Values.data());
     } else {
@@ -408,7 +408,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
                                                        TypeSizeLog2, scale>(
         si, glob_offset, offsets.data(), mask.data());
     if constexpr (!std::is_same_v<Treal, T>) {
-      return convert<T>(Res);
+      return Res.template bit_cast_view<T>();
     } else {
       return Res;
     }

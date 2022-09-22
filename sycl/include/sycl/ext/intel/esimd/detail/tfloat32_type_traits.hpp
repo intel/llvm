@@ -36,7 +36,6 @@ template <> struct element_type_traits<tfloat32> {
 
 template <int N> struct vector_conversion_traits<tfloat32, N> {
   using StdT = __cpp_t<tfloat32>;
-  using StdVecT = vector_type_t<StdT, N>;
   using RawT = __raw_t<tfloat32>;
 
   static ESIMD_INLINE vector_type_t<RawT, N>
