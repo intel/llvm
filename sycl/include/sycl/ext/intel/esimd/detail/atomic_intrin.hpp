@@ -181,7 +181,7 @@ template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty desired, Ty expected) {
+template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty expected, Ty desired) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
