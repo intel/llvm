@@ -35,6 +35,8 @@ With no environment variables set to say otherwise, all platforms and devices pr
 
 A value for this environment value consists of a backend name, followed by a colon ( : ), followed by a device specifier (a named device type, a wildcard symbol ( * ) , or an exact numeric device id).  This can optionally be followed by period ( . )  and then a sub-device specifier, which could be either a wildcard symbol ( * ) or an numeric index (using 0 based counting).   Commas can be used to string multiple device specifiers behind any backend.    Moreover, individual entries can be separated by semi-colons. 
 
+Additionally, if a sub-device is chosen (via numeric index or wildcard), then an additional layer of partitioning can be specified. In other words, a sub-sub-device can be selected. Like sub-devices, this is done with a period ( . ) and a sub-sub-device specifier which is a wildcard symbol ( * ) or a numeric index.  Example `ONEAPI_DEVICE_SELECTOR=opencl:level_zero.0.*.*` would partition device 0 into sub-devices and then partition each of those into sub-sub-devices. The range of grandchild sub-sub-devices would be the final devices available to the app, neither device 0, nor its child partitions would be in that list. 
+
 
 Possible values of `backend` are:
 - `level_zero`
@@ -66,6 +68,7 @@ Common Usage Examples:
 | `ONEAPI_DEVICE_SELECTOR=hip:0,2` | Devices with numeric identifier of 0 and 2 are chosen from the HIP platform. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices (aka tiles) from the OpenCL device identified by 0 will be available. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third tile (2 in 0 based counting) of the OpenCL device with numeric identifier 0 will be the sole device available.  |
+| `ONEAPI_DEVICE_SELECTOR=level_zero:gpu,gpu.*,gpu.*.*` | A wide net is cast. All level_zero gpus will be availabe in the device list, along with all their child partitions (if any), as well as the next level of partitions below them.  It would be up to the developer to figure out which device is which, if that is important. (This can be done with `info::device::parent_device`)|
 
 
 Notes:

@@ -13,6 +13,7 @@
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/info/info_desc.hpp>
 
+#include <optional>
 #include <string>
 
 namespace sycl {
