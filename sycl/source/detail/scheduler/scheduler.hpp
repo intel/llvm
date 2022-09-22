@@ -466,8 +466,13 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
-  bool isRecordReadyForRelease(MemObjRecord *Record);
-  void cleanupDeferredMemObjects(bool Blocking);
+  bool checkRecordReadinessForRelease(MemObjRecord *Record,
+                                      ReadLockT &GraphReadLock, bool ForceWait);
+  void cleanupDeferredMemObjects(bool ForceWait);
+  inline void releaseMemObjRecord(
+      detail::SYCLMemObjI *MemObj,
+      std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
+      std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate);
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add

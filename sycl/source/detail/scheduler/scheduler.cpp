@@ -258,6 +258,18 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
+inline void Scheduler::releaseMemObjRecord(
+    detail::SYCLMemObjI *MemObj,
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
+    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
+  MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+  assert(Record);
+  MGraphBuilder.decrementLeafCountersForRecord(Record);
+  MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
+                                         AuxResourcesToDeallocate);
+  MGraphBuilder.removeRecordForMemObj(MemObj);
+}
+
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
@@ -283,16 +295,14 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
         // No operations were performed on the mem object
         return;
 
-      waitForRecordToFinish(Record, Lock);
+      checkRecordReadinessForRelease(Record, Lock, true);
     }
 
     {
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
-      MGraphBuilder.decrementLeafCountersForRecord(Record);
-      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
-                                             AuxResourcesToDeallocate);
-      MGraphBuilder.removeRecordForMemObj(MemObj);
+      releaseMemObjRecord(MemObj, StreamsToDeallocate,
+                          AuxResourcesToDeallocate);
     }
   }
   deallocateStreams(StreamsToDeallocate);
@@ -443,6 +453,7 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
+  cleanupDeferredMemObjects(false);
   if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
@@ -473,12 +484,123 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
-  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
-  MDeferredMemObjRelease.push_back(MemObj);
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.push_back(MemObj);
+  }
   cleanupDeferredMemObjects(false);
 }
 
-void Scheduler::cleanupDeferredMemObjects(bool Blocking) {}
+bool Scheduler::checkRecordReadinessForRelease(MemObjRecord *Record,
+                                               ReadLockT &GraphReadLock,
+                                               bool ForceWait) {
+  assert(Record);
+  // walk through LeavesCollection manually since now its iterator is not
+  // compatible with STL algorithms
+  std::vector<Command *> ToCleanUp;
+  for (Command *Cmd : Record->MReadLeaves) {
+    if (Cmd->getEvent()->isCompleted())
+      continue;
+    if (ForceWait) {
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    } else
+      return false;
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    if (Cmd->getEvent()->isCompleted())
+      continue;
+    if (ForceWait) {
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    } else
+      return false;
+  }
+  // all dependencies is completed and we can enqueue all ReleaseCmds first.
+  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
+    Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+  }
+  // enqueue is fully done and we can check if ReleaseCmd is completed
+  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
+    Command *Cmd = AllocaCmd->getReleaseCmd();
+    if (Cmd->getEvent()->isCompleted())
+      continue;
+    if (ForceWait)
+      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    else
+      return false;
+  }
+  return true;
+}
+
+void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+    if (MDeferredMemObjRelease.empty())
+      return;
+  }
+
+  // Need to aggregate ready to release object to acquire write lock once.
+  std::list<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
+  {
+    ReadLockT Lock(MGraphLock);
+    {
+      // Not expected that ForceWait == true with be used in parallel with
+      // adding MemObj to storage, no such scenario.
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      auto MemObjIt = MDeferredMemObjRelease.begin();
+      while (MemObjIt != MDeferredMemObjRelease.end()) {
+        MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
+        if (!Record) {
+          // Just trigger delete since no operations on object was perfromed and
+          // no commands and other to wait for
+          MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+          continue;
+        }
+        if (!checkRecordReadinessForRelease(Record, Lock, ForceWait)) {
+          MemObjIt++;
+          continue;
+        }
+        ObjsReadyToRelease.push_back(*MemObjIt);
+        MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+      }
+    }
+  }
+  if (ObjsReadyToRelease.empty())
+    return;
+
+  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
+  {
+    WriteLockT Lock(MGraphLock, std::try_to_lock);
+    // In order to avoid deadlocks related to blocked commands, defer cleanup if
+    // the lock wasn't acquired.
+    if (Lock.owns_lock()) {
+      for (auto &MemObj : ObjsReadyToRelease)
+        releaseMemObjRecord(MemObj.get(), StreamsToDeallocate,
+                            AuxResourcesToDeallocate);
+    } else {
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      MDeferredMemObjRelease.splice(MDeferredMemObjRelease.end(),
+                                    ObjsReadyToRelease);
+    }
+  }
+  deallocateStreams(StreamsToDeallocate);
+  // ObjsReadyToRelease leaving scope and being deleted
+}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
