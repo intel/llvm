@@ -39,7 +39,8 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed update to an existing extension.  Interfaces defined in this
+This is a proposed update to an existing experimental extension.
+Interfaces defined in this
 specification may not be implemented yet or may be in a preliminary state.  The
 specification itself may also change in incompatible ways before it is
 finalized.  *Shipping software products should not rely on APIs defined in this
@@ -47,19 +48,10 @@ specification.*  See
 link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[here] for the existing
 extension, which is implemented.
 
-This is an experimental extension specification, intended to provide early
-access to features and gather community feedback.  Interfaces defined in this
-specification are implemented in {dpcpp}, but they are not finalized and may
-change incompatibly in future versions of {dpcpp} without prior notice.
-*Shipping software products should not rely on APIs defined in this
-specification.*
-
 == Introduction
 
 This extension introduces sorting functions to the group algorithms
 library, along with associated Sorter objects and Group Helper objects.
-
-NOTE: This extension is experimental: interfaces are subject to change later.
 
 == Feature test macro
 
@@ -350,14 +342,14 @@ template<typename Group, typename T>
 T operator()(Group g, T val);
 
 template<typename Group, typename T, std::size_t ElementsPerWorkItem,
-         typename Properties = ext::oneapi::experimental::properties<>>
+         typename Properties>
 void operator()(Group g,
                 sycl::span<T, ElementsPerWorkItem> values,
                 Properties properties);
 
 template<typename Group, typename T, typename U,
          std::size_t ElementsPerWorkItem,
-         typename Properties = ext::oneapi::experimental::properties<>>
+         typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
                 sycl::span<U, ElementsPerWorkItem> values,
                 Properties properties);
@@ -368,7 +360,8 @@ For example, if only `void operator()(Group g, Ptr first, Ptr last);`
 is defined then a Sorter can be passed to `joint_sort` function only.
 If it's passed to `sort_over_group`, it leads to a compilation
 error. If only `T operator()(Group g, T val);` is defined then a Sorter
-can be passed to `sort_over_group` function only. If it's passed to `joint_sort`, it leads to a compilation error.
+can be passed to `sort_over_group` function only. If it's passed to
+`joint_sort`, it leads to a compilation error.
 
 Table 2. `operator()` for Sorters.
 |===
@@ -385,7 +378,7 @@ T operator()(Group g, T val);`
 |Implements a sorting algorithm that calls by `sort_over_group`.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
 
-|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties = ext::oneapi::experimental::properties<>>
+|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values, Properties properties);`
 |Implements a sorting algorithm that is called by `sort_over_group` and
 that accepts
@@ -397,7 +390,7 @@ Default data placements are those that are specified by the
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ElementsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 
-|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties = ext::oneapi::experimental::properties<>>
+|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys, sycl::span<U, ElementsPerWorkItem> values, Properties properties);`
 |Implements a sorting algorithm that is called by `sort_over_group` and that
 accepts two `sycl::span` values as input parameters.
@@ -454,13 +447,13 @@ namespace sycl::ext::oneapi::experimental {
 
     template<typename Group, typename T,
              std::size_t ElementsPerWorkItem,
-             typename Properties = ext::oneapi::experimental::properties<>>
+             typename Properties>
     void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
                     Properties properties);
 
     template<typename Group, typename T, typename U,
              std::size_t ElementsPerWorkItem,
-             typename Properties = ext::oneapi::experimental::properties<>>
+             typename Properties>
     void operator()(Group g,sycl::span<T, ElementsPerWorkItem> keys,
                     sycl::span<U, ElementsPerWorkItem> values,
                     Properties properties);
@@ -498,13 +491,13 @@ namespace sycl::ext::oneapi::experimental {
     T operator()(Group g, T val);
 
     template<typename Group, typename T, std::size_t ElementsPerWorkItem,
-             typename Properties = ext::oneapi::experimental::properties<>>
+             typename Properties>
     void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
                     Properties properties);
 
     template<typename Group, typename T, typename U,
              std::size_t ElementsPerWorkItem,
-             typename Properties = ext::oneapi::experimental::properties<>>
+             typename Properties>
     void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
                     sycl::span<U, ElementsPerWorkItem> values,
                     Properties properties);
@@ -582,7 +575,7 @@ the `sort_over_group` algorithm.
 
 _Complexity_: Let `N` be the `Group` size. `O(N*log(N)*log(N))` comparisons.
 
-|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties = ext::oneapi::experimental::properties<>>
+|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values, Properties properties);`
 |Implements a default sorting algorithm that is called by
 `sort_over_group` and that accepts the `sycl::span` value as
@@ -591,7 +584,7 @@ an input parameter.
 _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
-|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties = ext::oneapi::experimental::properties<>>
+|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys, sycl::span<U, ElementsPerWorkItem> values, Properties properties);`
 |Implements a default key-value sorting algorithm that is called
 by `sort_over_group` and that
@@ -671,13 +664,13 @@ T operator()(Group g, T val)`
 |Implements the radix sorting algorithm to be called by
 the `sort_over_group` algorithm.
 
-|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties = ext::oneapi::experimental::properties<>>
+|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values, Properties properties);`
 |Implements the radix sorting algorithm that is called by
 `sort_over_group` and that accepts
 the `sycl::span` value as an input parameter.
 
-|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties = ext::oneapi::experimental::properties<>>
+|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties>
 void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys, sycl::span<U, ElementsPerWorkItem> values, Properties properties);`
 |Implements the radix key-value sorting algorithm that is called
 by `sort_over_group` and that
@@ -899,7 +892,7 @@ Consider 2 layouts:
 |{2, 5, 8, 11}
 |===
 
-There are 3 properties that satisfy
+There are 2 properties that satisfy
 link:sycl_ext_oneapi_properties.asciidoc[SYCL Properties Extension]
 requirements:
 
