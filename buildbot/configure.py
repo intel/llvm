@@ -52,10 +52,6 @@ def do_configure(args):
     if sys.platform != "darwin":
         sycl_enabled_plugins.append("level_zero")
 
-    # replace not append, so ARM ^ X86
-    if args.arm:
-        llvm_targets_to_build = 'ARM;AArch64'
-
     # lld is needed on Windows or for the HIP plugin on AMD
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
         llvm_enable_projects += ';lld'
