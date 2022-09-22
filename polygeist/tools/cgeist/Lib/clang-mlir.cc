@@ -5623,10 +5623,7 @@ mlir::Type MLIRASTConsumer::getSYCLType(const clang::RecordType *RT) {
       return mlir::sycl::AccessorCommonType::get(module->getContext());
     }
     if (CTS->getName() == "accessor") {
-      const auto TypeInfo = RT->getDecl()->getASTContext().getTypeInfo(
-          CTS->getTemplateArgs().get(0).getAsType());
-      const auto Type =
-          mlir::IntegerType::get(module->getContext(), TypeInfo.Width);
+      const auto Type = getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(

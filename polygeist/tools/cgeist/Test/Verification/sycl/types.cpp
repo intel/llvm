@@ -43,6 +43,10 @@ SYCL_EXTERNAL void acc_1(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::rea
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 SYCL_EXTERNAL void acc_2(sycl::accessor<sycl::cl_int, 2, sycl::access::mode::read_write>) {}
 
+// CHECK: func.func @_Z5acc_3N4sycl3_V18accessorIfLi3ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_3_f32_read_write_global_buffer)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+SYCL_EXTERNAL void acc_3(sycl::accessor<sycl::cl_float, 3, sycl::access::mode::read_write>) {}
+
 // CHECK: func.func @_Z7range_1N4sycl3_V15rangeILi1EEE(%arg0: !sycl_range_1_)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 SYCL_EXTERNAL void range_1(sycl::range<1> range) {}
