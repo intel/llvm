@@ -223,6 +223,14 @@ private:
                            mlir::Value lb, mlir::Value ub,
                            const mlirclang::AffineLoopDescriptor &descr);
 
+  static inline unsigned getDefaultAddrSpace(const FunctionDecl &FD) {
+    // For SYCL we generates LLVM code that is then translated to SPIRV. 
+    // The generic SPIRV address space is addrspace(4).
+    if (FD.hasAttr<SYCLDeviceAttr>() || FD.hasAttr<SYCLKernelAttr>())
+      return 4;
+    return 0;
+  }
+
 public:
   const FunctionDecl *EmittingFunctionDecl;
   std::map<const ValueDecl *, ValueCategory> params;

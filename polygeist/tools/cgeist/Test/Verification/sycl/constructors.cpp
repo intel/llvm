@@ -17,10 +17,10 @@
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<1>
 
 // Ensure the constructors are NOT filtered out, and sycl.cast is generated for cast from sycl.id or sycl.range to sycl.array.
-// CHECK:      func.func @_ZN4sycl3_V12idILi1EEC1ERKS2_(%arg0: memref<?x!sycl_id_1_>, %arg1: memref<?x!sycl_id_1_>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_id_1_>) -> memref<?x!sycl_array_1_>
-// CHECK:      func.func @_ZN4sycl3_V15rangeILi1EEC1ERKS2_(%arg0: memref<?x!sycl_range_1_>, %arg1: memref<?x!sycl_range_1_>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_range_1_>) -> memref<?x!sycl_array_1_>
+// CHECK:      func.func @_ZN4sycl3_V12idILi1EEC1ERKS2_(%arg0: memref<?x!sycl_id_1_, 4>, %arg1: memref<?x!sycl_id_1_, 4>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_id_1_, 4>) -> memref<?x!sycl_array_1_, 4>
+// CHECK:      func.func @_ZN4sycl3_V15rangeILi1EEC1ERKS2_(%arg0: memref<?x!sycl_range_1_, 4>, %arg1: memref<?x!sycl_range_1_, 4>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_range_1_, 4>) -> memref<?x!sycl_array_1_, 4>
 
 // CHECK-LLVM: ; Function Attrs: convergent mustprogress norecurse nounwind
 // CHECK-LLVM: define spir_func void @cons_0([[ID_TYPE:%"class.cl::sycl::id.1"]] [[ARG0:%.*]], [[RANGE_TYPE:%"class.cl::sycl::range.1"]] [[ARG1:%.*]])
@@ -42,18 +42,18 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT: %false = arith.constant false
 // CHECK-NEXT: %c0_i8 = arith.constant 0 : i8
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT: %2 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<i8>
+// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_, 4>
+// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_, 4> to memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %2 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_, 4>) -> !llvm.ptr<i8>
 // CHECK-NEXT: %3 = "polygeist.typeSize"() {source = !sycl_id_2_} : () -> index
 // CHECK-NEXT: %4 = arith.index_cast %3 : index to i64
 // CHECK-NEXT: "llvm.intr.memset"(%2, %c0_i8, %4, %false) : (!llvm.ptr<i8>, i8, i64, i1) -> ()
-// CHECK-NEXT: sycl.constructor(%1) {MangledName = @_ZN4sycl3_V12idILi2EEC1Ev, Type = @id} : (memref<?x!sycl_id_2_>) -> ()
+// CHECK-NEXT: sycl.constructor(%1) {MangledName = @_ZN4sycl3_V12idILi2EEC1Ev, Type = @id} : (memref<?x!sycl_id_2_, 4>) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
 // Ensure declaration to have external linkage.
-// CHECK: func.func private @_ZN4sycl3_V12idILi2EEC1Ev(memref<?x!sycl_id_2_>) attributes {llvm.linkage = #llvm.linkage<external>}
+// CHECK: func.func private @_ZN4sycl3_V12idILi2EEC1Ev(memref<?x!sycl_id_2_, 4>) attributes {llvm.linkage = #llvm.linkage<external>}
 
 // CHECK-LLVM: ; Function Attrs: convergent mustprogress norecurse nounwind
 // CHECK-LLVM: define spir_func void @cons_1()
@@ -68,9 +68,9 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 
 // CHECK: func.func @cons_2(%arg0: i64, %arg1: i64)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT: sycl.constructor(%1, %arg0, %arg1) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl_id_2_>, i64, i64) -> ()
+// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_, 4>
+// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_, 4> to memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: sycl.constructor(%1, %arg0, %arg1) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl_id_2_, 4>, i64, i64) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
@@ -85,12 +85,12 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 
 // CHECK: func.func @cons_3(%arg0: !sycl_item_2_1_)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_item_2_1_>
-// CHECK-NEXT: %3 = memref.cast %2 : memref<1x!sycl_item_2_1_> to memref<?x!sycl_item_2_1_>
-// CHECK-NEXT: affine.store %arg0, %2[0] : memref<1x!sycl_item_2_1_>
-// CHECK-NEXT: sycl.constructor(%1, %3) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE, Type = @id} : (memref<?x!sycl_id_2_>, memref<?x!sycl_item_2_1_>) -> ()
+// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_, 4>
+// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_, 4> to memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_item_2_1_, 4>
+// CHECK-NEXT: %3 = memref.cast %2 : memref<1x!sycl_item_2_1_, 4> to memref<?x!sycl_item_2_1_, 4>
+// CHECK-NEXT: affine.store %arg0, %2[0] : memref<1x!sycl_item_2_1_, 4>
+// CHECK-NEXT: sycl.constructor(%1, %3) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_item_2_1_, 4>) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
@@ -107,12 +107,12 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 
 // CHECK: func.func @cons_4(%arg0: !sycl_id_2_)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %3 = memref.cast %2 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
-// CHECK-NEXT: affine.store %arg0, %2[0] : memref<1x!sycl_id_2_>
-// CHECK-NEXT: sycl.constructor(%1, %3) {MangledName = @_ZN4sycl3_V12idILi2EEC1ERKS2_, Type = @id} : (memref<?x!sycl_id_2_>, memref<?x!sycl_id_2_>) -> ()
+// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_, 4>
+// CHECK-NEXT: %1 = memref.cast %0 : memref<1x!sycl_id_2_, 4> to memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %2 = memref.alloca() : memref<1x!sycl_id_2_, 4>
+// CHECK-NEXT: %3 = memref.cast %2 : memref<1x!sycl_id_2_, 4> to memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: affine.store %arg0, %2[0] : memref<1x!sycl_id_2_, 4>
+// CHECK-NEXT: sycl.constructor(%1, %3) {MangledName = @_ZN4sycl3_V12idILi2EEC1ERKS2_, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> ()
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
@@ -128,8 +128,8 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 }
 
 // CHECK-LABEL: func.func @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev
-// CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_write_global_buffer>, index) -> memref<?x!sycl_accessor_impl_device_1_>
-// CHECK: sycl.constructor([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_, Type = @AccessorImplDevice} : (memref<?x!sycl_accessor_impl_device_1_>, !sycl_id_1_, !sycl_range_1_, !sycl_range_1_) -> ()
+// CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_write_global_buffer, 4>, index) -> memref<?x!sycl_accessor_impl_device_1_, 4>
+// CHECK: sycl.constructor([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_, Type = @AccessorImplDevice} : (memref<?x!sycl_accessor_impl_device_1_, 4>, !sycl_id_1_, !sycl_range_1_, !sycl_range_1_) -> ()
 
 // CHECK-LLVM: ; Function Attrs: convergent mustprogress norecurse nounwind
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
@@ -137,5 +137,4 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 // CHECK-LLVM: call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev([[ACCESSOR_TYPE]]* [[ACCESSOR]], [[ACCESSOR_TYPE]]* [[ACCESSOR]], i64 0, i64 1, i64 1)
 extern "C" SYCL_EXTERNAL void cons_5() {
   auto accessor = sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write>{};
-  return;
 }
