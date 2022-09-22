@@ -1148,7 +1148,6 @@ public:
   using value_type = DataT;
   using reference = DataT &;
   using const_reference = const DataT &;
-  using difference_type = size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
