@@ -3153,20 +3153,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                       PI_SUCCESS);
       return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
+    // Only report device memory which zeMemAllocDevice can allocate from.
+    // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
-    uint32_t MemCount = 0;
-    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
-    std::vector<zes_mem_handle_t> MemHandles(MemCount);
-    ZE_CALL(zesDeviceEnumMemoryModules,
-            (ZeDevice, &MemCount, MemHandles.data()));
-
-    for (auto &ZesMemHandle : MemHandles) {
+    uint32_t MemCount = 1;
+    zes_mem_handle_t ZesMemHandle;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, &ZesMemHandle));
+    if (MemCount != 0) {
       ZesStruct<zes_mem_properties_t> ZeMemProperties;
       ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
-      // Only report HBM which zeMemAllocDevice allocates from.
-      if (ZeMemProperties.type != ZES_MEM_TYPE_HBM)
-        continue;
-
       ZesStruct<zes_mem_state_t> ZeMemState;
       ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
       FreeMemory += ZeMemState.free;
@@ -6665,7 +6660,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   printZeEventList(WaitList);
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
-    (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
+          (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
 
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
@@ -6918,15 +6913,17 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
 
   auto &Device = Queue->Device;
 
-  // Performance analysis on a simple SYCL data "fill" test shows copy engine
-  // is faster than compute engine for such operations.
-  //
-  bool PreferCopyEngine = true;
+  // Default to using compute engine for fill operation, but allow to
+  // override this with an environment variable.
+  const char *PreferCopyEngineEnv =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  bool PreferCopyEngine =
+      PreferCopyEngineEnv ? std::stoi(PreferCopyEngineEnv) != 0 : false;
 
   // Make sure that pattern size matches the capability of the copy queues.
   // Check both main and link groups as we don't known which one will be used.
   //
-  if (Device->hasCopyEngine()) {
+  if (PreferCopyEngine && Device->hasCopyEngine()) {
     if (Device->hasMainCopyEngine() &&
         Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy]
                 .ZeProperties.maxMemoryFillPatternSize < PatternSize) {
