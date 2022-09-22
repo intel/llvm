@@ -42,8 +42,9 @@ func.func @test_3(%arg0: memref<?x!llvm.struct<(i32)>>) -> memref<?xi32> {
 
 // -----
 
-// CHECK-LABEL: @test_4
-// CHECK: [[GEP:%.*]] = llvm.getelementptr %{{.*}}[{{.*}}] : (!llvm.ptr<struct<([[IDTYPE:struct<"class.cl::sycl::id.1", \(struct<"class.cl::sycl::detail::array.1", \(array<1 x i64>\)>\)>]])>>, i64) -> !llvm.ptr<struct<([[IDTYPE]])>>
+// CHECK: @test_4({{.*}}, [[INDEX:%.*]]: i64)
+// CHECK: [[AlignedPtr:%.*]] = llvm.extractvalue {{.*}}[1] : !llvm.struct<(ptr<struct<([[IDTYPE:struct<"class.cl::sycl::id.1", \(struct<"class.cl::sycl::detail::array.1", \(array<1 x i64>\)>\)>]])>>, ptr<struct<([[IDTYPE]])>>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK: [[GEP:%.*]] = llvm.getelementptr [[AlignedPtr]][[[INDEX]]] : (!llvm.ptr<struct<([[IDTYPE]])>>, i64) -> !llvm.ptr<struct<([[IDTYPE]])>>
 // CHECK: [[MEMREF:%.*]] = llvm.mlir.undef : !llvm.struct<(ptr<struct<([[IDTYPE]])>>, ptr<struct<([[IDTYPE]])>>, i64, array<1 x i64>, array<1 x i64>)>
 // CHECK: [[MEMREF1:%.*]] = llvm.insertvalue {{.*}}, [[MEMREF]][0] : !llvm.struct<(ptr<struct<([[IDTYPE]])>>, ptr<struct<([[IDTYPE]])>>, i64, array<1 x i64>, array<1 x i64>)>
 // CHECK: %{{.*}} = llvm.insertvalue [[GEP]], [[MEMREF1]][1] : !llvm.struct<(ptr<struct<([[IDTYPE]])>>, ptr<struct<([[IDTYPE]])>>, i64, array<1 x i64>, array<1 x i64>)>
