@@ -14,7 +14,7 @@
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/xmx/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -27,8 +27,7 @@ template <typename T> constexpr dpas_argument_type dpas_precision_from_type() {
   // TODO: add support for tfloat32 here.
   if constexpr (std::is_same_v<T, sycl::half>)
     return dpas_argument_type::FP16;
-  else if constexpr (std::is_same_v<T,
-                                    sycl::ext::oneapi::experimental::bfloat16>)
+  else if constexpr (std::is_same_v<T, sycl::ext::oneapi::bfloat16>)
     return dpas_argument_type::BF16;
   else if constexpr (std::is_same_v<T, unsigned char>)
     return dpas_argument_type::U8;
@@ -143,7 +142,7 @@ constexpr int verify_parameters_and_deduce_exec_size() {
     }
   } else if constexpr (APrecision == dpas_argument_type::BF16 ||
                        BPrecision == dpas_argument_type::BF16) {
-    using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
     if constexpr (ExecutionSize == 8) {
       static_assert(APrecision == BPrecision &&
                         __ESIMD_DNS::is_type<T, float, bfloat16>() &&
