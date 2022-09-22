@@ -1158,9 +1158,7 @@ public:
 
   void *getPtr() const { return AccessorBaseHost::getPtr(); }
 
-  void initHostAcc() {
-    MAccData = &getAccData();
-  }
+  void initHostAcc() { MAccData = &getAccData(); }
 
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
