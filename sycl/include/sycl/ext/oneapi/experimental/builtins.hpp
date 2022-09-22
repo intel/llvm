@@ -93,6 +93,8 @@ int printf(const FormatT *__format, Args... args) {
 namespace native {
 
 // genfloatfh tanh (genfloatfh x)
+// sycl::native::tanh is only implemented on nvptx backend so far. For other
+// backends we revert to the sycl::tanh impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
     sycl::detail::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
@@ -140,6 +142,8 @@ tanh(sycl::marray<T, N> x) __NOEXC {
 }
 
 // genfloath exp2 (genfloath x)
+// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// For other backends we revert to the sycl::exp2 impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
     sycl::detail::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
