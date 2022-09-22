@@ -12,6 +12,7 @@
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/native/common.hpp>
+#include <sycl/ext/intel/esimd/xmx/common.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -23,19 +24,9 @@ namespace ext::intel::experimental::esimd {
 /// @addtogroup sycl_esimd_core
 /// @{
 
-enum class argument_type {
-  U1 = 1,   // unsigned 1 bit
-  S1 = 2,   // signed 1 bit
-  U2 = 3,   // unsigned 2 bits
-  S2 = 4,   // signed 2 bits
-  U4 = 5,   // unsigned 4 bits
-  S4 = 6,   // signed 4 bits
-  U8 = 7,   // unsigned 8 bits
-  S8 = 8,   // signed 8 bits
-  BF16 = 9, // bfloat 16
-  FP16 = 10, // half float
-  TF32 = 12 // tensorfloat 32
-};
+using argument_type
+    __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas_argument_type") =
+        __ESIMD_NS::xmx::dpas_argument_type;
 
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
