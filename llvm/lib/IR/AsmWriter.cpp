@@ -617,6 +617,11 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
        << TPTy->getAddressSpace() << ")";
     return;
   }
+  case Type::OpaqueTyID:
+    OS << "opaque(\"";
+    printEscapedString(Ty->getOpaqueName(), OS);
+    OS << "\")";
+    return;
   }
   llvm_unreachable("Invalid TypeID");
 }

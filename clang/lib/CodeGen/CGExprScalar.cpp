@@ -2287,12 +2287,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_FunctionToPointerDecay:
     return EmitLValue(E).getPointer(CGF);
 
-  case CK_NullToPointer:
+  case CK_NullToPointer: {
     if (MustVisitNullValue(E))
       CGF.EmitIgnoredExpr(E);
 
-    return CGF.CGM.getNullPointer(cast<llvm::PointerType>(ConvertType(DestTy)),
-                              DestTy);
+    llvm::Type *LlvmTy = ConvertType(DestTy);
+    if (auto *PointerTy = dyn_cast<llvm::PointerType>(LlvmTy))
+      return CGF.CGM.getNullPointer(PointerTy, DestTy);
+    return llvm::Constant::getNullValue(LlvmTy);
+  }
 
   case CK_NullToMemberPointer: {
     if (MustVisitNullValue(E))

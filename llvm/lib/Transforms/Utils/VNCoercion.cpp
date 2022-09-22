@@ -61,6 +61,9 @@ bool canCoerceMustAliasedValueToLoad(Value *StoredVal, Type *LoadTy,
   if (StoredNI && StoreSize != DL.getTypeSizeInBits(LoadTy).getFixedSize())
     return false;
 
+  if (StoredTy->isOpaqueTy() || LoadTy->isOpaqueTy())
+    return false;
+
   return true;
 }
 

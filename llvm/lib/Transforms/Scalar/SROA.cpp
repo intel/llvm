@@ -1714,6 +1714,9 @@ static bool canConvertValue(const DataLayout &DL, Type *OldTy, Type *NewTy) {
     return false;
   }
 
+  if (OldTy->isOpaqueTy() || NewTy->isOpaqueTy())
+    return false;
+
   return true;
 }
 

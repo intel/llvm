@@ -749,6 +749,7 @@ Align DataLayout::getAlignment(Type *Ty, bool abi_or_pref) const {
   switch (Ty->getTypeID()) {
   // Early escape for the non-numeric types.
   case Type::LabelTyID:
+  case Type::OpaqueTyID:
     return abi_or_pref ? getPointerABIAlignment(0) : getPointerPrefAlignment(0);
   case Type::PointerTyID: {
     unsigned AS = cast<PointerType>(Ty)->getAddressSpace();

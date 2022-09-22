@@ -366,6 +366,7 @@ Constant *Constant::getNullValue(Type *Ty) {
   case Type::ArrayTyID:
   case Type::FixedVectorTyID:
   case Type::ScalableVectorTyID:
+  case Type::OpaqueTyID:
     return ConstantAggregateZero::get(Ty);
   case Type::TokenTyID:
     return ConstantTokenNone::get(Ty->getContext());
@@ -1087,6 +1088,8 @@ ElementCount ConstantAggregateZero::getElementCount() const {
     return ElementCount::getFixed(AT->getNumElements());
   if (auto *VT = dyn_cast<VectorType>(Ty))
     return VT->getElementCount();
+  if (isa<OpaqueType>(Ty))
+    return ElementCount::getNull();
   return ElementCount::getFixed(Ty->getStructNumElements());
 }
 
@@ -1587,7 +1590,7 @@ bool ConstantFP::isValueValidForType(Type *Ty, const APFloat& Val) {
 //                      Factory Function Implementation
 
 ConstantAggregateZero *ConstantAggregateZero::get(Type *Ty) {
-  assert((Ty->isStructTy() || Ty->isArrayTy() || Ty->isVectorTy()) &&
+  assert((Ty->isStructTy() || Ty->isArrayTy() || Ty->isVectorTy() || Ty->isOpaqueTy()) &&
          "Cannot create an aggregate zero of non-aggregate type!");
 
   std::unique_ptr<ConstantAggregateZero> &Entry =

@@ -1481,6 +1481,9 @@ public:
   StringMap<StructType *> NamedStructTypes;
   unsigned NamedStructTypesUniqueID = 0;
 
+  StringMap<OpaqueType *> OpaqueTypes;
+  unsigned OpaqueTypesUniqueID = 0;
+
   DenseMap<std::pair<Type *, uint64_t>, ArrayType *> ArrayTypes;
   DenseMap<std::pair<Type *, ElementCount>, VectorType *> VectorTypes;
   DenseMap<Type *, PointerType *> PointerTypes; // Pointers in AddrSpace = 0

@@ -1031,6 +1031,13 @@ void ModuleBitcodeWriter::writeTypeTable() {
         TypeVals.push_back(true);
       break;
     }
+    case Type::OpaqueTyID: {
+      OpaqueType *OT = cast<OpaqueType>(T);
+      Code = bitc::TYPE_CODE_OPAQUE_TYPE;
+      writeStringRecord(Stream, bitc::TYPE_CODE_STRUCT_NAME, OT->getName(),
+                        StructNameAbbrev);
+      break;
+    }
     case Type::TypedPointerTyID:
       llvm_unreachable("Typed pointers cannot be added to IR modules");
     }

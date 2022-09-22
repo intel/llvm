@@ -30,6 +30,38 @@ void CGOpenCLRuntime::EmitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
   return CGF.EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);
 }
 
+static std::string getSPIRVName(StringRef OpenCLName, StringRef ReadSuffix,
+    bool Sampled) {
+  const char *AccessSuffix = llvm::StringSwitch<const char *>(ReadSuffix)
+    .Case("ro", "_0")
+    .Case("wo", "_1")
+    .Case("rw", "_2")
+    .Default(nullptr);
+  const char *Name = llvm::StringSwitch<const char *>(OpenCLName)
+    //                                  Dim
+    //                                  | Depth
+    //                                  | | Arrayed
+    //                                  | | | MS
+    //                                  | | | | Sampled
+    //                                  | | | | | Format
+    .Case("image1d",                  "_0_0_0_0_0_0")
+    .Case("image1d_array",            "_5_0_0_0_0_0")
+    .Case("image1d_buffer",           "_0_0_1_0_0_0")
+    .Case("image2d",                  "_1_0_0_0_0_0")
+    .Case("image2d_array",            "_1_0_0_0_0_0")
+    .Case("image2d_depth",            "_1_1_0_0_0_0")
+    .Case("image2d_array_depth",      "_1_1_1_0_0_0")
+    .Case("image2d_msaa",             "_1_0_0_1_0_0")
+    .Case("image2d_array_msaa",       "_1_0_1_1_0_0")
+    .Case("image2d_msaa_depth",       "_1_1_0_1_0_0")
+    .Case("image2d_array_msaa_depth", "_1_1_1_1_0_0")
+    .Case("image3d",                  "_2_0_0_0_0_0")
+    .Default(nullptr);
+  assert(Name && AccessSuffix && "Unexpected OpenCL type");
+  return ((Sampled ? Twine("spirv.SampledImage.") : Twine("spirv.Image.")) +
+    Twine("_void") + Twine(Name) + Twine(AccessSuffix)).str();
+}
+
 llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
   assert(T->isOpenCLSpecificType() &&
          "Not an OpenCL specific type!");
@@ -56,6 +88,83 @@ llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
 #include "clang/Basic/OpenCLImageTypes.def"
     case BuiltinType::OCLSampler:
       return llvm::IntegerType::getInt32Ty(CGM.getLLVMContext());
+    }
+  }
+
+  if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
+    switch (cast<BuiltinType>(T)->getKind()) {
+    default:
+      llvm_unreachable("Unexpected opencl builtin type!");
+      return nullptr;
+#if 0
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+    case BuiltinType::Id:                                                      \
+      return getPointerType(T, "opencl." #ImgType "_" #Suffix "_t");
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+    case BuiltinType::Sampled##Id:                                             \
+      return llvm::PointerType::get(                                           \
+          llvm::StructType::create(Ctx, "spirv.SampledImage." #ImgType         \
+                                        "_" #Suffix "_t"),                     \
+          AddrSpc);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
+#else
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+    case BuiltinType::Id:                                                      \
+      return llvm::OpaqueType::get(CGM.getLLVMContext(),                       \
+                                   getSPIRVName(#ImgType, #Suffix, false));
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+    case BuiltinType::Sampled##Id:                                             \
+      return llvm::OpaqueType::get(CGM.getLLVMContext(),                       \
+                                   getSPIRVName(#ImgType, #Suffix, true));
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
+#endif
+    case BuiltinType::OCLSampler:
+      return getSamplerType(T);
+    case BuiltinType::OCLEvent:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.Event");
+    case BuiltinType::OCLClkEvent:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.DeviceEvent");
+    case BuiltinType::OCLQueue:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.Queue");
+    case BuiltinType::OCLReserveID:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.ReserveId");
+#if 0
+#define EXT_OPAQUE_TYPE(ExtType, Id, Ext)                                      \
+    case BuiltinType::Id:                                                      \
+      return getPointerType(T, "opencl." #ExtType);
+#include "clang/Basic/OpenCLExtensionTypes.def"
+#else
+    case BuiltinType::OCLIntelSubgroupAVCMcePayload:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcMcePayloadINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCImePayload:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcImePayloadINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCRefPayload:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcRefPayloadINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCSicPayload:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcSicPayloadINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCMceResult:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcMceResultINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCImeResult:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcImeResultINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCRefResult:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcRefResultINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCSicResult:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcSicResultINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCImeResultSingleRefStreamout:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcImeResultSingleReferenceStreamoutINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCImeResultDualRefStreamout:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcImeResultDualReferenceStreamoutINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCImeSingleRefStreamin:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcImeSingleReferenceStreaminINTEL");
+    case BuiltinType::OCLIntelSubgroupAVCImeDualRefStreamin:
+      return llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.AvcImeDualReferenceStreaminINTEL");
+#endif
     }
   }
 
@@ -109,6 +218,11 @@ llvm::PointerType *CGOpenCLRuntime::getPointerType(const Type *T,
 }
 
 llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T) {
+  if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
+    llvm::StringRef Name = T->isReadOnly() ? "spirv.Pipe._0" : "spirv.Pipe._1";
+    llvm::Type *&TargetTy = T->isReadOnly() ? PipeROTy : PipeWOTy;
+    return TargetTy = llvm::OpaqueType::get(CGM.getLLVMContext(), Name);
+  }
   if (T->isReadOnly())
     return getPipeType(T, "opencl.pipe_ro_t", PipeROTy);
   else
@@ -125,12 +239,16 @@ llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T, StringRef Name,
   return PipeTy;
 }
 
-llvm::PointerType *CGOpenCLRuntime::getSamplerType(const Type *T) {
-  if (!SamplerTy)
-    SamplerTy = llvm::PointerType::get(llvm::StructType::create(
-      CGM.getLLVMContext(), "opencl.sampler_t"),
-      CGM.getContext().getTargetAddressSpace(
+llvm::Type *CGOpenCLRuntime::getSamplerType(const Type *T) {
+  if (!SamplerTy) {
+    if (CGM.getTriple().isSPIRV())
+      SamplerTy = llvm::OpaqueType::get(CGM.getLLVMContext(), "spirv.Sampler");
+    else
+      SamplerTy = llvm::PointerType::get(llvm::StructType::create(
+        CGM.getLLVMContext(), "opencl.sampler_t"),
+        CGM.getContext().getTargetAddressSpace(
           CGM.getContext().getOpenCLTypeAddrSpace(T)));
+  }
   return SamplerTy;
 }
 

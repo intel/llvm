@@ -165,7 +165,8 @@ typedef enum {
   LLVMTokenTypeKind,     /**< Tokens */
   LLVMScalableVectorTypeKind, /**< Scalable SIMD vector type */
   LLVMBFloatTypeKind,    /**< 16 bit brain floating point type */
-  LLVMX86_AMXTypeKind    /**< X86 AMX */
+  LLVMX86_AMXTypeKind,   /**< X86 AMX */
+  LLVMOpaqueTypeKind,    /**< Sized opaque type */
 } LLVMTypeKind;
 
 typedef enum {

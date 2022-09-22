@@ -784,3 +784,70 @@ bool PointerType::isValidElementType(Type *ElemTy) {
 bool PointerType::isLoadableOrStorableType(Type *ElemTy) {
   return isValidElementType(ElemTy) && !ElemTy->isFunctionTy();
 }
+
+//===----------------------------------------------------------------------===//
+//                       OpaqueType Implementation
+//===----------------------------------------------------------------------===//
+
+// Primitive Constructors.
+
+void OpaqueType::setName(StringRef Name) {
+  if (Name == getName()) return;
+  assert(!Name.empty() && "Opaque types cannot have empty names");
+
+  StringMap<OpaqueType *> &SymbolTable = getContext().pImpl->OpaqueTypes;
+
+  using EntryTy = StringMap<OpaqueType *>::MapEntryTy;
+
+  // If this struct already had a name, remove its symbol table entry. Don't
+  // delete the data yet because it may be part of the new name.
+  if (SymbolTableEntry)
+    SymbolTable.remove((EntryTy *)SymbolTableEntry);
+
+  // Look up the entry for the name.
+  auto IterBool =
+      getContext().pImpl->OpaqueTypes.insert(std::make_pair(Name, this));
+
+  // While we have a name collision, try a random rename.
+  if (!IterBool.second) {
+    SmallString<64> TempStr(Name);
+    TempStr.push_back('.');
+    raw_svector_ostream TmpStream(TempStr);
+    unsigned NameSize = Name.size();
+
+    do {
+      TempStr.resize(NameSize + 1);
+      TmpStream << getContext().pImpl->OpaqueTypesUniqueID++;
+
+      IterBool = getContext().pImpl->OpaqueTypes.insert(
+          std::make_pair(TmpStream.str(), this));
+    } while (!IterBool.second);
+  }
+
+  // Delete the old string data.
+  if (SymbolTableEntry)
+    ((EntryTy *)SymbolTableEntry)->Destroy(SymbolTable.getAllocator());
+  SymbolTableEntry = &*IterBool.first;
+}
+
+//===----------------------------------------------------------------------===//
+// OpaqueType Helper functions.
+
+OpaqueType *OpaqueType::create(LLVMContext &Context, StringRef Name) {
+  OpaqueType *ST = new (Context.pImpl->Alloc) OpaqueType(Context);
+  ST->setName(Name);
+  return ST;
+}
+
+StringRef OpaqueType::getName() const {
+  if (!SymbolTableEntry) return StringRef();
+
+  return ((StringMapEntry<StructType*> *)SymbolTableEntry)->getKey();
+}
+
+OpaqueType *OpaqueType::get(LLVMContext &C, StringRef Name) {
+  OpaqueType *OT = C.pImpl->OpaqueTypes.lookup(Name);
+  if (!OT)
+    OT = create(C, Name);
+  return OT;
+}

@@ -674,6 +674,7 @@ inline TypeSize DataLayout::getTypeSizeInBits(Type *Ty) const {
   assert(Ty->isSized() && "Cannot getTypeInfo() on a type that is unsized!");
   switch (Ty->getTypeID()) {
   case Type::LabelTyID:
+  case Type::OpaqueTyID:
     return TypeSize::Fixed(getPointerSizeInBits(0));
   case Type::PointerTyID:
     return TypeSize::Fixed(getPointerSizeInBits(Ty->getPointerAddressSpace()));

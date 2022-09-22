@@ -737,6 +737,42 @@ unsigned Type::getPointerAddressSpace() const {
   return cast<PointerType>(getScalarType())->getAddressSpace();
 }
 
+class OpaqueType : public Type {
+  OpaqueType(LLVMContext &C) : Type(C, OpaqueTyID) {}
+
+  /// A pointer to the symbol table entry (maintained by LLVMContext) for the
+  /// type.
+  void *SymbolTableEntry = nullptr;
+
+public:
+  OpaqueType(const OpaqueType &) = delete;
+  OpaqueType &operator=(const OpaqueType &) = delete;
+
+  static OpaqueType *create(LLVMContext &Context, StringRef Name);
+
+  /// Return the type with the specified name, or null if there is none by that
+  /// name.
+  static OpaqueType *get(LLVMContext &C, StringRef Name);
+
+  /// Return the name for this struct type if it has an identity.
+  /// This may return an empty string for an unnamed struct type.  Do not call
+  /// this on an literal type.
+  StringRef getName() const;
+
+  /// Change the name of this type to the specified name, or to a name with a
+  /// suffix if there is a collision. Do not call this on an literal type.
+  void setName(StringRef Name);
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool classof(const Type *T) {
+    return T->getTypeID() == OpaqueTyID;
+  }
+};
+
+StringRef Type::getOpaqueName() const {
+  return cast<OpaqueType>(this)->getName();
+}
+
 } // end namespace llvm
 
 #endif // LLVM_IR_DERIVEDTYPES_H

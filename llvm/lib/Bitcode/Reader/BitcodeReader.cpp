@@ -2396,6 +2396,17 @@ Error BitcodeReader::parseTypeTableBody() {
       ResultTy = Res;
       break;
     }
+    case bitc::TYPE_CODE_OPAQUE_TYPE: { // OPAQUE
+      if (!Record.empty())
+        return error("Invalid opaque type record");
+
+      if (NumRecords >= TypeList.size())
+        return error("Invalid TYPE table");
+
+      ResultTy = OpaqueType::get(Context, TypeName);
+      TypeName.clear();
+      break;
+    }
     case bitc::TYPE_CODE_ARRAY:     // ARRAY: [numelts, eltty]
       if (Record.size() < 2)
         return error("Invalid array type record");

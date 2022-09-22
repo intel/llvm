@@ -2384,6 +2384,17 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
         return false;
     }
     break;
+  case lltok::kw_opaque: {
+    // Type ::= opaque '(' STRINGCONSTANT ')'
+    Lex.Lex(); // Eat the 'opaque' keyword.
+    std::string OpaqueName;
+    if (parseToken(lltok::lparen, "expected '(' in opaque type") ||
+        parseStringConstant(OpaqueName) ||
+        parseToken(lltok::rparen, "expected ')' in opaque type"))
+      return true;
+    Result = OpaqueType::get(Context, OpaqueName);
+    break;
+  }
   case lltok::lbrace:
     // Type ::= StructType
     if (parseAnonStructType(Result, false))
