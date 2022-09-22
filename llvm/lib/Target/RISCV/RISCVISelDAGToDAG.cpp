@@ -27,8 +27,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "riscv-isel"
 
-namespace llvm {
-namespace RISCV {
+namespace llvm::RISCV {
 #define GET_RISCVVSSEGTable_IMPL
 #define GET_RISCVVLSEGTable_IMPL
 #define GET_RISCVVLXSEGTable_IMPL
@@ -39,8 +38,7 @@ namespace RISCV {
 #define GET_RISCVVSXTable_IMPL
 #define GET_RISCVMaskedPseudosTable_IMPL
 #include "RISCVGenSearchableTables.inc"
-} // namespace RISCV
-} // namespace llvm
+} // namespace llvm::RISCV
 
 void RISCVDAGToDAGISel::PreprocessISelDAG() {
   SelectionDAG::allnodes_iterator Position = CurDAG->allnodes_end();
@@ -150,6 +148,8 @@ void RISCVDAGToDAGISel::PostprocessISelDAG() {
   }
 
   CurDAG->setRoot(Dummy.getValue());
+
+  MadeChange |= doPeepholeMergeVVMFold();
 
   if (MadeChange)
     CurDAG->RemoveDeadNodes();
@@ -730,15 +730,14 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     if (!N1C)
       break;
     SDValue N0 = Node->getOperand(0);
-    if (N0.getOpcode() != ISD::AND || !N0.hasOneUse() ||
-        !isa<ConstantSDNode>(N0.getOperand(1)))
+    if (N0.getOpcode() != ISD::AND || !isa<ConstantSDNode>(N0.getOperand(1)))
       break;
     unsigned ShAmt = N1C->getZExtValue();
     uint64_t Mask = N0.getConstantOperandVal(1);
 
     // Optimize (srl (and X, C2), C) -> (slli (srliw X, C3), C3-C) where C2 has
     // 32 leading zeros and C3 trailing zeros.
-    if (isShiftedMask_64(Mask)) {
+    if (isShiftedMask_64(Mask) && N0.hasOneUse()) {
       unsigned XLen = Subtarget->getXLen();
       unsigned LeadingZeros = XLen - (64 - countLeadingZeros(Mask));
       unsigned TrailingZeros = countTrailingZeros(Mask);
@@ -765,9 +764,21 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     if (!isMask_64(Mask))
       break;
     unsigned TrailingOnes = countTrailingOnes(Mask);
-    // 32 trailing ones should use srliw via tablegen pattern.
-    if (TrailingOnes == 32 || ShAmt >= TrailingOnes)
+    if (ShAmt >= TrailingOnes)
       break;
+    // If the mask has 32 trailing ones, use SRLIW.
+    if (TrailingOnes == 32) {
+      SDNode *SRLIW =
+          CurDAG->getMachineNode(RISCV::SRLIW, DL, VT, N0->getOperand(0),
+                                 CurDAG->getTargetConstant(ShAmt, DL, VT));
+      ReplaceNode(Node, SRLIW);
+      return;
+    }
+
+    // Only do the remaining transforms if the shift has one use.
+    if (!N0.hasOneUse())
+      break;
+
     // If C2 is (1 << ShAmt) use bexti if possible.
     if (Subtarget->hasStdExtZbs() && ShAmt + 1 == TrailingOnes) {
       SDNode *BEXTI =
@@ -1919,7 +1930,7 @@ static bool selectConstantAddr(SelectionDAG *CurDAG, const SDLoc &DL,
 // Is this ADD instruction only used as the base pointer of scalar loads and
 // stores?
 static bool isWorthFoldingAdd(SDValue Add) {
-  for (auto Use : Add->uses()) {
+  for (auto *Use : Add->uses()) {
     if (Use->getOpcode() != ISD::LOAD && Use->getOpcode() != ISD::STORE &&
         Use->getOpcode() != ISD::ATOMIC_LOAD &&
         Use->getOpcode() != ISD::ATOMIC_STORE)
@@ -2218,7 +2229,7 @@ bool RISCVDAGToDAGISel::selectSHXADDOp(SDValue N, unsigned ShAmt,
 bool RISCVDAGToDAGISel::hasAllNBitUsers(SDNode *Node, unsigned Bits) const {
   assert((Node->getOpcode() == ISD::ADD || Node->getOpcode() == ISD::SUB ||
           Node->getOpcode() == ISD::MUL || Node->getOpcode() == ISD::SHL ||
-          Node->getOpcode() == ISD::SRL ||
+          Node->getOpcode() == ISD::SRL || Node->getOpcode() == ISD::AND ||
           Node->getOpcode() == ISD::SIGN_EXTEND_INREG ||
           Node->getOpcode() == RISCVISD::GREV ||
           Node->getOpcode() == RISCVISD::GORC ||
@@ -2593,9 +2604,132 @@ bool RISCVDAGToDAGISel::doPeepholeMaskedRVV(SDNode *N) {
     Ops.push_back(SDValue(TGlued, TGlued->getNumValues() - 1));
 
   SDNode *Result = CurDAG->getMachineNode(Opc, SDLoc(N), N->getVTList(), Ops);
+  Result->setFlags(N->getFlags());
   ReplaceUses(N, Result);
 
   return true;
+}
+
+// Try to fold VMERGE_VVM with unmasked intrinsic to masked intrinsic. The
+// peephole only deals with VMERGE_VVM which is TU and has false operand same as
+// its true operand now. E.g. (VMERGE_VVM_M1_TU False, False, (VADD_M1 ...),
+// ...) -> (VADD_VV_M1_MASK)
+bool RISCVDAGToDAGISel::doPeepholeMergeVVMFold() {
+  bool MadeChange = false;
+  SelectionDAG::allnodes_iterator Position = CurDAG->allnodes_end();
+
+  while (Position != CurDAG->allnodes_begin()) {
+    SDNode *N = &*--Position;
+    if (N->use_empty() || !N->isMachineOpcode())
+      continue;
+
+    auto IsVMergeTU = [](unsigned Opcode) {
+      return Opcode == RISCV::PseudoVMERGE_VVM_MF8_TU ||
+             Opcode == RISCV::PseudoVMERGE_VVM_MF4_TU ||
+             Opcode == RISCV::PseudoVMERGE_VVM_MF2_TU ||
+             Opcode == RISCV::PseudoVMERGE_VVM_M1_TU ||
+             Opcode == RISCV::PseudoVMERGE_VVM_M2_TU ||
+             Opcode == RISCV::PseudoVMERGE_VVM_M4_TU ||
+             Opcode == RISCV::PseudoVMERGE_VVM_M8_TU;
+    };
+
+    unsigned Opc = N->getMachineOpcode();
+    // TODO: Also deal with TA VMerge nodes.
+    if (!IsVMergeTU(Opc))
+      continue;
+
+    SDValue Merge = N->getOperand(0);
+    SDValue False = N->getOperand(1);
+    SDValue True = N->getOperand(2);
+    SDValue Mask = N->getOperand(3);
+    SDValue VL = N->getOperand(4);
+
+    if (Merge != False)
+      continue;
+
+    assert(True.getResNo() == 0 &&
+           "Expect True is the first output of an instruction.");
+
+    // Need N is the exactly one using True.
+    if (!True.hasOneUse())
+      continue;
+
+    if (!True.isMachineOpcode())
+      continue;
+
+    unsigned TrueOpc = True.getMachineOpcode();
+
+    // Skip if True has merge operand.
+    // TODO: Deal with True having same merge operand with N.
+    if (RISCVII::hasMergeOp(TII->get(TrueOpc).TSFlags))
+      continue;
+
+    // Skip if True has side effect.
+    // TODO: Support velff and vlsegff.
+    if (TII->get(TrueOpc).hasUnmodeledSideEffects())
+      continue;
+
+    // Only deal with True when True is unmasked intrinsic now.
+    const RISCV::RISCVMaskedPseudoInfo *Info =
+        RISCV::lookupMaskedIntrinsicByUnmaskedTA(TrueOpc);
+
+    if (!Info)
+      continue;
+
+    // The last operand of unmasked intrinsic should be sew or chain.
+    bool HasChainOp =
+        True.getOperand(True.getNumOperands() - 1).getValueType() == MVT::Other;
+
+    // Need True has same VL with N.
+    unsigned TrueVLIndex = True.getNumOperands() - HasChainOp - 2;
+    SDValue TrueVL = True.getOperand(TrueVLIndex);
+
+    auto IsNoFPExcept = [this](SDValue N) {
+      return !this->mayRaiseFPException(N.getNode()) ||
+             N->getFlags().hasNoFPExcept();
+    };
+
+    // Allow the peephole for non-exception True with VLMAX vector length, since
+    // all the values after VL of N are dependent on Merge. VLMAX should be
+    // lowered to (XLenVT -1).
+    if (TrueVL != VL && !(IsNoFPExcept(True) && isAllOnesConstant(TrueVL)))
+      continue;
+
+    SDLoc DL(N);
+    unsigned MaskedOpc = Info->MaskedPseudo;
+    SmallVector<SDValue, 8> Ops;
+    Ops.push_back(Merge);
+    Ops.append(True->op_begin(), True->op_begin() + TrueVLIndex);
+    Ops.append({Mask, VL, /* SEW */ True.getOperand(TrueVLIndex + 1)});
+
+    if (RISCVII::hasVecPolicyOp(TII->get(MaskedOpc).TSFlags))
+      Ops.push_back(
+          CurDAG->getTargetConstant(/* TUMU */ 0, DL, Subtarget->getXLenVT()));
+
+    // Result node should have chain operand of True.
+    if (HasChainOp)
+      Ops.push_back(True.getOperand(True.getNumOperands() - 1));
+
+    // Result node should take over glued node of N.
+    if (N->getGluedNode())
+      Ops.push_back(N->getOperand(N->getNumOperands() - 1));
+
+    SDNode *Result =
+        CurDAG->getMachineNode(MaskedOpc, DL, True->getVTList(), Ops);
+    Result->setFlags(True->getFlags());
+
+    // Replace vmerge.vvm node by Result.
+    ReplaceUses(SDValue(N, 0), SDValue(Result, 0));
+
+    // Replace another value of True. E.g. chain and VL.
+    for (unsigned Idx = 1; Idx < True->getNumValues(); ++Idx)
+      ReplaceUses(True.getValue(Idx), SDValue(Result, Idx));
+
+    // Try to transform Result to unmasked intrinsic.
+    doPeepholeMaskedRVV(Result);
+    MadeChange = true;
+  }
+  return MadeChange;
 }
 
 // This pass converts a legalized DAG into a RISCV-specific DAG, ready

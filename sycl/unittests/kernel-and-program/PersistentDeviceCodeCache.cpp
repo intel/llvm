@@ -10,11 +10,11 @@
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
 #include <cstdio>
+#include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <optional>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 #include <vector>
@@ -136,9 +136,6 @@ public:
   }
 
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl)
-      GTEST_SKIP();
-
     if (RootSYCLCacheDir == "")
       FAIL() << "Please set SYCL_CACHE_DIR environment variable pointing to "
                 "cache location.";
@@ -161,13 +158,7 @@ public:
     ResetSYCLCacheDirEnv();
   }
 
-  PersistentDeviceCodeCache() : Plt{default_selector()} {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      std::clog << "This test is only supported on OpenCL devices\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
-      return;
-    }
+  PersistentDeviceCodeCache() : Mock{}, Plt{Mock.getPlatform()} {
 
     char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
     if (!SYCLCacheDir) {
@@ -177,10 +168,8 @@ public:
     }
     RootSYCLCacheDir = SYCLCacheDir;
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
-    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
-        redefinedProgramGetInfo);
+    Mock.redefine<detail::PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
   }
 
   /* Helper function for concurent cache item read/write from diffrent number
@@ -226,6 +215,7 @@ public:
 
 protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
+  unittest::PiMock Mock;
   platform Plt;
   device Dev;
   pi_device_binary_struct BinStruct{/*Version*/ 1,
@@ -245,7 +235,6 @@ protected:
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

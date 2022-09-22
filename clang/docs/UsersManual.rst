@@ -687,6 +687,11 @@ of generating a delta reduced test case.
   Specify where to write the crash diagnostics files; defaults to the
   usual location for temporary files.
 
+.. envvar:: CLANG_CRASH_DIAGNOSTICS_DIR=<dir>
+
+   Like ``-fcrash-diagnostics-dir=<dir>``, specifies where to write the
+   crash diagnostics files, but with lower precedence than the option.
+
 Clang is also capable of generating preprocessed source file(s) and associated
 run script(s) even without a crash. This is specially useful when trying to
 generate a reproducer for warnings or errors while using modules.
@@ -1631,12 +1636,15 @@ Note that floating-point operations performed as part of constant initialization
 
 A note about ``__FLT_EVAL_METHOD__``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The macro ``__FLT_EVAL_METHOD__`` will expand to either the value set from the
-command line option ``ffp-eval-method`` or to the value from the target info
-setting. The ``__FLT_EVAL_METHOD__`` macro cannot expand to the correct
-evaluation method in the presence of a ``#pragma`` which alters the evaluation
-method. An error is issued if ``__FLT_EVAL_METHOD__`` is expanded inside a scope
-modified by ``#pragma clang fp eval_method``.
+The ``__FLT_EVAL_METHOD__`` is not defined as a traditional macro, and so it
+will not appear when dumping preprocessor macros. Instead, the value
+``__FLT_EVAL_METHOD__`` expands to is determined at the point of expansion
+either from the value set by the ``-ffp-eval-method`` command line option or
+from the target. This is because the ``__FLT_EVAL_METHOD__`` macro
+cannot expand to the correct evaluation method in the presence of a ``#pragma``
+which alters the evaluation method. An error is issued if
+``__FLT_EVAL_METHOD__`` is expanded inside a scope modified by
+``#pragma clang fp eval_method``.
 
 .. _fp-constant-eval:
 
@@ -1717,6 +1725,8 @@ are listed below.
       flow analysis.
    -  ``-fsanitize=cfi``: :doc:`control flow integrity <ControlFlowIntegrity>`
       checks. Requires ``-flto``.
+   -  ``-fsanitize=kcfi``: kernel indirect call forward-edge control flow
+      integrity.
    -  ``-fsanitize=safe-stack``: :doc:`safe stack <SafeStack>`
       protection against stack-based memory corruption errors.
 
@@ -2500,43 +2510,66 @@ This can be done using the ``-fprofile-list`` option.
 
   .. code-block:: console
 
-    $ echo "fun:test" > fun.list
     $ clang++ -O2 -fprofile-instr-generate -fprofile-list=fun.list code.cc -o code
 
-The option can be specified multiple times to pass multiple files.
+  The option can be specified multiple times to pass multiple files.
 
-.. code-block:: console
+  .. code-block:: console
 
-    $ echo "!fun:*test*" > fun.list
-    $ echo "src:code.cc" > src.list
-    % clang++ -O2 -fprofile-instr-generate -fcoverage-mapping -fprofile-list=fun.list -fprofile-list=code.list code.cc -o code
+    $ clang++ -O2 -fprofile-instr-generate -fcoverage-mapping -fprofile-list=fun.list -fprofile-list=code.list code.cc -o code
 
-To filter individual functions or entire source files using ``fun:<name>`` or
-``src:<file>`` respectively. To exclude a function or a source file, use
-``!fun:<name>`` or ``!src:<file>`` respectively. The format also supports
-wildcard expansion. The compiler generated functions are assumed to be located
-in the main source file.  It is also possible to restrict the filter to a
-particular instrumentation type by using a named section.
+Supported sections are ``[clang]``, ``[llvm]``, and ``[csllvm]`` representing
+clang PGO, IRPGO, and CSIRPGO, respectively. Supported prefixes are ``function``
+and ``source``. Supported categories are ``allow``, ``skip``, and ``forbid``.
+``skip`` adds the ``skipprofile`` attribute while ``forbid`` adds the
+``noprofile`` attribute to the appropriate function. Use
+``default:<allow|skip|forbid>`` to specify the default category.
 
-.. code-block:: none
+  .. code-block:: console
 
-  # all functions whose name starts with foo will be instrumented.
-  fun:foo*
+    $ cat fun.list
+    # The following cases are for clang instrumentation.
+    [clang]
 
-  # except for foo1 which will be excluded from instrumentation.
-  !fun:foo1
+    # We might not want to profile functions that are inlined in many places.
+    function:inlinedLots=skip
 
-  # every function in path/to/foo.cc will be instrumented.
-  src:path/to/foo.cc
+    # We want to forbid profiling where it might be dangerous.
+    source:lib/unsafe/*.cc=forbid
 
-  # bar will be instrumented only when using backend instrumentation.
-  # Recognized section names are clang, llvm and csllvm.
-  [llvm]
-  fun:bar
+    # Otherwise we allow profiling.
+    default:allow
 
-When the file contains only excludes, all files and functions except for the
-excluded ones will be instrumented. Otherwise, only the files and functions
-specified will be instrumented.
+Older Prefixes
+""""""""""""""
+  An older format is also supported, but it is only able to add the
+  ``noprofile`` attribute.
+  To filter individual functions or entire source files use ``fun:<name>`` or
+  ``src:<file>`` respectively. To exclude a function or a source file, use
+  ``!fun:<name>`` or ``!src:<file>`` respectively. The format also supports
+  wildcard expansion. The compiler generated functions are assumed to be located
+  in the main source file.  It is also possible to restrict the filter to a
+  particular instrumentation type by using a named section.
+
+  .. code-block:: none
+
+    # all functions whose name starts with foo will be instrumented.
+    fun:foo*
+
+    # except for foo1 which will be excluded from instrumentation.
+    !fun:foo1
+
+    # every function in path/to/foo.cc will be instrumented.
+    src:path/to/foo.cc
+
+    # bar will be instrumented only when using backend instrumentation.
+    # Recognized section names are clang, llvm and csllvm.
+    [llvm]
+    fun:bar
+
+  When the file contains only excludes, all files and functions except for the
+  excluded ones will be instrumented. Otherwise, only the files and functions
+  specified will be instrumented.
 
 Instrument function groups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -3976,7 +4009,7 @@ Execute ``clang-cl /?`` to see a list of supported options:
       /Zl                     Don't mention any default libraries in the object file
       /Zp                     Set the default maximum struct packing alignment to 1
       /Zp<value>              Specify the default maximum struct packing alignment
-      /Zs                     Syntax-check only
+      /Zs                     Run the preprocessor, parser and semantic analysis stages
 
     OPTIONS:
       -###                    Print (but do not run) the commands to run for this compilation
@@ -4107,6 +4140,7 @@ Execute ``clang-cl /?`` to see a list of supported options:
                               behavior. See user manual for available checks
       -fsplit-lto-unit        Enables splitting of the LTO unit.
       -fstandalone-debug      Emit full debug info for all types used by the program
+      -fsyntax-only           Run the preprocessor, parser and semantic analysis stages
       -fwhole-program-vtables Enables whole-program vtable optimization. Requires -flto
       -gcodeview-ghash        Emit type record hashes in a .debug$H section
       -gcodeview              Generate CodeView debug information

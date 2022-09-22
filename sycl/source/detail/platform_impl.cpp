@@ -75,7 +75,7 @@ static bool IsBannedPlatform(platform Platform) {
   // where CUDA is available, the OpenCL support is disabled.
   //
   auto IsNVIDIAOpenCL = [](platform Platform) {
-    if (Platform.is_host())
+    if (getSyclObjImpl(Platform)->is_host())
       return false;
 
     const bool HasCUDA = Platform.get_info<info::platform::name>().find(
@@ -136,14 +136,6 @@ std::vector<platform> platform_impl::get_platforms() {
   // guaranteed to be destroyed before function-local static variables as they
   // may be initialized after.
   GlobalHandler::registerDefaultContextReleaseHandler();
-
-  // The host platform should always be available unless not allowed by the
-  // SYCL_DEVICE_FILTER
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-  if (!FilterList || FilterList->backendCompatible(backend::host))
-    Platforms.emplace_back(
-        createSyclObjFromImpl<platform>(platform_impl::getHostPlatformImpl()));
 
   return Platforms;
 }
@@ -213,21 +205,22 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   Plugin.setLastDeviceId(Platform, DeviceNum);
 }
 
+std::shared_ptr<device_impl>
+platform_impl::getDeviceImpl(RT::PiDevice PiDevice) {
+  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+  return getDeviceImplHelper(PiDevice);
+}
+
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
     RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
-
   // If we've already seen this device, return the impl
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == PiDevice)
-        return Device;
-    }
-  }
+  std::shared_ptr<device_impl> Result = getDeviceImplHelper(PiDevice);
+  if (Result)
+    return Result;
 
   // Otherwise make the impl
-  std::shared_ptr<device_impl> Result =
-      std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  Result = std::make_shared<device_impl>(PiDevice, PlatformImpl);
   MDeviceCache.emplace_back(Result);
 
   return Result;
@@ -238,12 +231,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
-    // If SYCL_DEVICE_FILTER is set, check if filter contains host.
-    device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-    if (!FilterList || FilterList->containsHost()) {
-      Res.push_back(
-          createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
-    }
+    Res.push_back(
+        createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
   }
 
   // If any DeviceType other than host was requested for host platform,
@@ -332,6 +321,17 @@ bool platform_impl::has(aspect Aspect) const {
     }
   }
   return true;
+}
+
+std::shared_ptr<device_impl>
+platform_impl::getDeviceImplHelper(RT::PiDevice PiDevice) {
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
+  }
+  return nullptr;
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \

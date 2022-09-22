@@ -158,7 +158,7 @@ public:
 
     // Move variables used by functions into amdgcn.module.lds
     std::vector<GlobalVariable *> ModuleScopeVariables =
-        AMDGPU::findVariablesToLower(M, nullptr);
+        AMDGPU::findLDSVariablesToLower(M, nullptr);
     if (!ModuleScopeVariables.empty()) {
       std::string VarName = "llvm.amdgcn.module.lds";
 
@@ -214,12 +214,11 @@ public:
         continue;
 
       std::vector<GlobalVariable *> KernelUsedVariables =
-          AMDGPU::findVariablesToLower(M, &F);
+          AMDGPU::findLDSVariablesToLower(M, &F);
 
       // Replace all constant uses with instructions if they belong to the
       // current kernel. Unnecessary, removing will cause test churn.
-      for (size_t I = 0; I < KernelUsedVariables.size(); I++) {
-        GlobalVariable *GV = KernelUsedVariables[I];
+      for (GlobalVariable *GV : KernelUsedVariables) {
         for (User *U : make_early_inc_range(GV->users())) {
           if (ConstantExpr *C = dyn_cast<ConstantExpr>(U))
             AMDGPU::replaceConstantUsesInFunction(C, &F);

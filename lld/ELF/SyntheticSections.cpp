@@ -678,6 +678,9 @@ bool GotSection::isNeeded() const {
 }
 
 void GotSection::writeTo(uint8_t *buf) {
+  // On PPC64 .got may be needed but empty. Skip the write.
+  if (size == 0)
+    return;
   target->writeGotHeader(buf);
   relocateAlloc(buf, buf + size);
 }
@@ -1415,7 +1418,7 @@ DynamicSection<ELFT>::computeContents() {
                   r.sym->stOther & STO_AARCH64_VARIANT_PCS;
           }) != in.relaPlt->relocs.end())
         addInt(DT_AARCH64_VARIANT_PCS, 0);
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       addInSec(DT_PLTGOT, *in.gotPlt);
       break;
@@ -1892,9 +1895,9 @@ bool AndroidPackedRelocationSection<ELFT>::updateAllocSize() {
     add(config->wordsize);
     add(target->relativeRel);
     if (config->isRela) {
-      for (auto i = g.begin() + 1, e = g.end(); i != e; ++i) {
-        add(i->r_addend - addend);
-        addend = i->r_addend;
+      for (const auto &i : llvm::drop_begin(g)) {
+        add(i.r_addend - addend);
+        addend = i.r_addend;
       }
     }
 
@@ -2004,8 +2007,8 @@ template <class ELFT> bool RelrSection<ELFT>::updateAllocSize() {
 
   // Get offsets for all relative relocations and sort them.
   std::unique_ptr<uint64_t[]> offsets(new uint64_t[relocs.size()]);
-  for (auto it : llvm::enumerate(relocs))
-    offsets[it.index()] = it.value().getOffset();
+  for (auto [i, r] : llvm::enumerate(relocs))
+    offsets[i] = r.getOffset();
   llvm::sort(offsets.get(), offsets.get() + relocs.size());
 
   // For each leading relocation, find following ones that can be folded
@@ -2195,16 +2198,7 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
     // Set st_name, st_info and st_other.
     eSym->st_name = ent.strTabOffset;
     eSym->setBindingAndType(sym->binding, sym->type);
-    eSym->st_other = sym->visibility;
-
-    // The 3 most significant bits of st_other are used by OpenPOWER ABI.
-    // See getPPC64GlobalEntryToLocalEntryOffset() for more details.
-    if (config->emachine == EM_PPC64)
-      eSym->st_other |= sym->stOther & 0xe0;
-    // The most significant bit of st_other is used by AArch64 ABI for the
-    // variant PCS.
-    else if (config->emachine == EM_AARCH64)
-      eSym->st_other |= sym->stOther & STO_AARCH64_VARIANT_PCS;
+    eSym->st_other = sym->stOther;
 
     if (BssSection *commonSec = getCommonSec(sym)) {
       // When -r is specified, a COMMON symbol is not allocated. Its st_shndx
@@ -2401,13 +2395,6 @@ void GnuHashTableSection::writeTo(uint8_t *buf) {
             getPartition().dynSymTab->getSymbolIndex(i->sym));
     oldBucket = i->bucketIdx;
   }
-}
-
-static uint32_t hashGnu(StringRef name) {
-  uint32_t h = 5381;
-  for (uint8_t c : name)
-    h = (h << 5) + h + c;
-  return h;
 }
 
 // Add symbols to this symbol hash table. Note that this function
@@ -2689,20 +2676,6 @@ size_t GdbIndexSection::computeSymtabSize() const {
   return std::max<size_t>(NextPowerOf2(symbols.size() * 4 / 3), 1024);
 }
 
-// Compute the output section size.
-void GdbIndexSection::initOutputSize() {
-  size = sizeof(GdbIndexHeader) + computeSymtabSize() * 8;
-
-  for (GdbChunk &chunk : chunks)
-    size += chunk.compilationUnits.size() * 16 + chunk.addressAreas.size() * 20;
-
-  // Add the constant pool size if exists.
-  if (!symbols.empty()) {
-    GdbSymbol &sym = symbols.back();
-    size += sym.nameOff + sym.name.size() + 1;
-  }
-}
-
 static SmallVector<GdbIndexSection::CuEntry, 0>
 readCuList(DWARFContext &dwarf) {
   SmallVector<GdbIndexSection::CuEntry, 0> ret;
@@ -2777,7 +2750,8 @@ readPubNamesAndTypes(const LLDDwarfObj<ELFT> &obj,
 
 // Create a list of symbols from a given list of symbol names and types
 // by uniquifying them by name.
-static SmallVector<GdbIndexSection::GdbSymbol, 0> createSymbols(
+static std::pair<SmallVector<GdbIndexSection::GdbSymbol, 0>, size_t>
+createSymbols(
     ArrayRef<SmallVector<GdbIndexSection::NameAttrEntry, 0>> nameAttrs,
     const SmallVector<GdbIndexSection::GdbChunk, 0> &chunks) {
   using GdbSymbol = GdbIndexSection::GdbSymbol;
@@ -2854,8 +2828,12 @@ static SmallVector<GdbIndexSection::GdbSymbol, 0> createSymbols(
     sym.nameOff = off;
     off += sym.name.size() + 1;
   }
+  // If off overflows, the last symbol's nameOff likely overflows.
+  if (!isUInt<32>(off))
+    errorOrWarn("--gdb-index: constant pool size (" + Twine(off) +
+                ") exceeds UINT32_MAX");
 
-  return ret;
+  return {ret, off};
 }
 
 // Returns a newly-created .gdb_index section.
@@ -2905,8 +2883,14 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
 
   auto *ret = make<GdbIndexSection>();
   ret->chunks = std::move(chunks);
-  ret->symbols = createSymbols(nameAttrs, ret->chunks);
-  ret->initOutputSize();
+  std::tie(ret->symbols, ret->size) = createSymbols(nameAttrs, ret->chunks);
+
+  // Count the areas other than the constant pool.
+  ret->size += sizeof(GdbIndexHeader) + ret->computeSymtabSize() * 8;
+  for (GdbChunk &chunk : ret->chunks)
+    ret->size +=
+        chunk.compilationUnits.size() * 16 + chunk.addressAreas.size() * 20;
+
   return ret;
 }
 
@@ -3871,6 +3855,20 @@ size_t MemtagAndroidNote::getSize() const {
   return sizeof(llvm::ELF::Elf64_Nhdr) +
          /*namesz=*/sizeof(kMemtagAndroidNoteName) +
          /*descsz=*/sizeof(uint32_t);
+}
+
+void PackageMetadataNote::writeTo(uint8_t *buf) {
+  write32(buf, 4);
+  write32(buf + 4, config->packageMetadata.size() + 1);
+  write32(buf + 8, FDO_PACKAGING_METADATA);
+  memcpy(buf + 12, "FDO", 4);
+  memcpy(buf + 16, config->packageMetadata.data(),
+         config->packageMetadata.size());
+}
+
+size_t PackageMetadataNote::getSize() const {
+  return sizeof(llvm::ELF::Elf64_Nhdr) + 4 +
+         alignTo(config->packageMetadata.size() + 1, 4);
 }
 
 InStruct elf::in;

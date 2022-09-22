@@ -13,10 +13,15 @@
 sycl::detail::SpinLock GlobalLock;
 
 bool HasZEPrinter = false;
+bool HasCUPrinter = false;
 bool HasPIPrinter = false;
 
 void zePrintersInit();
 void zePrintersFinish();
+#ifdef USE_PI_CUDA
+void cuPrintersInit();
+void cuPrintersFinish();
+#endif
 void piPrintersInit();
 void piPrintersFinish();
 
@@ -28,7 +33,12 @@ XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData);
-
+#ifdef USE_PI_CUDA
+XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
+                                  xpti::trace_event_data_t *Parent,
+                                  xpti::trace_event_data_t *Event,
+                                  uint64_t Instance, const void *UserData);
+#endif
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
@@ -52,6 +62,16 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          zeCallback);
 #endif
+#ifdef USE_PI_CUDA
+  } else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
+             std::getenv("SYCL_TRACE_CU_ENABLE")) {
+    cuPrintersInit();
+    uint16_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                         cuCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                         cuCallback);
+#endif
   }
 }
 
@@ -64,5 +84,10 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
                "sycl.experimental.level_zero.debug" &&
            std::getenv("SYCL_TRACE_ZE_ENABLE"))
     zePrintersFinish();
+#endif
+#ifdef USE_PI_CUDA
+  else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
+           std::getenv("SYCL_TRACE_CU_ENABLE"))
+    cuPrintersFinish();
 #endif
 }

@@ -22,14 +22,20 @@
 #include "Support.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/Support/CommandLine.h"
@@ -44,6 +50,9 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
@@ -489,35 +498,58 @@ template <class PassClass> bool runModulePass(Module &M) {
 // we can safely process ESIMD part.
 // TODO: support options like -debug-pass, -print-[before|after], and others
 bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
-  legacy::PassManager MPM;
-  MPM.add(createSYCLLowerESIMDPass());
+  LoopAnalysisManager LAM;
+  CGSCCAnalysisManager CGAM;
+  FunctionAnalysisManager FAM;
+  ModuleAnalysisManager MAM;
+
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  ModulePassManager MPM;
+  MPM.addPass(SYCLLowerESIMDPass{});
+
   if (!OptLevelO0) {
     // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
-    MPM.add(createAlwaysInlinerLegacyPass());
-    MPM.add(createSROAPass());
+    MPM.addPass(AlwaysInlinerPass{});
+    FunctionPassManager FPM;
+    FPM.addPass(SROAPass{});
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
-  MPM.add(createESIMDLowerVecArgPass());
-  MPM.add(createESIMDLowerLoadStorePass());
+  if (!MD.getModule().getContext().supportsTypedPointers()) {
+    MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
+  } else {
+    MPM.addPass(ESIMDLowerVecArgPass{});
+  }
+  FunctionPassManager MainFPM;
+  MainFPM.addPass(ESIMDLowerLoadStorePass{});
+
   if (!OptLevelO0) {
-    MPM.add(createSROAPass());
-    MPM.add(createEarlyCSEPass(true));
-    MPM.add(createInstructionCombiningPass());
-    MPM.add(createDeadCodeEliminationPass());
+    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(EarlyCSEPass(true));
+    MainFPM.addPass(InstCombinePass{});
+    MainFPM.addPass(DCEPass{});
     // TODO: maybe remove some passes below that don't affect code quality
-    MPM.add(createSROAPass());
-    MPM.add(createEarlyCSEPass(true));
-    MPM.add(createInstructionCombiningPass());
-    MPM.add(createDeadCodeEliminationPass());
+    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(EarlyCSEPass(true));
+    MainFPM.addPass(InstCombinePass{});
+    MainFPM.addPass(DCEPass{});
   }
-  MPM.add(createGenXSPIRVWriterAdaptorPass(/*RewriteTypes=*/true));
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
+  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
+                                     /*RewriteSingleElementVectorsIn*/ false));
   // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
   // versions so the entry point table must be rebuilt.
   // TODO Change entry point search to analysis?
   std::vector<std::string> Names;
   MD.saveEntryPointNames(Names);
-  bool IRChanged = MPM.run(MD.getModule());
+  PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
   MD.rebuildEntryPoints(Names);
-  return IRChanged;
+  return !Res.areAllPreserved();
 }
 
 // @param MD Module descriptor to save
@@ -627,11 +659,12 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
   for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->getOperand(0);
+    auto Op = (*It)->stripPointerCasts();
     auto *F = dyn_cast<Function>(Op);
     if (llvm::isSafeToDestroyConstant(*It)) {
       (*It)->destroyConstant();
-    } else if (F) {
+    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+               !F->use_empty()) {
       // The element in "llvm.used" array has other users. That is Ok for
       // specialization constants, but is wrong for kernels.
       llvm::report_fatal_error("Unexpected usage of SYCL kernel");

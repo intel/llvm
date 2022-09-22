@@ -341,6 +341,9 @@ private:
     return ReturnValue;
   }
 };
+#if __cplusplus >= 201703L
+template <bundle_state State> kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
+#endif
 
 /////////////////////////
 // get_kernel_id API
@@ -373,19 +376,8 @@ __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
 
-inline auto getDeviceComparisonLambda() {
-  return [](device a, device b) { return a.getNative() != b.getNative(); };
-}
-
-inline const std::vector<device>
-removeDuplicateDevices(const std::vector<device> &Devs) {
-  auto compareDevices = getDeviceComparisonLambda();
-  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
-      Devs.begin(), Devs.end(), compareDevices);
-  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
-                                    UniqueDeviceSet.end());
-  return UniqueDevices;
-}
+__SYCL_EXPORT const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs);
 
 } // namespace detail
 
@@ -583,10 +575,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 /////////////////////////
 
 namespace detail {
-
-// TODO: This is no longer in use. Remove when ABI break is allowed.
-__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,

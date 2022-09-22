@@ -323,8 +323,7 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
     return;
   }
   if (DemangledName == kOCLBuiltinName::Dot &&
-      (CI.getOperand(0)->getType()->isFloatTy() ||
-       CI.getOperand(1)->getType()->isDoubleTy())) {
+      CI.getOperand(0)->getType()->isFloatingPointTy()) {
     visitCallDot(&CI);
     return;
   }
@@ -378,6 +377,10 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
   if (DemangledName.find(kOCLBuiltinName::SubgroupImageMediaBlockINTELPrefix) ==
       0) {
     visitSubgroupImageMediaBlockINTEL(&CI, DemangledName);
+    return;
+  }
+  if (DemangledName.find(kOCLBuiltinName::SplitBarrierINTELPrefix) == 0) {
+    visitCallSplitBarrierINTEL(&CI, DemangledName);
     return;
   }
   // Handle 'cl_intel_device_side_avc_motion_estimation' extension built-ins
@@ -1007,7 +1010,7 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   Function *Func = CI->getCalledFunction();
   AttributeList Attrs = Func->getAttributes();
   bool IsRetScalar = !CI->getType()->isVectorTy();
-  SmallVector<StructType *, 3> ArgStructTys;
+  SmallVector<Type *, 3> ArgStructTys;
   getParameterTypes(CI, ArgStructTys);
   mutateCallInstSPIRV(
       M, CI,
@@ -1070,7 +1073,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   StringRef TyName;
   SmallVector<StringRef, 4> SubStrs;
-  SmallVector<StructType *, 4> ParamTys;
+  SmallVector<Type *, 4> ParamTys;
   getParameterTypes(CI, ParamTys);
   auto IsImg = isOCLImageStructType(ParamTys[0], &TyName);
   (void)IsImg;
@@ -1629,7 +1632,7 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
 // reads and vector block reads.
 void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  SmallVector<StructType *, 2> ParamTys;
+  SmallVector<Type *, 2> ParamTys;
   getParameterTypes(CI, ParamTys);
   if (isOCLImageStructType(ParamTys[0]))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockReadINTEL);
@@ -1644,7 +1647,7 @@ void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
 // instructions.
 void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  SmallVector<StructType *, 3> ParamTys;
+  SmallVector<Type *, 3> ParamTys;
   getParameterTypes(CI, ParamTys);
   if (isOCLImageStructType(ParamTys[0]))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockWriteINTEL);
@@ -1765,7 +1768,7 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(ToMCEFName, &ToMCEOC);
   assert(ToMCEOC != OpNop && "Invalid Subgroup AVC Intel built-in call");
 
-  SmallVector<StructType *, 2> ParamTys;
+  SmallVector<Type *, 2> ParamTys;
   getParameterTypes(CI, ParamTys);
 
   if (std::strcmp(TyKind, "payload") == 0) {
@@ -1834,7 +1837,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   mutateCallInstSPIRV(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        SmallVector<StructType *, 4> ParamTys;
+        SmallVector<Type *, 4> ParamTys;
         getParameterTypes(CI, ParamTys);
         auto *TyIt =
             std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerStructTy);
@@ -1867,6 +1870,37 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
                                      kSPIRVName::TempSampledImage);
         }
         return getSPIRVFuncName(OC);
+      },
+      &Attrs);
+}
+
+void OCLToSPIRVBase::visitCallSplitBarrierINTEL(CallInst *CI,
+                                                StringRef DemangledName) {
+  auto Lit = getBarrierLiterals(CI);
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  Op OpCode =
+      StringSwitch<Op>(DemangledName)
+          .Case("intel_work_group_barrier_arrive", OpControlBarrierArriveINTEL)
+          .Case("intel_work_group_barrier_wait", OpControlBarrierWaitINTEL)
+          .Default(OpNop);
+
+  mutateCallInstSPIRV(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        Args.resize(3);
+        // Execution scope
+        Args[0] = addInt32(map<Scope>(std::get<2>(Lit)));
+        // Memory scope
+        Args[1] = addInt32(map<Scope>(std::get<1>(Lit)));
+        // Memory semantics
+        // OpControlBarrierArriveINTEL -> Release,
+        // OpControlBarrierWaitINTEL -> Acquire
+        unsigned MemFenceFlag = std::get<0>(Lit);
+        OCLMemOrderKind MemOrder = OpCode == OpControlBarrierArriveINTEL
+                                       ? OCLMO_release
+                                       : OCLMO_acquire;
+        Args[2] = addInt32(mapOCLMemSemanticToSPIRV(MemFenceFlag, MemOrder));
+        return getSPIRVFuncName(OpCode);
       },
       &Attrs);
 }

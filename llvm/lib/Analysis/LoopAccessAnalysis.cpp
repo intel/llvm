@@ -281,13 +281,12 @@ void RuntimePointerChecking::tryToCreateDiffCheck(
 
   auto *SrcAR = dyn_cast<SCEVAddRecExpr>(Src->Expr);
   auto *SinkAR = dyn_cast<SCEVAddRecExpr>(Sink->Expr);
-  if (!SrcAR || !SinkAR) {
+  if (!SrcAR || !SinkAR || SrcAR->getLoop() != DC.getInnermostLoop() ||
+      SinkAR->getLoop() != DC.getInnermostLoop()) {
     CanUseDiffCheck = false;
     return;
   }
 
-  const DataLayout &DL =
-      SinkAR->getLoop()->getHeader()->getModule()->getDataLayout();
   SmallVector<Instruction *, 4> SrcInsts =
       DC.getInstructionsForAccess(Src->PointerValue, Src->IsWritePtr);
   SmallVector<Instruction *, 4> SinkInsts =
@@ -298,11 +297,10 @@ void RuntimePointerChecking::tryToCreateDiffCheck(
     CanUseDiffCheck = false;
     return;
   }
+  const DataLayout &DL =
+      SinkAR->getLoop()->getHeader()->getModule()->getDataLayout();
   unsigned AllocSize =
       std::max(DL.getTypeAllocSize(SrcTy), DL.getTypeAllocSize(DstTy));
-  IntegerType *IntTy =
-      IntegerType::get(Src->PointerValue->getContext(),
-                       DL.getPointerSizeInBits(CGI.AddressSpace));
 
   // Only matching constant steps matching the AllocSize are supported at the
   // moment. This simplifies the difference computation. Can be extended in the
@@ -313,6 +311,10 @@ void RuntimePointerChecking::tryToCreateDiffCheck(
     CanUseDiffCheck = false;
     return;
   }
+
+  IntegerType *IntTy =
+      IntegerType::get(Src->PointerValue->getContext(),
+                       DL.getPointerSizeInBits(CGI.AddressSpace));
 
   // When counting down, the dependence distance needs to be swapped.
   if (Step->getValue()->isNegative())
@@ -825,6 +827,17 @@ findForkedSCEVs(ScalarEvolution *SE, const Loop *L, Value *Ptr,
     return S.second;
   };
 
+  auto GetBinOpExpr = [&SE](unsigned Opcode, const SCEV *L, const SCEV *R) {
+    switch (Opcode) {
+    case Instruction::Add:
+      return SE->getAddExpr(L, R);
+    case Instruction::Sub:
+      return SE->getMinusSCEV(L, R);
+    default:
+      llvm_unreachable("Unexpected binary operator when walking ForkedPtrs");
+    }
+  };
+
   Instruction *I = cast<Instruction>(Ptr);
   unsigned Opcode = I->getOpcode();
   switch (Opcode) {
@@ -892,6 +905,35 @@ findForkedSCEVs(ScalarEvolution *SE, const Loop *L, Value *Ptr,
     } else
       ScevList.push_back(
           std::make_pair(Scev, !isGuaranteedNotToBeUndefOrPoison(Ptr)));
+    break;
+  }
+  case Instruction::Add:
+  case Instruction::Sub: {
+    SmallVector<std::pair<const SCEV *, bool>> LScevs;
+    SmallVector<std::pair<const SCEV *, bool>> RScevs;
+    findForkedSCEVs(SE, L, I->getOperand(0), LScevs, Depth);
+    findForkedSCEVs(SE, L, I->getOperand(1), RScevs, Depth);
+
+    // See if we need to freeze our fork...
+    bool NeedsFreeze =
+        any_of(LScevs, UndefPoisonCheck) || any_of(RScevs, UndefPoisonCheck);
+
+    // Check that we only have a single fork, on either the left or right side.
+    // Copy the SCEV across for the one without a fork in order to generate
+    // the full SCEV for both sides of the BinOp.
+    if (LScevs.size() == 2 && RScevs.size() == 1)
+      RScevs.push_back(RScevs[0]);
+    else if (RScevs.size() == 2 && LScevs.size() == 1)
+      LScevs.push_back(LScevs[0]);
+    else {
+      ScevList.push_back(std::make_pair(Scev, NeedsFreeze));
+      break;
+    }
+
+    ScevList.push_back(std::make_pair(
+        GetBinOpExpr(Opcode, LScevs[0].first, RScevs[0].first), NeedsFreeze));
+    ScevList.push_back(std::make_pair(
+        GetBinOpExpr(Opcode, LScevs[1].first, RScevs[1].first), NeedsFreeze));
     break;
   }
   default:
@@ -1669,7 +1711,7 @@ void MemoryDepChecker::mergeInStatus(VectorizationSafetyStatus S) {
     Status = S;
 }
 
-/// Given a non-constant (unknown) dependence-distance \p Dist between two
+/// Given a dependence-distance \p Dist between two
 /// memory accesses, that have the same stride whose absolute value is given
 /// in \p Stride, and that have the same type size \p TypeByteSize,
 /// in a loop whose takenCount is \p BackedgeTakenCount, check if it is
@@ -1697,7 +1739,7 @@ static bool isSafeDependenceDistance(const DataLayout &DL, ScalarEvolution &SE,
   // This is equivalent to the Strong SIV Test (Practical Dependence Testing,
   // Section 4.2.1); Note, that for vectorization it is sufficient to prove
   // that the dependence distance is >= VF; This is checked elsewhere.
-  // But in some cases we can prune unknown dependence distances early, and
+  // But in some cases we can prune dependence distances early, and
   // even before selecting the VF, and without a runtime test, by comparing
   // the distance against the loop iteration count. Since the vectorized code
   // will be executed only if LoopCount >= VF, proving distance >= LoopCount
@@ -1813,7 +1855,8 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
     std::swap(StrideAPtr, StrideBPtr);
   }
 
-  const SCEV *Dist = PSE.getSE()->getMinusSCEV(Sink, Src);
+  ScalarEvolution &SE = *PSE.getSE();
+  const SCEV *Dist = SE.getMinusSCEV(Sink, Src);
 
   LLVM_DEBUG(dbgs() << "LAA: Src Scev: " << *Src << "Sink Scev: " << *Sink
                     << "(Induction step: " << StrideAPtr << ")\n");
@@ -1833,14 +1876,14 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
   bool HasSameSize =
       DL.getTypeStoreSizeInBits(ATy) == DL.getTypeStoreSizeInBits(BTy);
   uint64_t Stride = std::abs(StrideAPtr);
+
+  if (!isa<SCEVCouldNotCompute>(Dist) && HasSameSize &&
+      isSafeDependenceDistance(DL, SE, *(PSE.getBackedgeTakenCount()), *Dist,
+                               Stride, TypeByteSize))
+    return Dependence::NoDep;
+
   const SCEVConstant *C = dyn_cast<SCEVConstant>(Dist);
   if (!C) {
-    if (!isa<SCEVCouldNotCompute>(Dist) && HasSameSize &&
-        isSafeDependenceDistance(DL, *(PSE.getSE()),
-                                 *(PSE.getBackedgeTakenCount()), *Dist, Stride,
-                                 TypeByteSize))
-      return Dependence::NoDep;
-
     LLVM_DEBUG(dbgs() << "LAA: Dependence because of non-constant distance\n");
     FoundNonConstantDistanceDependence = true;
     return Dependence::Unknown;
@@ -1932,7 +1975,7 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
   // Unsafe if the minimum distance needed is greater than max safe distance.
   if (MinDistanceNeeded > MaxSafeDepDistBytes) {
     LLVM_DEBUG(dbgs() << "LAA: Failure because it needs at least "
-                      << MinDistanceNeeded << " size in bytes");
+                      << MinDistanceNeeded << " size in bytes\n");
     return Dependence::Backward;
   }
 
@@ -2413,11 +2456,10 @@ void LoopAccessInfo::emitUnsafeDependenceRemark() {
   auto Deps = getDepChecker().getDependences();
   if (!Deps)
     return;
-  auto Found = std::find_if(
-      Deps->begin(), Deps->end(), [](const MemoryDepChecker::Dependence &D) {
-        return MemoryDepChecker::Dependence::isSafeForVectorization(D.Type) !=
-               MemoryDepChecker::VectorizationSafetyStatus::Safe;
-      });
+  auto Found = llvm::find_if(*Deps, [](const MemoryDepChecker::Dependence &D) {
+    return MemoryDepChecker::Dependence::isSafeForVectorization(D.Type) !=
+           MemoryDepChecker::VectorizationSafetyStatus::Safe;
+  });
   if (Found == Deps->end())
     return;
   MemoryDepChecker::Dependence Dep = *Found;

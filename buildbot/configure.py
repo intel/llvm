@@ -21,7 +21,7 @@ def do_configure(args):
         llvm_external_projects += ';libdevice'
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
-    libclc_nvidia_target_names = 'nvptx64--;nvptx64--nvidiacl'
+    libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
@@ -32,7 +32,7 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    llvm_targets_to_build = 'X86'
+    llvm_targets_to_build = args.host_target
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
@@ -56,6 +56,10 @@ def do_configure(args):
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
+    # lld is needed on Windows or for the HIP plugin on AMD
+    if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
+        llvm_enable_projects += ';lld'
+
     if args.enable_esimd_emulator:
         sycl_enabled_plugins.append("esimd_emulator")
 
@@ -73,8 +77,6 @@ def do_configure(args):
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += libclc_amd_target_names
 
-            # The HIP plugin for AMD uses lld for linking
-            llvm_enable_projects += ';lld'
         elif args.hip_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += libclc_nvidia_target_names
@@ -126,6 +128,7 @@ def do_configure(args):
                 libclc_targets_to_build += libclc_amd_target_names
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
+            libclc_gen_remangled_variants = 'ON'
 
     if args.enable_plugin:
         sycl_enabled_plugins += args.enable_plugin
@@ -222,7 +225,8 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
-    parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--host-target", default='X86',
+                        help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")

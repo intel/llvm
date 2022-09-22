@@ -17,6 +17,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "l0_gen9"
+      cts_config: "cuda"
   linux_default:
     name: Linux Default
     needs: test_matrix
@@ -26,6 +27,7 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_artifact_suffix: "post_commit"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
     name: Linux (no assert)

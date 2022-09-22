@@ -32,6 +32,18 @@ struct IL {
   int Field;
 };
 
+// Skip unions.
+union NU {
+  NU(const NU &Other) : Field(Other.Field) {}
+  // CHECK-FIXES: NU(const NU &Other) :
+  NU &operator=(const NU &Other) {
+    Field = Other.Field;
+    return *this;
+  }
+  // CHECK-FIXES: NU &operator=(const NU &Other) {
+  IL Field;
+};
+
 // Wrong type.
 struct WT {
   WT(const IL &Other) {}
@@ -431,6 +443,13 @@ struct WRT : IL {
 IL &WRT::operator=(const WRT &Other) {
   return *this;
 }
+
+// Wrong return type.
+struct WRTConstRef {
+  const WRTConstRef &operator = (const WRTConstRef &) {
+    return *this;
+  }
+};
 
 // Try-catch.
 struct ITC {
