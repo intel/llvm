@@ -8231,12 +8231,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
           TargetDeviceOffloadKind == Action::OFK_SYCL) {
         if (UI.DependentOffloadKind == Action::OFK_Host)
           Arch = StringRef();
-        else {
-          if (TC->getTriple().isSPIR())
-            Arch = BoundArch;
-          else
-            Arch = UI.DependentBoundArch;
-        }
+        else
+          Arch = UI.DependentBoundArch;
       } else
         Arch = BoundArch;
       // When unbundling for SYCL and there is no Target offload, assume
