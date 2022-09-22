@@ -466,8 +466,6 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
-  bool checkRecordReadinessForRelease(MemObjRecord *Record,
-                                      ReadLockT &GraphReadLock, bool ForceWait);
   void cleanupDeferredMemObjects(bool ForceWait);
   inline void releaseMemObjRecord(
       detail::SYCLMemObjI *MemObj,
@@ -764,15 +762,20 @@ protected:
                                BlockingT Blocking = NON_BLOCKING);
   };
 
-  /// This function waits on all of the graph leaves which somehow use the
-  /// memory object which is represented by \c Record. The function is called
-  /// upon destruction of memory buffer.
-  /// \param Record memory record to await graph leaves of to finish
-  /// \param GraphReadLock locked graph read lock
+  /// This function conditionally waits on all of the graph leaves which somehow
+  /// use the memory object which is represented by \c Record. The function is
+  /// called upon destruction of memory buffer. \param Record memory record to
+  /// await graph leaves of to finish \param GraphReadLock locked graph read
+  /// lock \param ForceWait flag to identify if we need to wait for all
+  /// dependencies
   ///
   /// GraphReadLock will be unlocked/locked as needed. Upon return from the
   /// function, GraphReadLock will be left in locked state.
-  void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
+  /// \return true if all record dependencies and release commands are
+  /// completed, otherwise - false. Must always return true if ForceWait ==
+  /// true.
+  bool waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock,
+                             bool ForceWait);
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
