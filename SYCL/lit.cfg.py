@@ -437,7 +437,7 @@ for aot_tool in aot_tools:
     else:
         lit_config.warning("Couldn't find pre-installed AOT device compiler " + aot_tool)
 
-# Set timeout for test 1 min
+# Set timeout for a single test
 try:
     import psutil
     lit_config.maxIndividualTestTime = 600
