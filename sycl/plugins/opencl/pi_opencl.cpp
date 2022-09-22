@@ -882,6 +882,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
     for (size_t i = 1; i < max_dims; ++i)
       WGSizes.get()[i] = 1;
     implicit_input_value = std::move(WGSizes);
+    input_value_size = max_dims * sizeof(size_t);
     input_value = implicit_input_value.get();
   }
 
