@@ -6660,7 +6660,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   printZeEventList(WaitList);
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
-    (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
+          (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
 
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
