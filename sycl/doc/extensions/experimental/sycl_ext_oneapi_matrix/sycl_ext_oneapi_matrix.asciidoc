@@ -137,9 +137,9 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          use U, access::address_space Space>
+          use Use, access::address_space Space>
   void joint_matrix_load(Group sg,
-    joint_matrix<T, U, NumRows, NumCols, layout::unused, Group> &res,
+    joint_matrix<T, Use, NumRows, NumCols, layout::unused, Group> &res,
     multi_ptr<T, Space> src, size_t stride, layout memL);
 }
 ```
@@ -150,9 +150,9 @@ This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          use U, access::address_space Space>
+          use Use, access::address_space Space>
   void joint_matrix_store(Group sg,
-    joint_matrix<T, U, NumRows, NumCols, layout::unused, Group> &res,
+    joint_matrix<T, Use, NumRows, NumCols, layout::unused, Group> &res,
     multi_ptr<T, Space> src, size_t stride, layout memL);
 }
 ```
@@ -179,8 +179,8 @@ The current interface presented above assumes that all the matrices are directly
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-           use U, layout L, typename Tv>
-  void joint_matrix_fill(Group sg, joint_matrix<T, U, NumRows, NumCols, L, Group> &m, Tv v);
+           use Use, layout Layout, typename Tv>
+  void joint_matrix_fill(Group sg, joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &m, Tv v);
 }
 ```
 IMPORTANT: In the current implementation, only the subgroup scope is supported.  
@@ -219,18 +219,18 @@ The code listing below shows a synopsis of these new APIs.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, size_t NumRows, size_t NumCols,
-          use U, layout L = layout::unused,
+          use Use, layout Layout = layout::unused,
           typename Group = sycl::sub_group>
 struct joint_matrix {
    wi_data<T, U, NumRows, NumCols, L, Group> get_wi_data();
 };
-template <typename T, size_t NumRows, size_t NumCols, use U, layout L, typename Group>
+template <typename T, size_t NumRows, size_t NumCols, use Use, layout Layout, typename Group>
 class wi_data {
   size_t length();
   wi_element<T, NumRows, NumCols, U, L, Group> operator[](size_t i);
 };
 template <typename T, size_t NumRows, size_t NumCols,
-          use U, layout L = layout::unused,
+          use Use, layout Layout = layout::unused,
           typename Group = sycl::sub_group>
 class wi_element {
   operator T();
