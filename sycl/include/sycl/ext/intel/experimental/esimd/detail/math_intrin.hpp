@@ -12,12 +12,17 @@
 
 /// @cond ESIMD_DETAIL
 
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<T>, SZ>
+  sycl::ext::intel::esimd::detail::vector_type_t<                              \
+      sycl::ext::intel::esimd::detail::__raw_t<T>, SZ>
 #define __ESIMD_cpp_vec_t(T, SZ)                                               \
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__cpp_t<T>, SZ>
+  sycl::ext::intel::esimd::detail::vector_type_t<                              \
+      sycl::ext::intel::esimd::detail::__cpp_t<T>, SZ>
 
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
@@ -448,23 +453,14 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
       __ESIMD_EMU_DNS::SetSatur<T2,
                                 __ESIMD_EMU_DNS::is_inttype<RT>::value>::set();
 
-  constexpr __ESIMD_NS::uint ops_per_chan =
-      src1_precision == __ESIMD_ENS::argument_type::BF16 ||
-              src1_precision == __ESIMD_ENS::argument_type::FP16 ||
-              src2_precision == __ESIMD_ENS::argument_type::BF16 ||
-              src2_precision == __ESIMD_ENS::argument_type::FP16
-          ? 2
-      : src1_precision == __ESIMD_ENS::argument_type::S8 ||
-              src1_precision == __ESIMD_ENS::argument_type::U8 ||
-              src2_precision == __ESIMD_ENS::argument_type::S8 ||
-              src2_precision == __ESIMD_ENS::argument_type::U8
-          ? 4
-          : 8;
-
   __ESIMD_NS::uint V = 0, U = 0, k = 0, temp = 0, src1_ops_per_dword = 0, p = 0;
 
   constexpr auto src1_el_bits = __esimd_dpas_bits_precision(src1_precision);
   constexpr auto src2_el_bits = __esimd_dpas_bits_precision(src2_precision);
+
+  constexpr auto max_el_bits = std::max(src1_el_bits, src2_el_bits);
+  constexpr __ESIMD_NS::uint ops_per_chan =
+      std::min(32 / max_el_bits, static_cast<__ESIMD_NS::uint>(8));
 
   uint32_t src1_signed =
       src1_precision == __ESIMD_ENS::argument_type::S2 ||
@@ -480,13 +476,12 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
           ? 1
           : 0;
 
-#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  constexpr bool isPvc = true;
-  constexpr size_t SIMDSize = 16;
-#else
-  constexpr bool isPvc = false;
-  constexpr size_t SIMDSize = 8;
-#endif
+  constexpr uint32_t src1_vec_bit_size = sizeof(T1) * N1 * 8;
+  constexpr uint32_t src1_num_elem = src1_vec_bit_size / src1_el_bits;
+  constexpr size_t SIMDSize = src1_num_elem / (systolic_depth * ops_per_chan);
+  static_assert(SIMDSize == 8 || SIMDSize == 16,
+                "Execution size must be 8 or 16");
+  constexpr bool isPvc = SIMDSize == 16;
 
   constexpr bool
       pvcHfDest = isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,

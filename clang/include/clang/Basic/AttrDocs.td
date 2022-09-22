@@ -127,6 +127,10 @@ relative ordering of values is important. For example:
 ``Obj2`` will be initialized *before* ``Obj1`` despite the usual order of
 initialization being the opposite.
 
+On Windows, ``init_seg(compiler)`` is represented with a priority of 200 and
+``init_seg(library)`` is represented with a priority of 400. ``init_seg(user)``
+uses the default 65535 priority.
+
 This attribute is only supported for C++ and Objective-C++ and is ignored in
 other language modes. Currently, this attribute is not implemented on z/OS.
   }];
@@ -3314,7 +3318,7 @@ disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
 function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-or ``ivdep``.
+``ivdep``, or ``max_reinvocation_delay``.
 
 .. code-block:: c++
 
@@ -3444,6 +3448,31 @@ loop should not be fused with any adjacent loop.
     }
   }
 
+  }];
+}
+
+def SYCLIntelFPGAMaxReinvocationDelayAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::max_reinvocation_delay";
+  let Content = [{
+This attribute applies to a loop. Specifies the maximum number of cycles allowed
+on the delay between the launch of the last iteration of a loop invocation and
+the launch of the first iteration of a new loop invocation. Parameter N is
+mandatory, and is a positive integer. Cannot be used on the same loop in
+conjunction with disable_loop_pipelining.
+
+.. code-block:: c++
+
+  void foo() {
+    int var = 0;
+    [[intel::max_reinvocation_delay(1)]]
+    for (int i = 0; sycl::log10((float)(x)) < 10; i++) var++;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::max_reinvocation_delay(N)]] for(;;) { }
+  }
   }];
 }
 
@@ -6114,6 +6143,16 @@ guaranteed to not throw an exception.
     }];
 }
 
+def NoUwtableDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``nouwtable`` attribute which skips emitting
+the unwind table entry for the specified function. This attribute is useful for
+selectively emitting the unwind table entry on some functions when building with
+``-funwind-tables`` compiler option.
+    }];
+}
+
 def InternalLinkageDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -6822,6 +6861,21 @@ aarch64/aarch64-be/riscv32/riscv64/i386/x86-64 targets.
 }];
 }
 
+def HotFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((hot))`` marks a function as hot, as a manual alternative to PGO hotness data.
+If PGO data is available, the annotation ``__attribute__((hot))`` overrides the profile count based hotness (unlike ``__attribute__((cold))``).
+}];
+}
+
+def ColdFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((cold))`` marks a function as cold, as a manual alternative to PGO hotness data.
+If PGO data is available, the profile count based hotness overrides the ``__attribute__((cold))`` annotation (unlike ``__attribute__((hot))``).
+}];
+}
 def TransparentUnionDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{

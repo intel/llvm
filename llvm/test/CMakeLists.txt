@@ -174,6 +174,10 @@ if(TARGET LTO)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} LTO)
 endif()
 
+if(TARGET spirv-to-ir-wrapper)
+  set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)
+endif()
+
 if(LLVM_BUILD_EXAMPLES)
   list(APPEND LLVM_TEST_DEPENDS
     Kaleidoscope-Ch3

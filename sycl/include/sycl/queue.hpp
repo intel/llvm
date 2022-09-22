@@ -163,6 +163,8 @@ public:
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), async_handler{}, PropList) {}
@@ -173,6 +175,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
@@ -199,6 +203,8 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const property_list &PropList = {});
 
@@ -210,6 +216,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
@@ -270,6 +278,8 @@ public:
   device get_device() const;
 
   /// \return true if this queue is a SYCL host queue.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Queries SYCL queue for information.
@@ -294,28 +304,24 @@ public:
     _CODELOCARG(&CodeLoc);
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
-      auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
-                                          event &E) {
-        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert && !device_has(aspect::accelerator)) {
-          // __devicelib_assert_fail isn't supported by Device-side Runtime
-          // Linking against fallback impl of __devicelib_assert_fail is
-          // performed by program manager class
-          // Fallback assert isn't supported for FPGA
-          submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
-                              CodeLoc);
-        }
-      };
+    auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
+                                        event &E) {
+      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+          KernelUsesAssert && !device_has(aspect::accelerator)) {
+        // __devicelib_assert_fail isn't supported by Device-side Runtime
+        // Linking against fallback impl of __devicelib_assert_fail is
+        // performed by program manager class
+        // Fallback assert isn't supported for FPGA
+        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
+      }
+    };
 
-      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
-      return discard_or_return(Event);
-    } else
+    auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+    return discard_or_return(Event);
+#else
+    auto Event = submit_impl(CGF, CodeLoc);
+    return discard_or_return(Event);
 #endif // __SYCL_USE_FALLBACK_ASSERT
-    {
-      auto Event = submit_impl(CGF, CodeLoc);
-      return discard_or_return(Event);
-    }
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -334,34 +340,27 @@ public:
     _CODELOCARG(&CodeLoc);
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
-      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-                             bool IsKernel, bool KernelUsesAssert, event &E) {
-        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert && !device_has(aspect::accelerator)) {
-          // Only secondary queues on devices need to be added to the assert
-          // capture.
-          // TODO: Handle case where primary queue is host but the secondary
-          // queue is not.
-          queue *DeviceSecondaryQueue =
-              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
-          // __devicelib_assert_fail isn't supported by Device-side Runtime
-          // Linking against fallback impl of __devicelib_assert_fail is
-          // performed by program manager class
-          // Fallback assert isn't supported for FPGA
-          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
-        }
-      };
+    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                           bool IsKernel, bool KernelUsesAssert, event &E) {
+      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+          KernelUsesAssert && !device_has(aspect::accelerator)) {
+        // Only secondary queues on devices need to be added to the assert
+        // capture.
+        // __devicelib_assert_fail isn't supported by Device-side Runtime
+        // Linking against fallback impl of __devicelib_assert_fail is
+        // performed by program manager class
+        // Fallback assert isn't supported for FPGA
+        submitAssertCapture(*this, E, &SecondaryQueue, CodeLoc);
+      }
+    };
 
-      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                               PostProcess);
-      return discard_or_return(Event);
-    } else
+    auto Event =
+        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
+    return discard_or_return(Event);
+#else
+    auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+    return discard_or_return(Event);
 #endif // __SYCL_USE_FALLBACK_ASSERT
-    {
-      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-      return discard_or_return(Event);
-    }
   }
 
   /// Prevents any commands submitted afterward to this queue from executing

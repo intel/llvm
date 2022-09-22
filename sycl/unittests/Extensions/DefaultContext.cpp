@@ -9,7 +9,6 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/config.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
@@ -25,17 +24,11 @@ TEST(DefaultContextTest, DefaultContextTest) {
   ScopedEnvVar var(EnableDefaultContextsName, "1",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt1{sycl::default_selector()};
-  if (Plt1.is_host()) {
-    std::cout << "Host platform does not support PI mock.\n";
-    return;
-  }
-  sycl::unittest::PiMock Mock1{Plt1};
-  setupDefaultMockAPIs(Mock1);
+  sycl::unittest::PiMock Mock1;
+  sycl::platform Plt1 = Mock1.getPlatform();
 
-  sycl::platform Plt2{sycl::default_selector()};
-  sycl::unittest::PiMock Mock2{Plt2};
-  setupDefaultMockAPIs(Mock2);
+  sycl::unittest::PiMock Mock2;
+  sycl::platform Plt2 = Mock2.getPlatform();
 
   const sycl::device Dev1 = Plt1.get_devices()[0];
   const sycl::device Dev2 = Plt2.get_devices()[0];
@@ -55,13 +48,8 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   ScopedEnvVar var(EnableDefaultContextsName, "0",
                    SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Host platform does not support PI mock.\n";
-    return;
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   bool catchException = false;
   try {

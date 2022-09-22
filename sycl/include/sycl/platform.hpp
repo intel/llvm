@@ -64,6 +64,8 @@ public:
   /// provided device selector.
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   explicit platform(const device_selector &DeviceSelector);
 
 #if __cplusplus >= 201703L
@@ -107,6 +109,8 @@ public:
   /// Checks if this SYCL platform is a host platform.
   ///
   /// \return true if this SYCL platform is a host platform.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Returns all SYCL devices associated with this platform.

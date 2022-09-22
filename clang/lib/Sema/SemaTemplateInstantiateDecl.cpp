@@ -507,7 +507,7 @@ static void instantiateOMPDeclareVariantAttr(
 
   SmallVector<Expr *, 8> NothingExprs;
   SmallVector<Expr *, 8> NeedDevicePtrExprs;
-  SmallVector<OMPDeclareVariantAttr::InteropType, 8> AppendArgs;
+  SmallVector<OMPInteropInfo, 4> AppendArgs;
 
   for (Expr *E : Attr.adjustArgsNothing()) {
     ExprResult ER = Subst(E);
@@ -521,7 +521,10 @@ static void instantiateOMPDeclareVariantAttr(
       continue;
     NeedDevicePtrExprs.push_back(ER.get());
   }
-  llvm::append_range(AppendArgs, Attr.appendArgs());
+  for (OMPInteropInfo &II : Attr.appendArgs()) {
+    // When prefer_type is implemented for append_args handle them here too.
+    AppendArgs.emplace_back(II.IsTarget, II.IsTargetSync);
+  }
 
   S.ActOnOpenMPDeclareVariantDirective(
       FD, E, TI, NothingExprs, NeedDevicePtrExprs, AppendArgs, SourceLocation(),
@@ -936,7 +939,7 @@ static bool isRelevantAttr(Sema &S, const Decl *D, const Attr *A) {
           FD->getReturnType()->isLValueReferenceType()) {
         return false;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Builtin::BImove:
     case Builtin::BImove_if_noexcept:
       // HACK: Super-old versions of libc++ (3.1 and earlier) provide
@@ -1614,7 +1617,30 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   // Only add this if we aren't instantiating a variable template.  We'll end up
   // adding the VarTemplateSpecializationDecl later.
   if (!InstantiatingVarTemplate) {
-    SemaRef.addSyclVarDecl(Var);
+    if (SemaRef.getLangOpts().SYCLIsDevice &&
+        SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Var->getType())) {
+      if (!Var->hasGlobalStorage())
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_incorrect_scope);
+
+      if (Var->getAccess() == AS_private || Var->getAccess() == AS_protected)
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_not_publicly_accessible)
+            << Var;
+
+      if (Var->isStaticLocal()) {
+        const DeclContext *DC = Var->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            SemaRef.Diag(D->getLocation(),
+                         diag::err_sycl_device_global_incorrect_scope);
+            break;
+          }
+          DC = DC->getParent();
+        }
+      }
+    }
     if (const auto *SYCLDevice = Var->getAttr<SYCLDeviceAttr>()) {
       if (!SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
               Var->getType()))
@@ -1622,6 +1648,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
                      diag::err_sycl_attribute_not_device_global)
             << SYCLDevice;
     }
+    SemaRef.addSyclVarDecl(Var);
   }
   return Var;
 }
@@ -1711,6 +1738,17 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
 
   Field->setImplicit(D->isImplicit());
   Field->setAccess(D->getAccess());
+  // Static members are not processed here, so error out if we have a device
+  // global without checking access modifier.
+  if (SemaRef.getLangOpts().SYCLIsDevice) {
+    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Field->getType())) {
+      SemaRef.Diag(D->getLocation(),
+                   diag::err_sycl_device_global_incorrect_scope);
+      Field->setInvalidDecl();
+      return nullptr;
+    }
+  }
   Owner->addDecl(Field);
 
   return Field;
@@ -2929,6 +2967,9 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
         Constructor->getConstexprKind(), InheritedConstructor(),
         TrailingRequiresClause);
     Method->setRangeEnd(Constructor->getEndLoc());
+    if (Constructor->isDefaultConstructor() ||
+        Constructor->isCopyOrMoveConstructor())
+      Method->setIneligibleOrNotSelected(true);
   } else if (CXXDestructorDecl *Destructor = dyn_cast<CXXDestructorDecl>(D)) {
     Method = CXXDestructorDecl::Create(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
@@ -2951,6 +2992,8 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo, SC,
         D->UsesFPIntrin(), D->isInlineSpecified(), D->getConstexprKind(),
         D->getEndLoc(), TrailingRequiresClause);
+    if (D->isMoveAssignmentOperator() || D->isCopyAssignmentOperator())
+      Method->setIneligibleOrNotSelected(true);
   }
 
   if (D->isInlined())
@@ -6611,6 +6654,8 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
 
       // Move to the outer template scope.
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(DC)) {
+        // FIXME: We should use `getNonTransparentDeclContext()` here instead
+        // of `getDeclContext()` once we find the invalid test case.
         if (FD->getFriendObjectKind() && FD->getDeclContext()->isFileContext()){
           DC = FD->getLexicalDeclContext();
           continue;
@@ -6864,7 +6909,7 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
 
 void Sema::PerformDependentDiagnostics(const DeclContext *Pattern,
                        const MultiLevelTemplateArgumentList &TemplateArgs) {
-  for (auto DD : Pattern->ddiags()) {
+  for (auto *DD : Pattern->ddiags()) {
     switch (DD->getKind()) {
     case DependentDiagnostic::Access:
       HandleDependentAccessCheck(*DD, TemplateArgs);

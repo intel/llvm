@@ -8,11 +8,32 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
+#include <helpers/PiMock.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 
 using namespace sycl;
 
+TEST_F(SchedulerTest, PostEnqueueCleanupForCommandDefault) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
+  auto Cmd = new MockCommand(detail::getSyclObjImpl(Q));
+  auto Event = Cmd->getEvent();
+  ASSERT_FALSE(Event == nullptr) << "Command must have an event\n";
+
+  detail::Scheduler::getInstance().waitForEvent(Event);
+  EXPECT_EQ(Event->getCommand(), nullptr) << "Command should be cleaned up\n";
+}
+
 TEST_F(SchedulerTest, WaitAfterCleanup) {
-  auto Cmd = new MockCommand(detail::getSyclObjImpl(MQueue));
+  unittest::ScopedEnvVar DisabledCleanup{
+      "SYCL_DISABLE_POST_ENQUEUE_CLEANUP", "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
+  auto Cmd = new MockCommand(detail::getSyclObjImpl(Q));
   auto Event = Cmd->getEvent();
   ASSERT_FALSE(Event == nullptr) << "Command must have an event\n";
 

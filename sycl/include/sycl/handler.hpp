@@ -380,15 +380,9 @@ private:
     return Storage;
   }
 
-  void setType(detail::CG::CGTYPE Type) {
-    constexpr detail::CG::CG_VERSION Version = detail::CG::CG_VERSION::V1;
-    MCGType = static_cast<detail::CG::CGTYPE>(
-        getVersionedCGType(Type, static_cast<int>(Version)));
-  }
+  void setType(detail::CG::CGTYPE Type) { MCGType = Type; }
 
-  detail::CG::CGTYPE getType() {
-    return static_cast<detail::CG::CGTYPE>(getUnversionedCGType(MCGType));
-  }
+  detail::CG::CGTYPE getType() { return MCGType; }
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
@@ -474,6 +468,7 @@ private:
 
   ~handler() = default;
 
+  // TODO: Private and unusued. Remove when ABI break is allowed.
   bool is_host() { return MIsHost; }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -521,7 +516,7 @@ private:
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
+    detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of requirements.
     MRequirements.push_back(Req);
     // Store copy of the accessor.
@@ -549,16 +544,10 @@ private:
                        sizeof(sampler), ArgIndex);
   }
 
+  // TODO: Unusued. Remove when ABI break is allowed.
   void verifyKernelInvoc(const kernel &Kernel) {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This kernel invocation method cannot be used on the host",
-          PI_ERROR_INVALID_DEVICE);
-    }
-    if (Kernel.is_host()) {
-      throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_ERROR_INVALID_KERNEL);
-    }
+    std::ignore = Kernel;
+    return;
   }
 
   /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
@@ -730,10 +719,18 @@ private:
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
-    static_assert(!KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
-                  "Unexpected kernel lambda size. This can be caused by an "
-                  "external host compiler producing a lambda with an "
-                  "unexpected layout. This is a limitation of the compiler.");
+    static_assert(
+        !KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
+        "Unexpected kernel lambda size. This can be caused by an "
+        "external host compiler producing a lambda with an "
+        "unexpected layout. This is a limitation of the compiler."
+        "In many cases the difference is related to capturing constexpr "
+        "variables. In such cases removing constexpr specifier aligns the "
+        "captures between the host compiler and the device compiler."
+        "\n"
+        "In case of MSVC, passing "
+        "-fsycl-host-compiler-options='/std:c++latest' "
+        "might also help.");
 
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
@@ -1064,7 +1061,6 @@ private:
   template <int Dims>
   void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
@@ -1746,7 +1742,7 @@ public:
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm || Reduction::is_dw_acc) {
+    if (Reduction::is_usm) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
@@ -1754,39 +1750,14 @@ public:
   }
 
   // This version of parallel_for may handle one or more reductions packed in
-  // \p Rest argument. Note thought that the last element in \p Rest pack is
-  // the kernel function.
+  // \p Rest argument. The last element in \p Rest pack is the kernel function,
+  // everything else is reduction(s).
   // TODO: this variant is currently enabled for 2+ reductions only as the
   // versions handling 1 reduction variable are more efficient right now.
   //
-  // Algorithm:
-  // 1) discard_write accessor (DWAcc), InitializeToIdentity = true:
-  //    a) Create uninitialized buffer and read_write accessor (RWAcc).
-  //    b) discard-write partial sums to RWAcc.
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  //    d) Copy RWAcc to DWAcc.
-  // 2) read_write accessor (RWAcc), InitializeToIdentity = false:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's RWAcc (if #work-groups is 1).
-  //    b) discard-write to RWAcc (#WG > 1), or update-write (#WG == 1).
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  // 3) read_write accessor (RWAcc), InitializeToIdentity = true:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's RWAcc (if #work-groups is 1).
-  //    b) discard-write to RWAcc.
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  // 4) USM pointer, InitializeToIdentity = false:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's USM pointer (if #work-groups is 1).
-  //    b) discard-write to RWAcc (#WG > 1) or
-  //       update-write to USM pointer (#WG == 1).
-  //    c) Repeat the steps (a) and (b) to get one final sum.
-  // 5) USM pointer, InitializeToIdentity = true:
-  //    a) Create new uninitialized buffer (if #work-groups > 1) and RWAcc or
-  //       re-use user's USM pointer (if #work-groups is 1).
-  //    b) discard-write to RWAcc (#WG > 1) or
-  //       discard-write to USM pointer (#WG == 1).
-  //    c) Repeat the steps (a) and (b) to get one final sum.
+  // This is basically a tree reduction where we re-use user's reduction
+  // variable instead of creating temporary storage for the last iteration
+  // (#WG == 1).
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<(sizeof...(RestT) >= 3 &&
@@ -1823,11 +1794,6 @@ public:
             AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       });
     } // end while (NWorkItems > 1)
-
-    auto CopyEvent = detail::reduSaveFinalResultToUserMem(
-        QueueCopy, MIsHost, ReduTuple, ReduIndices);
-    if (CopyEvent)
-      MLastEvent = *CopyEvent;
   }
 #endif // __cplusplus >= 201703L
 
@@ -1905,7 +1871,6 @@ public:
   /// \param Kernel is a SYCL kernel object.
   void single_task(kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1942,7 +1907,6 @@ public:
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
@@ -1961,7 +1925,6 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
     throwIfActionIsCreated();
-    verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
@@ -2572,7 +2535,7 @@ private:
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// The list of requirements to the memory objects for the scheduling.
-  std::vector<detail::Requirement *> MRequirements;
+  std::vector<detail::AccessorImplHost *> MRequirements;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;

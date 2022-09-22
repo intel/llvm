@@ -1,7 +1,7 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=100 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -57,9 +57,6 @@ int main() {
   sycl::kernel Kernel{ClKernel, Ctx};
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
-
-  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
-  sycl::program Prog{Ctx};
 
   sycl::buffer<int, 1> Buffer(4);
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
@@ -196,6 +193,17 @@ int main() {
   group.get_id(1);
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
+
+  // expected-warning@+1{{'default_selector' is deprecated: Use the callable sycl::default_selector_v instead.}}
+  sycl::default_selector ds;
+  // expected-warning@+1{{'cpu_selector' is deprecated: Use the callable sycl::cpu_selector_v instead.}}
+  sycl::cpu_selector cs;
+  // expected-warning@+1{{'gpu_selector' is deprecated: Use the callable sycl::gpu_selector_v instead.}}
+  sycl::gpu_selector gs;
+  // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
+  sycl::accelerator_selector as;
+  // expected-warning@+1{{'host_selector' is deprecated: Host device is no longer supported.}}
+  sycl::host_selector hs;
 
   // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
   Queue.submit([&](sycl::handler &CGH) {

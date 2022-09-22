@@ -1568,6 +1568,8 @@ def err_constexpr_if_condition_expression_is_not_constant : Error<
 def err_static_assert_failed : Error<"static assertion failed%select{: %1|}0">;
 def err_static_assert_requirement_failed : Error<
   "static assertion failed due to requirement '%0'%select{: %2|}1">;
+def note_expr_evaluates_to : Note<
+  "expression evaluates to '%0 %1 %2'">;
 
 def warn_consteval_if_always_true : Warning<
   "consteval if is always true in an %select{unevaluated|immediate}0 context">,
@@ -3895,6 +3897,9 @@ def warn_impcast_integer_64_32 : Warning<
 def warn_impcast_integer_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ConstantConversion>;
+def warn_impcast_single_bit_bitield_precision_constant : Warning<
+  "implicit truncation from %2 to a one-bit wide bit-field changes value from "
+  "%0 to %1">, InGroup<SingleBitBitFieldConstantConversion>;
 def warn_impcast_bitfield_precision_constant : Warning<
   "implicit truncation from %2 to bit-field changes value from %0 to %1">,
   InGroup<BitFieldConstantConversion>;
@@ -4098,6 +4103,11 @@ def warn_transparent_union_attribute_zero_fields : Warning<
 def warn_attribute_type_not_supported : Warning<
   "%0 attribute argument not supported: %1">,
   InGroup<IgnoredAttributes>;
+def warn_attribute_type_not_supported_global : Warning<
+  "%0 attribute argument '%1' not supported on a global variable">,
+  InGroup<IgnoredAttributes>;
+def err_attribute_argument_not_supported : Error<
+  "%0 attribute argument %1 is not supported">;
 def warn_attribute_unknown_visibility : Warning<"unknown visibility %0">,
   InGroup<IgnoredAttributes>;
 def warn_attribute_protected_visibility :
@@ -7219,9 +7229,11 @@ def warn_format_nonliteral : Warning<
   InGroup<FormatNonLiteral>, DefaultIgnore;
 
 def err_sycl_device_global_incorrect_scope : Error<
-  "'device_global' variables must be static or declared at namespace scope">;
+  "'device_global' variable must be a static data member or declared in global or namespace scope">;
 def err_sycl_device_global_not_publicly_accessible: Error<
-  "'device_global' member variable %0 is not publicly accessible from namespace scope">;
+  "'device_global' member variable %0 should be publicly accessible from namespace scope">;
+def err_sycl_device_global_array : Error<
+  "'device_global' array is not allowed">;
 
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;
@@ -8221,24 +8233,6 @@ def err_typecheck_convert_incompatible_pointer : Error<
   "; take the address with &|"
   "; remove *|"
   "; remove &}3">;
-def ext_typecheck_convert_incompatible_function_pointer : ExtWarn<
-  "incompatible function pointer types "
-  "%select{%diff{assigning to $ from $|assigning to different types}0,1"
-  "|%diff{passing $ to parameter of type $|"
-  "passing to parameter of different type}0,1"
-  "|%diff{returning $ from a function with result type $|"
-  "returning from function with different return type}0,1"
-  "|%diff{converting $ to type $|converting between types}0,1"
-  "|%diff{initializing $ with an expression of type $|"
-  "initializing with expression of different type}0,1"
-  "|%diff{sending $ to parameter of type $|"
-  "sending to parameter of different type}0,1"
-  "|%diff{casting $ to type $|casting between types}0,1}2"
-  "%select{|; dereference with *|"
-  "; take the address with &|"
-  "; remove *|"
-  "; remove &}3">,
-  InGroup<IncompatibleFunctionPointerTypes>;
 def err_typecheck_convert_incompatible_function_pointer : Error<
   "incompatible function pointer types "
   "%select{%diff{assigning to $ from $|assigning to different types}0,1"
@@ -8256,6 +8250,9 @@ def err_typecheck_convert_incompatible_function_pointer : Error<
   "; take the address with &|"
   "; remove *|"
   "; remove &}3">;
+def ext_typecheck_convert_incompatible_function_pointer : ExtWarn<
+  err_typecheck_convert_incompatible_function_pointer.Text>,
+  InGroup<IncompatibleFunctionPointerTypes>, DefaultError;
 def ext_typecheck_convert_discards_qualifiers : ExtWarn<
   "%select{%diff{assigning to $ from $|assigning to different types}0,1"
   "|%diff{passing $ to parameter of type $|"
@@ -8751,6 +8748,10 @@ def err_typecheck_expect_flt_or_vector : Error<
   "a vector of such types is required">;
 def err_cast_selector_expr : Error<
   "cannot type cast @selector expression">;
+def err_make_signed_integral_only : Error<
+  "'%select{make_unsigned|make_signed}0' is only compatible with "
+  "non-%select{bool|_BitInt(1)}1 integers and enum types, but was given "
+  "%2%select{| whose underlying type is %4}3">;
 def ext_typecheck_cond_incompatible_pointers : ExtWarn<
   "pointer type mismatch%diff{ ($ and $)|}0,1">,
   InGroup<DiagGroup<"pointer-type-mismatch">>;
@@ -9077,8 +9078,6 @@ def ext_ms_anonymous_record : ExtWarn<
 def err_reference_to_local_in_enclosing_context : Error<
   "reference to local %select{variable|binding}1 %0 declared in enclosing "
   "%select{%3|block literal|lambda expression|context}2">;
-def err_bitfield_capture_by_ref : Error<
-  "cannot capture a bit-field by reference">;
 def err_capture_binding_openmp : Error<
   "capturing a structured binding is not yet supported in OpenMP">;
 def ext_capture_binding : ExtWarn<
@@ -10473,6 +10472,9 @@ def err_omp_unexpected_clause_value : Error<
   "expected %0 in OpenMP clause '%1'">;
 def err_omp_expected_var_name_member_expr : Error<
   "expected variable name%select{| or data member of current class}0">;
+def err_omp_expected_var_name_member_expr_with_type : Error<
+  "expected variable%select{| or static data member|, static data member, "
+  "or non-static data member of current class}0 of type '%1'">;
 def err_omp_expected_var_name_member_expr_or_array_item : Error<
   "expected variable name%select{|, data member of current class}0, array element or array section">;
 def err_omp_expected_addressable_lvalue_or_array_item : Error<
@@ -11224,6 +11226,8 @@ def err_export_using_internal : Error<
 def err_export_not_in_module_interface : Error<
   "export declaration can only be used within a module interface unit"
   "%select{ after the module declaration|}0">;
+def err_export_inline_not_defined : Error<
+  "inline function not defined%select{| before the private module fragment}0">;
 def err_export_partition_impl : Error<
   "module partition implementations cannot be exported">;
 def err_export_in_private_module_fragment : Error<
@@ -11342,6 +11346,9 @@ def warn_always_inline_coroutine : Warning<
   InGroup<AlwaysInlineCoroutine>;
 def err_coroutine_unusable_new : Error<
   "'operator new' provided by %0 is not usable with the function signature of %1"
+>;
+def err_coroutine_unfound_nothrow_new : Error <
+  "unable to find '::operator new(size_t, nothrow_t)' for %0"
 >;
 } // end of coroutines issue category
 
@@ -11882,7 +11889,11 @@ def err_hlsl_attr_unsupported_in_stage : Error<"attribute %0 is unsupported in %
 
 def err_hlsl_numthreads_argument_oor : Error<"argument '%select{X|Y|Z}0' to numthreads attribute cannot exceed %1">;
 def err_hlsl_numthreads_invalid : Error<"total number of threads cannot exceed %0">;
+def err_hlsl_missing_numthreads : Error<"missing numthreads attribute for %0 shader entry">;
 def err_hlsl_attribute_param_mismatch : Error<"%0 attribute parameters do not match the previous declaration">;
+def err_hlsl_missing_semantic_annotation : Error<
+  "semantic annotations must be present for all parameters of an entry "
+  "function or patch constant function">;
 
 def err_hlsl_pointers_unsupported : Error<
   "%select{pointers|references}0 are unsupported in HLSL">;
