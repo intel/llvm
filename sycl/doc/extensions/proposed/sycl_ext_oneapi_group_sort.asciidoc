@@ -908,7 +908,10 @@ namespace sycl::ext::oneapi::experimental::property
 }
 ----
 
-1. `input_data_placement` specifies the data placement for input.
+1. `input_data_placement` specifies the data placement for input. This is
+useful for stable sorts, which preserve the relative input order for elements
+that compare equal or algorithms that can use a fact that sequences
+can be partially sorted.
 2. `output_data_placement` specifies the data placement for output.
 
 Example:
