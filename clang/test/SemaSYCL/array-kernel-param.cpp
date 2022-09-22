@@ -557,7 +557,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithNestedPointer[2]' lvalue .StructWithNestedPointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:133:9)'
 // CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'

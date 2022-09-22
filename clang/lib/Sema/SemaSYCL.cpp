@@ -1745,11 +1745,6 @@ class SyclKernelDecompMarker : public SyclKernelFieldHandler {
   llvm::SmallVector<bool, 16> CollectionStack;
   llvm::SmallVector<bool, 16> PointerStack;
 
-  // TODO: Remove this method once arrays are handled correctly.
-  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
-  }
-
 public:
   static constexpr const bool VisitUnionBody = false;
   static constexpr const bool VisitNthArrayElement = false;
@@ -1776,7 +1771,7 @@ public:
     return true;
   }
 
-  bool handlePointerType(FieldDecl *FD, QualType Ty) final {
+  bool handlePointerType(FieldDecl *, QualType) final {
     PointerStack.back() = true;
     return true;
   }
@@ -1787,7 +1782,7 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
     // If a record needs to be decomposed, it is marked with
     // SYCLRequiresDecompositionAttr. Else if a record contains
     // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
@@ -2998,7 +2993,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // Adds default initializer for generated type and creates
-  // a call to __builtin_memcpy to iniatilize local clone from
+  // a call to __builtin_memcpy to initialize local clone from
   // kernel argument.
   void handleGeneratedType(FieldDecl *FD, QualType Ty) {
     addFieldInit(FD, Ty, None,

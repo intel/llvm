@@ -53,6 +53,17 @@ struct StructWithPtr {
   int i;
 };
 
+struct NonTrivialType {
+  int *Ptr;
+  int i;
+  NonTrivialType(int i){}
+};
+
+struct NonTrivialDerived : NonTrivialType {
+  int a;
+  NonTrivialDerived(int i) : NonTrivialType(i) {}
+};
+
 template <typename T>
 struct StructWithArray {
   T a;
@@ -67,20 +78,12 @@ struct DerivedStruct : T {
   int i;
 };
 
-struct NonTrivialType {
-  int *Ptr;
-  int i;
-  NonTrivialType(int i){}
-};
-
 int main() {
 
   StructNonDecomposed SimpleStruct;
   StructNonDecomposed ArrayOfSimpleStruct[5];
   StructWithNonDecomposedStruct NonDecompStruct;
   StructWithNonDecomposedStruct ArrayOfNonDecompStruct[5];
-  StructWithPtr SimpleStructWithPtr;
-  NonTrivialType NonTrivialStructWithPtr(10);
 
   // Check to ensure that these are not decomposed.
   myQueue.submit([&](sycl::handler &h) {
@@ -170,23 +173,45 @@ int main() {
   }
 
   {
+    StructWithPtr SimpleStructWithPtr;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Pointer>([=]() { return SimpleStructWithPtr.i; });
     });
     // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (__generated_StructWithPtr)'
 
-    DerivedStruct<StructWithPtr> t1;
+    // FIXME: Stop decomposition of arrays with pointers
+    StructWithArray<StructWithPtr> t1;
     myQueue.submit([&](sycl::handler &h) {
-      h.single_task<class PointerInBase>([=]() { return t1.i; });
+      h.single_task<class NestedArrayOfStructWithPointer>([=]() { return t1.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}NestedArrayOfStructWithPointer{{.*}} 'void (__generated_StructWithPtr, __generated_StructWithPtr, __generated_StructWithPtr, StructNonDecomposed, int)'
+
+    DerivedStruct<StructWithPtr> t2;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class PointerInBase>([=]() { return t2.i; });
     });
     // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (__generated_DerivedStruct)'
   }
 
   {
     // FIXME: Stop decomposition for non-trivial types with pointers. 
+
+    NonTrivialType NonTrivialStructWithPtr(10);
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivial>([=]() { return NonTrivialStructWithPtr.i;});
     });
     // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__wrapper_class, int)'
+
+    NonTrivialType NonTrivialTypeArray[2]{0,0};
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class ArrayOfNonTrivialStruct>([=]() { return NonTrivialTypeArray[0].i;});
+    });
+    // CHECK: FunctionDecl {{.*}}ArrayOfNonTrivialStruct{{.*}} 'void (__wrapper_class, int, __wrapper_class, int)'
+
+    NonTrivialDerived NonTrivialDerivedStructWithPtr(10);
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class NonTrivialStructInBase>([=]() { return NonTrivialDerivedStructWithPtr.i;});
+    });
+    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__wrapper_class, int, int)'
   }
 }
