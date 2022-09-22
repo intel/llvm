@@ -22,7 +22,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::esimd::detail {
 
 // Standalone definitions to use w/o instantiating element_type_traits.
-using tfloat32 = sycl::ext::oneapi::experimental::tfloat32;
+using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
 
 template <> struct element_type_traits<tfloat32> {
   using RawT = unsigned int;

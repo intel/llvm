@@ -14,8 +14,9 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
-namespace oneapi {
+namespace intel {
 namespace experimental {
+namespace esimd {
 
 class tfloat32 {
   using storage_t = uint32_t;
@@ -59,8 +60,9 @@ public:
   friend tfloat32 operator-(tfloat32 &lhs) { return tfloat32(-to_float(lhs)); }
 };
 
+} // namespace esimd
 } // namespace experimental
-} // namespace oneapi
+} // namespace intel
 } // namespace ext
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
