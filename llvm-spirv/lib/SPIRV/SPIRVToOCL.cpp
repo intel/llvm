@@ -1127,7 +1127,7 @@ std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
   return OCLOpaqueName;
 }
 
-void SPIRVToOCLBase::getParameterTypes(CallInst *CI,
+ void SPIRVToOCLBase::getParameterTypes(CallInst *CI,
                                        SmallVectorImpl<Type *> &Tys) {
   ::getParameterTypes(CI->getCalledFunction(), Tys, translateOpaqueType);
 }

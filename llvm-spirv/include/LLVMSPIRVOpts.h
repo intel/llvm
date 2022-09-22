@@ -181,6 +181,14 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  bool useOpaqueType() const {
+    return UseOpaqueType;
+  }
+
+  void setUseOpaqueType(bool Value) {
+    UseOpaqueType = Value;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -221,6 +229,8 @@ private:
   // Add a workaround to preserve OpenCL kernel_arg_type and
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
+
+  bool UseOpaqueType = false;
 };
 
 } // namespace SPIRV

@@ -366,8 +366,14 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
   if (Loc != TypeMap.end() && !UseTPT)
     return Loc->second;
 
+  bool UseOpaqueType = BM->useOpaqueType();
+
   auto MakeOpaqueType = [&](StringRef Name,
                             unsigned AS = SPIRAS_Global) -> Type * {
+    if (UseOpaqueType) {
+      return llvm::OpaqueType::get(*Context, Name);
+    }
+
     Type *StructTy = getOrCreateOpaqueStructType(M, Name);
     // Return a PointerType or TypedPointerType as appropriate. Note that the
     // call to getOrCreateOpaqueStructType above will ensure that we do not

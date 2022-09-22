@@ -82,6 +82,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/Casting.h"
@@ -471,6 +472,9 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     return mapType(T, getSPIRVFunctionType(RT, PT));
   }
 
+  if (auto *OpaqueTy = dyn_cast<OpaqueType>(T)) {
+    return transSPIRVOpaqueType(OpaqueTy->getName(), SPIRAS_Global);
+  }
   llvm_unreachable("Not implemented!");
   return 0;
 }
@@ -546,7 +550,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
       default:
         return SaveType(BM->addOpaqueGenericType(OpCode));
       case OpTypeDeviceEvent:
-        return SaveType(BM->addDeviceEventType());
+        return SaveType(transSPIRVOpaqueType("spirv.DeviceEvent", SPIRAS_Global));
       case OpTypeQueue:
         return SaveType(BM->addQueueType());
       }
@@ -671,6 +675,23 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(StringRef STName,
     return MappedTy;
   };
   StructType *ST = StructType::getTypeByName(M->getContext(), STName);
+
+  if (STName.consume_front("spirv.SampledImage.image")) {
+    // Clang can generate this for sampled image types. Change the type name to
+    // an OpenCL image type so we can get the appropriate suffixes for the
+    // image type.
+    Type *OclImageTy = StructType::getTypeByName(M->getContext(),
+        (Twine("opencl.image") + STName).str());
+    Type *ImageTy = adaptSPIRVImageType(M, OclImageTy);
+    Type *SampledImgTy = getSPIRVStructTypeByChangeBaseTypeName(
+        M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
+    return SaveType(transSPIRVOpaqueType(SampledImgTy->getStructName(), AddrSpace));
+  } else if (STName.consume_front("spirv.Image.image")) {
+    Type *OclImageTy = StructType::getTypeByName(M->getContext(),
+        (Twine("opencl.image") + STName).str());
+    Type *ImageTy = adaptSPIRVImageType(M, OclImageTy);
+    return SaveType(transSPIRVOpaqueType(ImageTy->getStructName(), AddrSpace));
+  }
 
   assert(STName.startswith(kSPIRVTypeName::PrefixAndDelim) &&
          "Invalid SPIR-V opaque type name");
@@ -4874,9 +4895,14 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // for this call, because there is no support for type corresponding to
     // OpTypeSampledImage. So, in this case, we create the required type here.
     Value *Image = CI->getArgOperand(0);
-    SmallVector<Type *, 4> ParamTys;
-    getParameterTypes(CI, ParamTys);
-    Type *ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
+    Type *ImageTy;
+    if (auto *OpaqueTy = dyn_cast<OpaqueType>(Image->getType())) {
+      ImageTy = getOrCreateOpaqueStructType(M, OpaqueTy->getName());
+    } else {
+      SmallVector<Type *, 4> ParamTys;
+      getParameterTypes(CI, ParamTys);
+      ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
+    }
     Type *SampledImgTy = getSPIRVStructTypeByChangeBaseTypeName(
         M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
     Value *Sampler = CI->getArgOperand(1);

@@ -49,6 +49,7 @@
 #include "ParameterType.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDWalker.h"
+#include "SPIRVOpaqueType.h"
 #include "libSPIRV/SPIRVDecorate.h"
 #include "libSPIRV/SPIRVValue.h"
 
@@ -1079,21 +1080,6 @@ Value *castToInt8Ptr(Value *V, Instruction *Pos) {
       V, getInt8PtrTy(cast<PointerType>(V->getType())), "", Pos);
 }
 
-CallInst *addBlockBind(Module *M, Function *InvokeFunc, Value *BlkCtx,
-                       Value *CtxLen, Value *CtxAlign, Instruction *InsPos,
-                       StringRef InstName) {
-  auto BlkTy =
-      getOrCreateOpaquePtrType(M, SPIR_TYPE_NAME_BLOCK_T, SPIRAS_Private);
-  auto &Ctx = M->getContext();
-  Value *BlkArgs[] = {
-      castToInt8Ptr(InvokeFunc),
-      CtxLen ? CtxLen : UndefValue::get(Type::getInt32Ty(Ctx)),
-      CtxAlign ? CtxAlign : UndefValue::get(Type::getInt32Ty(Ctx)),
-      BlkCtx ? BlkCtx : UndefValue::get(Type::getInt8PtrTy(Ctx))};
-  return addCallInst(M, SPIR_INTRINSIC_BLOCK_BIND, BlkTy, BlkArgs, nullptr,
-                     InsPos, nullptr, InstName);
-}
-
 IntegerType *getSizetType(Module *M) {
   return IntegerType::getIntNTy(M->getContext(),
                                 M->getDataLayout().getPointerSizeInBits(0));
@@ -1330,6 +1316,22 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
   if (Ty->isPointerTy())
     Ty = TypedPointerType::get(Type::getInt8Ty(Ty->getContext()),
                                Ty->getPointerAddressSpace());
+  if (Ty->isOpaqueTy()) {
+    SPIRVOpaqueType OTy = *SPIRVOpaqueType::createFromType(Ty);
+    StringRef Name = OTy.getSPIRVName();
+    std::string Tmp;
+    if (Name.startswith(kSPIRVTypeName::PrefixAndDelim)) {
+      Name = Name.substr(sizeof(kSPIRVTypeName::PrefixAndDelim) - 1);
+      Tmp = Name.str();
+      auto Pos = Tmp.find(kSPIRVTypeName::Delimiter); // first dot
+      while (Pos != std::string::npos) {
+        Tmp[Pos] = '_';
+        Pos = Tmp.find(kSPIRVTypeName::Delimiter, Pos);
+      }
+      Name = Tmp = kSPIRVName::Prefix + Tmp;
+    }
+    return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
+  }
   if (Info.IsAtomic && !isa<TypedPointerType>(Ty)) {
     BuiltinArgTypeMangleInfo DTInfo = Info;
     DTInfo.IsAtomic = false;
@@ -2531,5 +2533,30 @@ MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
 template MetadataAsValue *
 map2MDString<internal::InternalJointMatrixLayout>(LLVMContext &, SPIRVValue *);
 template MetadataAsValue *map2MDString<spv::Scope>(LLVMContext &, SPIRVValue *);
+
+OpaqueType *SPIRVOpaqueType::getAsOpaqueType(Module &M) const {
+  return OpaqueType::create(M.getContext(), Name);
+}
+
+StructType *SPIRVOpaqueType::getAsSPIRVType(Module &M) const {
+  return getOrCreateOpaqueStructType(&M, Name);
+}
+
+Optional<SPIRVOpaqueType> SPIRVOpaqueType::createFromType(Type *Ty) {
+  StringRef TyName;
+  if (auto *TPT = dyn_cast<TypedPointerType>(Ty))
+    Ty = TPT->getElementType();
+  if (auto *STy = dyn_cast<StructType>(Ty))
+    TyName = STy->getName();
+  else if (auto *OTy = dyn_cast<OpaqueType>(Ty))
+    TyName = OTy->getName();
+  else
+    return {};
+
+  if (!TyName.startswith(kSPIRVTypeName::PrefixAndDelim))
+    return {};
+
+  return SPIRVOpaqueType(TyName);
+}
 
 } // namespace SPIRV

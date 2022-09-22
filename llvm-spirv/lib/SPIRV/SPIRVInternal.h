@@ -740,11 +740,6 @@ CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
                            ArrayRef<Type *> PointerElementTypes,
                            Instruction *Pos, StringRef InstName);
 
-/// Add a call of spir_block_bind function.
-CallInst *addBlockBind(Module *M, Function *InvokeFunc, Value *BlkCtx,
-                       Value *CtxLen, Value *CtxAlign, Instruction *InsPos,
-                       StringRef InstName = SPIR_TEMP_NAME_PREFIX_BLOCK);
-
 typedef std::pair<std::vector<Value *>::iterator,
                   std::vector<Value *>::iterator>
     ValueVecRange;
