@@ -1877,7 +1877,7 @@ public:
   size_t byte_size() const noexcept { return size() * sizeof(DataT); }
 
   size_t max_size() const noexcept {
-    return std::numeric_limits<difference_type>::max();
+    return (std::numeric_limits<difference_type>::max)();
   }
 
   bool empty() const noexcept { return size() == 0; }
@@ -2574,7 +2574,7 @@ public:
   size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
 
   size_t max_size() const noexcept {
-    return std::numeric_limits<difference_type>::max();
+    return (std::numeric_limits<difference_type>::max)();
   }
 
   bool empty() const noexcept { return this->size() == 0; }
