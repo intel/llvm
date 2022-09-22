@@ -1086,6 +1086,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("sycl_used_aspects",
                       llvm::MDNode::get(getLLVMContext(), AspectsMD));
     }
+
+    // SYCL needs to know the source location of functions for diagnostics in
+    // the aspect propagation pass. Save the token in a srcloc metadata node.
+    llvm::ConstantInt *Line =
+        llvm::ConstantInt::get(Int32Ty, D->getLocation().getRawEncoding());
+    llvm::ConstantAsMetadata *SrcLocMD = llvm::ConstantAsMetadata::get(Line);
+    llvm::MDTuple *SrcLocMDT = llvm::MDNode::get(getLLVMContext(), {SrcLocMD});
+    Fn->setMetadata("srcloc", SrcLocMDT);
   }
 
   if (getLangOpts().SYCLIsDevice && D &&
