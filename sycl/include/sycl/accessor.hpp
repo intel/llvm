@@ -1148,6 +1148,7 @@ public:
   using value_type = DataT;
   using reference = DataT &;
   using const_reference = const DataT &;
+  using difference_type = size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1863,6 +1864,8 @@ public:
 #endif
   }
 
+  void swap(accessor &other) { std::swap(impl, other.impl); }
+
   constexpr bool is_placeholder() const { return IsPlaceH; }
 
   size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
@@ -1870,6 +1873,14 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getAccessRange().size(); }
+
+  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+
+  size_t max_size() const noexcept {
+    return std::numeric_limits<difference_type>::max();
+  }
+
+  bool empty() const noexcept { return size() == 0; }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dimensions> get_range() const {
@@ -2529,12 +2540,6 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
   // Use base classes constructors
   using local_acc::local_acc;
 
-  using value_type = DataT;
-  using iterator = value_type *;
-  using const_iterator = const value_type *;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-
 #ifdef __SYCL_DEVICE_ONLY__
 
   // __init needs to be defined within the class not through inheritance.
@@ -2556,6 +2561,24 @@ public:
 #endif
 
 public:
+  using value_type = DataT;
+  using iterator = value_type *;
+  using const_iterator = const value_type *;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
+
+  void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
+
+  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+
+  size_t max_size() const noexcept {
+    return std::numeric_limits<difference_type>::max();
+  }
+
+  bool empty() const noexcept { return this->size() == 0; }
+
   iterator begin() const noexcept {
     return &this->operator[](id<Dimensions>());
   }
