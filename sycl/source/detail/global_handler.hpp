@@ -73,6 +73,9 @@ public:
 
   void unloadPlugins();
 
+  // For testing purposes only
+  bool attachScheduler(Scheduler *scheduler);
+
 private:
   friend void releaseDefaultContexts();
   friend void shutdown();

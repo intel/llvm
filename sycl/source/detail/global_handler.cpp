@@ -47,6 +47,14 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
   return *IWL.Inst;
 }
 
+bool GlobalHandler::attachScheduler(Scheduler *scheduler) {
+  const LockGuard Lock{MScheduler.Lock};
+  if (MScheduler.Inst)
+    return false;
+  MScheduler.Inst.reset(scheduler);
+  return true;
+}
+
 Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
 
 ProgramManager &GlobalHandler::getProgramManager() {

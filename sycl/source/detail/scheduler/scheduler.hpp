@@ -442,11 +442,12 @@ public:
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
-
-  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
+  // Virtual for testing purposes only
+  virtual void
+  deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   Scheduler();
-  ~Scheduler();
+  virtual ~Scheduler();
 
 protected:
   // TODO: after switching to C++17, change std::shared_timed_mutex to
