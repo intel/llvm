@@ -675,7 +675,7 @@ public:
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-    auto Event = q.memset(Counter.get(), 0, 4);
+    auto Event = q.memset(Counter.get(), 0, sizeof(int));
     CGH.depends_on(Event);
 
     return Counter.get();
