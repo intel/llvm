@@ -46,8 +46,6 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
-static bool BREAKPOINT_FUNCTION = false;
-
 using namespace std;
 using namespace clang;
 using namespace llvm;
@@ -68,10 +66,6 @@ static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
 
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
-
-static cl::opt<bool> DebugFunction(
-    "debug-function", cl::init(false),
-    cl::desc("Print informations about functions being processed."));
 
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
@@ -443,6 +437,12 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
     } else {
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
+      LLVM_DEBUG({
+        llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
+        alloc.dump();
+        llvm::dbgs() << "\n";
+      });
+
       if (memspace != 0) {
         alloc = abuilder.create<polygeist::Pointer2MemrefOp>(
             varLoc, mlir::MemRefType::get(-1, t, {}, memspace),
@@ -451,6 +451,12 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       }
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, mlir::MemRefType::get(-1, t, {}, 0), alloc);
+      LLVM_DEBUG({
+        llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
+        alloc.dump();
+        llvm::dbgs() << "\n";
+      });
+
       if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
         mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(loc, 0)};
         abuilder.create<mlir::memref::StoreOp>(
@@ -1514,13 +1520,11 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     MLIRScanner::getMangledFuncName(name, FuncDecl, Glob.CGM);
     name = (PrefixABI + name);
 
-    if (DebugFunction) {
-      llvm::dbgs() << "Starting codegen of " << name << "\n";
-    }
+    LLVM_DEBUG(llvm::dbgs() << "Starting codegen of " << name << "\n");
+
     if (isSupportedFunctions(name)) {
-      if (DebugFunction) {
-        llvm::dbgs() << "Function found in registry, continue codegen-ing...\n";
-      }
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Function found in registry, continue codegen-ing...\n");
       ShouldEmit = true;
     }
   }
@@ -2032,9 +2036,10 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
 
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
       auto OptFuncType = llvm::Optional<llvm::StringRef>{llvm::None};
-      if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
-        OptFuncType = RD->getName();
-      } else {
+      if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
+        if (!RD->getName().empty())
+          OptFuncType = RD->getName();
+      if (!OptFuncType) {
         /// JLE_QUEL::TODO
         /// Handle case where we can't get the parent because the callee is not
         /// a member function
@@ -4966,12 +4971,8 @@ void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     const FunctionDecl *FD = functionsToEmit.front();
 
-    if (BREAKPOINT_FUNCTION && DebugFunction) {
-      printf("\n");
-      printf("-- FUNCTION BEING EMITTED : \033[0;32m %s \033[0m -- \n",
-             FD->getNameAsString().c_str());
-      printf("\n");
-    }
+    LLVM_DEBUG(llvm::dbgs() << "\n-- FUNCTION BEING EMITTED: "
+                            << FD->getNameAsString() << " --\n\n";);
 
     assert(FD->getBody());
     functionsToEmit.pop_front();
@@ -4990,28 +4991,27 @@ void MLIRASTConsumer::run() {
     auto Function = GetOrCreateMLIRFunction(FD, true);
     ms.init(Function, FD);
 
-    if (BREAKPOINT_FUNCTION && DebugFunction) {
-      printf("\n");
+    LLVM_DEBUG({
+      llvm::dbgs() << "\n";
       Function.dump();
-      printf("\n");
+      llvm::dbgs() << "\n";
 
       if (functionsToEmit.size()) {
-        printf("-- FUNCTION(S) LEFT TO BE EMITTED --\n");
+        llvm::dbgs() << "-- FUNCTION(S) LEFT TO BE EMITTED --\n";
 
         for (const auto *FD : functionsToEmit) {
-          printf("  [+] %s(", FD->getNameAsString().c_str());
+          llvm::dbgs() << "  [+] " << FD->getNameAsString() << "(";
           for (unsigned int index = 0; index < FD->getNumParams(); index += 1) {
             printf("%s",
                    FD->getParamDecl(index)->getType().getAsString().c_str());
-            if (index + 1 != FD->getNumParams()) {
-              printf(", ");
-            }
+            if (index + 1 != FD->getNumParams())
+              llvm::dbgs() << ", ";
           }
-          printf(")\n");
+          llvm::dbgs() << ")\n";
         }
-        printf("\n");
+        llvm::dbgs() << "\n";
       }
-    }
+    });
   }
 }
 
@@ -5656,10 +5656,7 @@ mlir::Type MLIRASTConsumer::getSYCLType(const clang::RecordType *RT) {
       return mlir::sycl::AccessorCommonType::get(module->getContext());
     }
     if (CTS->getName() == "accessor") {
-      const auto TypeInfo = RT->getDecl()->getASTContext().getTypeInfo(
-          CTS->getTemplateArgs().get(0).getAsType());
-      const auto Type =
-          mlir::IntegerType::get(module->getContext(), TypeInfo.Width);
+      const auto Type = getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(

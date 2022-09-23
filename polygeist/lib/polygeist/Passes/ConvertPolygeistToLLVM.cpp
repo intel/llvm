@@ -100,14 +100,9 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     Type viewElemType = viewMemRefType.getElementType();
     Type convViewElemType = getTypeConverter()->convertType(viewElemType);
 
-    // When the converted source operand element type is a struct, the original
-    // memref element type represents a SYCL type. Handle the non-SYCL case
-    // first.
-    if (!convSourceElemType.isa<LLVM::LLVMStructType>()) {
-      assert(
-          convViewElemType ==
-              prev.getType().cast<LLVM::LLVMPointerType>().getElementType() &&
-          "Expecting the element types to match");
+    // Handle the general (non-SYCL) case first.
+    if (convViewElemType ==
+        prev.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
       auto memRefDesc = createMemRefDescriptor(
           loc, viewMemRefType, targetMemRef.allocatedPtr(rewriter, loc),
           rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
@@ -116,21 +111,12 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       rewriter.replaceOp(subViewOp, {memRefDesc});
       return success();
     }
+    assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
+           "Expecting struct type");
 
     // SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
-    // Note: in MLIRASTConsumer::getMLIRType(), a memref of struct type is
-    // generated only for a struct that has at least one member of SYCL type,
-    // otherwise a llvm pointer type is generated instead of a memref.
-    assert((sycl::isSYCLType(sourceElemType) ||
-            (sourceElemType.isa<LLVM::LLVMStructType>() &&
-             any_of(sourceElemType.cast<LLVM::LLVMStructType>().getBody(),
-                    [](const Type &memType) {
-                      return sycl::isSYCLType(memType);
-                    }))) &&
-           "the source memref element type should be either a SYCL type, or "
-           "a struct containing at least a member of SYCL type");
 
     SmallVector<Value, 4> indices;
     computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),

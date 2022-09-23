@@ -229,8 +229,6 @@ public:
   LogicalResult
   matchAndRewrite(sycl::SYCLCallOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    assert(op.Type().has_value() &&
-           "Expecting op.Type() to have a valid value");
     return rewriteCall(op, opAdaptor, rewriter);
   }
 
@@ -257,7 +255,7 @@ private:
     LLVM_DEBUG({
       Operation *func = funcCall->getParentOfType<LLVM::LLVMFuncOp>();
       assert(func && "Could not find parent function");
-      llvm::dbgs() << "CastPattern: Function after rewrite:\n" << *func << "\n";
+      llvm::dbgs() << "CallPattern: Function after rewrite:\n" << *func << "\n";
     });
 
     return success();
