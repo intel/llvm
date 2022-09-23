@@ -43,8 +43,16 @@ This extension is written against the SYCL 2020 specification, Revision 5.
 
 == Status
 
-This extension is implemented and fully supported by DPC++.
+This extension is implemented and fully supported by DPC++, with the
+limitation noted below.
 
+[NOTE]
+This extension has limited support in ahead-of-time (AOT) compilation mode when
+the target device is an Intel GPU.  Software emulation of this feature does not
+work in this case, so AOT mode is only supported if the target device has
+native support for `bfloat16`. Currently, this is limited to Intel Xe HP GPUs.
+The DPC++ implementation has no such limitation in just-in-time (JIT)
+compilation mode.
 
 == Overview
 
