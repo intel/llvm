@@ -582,11 +582,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         if (T.isa<LLVM::LLVMPointerType>()) {
           if (val.getType().isa<MemRefType>()) {
             assert(val.getType().cast<MemRefType>().getMemorySpaceAsInt() ==
-                       T.cast<LLVM::LLVMPointerType>().getAddressSpace() &&
-                   "val does not have the same memory space as T");
+                      T.cast<LLVM::LLVMPointerType>().getAddressSpace() &&
+                  "val does not have the same memory space as T");
             val = builder.create<polygeist::Memref2PointerOp>(loc, T, val);
-          }
-          else if (T != val.getType())
+          } else if (T != val.getType())
             val = builder.create<LLVM::BitcastOp>(loc, T, val);
           return ValueCategory(val, /*isRef*/ false);
         } else {
