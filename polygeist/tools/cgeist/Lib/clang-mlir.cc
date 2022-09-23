@@ -3949,7 +3949,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             scalar);
         assert(ty.getMemorySpaceAsInt() == scalarTy.getMemorySpaceAsInt() &&
                "Expecting 'ty' and 'scalarTy' to have the same memory space");
-        auto ptrToMemRef = builder.create<polygeist::Pointer2MemrefOp>(loc, ty, memRefToPtr);
+        auto ptrToMemRef =
+            builder.create<polygeist::Pointer2MemrefOp>(loc, ty, memRefToPtr);
         return ValueCategory(ptrToMemRef, /*isReference*/ false);
       }
 
