@@ -928,7 +928,7 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
             triple, DL, commands);
 }
 
-static bool hasKernels(mlir::gpu::GPUModuleOp deviceModule) {
+static bool hasDeviceFuncs(mlir::gpu::GPUModuleOp deviceModule) {
   return !deviceModule.getRegion().getOps<mlir::gpu::GPUFuncOp>().empty();
 }
 
@@ -996,7 +996,7 @@ int main(int argc, char **argv) {
   // the host code otherwise.
   //
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return hasKernels(*deviceModule)
+  return hasDeviceFuncs(*deviceModule)
              ? compileModule(deviceModule, context, DL, triple, LinkageArgs,
                              argv[0],
                              {func::FuncOp::getOperationName(),
