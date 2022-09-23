@@ -988,8 +988,11 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
     });
   };
 
-  // Integrated/discrete GPUs have different faster path.
-  if (getDeviceFromHandler(CGH).get_info<info::device::host_unified_memory>())
+  auto device = getDeviceFromHandler(CGH);
+  // Integrated/discrete GPUs have different faster path. For discrete GPUs fast
+  // path requires USM device allocations though, so check for that as well.
+  if (device.get_info<info::device::host_unified_memory>() ||
+      !device.has(aspect::usm_device_allocations))
     Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
   else
     Rest(Redu.getGroupsCounterAccDiscrete(CGH));
