@@ -125,7 +125,7 @@ The base pointer determines the starting address of the matrix to be loaded/stor
 
 Note that in order to get maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose the `packed` layout to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in the `VNNI layout` section below.
 
-IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B must be `packed` or `row_major`. Automatic VNNI transform is supported. The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
+IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B (provided by the `layout memL` parameter below) must be `packed` or `row_major`. Automatic VNNI transform is supported on AMX. The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C (provided by the `layout memL` parameter below) must also be `row_major`.
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
