@@ -41,6 +41,28 @@ static bool isESIMDVectorTy(Type *T) {
          esimd::getVectorTyOrNull(dyn_cast<StructType>(T)) != nullptr;
 }
 
+static Type *getVectorTypeOrNull(Type *T) {
+  if (!T || T->isVectorTy()) {
+    return T;
+  }
+  Type *Res = esimd::getVectorTyOrNull(dyn_cast<StructType>(T));
+  return Res;
+}
+
+// Checks types equivalence for the purpose if this optimization.
+// Thin struct wrapper types around a vector type are equivalent between them
+// and the vector type.
+static bool eq(Type *T1, Type *T2) {
+  if (T1 == T2) {
+    return true;
+  }
+  if (Type *T1V = getVectorTypeOrNull(T1)) {
+    return T1V == getVectorTypeOrNull(T2);
+  } else {
+    return false;
+  }
+}
+
 using NonMemUseHandlerT = std::function<bool(const Use *)>;
 
 static Type *
@@ -64,7 +86,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
         ContentT = LI->getType();
         LoadMet = 1;
         continue;
-      } else if (ContentT != LI->getType()) {
+      } else if (!eq(ContentT, LI->getType())) {
         return nullptr;
       }
     }
@@ -78,7 +100,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
         ContentT = SI->getValueOperand()->getType();
         StoreMet = 1;
         continue;
-      } else if (ContentT != SI->getValueOperand()->getType()) {
+      } else if (!eq(ContentT, SI->getValueOperand()->getType())) {
         return nullptr;
       }
     }
@@ -88,7 +110,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
       return nullptr;
     }
   }
-  return ContentT;
+  return getVectorTypeOrNull(ContentT);
 }
 
 static bool isSretParam(const Argument &P) {
@@ -152,8 +174,7 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
     const bool NonOptimizeableParam = !IsSret && (StoreMet || !LoadMet);
 
     if (IsSret) {
-      Type *ST = FormalParam.getParamStructRetType();
-      Type *SretVecT = esimd::getVectorTyOrNull(dyn_cast<StructType>(ST));
+      Type *SretVecT = getVectorTypeOrNull(FormalParam.getParamStructRetType());
 
       if (!ContentT) {
         // Can happen when sret param is a "fall through" - return value is
