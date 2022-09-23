@@ -491,7 +491,8 @@ public:
                                               subViewOp.index());
       return success();
     }
-    if (mt0.getShape().size() == mt2.getShape().size() &&
+    if (mt0.getElementType() == mt2.getElementType() &&
+        mt0.getShape().size() == mt2.getShape().size() &&
         mt1.getShape().size() == mt0.getShape().size()) {
       rewriter.replaceOpWithNewOp<SubIndexOp>(
           subViewOp, mt2, prevOp.source(),
@@ -503,19 +504,6 @@ public:
   }
 };
 
-static bool hasSyclType(const mlir::Type& type) {
-    if (const auto structType = type.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-      for (const auto elemType : structType.getBody()) {
-        if (hasSyclType(elemType)) {
-          return true;
-        }
-      }
-    } else if (type.getDialect().getNamespace().contains("sycl")) {
-      return true;
-    }
-    return false;
-} 
-
 // When possible, simplify subindex(x) to cast(x)
 class SubToCast final : public OpRewritePattern<SubIndexOp> {
 public:
@@ -526,27 +514,22 @@ public:
     auto prev = subViewOp.source().getType().cast<MemRefType>();
     auto post = subViewOp.getType().cast<MemRefType>();
     bool legal = prev.getShape().size() == post.getShape().size();
+    if (!legal)
+      return failure();
 
-    if (legal && (prev.getElementType() != post.getElementType()) &&
-        hasSyclType(prev.getElementType())) {
-      legal = false;
-    }
+    if (prev.getElementType() != post.getElementType())
+      return failure();
 
-    if (legal) {
+    auto cidx = subViewOp.index().getDefiningOp<ConstantIndexOp>();
+    if (!cidx)
+      return failure();
 
-      auto cidx = subViewOp.index().getDefiningOp<ConstantIndexOp>();
-      if (!cidx)
-        return failure();
+    if (cidx.value() != 0)
+      return failure();
 
-      if (cidx.value() != 0)
-        return failure();
-
-      rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, post,
-                                                  subViewOp.source());
-      return success();
-    }
-
-    return failure();
+    rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, post,
+                                                subViewOp.source());
+    return success();
   }
 };
 
@@ -624,6 +607,10 @@ public:
     if (srcMemRefType.getShape().size() != preMemRefType.getShape().size())
       return failure();
 
+    // Check that the element types of source and result are the same.
+    if (preMemRefType.getElementType() != resMemRefType.getElementType())
+      return failure();
+
     // Valid optimization target; perform the substitution.
     rewriter.replaceOpWithNewOp<SubIndexOp>(
         op, op.result().getType(), srcOp.source(),
@@ -645,10 +632,8 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
                                 PatternRewriter &rewriter) const override {
     const auto prev = subindex.source().getType().cast<MemRefType>();
     const auto post = subindex.getType().cast<MemRefType>();
-    if ((prev.getElementType() != post.getElementType()) 
-          && hasSyclType(prev.getElementType())) {
+    if ((prev.getElementType() != post.getElementType()))
       return failure();
-    }
 
     bool changed = false;
 
