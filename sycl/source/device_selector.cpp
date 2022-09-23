@@ -79,10 +79,11 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices) {
   int score = detail::REJECT_DEVICE_SCORE;
   const device *res = nullptr;
-
   for (const auto &dev : Devices) {
     int dev_score = DeviceSelectorInvocable(dev);
-
+    if (dev_score == detail::REJECT_DEVICE_SCORE && dev.get_info<info::device::name>().find("ESIMD_EMULATOR") != std::string::npos && Devices.size() == 1) {
+      dev_score = 0;
+    }
     traceDeviceSelection(dev, dev_score, false);
 
     // A negative score means that a device must not be selected.
@@ -142,9 +143,14 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 /// 3. Host
 /// 4. Accelerator
 __SYCL_EXPORT int default_selector_v(const device &dev) {
-  // The default selector doesn't reject any devices.
+  // The default selector doesn't reject any devices except for the case where an ESIMD emulator device is observed
+  // and it is not the only device available in which case the default selector does not choose it.
+  std::string deviceName = dev.get_info<info::device::name>();
+  if (deviceName.find("ESIMD") != std::string::npos) {
+    // Reject the ESIMD device
+    return -1;
+  }
   int Score = 0;
-
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 2000;
 
@@ -171,7 +177,11 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
 
 __SYCL_EXPORT int gpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
-
+  std::string deviceName = dev.get_info<info::device::name>();
+  if (deviceName.find("ESIMD") != std::string::npos) {
+    // Reject the ESIMD device
+    return Score;
+  }
   if (dev.is_gpu()) {
     Score = 1000;
     Score += detail::getDevicePreference(dev);
