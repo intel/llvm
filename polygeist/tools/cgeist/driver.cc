@@ -300,8 +300,9 @@ static void enableOptionsPM(mlir::PassManager &pm) {
 // MLIR canonicalization & cleanup.
 template <typename ModuleTy,
           typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
-static int canonicalize(mlir::MLIRContext &context, ModuleTy &module) {
-  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
+static int canonicalize(mlir::MLIRContext &context,
+                        mlir::OwningOpRef<ModuleTy> &module) {
+  mlir::PassManager pm(&context, ModuleTy::getOperationName());
   enableOptionsPM(pm);
 
   mlir::OpPassManager &optPM = pm.nestAny();
@@ -364,8 +365,9 @@ static int canonicalize(mlir::MLIRContext &context, ModuleTy &module) {
 // Optimize the MLIR.
 template <typename ModuleTy,
           typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
-static int optimize(mlir::MLIRContext &context, ModuleTy &module) {
-  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
+static int optimize(mlir::MLIRContext &context,
+                    mlir::OwningOpRef<ModuleTy> &module) {
+  mlir::PassManager pm(&context, ModuleTy::getOperationName());
   enableOptionsPM(pm);
 
   mlir::OpPassManager &optPM = pm.nestAny();
@@ -424,7 +426,8 @@ static int optimize(mlir::MLIRContext &context, ModuleTy &module) {
 // CUDA specific optimization (add parallel loops around CUDA).
 template <typename ModuleTy,
           typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
-static int optimizeCUDA(mlir::MLIRContext &context, ModuleTy &module) {
+static int optimizeCUDA(mlir::MLIRContext &context,
+                        mlir::OwningOpRef<ModuleTy> &module) {
   if (!CudaLower)
     return 0;
 
@@ -432,7 +435,7 @@ static int optimizeCUDA(mlir::MLIRContext &context, ModuleTy &module) {
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
+  mlir::PassManager pm(&context, ModuleTy::getOperationName());
   enableOptionsPM(pm);
 
   mlir::OpPassManager &optPM = pm.nestAny();
@@ -579,9 +582,10 @@ static void finalizeCUDA(mlir::PassManager &pm) {
 
 template <typename ModuleTy,
           typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
-static int finalize(mlir::MLIRContext &context, ModuleTy &module,
-                    llvm::DataLayout &DL, bool &LinkOMP) {
-  mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
+static int finalize(mlir::MLIRContext &context,
+                    mlir::OwningOpRef<ModuleTy> &module, llvm::DataLayout &DL,
+                    bool &LinkOMP) {
+  mlir::PassManager pm(&context, ModuleTy::getOperationName());
   enableOptionsPM(pm);
 
   GreedyRewriteConfig canonicalizerConfig;
@@ -613,7 +617,7 @@ static int finalize(mlir::MLIRContext &context, ModuleTy &module,
       module->dump();
     });
 
-    mlir::PassManager pm2(&context, ModuleTy::OperationT::getOperationName());
+    mlir::PassManager pm2(&context, ModuleTy::getOperationName());
     if (SCFOpenMP && is_one_of<ModuleTy, mlir::ModuleOp>::value) {
       pm2.addPass(createConvertSCFToOpenMPPass());
     }
@@ -643,7 +647,7 @@ static int finalize(mlir::MLIRContext &context, ModuleTy &module,
 
     if (!EmitOpenMPIR) {
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
-      mlir::PassManager pm3(&context, ModuleTy::OperationT::getOperationName());
+      mlir::PassManager pm3(&context, ModuleTy::getOperationName());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array
@@ -691,33 +695,38 @@ static int finalize(mlir::MLIRContext &context, ModuleTy &module,
 // Create and execute the MLIR transformations pipeline.
 template <typename ModuleTy,
           typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
-static int
-createAndExecutePassPipeline(mlir::MLIRContext &context, ModuleTy &module,
-                             llvm::DataLayout &DL, llvm::Triple &triple,
-                             bool &LinkOMP) {
+static int createAndExecutePassPipeline(mlir::MLIRContext &context,
+                                        mlir::OwningOpRef<ModuleTy> &module,
+                                        llvm::DataLayout &DL,
+                                        llvm::Triple &triple, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
   int rc = canonicalize(context, module);
-  if (rc != 0)
+  if (rc != 0) 
     return rc;
 
   // MLIR optimizations.
   rc = optimize(context, module);
-  if (rc != 0)
+  if (rc != 0) 
     return rc;
 
   // CUDA specific MLIR optimizations.
   rc = optimizeCUDA(context, module);
-  if (rc != 0)
+  if (rc != 0) 
     return rc;
 
-  return finalize(context, module, DL, LinkOMP);
+  rc = finalize(context, module, DL, LinkOMP);
+  if (rc != 0) 
+    return rc;
+
+  return 0;
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
 template <typename ModuleTy,
           typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
-static int compileModule(ModuleTy &module, mlir::MLIRContext &context,
-                         llvm::DataLayout &DL, llvm::Triple &triple,
+static int compileModule(mlir::OwningOpRef<ModuleTy> &module,
+                         mlir::MLIRContext &context, llvm::DataLayout &DL,
+                         llvm::Triple &triple,
                          const SmallVectorImpl<const char *> &LinkArgs,
                          const char *Argv0) {
   bool LinkOMP = FOpenMP;
@@ -975,7 +984,8 @@ int main(int argc, char **argv) {
   //
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
   return hasDeviceFuncs(*deviceModule)
-             ? compileModule(deviceModule, context, DL, triple, LinkageArgs,
-                             argv[0])
-             : compileModule(module, context, DL, triple, LinkageArgs, argv[0]);
+             ? compileModule<mlir::gpu::GPUModuleOp>(
+                   deviceModule, context, DL, triple, LinkageArgs, argv[0])
+             : compileModule<mlir::ModuleOp>(module, context, DL, triple,
+                                             LinkageArgs, argv[0]);
 }
