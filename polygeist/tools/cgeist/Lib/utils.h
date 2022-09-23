@@ -11,9 +11,10 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
-#include "llvm/ADT/ArrayRef.h"
+#include "Lib/clang-mlir.h"
 #include "clang/AST/DeclBase.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
 
 namespace mlir {
 class Operation;
@@ -50,6 +51,9 @@ replaceFuncByOperation(mlir::func::FuncOp f, llvm::StringRef opName,
                        llvm::SmallVectorImpl<mlir::Value> &output);
 
 bool isNamespaceSYCL(const clang::DeclContext *DC);
+
+/// Return the insertion context of the input builder.
+FunctionContext getInputContext(const mlir::OpBuilder &Builder);
 } // namespace mlirclang
 
 #endif
