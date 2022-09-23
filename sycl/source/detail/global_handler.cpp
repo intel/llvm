@@ -48,11 +48,19 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
 }
 
 bool GlobalHandler::attachScheduler(Scheduler *scheduler) {
-  const LockGuard Lock{MScheduler.Lock};
-  if (MScheduler.Inst)
-    return false;
-  MScheduler.Inst.reset(scheduler);
-  return true;
+  Scheduler* old;
+  bool result = true;
+  {
+    const LockGuard Lock{MScheduler.Lock};
+    // Used for notification that scheduler attached later than expected that may cause test issues.
+    if (MScheduler.Inst)
+      result = false;
+    old = MScheduler.Inst.release();
+    MScheduler.Inst.reset(scheduler);
+  }
+  if (old)
+    delete old;
+  return result;
 }
 
 Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
@@ -157,6 +165,7 @@ void shutdown() {
 
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::instance().MScheduler.Inst->releaseResources();
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 

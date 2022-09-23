@@ -448,6 +448,7 @@ public:
 
   Scheduler();
   virtual ~Scheduler();
+  void releaseResources();
 
 protected:
   // TODO: after switching to C++17, change std::shared_timed_mutex to

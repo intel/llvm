@@ -425,6 +425,15 @@ Scheduler::Scheduler() {
 }
 
 Scheduler::~Scheduler() {
+  // Please be aware that releaseResources should be called before deletion of Scheduler.
+  // Otherwise there can be the case when objects Scheduler keeps as fields may need Scheduler
+  // for their release and they work with Scheduler via GlobalHandler::getScheduler that will create new Scheduler object.
+  // Still keep it here but it should no almost nothing if releaseResources called before.
+  releaseResources();
+}
+
+void Scheduler::releaseResources()
+{
   // By specification there are several possible sync points: buffer
   // destruction, wait() method of a queue or event. Stream doesn't introduce
   // any synchronization point. It is guaranteed that stream is flushed and
