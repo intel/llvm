@@ -28,9 +28,8 @@ include(SYCLUtils)
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
 #
-# For the current development cycles MINOR has been bumped up and MAJOR wasn't.
-# Make sure to increase MAJOR and drop MINOR to zero as soon as ABI-breaking
-# change is done, without waiting for an actual release to happen.
+# See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
+# development cycle.
 set(SYCL_MAJOR_VERSION 6)
 set(SYCL_MINOR_VERSION 1)
 set(SYCL_PATCH_VERSION 0)
