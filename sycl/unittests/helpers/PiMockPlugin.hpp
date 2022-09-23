@@ -49,8 +49,8 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
     return PI_SUCCESS;
   }
   default: {
-    constexpr const char *FallbackValue = "str";
-    constexpr size_t FallbackValueSize = std::strlen(FallbackValue) + 1;
+    constexpr const char FallbackValue[] = "str";
+    constexpr size_t FallbackValueSize = sizeof(FallbackValue);
     if (param_value_size_ret)
       *param_value_size_ret = FallbackValueSize;
 
