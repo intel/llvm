@@ -26,4 +26,4 @@
 // CHECK: ![[#FILE]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}debug-info-checksum.cpp"
 // CHECK-SAME: checksumkind: CSK_MD5, checksum: "f1fb5d68350b47d90a53968ac8c40529"
 
-#include "Inputs/debug-info-checksum.cpp
+#include "Inputs/debug-info-checksum.cpp"

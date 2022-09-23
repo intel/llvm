@@ -1,3 +1,9 @@
+// This test checks that a checksum is created correctly for the compiled file,
+// and that the same checksum is generated for host and target compilation.
+// It also checks that DICompileUnit in host and target compilation is referring
+// to the original source file name (not the temporary file created by the
+// compilation process) .
+
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -fsycl-int-header=%t.header.h -fsycl-int-footer=%t.footer.h \
 // RUN: -main-file-name %S/Inputs/checksum.cpp -fsycl-use-main-file-name \

@@ -29,7 +29,7 @@
 // NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "sycl-int-footer.cpp"{{.*}} "-o"
 
 // Test that -fsycl-use-main-file-name is not passed if -fsycl is not passed.
-// This is test is located here, because -fsycl-use-main-file-name is tightly
+// This test is located here, because -fsycl-use-main-file-name is tightly
 // connected to the integration footer.
 // RUN: %clangxx %s -### 2>&1 | FileCheck %s --check-prefix NO-FSYCL --implicit-check-not "-fsycl-use-main-file-name"
 // NO-FSYCL: clang{{.*}} "-main-file-name" "sycl-int-footer.cpp"
