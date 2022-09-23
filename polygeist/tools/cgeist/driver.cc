@@ -961,7 +961,7 @@ int main(int argc, char **argv) {
   registerDialects(context, syclKernelsOnly);
 
   // Generate MLIR for the input files.
-  constexpr llvm::StringLiteral DeviceModuleName{"device_code"};
+  constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
 
   mlir::OpBuilder Builder(&context);
   const auto loc = Builder.getUnknownLoc();
