@@ -18,6 +18,7 @@ endif()
 
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(EXTRA_SRC
+    ${EXTRA_SRC}
     cuda_trace_collector.cpp
   )
 endif()
