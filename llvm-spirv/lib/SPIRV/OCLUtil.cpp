@@ -1306,25 +1306,6 @@ public:
   Function *F; // SPIRV decorated function
 };
 
-CallInst *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs) {
-  OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
-  return mutateCallInst(M, CI, ArgMutate, &BtnInfo, Attrs);
-}
-
-Instruction *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs,
-    bool TakeFuncName) {
-  OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
-  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs,
-                        TakeFuncName);
-}
-
 std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F) {
   return std::make_unique<OCLBuiltinFuncMangleInfo>(&F);
 }

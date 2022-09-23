@@ -704,20 +704,6 @@ Instruction *mutateCallInst(
     BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
     bool TakeName = false);
 
-/// Mutate call instruction to call SPIR-V builtin function.
-CallInst *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs = nullptr);
-
-/// Mutate call instruction to call SPIR-V builtin function.
-Instruction *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr);
-
 /// Mutate function by change the arguments.
 /// \param ArgMutate mutates the function arguments.
 /// \param TakeName Take the original function's name if a new function with
@@ -769,13 +755,6 @@ Value *addVector(Instruction *InsPos, ValueVecRange Range);
 /// Replace scalar values with a vector created at \param InsPos.
 void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
                 ValueVecRange Range);
-
-/// Expand a vector type value in \param Ops at index \param VecPos.
-/// Generate extract element instructions at \param InsPos and replace
-/// the vector type value with scalar type values.
-/// If the value to be expanded is not vector type, do nothing.
-void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
-                  size_t VecPos);
 
 /// Get size_t type.
 IntegerType *getSizetType(Module *M);
@@ -882,11 +861,6 @@ std::string getSPIRVTypeName(StringRef BaseTyName, StringRef Postfixes = "");
 
 /// Checks if given type name is either ConstantSampler or ConsantPipeStorage.
 bool isSPIRVConstantName(StringRef TyName);
-
-/// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
-/// to spirv.NewName.Postfixes.
-Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
-                                       StringRef NewName);
 
 /// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
 /// to spirv.NewName.Postfixes.
