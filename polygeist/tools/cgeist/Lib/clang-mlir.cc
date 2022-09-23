@@ -444,10 +444,15 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       });
 
       if (memspace != 0) {
+        // Note: this code is incorrect because 'alloc' has a MemRefType in
+        // memory space that is not zero, therefore is illegal to create a
+        // Memref2Pointer operation that yields a result not in the same memory
+        // space.
+        auto memRefToPtr = abuilder.create<polygeist::Memref2PointerOp>(
+            varLoc, LLVM::LLVMPointerType::get(t, 0), alloc);
         alloc = abuilder.create<polygeist::Pointer2MemrefOp>(
             varLoc, mlir::MemRefType::get(-1, t, {}, memspace),
-            abuilder.create<polygeist::Memref2PointerOp>(
-                varLoc, LLVM::LLVMPointerType::get(t, 0), alloc));
+            memRefToPtr);
       }
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, mlir::MemRefType::get(-1, t, {}, 0), alloc);
@@ -3655,8 +3660,12 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
           value = builder.create<mlir::LLVM::BitcastOp>(loc, pt, value);
       }
     } else {
-      assert(value.getType().isa<MemRefType>());
+      assert(value.getType().isa<MemRefType>() && "Expecting value to have MemRefType");
       if (pt) {
+        assert(
+            value.getType().cast<MemRefType>().getMemorySpaceAsInt() ==
+                pt.getAddressSpace() &&
+            "The type of 'value' does not have the same memory space as 'pt'");
         value = builder.create<polygeist::Memref2PointerOp>(loc, pt, value);
       } else {
         if (value.getType() != nt) {
@@ -3880,9 +3889,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             }
         }
     auto se = Visit(E->getSubExpr());
+    #ifdef DEBUG
     if (!se.val) {
       E->dump();
     }
+    #endif
     auto scalar = se.getValue(builder);
     if (auto spt = scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nt = getMLIRType(E->getType());
@@ -3897,46 +3908,62 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       auto nval = builder.create<mlir::LLVM::BitcastOp>(loc, pt, scalar);
       return ValueCategory(nval, /*isReference*/ false);
     }
+    
+    #ifdef DEBUG
     if (!scalar.getType().isa<mlir::MemRefType>()) {
       E->dump();
       E->getType()->dump();
       llvm::errs() << "scalar: " << scalar << "\n";
     }
-    auto ut = scalar.getType().cast<mlir::MemRefType>();
+    #endif
+
+    assert(scalar.getType().isa<mlir::MemRefType>() &&
+           "Expecting 'scalar' to have MemRefType");
+
+    auto scalarTy = scalar.getType().cast<mlir::MemRefType>();
     auto mlirty = getMLIRType(E->getType());
 
     if (auto PT = mlirty.dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      return ValueCategory(
-          builder.create<mlir::polygeist::Memref2PointerOp>(loc, PT, scalar),
-          /*isReference*/ false);
-    } else if (auto mt = mlirty.dyn_cast<mlir::MemRefType>()) {
+      assert(
+          scalarTy.getMemorySpaceAsInt() == PT.getAddressSpace() &&
+          "The type of 'scalar' does not have the same memory space as 'PT'");
+      auto val =
+          builder.create<mlir::polygeist::Memref2PointerOp>(loc, PT, scalar);
+      return ValueCategory(val, /*isReference*/ false);
+    } 
+    
+    if (auto mt = mlirty.dyn_cast<mlir::MemRefType>()) {
       auto ty = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
                                       MemRefLayoutAttrInterface(),
-                                      ut.getMemorySpace());
-      if (ut.getShape().size() == mt.getShape().size() + 1) {
+                                      scalarTy.getMemorySpace());
+      if (scalarTy.getShape().size() == mt.getShape().size() + 1)
         return ValueCategory(builder.create<mlir::polygeist::SubIndexOp>(
                                  loc, ty, scalar, getConstantIndex(0)),
                              /*isReference*/ false);
+
+      if (scalarTy.getShape().size() != mt.getShape().size()) {
+        auto memRefToPtr = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(builder.getI8Type(),
+                                       scalarTy.getMemorySpaceAsInt()),
+            scalar);
+        assert(ty.getMemorySpaceAsInt() == scalarTy.getMemorySpaceAsInt() &&
+               "Expecting 'ty' and 'scalarTy' to have the same memory space");
+        auto ptrToMemRef = builder.create<polygeist::Pointer2MemrefOp>(loc, ty, memRefToPtr);
+        return ValueCategory(ptrToMemRef, /*isReference*/ false);
       }
-      if (ut.getShape().size() != mt.getShape().size()) {
-        return ValueCategory(
-            builder.create<polygeist::Pointer2MemrefOp>(
-                loc, ty,
-                builder.create<polygeist::Memref2PointerOp>(
-                    loc, LLVM::LLVMPointerType::get(builder.getI8Type()),
-                    scalar)),
-            /*isReference*/ false);
-      }
+
       return ValueCategory(builder.create<memref::CastOp>(loc, ty, scalar),
                            /*isReference*/ false);
-    } else {
+    } 
+
+    #ifdef DEBUG
       E->dump();
       E->getType()->dump();
       llvm::errs() << " scalar: " << scalar << " mlirty: " << mlirty << "\n";
-      assert(0 && "illegal type for cast");
-      llvm_unreachable("illegal type for cast");
-    }
-  }
+    #endif
+    llvm_unreachable("illegal type for cast");
+  } break;
   case clang::CastKind::CK_LValueToRValue: {
     if (auto dr = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
       if (auto VD = dyn_cast<VarDecl>(dr->getDecl()->getCanonicalDecl())) {
@@ -3973,10 +4000,12 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return prev;
 
     auto lres = prev.getValue(builder);
+    #ifdef DEBUG
     if (!prev.isReference) {
       E->dump();
       lres.dump();
     }
+    #endif
     assert(prev.isReference);
     return ValueCategory(lres, /*isReference*/ false);
   }
@@ -3994,10 +4023,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueCategory(
           builder.create<mlir::arith::SIToFPOp>(loc, ty, scalar),
           /*isReference*/ false);
-    else
-      return ValueCategory(
-          builder.create<mlir::arith::UIToFPOp>(loc, ty, scalar),
-          /*isReference*/ false);
+
+    return ValueCategory(builder.create<mlir::arith::UIToFPOp>(loc, ty, scalar),
+                         /*isReference*/ false);
   }
   case clang::CastKind::CK_FloatingToIntegral: {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
@@ -4013,29 +4041,27 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueCategory(
           builder.create<mlir::arith::FPToSIOp>(loc, ty, scalar),
           /*isReference*/ false);
-    else
-      return ValueCategory(
-          builder.create<mlir::arith::FPToUIOp>(loc, ty, scalar),
-          /*isReference*/ false);
+    return ValueCategory(builder.create<mlir::arith::FPToUIOp>(loc, ty, scalar),
+                         /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralCast: {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
     assert(scalar);
     auto postTy = getMLIRType(E->getType()).cast<mlir::IntegerType>();
-    if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+    if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>())
       return ValueCategory(
           builder.create<mlir::LLVM::PtrToIntOp>(loc, postTy, scalar),
           /*isReference*/ false);
-    }
     if (scalar.getType().isa<mlir::IndexType>() ||
-        postTy.isa<mlir::IndexType>()) {
+        postTy.isa<mlir::IndexType>())
       return ValueCategory(builder.create<IndexCastOp>(loc, postTy, scalar),
                            false);
-    }
+    #ifdef DEBUG
     if (!scalar.getType().isa<mlir::IntegerType>()) {
       E->dump();
       llvm::errs() << " scalar: " << scalar << "\n";
     }
+    #endif
     auto prevTy = scalar.getType().cast<mlir::IntegerType>();
     bool signedType = true;
     if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
@@ -4061,40 +4087,40 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
         return ValueCategory(
             builder.create<arith::ExtSIOp>(loc, postTy, scalar),
             /*isReference*/ false);
-      } else {
-        if (auto CI = scalar.getDefiningOp<arith::ConstantIntOp>()) {
-          return ValueCategory(
-              builder.create<arith::ConstantOp>(
-                  loc, postTy,
-                  mlir::IntegerAttr::get(
-                      postTy, CI.getValue().cast<IntegerAttr>().getValue().zext(
-                                  postTy.getWidth()))),
-              /*isReference*/ false);
-        }
-        return ValueCategory(
-            builder.create<arith::ExtUIOp>(loc, postTy, scalar),
-            /*isReference*/ false);
       }
-    } else {
-      if (auto CI = scalar.getDefiningOp<ConstantIntOp>()) {
+      if (auto CI = scalar.getDefiningOp<arith::ConstantIntOp>()) {
         return ValueCategory(
             builder.create<arith::ConstantOp>(
                 loc, postTy,
                 mlir::IntegerAttr::get(
-                    postTy, CI.getValue().cast<IntegerAttr>().getValue().trunc(
+                    postTy, CI.getValue().cast<IntegerAttr>().getValue().zext(
                                 postTy.getWidth()))),
             /*isReference*/ false);
       }
-      return ValueCategory(builder.create<arith::TruncIOp>(loc, postTy, scalar),
+      return ValueCategory(builder.create<arith::ExtUIOp>(loc, postTy, scalar),
                            /*isReference*/ false);
     }
+
+    if (auto CI = scalar.getDefiningOp<ConstantIntOp>()) {
+      return ValueCategory(
+          builder.create<arith::ConstantOp>(
+              loc, postTy,
+              mlir::IntegerAttr::get(
+                  postTy, CI.getValue().cast<IntegerAttr>().getValue().trunc(
+                              postTy.getWidth()))),
+          /*isReference*/ false);
+    }
+    return ValueCategory(builder.create<arith::TruncIOp>(loc, postTy, scalar),
+                         /*isReference*/ false);
   }
   case clang::CastKind::CK_FloatingCast: {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    #ifdef DEBUG
     if (!scalar.getType().isa<mlir::FloatType>()) {
       E->dump();
       llvm::errs() << "scalar: " << scalar << "\n";
     }
+    #endif
     auto prevTy = scalar.getType().cast<mlir::FloatType>();
     auto postTy = getMLIRType(E->getType()).cast<mlir::FloatType>();
 
@@ -4112,10 +4138,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (prevTy.getWidth() < postTy.getWidth()) {
       return ValueCategory(builder.create<arith::ExtFOp>(loc, postTy, scalar),
                            /*isReference*/ false);
-    } else {
-      return ValueCategory(builder.create<arith::TruncFOp>(loc, postTy, scalar),
-                           /*isReference*/ false);
     }
+    return ValueCategory(builder.create<arith::TruncFOp>(loc, postTy, scalar),
+                         /*isReference*/ false);
   }
   case clang::CastKind::CK_ArrayToPointerDecay: {
     return CommonArrayToPointer(Visit(E->getSubExpr()));
@@ -4187,11 +4212,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       auto val = builder.create<mlir::LLVM::PtrToIntOp>(loc, mlirType, scalar);
       return ValueCategory(val, /*isReference*/ false);
     }
+    #ifdef DEBUG
     function.dump();
     llvm::errs() << "scalar: " << scalar << "\n";
     E->dump();
-    assert(0 && "unhandled ptrtoint cast");
-  }
+    #endif
+    llvm_unreachable("unhandled ptrtoint cast");
+  } break;
   case clang::CastKind::CK_IntegralToBoolean: {
     auto res = Visit(E->getSubExpr()).getValue(builder);
     auto prevTy = res.getType().cast<mlir::IntegerType>();
@@ -4240,9 +4267,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_IntegralToPointer: {
     auto vc = Visit(E->getSubExpr());
+    #ifdef DEBUG
     if (!vc.val) {
       E->dump();
     }
+    #endif
     assert(vc.val);
     auto res = vc.getValue(builder);
     auto postTy = getMLIRType(E->getType());
@@ -4261,8 +4290,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (EmittingFunctionDecl)
       EmittingFunctionDecl->dump();
     E->dump();
-    assert(0 && "unhandled cast");
   }
+
+  llvm_unreachable("unhandled cast");
 }
 
 ValueCategory

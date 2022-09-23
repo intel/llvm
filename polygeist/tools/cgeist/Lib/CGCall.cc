@@ -498,7 +498,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       mlir::Value val = sub.val;
       if (auto mt = val.getType().dyn_cast<MemRefType>()) {
         val = builder.create<polygeist::Memref2PointerOp>(
-            loc, LLVM::LLVMPointerType::get(mt.getElementType()), val);
+            loc,
+            LLVM::LLVMPointerType::get(mt.getElementType(),
+                                       mt.getMemorySpaceAsInt()),
+            val);
       }
       return val;
     }
@@ -532,6 +535,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       auto nt = Glob.typeTranslator
                     .translateType(anonymize(getLLVMType(E->getType())))
                     .cast<LLVM::LLVMPointerType>();
+      assert(nt.getAddressSpace() == mt.getMemorySpaceAsInt() &&
+             "val does not have the same memory space as nt");
       val = builder.create<polygeist::Memref2PointerOp>(loc, nt, val);
     }
     return val;
@@ -575,8 +580,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         if (T == val.getType())
           return ValueCategory(val, /*isRef*/ false);
         if (T.isa<LLVM::LLVMPointerType>()) {
-          if (val.getType().isa<MemRefType>())
+          if (val.getType().isa<MemRefType>()) {
+            assert(val.getType().cast<MemRefType>().getMemorySpaceAsInt() ==
+                       T.cast<LLVM::LLVMPointerType>().getAddressSpace() &&
+                   "val does not have the same memory space as T");
             val = builder.create<polygeist::Memref2PointerOp>(loc, T, val);
+          }
           else if (T != val.getType())
             val = builder.create<LLVM::BitcastOp>(loc, T, val);
           return ValueCategory(val, /*isRef*/ false);
@@ -584,7 +593,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           assert(T.isa<MemRefType>());
           if (val.getType().isa<MemRefType>())
             val = builder.create<polygeist::Memref2PointerOp>(
-                loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
+                loc,
+                LLVM::LLVMPointerType::get(
+                    builder.getI8Type(),
+                    val.getType().cast<MemRefType>().getMemorySpaceAsInt()),
+                val);
           if (val.getType().isa<LLVM::LLVMPointerType>())
             val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
           return ValueCategory(val, /*isRef*/ false);
@@ -1245,9 +1258,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               auto retTy = getMLIRType(expr->getType());
               if (sr->getDecl()->getName() == "__builtin_memcpy" ||
                   retTy.isa<LLVM::LLVMPointerType>()) {
-                if (dst.getType().isa<MemRefType>())
+                if (dst.getType().isa<MemRefType>()) {
+                  auto mt = dst.getType().cast<MemRefType>();
+                  assert(retTy.getAddressSpace() == mt.getMemorySpaceAsInt() &&
+                    "dst does not have the same memory space as retTy");
                   dst = builder.create<polygeist::Memref2PointerOp>(loc, retTy,
                                                                     dst);
+                }
                 else
                   dst = builder.create<LLVM::BitcastOp>(loc, retTy, dst);
                 if (dst.getType() != retTy) {
