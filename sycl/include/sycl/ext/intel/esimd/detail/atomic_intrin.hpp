@@ -22,7 +22,7 @@ namespace __ESIMD_DNS {
 // 'bridging' variables in integral type.
 template <typename Ty> using CmpxchgTy = __ESIMD_DNS::uint_type_t<sizeof(Ty)>;
 
-template <typename Ty> Ty atomic_load(Ty *ptr) {
+template <typename Ty> inline Ty atomic_load(Ty *ptr) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -34,7 +34,7 @@ template <typename Ty> Ty atomic_load(Ty *ptr) {
 #endif
 }
 
-template <typename Ty> Ty atomic_store(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_store(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -45,7 +45,7 @@ template <typename Ty> Ty atomic_store(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_add(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_add(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -69,7 +69,7 @@ template <typename Ty> Ty atomic_add(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_sub(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_sub(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -93,7 +93,7 @@ template <typename Ty> Ty atomic_sub(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_and(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_and(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -103,7 +103,7 @@ template <typename Ty> Ty atomic_and(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_or(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_or(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -113,7 +113,7 @@ template <typename Ty> Ty atomic_or(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_xor(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_xor(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -123,7 +123,7 @@ template <typename Ty> Ty atomic_xor(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_min(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_min(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -152,7 +152,7 @@ template <typename Ty> Ty atomic_min(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
+template <typename Ty> inline Ty atomic_max(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
@@ -181,7 +181,8 @@ template <typename Ty> Ty atomic_max(Ty *ptr, Ty val) {
 #endif
 }
 
-template <typename Ty> Ty atomic_cmpxchg(Ty *ptr, Ty expected, Ty desired) {
+template <typename Ty>
+inline Ty atomic_cmpxchg(Ty *ptr, Ty expected, Ty desired) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
