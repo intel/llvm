@@ -1,4 +1,4 @@
-// RUN: %clangxx -O2 -fsycl -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -O2 -std=c++17 -I %sycl_include/sycl -I %sycl_include -S -emit-llvm %s -o - | FileCheck %s
 
 // The test verifies that the accessor::operator[] implementation is
 // good enough for compiler to optimize away calls to getOffset and
