@@ -54,7 +54,6 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include <fstream>
-#include <type_traits>
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
@@ -71,6 +70,9 @@ template <typename T>
 struct PtrElementModel
     : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
           PtrElementModel<T>, T> {};
+
+template <typename T>
+using is_valid_module_ty = is_one_of<T, mlir::ModuleOp, mlir::gpu::GPUModuleOp>;
 
 extern int cc1_main(ArrayRef<const char *> Argv, const char *Argv0,
                     void *MainAddr);
@@ -300,7 +302,8 @@ static bool isFuncOpName(llvm::StringRef FuncOpName) {
 }
 
 // MLIR canonicalization & cleanup.
-template <typename ModuleTy>
+template <typename ModuleTy,
+          typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
 static int canonicalize(mlir::MLIRContext &context, ModuleTy &module,
                         llvm::StringRef FuncOpName) {
   mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
@@ -366,7 +369,8 @@ static int canonicalize(mlir::MLIRContext &context, ModuleTy &module,
 }
 
 // Optimize the MLIR.
-template <typename ModuleTy>
+template <typename ModuleTy,
+          typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
 static int optimize(mlir::MLIRContext &context, ModuleTy &module,
                     llvm::StringRef FuncOpName) {
   mlir::PassManager pm(&context, ModuleTy::OperationT::getOperationName());
@@ -426,7 +430,8 @@ static int optimize(mlir::MLIRContext &context, ModuleTy &module,
 }
 
 // CUDA specific optimization (add parallel loops around CUDA).
-template <typename ModuleTy>
+template <typename ModuleTy,
+          typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
 static int optimizeCUDA(mlir::MLIRContext &context, ModuleTy &module,
                         llvm::StringRef FuncOpName) {
   if (!CudaLower)
@@ -585,7 +590,8 @@ static void finalizeCUDA(mlir::PassManager &pm, llvm::StringRef FuncOpName) {
   }
 }
 
-template <typename ModuleTy>
+template <typename ModuleTy,
+          typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
 static int finalize(mlir::MLIRContext &context, ModuleTy &module,
                     llvm::DataLayout &DL, bool &LinkOMP,
                     llvm::StringRef FuncOpName) {
@@ -622,8 +628,7 @@ static int finalize(mlir::MLIRContext &context, ModuleTy &module,
     });
 
     mlir::PassManager pm2(&context, ModuleTy::OperationT::getOperationName());
-    if (SCFOpenMP &&
-        std::is_same<mlir::ModuleOp, typename ModuleTy::OperationT>::value) {
+    if (SCFOpenMP && is_one_of<ModuleTy, mlir::ModuleOp>::value) {
       pm2.addPass(createConvertSCFToOpenMPPass());
     }
     pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -698,7 +703,8 @@ static int finalize(mlir::MLIRContext &context, ModuleTy &module,
 }
 
 // Create and execute the MLIR transformations pipeline.
-template <typename ModuleTy>
+template <typename ModuleTy,
+          typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
 static int
 createAndExecutePassPipeline(mlir::MLIRContext &context, ModuleTy &module,
                              llvm::DataLayout &DL, llvm::Triple &triple,
@@ -729,7 +735,8 @@ createAndExecutePassPipeline(mlir::MLIRContext &context, ModuleTy &module,
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
-template <typename ModuleTy>
+template <typename ModuleTy,
+          typename = std::enable_if<is_valid_module_ty<ModuleTy>::value>>
 static int compileModule(ModuleTy &module, mlir::MLIRContext &context,
                          llvm::DataLayout &DL, llvm::Triple &triple,
                          const SmallVectorImpl<const char *> &LinkArgs,
