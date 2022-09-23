@@ -74,9 +74,18 @@ Common Usage Examples:
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( : ) and at least one device specifier of some sort, else an error is thrown.
-- For sub-devices/tiles, the parent device must support partitioning ( see`info::partition_by_domain` and `info::next_partitionable` in the SYCL 2020 Spec)
-- if using semi-colons ( ; ) to separate entries, quotation marks will likely be needed around the entire environment variable. 
+- For sub-devices/tiles, the parent device must support partitioning ( see`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.)
+- The semi-colon character ( ; ) is treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains this character. 
 
+The BNF grammar for this is
+```
+    ONEAPI_DEVICE_SELECTOR = <selector-string>
+    <selector-string> := <term>[;<term>...]
+    <term> := <backend>:<devices>
+    <backend> := { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
+    <devices> := <device>[,<device>...]
+    <device> := { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.* | <num>.*.* | *.*.* }  // case insensitive
+```
 
 
 ### `SYCL_DEVICE_ALLOWLIST`
