@@ -916,17 +916,6 @@ static bool hasDeviceFuncs(mlir::gpu::GPUModuleOp deviceModule) {
   return !deviceModule.getRegion().getOps<mlir::gpu::GPUFuncOp>().empty();
 }
 
-static std::pair<mlir::OwningOpRef<mlir::ModuleOp>,
-                 mlir::OwningOpRef<mlir::gpu::GPUModuleOp>>
-buildModules(mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral SYCLModuleName{"sycl"};
-
-  mlir::OpBuilder Builder(&context);
-  const auto loc = Builder.getUnknownLoc();
-  return {mlir::ModuleOp::create(loc),
-          Builder.create<mlir::gpu::GPUModuleOp>(loc, SYCLModuleName)};
-}
-
 int main(int argc, char **argv) {
   if (argc >= 1 && std::string(argv[1]) == "-cc1") {
     SmallVector<const char *> Argv;
@@ -963,9 +952,14 @@ int main(int argc, char **argv) {
   registerDialects(context, syclKernelsOnly);
 
   // Generate MLIR for the input files.
-  auto modules = buildModules(context);
-  auto &module = modules.first;
-  auto &deviceModule = modules.second;
+  constexpr llvm::StringLiteral DeviceModuleName{"device_code"};
+
+  mlir::OpBuilder Builder(&context);
+  const auto loc = Builder.getUnknownLoc();
+  mlir::OwningOpRef<mlir::ModuleOp> module(mlir::ModuleOp::create(loc));
+  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> deviceModule(
+      Builder.create<mlir::gpu::GPUModuleOp>(loc, DeviceModuleName));
+
   llvm::DataLayout DL("");
   llvm::Triple triple;
   processInputFiles(inputFileNames, inputCommandArgs, context, module,
