@@ -484,8 +484,18 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
   constexpr bool isPvc = SIMDSize == 16;
 
   constexpr bool
-      pvcHfDest = isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,
-      pvcBfDest = isPvc && std::is_same<RT, short>::value,
+      pvcHfDest = isPvc && std::is_same_v<RT, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+      pvcHfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+      pvcBfDest = isPvc && std::is_same_v<RT, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::BF16,
+      pvcBfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::BF16,
       pvcBfOrHfDest = pvcBfDest || pvcHfDest,
 
       pvcBfDestChecks = pvcBfDest &&
@@ -547,9 +557,11 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
       if (src0 != nullptr) {
         auto src0El = src0[0][r * SIMDSize + n];
 
-        if (pvcBfDest) {
+        if (pvcBfSrc0) {
           const auto tmp = (uint32_t)(src0El) << 16;
           simdAcc[n] = reinterpret_cast<const TmpAccEl &>(tmp);
+        } else if (pvcHfSrc0) {
+          simdAcc[n] = reinterpret_cast<const __ESIMD_EMU_DNS::half &>(src0El);
         } else
           simdAcc[n] = src0El;
       } else
@@ -615,6 +627,10 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
         }
         retv[r * SIMDSize + n] =
             static_cast<short>(reinterpret_cast<uint32_t &>(tmpUint) >> 16);
+      } else if constexpr (pvcHfDest) {
+        retv[r * SIMDSize + n] =
+            __ESIMD_EMU_DNS::satur<sycl::half>::saturate<TmpAccEl>(simdAcc[n],
+                                                                   sat1);
       } else
         retv[r * SIMDSize + n] =
             __ESIMD_EMU_DNS::satur<RT>::template saturate<TmpAccEl>(simdAcc[n],
