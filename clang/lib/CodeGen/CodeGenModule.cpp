@@ -926,7 +926,7 @@ void CodeGenModule::Release() {
     // Emit type name with list of associated device aspects.
     if (TypesWithAspects.size() > 0) {
       llvm::NamedMDNode *AspectsMD =
-          TheModule.getOrInsertNamedMetadata("intel_types_that_use_aspects");
+          TheModule.getOrInsertNamedMetadata("sycl_types_that_use_aspects");
       for (const auto &Type : TypesWithAspects) {
         StringRef Name = Type.first;
         const RecordDecl *RD = Type.second;

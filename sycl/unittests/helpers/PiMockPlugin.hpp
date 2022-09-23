@@ -49,11 +49,13 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
     return PI_SUCCESS;
   }
   default: {
+    constexpr const char *FallbackValue = "str";
+    constexpr size_t FallbackValueSize = std::strlen(FallbackValue) + 1;
     if (param_value_size_ret)
-      *param_value_size_ret = 3;
+      *param_value_size_ret = FallbackValueSize;
 
-    if (param_value && param_value_size >= 3)
-      *static_cast<const char **>(param_value) = "str";
+    if (param_value && param_value_size >= FallbackValueSize)
+      std::memcpy(param_value, FallbackValue, FallbackValueSize);
 
     return PI_SUCCESS;
   }
@@ -91,7 +93,9 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
-  constexpr char MockSupportedExtensions[] = "cl_khr_fp64 cl_khr_fp16";
+  constexpr char MockDeviceName[] = "Mock device";
+  constexpr char MockSupportedExtensions[] =
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program";
   switch (param_name) {
   case PI_DEVICE_INFO_TYPE: {
     // Act like any device is a GPU.
@@ -100,6 +104,15 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
       *static_cast<_pi_device_type *>(param_value) = PI_DEVICE_TYPE_GPU;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_DEVICE_TYPE_GPU);
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_NAME: {
+    if (param_value) {
+      assert(param_value_size == sizeof(MockDeviceName));
+      std::memcpy(param_value, MockDeviceName, sizeof(MockDeviceName));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockDeviceName);
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
@@ -899,15 +912,15 @@ inline pi_result mock_piPluginGetLastError(char **message) {
   return PI_SUCCESS;
 }
 
-#define _CONCAT(A, B) A##B
-#define CONCAT(A, B) _CONCAT(A, B)
+#define _PI_MOCK_PLUGIN_CONCAT(A, B) A##B
+#define PI_MOCK_PLUGIN_CONCAT(A, B) _PI_MOCK_PLUGIN_CONCAT(A, B)
 
 inline pi_plugin::FunctionPointers getMockedFunctionPointers() {
   return {
-#define _PI_API(api) CONCAT(mock_, api),
+#define _PI_API(api) PI_MOCK_PLUGIN_CONCAT(mock_, api),
 #include <sycl/detail/pi.def>
   };
 }
 
-#undef CONCAT
-#undef _CONCAT
+#undef PI_MOCK_PLUGIN_CONCAT
+#undef _PI_MOCK_PLUGIN_CONCAT

@@ -13,6 +13,8 @@
 /// @cond ESIMD_DETAIL
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/host_util.hpp>
+#include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
@@ -474,13 +476,12 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
           ? 1
           : 0;
 
-#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  constexpr bool isPvc = true;
-  constexpr size_t SIMDSize = 16;
-#else
-  constexpr bool isPvc = false;
-  constexpr size_t SIMDSize = 8;
-#endif
+  constexpr uint32_t src1_vec_bit_size = sizeof(T1) * N1 * 8;
+  constexpr uint32_t src1_num_elem = src1_vec_bit_size / src1_el_bits;
+  constexpr size_t SIMDSize = src1_num_elem / (systolic_depth * ops_per_chan);
+  static_assert(SIMDSize == 8 || SIMDSize == 16,
+                "Execution size must be 8 or 16");
+  constexpr bool isPvc = SIMDSize == 16;
 
   constexpr bool
       pvcHfDest = isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,

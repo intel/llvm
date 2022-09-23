@@ -49,10 +49,10 @@ namespace {
 using AspectsSetTy = SmallSet<int, 4>;
 using TypeToAspectsMapTy = std::unordered_map<const Type *, AspectsSetTy>;
 
-/// Retrieves from metadata (intel_types_that_use_aspects) types
+/// Retrieves from metadata (sycl_types_that_use_aspects) types
 /// and aspects these types depend on.
 TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
-  const NamedMDNode *Node = M.getNamedMetadata("intel_types_that_use_aspects");
+  const NamedMDNode *Node = M.getNamedMetadata("sycl_types_that_use_aspects");
   TypeToAspectsMapTy Result;
   if (!Node)
     return Result;
@@ -220,6 +220,12 @@ const AspectsSetTy &getAspectsFromType(const Type *T,
 AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
                                          TypeToAspectsMapTy &Types) {
   const Type *ReturnType = I.getType();
+  if (auto *AI = dyn_cast<const AllocaInst>(&I)) {
+    // Return type of an alloca is a pointer and in opaque pointers world we
+    // don't know which type it points to. Therefore, explicitly checking the
+    // allocated type instead
+    ReturnType = AI->getAllocatedType();
+  }
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
   for (const auto &OperandIt : I.operands()) {
     const AspectsSetTy &Aspects =
@@ -248,7 +254,7 @@ void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
           ConstantInt::getSigned(Type::getInt32Ty(C), A)));
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
-    F->setMetadata("intel_used_aspects", MDN);
+    F->setMetadata("sycl_used_aspects", MDN);
   }
 }
 
