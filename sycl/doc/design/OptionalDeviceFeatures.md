@@ -423,6 +423,24 @@ allow metadata to be attached directly to types.  This representation works
 around that limitation by creating global named metadata that references the
 type's name.
 
+To synchronize the integral values of given aspects between the SYCL headers and
+the compiler, the `!sycl_aspects` metadata is added to the module, based on the
+values defined in the enum. Inside this metadata node, each value of the aspect
+enum is represented by another metadata node with two operands; the name of the
+value and the corresponding integral value. An example of this is:
+
+```
+!sycl_aspects = !{!0, !1, !2, ...}
+!0 = !{!"host", i32 0}
+!1 = !{!"cpu", i32 1}
+!2 = !{!"gpu", i32 2}
+...
+```
+
+**NOTE**: The `!sycl_aspects` metadata is both used by the compiler to identify
+the aspect values of implicit aspect requirements, such as `aspect::fp64` from
+the use of `double`, and to offer better diagnostic messages.
+
 We also introduce three metadata that can be attached to a function definition:
 
 * The `!sycl_declared_aspects` metadata is used for functions that are
@@ -482,6 +500,12 @@ to the following rules:
 * If a function is decorated with `[[sycl::device_has()]]`, the front-end adds
   an `!sycl_declared_aspects` metadata to the function's definition listing
   the aspects from that attribute.
+
+* If a completed enum is decorated with `[[sycl_detail::sycl_type(aspect)]]` the
+  front-end adds an `!sycl_aspects` metadata to the module containing one
+  metadata node for each value in the enum. If there are multiple enum
+  definitions with the `[[sycl_detail::sycl_type(aspect)]]` attribute a
+  diagnostic is issued.
 
 
 ### New LLVM IR pass to propagate aspect usage

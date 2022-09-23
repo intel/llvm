@@ -46,6 +46,9 @@ define spir_kernel void @kernel() {
 !2 = !{!"C", i32 2}
 !3 = !{!"D", i32 3, i32 4}
 
+!sycl_aspects = !{!4}
+!4 = !{!"fp64", i32 6}
+
 ; CHECK: ![[#ID0]] = !{i32 0}
 ; CHECK: ![[#ID1]] = !{i32 1, i32 0}
 ; CHECK: ![[#ID2]] = !{i32 2, i32 1, i32 0}
