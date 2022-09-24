@@ -773,7 +773,7 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
   case DeviceLibExt::cl_intel_devicelib_imf_fp64:
     return "libsycl-fallback-imf-fp64.spv";
   case DeviceLibExt::cl_intel_devicelib_bfloat16:
-    return "libsycl-fallback-bfloat16.spv";
+    return "libsycl-native-bfloat16.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -807,12 +807,13 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
 static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
                                            DeviceLibExt Extension,
                                            const RT::PiDevice &Device,
-                                           bool UseNativeLib) {
+                                           bool UseFallbackLib) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
   std::string LibFileNameStr(LibFileName);
-  if (UseNativeLib) {
-    LibFileNameStr.replace(8, 8, "native");
+  if (UseFallbackLib) {
+    // Replace "native" with "fallback".
+    LibFileNameStr.replace(8, 6, "fallback");
     LibFileName = LibFileNameStr.c_str();
   }
 
@@ -1008,14 +1009,13 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
     bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
 
     if (!DeviceSupports || InhibitNativeImpl) {
-      Programs.push_back(loadDeviceLibFallback(Context, Ext, Device, false));
+      // Driver always links native bfloat16 library so that AOT will work for
+      // PVC. If device does not support bfloat16 then we replace native with
+      // fallback library.
+      Programs.push_back(loadDeviceLibFallback(
+          Context, Ext, Device,
+          Ext == DeviceLibExt::cl_intel_devicelib_bfloat16));
       FallbackIsLoaded = true;
-    } else {
-      // bfloat16 needs native library if device supports it
-      if (Ext == DeviceLibExt::cl_intel_devicelib_bfloat16) {
-        Programs.push_back(loadDeviceLibFallback(Context, Ext, Device, true));
-        FallbackIsLoaded = true;
-      }
     }
   }
   return Programs;
