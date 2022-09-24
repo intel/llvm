@@ -145,8 +145,7 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     // are also considered as entry points (except __spirv_* and __sycl_*
     // functions)
     return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-           !isSpirvSyclBuiltin(F.getName()) &&
-           !isESIMDBuiltin(F.getName()) &&
+           !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
            !isGenericBuiltin(F.getName());
   }
 
