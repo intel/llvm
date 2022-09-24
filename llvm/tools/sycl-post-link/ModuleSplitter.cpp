@@ -108,6 +108,23 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
+// Return true if the function is a ESIMD builtin
+// The regexp for ESIMD intrinsics:
+// /^_Z(\d+)__esimd_\w+/
+bool isESIMDBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__esimd_");
+}
+
+// Return true if the function name starts with "__builtin_"
+bool isGenericBuiltin(StringRef FName) {
+  return FName.startswith("__builtin_");
+}
+
 bool isKernel(const Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
@@ -128,7 +145,9 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     // are also considered as entry points (except __spirv_* and __sycl_*
     // functions)
     return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-           !isSpirvSyclBuiltin(F.getName());
+           !isSpirvSyclBuiltin(F.getName()) &&
+           !isESIMDBuiltin(F.getName()) &&
+           !isGenericBuiltin(F.getName());
   }
 
   return false;
