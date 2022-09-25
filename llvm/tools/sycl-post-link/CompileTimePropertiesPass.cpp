@@ -93,6 +93,15 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   return MDNode::get(Ctx, MD);
 }
 
+/// Gets the string value in a global variable. If the parameter is not a global
+/// variable or it does not contain string data, then \c None is returned.
+///
+/// @param StringV  [in] the LLVM value of supposed \c GlobalVariable type with
+///                 a string value.
+///
+/// @returns a \c StringRef with the string contained in \c StringV and \c None
+///          if \c StringV is not a \c GlobalVariable or does not contain string
+///          data.
 Optional<StringRef> getGlobalVariableString(const Value *StringV) {
   if (const auto *StringGV = dyn_cast<GlobalVariable>(StringV))
     if (const auto *StringData =
@@ -100,6 +109,93 @@ Optional<StringRef> getGlobalVariableString(const Value *StringV) {
       if (StringData->isCString())
         return StringData->getAsCString();
   return {};
+}
+
+/// Tries to generate a SPIR-V decorate metadata node from an attribute. If
+/// the attribute is unknown \c nullptr will be returned.
+///
+/// @param Ctx   [in] the LLVM context.
+/// @param Attr  [in] the LLVM attribute to generate metadata for.
+///
+/// @returns a pointer to a new metadata node if \c Attr is an attribute with a
+///          known corresponding SPIR-V decorate and the arguments are valid.
+///          Otherwise \c nullptr is returned.
+static MDNode *attributeToDecorateMetadata(LLVMContext &Ctx,
+                                           const Attribute &Attr) {
+  // Currently, only string attributes are supported
+  if (!Attr.isStringAttribute())
+    return nullptr;
+  auto DecorIt = SpirvDecorMap.find(Attr.getKindAsString());
+  if (DecorIt == SpirvDecorMap.end())
+    return nullptr;
+  auto Decor = DecorIt->second;
+  auto DecorCode = Decor.Code;
+  switch (Decor.Type) {
+    case DecorValueTy::uint32:
+      return buildSpirvDecorMetadata(Ctx, DecorCode,
+                                     getAttributeAsInteger<uint32_t>(Attr));
+    case DecorValueTy::boolean:
+      return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+    default:
+      llvm_unreachable("Unhandled decorator type.");
+  }
+}
+
+/// Tries to generate a SPIR-V execution mode metadata node from an attribute.
+/// If the attribute is unknown \c None will be returned.
+///
+/// @param Ctx   [in] the LLVM context.
+/// @param Attr  [in] the LLVM attribute to generate metadata for.
+///
+/// @returns a pair with the name of the resulting metadata and a pointer to
+///          the metadata node with its values if the attribute has a
+///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
+static Optional<std::pair<std::string, MDNode *>>
+attributeToExecModeMetadata(LLVMContext &Ctx, const Attribute &Attr) {
+  // Currently, only string attributes are supported
+  if (!Attr.isStringAttribute())
+    return None;
+  StringRef AttrKindStr = Attr.getKindAsString();
+  if (AttrKindStr == "sycl-work-group-size" ||
+      AttrKindStr == "sycl-work-group-size-hint") {
+    // Split values in the comma-separated list integers.
+    SmallVector<StringRef, 3> ValStrs;
+    Attr.getValueAsString().split(ValStrs, ',');
+
+    assert(ValStrs.size() <= 3 &&
+           "sycl-work-group-size and sycl-work-group-size-hint currently only "
+           "support up to three values");
+
+    // SYCL work-group sizes must be reversed for SPIR-V.
+    std::reverse(ValStrs.begin(), ValStrs.end());
+
+    // Get the integers from the strings.
+    auto *SizeTTy = Type::getIntNTy(Ctx, sizeof(size_t) * 8);
+    SmallVector<Metadata *, 3> MDVals;
+    for (StringRef ValStr : ValStrs)
+      MDVals.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+          SizeTTy, APInt(sizeof(size_t) * 8, ValStr, 10))));
+
+    // The SPIR-V translator expects 3 values, so we pad the remaining
+    // dimensions with 1.
+    for (size_t I = MDVals.size(); I < 3; ++I)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(sizeof(size_t) * 8, 1))));
+
+    const char *MDName = (AttrKindStr == "sycl-work-group-size")
+                             ? "reqd_work_group_size"
+                             : "work_group_size_hint";
+    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+  } else if (AttrKindStr == "sycl-sub-group-size") {
+    auto SubGroupSize = getAttributeAsInteger<uint32_t>(Attr);
+    auto *Ty = Type::getInt32Ty(Ctx);
+    Metadata *MDVal = ConstantAsMetadata::get(
+        Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
+    SmallVector<Metadata *, 1> MD{MDVal};
+    return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+  return None;
 }
 
 } // anonymous namespace
@@ -117,18 +213,9 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     // decorations in the SPV_INTEL_* extensions.
     SmallVector<Metadata *, 8> MDOps;
     for (auto &Attribute : GV.getAttributes()) {
-      // Currently, only string attributes are supported
-      if (!Attribute.isStringAttribute())
-        continue;
-      auto DecorIt = SpirvDecorMap.find(Attribute.getKindAsString());
-      if (DecorIt == SpirvDecorMap.end())
-        continue;
-      auto Decor = DecorIt->second;
-      auto DecorCode = Decor.Code;
-      auto DecorValue = Decor.Type == DecorValueTy::uint32
-                            ? getAttributeAsInteger<uint32_t>(Attribute)
-                            : hasProperty(Attribute);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, DecorCode, DecorValue));
+      MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute);
+      if (SPIRVMetadata)
+        MDOps.push_back(SPIRVMetadata);
     }
 
     // Some properties should be handled specially.
@@ -151,6 +238,36 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (!MDOps.empty()) {
       GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
       CompileTimePropertiesMet = true;
+    }
+  }
+
+  // Process all properties on kernels.
+  for (Function &F : M) {
+    // Only consider kernels.
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    SmallVector<Metadata *, 8> MDOps;
+    SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
+    for (auto &Attribute : F.getAttributes().getFnAttrs()) {
+      if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
+        MDOps.push_back(SPIRVMetadata);
+      else if (auto NamedMetadata = attributeToExecModeMetadata(Ctx, Attribute))
+        NamedMDOps.push_back(*NamedMetadata);
+    }
+
+    // Add the generated metadata to the kernel function.
+    if (!MDOps.empty()) {
+      F.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
+      CompileTimePropertiesMet = true;
+    }
+
+    // Add the new named metadata to the kernel function.
+    for (std::pair<std::string, MDNode *> NamedMD : NamedMDOps) {
+      // If multiple sources defined this metadata, prioritize the existing one.
+      if (F.hasMetadata(NamedMD.first))
+        continue;
+      F.addMetadata(NamedMD.first, *NamedMD.second);
     }
   }
 

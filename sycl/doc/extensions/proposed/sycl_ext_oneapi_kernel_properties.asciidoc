@@ -145,12 +145,12 @@ struct device_has_key {
 
 template <size_t... Dims>
 struct property_value<work_group_size_key, std::integral_constant<size_t, Dims>...> {
-  constexpr size_t operator[](int dim);
+  constexpr size_t operator[](int dim) const;
 };
 
 template <size_t... Dims>
 struct property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...> {
-  constexpr size_t operator[](int dim);
+  constexpr size_t operator[](int dim) const;
 };
 
 template <sycl::aspect... Aspects>
