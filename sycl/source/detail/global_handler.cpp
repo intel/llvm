@@ -47,20 +47,13 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
   return *IWL.Inst;
 }
 
-bool GlobalHandler::attachScheduler(Scheduler *scheduler) {
-  Scheduler* old;
-  bool result = true;
-  {
-    const LockGuard Lock{MScheduler.Lock};
-    // Used for notification that scheduler attached later than expected that may cause test issues.
-    if (MScheduler.Inst)
-      result = false;
-    old = MScheduler.Inst.release();
-    MScheduler.Inst.reset(scheduler);
-  }
-  if (old)
-    delete old;
-  return result;
+void GlobalHandler::attachScheduler(Scheduler *scheduler) {
+  // Test method, do not protect with lock since releaseResources will cause dead lock due to host queue release
+  // const LockGuard Lock{MScheduler.Lock};
+  if (MScheduler.Inst)
+    MScheduler.Inst->releaseResources();
+
+  MScheduler.Inst.reset(scheduler);
 }
 
 Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }

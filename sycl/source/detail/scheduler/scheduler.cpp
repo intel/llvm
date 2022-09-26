@@ -454,6 +454,7 @@ void Scheduler::releaseResources()
   // haven't been freed because of the graph mutex being locked at the time,
   // clean them up now.
   cleanupCommands({});
+  DefaultHostQueue.reset();
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
