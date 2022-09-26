@@ -110,8 +110,12 @@ mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
                          mlir::OwningOpRef<mlir::ModuleOp> &module,
                          LowerToInfo &LTInfo)
-    : Glob(Glob), module(module), builder(module->getContext()),
-      loc(builder.getUnknownLoc()), ThisCapture(nullptr), LTInfo(LTInfo) {}
+    : Glob(Glob), function(), module(module), builder(module->getContext()),
+      loc(builder.getUnknownLoc()), entryBlock(nullptr), loops(),
+      allocationScope(nullptr), supportedFuncs(), bufs(), constants(), labels(),
+      EmittingFunctionDecl(nullptr), defaultAddrSpace(0), params(), Captures(),
+      CaptureKinds(), ThisCapture(nullptr), arrayinit(), ThisVal(), returnVal(),
+      LTInfo(LTInfo) {}
 
 void MLIRScanner::initSupportedFunctions() {
   // Functions needed for single_task with one dimensional write buffer.
@@ -159,14 +163,17 @@ void MLIRScanner::initSupportedFunctions() {
                         "5rangeEE3getILi0EEENS3_ILi1EEEv");
 }
 
-void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
-  this->function = function;
-  this->EmittingFunctionDecl = fd;
+void MLIRScanner::init(mlir::func::FuncOp func, const FunctionDecl *fd) {
+  assert(fd && "Expecting valid function declaration");
 
-  if (ShowAST) {
-    llvm::errs() << "Emitting fn: " << function.getName() << "\n";
-    llvm::errs() << *fd << "\n";
-  }
+  function = func;
+  EmittingFunctionDecl = fd;
+  defaultAddrSpace = getDefaultAddrSpace(*EmittingFunctionDecl);
+
+  if (ShowAST)
+    llvm::dbgs() << "Emitting fn: " << function.getName()
+                 << " (defaultAddrSpace = " << defaultAddrSpace << "):\n"
+                 << *EmittingFunctionDecl << "\n";
 
   initSupportedFunctions();
   setEntryAndAllocBlock(function.addEntryBlock());
@@ -193,14 +200,14 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
     }
   }
 
-  const unsigned defaultAddrSpace = getDefaultAddrSpace(*fd);
   for (auto parm : fd->parameters()) {
     assert(i != function.getNumArguments());
     // function.getArgument(i).setName(name);
     bool isArray = false;
     bool LLVMABI = false;
 
-    if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(parm->getType()))
+    if (Glob.getMLIRType(
+                Glob.getCGM().getContext().getPointerType(parm->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
 
@@ -222,9 +229,9 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
     i++;
   }
 
-  if (fd->hasAttr<CUDAGlobalAttr>() && Glob.CGM.getLangOpts().CUDA &&
-      !Glob.CGM.getLangOpts().CUDAIsDevice) {
-    auto deviceStub =
+  if (fd->hasAttr<CUDAGlobalAttr>() && Glob.getCGM().getLangOpts().CUDA &&
+      !Glob.getCGM().getLangOpts().CUDAIsDevice) {
+    func::FuncOp deviceStub =
         Glob.GetOrCreateMLIRFunction(fd, true, /* getDeviceStub */ true);
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -273,7 +280,8 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
           }
 
           VisitConstructCommon(cast<clang::CXXConstructExpr>(init),
-                               /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
+                               /*name*/ nullptr, defaultAddrSpace,
+                               /*mem*/ V);
           continue;
         }
         if (expr->isDelegatingInitializer()) {
@@ -285,7 +293,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
           }
 
           VisitConstructCommon(cast<clang::CXXConstructExpr>(init),
-                               /*name*/ nullptr, /*space*/ 0,
+                               /*name*/ nullptr, defaultAddrSpace,
                                /*mem*/ ThisVal.val);
           continue;
         }
@@ -298,7 +306,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
         continue;
       }
       if (auto cons = dyn_cast<CXXConstructExpr>(expr->getInit())) {
-        VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0,
+        VisitConstructCommon(cons, /*name*/ nullptr, defaultAddrSpace,
                              CommonFieldLookup(CC->getThisObjectType(), field,
                                                ThisVal.val, /*isLValue*/ false)
                                  .val);
@@ -324,7 +332,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   }
 
   auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+  auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
   loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
                    builder.create<mlir::memref::AllocaOp>(loc, type)});
@@ -332,7 +340,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
   if (function.getFunctionType().getResults().size()) {
     auto type = mlir::MemRefType::get(
-        {}, function.getFunctionType().getResult(0), {}, 0);
+        {}, function.getFunctionType().getResult(0), {}, defaultAddrSpace);
     returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
     if (type.getElementType().isa<mlir::IntegerType, mlir::FloatType>()) {
       builder.create<mlir::memref::StoreOp>(
@@ -394,11 +402,9 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   } else
     builder.create<ReturnOp>(loc);
 
-  assert(function->getParentOp() == Glob.module.get() &&
+  assert(function->getParentOp() == module.get() &&
          "New function must be inserted into global module");
 }
-
-mlir::OpBuilder &MLIRScanner::getBuilder() { return builder; }
 
 mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
                                        uint64_t memspace, bool isArray = false,
@@ -420,7 +426,8 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
           builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
           alloc = builder.create<mlir::LLVM::BitcastOp>(
               varLoc,
-              LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, 0)),
+              LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, memspace),
+                                         memspace),
               alloc);
         }
 
@@ -842,20 +849,13 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   decl = decl->getCanonicalDecl();
   mlir::Type subType = getMLIRType(decl->getType());
   ValueCategory inite = nullptr;
-
-  unsigned defaultAddrSpace = 0;
-  if (const DeclContext *declCtx = decl->getParentFunctionOrMethod()) {
-    auto &FD = cast<FunctionDecl>(*declCtx);
-    defaultAddrSpace = getDefaultAddrSpace(FD);
-  }
-
   const unsigned memtype =
       decl->hasAttr<CUDASharedAttr>() ? 5 : defaultAddrSpace;
   bool LLVMABI = false;
   bool isArray = false;
 
-  if (Glob.getMLIRType(
-              Glob.CGM.getContext().getLValueReferenceType(decl->getType()))
+  if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                           decl->getType()))
           .isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else
@@ -863,7 +863,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 
   if (!LLVMABI && isArray) {
     subType = Glob.getMLIRType(
-        Glob.CGM.getContext().getLValueReferenceType(decl->getType()));
+        Glob.getCGM().getContext().getLValueReferenceType(decl->getType()));
   }
 
   if (auto init = decl->getInit()) {
@@ -896,8 +896,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       for (auto a : algn->children()) {
         if (auto IL = dyn_cast<IntegerLiteral>(a)) {
           if (IL->getValue() == 8192) {
-            llvm::Type *T = Glob.CGM.getTypes().ConvertType(decl->getType());
-            subType = Glob.typeTranslator.translateType(T);
+            llvm::Type *T =
+                Glob.getCGM().getTypes().ConvertType(decl->getType());
+            subType = Glob.getTypeTranslator().translateType(T);
             LLVMABI = true;
             break;
           }
@@ -906,8 +907,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     }
   } else if (auto ava = decl->getAttr<InitPriorityAttr>()) {
     if (ava->getPriority() == 8192) {
-      llvm::Type *T = Glob.CGM.getTypes().ConvertType(decl->getType());
-      subType = Glob.typeTranslator.translateType(T);
+      llvm::Type *T = Glob.getCGM().getTypes().ConvertType(decl->getType());
+      subType = Glob.getTypeTranslator().translateType(T);
       LLVMABI = true;
     }
   }
@@ -922,7 +923,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     abuilder.setInsertionPointToStart(allocationScope);
     auto varLoc = getMLIRLocation(decl->getBeginLoc());
 
-    if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(decl->getType()))
+    if (Glob.getMLIRType(
+                Glob.getCGM().getContext().getPointerType(decl->getType()))
             .isa<mlir::LLVM::LLVMPointerType>()) {
       op = abuilder.create<mlir::LLVM::AddressOfOp>(
           varLoc, Glob.GetOrCreateLLVMGlobal(
@@ -941,7 +943,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto init_value = DenseIntElementsAttr::get(rtt, inits);
       OpBuilder gbuilder(builder.getContext());
       gbuilder.setInsertionPointToStart(module->getBody());
-      auto name = Glob.CGM.getMangledName(decl);
+      auto name = Glob.getCGM().getMangledName(decl);
       auto globalOp = gbuilder.create<mlir::memref::GlobalOp>(
           module->getLoc(),
           builder.getStringAttr(function.getName() + "@static@" + name +
@@ -1000,17 +1002,17 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
   bool isArray = false;
   bool LLVMABI = false;
 
-  if (Glob.getMLIRType(
-              Glob.CGM.getContext().getLValueReferenceType(expr->getType()))
+  if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                           expr->getType()))
           .isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else {
     Glob.getMLIRType(expr->getType(), &isArray);
     if (isArray)
       subType = Glob.getMLIRType(
-          Glob.CGM.getContext().getLValueReferenceType(expr->getType()));
+          Glob.getCGM().getContext().getLValueReferenceType(expr->getType()));
   }
-  auto op = createAllocOp(subType, nullptr, /*memtype*/ 0, isArray, LLVMABI);
+  auto op = createAllocOp(subType, nullptr, defaultAddrSpace, isArray, LLVMABI);
   InitializeValueByInitListExpr(op, expr);
   return ValueCategory(op, true);
 }
@@ -1021,7 +1023,7 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   auto ArrayPtr = Visit(expr->getSubExpr());
 
   const ConstantArrayType *ArrayType =
-      Glob.CGM.getContext().getAsConstantArrayType(
+      Glob.getCGM().getContext().getAsConstantArrayType(
           expr->getSubExpr()->getType());
   assert(ArrayType && "std::initializer_list constructed from non-array");
 
@@ -1155,7 +1157,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
     t = mlir::MemRefType::get(shape, mt.getElementType(),
                               MemRefLayoutAttrInterface(), mt.getMemorySpace());
   }
-  auto op = createAllocOp(t, nullptr, /*memtype*/ 0, isArray, LLVMABI);
+  auto op = createAllocOp(t, nullptr, defaultAddrSpace, isArray, LLVMABI);
 
   for (auto tup : llvm::zip(expr->getLambdaClass()->captures(),
                             expr->getLambdaClass()->fields())) {
@@ -1239,7 +1241,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
   bool isArray = false;
   bool LLVMABI = false;
-  if (Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
+  if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
                            expr->getSubExpr()->getType()))
           .isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
@@ -1251,7 +1253,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
   llvm::errs() << "cleanup of materialized not handled";
   auto op = createAllocOp(getMLIRType(expr->getSubExpr()->getType()), nullptr,
-                          0, /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
+                          defaultAddrSpace, isArray, LLVMABI);
 
   ValueCategory(op, /*isRefererence*/ true).store(builder, v, isArray);
   return ValueCategory(op, /*isRefererence*/ true);
@@ -1424,7 +1426,7 @@ ValueCategory MLIRScanner::VisitCXXPseudoDestructorExpr(
 
 ValueCategory
 MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
-  return VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0);
+  return VisitConstructCommon(cons, /*name*/ nullptr, defaultAddrSpace);
 }
 
 ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
@@ -1438,7 +1440,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
 
   bool LLVMABI = false;
   auto ptrty = Glob.getMLIRType(
-      Glob.CGM.getContext().getLValueReferenceType(cons->getType()));
+      Glob.getCGM().getContext().getLValueReferenceType(cons->getType()));
   if (ptrty.isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else if (isArray) {
@@ -1485,7 +1487,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
 
   ValueCategory obj(op, /*isReference*/ true);
   QualType innerType = cons->getType();
-  if (auto arrayType = Glob.CGM.getContext().getAsArrayType(cons->getType())) {
+  if (auto arrayType =
+          Glob.getCGM().getContext().getAsArrayType(cons->getType())) {
     innerType = arrayType->getElementType();
     mlir::Value size;
     if (count)
@@ -1514,14 +1517,19 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported constructors.
 
-  bool ShouldEmit = !mlirclang::isNamespaceSYCL(
+  bool isSyclCtor = mlirclang::isNamespaceSYCL(
       cons->getConstructor()->getEnclosingNamespaceContext());
+  bool ShouldEmit = !isSyclCtor;
 
-  if (const FunctionDecl *FuncDecl =
-          dyn_cast<FunctionDecl>(cons->getConstructor())) {
+  if (auto *fd = dyn_cast<FunctionDecl>(cons->getConstructor())) {
     std::string name;
-    MLIRScanner::getMangledFuncName(name, FuncDecl, Glob.CGM);
+    MLIRScanner::getMangledFuncName(name, *fd, Glob.getCGM());
     name = (PrefixABI + name);
+
+    if (isSyclCtor) {
+      LLVM_DEBUG(llvm::dbgs() << "Adding device attribute to " << name << "\n");
+      fd->addAttr(SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
+    }
 
     LLVM_DEBUG(llvm::dbgs() << "Starting codegen of " << name << "\n");
 
@@ -1532,7 +1540,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     }
   }
 
-  auto tocall =
+  func::FuncOp tocall =
       Glob.GetOrCreateMLIRFunction(cons->getConstructor(), ShouldEmit);
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
@@ -1540,9 +1548,9 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   for (auto a : cons->arguments())
     args.push_back(make_pair(Visit(a), a));
   CallHelper(tocall, innerType, args,
-             /*retType*/ Glob.CGM.getContext().VoidTy, false, cons);
+             /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons);
 
-  if (Glob.CGM.getContext().getAsArrayType(cons->getType())) {
+  if (Glob.getCGM().getContext().getAsArrayType(cons->getType())) {
     builder.setInsertionPoint(oldblock, oldpoint);
   }
   return endobj;
@@ -1663,7 +1671,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
                                                     getConstantIndex(0));
   }
   bool isArray = false;
-  if (!Glob.CGM.getContext().getAsArrayType(expr->getType()))
+  if (!Glob.getCGM().getContext().getAsArrayType(expr->getType()))
     Glob.getMLIRType(expr->getType(), &isArray);
   return CommonArrayLookup(moo, idx, isArray);
 }
@@ -2029,7 +2037,7 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
         std::string name;
-        MLIRScanner::getMangledFuncName(name, Func, Glob.CGM);
+        MLIRScanner::getMangledFuncName(name, *Func, Glob.getCGM());
         Op = builder.create<mlir::sycl::SYCLConstructorOp>(loc, RD->getName(),
                                                            name, Args);
       }
@@ -2058,7 +2066,7 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
       }
 
       std::string name;
-      MLIRScanner::getMangledFuncName(name, Func, Glob.CGM);
+      MLIRScanner::getMangledFuncName(name, *Func, Glob.getCGM());
       Op = builder.create<mlir::sycl::SYCLCallOp>(
           loc, OptRetType, OptFuncType, Func->getNameAsString(), name, Args);
     }
@@ -3157,7 +3165,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
 
   if (isLLVMStructABI(rd, ST)) {
-    auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
+    auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(rd);
     fnum = layout.getLLVMFieldNo(FD);
   } else {
     fnum = 0;
@@ -3196,7 +3204,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
         vec);
     if (rd->isUnion()) {
       auto subType =
-          Glob.typeTranslator.translateType(getLLVMType(FD->getType()));
+          Glob.getTypeTranslator().translateType(getLLVMType(FD->getType()));
       commonGEP = builder.create<mlir::LLVM::BitcastOp>(
           loc, mlir::LLVM::LLVMPointerType::get(subType, PT.getAddressSpace()),
           commonGEP);
@@ -3357,7 +3365,8 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     return Visit(ED->getInitExpr());
   }
   if (auto VD = dyn_cast<ValueDecl>(E->getDecl())) {
-    if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(E->getType()))
+    if (Glob.getMLIRType(
+                Glob.getCGM().getContext().getPointerType(E->getType()))
             .isa<mlir::LLVM::LLVMPointerType>() ||
         name == "stderr" || name == "stdout" || name == "stdin" ||
         (E->hasQualifier())) {
@@ -3401,10 +3410,10 @@ ValueCategory MLIRScanner::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
 ValueCategory MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *E) {
   QualType T;
   if (E->isTypeOperand())
-    T = E->getTypeOperand(Glob.CGM.getContext());
+    T = E->getTypeOperand(Glob.getCGM().getContext());
   else
     T = E->getExprOperand()->getType();
-  llvm::Constant *C = Glob.CGM.GetAddrOfRTTIDescriptor(T);
+  llvm::Constant *C = Glob.getCGM().GetAddrOfRTTIDescriptor(T);
   llvm::errs() << *C << "\n";
   auto ty = getMLIRType(E->getType());
   llvm::errs() << ty << "\n";
@@ -3490,7 +3499,7 @@ static bool isSyclIDorRangetoArray(mlir::Type &nt, mlir::Value &value) {
 mlir::Value MLIRScanner::GetAddressOfDerivedClass(
     mlir::Value value, const CXXRecordDecl *DerivedClass,
     CastExpr::path_const_iterator Start, CastExpr::path_const_iterator End) {
-  const ASTContext &Context = Glob.CGM.getContext();
+  const ASTContext &Context = Glob.getCGM().getContext();
 
   SmallVector<const CXXRecordDecl *> ToBase = {DerivedClass};
   SmallVector<const CXXBaseSpecifier *> Bases;
@@ -3515,7 +3524,7 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
     // Add the offset.
 
     mlir::Type nt = getMLIRType(
-        Glob.CGM.getContext().getLValueReferenceType(Base->getType()));
+        Glob.getCGM().getContext().getLValueReferenceType(Base->getType()));
 
     mlir::Value Offset = nullptr;
     if (isLLVMStructABI(RD, /*ST*/ nullptr)) {
@@ -3584,14 +3593,15 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         cast<CXXRecordDecl>(BaseType->castAs<RecordType>()->getDecl());
     // Add the offset.
 
-    mlir::Type nt = getMLIRType(
-        Glob.CGM.getContext().getLValueReferenceType(QualType(BaseType, 0)));
+    mlir::Type nt =
+        getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+            QualType(BaseType, 0)));
 
     size_t fnum;
     bool subIndex = true;
 
     if (isLLVMStructABI(RD, /*ST*/ nullptr)) {
-      auto &layout = Glob.CGM.getTypes().getCGRecordLayout(RD);
+      auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(RD);
       if (std::get<1>(tup))
         fnum = layout.getVirtualBaseIndex(BaseDecl);
       else {
@@ -3720,7 +3730,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     assert(se.val);
     auto Derived =
-         (E->isLValue() || E->isXValue())
+        (E->isLValue() || E->isXValue())
             ? cast<CXXRecordDecl>(
                   E->getSubExpr()->getType()->castAs<RecordType>()->getDecl())
             : E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
@@ -3732,11 +3742,12 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
 
     if (auto ut = se.val.getType().dyn_cast<mlir::MemRefType>()) {
-      auto mt = getMLIRType((E->isLValue() || E->isXValue())
-                                ? Glob.CGM.getContext().getLValueReferenceType(
-                                      E->getType())
-                                : E->getType())
-                    .dyn_cast<mlir::MemRefType>();
+      auto mt =
+          getMLIRType((E->isLValue() || E->isXValue())
+                          ? Glob.getCGM().getContext().getLValueReferenceType(
+                                E->getType())
+                          : E->getType())
+              .dyn_cast<mlir::MemRefType>();
 
       if (ut.getShape().size() != mt.getShape().size()) {
         E->dump();
@@ -4423,7 +4434,7 @@ mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateFreeFunction() {
 mlir::LLVM::LLVMFuncOp
 MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   std::string name;
-  MLIRScanner::getMangledFuncName(name, FD, CGM);
+  MLIRScanner::getMangledFuncName(name, *FD, CGM);
 
   if (name != "malloc" && name != "free")
     name = (PrefixABI + name);
@@ -4449,7 +4460,7 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
                                                 /*isVarArg=*/FD->isVariadic());
 
   LLVM::Linkage lnk;
-  switch (CGM.getFunctionLinkage(FD)) {
+  switch (getCGM().getFunctionLinkage(FD)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
     break;
@@ -4496,7 +4507,7 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
 mlir::LLVM::GlobalOp
 MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
                                        std::string prefix) {
-  std::string name = prefix + CGM.getMangledName(FD).str();
+  std::string name = prefix + getCGM().getMangledName(FD).str();
 
   name = (PrefixABI + name);
 
@@ -4510,7 +4521,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     FD->dump();
   VD = VD->getCanonicalDecl();
 
-  auto linkage = CGM.getLLVMLinkageVarDefinition(VD, /*isConstant*/ false);
+  auto linkage = getCGM().getLLVMLinkageVarDefinition(VD, /*isConstant*/ false);
   switch (linkage) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
@@ -4636,7 +4647,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
 std::pair<mlir::memref::GlobalOp, bool>
 MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
                                    bool tryInit) {
-  std::string name = prefix + CGM.getMangledName(FD).str();
+  std::string name = prefix + getCGM().getMangledName(FD).str();
 
   name = (PrefixABI + name);
 
@@ -4678,8 +4689,8 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
     initial_value = builder.getUnitAttr();
   }
 
-  switch (CGM.getLLVMLinkageVarDefinition(VD,
-                                          /*isConstant*/ false)) {
+  switch (getCGM().getLLVMLinkageVarDefinition(VD,
+                                               /*isConstant*/ false)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = mlir::SymbolTable::Visibility::Private;
     break;
@@ -4796,10 +4807,11 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
 
   std::string name;
   if (getDeviceStub)
-    name =
-        CGM.getMangledName(GlobalDecl(FD, KernelReferenceKind::Kernel)).str();
+    name = getCGM()
+               .getMangledName(GlobalDecl(FD, KernelReferenceKind::Kernel))
+               .str();
   else
-    MLIRScanner::getMangledFuncName(name, FD, CGM);
+    MLIRScanner::getMangledFuncName(name, *FD, CGM);
 
   name = (PrefixABI + name);
 
@@ -4809,11 +4821,13 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
   if (!FD->hasBody() || !ShouldEmit)
     LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage;
   else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+    LV =
+        getCGM().getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
   else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
+    LV =
+        getCGM().getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
   else
-    LV = CGM.getFunctionLinkage(FD);
+    LV = getCGM().getFunctionLinkage(FD);
 
   LLVM::Linkage lnk;
   switch (LV) {
@@ -4876,6 +4890,8 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
                 mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
       function->setAttrs(attrs.getDictionary(builder.getContext()));
       if (ShouldEmit) {
+        const_cast<FunctionDecl *>(Def)->addAttr(
+            SYCLDeviceAttr::CreateImplicit(getCGM().getContext()));
         functionsToEmit.push_back(Def);
       }
     }
@@ -4933,7 +4949,7 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
       auto t = getMLIRType(parm->getType(), &ArrayStruct);
       if (ArrayStruct) {
         t = getMLIRType(
-            CGM.getContext().getLValueReferenceType(parm->getType()));
+            getCGM().getContext().getLValueReferenceType(parm->getType()));
       }
 
       types.push_back(t);
@@ -4947,8 +4963,8 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
   std::vector<mlir::Type> rettypes;
 
   if (isArrayReturn) {
-    auto mt = getMLIRType(
-                  CGM.getContext().getLValueReferenceType(FD->getReturnType()))
+    auto mt = getMLIRType(getCGM().getContext().getLValueReferenceType(
+                              FD->getReturnType()))
                   .cast<MemRefType>();
 
     auto shape = std::vector<int64_t>(mt.getShape());
@@ -4988,6 +5004,8 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
     if (ShouldEmit) {
+      const_cast<FunctionDecl *>(Def)->addAttr(
+          SYCLDeviceAttr::CreateImplicit(getCGM().getContext()));
       functionsToEmit.push_back(Def);
     }
   } else if (ShouldEmit) {
@@ -5000,30 +5018,30 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     const FunctionDecl *FD = functionsToEmit.front();
-
-    LLVM_DEBUG(llvm::dbgs() << "\n-- FUNCTION BEING EMITTED: "
-                            << FD->getNameAsString() << " --\n\n";);
+    functionsToEmit.pop_front();
 
     assert(FD->getBody());
-    functionsToEmit.pop_front();
     assert(FD->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
     assert(FD->getTemplatedKind() !=
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
+
     std::string name;
-
-    MLIRScanner::getMangledFuncName(name, FD, CGM);
-
+    MLIRScanner::getMangledFuncName(name, *FD, CGM);
     if (done.count(name))
       continue;
+
+    LLVM_DEBUG(llvm::dbgs() << "\n-- FUNCTION BEING EMITTED: "
+                            << FD->getNameAsString() << " --\n\n";);
+
     done.insert(name);
     MLIRScanner ms(*this, module, LTInfo);
-    auto Function = GetOrCreateMLIRFunction(FD, true);
-    ms.init(Function, FD);
+    func::FuncOp function = GetOrCreateMLIRFunction(FD, true);
+    ms.init(function, FD);
 
     LLVM_DEBUG({
       llvm::dbgs() << "\n";
-      Function.dump();
+      function.dump();
       llvm::dbgs() << "\n";
 
       if (functionsToEmit.size()) {
@@ -5060,34 +5078,29 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       HandleDeclContext(NS);
       continue;
     }
-    const FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(D);
-    if (!fd) {
+    FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(D);
+    if (!fd)
       continue;
-    }
-    if (!fd->doesThisDeclarationHaveABody()) {
-      if (!fd->doesDeclarationForceExternallyVisibleDefinition()) {
-        continue;
-      }
-    }
+    if (!fd->doesThisDeclarationHaveABody() &&
+        !fd->doesDeclarationForceExternallyVisibleDefinition())
+      continue;
     if (!fd->hasBody())
       continue;
-
-    if (fd->isTemplated()) {
+    if (fd->isTemplated())
       continue;
-    }
 
     bool externLinkage = true;
     /*
-    auto LV = CGM.getFunctionLinkage(fd);
+    auto LV = getCGM().getFunctionLinkage(fd);
     if (LV == llvm::GlobalValue::InternalLinkage || LV ==
     llvm::GlobalValue::PrivateLinkage) externLinkage = false; if
     (fd->isInlineSpecified()) externLinkage = false;
     */
-    if (!CGM.getContext().DeclMustBeEmitted(fd))
+    if (!getCGM().getContext().DeclMustBeEmitted(fd))
       externLinkage = false;
 
     std::string name;
-    MLIRScanner::getMangledFuncName(name, fd, CGM);
+    MLIRScanner::getMangledFuncName(name, *fd, CGM);
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5104,8 +5117,8 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
         emitIfFound.count(name)) {
+      fd->addAttr(SYCLDeviceAttr::CreateImplicit(getCGM().getContext()));
       functionsToEmit.push_back(fd);
-    } else {
     }
   }
 }
@@ -5129,20 +5142,16 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       HandleDeclContext(NS);
       continue;
     }
-    const FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
-    if (!fd) {
+    FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
+    if (!fd)
       continue;
-    }
-    if (!fd->doesThisDeclarationHaveABody()) {
-      if (!fd->doesDeclarationForceExternallyVisibleDefinition()) {
-        continue;
-      }
-    }
+    if (!fd->doesThisDeclarationHaveABody() &&
+        !fd->doesDeclarationForceExternallyVisibleDefinition())
+      continue;
     if (!fd->hasBody())
       continue;
-    if (fd->isTemplated()) {
+    if (fd->isTemplated())
       continue;
-    }
 
     //  if (fd->getIdentifier())
     //    llvm::errs() << "Func name: " << fd->getName() << "\n";
@@ -5152,16 +5161,16 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
 
     bool externLinkage = true;
     /*
-    auto LV = CGM.getFunctionLinkage(fd);
+    auto LV = getCGM().getFunctionLinkage(fd);
     if (LV == llvm::GlobalValue::InternalLinkage || LV ==
     llvm::GlobalValue::PrivateLinkage) externLinkage = false; if
     (fd->isInlineSpecified()) externLinkage = false;
     */
-    if (!CGM.getContext().DeclMustBeEmitted(fd))
+    if (!getCGM().getContext().DeclMustBeEmitted(fd))
       externLinkage = false;
 
     std::string name;
-    MLIRScanner::getMangledFuncName(name, fd, CGM);
+    MLIRScanner::getMangledFuncName(name, *fd, CGM);
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5180,7 +5189,6 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
         emitIfFound.count(name) || fd->hasAttr<OpenCLKernelAttr>() ||
         fd->hasAttr<SYCLDeviceAttr>()) {
       functionsToEmit.push_back(fd);
-    } else {
     }
   }
 
@@ -5347,7 +5355,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     assert(!RT->getDecl()->isInvalidDecl());
     if (typeCache.find(RT) != typeCache.end())
       return typeCache[RT];
-    llvm::Type *LT = CGM.getTypes().ConvertType(qt);
+    llvm::Type *LT = getCGM().getTypes().ConvertType(qt);
     if (!isa<llvm::StructType>(LT)) {
       qt->dump();
       llvm::errs() << "LT: " << *LT << "\n";
@@ -5451,8 +5459,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       for (auto f : RT->getDecl()->fields()) {
         llvm::errs() << " +++ ";
         f->getType()->dump();
-        llvm::errs() << " @@@ " << *CGM.getTypes().ConvertType(f->getType())
-                     << "\n";
+        llvm::errs() << " @@@ "
+                     << *getCGM().getTypes().ConvertType(f->getType()) << "\n";
       }
       llvm::errs() << "types\n";
       for (auto t : types)
@@ -5477,7 +5485,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   if (auto AT = dyn_cast<clang::ArrayType>(t)) {
     auto PTT = AT->getElementType()->getUnqualifiedDesugaredType();
     if (PTT->isCharType()) {
-      llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
+      llvm::Type *T = getCGM().getTypes().ConvertType(QualType(t, 0));
       return typeTranslator.translateType(T);
     }
     bool subRef = false;
@@ -5555,7 +5563,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                                 ->getUnqualifiedDesugaredType();
 
     if (PTT->isCharType() || PTT->isVoidType()) {
-      llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
+      llvm::Type *T = getCGM().getTypes().ConvertType(QualType(t, 0));
       return typeTranslator.translateType(T);
     }
     bool subRef = false;
@@ -5631,7 +5639,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       ASTContext &Context = PTT->getAsRecordDecl()->getASTContext();
       defaultAddrSpace = Context.getTargetAddressSpace(qt);
     }
-    
+
     return mlir::MemRefType::get({outer}, subType, {}, defaultAddrSpace);
   }
 
@@ -5640,7 +5648,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       OpBuilder builder(module->getContext());
       return builder.getIntegerType(8);
     }
-    llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
+    llvm::Type *T = getCGM().getTypes().ConvertType(QualType(t, 0));
     mlir::OpBuilder builder(module->getContext());
     if (T->isVoidTy()) {
       return builder.getNoneType();
@@ -5743,7 +5751,7 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   if (t->isVoidType()) {
     return llvm::Type::getVoidTy(llvmMod.getContext());
   }
-  llvm::Type *T = CGM.getTypes().ConvertType(t);
+  llvm::Type *T = getCGM().getTypes().ConvertType(t);
   return T;
 }
 
@@ -5790,7 +5798,7 @@ llvm::Type *MLIRScanner::getLLVMType(clang::QualType t) {
 }
 
 mlir::Value MLIRScanner::getTypeSize(clang::QualType t) {
-  // llvm::Type *T = Glob.CGM.getTypes().ConvertType(t);
+  // llvm::Type *T = Glob.getCGM().getTypes().ConvertType(t);
   // return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
   bool isArray = false;
   auto innerTy = Glob.getMLIRType(t, &isArray);
@@ -5815,7 +5823,7 @@ mlir::Value MLIRScanner::getTypeSize(clang::QualType t) {
 }
 
 mlir::Value MLIRScanner::getTypeAlign(clang::QualType t) {
-  // llvm::Type *T = Glob.CGM.getTypes().ConvertType(t);
+  // llvm::Type *T = Glob.getCGM().getTypes().ConvertType(t);
   // return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
   bool isArray = false;
   auto innerTy = Glob.getMLIRType(t, &isArray);
@@ -5825,14 +5833,14 @@ mlir::Value MLIRScanner::getTypeAlign(clang::QualType t) {
       mlir::TypeAttr::get(innerTy)); // DLI.getTypeSize(innerTy);
 }
 
-void MLIRScanner::getMangledFuncName(std::string &name, const FunctionDecl *FD,
+void MLIRScanner::getMangledFuncName(std::string &name, const FunctionDecl &FD,
                                      CodeGen::CodeGenModule &CGM) {
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+  if (auto CC = dyn_cast<CXXConstructorDecl>(&FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
-    name = CGM.getMangledName(FD).str();
+    name = CGM.getMangledName(&FD).str();
 }
 
 #include "clang/Frontend/TextDiagnosticBuffer.h"

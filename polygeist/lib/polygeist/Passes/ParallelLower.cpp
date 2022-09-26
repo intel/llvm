@@ -360,7 +360,9 @@ void ParallelLower::runOnOperation() {
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
         auto newAlloca = builder.create<LLVM::AllocaOp>(
-            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
+            alop.getLoc(),
+            LLVM::LLVMPointerType::get(PT.getElementType(),
+                                       PT.getAddressSpace()),
             alop.getArraySize());
         builder.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(alop, PT, newAlloca);
       }
