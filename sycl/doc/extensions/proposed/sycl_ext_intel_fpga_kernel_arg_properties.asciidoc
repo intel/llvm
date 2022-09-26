@@ -23,11 +23,12 @@
 
 == Notice
 
-Copyright (c) 2021 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
 == Contact
 
@@ -43,7 +44,7 @@ Joseph Garvey, Intel
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, revision 4.
+This extension is written against the SYCL 2020 specification, revision 5.
 
 It depends on the following extensions:
 
@@ -62,9 +63,13 @@ not rely on APIs defined in this specification.*
 == Overview
 
 This extension introduces properties for the classes
-`sycl::ext::oneapi::annotated_ptr` and `sycl::ext::oneapi::annotated_arg`. The
-properties will influence the kernel argument interfaces for FPGA kernels and
-can be ignored for other devices.
+`sycl::ext::oneapi::experimental::annotated_ptr` and
+`sycl::ext::oneapi::experimental::annotated_arg`. The properties will influence
+the kernel argument interfaces for FPGA kernels and can be ignored for other
+devices.
+
+NOTE: These properties are only valid on FPGA kernel arguments and should be
+ignored on other devices.
 
 Some examples of the syntax are shown below.
 

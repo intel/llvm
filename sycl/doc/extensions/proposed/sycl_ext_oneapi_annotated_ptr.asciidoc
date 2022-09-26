@@ -23,15 +23,19 @@
 
 == Notice
 
-Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
 
 == Contact
 
-Abhishek Tiwari, Intel (abhishek2 'dot' tiwari 'at' intel 'dot' com)
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
 
 == Contributors
 
@@ -46,10 +50,13 @@ Roland Schulz, Intel
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, revision 4.
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
-It also depends on the 
-link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 extension.
 
 == Status
@@ -199,8 +206,7 @@ Here's an example of how a property could be used:
 using namespace sycl::ext::oneapi::experimental;
 {
   sycl::queue q;
-  // A pointer to an integer
-  auto ptr = ...
+  int* ptr = ...
   // alignment of the pointer in bytes specified using the property 'alignment'
   auto arg_a = annotated_ptr(ptr, properties{alignment<4>});
 
@@ -215,8 +221,7 @@ using namespace sycl::ext::oneapi::experimental;
 The section below and the table that follows, describe the constructors and
 member functions for `annotated_ptr`.
 
-NOTE: `annotated_ptr` is a device copyable type since it is a wrapper over
-a pointer and pointers are trivially copyable.
+NOTE: `annotated_ptr` is a trivially copyable type.
 
 The section below refers to an `annotated_ref` class which is described in the
 section following this one.
@@ -233,12 +238,12 @@ class annotated_ptr {
     annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
-      annotated_ptr<T2, P> const &) noexcept;
+      const annotated_ptr<T2, P>&) noexcept;
     template <typename T2, typename PropertyListU, typename PropertyListV>
-    explicit annotated_ptr(annotated_ptr<T2, PropertyListU> const &,
+    explicit annotated_ptr(const annotated_ptr<T2, PropertyListU>&,
       properties<PropertyListV>) noexcept;
 
-    annotated_ptr(annotated_ptr const &) noexcept;
+    annotated_ptr(const annotated_ptr&) noexcept;
 
     reference operator*() const noexcept;
 
@@ -257,7 +262,7 @@ class annotated_ptr {
     const T* get() const noexcept;
 
     annotated_ptr& operator=(const T*) noexcept;
-    annotated_ptr& operator=(annotated_ptr const&) noexcept;
+    annotated_ptr& operator=(const annotated_ptr&) noexcept;
 
     annotated_ptr& operator++() noexcept;
     annotated_ptr operator++(int) noexcept;
@@ -313,7 +318,7 @@ a|
 [source,c++]
 ----
 template <typename T2, typename P> explicit annotated_ptr(
-  annotated_ptr<T2, P> const & ConvertFrom);
+  const annotated_ptr<T2, P> &ConvertFrom);
 ----
 |
 Constructs the `annotated_ptr` object from the `ConvertFrom` object if
@@ -325,7 +330,7 @@ a|
 [source,c++]
 ----
 template <typename T2, typename PropertyListU, typename PropertyListV>
-explicit annotated_ptr(annotated_ptr<T2, PropertyListU> const &Ptr,
+explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &Ptr,
   properties<PropertyListV> P) noexcept;
 ----
 |
@@ -337,7 +342,7 @@ underlying pointer is initialized with `Ptr`. `PropertyListU` and
 a|
 [source,c++]
 ----
-annotated_ptr(annotated_ptr const &) noexcept = default;
+annotated_ptr(const annotated_ptr &) noexcept = default;
 ----
 |
 Constructs an `annotated_ptr` object from another `annotated_ptr` with the same
@@ -506,12 +511,12 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
-    annotated_ref(T *);
     operator T() noexcept;
     operator const T() const noexcept;
     void operator=(const T &);
   private:
     T *Ptr;
+    ...
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -521,16 +526,6 @@ Member Functions are described in the table below
 [frame="topbot",options="header"]
 |===
 |Functions |Description
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ref(T * InputPtr);
-----
-|
-Constructs an `annotated_ref` object. Does not allocate new storage. The
-underlying pointer is initialized to `InputPtr`.
 
 // --- ROW BREAK ---
 a|
