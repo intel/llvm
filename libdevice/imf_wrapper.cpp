@@ -293,6 +293,58 @@ float __imf_half2float(_iml_half_internal x) {
 }
 
 DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_llmax(long long int, long long int);
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_llmin(long long int, long long int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_ullmax(unsigned long long int,
+                                              unsigned long long int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_ullmin(unsigned long long int,
+                                              unsigned long long int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umax(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umin(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+long long int __imf_llmax(long long int x, long long int y) {
+  return __devicelib_imf_llmax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+long long int __imf_llmin(long long int x, long long int y) {
+  return __devicelib_imf_llmin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __imf_ullmax(unsigned long long int x,
+                                    unsigned long long int y) {
+  return __devicelib_imf_ullmax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __imf_ullmin(unsigned long long int x,
+                                    unsigned long long int y) {
+  return __devicelib_imf_ullmin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_umax(unsigned int x, unsigned int y) {
+  return __devicelib_imf_umax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_umin(unsigned int x, unsigned int y) {
+  return __devicelib_imf_umin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_brev(unsigned int);
 
 DEVICE_EXTERN_C_INLINE
