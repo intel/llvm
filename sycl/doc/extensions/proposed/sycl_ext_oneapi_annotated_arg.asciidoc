@@ -23,7 +23,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -41,7 +41,7 @@ Abhishek Tiwari, Intel
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 4 and
+This extension is written against the SYCL 2020 specification, Revision 5 and
 the following extensions:
 
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
