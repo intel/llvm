@@ -1108,7 +1108,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             UserTargetName = "spir64_gen";
           }
 
-          llvm::Triple TT(MakeSYCLDeviceTriple(Val));
+          llvm::Triple TT(MakeSYCLDeviceTriple(UserTargetName));
           if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
@@ -1147,7 +1147,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
+          UniqueSYCLTriplesVec.push_back(TT);
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
