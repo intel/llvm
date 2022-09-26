@@ -80,8 +80,12 @@ TEST(PiMockTest, RedefineAPI) {
 
   // Pass a captureless lambda
   auto *OldFuncPtr = Table.piProgramRetain;
-  Mock.redefine<detail::PiApiKind::piProgramRetain>(
-      [](pi_program) -> pi_result { return PI_SUCCESS; });
+  auto Lambda = [](pi_program) -> pi_result {
+    return PI_ERROR_INVALID_PROGRAM;
+  };
+  EXPECT_FALSE(OldFuncPtr == Lambda)
+      << "Lambda is the same as the existing function.";
+  Mock.redefine<detail::PiApiKind::piProgramRetain>(Lambda);
   EXPECT_FALSE(Table.piProgramRetain == OldFuncPtr)
       << "Passing a lambda didn't change the function table entry";
   ASSERT_FALSE(Table.piProgramRetain == nullptr)

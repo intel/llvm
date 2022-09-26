@@ -19,7 +19,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class backend : char {
-  host = 0,
+  host __SYCL2020_DEPRECATED("'host' backend is no longer supported") = 0,
   opencl = 1,
   ext_oneapi_level_zero = 2,
   level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =

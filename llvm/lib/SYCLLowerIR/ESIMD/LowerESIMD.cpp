@@ -654,7 +654,8 @@ public:
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
-        {"bf_cvt", {"bf.cvt", {a(0)}}}};
+        {"bf_cvt", {"bf.cvt", {a(0)}}},
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -974,6 +975,8 @@ static void translateSLMInit(CallInst &CI) {
   assert(NewVal != 0 && "zero slm bytes being requested");
   UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
       *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
+  // TODO: Keep track of traversed functions (use 4-argument version of
+  // traverseCallgraphUp) to avoid repeating traversals over same function.
   esimd::traverseCallgraphUp(F, SetMaxSLMSize);
 }
 
@@ -990,6 +993,8 @@ static void translateNbarrierInit(CallInst &CI) {
   assert(NewVal != 0 && "zero named barrier count being requested");
   UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
+  // TODO: Keep track of traversed functions to avoid repeating traversals
+  // over same function.
   esimd::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 

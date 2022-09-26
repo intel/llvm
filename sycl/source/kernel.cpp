@@ -23,7 +23,11 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
 
 cl_kernel kernel::get() const { return impl->get(); }
 
-bool kernel::is_host() const { return impl->is_host(); }
+bool kernel::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "kernel::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();

@@ -1,7 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=100 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -202,7 +202,7 @@ int main() {
   sycl::gpu_selector gs;
   // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
   sycl::accelerator_selector as;
-  // expected-warning@+1{{'host_selector' is deprecated: Use a callable function instead.}}
+  // expected-warning@+1{{'host_selector' is deprecated: Host device is no longer supported.}}
   sycl::host_selector hs;
 
   // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
