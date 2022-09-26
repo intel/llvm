@@ -136,8 +136,8 @@ public:
   }
 
   static ProxyLoader &instance() {
-    static ProxyLoader *loader = new ProxyLoader();
-    return *loader;
+    static auto loader = std::make_unique<ProxyLoader>();
+    return *loader.get();
   }
 
 private:
