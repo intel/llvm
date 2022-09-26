@@ -1813,6 +1813,10 @@ extern SYCL_EXTERNAL float __imf_ull2float_rd(unsigned long long int x);
 extern SYCL_EXTERNAL float __imf_ull2float_rn(unsigned long long int x);
 extern SYCL_EXTERNAL float __imf_ull2float_ru(unsigned long long int x);
 extern SYCL_EXTERNAL float __imf_ull2float_rz(unsigned long long int x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_rd(float x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_rn(float x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_ru(float x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_rz(float x);
 
 extern SYCL_EXTERNAL _Float16 __imf_fmaf16(_Float16 x, _Float16 y, _Float16 z);
 extern SYCL_EXTERNAL _Float16 __imf_fabsf16(_Float16 x);

@@ -1275,4 +1275,38 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vsadu4(unsigned int x, unsigned int y) {
   return __devicelib_imf_vsadu4(x, y);
 }
+
+// FP16 type cast functions
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_float2half_rn(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_float2half_rd(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_float2half_ru(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_float2half_rz(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __imf_float2half_rn(float x) {
+  return __devicelib_imf_float2half_rn(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __imf_float2half_rd(float x) {
+  return __devicelib_imf_float2half_rd(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __imf_float2half_ru(float x) {
+  return __devicelib_imf_float2half_ru(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __imf_float2half_rz(float x) {
+  return __devicelib_imf_float2half_rz(x);
+}
+
 #endif // __LIBDEVICE_IMF_ENABLED__
