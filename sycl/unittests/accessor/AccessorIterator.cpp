@@ -76,9 +76,9 @@ public:
                               offset[Dimensions - 1]);
 
       sycl::id<3> shapeToCheck(
-          (Dimensions > 2 ? copyShape[Dimensions - 3] : 1) - offsetToUse[0],
-          (Dimensions > 1 ? copyShape[Dimensions - 2] : 1) - offsetToUse[1],
-          copyShape[Dimensions - 1] - offsetToUse[2]);
+          (Dimensions > 2 ? copyShape[Dimensions - 3] : 1) + offsetToUse[0],
+          (Dimensions > 1 ? copyShape[Dimensions - 2] : 1) + offsetToUse[1],
+          copyShape[Dimensions - 1] + offsetToUse[2]);
 
       for (size_t z = offsetToUse[0]; z < shapeToCheck[0]; ++z) {
         for (size_t y = offsetToUse[1]; y < shapeToCheck[1]; ++y) {
@@ -185,7 +185,7 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
           ++It2;
       }
 
-      ASSERT_EQ(It1, It2);
+      ASSERT_EQ(It1, It2) << " with n = " << n;
     }
   }
 
@@ -364,7 +364,8 @@ TEST_F(AccessorIteratorTest, PartialCopyWithOffset3D) {
       sycl::range<3>{8, 8, 8}, sycl::range<3>{4, 4, 4}, sycl::id<3>{4, 4, 4}));
   // FIXME: figure out why the test below fails
   // ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
-  //     sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 3, 3}, sycl::id<3>{4, 4, 4}));
+  //     sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 3, 3}, sycl::id<3>{4, 4,
+  //     4}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 4, 5}, sycl::id<3>{3, 2, 1}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(

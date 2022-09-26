@@ -10,7 +10,9 @@
 
 #include <sycl/id.hpp>
 
+#include <cstddef>
 #include <iterator>
+#include <ostream>
 #include <type_traits>
 
 /// \file accessor_iterator.hpp
@@ -31,18 +33,6 @@
 /// > underlying buffer elements are affected by a ranged accessor’s offset and
 /// > range. ... In addition, the accessor’s iterator functions iterate only
 /// > over the elements that are within the sub-range.
-///
-/// Classes below implement the logic of iterating through N-dimensional
-/// (1 <= N <= 3) space, which covers a potentially non-contiguous memory
-/// region in the underlying accessor bufffer.
-///
-/// Most of the logic is implemented in __accessor_iterator_base class, which
-/// provides routines for all the indexing logic such as
-/// incrementing/decrementing iterators, addition/substraction and comparison
-/// operators of iterators, etc.
-///
-/// Pointer to accessor is held by __accessor_iterator class, which provides
-/// user-visible interface of iterator.
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -53,344 +43,59 @@ class accessor;
 
 namespace detail {
 
-/// Base class for accessor iterators, which implements common logic between
-/// all iterators (const, reverse, const reverse, etc.)
-///
-/// In order to iterate through a possibly non-contiguous N-dimensional space,
-/// the class holds an N-dimensional `id`, which is carefuly incremented each
-/// time iterator is incremented/decrementing, taking into account the
-/// shape/size of a space iterator goes through.
-///
-/// Whilst increment/decrement operation can be implemented through a couple of
-/// 'if's and assignments, additon/substraction operators which can move an
-/// iterator up to N elements, are harder to implement on a N-dimensional id.
-/// In order to implement them, the class also holds and maintains a linearized
-/// id, which can be quickly updated to perform an addition/substraction of an
-/// iterator. However, that id has to be deleniarized in order to be used to
-/// dereference particular element of an accessor and that operation includes
-/// division and taking reminder of the division. Those operations are more
-/// expensive than simple additional and conditionals and therefore the class
-/// maintains both N-dimensional and linear id to balance between implementation
-/// simplicity and performance of (presumably) most oftenly used operations with
-/// an accessor.
-template <int _Dimensions, bool _IsReverse = false>
-class __accessor_iterator_base {
-protected:
-  using difference_type = size_t;
-  using iterator_category = std::random_access_iterator_tag;
-
-private:
-  id<_Dimensions> _MBegin;
-  // Holds an id which is relative to _MBegin.
-  id<_Dimensions> _MCurrent;
-  id<_Dimensions> _MEnd;
-
-  static constexpr int _Index0 = _Dimensions - 1;
-  static constexpr int _Index1 = _Dimensions - 2;
-  static constexpr int _Index2 = _Dimensions - 3;
-
-  static constexpr difference_type _LinearBegin = 0;
-  // Holds an id which is relative to _LinearBegin
-  difference_type _MLinearCurrent = 0;
-  difference_type _MLinearEnd = 0;
-
-  difference_type _MRowSize = 0;
-  difference_type _MSliceSize = 0;
-
-protected:
-  __accessor_iterator_base() {}
-
-  __accessor_iterator_base(const id<_Dimensions> &_Begin,
-                           const id<_Dimensions> &_End,
-                           const id<_Dimensions> &_Current)
-      : _MBegin(_Begin), _MCurrent(_Current - _MBegin), _MEnd(_End) {
-    _MLinearEnd = _MRowSize = _MEnd[_Index0] - _MBegin[_Index0];
-    if constexpr (_Dimensions > 1) {
-      _MSliceSize = (_MEnd[_Index1] - _MBegin[_Index1]) * _MRowSize;
-      // Multiply by number of rows
-      _MLinearEnd *= _MEnd[_Index1] - _MBegin[_Index1];
-    }
-    if constexpr (_Dimensions > 2) {
-      // Multiply by number of slices
-      _MLinearEnd *= _MEnd[_Index2] - _MBegin[_Index2];
-    }
-    _MLinearCurrent = __linearizeIndex(_MCurrent);
-  }
-
-  id<_Dimensions> __get_current_id() const { return _MBegin + _MCurrent; }
-
-  __accessor_iterator_base &operator++() {
-    if constexpr (_IsReverse)
-      __decrement();
-    else
-      __increment();
-    return *this;
-  }
-
-  __accessor_iterator_base operator++(int) {
-    auto _Old = *this;
-    ++(*this);
-    return _Old;
-  }
-
-  __accessor_iterator_base &operator--() {
-    if constexpr (_IsReverse)
-      __increment();
-    else
-      __decrement();
-    return *this;
-  }
-
-  __accessor_iterator_base operator--(int) {
-    auto _Old = *this;
-    --(*this);
-    return _Old;
-  }
-
-  __accessor_iterator_base &operator+=(difference_type _N) {
-    // iterator && N > 0 -> forward
-    // iterator && N < 0 -> backwards
-    // reverse iterator && N > 0 -> backwards
-    // reverse iterator && N < 0 -> forward
-    bool _BackwardsDirection = !_IsReverse ^ (_N > 0);
-    if (_BackwardsDirection)
-      __adjustBackwards(_N);
-    else
-      __adjustForward(_N);
-    return *this;
-  }
-
-  __accessor_iterator_base &operator-=(difference_type _N) {
-    // iterator && N > 0 -> backwards
-    // iterator && N < 0 -> forward
-    // reverse iterator && N > 0 -> forward
-    // reverse iterator && N < 0 -> backwards
-    bool _ForwardDirection = !_IsReverse ^ (_N > 0);
-    if (_ForwardDirection)
-      __adjustForward(_N);
-    else
-      __adjustBackwards(_N);
-    return *this;
-  }
-
-  difference_type operator-(const __accessor_iterator_base &_Rhs) {
-    if (_Rhs._MLinearCurrent > _MLinearCurrent)
-      return _Rhs._MLinearCurrent - _MLinearCurrent;
-    else
-      return _MLinearCurrent - _Rhs._MLinearCurrent;
-  }
-
-  bool operator<(const __accessor_iterator_base<_Dimensions> &_Other) const {
-    return _MLinearCurrent < _Other._MLinearCurrent;
-  }
-
-  bool operator>(const __accessor_iterator_base<_Dimensions> &_Other) const {
-    return _Other < *this;
-  }
-
-  bool operator<=(const __accessor_iterator_base<_Dimensions> &_Other) const {
-    return !(*this > _Other);
-  }
-
-  bool operator>=(const __accessor_iterator_base<_Dimensions> &_Other) const {
-    return !(*this < _Other);
-  }
-
-  bool operator==(const __accessor_iterator_base<_Dimensions> &_Other) const {
-    return _MLinearCurrent == _Other._MLinearCurrent;
-  }
-
-  bool operator!=(const __accessor_iterator_base<_Dimensions> &_Other) const {
-    return !(*this == _Other);
-  }
-
-private:
-  void __increment() {
-    if (_MLinearCurrent >= _MLinearEnd)
-      return;
-
-    ++_MLinearCurrent;
-    if (_MCurrent[_Index0] < _MEnd[_Index0])
-      _MCurrent[_Index0]++;
-    if constexpr (_Dimensions > 1) {
-      if (_MCurrent[_Index0] == _MEnd[_Index0]) {
-        if (_MCurrent[_Index1] < _MEnd[_Index1]) {
-          _MCurrent[_Index1]++;
-          _MCurrent[_Index0] = _MBegin[_Index0];
-        }
-      }
-    }
-    if constexpr (_Dimensions > 2) {
-      if (_MCurrent[_Index1] == _MEnd[_Index1]) {
-        if (_MCurrent[_Index2] < _MEnd[_Index2]) {
-          _MCurrent[_Index2]++;
-          _MCurrent[_Index0] = _MBegin[_Index0];
-          _MCurrent[_Index1] = _MBegin[_Index1];
-        }
-      }
-    }
-  }
-
-  void __decrement() {
-    if (_MLinearCurrent == _LinearBegin)
-      return;
-
-    --_MLinearCurrent;
-    if (_MCurrent[_Index0] > 0)
-      _MCurrent[_Index0]--;
-    if constexpr (_Dimensions > 1) {
-      if (_MCurrent[_Index0] == 0) {
-        if (_MCurrent[_Index1] > 0) {
-          _MCurrent[_Index1]--;
-          _MCurrent[_Index0] = _MEnd[_Index0] - 1;
-        }
-      }
-    }
-    if constexpr (_Dimensions > 2) {
-      if (_MCurrent[_Index1] == 0) {
-        if (_MCurrent[_Index2] > 0) {
-          _MCurrent[_Index2]--;
-          _MCurrent[_Index0] = _MEnd[_Index0] - 1;
-          _MCurrent[_Index1] = _MEnd[_Index1] - 1;
-        }
-      }
-    }
-  }
-
-  void __adjustForward(difference_type _N) {
-    if (_MLinearCurrent + _N > _MLinearEnd)
-      _MLinearCurrent = _MLinearEnd;
-    else
-      _MLinearCurrent += _N;
-    _MCurrent = __delinearizeIndex(_MLinearCurrent);
-  }
-
-  void __adjustBackwards(difference_type _N) {
-    if (_N > _MLinearCurrent)
-      _MLinearCurrent = _LinearBegin;
-    else
-      _MLinearCurrent -= _N;
-    _MCurrent = __delinearizeIndex(_MLinearCurrent);
-  }
-
-  size_t __linearizeIndex(const id<_Dimensions> &_Id) const {
-    size_t _Result = _Id[_Index0];
-    if constexpr (_Dimensions > 1)
-      _Result += _Id[_Index1] * _MRowSize;
-    if constexpr (_Dimensions > 2)
-      _Result += _Id[_Index2] * _MSliceSize;
-    return _Result;
-  }
-
-  id<_Dimensions> __delinearizeIndex(size_t _LinearId) const {
-    id<_Dimensions> _Result;
-    if constexpr (_Dimensions > 2) {
-      _Result[_Index2] = _LinearId / _MSliceSize;
-      _LinearId %= _MSliceSize;
-    }
-    if constexpr (_Dimensions > 1) {
-      _Result[_Index1] = _LinearId / _MRowSize;
-      _LinearId %= _MRowSize;
-    }
-    _Result[_Index0] = _LinearId;
-    return _Result;
-  }
-};
-
 template <typename _DataT, int _Dimensions, access::mode _AccessMode,
           access::target _AccessTarget, access::placeholder _IsPlaceholder,
           typename _PropertyListT>
-class __accessor_iterator : public __accessor_iterator_base<_Dimensions> {
-  using _AccessorT = accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
-                              _IsPlaceholder, _PropertyListT>;
-  const _AccessorT *_MAccessorPtr;
-
-  using _BaseT = __accessor_iterator_base<_Dimensions>;
-
-  friend class accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
-                        _IsPlaceholder, _PropertyListT>;
-
-  __accessor_iterator(const _AccessorT *_AccessorPtr,
-                      const id<_Dimensions> &_Begin,
-                      const id<_Dimensions> &_End,
-                      const id<_Dimensions> &_Current)
-      : __accessor_iterator_base<_Dimensions>(_Begin, _End, _Current),
-        _MAccessorPtr(_AccessorPtr) {}
-
-  static __accessor_iterator __get_begin(const _AccessorT *_AccessorPtr,
-                                         const id<_Dimensions> &_Begin,
-                                         const id<_Dimensions> &_End) {
-    return __accessor_iterator(_AccessorPtr, _Begin, _End, _Begin);
-  }
-
-  static __accessor_iterator __get_end(const _AccessorT *_AccessorPtr,
-                                       const id<_Dimensions> &_Begin,
-                                       const id<_Dimensions> &_End) {
-    // As `.end()` iterator we use an iterator which points to the first element
-    // past the end of an accessible range. That is done to simplify the process
-    // of transforming an iterator to an `.end()` state by incrementing it.
-    //
-    // However, `_End` id passed here highlights an accessible range and do not
-    // point to the first element past the end of the accessible range in all
-    // cases. For example, let's take a look at a case where we access a
-    // 2-dimensional buffer of size 2x2. Inputs to this method will be:
-    // _Begin: (0, 0; _End(2, 2):
-    //   Begin Elem .
-    //   Elem  Elem .
-    //   .     .    End
-    //
-    // As showed above, _End simply defines the shape/size, but it doesn't point
-    // to the element we would like it to point to. That happens because _End
-    // passed here comes from an accessor range, which is 1-indexed. However,
-    // accessor::operator[] accepts a 0-indexed id. In order to create a
-    // past-the-end iterator, we convert _End id to a 0-indexed one,
-    // create an interator out of it and then simply increment it.
-    auto _EndCopy = _End;
-    for (auto _I = 0; _I < _Dimensions; ++_I)
-      _EndCopy[_I]--;
-
-    auto _Ret = __accessor_iterator(_AccessorPtr, _Begin, _End, _EndCopy);
-    return ++_Ret;
-  }
-
+class __accessor_iterator {
 public:
-  using difference_type = typename _BaseT::difference_type;
+  using difference_type = std::ptrdiff_t;
   using value_type = _DataT;
   // FIXME: this should likely include address space
   using pointer = _DataT *;
   using reference = _DataT &;
-  using iterator_category = typename _BaseT::iterator_category;
+  using iterator_category = std::random_access_iterator_tag;
 
-  __accessor_iterator() : _MAccessorPtr(nullptr) {}
+  __accessor_iterator() = default;
 
   _DataT &operator*() {
-    return _MAccessorPtr->operator[](this->__get_current_id());
+    return *(_MAccessorPtr->get_pointer() + __get_absolute_offset_to_buffer());
   }
 
   __accessor_iterator &operator++() {
-    _BaseT::operator++();
+    if (_MLinearId < _MEnd)
+      ++_MLinearId;
     return *this;
   }
 
   __accessor_iterator operator++(int) {
     auto _Old = *this;
-    _BaseT::operator++();
+    ++(*this);
     return _Old;
   }
 
   __accessor_iterator &operator--() {
-    _BaseT::operator--();
+    if (_MLinearId > _MBegin)
+      --_MLinearId;
     return *this;
   }
 
   __accessor_iterator operator--(int) {
     auto _Old = *this;
-    _BaseT::operator--();
+    --(*this);
     return _Old;
   }
 
   __accessor_iterator &operator+=(difference_type _N) {
-    _BaseT::operator+=(_N);
+    if (_N < 0) {
+      *this -= -_N;
+      return *this;
+    }
+
+    if (static_cast<size_t>(_N) > _MEnd || _MEnd - _N < _MLinearId)
+      _MLinearId = _MEnd;
+    else
+      _MLinearId += _N;
+
     return *this;
   }
 
@@ -409,7 +114,16 @@ public:
   }
 
   __accessor_iterator &operator-=(difference_type _N) {
-    _BaseT::operator-=(_N);
+    if (_N < 0) {
+      *this += -_N;
+      return *this;
+    }
+
+    if (_MBegin + _N > _MLinearId)
+      _MLinearId = _MBegin;
+    else
+      _MLinearId -= _N;
+
     return *this;
   }
 
@@ -425,13 +139,234 @@ public:
     return *_Copy;
   }
 
-  using __accessor_iterator_base<_Dimensions>::operator-;
-  using __accessor_iterator_base<_Dimensions>::operator==;
-  using __accessor_iterator_base<_Dimensions>::operator!=;
-  using __accessor_iterator_base<_Dimensions>::operator<;
-  using __accessor_iterator_base<_Dimensions>::operator<=;
-  using __accessor_iterator_base<_Dimensions>::operator>;
-  using __accessor_iterator_base<_Dimensions>::operator>=;
+  bool operator<(const __accessor_iterator &_Other) const {
+    return _MLinearId < _Other._MLinearId;
+  }
+
+  bool operator>(const __accessor_iterator &_Other) const {
+    return _Other < *this;
+  }
+
+  bool operator<=(const __accessor_iterator &_Other) const {
+    return !(*this > _Other);
+  }
+
+  bool operator>=(const __accessor_iterator &_Other) const {
+    return !(*this < _Other);
+  }
+
+  bool operator==(const __accessor_iterator &_Other) const {
+    return _MLinearId == _Other._MLinearId;
+  }
+
+  bool operator!=(const __accessor_iterator &_Other) const {
+    return !(*this == _Other);
+  }
+
+  difference_type operator-(const __accessor_iterator &_Rhs) {
+    // FIXME: values of difference_type can be negative
+    if (_Rhs._MLinearId > _MLinearId)
+      return _Rhs._MLinearId - _MLinearId;
+    else
+      return _MLinearId - _Rhs._MLinearId;
+  }
+
+private:
+  using _AccessorT = accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
+                              _IsPlaceholder, _PropertyListT>;
+  friend class accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
+                        _IsPlaceholder, _PropertyListT>;
+
+  const _AccessorT *_MAccessorPtr = nullptr;
+
+  // Stores a linear id of an accessor's buffer element the iterator points to.
+  // This id is relative to a range accessible through an accessor, i.e. it is
+  // limited by a space with top left corner defiend as accessor::get_offset()
+  // and bottom right corner defined as accesor::get_range().
+  size_t _MLinearId = 0;
+
+  // Describes range of linear IDs accessible by the iterator. _MEnd corresponds
+  // to ID of en element past the last accessible element of accessors's
+  // buffer.
+  size_t _MBegin = 0;
+  size_t _MEnd = 0;
+
+  // If set to true, then it indicates that accessor has its offset and/or range
+  // set to non-zero, i.e. it is a ranged accessor.
+  bool _MAccessorIsRanged = false;
+
+  // Fields below are used (and changed to be non-zero) only if we deal with
+  // a ranged accessor.
+  //
+  // TODO: consider making their existance dependable on _Dimensions template
+  // parameter, because not all of them are needed for all possible dimensions.
+
+  // Three field below allow us to calculate an absolute offset to an accessor's
+  // buffer to correctly identify a memory region which this iterator should
+  // point to. Comments below describe them using an iterator to the following
+  // accessor as an example:
+  //
+  //   buffer<int, 2> buf(input.data(), range<2>{5, 5});
+  //   auto acc = buf.get_access(range<2>{3, 3}, id<2>{1, 1});
+  //
+  // Such combination of buffer size, access range and offset is visualized
+  // below. Dot (.) symbols represent buffer elements NOT reacheable by the
+  // accessor; X symbols represent buffer elements which ARE reachable by the
+  // the accessor.
+  //
+  //   . . . . .
+  //   . X X X .
+  //   . X X X .
+  //   . X X X .
+  //   . . . . .
+  //
+  // _MStaticOffset stores a number of elements in _full_ rows (and in _full_
+  // slices in case of 3-dimensional buffers) before the first accessible
+  // element. For the example above, _MStaticOffset would be equal to 5, because
+  // there is only one full row before the first accessible element. "Static" in
+  // the name highlights that this is a constant element in an equation which
+  // calculates an absoulte offset to an accessor's buffer, it doesn't depend
+  // on the current state of the iterator.
+  //
+  // _MPerRowOffset stores a number of _inaccessible_ elements in each
+  // _accessible_ row. For the example above it would be equal to 2 (leftmost
+  // and the rightmost elements of a row).
+  //
+  // _MPerSliceOffset stores a number of _inaccessible_ elements in each
+  // _accessible_ slice. Slice here means a single 2D layer in a 3D buffer. For
+  // the example above it would be equal to 0, because we are not looking at a
+  // 3D buffer. However, if we had two slices like visualized above,
+  // _MPerSliceOffset would be equal to 16 (elements on the "perimeter" of the
+  // slice, i.e. ones represented as dots (.)).
+
+  size_t _MStaticOffset = 0;
+  size_t _MPerRowOffset = 0;
+  size_t _MPerSliceOffset = 0;
+
+  // Contains a number of _accessible_ elements in a row
+  size_t _MRowSize = 0;
+  // Contains a number of _accessible_ elements in a slice
+  size_t _MSliceSize = 0;
+
+  // Contains a full range of the underlying buffer
+  range<3> _MAccessRange = range<3>{0, 0, 0};
+
+  // _MLinearId stores an offset which is relative to the accessible range of
+  // the accessor, which means that it could be the case that _MlinearId equal
+  // to 0 should not correspond to the beginning of the underlying buffer, but
+  // instead should be re-adjusted to account for an offset passed to the
+  // accessor constructor.
+  //
+  // This function performs necessary calculations to make sure that all
+  // access ranges and offsets are taken into account.
+  size_t __get_absolute_offset_to_buffer() {
+    // For 1D case, any possible offsets are already incorporated into
+    // _MLinearId, so 1D is always treated as a non-ranged accessor
+    if (!_MAccessorIsRanged || _Dimensions == 1)
+      return _MLinearId;
+
+    // Here we need to deal with 2D or 3D ranged accessor.
+    // _MLinearId points to an element relative to the accessible range. It
+    // should be adjusted to account for elements which are outside of the
+    // accessible range of the accessor.
+
+    // We start with static offset: that is a number of elements in full rows
+    // and full slices before the first accessible element.
+    size_t _AbsoluteId = _MLinearId + _MStaticOffset;
+
+    // Then we account for inaccessible elements in each full slice
+    size_t _Remaining = _MLinearId;
+    if constexpr (_Dimensions == 3) {
+      _AbsoluteId += _MPerSliceOffset * (_Remaining / _MSliceSize);
+      _Remaining %= _MSliceSize;
+    }
+
+    // Then we account for inaccessible elements in each full row
+    _AbsoluteId += _MPerRowOffset * (_Remaining / _MRowSize);
+    _Remaining %= _MRowSize;
+
+    // And finally, there could be inaccessible elements on the current row
+    _AbsoluteId += _MAccessorPtr->get_offset()[_Dimensions - 1];
+
+    return _AbsoluteId;
+  }
+
+  __accessor_iterator(const _AccessorT *_AccessorPtr,
+                      const range<3> &_AccessRange)
+      : _MAccessorPtr(_AccessorPtr), _MAccessRange(_AccessRange) {
+    constexpr int _XIndex = _Dimensions - 1;
+    constexpr int _YIndex = _Dimensions - 2;
+    (void)_YIndex;
+    constexpr int _ZIndex = _Dimensions - 3;
+    (void)_ZIndex;
+
+    if constexpr (_Dimensions > 1)
+      _MRowSize = _MAccessorPtr->get_range()[_XIndex];
+    if constexpr (_Dimensions > 2)
+      _MSliceSize = _MAccessorPtr->get_range()[_YIndex] * _MRowSize;
+
+    if (id<_Dimensions>{} != _MAccessorPtr->get_offset())
+      _MAccessorIsRanged = true;
+    else {
+      for (size_t _I = 0; _I < _Dimensions; ++_I)
+        if (_MAccessorPtr->get_range()[_I] != _MAccessRange[_I])
+          _MAccessorIsRanged = true;
+    }
+
+    if (_MAccessorIsRanged) {
+      if constexpr (_Dimensions > 2) {
+        _MStaticOffset += _MAccessRange[_XIndex] * _MAccessRange[_YIndex] *
+                          _MAccessorPtr->get_offset()[_ZIndex];
+        _MPerSliceOffset =
+            _MAccessRange[_XIndex] * _MAccessRange[_YIndex] - _MSliceSize;
+      }
+      if constexpr (_Dimensions > 1) {
+        _MStaticOffset +=
+            _MAccessRange[_XIndex] * _MAccessorPtr->get_offset()[_YIndex];
+        _MPerRowOffset = _MAccessRange[_XIndex] - _MRowSize;
+      }
+    }
+
+    // To further optimize 1D case, offset is already included into _Begin
+    if constexpr (_Dimensions == 1)
+      _MBegin = _MAccessorPtr->get_offset()[_XIndex];
+
+    _MEnd = _MBegin + _MAccessorPtr->size();
+  }
+
+  static __accessor_iterator __get_begin(const _AccessorT *_AccessorPtr,
+                                         const range<3> &_AccessRange) {
+    auto _It = __accessor_iterator(_AccessorPtr, _AccessRange);
+    _It._MLinearId = _It._MBegin;
+    return _It;
+  }
+
+  static __accessor_iterator __get_end(const _AccessorT *_AccessorPtr,
+                                       const range<3> &_AccessRange) {
+    auto _It = __accessor_iterator(_AccessorPtr, _AccessRange);
+    _It._MLinearId = _It._MEnd;
+    return _It;
+  }
+
+public:
+#ifndef NDEBUG
+  // Could be useful for debugging, but not a part of the official API,
+  // therefore only available in builds with assertions enabled.
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const __accessor_iterator &it) {
+    os << "__accessor_iterator {\n";
+    os << "\t_MLinearId: " << it._MLinearId << "\n";
+    os << "\t_MEnd: " << it._MEnd << "\n";
+    os << "\t_MStaticOffset: " << it._MStaticOffset << "\n";
+    os << "\t_MPerRowOffset: " << it._MPerRowOffset << "\n";
+    os << "\t_MPerSliceOffset: " << it._MPerSliceOffset << "\n";
+    os << "\t_MRowSize: " << it._MRowSize << "\n";
+    os << "\t_MSliceSize: " << it._MSliceSize << "\n";
+    os << "\t_MAccessorIsRanged: " << it._MAccessorIsRanged << "\n";
+    os << "}";
+    return os;
+  }
+#endif // NDEBUG
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
