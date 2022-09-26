@@ -5051,6 +5051,42 @@ class OffloadingActionBuilder final {
       }
     }
 
+    bool hasNativeBfloat16() {
+      const OptTable &Opts = C.getDriver().getOpts();
+      const char *DeviceOpt = nullptr;
+      for (auto *A : Args) {
+        llvm::Triple *TargetBE = nullptr;
+
+        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
+          llvm::Triple TargetTriple{Triple};
+          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
+            return SYCLTriple == TargetTriple;
+          });
+          return TripleIt != SYCLTripleList.end() ? &*TripleIt : nullptr;
+        };
+
+        if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
+          TargetBE = GetTripleIt(A->getValue(0));
+          if (TargetBE)
+            DeviceOpt = A->getValue(1);
+          else
+            continue;
+        } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
+          // Passing device args: -Xsycl-target-backend -opt=val.
+          TargetBE = &SYCLTripleList.front();
+          DeviceOpt = A->getValue(0);
+        } else {
+          continue;
+        };
+      }
+      if (DeviceOpt) {
+        if (strstr(DeviceOpt, "pvc") || strstr(DeviceOpt, "ats"))
+          return true;
+      }
+      return false;
+    }
+
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       struct DeviceLibOptInfo {
@@ -5123,7 +5159,10 @@ class OffloadingActionBuilder final {
           {"libsycl-fallback-cmath", "libm-fp32"},
           {"libsycl-fallback-cmath-fp64", "libm-fp64"},
           {"libsycl-fallback-imf", "libimf-fp32"},
-          {"libsycl-fallback-imf-fp64", "libimf-fp64"},
+          {"libsycl-fallback-imf-fp64", "libimf-fp64"}};
+      const SYCLDeviceLibsList sycl_device_bfloat16_fallback_lib = {
+          {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
+      const SYCLDeviceLibsList sycl_device_bfloat16_native_lib = {
           {"libsycl-native-bfloat16", "libm-bfloat16"}};
       // ITT annotation libraries are linked in separately whenever the device
       // code instrumentation is enabled.
@@ -5174,6 +5213,19 @@ class OffloadingActionBuilder final {
       addInputs(sycl_device_wrapper_libs);
       if (isSpirvAOT || TC->getTriple().isNVPTX())
         addInputs(sycl_device_fallback_libs);
+
+      // Add native or fallback bfloat16 library.
+      if (TC->getTriple().isSPIR()) {
+        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+          if (hasNativeBfloat16())
+            addInputs(sycl_device_bfloat16_native_lib);
+          else
+            addInputs(sycl_device_bfloat16_fallback_lib);
+        else if (TC->getTriple().getSubArch() ==
+                 llvm::Triple::SPIRSubArch_x86_64)
+          addInputs(sycl_device_bfloat16_fallback_lib);
+      }
+
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         addInputs(sycl_device_annotation_libs);
