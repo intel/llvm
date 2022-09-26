@@ -408,6 +408,7 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     // 3.1. Create a new declaration for the intrinsic (with 1 parameter less):
     constexpr unsigned HelperArgNo = 0;
     Function *InvokeSimdF = InvokeSimd->getCalledFunction();
+    assert(InvokeSimdF && "Unexpected IR for invoke_simd");
     // - type of the obsolete (unmodified) helper:
     Type *HelperArgTy = InvokeSimdF->getArg(HelperArgNo)->getType();
     unsigned AS = dyn_cast<PointerType>(HelperArgTy)->getAddressSpace();
