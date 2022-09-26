@@ -126,16 +126,6 @@ static inline void bfs(const Graph &G,
   }
 }
 
-/// Get the indices of a parallel op
-static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
-  if (auto pop = dyn_cast<scf::ParallelOp>(op))
-    for (auto var : pop.getInductionVars())
-      indVars.insert(var);
-  else
-    for (auto var : cast<AffineParallelOp>(op).getBody()->getArguments())
-      indVars.insert(var);
-}
-
 // \p singleExecution denotes whether op is guaranteed to execute the body once
 // and after the cloned values
 static bool arePreceedingOpsFullyRecomputable(Operation *op,
@@ -1410,59 +1400,6 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     return success();
   }
 };
-
-/// Returns the insertion point (as block pointer and itertor in it) immediately
-/// after the definition of `v`.
-static std::pair<Block *, Block::iterator> getInsertionPointAfterDef(Value v) {
-  if (Operation *op = v.getDefiningOp())
-    return {op->getBlock(), std::next(Block::iterator(op))};
-
-  BlockArgument blockArg = v.cast<BlockArgument>();
-  return {blockArg.getParentBlock(), blockArg.getParentBlock()->begin()};
-}
-
-/// Returns the insertion point that post-dominates `first` and `second`.
-static std::pair<Block *, Block::iterator>
-findNearestPostDominatingInsertionPoint(
-    const std::pair<Block *, Block::iterator> &first,
-    const std::pair<Block *, Block::iterator> &second,
-    const PostDominanceInfo &postDominanceInfo) {
-  // Same block, take the last op.
-  if (first.first == second.first)
-    return first.second->isBeforeInBlock(&*second.second) ? second : first;
-
-  // Same region, use "normal" dominance analysis.
-  if (first.first->getParent() == second.first->getParent()) {
-    Block *block =
-        postDominanceInfo.findNearestCommonDominator(first.first, second.first);
-    assert(block);
-    if (block == first.first)
-      return first;
-    if (block == second.first)
-      return second;
-    return {block, block->begin()};
-  }
-
-  if (first.first->getParent()->isAncestor(second.first->getParent()))
-    return second;
-
-  assert(second.first->getParent()->isAncestor(first.first->getParent()) &&
-         "expected values to be defined in nested regions");
-  return first;
-}
-
-/// Returns the insertion point that post-dominates all `values`.
-static std::pair<Block *, Block::iterator>
-findNearestPostDominatingInsertionPoint(
-    ArrayRef<Value> values, const PostDominanceInfo &postDominanceInfo) {
-  assert(!values.empty());
-  std::pair<Block *, Block::iterator> insertPoint =
-      getInsertionPointAfterDef(values[0]);
-  for (unsigned i = 1, e = values.size(); i < e; ++i)
-    insertPoint = findNearestPostDominatingInsertionPoint(
-        insertPoint, getInsertionPointAfterDef(values[i]), postDominanceInfo);
-  return insertPoint;
-}
 
 /// Interchanges a parallel for loop with a while loop it contains. The while
 /// loop is expected to have an empty "after" region.
