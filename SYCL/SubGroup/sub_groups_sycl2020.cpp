@@ -8,66 +8,47 @@
 
 #include <sycl/sycl.hpp>
 
-class TestKernel;
-class TestKernelCUDA;
-
 int main() {
   sycl::queue Q;
-  sycl::buffer<int, 3> Buf{sycl::range{3, 32, 32}};
+  sycl::buffer<int, 3> Buf{sycl::range{32, 32, 3}};
 
   size_t SubgroupSize = 0;
 
-  sycl::accessor WriteAcc{Buf, sycl::write_only};
-  const auto KernelFunc = [=](sycl::nd_item<1> item) {
-    auto SG = item.get_sub_group();
-    WriteAcc[0][SG.get_group_linear_id()][SG.get_local_linear_id()] =
-        SG.leader();
-    WriteAcc[1][SG.get_group_linear_id()][SG.get_local_linear_id()] =
-        SG.get_group_linear_range();
-    WriteAcc[2][SG.get_group_linear_id()][SG.get_local_linear_id()] =
-        SG.get_local_linear_range();
-  };
-
-  if (Q.get_backend() != sycl::backend::ext_oneapi_cuda) {
-    sycl::kernel_id TestKernelID = sycl::get_kernel_id<TestKernel>();
-    sycl::kernel_bundle KernelBundle =
-        sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context(),
-                                                                {TestKernelID});
-
+  {
+    sycl::buffer<size_t, 1> SGBuf{&SubgroupSize, 1};
     Q.submit([&](sycl::handler &CGH) {
-      CGH.use_kernel_bundle(KernelBundle);
-      CGH.require(WriteAcc);
-      CGH.parallel_for<TestKernel>(
-          sycl::nd_range<1>(sycl::range{32}, sycl::range{32}), KernelFunc);
-    });
+      sycl::accessor WriteAcc{Buf, CGH, sycl::write_only};
+      sycl::accessor SGSizeAcc{SGBuf, CGH, sycl::write_only};
+      CGH.parallel_for(
+          sycl::nd_range<1>(sycl::range{32}, sycl::range{32}),
+          [=](sycl::nd_item<1> item) {
+            auto SG = item.get_sub_group();
 
-    sycl::kernel Kernel = KernelBundle.get_kernel(TestKernelID);
-    SubgroupSize =
-        Kernel.get_info<sycl::info::kernel_device_specific::max_sub_group_size>(
-            Q.get_device(), sycl::range{32, 1, 1});
-  } else {
-    // CUDA sub-group size is 32 by default (size of a warp) so the kernel
-    // bundle is not strictly needed to do this test for the CUDA backend.
-    // TODO: Remove this special CUDA path once the CUDA backend supports kernel
-    // bundles.
-    SubgroupSize = 32;
-    Q.submit([&](sycl::handler &CGH) {
-      CGH.require(WriteAcc);
-      CGH.parallel_for<TestKernelCUDA>(
-          sycl::nd_range<1>(sycl::range{32}, sycl::range{32}), KernelFunc);
+            // Get sub-group size once.
+            if (item.get_global_linear_id() == 0)
+              SGSizeAcc[0] = SG.get_local_linear_range();
+
+            auto PerWI =
+                WriteAcc[SG.get_group_linear_id()][SG.get_local_linear_id()];
+            PerWI[0] = SG.leader();
+            PerWI[1] = SG.get_group_linear_range();
+            PerWI[2] = SG.get_local_linear_range();
+          });
     });
   }
 
   sycl::host_accessor HostAcc{Buf, sycl::read_only};
 
-  const size_t MaxNumSubgroups = 32 / SubgroupSize;
+  const size_t NumSubgroups = 32 / SubgroupSize;
+  std::cout << "SubgroupSize " << SubgroupSize << std::endl;
+  std::cout << "NumSubgroups " << NumSubgroups << std::endl;
 
-  for (size_t SGNo = 0; SGNo < MaxNumSubgroups; SGNo++) {
+  for (size_t SGNo = 0; SGNo < NumSubgroups; SGNo++) {
     for (size_t WINo = 0; WINo < SubgroupSize; WINo++) {
       const int Leader = WINo == 0 ? 1 : 0;
-      assert(HostAcc[0][SGNo][WINo] == Leader);
-      assert(HostAcc[1][SGNo][WINo] == MaxNumSubgroups);
-      assert(HostAcc[2][SGNo][WINo] == SubgroupSize);
+      assert(HostAcc[SGNo][WINo][0] == Leader);
+      assert(HostAcc[SGNo][WINo][1] == NumSubgroups);
+      assert(HostAcc[SGNo][WINo][2] == SubgroupSize);
     }
   }
 

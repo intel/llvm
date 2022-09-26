@@ -57,11 +57,21 @@ int main() {
     if (std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") !=
         std::end(Vec)) {
       auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
+
+      // Max sub-group size for a particular kernel might not be the max
+      // supported size on the device in general. Can only check that it is
+      // contained in list of valid sizes.
+      Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
+          Device);
+      bool Expected =
+          std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
+      exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
+
       for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
                      range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
         Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
             Device, r);
-        bool Expected =
+        Expected =
             std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
         exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
       }
