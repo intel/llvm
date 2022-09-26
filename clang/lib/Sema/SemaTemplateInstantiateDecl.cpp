@@ -6845,8 +6845,8 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
                                 TSK_ExplicitInstantiationDefinition;
       if (Function->isMultiVersion())
         getASTContext().forEachMultiversionedFunctionVersion(
-            Function, [this, Inst, DefinitionRequired,
-                       MangleCtx = move(MangleCtx)](FunctionDecl *CurFD) {
+            Function,
+            [this, Inst, DefinitionRequired, &MangleCtx](FunctionDecl *CurFD) {
               processFunctionInstantiation(*this, Inst.second, CurFD,
                                            DefinitionRequired, *MangleCtx);
             });

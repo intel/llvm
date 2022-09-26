@@ -104,18 +104,21 @@ public:
     // Create new mock plugin platform and plugin handles
     // Note: Mock plugin will be generated if it has not been yet.
     MPlatformImpl = GetMockPlatformImpl();
-    const detail::plugin &OriginalPiPlugin = MPlatformImpl->getPlugin();
-    // Copy the PiPlugin, thus untying our to-be mock platform from other
-    // platforms within the context. Reset our platform to use the new plugin.
-    auto NewPluginPtr = std::make_shared<detail::plugin>(
-        OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
-        OriginalPiPlugin.getLibraryHandle());
+    std::shared_ptr<detail::plugin> NewPluginPtr;
+    {
+      const detail::plugin &OriginalPiPlugin = MPlatformImpl->getPlugin();
+      // Copy the PiPlugin, thus untying our to-be mock platform from other
+      // platforms within the context. Reset our platform to use the new plugin.
+      NewPluginPtr = std::make_shared<detail::plugin>(
+          OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
+          OriginalPiPlugin.getLibraryHandle());
+      // Save a copy of the platform resource
+      OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
+    }
     MPlatformImpl->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,
     // explicitly allowing modification
     MPiPluginMockPtr = &NewPluginPtr->getPiPlugin();
-    // Save a copy of the platform resource
-    OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
   }
 
   PiMock(PiMock &&Other) {

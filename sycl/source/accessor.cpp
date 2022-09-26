@@ -33,6 +33,8 @@ range<3> &AccessorBaseHost::getAccessRange() { return impl->MAccessRange; }
 range<3> &AccessorBaseHost::getMemoryRange() { return impl->MMemoryRange; }
 void *AccessorBaseHost::getPtr() { return impl->MData; }
 
+detail::AccHostDataT &AccessorBaseHost::getAccData() { return impl->MAccData; }
+
 const property_list &AccessorBaseHost::getPropList() const {
   return impl->MPropertyList;
 }

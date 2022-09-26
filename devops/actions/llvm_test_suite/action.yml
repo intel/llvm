@@ -81,7 +81,7 @@ runs:
       export PATH=$PWD/toolchain/bin/:$PATH
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
-      export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
+      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
