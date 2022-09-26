@@ -1133,12 +1133,12 @@ bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
-  if constexpr (Reduction::has_fast_atomics)
-    return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
-                                                     NDRange, Redu);
-  else if constexpr (Reduction::has_fast_reduce)
+  if constexpr (Reduction::has_fast_reduce)
     return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
                                                     NDRange, Redu);
+  else if constexpr (Reduction::has_fast_atomics)
+    return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
+                                                     NDRange, Redu);
   else
     return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
                                                Redu);
