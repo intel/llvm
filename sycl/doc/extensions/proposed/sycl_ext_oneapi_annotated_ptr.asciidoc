@@ -277,9 +277,6 @@ class annotated_ptr {
     // instances of propertyT
     template<typename propertyT>
     static constexpr /*unspecified*/ get_property();
-
-  private:
-    /* unspecified */
   };
 } // namespace sycl::ext::oneapi::experimental
 
@@ -514,8 +511,6 @@ class annotated_ref {
     operator T() noexcept;
     operator const T() const noexcept;
     void operator=(const T &);
-  private:
-    /* unspecified */
   };
 } // namespace sycl::ext::oneapi::experimental
 ```

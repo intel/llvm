@@ -184,9 +184,6 @@ SYCL specification.
 namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_arg {
-  private:
-    /* unspecified */
-
   public:
     annotated_arg();
     annotated_arg(const T& v_);
