@@ -56,6 +56,12 @@ float __imf_int_as_float(int);
 unsigned __imf_brev(unsigned);
 unsigned long long __imf_brevll(unsigned long long);
 unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
+long long __imf_llmax(long long x, long long y);
+long long __imf_llmin(long long x, long long y);
+unsigned long long __imf_ullmax(unsigned long long x, unsigned long long y);
+unsigned long long __imf_ullmin(unsigned long long x, unsigned long long y);
+unsigned __imf_umax(unsigned x, unsigned y);
+unsigned __imf_umin(unsigned x, unsigned y);
 int __imf_clz(int);
 int __imf_clzll(long long);
 int __imf_ffs(int);
@@ -76,8 +82,7 @@ unsigned __imf_usad(unsigned, unsigned, unsigned);
 }
 
 int main(int, char **) {
-  s::default_selector device_selector;
-  s::queue device_queue(device_selector);
+  s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
             << device_queue.get_device().get_info<s::info::device::name>()
             << "\n";
@@ -506,8 +511,18 @@ int main(int, char **) {
         788321204, 111236666483, 992212711123456789, 9100000};
     std::initializer_list<long long> ref_vals = {
         0, 0, -45, -82443474164041221, 35, -1, 4112741190099812, -27};
+    std::initializer_list<long long> ref_vals1 = {
+        100,          819933,       8198283838781,      911268323228583722,
+        832499998311, 111236666483, 992212711123456789, 9100000};
+    std::initializer_list<long long> ref_vals2 = {
+        0,         999,      -99222322,         -1668897765548765876,
+        788321204, -1123492, 76462116766547976, -54541165421294};
     test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_mul64hi));
     std::cout << "mul64hi passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_llmax));
+    std::cout << "llmax passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_llmin));
+    std::cout << "llmin passes." << std::endl;
   }
 
   {
@@ -533,8 +548,18 @@ int main(int, char **) {
     std::initializer_list<unsigned> ref_vals = {
         49,         410466,     54091078,   2150899805,
         1912741434, 3943894987, 1558824202, 2147483646};
+    std::initializer_list<unsigned int> ref_vals1 = {
+        99,         819933,     99898322,   4294967289,
+        1992983587, 3991123492, 2000002194, 2147483647};
+    std::initializer_list<unsigned int> ref_vals2 = {
+        0,          999,        8283835,    6832322,
+        1832499282, 3896666483, 1117646211, 2147483646};
     test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_uhadd));
     std::cout << "uhadd passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_umax));
+    std::cout << "umax passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_umin));
+    std::cout << "umin passes." << std::endl;
   }
 
   {
@@ -576,8 +601,18 @@ int main(int, char **) {
     std::initializer_list<unsigned long long> ref_vals = {
         0,  0, 53296815109651,   625842976832950555,
         35, 0, 4112741190099812, 481963244};
+    std::initializer_list<unsigned long long> ref_vals1 = {
+        100,          819933,       819828383878191124, 12668897765548765876ULL,
+        832499998311, 111236666483, 992212711123456789, 9769854541165421294ULL};
+    std::initializer_list<unsigned long long> ref_vals2 = {
+        0,         999,     1199217699222322,  911268323228583722,
+        788321204, 1123492, 76462116766547976, 910008700};
     test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_umul64hi));
     std::cout << "umul64hi passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_ullmax));
+    std::cout << "ullmax passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_ullmin));
+    std::cout << "ullmin passes." << std::endl;
   }
 
   {
@@ -644,5 +679,6 @@ int main(int, char **) {
           F3(__imf_usad));
     std::cout << "usad passes." << std::endl;
   }
+
   return 0;
 }
