@@ -16,8 +16,6 @@
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 
-using uint = unsigned int;
-
 // generic work-group split barrier
 __ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -931,7 +929,7 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       continue;
     }
 
-    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
     constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
     int ByteDistance = 0;
@@ -1161,7 +1159,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
       continue;
     }
 
-    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
     constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
     int ByteDistance = 0;
@@ -1638,7 +1636,7 @@ __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
       continue;
     }
 
-    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
     constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
     int ByteDistance = 0;
@@ -1711,7 +1709,7 @@ __esimd_lsc_xatomic_stateless_1(
       continue;
     }
 
-    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
     constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
     int ByteDistance = 0;
@@ -1836,7 +1834,7 @@ __esimd_lsc_xatomic_stateless_2(
       continue;
     }
 
-    constexpr uint MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
     constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
     int ByteDistance = 0;
