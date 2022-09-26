@@ -515,8 +515,7 @@ class annotated_ref {
     operator const T() const noexcept;
     void operator=(const T &);
   private:
-    T *Ptr;
-    ...
+    /* unspecified */
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
