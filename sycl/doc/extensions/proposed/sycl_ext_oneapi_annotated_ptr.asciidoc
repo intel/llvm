@@ -322,6 +322,8 @@ Constructs the `annotated_ptr` object from the `ConvertFrom` object if
 the list of properties in `PropertyListT` is a superset of the list of
 properties in `P`.
 
+`T2*` must be implicitly convertible to `T*`.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -333,7 +335,10 @@ explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &Ptr,
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`. `PropertyListU` and
-`PropertyListV` will be combined to construct `PropertyListT`.
+`PropertyListV` will be merged together to construct `PropertyListT`. If any
+common properties have different values then an error will be issued.
+
+`T2*` must be implicitly convertible to `T*`.
 
 // --- ROW BREAK ---
 a|
