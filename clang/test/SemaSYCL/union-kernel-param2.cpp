@@ -106,17 +106,9 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void () noexcept'
-
-// Check call to __builtin_memcpy to initialize structWithPtr_mem
-// CHECK-NEXT: CallExpr
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *(*)(void *, const void *, unsigned long) noexcept' <BuiltinFnToFnPtr>
-// CHECK-NEXT: DeclRefExpr {{.*}} Function {{.*}} '__builtin_memcpy' 'void *(void *, const void *, unsigned long) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *' <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr *' prefix '&' cannot overflow
-// CHECK-NEXT: MemberExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue .structWithPtr_mem
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:55:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:55:9)'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 24

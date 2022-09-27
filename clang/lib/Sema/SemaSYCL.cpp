@@ -1796,20 +1796,10 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      // FIXME: Stop triggering decomposition for non-trivial types with
-      // pointers
-      if (RD->isTrivial()) {
-        PointerStack.back() = true;
-        if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
-          RD->addAttr(
-              SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
-      } else {
-        // We are visiting a non-trivial type with pointer.
-        CollectionStack.back() = true;
-        if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
-          RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
-              SemaRef.getASTContext()));
-      }
+      PointerStack.back() = true;
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+        RD->addAttr(
+            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
     }
     return true;
   }
@@ -2916,6 +2906,18 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                           Init.get());
   }
 
+  void addBaseInit(const CXXBaseSpecifier &BS, QualType Ty,
+                   InitializationKind InitKind, MultiExprArg Args) {
+    InitializedEntity Entity = InitializedEntity::InitializeBase(
+        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, Args);
+    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, Args);
+
+    InitListExpr *ParentILE = CollectionInitExprs.back();
+    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
+                          Init.get());
+  }
+
   void addSimpleBaseInit(const CXXBaseSpecifier &BS, QualType Ty) {
     InitializationKind InitKind =
         InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
@@ -2961,6 +2963,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                  false, SemaRef.CurFPFeatureOverrides());
   }
 
+  Expr *createDerefOp(Expr *E) {
+    return UnaryOperator::Create(SemaRef.Context, E, UO_Deref,
+                                 E->getType()->getPointeeType(),
+                                 VK_LValue, OK_Ordinary, KernelCallerSrcLoc,
+                                 false, SemaRef.CurFPFeatureOverrides());
+  }
+
   Expr *buildMemCpyCall(Expr *From, Expr *To, QualType T) {
     // Compute the size of the memory buffer to be copied.
     QualType SizeType = SemaRef.Context.getSizeType();
@@ -2992,31 +3001,40 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return Call.getAs<Expr>();
   }
 
-  // Adds default initializer for generated type and creates
-  // a call to __builtin_memcpy to initialize local clone from
-  // kernel argument.
   void handleGeneratedType(FieldDecl *FD, QualType Ty) {
-    addFieldInit(FD, Ty, None,
-                 InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    addFieldMemberExpr(FD, Ty);
-    Expr *ParamRef = createGetAddressOf(createParamReferenceExpr());
-    Expr *LocalCloneRef = createGetAddressOf(MemberExprBases.back());
-    Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
-    BodyStmts.push_back(MemCpyCallExpr);
-    removeFieldMemberExpr(FD, Ty);
+    // Equivalent of the following code is generated here:
+    // void ocl_kernel(__generated_type GT) {
+    //   Kernel KernelObjClone { *(reinterpret_cast<UsersType*>(&GT)) };
+    // }
+
+    Expr *ParamRef = createParamReferenceExpr();
+    Expr *ParamAddress = createGetAddressOf(ParamRef);
+
+    QualType ResultType = SemaRef.Context.getPointerType(Ty);
+    TypeSourceInfo *TSI = SemaRef.Context.CreateTypeSourceInfo(ResultType);
+    CXXReinterpretCastExpr *RCE = CXXReinterpretCastExpr::Create(
+        SemaRef.Context, ResultType, VK_PRValue, CK_BitCast, ParamAddress,
+        /*Path=*/nullptr, TSI, SourceLocation(), SourceLocation(),
+        SourceRange());
+    Expr *Initializer = createDerefOp(RCE);
+    addFieldInit(FD, Ty, Initializer);
   }
 
-  // Adds default initializer for generated base and creates
-  // a call to __builtin_memcpy to initialize the base of local clone
-  // from kernel argument.
   void handleGeneratedType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                            QualType Ty) {
-    addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    Expr *ParamRef = createGetAddressOf(createParamReferenceExpr());
-    Expr *LocalCloneRef = createGetAddressOf(MemberExprBases.back());
-    LocalCloneRef = addDerivedToBaseCastExpr(RD, BS, LocalCloneRef);
-    Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
-    BodyStmts.push_back(MemCpyCallExpr);
+    Expr *ParamRef = createParamReferenceExpr();
+    Expr *ParamAddress = createGetAddressOf(ParamRef);
+
+    QualType ResultType = SemaRef.Context.getPointerType(Ty);
+    TypeSourceInfo *TSI = SemaRef.Context.CreateTypeSourceInfo(ResultType);
+    CXXReinterpretCastExpr *RCE = CXXReinterpretCastExpr::Create(
+        SemaRef.Context, ResultType, VK_PRValue, CK_BitCast, ParamAddress,
+        /*Path=*/nullptr, TSI, SourceLocation(), SourceLocation(),
+        SourceRange());
+    Expr *Initializer = createDerefOp(RCE);
+    InitializationKind InitKind =
+        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
+    addBaseInit(BS, Ty, InitKind, Initializer);
   }
 
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
