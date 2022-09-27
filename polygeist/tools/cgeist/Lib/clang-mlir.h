@@ -15,6 +15,7 @@
 #include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
@@ -55,11 +56,13 @@ private:
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
   std::map<std::string, mlir::func::FuncOp> &functions;
+  std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   std::deque<const clang::FunctionDecl *> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
+  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -78,16 +81,19 @@ public:
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::func::FuncOp> &functions,
+      std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       clang::Preprocessor &PP, clang::ASTContext &astContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
-      clang::CodeGenOptions &codegenops)
+      mlir::OwningOpRef<mlir::ModuleOp> &module,
+      mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
+      clang::SourceManager &SM, clang::CodeGenOptions &codegenops)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
-        functions(functions), llvmGlobals(llvmGlobals),
-        llvmFunctions(llvmFunctions), typeCache(), functionsToEmit(),
-        module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
+        functions(functions), deviceFunctions(deviceFunctions),
+        llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), typeCache(),
+        functionsToEmit(), module(module), deviceModule(deviceModule), SM(SM),
+        lcontext(), llvmMod("tmp", lcontext),
         CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
@@ -157,6 +163,7 @@ private:
   MLIRASTConsumer &Glob;
   mlir::func::FuncOp function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
+  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   mlir::OpBuilder builder;
   mlir::Location loc;
   mlir::Block *entryBlock;
@@ -169,7 +176,8 @@ private:
   const clang::FunctionDecl *EmittingFunctionDecl;
   std::map<const clang::ValueDecl *, ValueCategory> params;
   llvm::DenseMap<const clang::ValueDecl *, clang::FieldDecl *> Captures;
-  llvm::DenseMap<const clang::ValueDecl *, clang::LambdaCaptureKind> CaptureKinds;
+  llvm::DenseMap<const clang::ValueDecl *, clang::LambdaCaptureKind>
+      CaptureKinds;
   clang::FieldDecl *ThisCapture;
   std::vector<mlir::Value> arrayinit;
   ValueCategory ThisVal;
@@ -235,8 +243,9 @@ private:
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
+              mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
               LowerToInfo &LTInfo);
-  
+
   void init(mlir::func::FuncOp function, const clang::FunctionDecl *fd);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
@@ -367,10 +376,11 @@ public:
                         clang::ArrayRef<const clang::Type *> BaseTypes,
                         clang::ArrayRef<bool> BaseVirtuals);
 
-  mlir::Value GetAddressOfDerivedClass(mlir::Value obj,
-                                       const clang::CXXRecordDecl *DerivedClass,
-                                       clang::CastExpr::path_const_iterator Start,
-                                       clang::CastExpr::path_const_iterator End);
+  mlir::Value
+  GetAddressOfDerivedClass(mlir::Value obj,
+                           const clang::CXXRecordDecl *DerivedClass,
+                           clang::CastExpr::path_const_iterator Start,
+                           clang::CastExpr::path_const_iterator End);
 
   ValueCategory VisitIfStmt(clang::IfStmt *stmt);
 
