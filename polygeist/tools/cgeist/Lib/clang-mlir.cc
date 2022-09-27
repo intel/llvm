@@ -161,9 +161,11 @@ void MLIRScanner::initSupportedFunctions() {
                         "5rangeEE3getILi0EEENS3_ILi1EEEv");
 }
 
-void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
-  this->function = function;
-  this->EmittingFunctionDecl = fd;
+void MLIRScanner::init(mlir::func::FuncOp func, const FunctionDecl *fd) {
+  assert(fd && "Expecting valid function declaration");
+
+  function = func;
+  EmittingFunctionDecl = fd;
   defaultAddrSpace = getDefaultAddrSpace(*EmittingFunctionDecl);
 
   if (ShowAST)
@@ -844,7 +846,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   decl = decl->getCanonicalDecl();
   mlir::Type subType = getMLIRType(decl->getType());
   ValueCategory inite = nullptr;
-  unsigned memtype = decl->hasAttr<CUDASharedAttr>() ? 5 : defaultAddrSpace;
+  const unsigned memtype =
+      decl->hasAttr<CUDASharedAttr>() ? 5 : defaultAddrSpace;
   bool LLVMABI = false;
   bool isArray = false;
 
@@ -1509,14 +1512,19 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported constructors.
 
-  bool ShouldEmit = !mlirclang::isNamespaceSYCL(
+  bool isSyclCtor = mlirclang::isNamespaceSYCL(
       cons->getConstructor()->getEnclosingNamespaceContext());
+  bool ShouldEmit = !isSyclCtor;
 
-  if (const FunctionDecl *FuncDecl =
-          dyn_cast<FunctionDecl>(cons->getConstructor())) {
+  if (FunctionDecl *fd = dyn_cast<FunctionDecl>(cons->getConstructor())) {
     std::string name;
-    MLIRScanner::getMangledFuncName(name, FuncDecl, Glob.CGM);
+    MLIRScanner::getMangledFuncName(name, fd, Glob.CGM);
     name = (PrefixABI + name);
+
+    if (isSyclCtor) {
+      LLVM_DEBUG(llvm::dbgs() << "Adding device attribute to " << name << "\n");
+      fd->addAttr(SYCLDeviceAttr::CreateImplicit(Glob.CGM.getContext()));
+    }
 
     LLVM_DEBUG(llvm::dbgs() << "Starting codegen of " << name << "\n");
 
@@ -4871,6 +4879,10 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
                 mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
       function->setAttrs(attrs.getDictionary(builder.getContext()));
       if (ShouldEmit) {
+   //     LLVM_DEBUG(llvm::dbgs()
+      //             << "Adding device attribute to " << name << "\n");
+//        const_cast<FunctionDecl *>(Def)->addAttr(
+  //          SYCLDeviceAttr::CreateImplicit(CGM.getContext()));
         functionsToEmit.push_back(Def);
       }
     }
@@ -4983,6 +4995,9 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
     if (ShouldEmit) {
+//      LLVM_DEBUG(llvm::dbgs() << "Adding device attribute to " << name << "\n");
+  //    const_cast<FunctionDecl *>(Def)->addAttr(
+    //      SYCLDeviceAttr::CreateImplicit(CGM.getContext()));
       functionsToEmit.push_back(Def);
     }
   } else if (ShouldEmit) {
