@@ -160,6 +160,8 @@ private:
 };
 
 class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
+  friend class IfScope;
+
 private:
   MLIRASTConsumer &Glob;
   mlir::func::FuncOp function;
@@ -173,7 +175,7 @@ private:
   llvm::SmallSet<std::string, 4> supportedFuncs;
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   std::map<int, mlir::Value> constants;
-  std::map<clang::LabelStmt *, clang::Block *> labels;
+  std::map<clang::LabelStmt *, mlir::Block *> labels;
   const clang::FunctionDecl
       *EmittingFunctionDecl; // current function declaration.
   unsigned defaultAddrSpace; // default addrspace of the current function decl.
