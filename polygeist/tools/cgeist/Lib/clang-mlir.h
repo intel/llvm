@@ -187,7 +187,8 @@ private:
     subbuilder.setInsertionPointToStart(allocationScope);
 
     auto one = subbuilder.create<arith::ConstantIntOp>(loc, 1, 64);
-    auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
+    auto rs =
+        subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, defaultAddrSpace);
     vec.push_back(rs);
     return rs;
   }
@@ -232,6 +233,7 @@ private:
 
 public:
   const FunctionDecl *EmittingFunctionDecl;
+  unsigned defaultAddrSpace; // default addrspace of the current function decl.  
   std::map<const ValueDecl *, ValueCategory> params;
   llvm::DenseMap<const ValueDecl *, FieldDecl *> Captures;
   llvm::DenseMap<const ValueDecl *, LambdaCaptureKind> CaptureKinds;
@@ -240,6 +242,15 @@ public:
   ValueCategory ThisVal;
   mlir::Value returnVal;
   LowerToInfo &LTInfo;
+
+  static unsigned getDefaultAddrSpace(const clang::FunctionDecl &FD) {
+    // For SYCL we generates LLVM code that is then translated to SPIRV.
+    // The generic SPIRV address space is addrspace(4).
+    if (FD.hasAttr<clang::SYCLDeviceAttr>() ||
+        FD.hasAttr<clang::SYCLKernelAttr>())
+      return 4;
+    return 0;
+  }  
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
