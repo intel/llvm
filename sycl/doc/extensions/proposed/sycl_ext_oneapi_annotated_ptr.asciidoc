@@ -512,8 +512,8 @@ template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = default;
-    operator T() const noexcept;
-    void operator=(const T &);
+    operator T() const;
+    void operator=(const T &) const;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -537,7 +537,7 @@ Compiler generated copy constructor.
 a|
 [source,c++]
 ----
-operator T() const noexcept;
+operator T() const;
 ----
 |
 Reads the object of type `T` that is referenced by this wrapper, applying the
@@ -547,7 +547,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-void operator=(const T &);
+void operator=(const T &) const;
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
