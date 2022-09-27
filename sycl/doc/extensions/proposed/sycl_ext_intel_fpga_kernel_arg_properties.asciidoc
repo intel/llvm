@@ -68,9 +68,6 @@ This extension introduces properties for the classes
 the kernel argument interfaces for FPGA kernels and can be ignored for other
 devices.
 
-NOTE: These properties are only valid on FPGA kernel arguments and should be
-ignored on other devices.
-
 Some examples of the syntax are shown below.
 
 [source,c++]
@@ -129,13 +126,15 @@ implementation supports.
 
 Below is a list of compile-time constant properties supported by
 the `annotated_ptr` and `annotated_arg` classes. These properties control the
-kernel argument interface on FPGA devices.
+kernel argument interface on FPGA devices. The properties are allowed even on
+kernels that are submitted to other devices, but they are silently ignored when
+the kernel is submitted to a non-FPGA device.
 
 All of the properties defined in this extension are meaningful only on the
 kernel argument and are not meaningful within the kernel body.
 
-NOTE: The properties that are defined for pointers will be meaningful for
-annotated_arg<T, ...> only when T is a pointer type.
+The properties that are defined for pointers will be meaningful for
+`annotated_arg<T, ...>` only when T is a pointer type.
 
 ```c++
 namespace sycl::ext::intel::experimental {
