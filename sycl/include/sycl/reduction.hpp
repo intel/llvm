@@ -18,6 +18,7 @@
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
+#include <sycl/usm.hpp>
 
 #include <tuple>
 
@@ -666,15 +667,18 @@ public:
 
   // On discrete (vs. integrated) GPUs it's faster to initialize memory with an
   // extra kernel than copy it from the host.
-  template <typename Name> auto getGroupsCounterAccDiscrete(handler &CGH) {
-    auto &Buf = getTempBuffer<int>(1, CGH);
-    std::shared_ptr<detail::queue_impl> QueueCopy = CGH.MQueue;
-    auto Event = CGH.withAuxHandler(QueueCopy, [&](handler &InitHandler) {
-      auto Acc = accessor{Buf, InitHandler, sycl::write_only, sycl::no_init};
-      InitHandler.single_task<Name>([=]() { Acc[0] = 0; });
-    });
+  auto getGroupsCounterAccDiscrete(handler &CGH) {
+    queue q = createSyclObjFromImpl<queue>(CGH.MQueue);
+    device Dev = q.get_device();
+    auto Deleter = [=](auto *Ptr) { free(Ptr, q); };
+
+    std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
+    CGH.addReduction(Counter);
+
+    auto Event = q.memset(Counter.get(), 0, sizeof(int));
     CGH.depends_on(Event);
-    return accessor{Buf, CGH};
+
+    return Counter.get();
   }
 
   RedOutVar &getUserRedVar() { return MRedOut; }
@@ -895,11 +899,8 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
 
 namespace reduction {
 namespace main_krn {
-template <class KernelName> struct RangeFastReduce;
+template <class KernelName, class NWorkGroupsFinished> struct RangeFastReduce;
 } // namespace main_krn
-namespace init_krn {
-template <class KernelName> struct GroupCounter;
-}
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
@@ -917,81 +918,84 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   accessor PartialSums(PartialSumsBuf, CGH, sycl::read_write, sycl::no_init);
 
   bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
-  using InitName =
-      __sycl_reduction_kernel<reduction::init_krn::GroupCounter, KernelName>;
+  auto Rest = [&](auto NWorkGroupsFinished) {
+    auto DoReducePartialSumsInLastWG =
+        Reduction::template getReadWriteLocalAcc<int>(1, CGH);
 
-  // Integrated/discrete GPUs have different faster path.
-  auto NWorkGroupsFinished =
-      getDeviceFromHandler(CGH).get_info<info::device::host_unified_memory>()
-          ? Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH)
-          : Redu.template getGroupsCounterAccDiscrete<InitName>(CGH);
+    using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
+                                         KernelName, decltype(NWorkGroupsFinished)>;
+    size_t PerGroup = Range.size() / NWorkGroups;
+    CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
 
-  auto DoReducePartialSumsInLastWG =
-      Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+      typename Reduction::binary_operation BOp;
+      auto Group = NDId.get_group();
 
-  using Name =
-      __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce, KernelName>;
-  size_t PerGroup = Range.size() / NWorkGroups;
-  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
-    // Call user's functions. Reducer.MValue gets initialized there.
-    typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
-
-    typename Reduction::binary_operation BOp;
-    auto Group = NDId.get_group();
-
-    // If there are multiple values, reduce each separately
-    // reduce_over_group is only defined for each T, not for span<T, ...>
-    size_t LID = NDId.get_local_id(0);
-    for (int E = 0; E < NElements; ++E) {
-      auto &RedElem = Reducer.getElement(E);
-      RedElem = reduce_over_group(Group, RedElem, BOp);
-      if (LID == 0) {
-        if (NWorkGroups == 1) {
-          auto &OutElem = Reduction::getOutPointer(Out)[E];
-          // Can avoid using partial sum and write the final result immediately.
-          if (IsUpdateOfUserVar)
-            RedElem = BOp(RedElem, OutElem);
-          OutElem = RedElem;
-        } else {
-          PartialSums[NDId.get_group_linear_id() * NElements + E] =
-              Reducer.getElement(E);
-        }
-      }
-    }
-
-    if (NWorkGroups == 1)
-      // We're done.
-      return;
-
-    // Signal this work-group has finished after all values are reduced
-    if (LID == 0) {
-      auto NFinished =
-          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                           access::address_space::global_space>(
-              NWorkGroupsFinished[0]);
-      DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
-    }
-
-    workGroupBarrier();
-    if (DoReducePartialSumsInLastWG[0]) {
-      // Reduce each result separately
-      // TODO: Opportunity to parallelize across elements.
+      // If there are multiple values, reduce each separately
+      // reduce_over_group is only defined for each T, not for span<T, ...>
+      size_t LID = NDId.get_local_id(0);
       for (int E = 0; E < NElements; ++E) {
-        auto &OutElem = Reduction::getOutPointer(Out)[E];
-        auto LocalSum = Reducer.getIdentity();
-        for (size_t I = LID; I < NWorkGroups; I += WGSize)
-          LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-        auto Result = reduce_over_group(Group, LocalSum, BOp);
-
+        auto &RedElem = Reducer.getElement(E);
+        RedElem = reduce_over_group(Group, RedElem, BOp);
         if (LID == 0) {
-          if (IsUpdateOfUserVar)
-            Result = BOp(Result, OutElem);
-          OutElem = Result;
+          if (NWorkGroups == 1) {
+            auto &OutElem = Reduction::getOutPointer(Out)[E];
+            // Can avoid using partial sum and write the final result
+            // immediately.
+            if (IsUpdateOfUserVar)
+              RedElem = BOp(RedElem, OutElem);
+            OutElem = RedElem;
+          } else {
+            PartialSums[NDId.get_group_linear_id() * NElements + E] =
+                Reducer.getElement(E);
+          }
         }
       }
-    }
-  });
+
+      if (NWorkGroups == 1)
+        // We're done.
+        return;
+
+      // Signal this work-group has finished after all values are reduced
+      if (LID == 0) {
+        auto NFinished =
+            sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>(
+                NWorkGroupsFinished[0]);
+        DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
+      }
+
+      workGroupBarrier();
+      if (DoReducePartialSumsInLastWG[0]) {
+        // Reduce each result separately
+        // TODO: Opportunity to parallelize across elements.
+        for (int E = 0; E < NElements; ++E) {
+          auto &OutElem = Reduction::getOutPointer(Out)[E];
+          auto LocalSum = Reducer.getIdentity();
+          for (size_t I = LID; I < NWorkGroups; I += WGSize)
+            LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
+          auto Result = reduce_over_group(Group, LocalSum, BOp);
+
+          if (LID == 0) {
+            if (IsUpdateOfUserVar)
+              Result = BOp(Result, OutElem);
+            OutElem = Result;
+          }
+        }
+      }
+    });
+  };
+
+  auto device = getDeviceFromHandler(CGH);
+  // Integrated/discrete GPUs have different faster path. For discrete GPUs fast
+  // path requires USM device allocations though, so check for that as well.
+  if (device.get_info<info::device::host_unified_memory>() ||
+      !device.has(aspect::usm_device_allocations))
+    Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
+  else
+    Rest(Redu.getGroupsCounterAccDiscrete(CGH));
 
   // We've updated user's variable, no extra work needed.
   return false;
