@@ -260,7 +260,7 @@ class annotated_ptr {
 
     T* get() const noexcept;
 
-    annotated_ptr& operator=(const T*) noexcept;
+    annotated_ptr& operator=(T*) noexcept;
     annotated_ptr& operator=(const annotated_ptr&) noexcept;
 
     annotated_ptr& operator++() noexcept;
@@ -421,7 +421,7 @@ annotations.
 a|
 [source,c++]
 ----
-annotated_ptr& operator=(const T*) noexcept;
+annotated_ptr& operator=(T*) noexcept;
 ----
 |
 Allows assignment from a pointer to type `T`.
@@ -430,7 +430,7 @@ Allows assignment from a pointer to type `T`.
 a|
 [source,c++]
 ----
-annotated_ptr& operator=(annotated_ptr const&) noexcept;
+annotated_ptr& operator=(const annotated_ptr &) noexcept;
 ----
 |
 Allows assignment from an `annotated_ptr` with the same parameterization.
