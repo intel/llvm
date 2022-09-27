@@ -13,7 +13,12 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl;xpti;xptifw'
+
+    # libdevice build requires a working SYCL toolchain, which is not the case
+    # with macOS target right now.
+    if sys.platform != "darwin":
+        llvm_external_projects += ';libdevice'
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
@@ -39,10 +44,13 @@ def do_configure(args):
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
     llvm_enable_lld = 'OFF'
-    sycl_enabled_plugins = ["opencl", "level_zero"]
+    sycl_enabled_plugins = ["opencl"]
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
+
+    if sys.platform != "darwin":
+        sycl_enabled_plugins.append("level_zero")
 
     # lld is needed on Windows or for the HIP plugin on AMD
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
@@ -104,18 +112,19 @@ def do_configure(args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
-        # libclc is required for CI validation
-        if 'libclc' not in llvm_enable_projects:
-            llvm_enable_projects += ';libclc'
-        # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
-        if 'NVPTX' not in llvm_targets_to_build:
-            llvm_targets_to_build += ';NVPTX'
-        # Add both NVIDIA and AMD libclc targets
-        if libclc_amd_target_names not in libclc_targets_to_build:
-            libclc_targets_to_build += libclc_amd_target_names
-        if libclc_nvidia_target_names not in libclc_targets_to_build:
-            libclc_targets_to_build += libclc_nvidia_target_names
-        libclc_gen_remangled_variants = 'ON'
+        if sys.platform != "darwin":
+            # libclc is required for CI validation
+            if 'libclc' not in llvm_enable_projects:
+                llvm_enable_projects += ';libclc'
+            # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
+            if 'NVPTX' not in llvm_targets_to_build:
+                llvm_targets_to_build += ';NVPTX'
+            # Add both NVIDIA and AMD libclc targets
+            if libclc_amd_target_names not in libclc_targets_to_build:
+                libclc_targets_to_build += libclc_amd_target_names
+            if libclc_nvidia_target_names not in libclc_targets_to_build:
+                libclc_targets_to_build += libclc_nvidia_target_names
+            libclc_gen_remangled_variants = 'ON'
 
     if args.enable_plugin:
         sycl_enabled_plugins += args.enable_plugin
