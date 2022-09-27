@@ -1299,6 +1299,7 @@ public:
   // arrays). All of the 'check' types should likely be true, the int-header,
   // and kernel decl creation types should not.
   static constexpr const bool VisitInsideSimpleContainers = true;
+  static constexpr const bool VisitInsideSimpleContainersWithPointer = false;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
@@ -1453,6 +1454,16 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
     visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
+  } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
+                 Value) {
+    // We are currently in PointerHandler visitor.
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
+      // This is a record containing pointers.
+      visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
+    } else {
+      // This is a record without pointers.
+      visitSimpleRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
+    }
   } else {
     // "Simple" Containers are those that do NOT need to be decomposed,
     // "Complex" containers are those that DO. In the case where the container
@@ -1484,6 +1495,16 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 
   if (Field->hasAttr<SYCLRequiresDecompositionAttr>()) {
     visitComplexArray(Owner, Field, ArrayTy, Handlers...);
+  } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
+                 Value) {
+    assert(!Field->hasAttr<SYCLGenerateNewTypeAttr>() &&
+           "Arrays should trigger decomposition");
+    // We are currently in PointerHandler visitor, which implies this is a
+    // 'simple' array i.e. one that does not include special types or pointers.
+    // Array of pointers/ array of type containing pointers will be handled in
+    // a follow-up PR. Currently, they continue to trigger decomposition, and
+    // will be handled in 'if' statement above.
+    visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
   } else {
     if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
       visitSimpleArray(
@@ -1716,9 +1737,13 @@ public:
   }
 };
 
-// A type to mark whether a collection requires decomposition.
+// A type to mark whether a collection requires decomposition
+// or needs to be transformed to a new type. If a collection
+// contains pointers, and is not decomposed, a new type must
+// be generated with all pointers in global address space.
 class SyclKernelDecompMarker : public SyclKernelFieldHandler {
   llvm::SmallVector<bool, 16> CollectionStack;
+  llvm::SmallVector<bool, 16> PointerStack;
 
 public:
   static constexpr const bool VisitUnionBody = false;
@@ -1728,6 +1753,7 @@ public:
     // In order to prevent checking this over and over, just add a dummy-base
     // entry.
     CollectionStack.push_back(true);
+    PointerStack.push_back(true);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
@@ -1746,23 +1772,44 @@ public:
   }
 
   bool handlePointerType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
+    PointerStack.back() = true;
     return true;
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     CollectionStack.push_back(false);
+    PointerStack.push_back(false);
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+    // If a record needs to be decomposed, it is marked with
+    // SYCLRequiresDecompositionAttr. Else if a record contains
+    // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
+    // will never be marked with both attributes.
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "should not be null.");
     if (CollectionStack.pop_back_val()) {
-      RecordDecl *RD = Ty->getAsRecordDecl();
-      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      // FIXME: Stop triggering decomposition for non-trivial types with
+      // pointers
+      if (RD->isTrivial()) {
+        PointerStack.back() = true;
+        if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+          RD->addAttr(
+              SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      } else {
+        // We are visiting a non-trivial type with pointer.
+        CollectionStack.back() = true;
+        if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+          RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+              SemaRef.getASTContext()));
+      }
     }
     return true;
   }
@@ -1770,25 +1817,46 @@ public:
   bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
                    QualType) final {
     CollectionStack.push_back(false);
+    PointerStack.push_back(false);
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
                    QualType Ty) final {
+    // If a record needs to be decomposed, it is marked with
+    // SYCLRequiresDecompositionAttr. Else if a record contains
+    // a pointer, it is marked with SYCLGenerateNewTypeAttr. A record
+    // will never be marked with both attributes.
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "should not be null.");
     if (CollectionStack.pop_back_val()) {
-      RecordDecl *RD = Ty->getAsRecordDecl();
-      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      // FIXME: Stop triggering decomposition for non-trivial types with
+      // pointers
+      if (RD->isTrivial()) {
+        PointerStack.back() = true;
+        if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+          RD->addAttr(
+              SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      } else {
+        // We are visiting a non-trivial type with pointer.
+        CollectionStack.back() = true;
+        if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+          RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+              SemaRef.getASTContext()));
+      }
     }
-
     return true;
   }
 
   bool enterArray(FieldDecl *, QualType ArrayTy, QualType ElementTy) final {
     CollectionStack.push_back(false);
+    PointerStack.push_back(false);
     return true;
   }
 
@@ -1800,8 +1868,181 @@ public:
         FD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      // FIXME: Array of pointers/ array of type containing pointers
+      // will be handled in a follow up PR. Currently, they continue
+      // to trigger decomposition.
+      if (!FD->hasAttr<SYCLRequiresDecompositionAttr>())
+        FD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaRef.getASTContext()));
+      CollectionStack.back() = true;
     }
     return true;
+  }
+};
+
+// This visitor is used to traverse a non-decomposed record/array to
+// generate a new type corresponding to this record/array.
+class SyclKernelPointerHandler : public SyclKernelFieldHandler {
+  llvm::SmallVector<CXXRecordDecl *, 8> ModifiedRecords;
+  SmallVector<CXXBaseSpecifier *, 8> ModifiedBases;
+
+  IdentifierInfo *getModifiedName(IdentifierInfo *Id) {
+    std::string Name =
+        Id ? (Twine("__generated_") + Id->getName()).str() : "__generated_";
+    return &SemaRef.getASTContext().Idents.get(Name);
+  }
+
+  // Create Decl for the new type we are generating.
+  // The fields (and base classes) of this record will be generated as
+  // the visitor traverses kernel object record fields.
+  void createNewType(const CXXRecordDecl *RD) {
+    auto *ModifiedRD = CXXRecordDecl::Create(
+        SemaRef.getASTContext(), RD->getTagKind(),
+        const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
+        SourceLocation(), getModifiedName(RD->getIdentifier()));
+    ModifiedRD->startDefinition();
+    ModifiedRecords.push_back(ModifiedRD);
+  }
+
+  // Create and add FieldDecl for FieldTy to generated record.
+  void addField(const FieldDecl *FD, QualType FieldTy) {
+    assert(!ModifiedRecords.empty() &&
+           "ModifiedRecords should have at least 1 record");
+    ASTContext &Ctx = SemaRef.getASTContext();
+    auto *Field = FieldDecl::Create(
+        Ctx, ModifiedRecords.back(), SourceLocation(), SourceLocation(),
+        getModifiedName(FD->getIdentifier()), FieldTy,
+        Ctx.getTrivialTypeSourceInfo(FieldTy, SourceLocation()), /*BW=*/nullptr,
+        /*Mutable=*/false, ICIS_NoInit);
+    Field->setAccess(FD->getAccess());
+    // Add generated field to generated record.
+    ModifiedRecords.back()->addDecl(Field);
+  }
+
+  void createBaseSpecifier(const CXXRecordDecl *Parent, const CXXRecordDecl *RD,
+                           const CXXBaseSpecifier &BS) {
+    TypeSourceInfo *TInfo = SemaRef.getASTContext().getTrivialTypeSourceInfo(
+        QualType(RD->getTypeForDecl(), 0), SourceLocation());
+    CXXBaseSpecifier *ModifiedBase = SemaRef.CheckBaseSpecifier(
+        const_cast<CXXRecordDecl *>(Parent), SourceRange(), BS.isVirtual(),
+        BS.getAccessSpecifier(), TInfo, SourceLocation());
+    ModifiedBases.push_back(ModifiedBase);
+  }
+
+  CXXRecordDecl *getGeneratedNewRecord(const CXXRecordDecl *OldBaseDecl) {
+    // At this point we have finished generating fields for the new
+    // class corresponding to OldBaseDecl. Pop out the generated
+    // record.
+    CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
+    ModifiedRD->completeDefinition();
+    // Check the 'old' class for base classes.
+    // Set bases classes for newly generated class if it has any.
+    if (OldBaseDecl->getNumBases() > 0) {
+      SmallVector<CXXBaseSpecifier *, 8> BasesForGeneratedClass;
+      for (size_t I = 0; I < OldBaseDecl->getNumBases(); ++I)
+        BasesForGeneratedClass.insert(BasesForGeneratedClass.begin(),
+                                      ModifiedBases.pop_back_val());
+      ModifiedRD->setBases(BasesForGeneratedClass.data(),
+                           OldBaseDecl->getNumBases());
+    }
+    return ModifiedRD;
+  }
+
+public:
+  static constexpr const bool VisitInsideSimpleContainersWithPointer = true;
+  SyclKernelPointerHandler(Sema &S, const CXXRecordDecl *RD)
+      : SyclKernelFieldHandler(S) {
+    createNewType(RD);
+  }
+
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+    createNewType(Ty->getAsCXXRecordDecl());
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
+
+    // Add this record as a field of it's parent record.
+    if (!ModifiedRecords.empty())
+      addField(FD, QualType(ModifiedRD->getTypeForDecl(), 0));
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                   QualType Ty) final {
+    createNewType(Ty->getAsCXXRecordDecl());
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *Parent, const CXXBaseSpecifier &BS,
+                   QualType Ty) final {
+    CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
+
+    // Create CXXBaseSpecifier for this generated class.
+    createBaseSpecifier(Parent, ModifiedRD, BS);
+    return true;
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    QualType PointeeTy = FieldTy->getPointeeType();
+    Qualifiers Quals = PointeeTy.getQualifiers();
+    LangAS AS = Quals.getAddressSpace();
+    // Leave global_device and global_host address spaces as is to help FPGA
+    // device in memory allocations.
+    if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
+        AS != LangAS::sycl_global_host)
+      Quals.setAddressSpace(LangAS::sycl_global);
+    PointeeTy = SemaRef.getASTContext().getQualifiedType(
+        PointeeTy.getUnqualifiedType(), Quals);
+    QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
+    addField(FD, ModTy);
+    return true;
+    // We do not need to wrap pointers since this is a pointer inside
+    // non-decomposed struct.
+  }
+
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    addField(FD, FieldTy);
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addField(FD, Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Parent,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    createBaseSpecifier(Parent, Ty->getAsCXXRecordDecl(), BS);
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType Ty) final {
+    addField(FD, Ty);
+    return true;
+  }
+
+  // FIXME: Array of pointers/ array of types containing pointers
+  // will be handled in a follow-up PR. Currently they continue to
+  // trigger decomposition.
+
+public:
+  QualType getNewType() {
+    CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
+    ModifiedRD->completeDefinition();
+
+    if (!ModifiedBases.empty())
+      ModifiedRD->setBases(ModifiedBases.data(), ModifiedBases.size());
+
+    return QualType(ModifiedRD->getTypeForDecl(), 0);
   }
 };
 
@@ -1991,6 +2232,22 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     return FD;
   }
 
+  // If the record has been marked with SYCLGenerateNewTypeAttr,
+  // it implies that it contains a pointer within. This function
+  // defines a PointerHandler visitor which visits this record
+  // recursively and modifies the address spaces of any pointer
+  // found as required, thereby generating a new record with all
+  // pointers in 'right' address space. PointerHandler.getNewType()
+  // returns this generated type, which is then added an openCL
+  // kernel argument.
+  QualType GenerateNewType(const CXXRecordDecl *RD) {
+    SyclKernelPointerHandler PointerHandler(SemaRef, RD);
+    KernelObjVisitor Visitor{SemaRef};
+    Visitor.VisitRecordBases(RD, PointerHandler);
+    Visitor.VisitRecordFields(RD, PointerHandler);
+    return PointerHandler.getNewType();
+  }
+
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(Sema &S, SourceLocation Loc, bool IsInline,
@@ -2144,15 +2401,31 @@ public:
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+  bool handleNonDecompStruct(const CXXRecordDecl *RD, FieldDecl *FD,
                              QualType Ty) final {
-    addParam(FD, Ty);
+    // This is a field which should not be decomposed.
+    CXXRecordDecl *FieldRecordDecl = Ty->getAsCXXRecordDecl();
+    assert(FieldRecordDecl && "Type must be a C++ record type");
+    // Check if we need to generate a new type for this record,
+    // i.e. this record contains pointers.
+    if (FieldRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(FD, GenerateNewType(FieldRecordDecl));
+    else
+      addParam(FD, Ty);
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *Base,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    addParam(BS, Ty);
+    // This is a base class which should not be decomposed.
+    CXXRecordDecl *BaseRecordDecl = Ty->getAsCXXRecordDecl();
+    assert(BaseRecordDecl && "Type must be a C++ record type");
+    // Check if we need to generate a new type for this record,
+    // i.e. this record contains pointers.
+    if (BaseRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(BS, GenerateNewType(BaseRecordDecl));
+    else
+      addParam(BS, Ty);
     return true;
   }
 
@@ -2254,7 +2527,7 @@ public:
 };
 
 std::string getKernelArgDesc(StringRef KernelArgDescription) {
-  if (KernelArgDescription == ":" || KernelArgDescription == "")
+  if (KernelArgDescription == "")
     return "";
   return ("Compiler generated argument for " + KernelArgDescription + ",")
       .str();
@@ -2265,27 +2538,20 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   SourceLocation KernelInvocationLoc;
 
   void addParam(const FieldDecl *KernelArg, QualType KernelArgType,
-                StringRef KernelArgDescription) {
+                StringRef KernelArgDescription,
+                bool IsCompilerGeneratedType = false) {
     StringRef NameToEmitInDescription = KernelArg->getName();
     const RecordDecl *KernelArgParent = KernelArg->getParent();
     if (KernelArgParent && KernelArgDescription == "decomposed struct/class")
       NameToEmitInDescription = KernelArgParent->getName();
-
-    bool isWrappedField = KernelArgDescription == "WrappedPointer" ||
-                          KernelArgDescription == "WrappedArray";
-
-    KernelArgDescription =
-        (KernelArgDescription == "WrappedPointer"
-             ? "nested pointer"
-             : (KernelArgDescription == "WrappedArray" ? "array"
-                                                       : KernelArgDescription));
 
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
 
     SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), NameToEmitInDescription,
-        isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
+        IsCompilerGeneratedType ? "Compiler generated"
+                                : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDescription),
         (KernelArgDescription == "decomposed struct/class")
@@ -2294,10 +2560,8 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   }
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
-    std::string KernelArgDescription = FieldTy.getAsString();
+    std::string KernelArgDescription = "";
     const RecordDecl *RD = FD->getParent();
-    if (FieldTy->isScalarType())
-      KernelArgDescription = "";
     if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>())
       KernelArgDescription = "decomposed struct/class";
 
@@ -2306,12 +2570,15 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
 
   // Handles base classes.
   void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
-                StringRef KernelArgDescription) {
+                StringRef KernelArgDescription,
+                bool IsCompilerGeneratedType = false) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
     SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
         DC.getKernelDecl(), KernelArgType.getAsString(),
-        KernelArgType.getAsString(), KernelInvocationLoc, KernelArgSize,
+        IsCompilerGeneratedType ? "Compiler generated"
+                                : KernelArgType.getAsString(),
+        KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDescription), "");
   }
 
@@ -2353,15 +2620,20 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    std::string KernelArgDescription = ":";
+    std::string KernelArgDescription = "";
+    bool IsCompilerGeneratedType = false;
     ParmVarDecl *KernelParameter = DC.getParamVarDeclsForCurrentField()[0];
     // Compiler generated openCL kernel argument for current pointer field
     // is not a pointer. This means we are processing a nested pointer and
     // the openCL kernel argument is of type __wrapper_class.
-    if (!KernelParameter->getType()->isPointerType())
-      KernelArgDescription = "WrappedPointer";
+    if (!KernelParameter->getType()->isPointerType()) {
+      KernelArgDescription = "nested pointer";
+      IsCompilerGeneratedType = true;
+    }
+
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
-      addParam(FD, Param->getType(), KernelArgDescription);
+      addParam(FD, Param->getType(), KernelArgDescription,
+               IsCompilerGeneratedType);
     return true;
   }
 
@@ -2373,19 +2645,30 @@ public:
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
     // Simple arrays are always wrapped.
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
-      addParam(FD, Param->getType(), "WrappedArray");
+      addParam(FD, Param->getType(), "array", /*IsCompilerGeneratedType*/ true);
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
-    addParam(FD, Ty);
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "Type must be a C++ record type");
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(FD, Ty, "object with pointer", /*IsCompilerGeneratedType*/ true);
+    else
+      addParam(FD, Ty);
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
-                             const CXXBaseSpecifier &BS, QualType Ty) final {
-    addParam(BS, Ty, "base class");
+  bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType Ty) final {
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "Type must be a C++ record type");
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(BS, Ty, "base class with pointer",
+               /*IsCompilerGeneratedType*/ true);
+    else
+      addParam(BS, Ty, "base class");
     return true;
   }
 
@@ -2431,7 +2714,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SourceLocation KernelCallerSrcLoc; // KernelCallerFunc source location.
   // Contains a count of how many containers we're in.  This is used by the
   // pointer-struct-wrapping code to ensure that we don't try to wrap
-  // non-top-level pointers.
+  // top-level pointers.
   uint64_t StructDepth = 0;
   VarDecl *KernelHandlerClone = nullptr;
 
@@ -2653,6 +2936,87 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void addSimpleFieldInit(FieldDecl *FD, QualType Ty) {
     Expr *ParamRef = createParamReferenceExpr();
     addFieldInit(FD, Ty, ParamRef);
+  }
+
+  Expr *addDerivedToBaseCastExpr(const CXXRecordDecl *RD,
+                                 const CXXBaseSpecifier &BS,
+                                 Expr *LocalCloneRef) {
+    CXXCastPath BasePath;
+    QualType DerivedTy(RD->getTypeForDecl(), 0);
+    QualType BaseTy = BS.getType();
+    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, KernelCallerSrcLoc,
+                                         SourceRange(), &BasePath,
+                                         /*IgnoreBaseAccess*/ true);
+    auto Cast = ImplicitCastExpr::Create(
+        SemaRef.Context, SemaRef.Context.getPointerType(BaseTy),
+        CK_DerivedToBase, LocalCloneRef,
+        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
+    return Cast;
+  }
+
+  Expr *createGetAddressOf(Expr *E) {
+    return UnaryOperator::Create(SemaRef.Context, E, UO_AddrOf,
+                                 SemaRef.Context.getPointerType(E->getType()),
+                                 VK_PRValue, OK_Ordinary, KernelCallerSrcLoc,
+                                 false, SemaRef.CurFPFeatureOverrides());
+  }
+
+  Expr *buildMemCpyCall(Expr *From, Expr *To, QualType T) {
+    // Compute the size of the memory buffer to be copied.
+    QualType SizeType = SemaRef.Context.getSizeType();
+    llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
+                     SemaRef.Context.getTypeSizeInChars(T).getQuantity());
+
+    LookupResult R(SemaRef, &SemaRef.Context.Idents.get("__builtin_memcpy"),
+                   KernelCallerSrcLoc, Sema::LookupOrdinaryName);
+    SemaRef.LookupName(R, SemaRef.TUScope, true);
+
+    FunctionDecl *MemCpy = R.getAsSingle<FunctionDecl>();
+
+    assert(MemCpy && "__builtin_memcpy should be found");
+
+    ExprResult MemCpyRef =
+        SemaRef.BuildDeclRefExpr(MemCpy, SemaRef.Context.BuiltinFnTy,
+                                 VK_PRValue, KernelCallerSrcLoc, nullptr);
+
+    assert(MemCpyRef.isUsable() && "Builtin reference cannot fail");
+
+    Expr *CallArgs[] = {To, From,
+                        IntegerLiteral::Create(SemaRef.Context, Size, SizeType,
+                                               KernelCallerSrcLoc)};
+    ExprResult Call =
+        SemaRef.BuildCallExpr(/*Scope=*/nullptr, MemCpyRef.get(),
+                              KernelCallerSrcLoc, CallArgs, KernelCallerSrcLoc);
+
+    assert(!Call.isInvalid() && "Call to __builtin_memcpy cannot fail!");
+    return Call.getAs<Expr>();
+  }
+
+  // Adds default initializer for generated type and creates
+  // a call to __builtin_memcpy to initialize local clone from
+  // kernel argument.
+  void handleGeneratedType(FieldDecl *FD, QualType Ty) {
+    addFieldInit(FD, Ty, None,
+                 InitializationKind::CreateDefault(KernelCallerSrcLoc));
+    addFieldMemberExpr(FD, Ty);
+    Expr *ParamRef = createGetAddressOf(createParamReferenceExpr());
+    Expr *LocalCloneRef = createGetAddressOf(MemberExprBases.back());
+    Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
+    BodyStmts.push_back(MemCpyCallExpr);
+    removeFieldMemberExpr(FD, Ty);
+  }
+
+  // Adds default initializer for generated base and creates
+  // a call to __builtin_memcpy to initialize the base of local clone
+  // from kernel argument.
+  void handleGeneratedType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                           QualType Ty) {
+    addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
+    Expr *ParamRef = createGetAddressOf(createParamReferenceExpr());
+    Expr *LocalCloneRef = createGetAddressOf(MemberExprBases.back());
+    LocalCloneRef = addDerivedToBaseCastExpr(RD, BS, LocalCloneRef);
+    Expr *MemCpyCallExpr = buildMemCpyCall(ParamRef, LocalCloneRef, Ty);
+    BodyStmts.push_back(MemCpyCallExpr);
   }
 
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
@@ -2886,13 +3250,23 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
-    addSimpleFieldInit(FD, Ty);
+    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "Type must be a C++ record type");
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      handleGeneratedType(FD, Ty);
+    else
+      addSimpleFieldInit(FD, Ty);
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+  bool handleNonDecompStruct(const CXXRecordDecl *RD,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    addSimpleBaseInit(BS, Ty);
+    CXXRecordDecl *BaseDecl = Ty->getAsCXXRecordDecl();
+    assert(BaseDecl && "Type must be a C++ record type");
+    if (BaseDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      handleGeneratedType(RD, BS, Ty);
+    else
+      addSimpleBaseInit(BS, Ty);
     return true;
   }
 
@@ -2958,7 +3332,6 @@ public:
         SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
         /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
     MemberExprBases.push_back(Cast);
-
     addCollectionInitListExpr(BaseTy->getAsCXXRecordDecl());
     return true;
   }
