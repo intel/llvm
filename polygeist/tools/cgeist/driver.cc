@@ -55,9 +55,9 @@
 #include "llvm/Support/Program.h"
 #include <fstream>
 
+#include "Options.h"
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
-#include "Options.h"
 
 #define DEBUG_TYPE "cgeist"
 
@@ -406,7 +406,7 @@ static int optimize(mlir::MLIRContext &context,
   }
 
   if (mlir::failed(pm.run(module.get()))) {
-    llvm::errs() << "*** Optimize failed. Module: ***\n";    
+    llvm::errs() << "*** Optimize failed. Module: ***\n";
     module->dump();
     return 6;
   }
@@ -656,7 +656,7 @@ static int finalize(mlir::MLIRContext &context,
       // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
       pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm3.run(module.get()))) {
-        llvm::errs() << "*** Finalize failed (phase 3). Module: ***\n";        
+        llvm::errs() << "*** Finalize failed (phase 3). Module: ***\n";
         module->dump();
         return 14;
       }
@@ -701,21 +701,21 @@ static int createAndExecutePassPipeline(mlir::MLIRContext &context,
                                         llvm::Triple &triple, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
   int rc = canonicalize(context, module);
-  if (rc != 0) 
+  if (rc != 0)
     return rc;
 
   // MLIR optimizations.
   rc = optimize(context, module);
-  if (rc != 0) 
+  if (rc != 0)
     return rc;
 
   // CUDA specific MLIR optimizations.
   rc = optimizeCUDA(context, module);
-  if (rc != 0) 
+  if (rc != 0)
     return rc;
 
   rc = finalize(context, module, DL, LinkOMP);
-  if (rc != 0) 
+  if (rc != 0)
     return rc;
 
   return 0;
@@ -763,8 +763,7 @@ static int compileModule(mlir::OwningOpRef<ModuleTy> &module,
       out << *llvmModule << "\n";
       out.flush();
 
-      int res =
-          emitBinary(Argv0, tmpFile->TmpName.c_str(), LinkArgs, LinkOMP);
+      int res = emitBinary(Argv0, tmpFile->TmpName.c_str(), LinkArgs, LinkOMP);
       if (res != 0)
         llvm::errs() << "Compilation failed\n";
 
@@ -786,9 +785,9 @@ static int compileModule(mlir::OwningOpRef<ModuleTy> &module,
                         << "' ***\n");
     }
   } else if (Output == "-") {
-      // Write the MLIR to stdout.
-      LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
-      module->print(outs());
+    // Write the MLIR to stdout.
+    LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
+    module->print(outs());
   } else {
     // Write the MLIR to a file.
     std::error_code EC;
@@ -818,7 +817,7 @@ static bool splitCommandLineOptions(int argc, char **argv,
         i++;
         LinkageArgs.push_back(argv[i]);
       } else if (ref.startswith("-L") || ref.startswith("-l") ||
-                 ref.startswith("-Wl")) 
+                 ref.startswith("-Wl"))
         LinkageArgs.push_back(argv[i]);
       else if (ref == "-D" || ref == "-I") {
         MLIRArgs.push_back(argv[i]);
@@ -833,13 +832,13 @@ static bool splitCommandLineOptions(int argc, char **argv,
       } else if (ref == "-fsycl-is-device") {
         syclKernelsOnly = true;
         MLIRArgs.push_back(argv[i]);
-      } else if (ref == "-g") 
+      } else if (ref == "-g")
         LinkageArgs.push_back(argv[i]);
-      else 
+      else
         MLIRArgs.push_back(argv[i]);
-    } else 
+    } else
       LinkageArgs.push_back(argv[i]);
-    
+
     if (ref == "-Wl,--end-group")
       linkOnly = false;
   }
@@ -848,13 +847,15 @@ static bool splitCommandLineOptions(int argc, char **argv,
 }
 
 // Fill the module with the MLIR in the inputFile.
-static void loadMLIR(const std::string &inputFile, mlir::OwningOpRef<ModuleOp> &module,
+static void loadMLIR(const std::string &inputFile,
+                     mlir::OwningOpRef<ModuleOp> &module,
                      mlir::MLIRContext &context) {
   assert(inputFile.substr(inputFile.find_last_of(".") + 1) == "mlir" &&
          "Input file has incorrect extension");
 
   std::string errorMsg;
-  std::unique_ptr<llvm::MemoryBuffer> input = mlir::openInputFile(inputFile, &errorMsg);
+  std::unique_ptr<llvm::MemoryBuffer> input =
+      mlir::openInputFile(inputFile, &errorMsg);
   if (!input) {
     llvm::errs() << errorMsg << "\n";
     exit(1);
@@ -907,14 +908,15 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
   // Early exit if we have a input file with a '.mlir' extension.
   if (numMLIRFiles > 0) {
     if (files.size() != 1) {
-      llvm::errs() << "More than one input file has been provided. Only a single "
-                      "input MLIR file can be processed\n";
+      llvm::errs()
+          << "More than one input file has been provided. Only a single "
+             "input MLIR file can be processed\n";
       exit(-1);
     }
     loadMLIR(files[0], module, context);
     return;
   }
-  
+
   // Generate MLIR for the C/C++ files.
   std::string fn = (!syclKernelsOnly) ? cfunction.getValue() : "";
   parseMLIR(Argv0, files, fn, includeDirs, defines, module, deviceModule,
@@ -935,7 +937,8 @@ int main(int argc, char **argv) {
 
   // Split up the arguments into MLIR and linkage arguments.
   SmallVector<const char *> LinkageArgs, MLIRArgs;
-  bool syclKernelsOnly = splitCommandLineOptions(argc, argv, LinkageArgs, MLIRArgs);
+  bool syclKernelsOnly =
+      splitCommandLineOptions(argc, argv, LinkageArgs, MLIRArgs);
   assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
 
   // Register any command line options.

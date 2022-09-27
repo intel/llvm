@@ -74,46 +74,4 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
   return rewriter.create<T>(value.getLoc(), type, iterationCounts);
 }
 
-template <>
-mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
-    mlir::OpBuilder &rewriter, mlir::Value value,
-    mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
-  using namespace mlir;
-  auto val = value.getDefiningOp<LLVM::AllocaOp>();
-  auto sz = val.getArraySize();
-  assert(DLI);
-  for (auto iter : iterationCounts) {
-    sz =
-        rewriter.create<arith::MulIOp>(value.getLoc(), sz,
-                                       rewriter.create<arith::IndexCastOp>(
-                                           value.getLoc(), sz.getType(), iter));
-  }
-  return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
-}
-
-template <>
-mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
-    mlir::OpBuilder &rewriter, mlir::Value value,
-    mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
-  using namespace mlir;
-  auto val = value.getDefiningOp<LLVM::AllocaOp>();
-  auto sz = val.getArraySize();
-  assert(DLI);
-  sz = rewriter.create<arith::MulIOp>(
-      value.getLoc(), sz,
-      rewriter.create<arith::ConstantIntOp>(
-          value.getLoc(),
-          DLI->getTypeSize(
-              val.getType().cast<LLVM::LLVMPointerType>().getElementType()),
-          sz.getType().cast<IntegerType>().getWidth()));
-  for (auto iter : iterationCounts) {
-    sz =
-        rewriter.create<arith::MulIOp>(value.getLoc(), sz,
-                                       rewriter.create<arith::IndexCastOp>(
-                                           value.getLoc(), sz.getType(), iter));
-  }
-  auto m = val->getParentOfType<ModuleOp>();
-  auto allocfn = GetOrCreateMallocFunction(m);
-  return rewriter.create<LLVM::CallOp>(value.getLoc(), allocfn, sz);
-}
 #endif // MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_
