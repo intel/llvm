@@ -768,6 +768,7 @@
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ
 ?get@platform@_V1@sycl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@queue@_V1@sycl@@QEBAPEAU_cl_command_queue@@XZ
+?getAccData@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAUAccHostDataT@234@XZ
 ?getAccessRange@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV?$range@$02@34@XZ
 ?getAccessRange@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$range@$02@34@XZ
 ?getAssertHappenedBuffer@queue@_V1@sycl@@AEAAAEAV?$buffer@UAssertHappened@detail@_V1@sycl@@$00V?$aligned_allocator@UAssertHappened@detail@_V1@sycl@@@234@X@23@XZ
