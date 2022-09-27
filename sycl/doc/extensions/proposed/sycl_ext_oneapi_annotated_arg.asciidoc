@@ -153,7 +153,7 @@ only the top-most level `annotated_arg` properties will be applied to the
 kernel arguments.
 
 In the example above, only properties `PropA` and `PropB` will be applied to the
-kernel argument and the other properties on members of `MyType` will not be
+kernel arguments and the other properties on members of `MyType` will not be
 processed.
 
 === Representation of `annotated_arg`
@@ -175,9 +175,9 @@ separate extensions.
 The section below describes the constructors and member functions for
 `annotated_arg`.
 
-NOTE: The template parameter `T` in the definition of `annotated_arg` template
-below must be a device copyable type or a legal parameter type as defined by the
-SYCL specification.
+The template parameter `T` in the definition of `annotated_arg` template below
+must be a device copyable type or a legal parameter type as defined by the SYCL
+specification.
 
 [source,c++]
 ----
@@ -187,6 +187,9 @@ class annotated_arg {
   public:
     annotated_arg();
     annotated_arg(const T& v_);
+
+    annotated_arg(const annotated_arg&) = default;
+    annotated_arg& operator=(annotated_arg&) = default;
 
     // Conversion operator to convert to the underlying type
     operator T&() noexcept;
@@ -234,6 +237,22 @@ annotated_arg(const T& v_);
 ----
 | Not available in device code.
 Constructs an `annotated_arg` object from the input object `v_`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_arg(const annotated_arg&) = default;
+----
+Compiler generated copy constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_arg& operator=(annotated_arg&) = default;
+----
+Compiler generated assignment operator.
 
 // --- ROW BREAK ---
 a|
