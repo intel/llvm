@@ -286,6 +286,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
     auto N = todo.front();
     todo.pop_front();
     auto found = Orig.find(N);
+    (void)found;
     // TODO
     break;
   }
