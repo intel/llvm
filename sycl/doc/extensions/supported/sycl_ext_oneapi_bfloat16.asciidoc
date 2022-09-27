@@ -41,7 +41,9 @@ https://github.com/intel/llvm/issues
 
 This extension is written against the SYCL 2020 specification, Revision 5.
 
+== Status
 
+This extension is implemented and fully supported by DPC++.
 
 == Overview
 
