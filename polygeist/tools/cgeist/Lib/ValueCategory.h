@@ -19,8 +19,8 @@ public:
   bool isReference;
 
 public:
-  ValueCategory() : val(nullptr), isReference(false){}
-  ValueCategory(std::nullptr_t) : val(nullptr), isReference(false){}
+  ValueCategory() : val(nullptr), isReference(false) {}
+  ValueCategory(std::nullptr_t) : val(nullptr), isReference(false) {}
   ValueCategory(mlir::Value val, bool isReference);
 
   // TODO: rename to 'loadVariable'? getValue seems to generic.
