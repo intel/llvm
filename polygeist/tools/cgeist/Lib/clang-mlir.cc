@@ -110,8 +110,12 @@ mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
                          mlir::OwningOpRef<mlir::ModuleOp> &module,
                          LowerToInfo &LTInfo)
-    : Glob(Glob), module(module), builder(module->getContext()),
-      loc(builder.getUnknownLoc()), ThisCapture(nullptr), LTInfo(LTInfo) {}
+    : Glob(Glob), function(), module(module), builder(module->getContext()),
+      loc(builder.getUnknownLoc()), entryBlock(nullptr), loops(),
+      allocationScope(nullptr), supportedFuncs(), bufs(), constants(), labels(),
+      EmittingFunctionDecl(nullptr), params(), Captures(), CaptureKinds(),
+      ThisCapture(nullptr), arrayinit(), ThisVal(), returnVal(),
+      LTInfo(LTInfo) {}
 
 void MLIRScanner::initSupportedFunctions() {
   // Functions needed for single_task with one dimensional write buffer.
@@ -159,14 +163,15 @@ void MLIRScanner::initSupportedFunctions() {
                         "5rangeEE3getILi0EEENS3_ILi1EEEv");
 }
 
-void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
-  this->function = function;
-  this->EmittingFunctionDecl = fd;
+void MLIRScanner::init(mlir::func::FuncOp func, const FunctionDecl *fd) {
+  assert(fd && "Expecting valid function declaration");  
 
-  if (ShowAST) {
-    llvm::errs() << "Emitting fn: " << function.getName() << "\n";
-    llvm::errs() << *fd << "\n";
-  }
+  function = func;
+  EmittingFunctionDecl = fd;
+
+  if (ShowAST)
+    llvm::dbgs() << "Emitting fn: " << function.getName() << "\n"
+                 << *fd << "\n";
 
   initSupportedFunctions();
   setEntryAndAllocBlock(function.addEntryBlock());
@@ -223,7 +228,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
 
   if (fd->hasAttr<CUDAGlobalAttr>() && Glob.CGM.getLangOpts().CUDA &&
       !Glob.CGM.getLangOpts().CUDAIsDevice) {
-    auto deviceStub =
+    func::FuncOp deviceStub =
         Glob.GetOrCreateMLIRFunction(fd, true, /* getDeviceStub */ true);
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -396,8 +401,6 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   assert(function->getParentOp() == Glob.module.get() &&
          "New function must be inserted into global module");
 }
-
-mlir::OpBuilder &MLIRScanner::getBuilder() { return builder; }
 
 mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
                                        uint64_t memspace, bool isArray = false,

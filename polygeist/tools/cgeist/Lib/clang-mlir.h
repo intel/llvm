@@ -59,21 +59,20 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::map<std::string, mlir::func::FuncOp> &functions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
-  Preprocessor &PP;
-  ASTContext &astContext;
+  std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
+  std::deque<const clang::FunctionDecl *> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
-  CodeGenOptions &codegenops;
-  CodeGen::CodeGenModule CGM;
+  clang::CodeGen::CodeGenModule CGM;
   bool error;
   ScopLocList scopLocList;
   LowerToInfo LTInfo;
 
   /// The stateful type translator (contains named structs).
-  LLVM::TypeFromLLVMIRTranslator typeTranslator;
-  LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
+  mlir::LLVM::TypeFromLLVMIRTranslator typeTranslator;
+  mlir::LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
 
   MLIRASTConsumer(
       std::set<std::string> &emitIfFound, std::set<std::string> &done,
@@ -82,25 +81,32 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::func::FuncOp> &functions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
-      Preprocessor &PP, ASTContext &astContext,
+      clang::Preprocessor &PP, clang::ASTContext &astContext,
       mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
-      CodeGenOptions &codegenops)
+      clang::CodeGenOptions &codegenops)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), llvmGlobals(llvmGlobals),
-        llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
+        llvmFunctions(llvmFunctions), typeCache(), functionsToEmit(),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
-        codegenops(codegenops),
-        CGM(astContext, &SM.getFileManager().getVirtualFileSystem(), PP.getHeaderSearchInfo().getHeaderSearchOpts(),
+        CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
+            PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), typeTranslator(*module->getContext()),
-        reverseTypeTranslator(lcontext) {
+        error(false), scopLocList(), LTInfo(),
+        typeTranslator(*module->getContext()), reverseTypeTranslator(lcontext) {
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 
-  ~MLIRASTConsumer() {}
+  clang::CodeGen::CodeGenModule &getCGM() { return CGM; }
+  mlir::LLVM::TypeFromLLVMIRTranslator &getTypeTranslator() {
+    return typeTranslator;
+  }
+  std::map<std::string, mlir::func::FuncOp> &getFunctions() {
+    return functions;
+  }
+  ScopLocList &getScopLocList() { return scopLocList; }
 
   mlir::func::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD,
                                              const bool ShouldEmit,
@@ -123,8 +129,6 @@ struct MLIRASTConsumer : public ASTConsumer {
   GetOrCreateGlobal(const ValueDecl *VD, std::string prefix,
                     bool tryInit = true);
 
-  std::deque<const FunctionDecl *> functionsToEmit;
-
   void run();
 
   void HandleTranslationUnit(clang::ASTContext &Context) override;
@@ -133,7 +137,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   void HandleDeclContext(DeclContext *DC);
 
-  std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   // JLE_QUEL::TODO: Possibly create a SYCLTypeCache
   mlir::Type getMLIRType(clang::QualType t, bool *implicitRef = nullptr,
                          bool allowMerge = true);
@@ -159,8 +162,20 @@ private:
   mlir::Block *entryBlock;
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
-
   llvm::SmallSet<std::string, 4> supportedFuncs;
+  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
+  std::map<int, mlir::Value> constants;
+  std::map<LabelStmt *, Block *> labels;
+  const FunctionDecl *EmittingFunctionDecl;
+  std::map<const ValueDecl *, ValueCategory> params;
+  llvm::DenseMap<const ValueDecl *, FieldDecl *> Captures;
+  llvm::DenseMap<const ValueDecl *, LambdaCaptureKind> CaptureKinds;
+  FieldDecl *ThisCapture;
+  std::vector<mlir::Value> arrayinit;
+  ValueCategory ThisVal;
+  mlir::Value returnVal;
+  LowerToInfo &LTInfo;
+
   // Initialize a whitelist of SYCL functions to emit instead just the
   // declaration. Eventually, this list should be removed.
   void initSupportedFunctions();
@@ -168,9 +183,6 @@ private:
     return supportedFuncs.contains(name);
   }
 
-  // ValueCategory getValue(std::string name);
-
-  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
     auto &vec = bufs[t.getAsOpaquePointer()];
     if (i < vec.size())
@@ -200,8 +212,6 @@ private:
 
   mlir::func::FuncOp EmitDirectCallee(const FunctionDecl *FD);
 
-  std::map<int, mlir::Value> constants;
-
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
   bool isTrivialAffineLoop(clang::ForStmt *fors,
@@ -224,27 +234,18 @@ private:
                            const mlirclang::AffineLoopDescriptor &descr);
 
 public:
-  const FunctionDecl *EmittingFunctionDecl;
-  std::map<const ValueDecl *, ValueCategory> params;
-  llvm::DenseMap<const ValueDecl *, FieldDecl *> Captures;
-  llvm::DenseMap<const ValueDecl *, LambdaCaptureKind> CaptureKinds;
-  FieldDecl *ThisCapture;
-  std::vector<mlir::Value> arrayinit;
-  ValueCategory ThisVal;
-  mlir::Value returnVal;
-  LowerToInfo &LTInfo;
-
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
 
+  mlir::OpBuilder &getBuilder() { return builder; };
+  std::vector<LoopContext> &getLoops() { return loops; }
+  mlir::Location &getLoc() { return loc; }
   void init(mlir::func::FuncOp function, const FunctionDecl *fd);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
     allocationScope = entryBlock = B;
     builder.setInsertionPointToStart(B);
   }
-
-  mlir::OpBuilder &getBuilder();
 
   mlir::Value getConstantIndex(int x);
 
@@ -259,6 +260,7 @@ public:
   ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
 
   ValueCategory VisitGNUNullExpr(clang::GNUNullExpr *expr);
+
   ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *expr);
 
   ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *expr);
@@ -382,7 +384,6 @@ public:
 
   ValueCategory VisitReturnStmt(clang::ReturnStmt *stmt);
 
-  std::map<LabelStmt *, Block *> labels;
   ValueCategory VisitLabelStmt(clang::LabelStmt *stmt);
 
   ValueCategory VisitGotoStmt(clang::GotoStmt *stmt);
@@ -412,7 +413,9 @@ public:
 
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit,
                                                 clang::Expr *expr);
+
   ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
+
   ValueCategory
   VisitCXXStdInitializerListExpr(clang::CXXStdInitializerListExpr *expr);
 
@@ -434,4 +437,4 @@ public:
                                  CodeGen::CodeGenModule &CGM);
 };
 
-#endif
+#endif /* CLANG_MLIR_H */
