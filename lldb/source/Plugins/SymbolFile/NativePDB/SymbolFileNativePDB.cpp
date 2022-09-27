@@ -363,6 +363,23 @@ Block &SymbolFileNativePDB::CreateBlock(PdbCompilandSymId block_id) {
     lldbassert(block.Parent != 0);
     PdbCompilandSymId parent_id(block_id.modi, block.Parent);
     Block &parent_block = GetOrCreateBlock(parent_id);
+    Function *func = parent_block.CalculateSymbolContextFunction();
+    lldbassert(func);
+    lldb::addr_t block_base =
+        m_index->MakeVirtualAddress(block.Segment, block.CodeOffset);
+    lldb::addr_t func_base =
+        func->GetAddressRange().GetBaseAddress().GetFileAddress();
+    if (block_base >= func_base)
+      child_block->AddRange(Block::Range(block_base - func_base, block.CodeSize));
+    else {
+      GetObjectFile()->GetModule()->ReportError(
+          "S_BLOCK32 at modi: %d offset: %d: adding range [0x%" PRIx64
+          "-0x%" PRIx64 ") which has a base that is less than the function's "
+          "low PC 0x%" PRIx64 ". Please file a bug and attach the file at the "
+          "start of this error message",
+          block_id.modi, block_id.offset, block_base,
+          block_base + block.CodeSize, func_base);
+    }
     parent_block.AddChild(child_block);
     m_ast->GetOrCreateBlockDecl(block_id);
     m_blocks.insert({opaque_block_uid, child_block});
@@ -1037,8 +1054,15 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
       }
 
       if (type == PDB_SymType::Block) {
-        sc.block = &GetOrCreateBlock(csid);
-        sc.function = sc.block->CalculateSymbolContextFunction();
+        Block &block = GetOrCreateBlock(csid);
+        sc.function = block.CalculateSymbolContextFunction();
+        if (sc.function) {
+          sc.function->GetBlock(true);
+          addr_t func_base =
+              sc.function->GetAddressRange().GetBaseAddress().GetFileAddress();
+          addr_t offset = file_addr - func_base;
+          sc.block = block.FindInnermostBlockByOffset(offset);
+        }
       }
       if (sc.function)
         resolved_flags |= eSymbolContextFunction;
@@ -1712,12 +1736,14 @@ VariableSP SymbolFileNativePDB::CreateLocalVariable(PdbCompilandSymId scope_id,
   func_block->GetStartAddress(addr);
   VariableInfo var_info =
       GetVariableLocationInfo(*m_index, var_id, *func_block, module);
-  if (!var_info.location || var_info.location->GetSize() == 0)
-    return nullptr;
   Function *func = func_block->CalculateSymbolContextFunction();
   if (!func)
-    return VariableSP();
-  var_info.location->SetFuncFileAddress(
+    return nullptr;
+  // Use empty dwarf expr if optimized away so that it won't be filtered out
+  // when lookuping local variables in this scope.
+  if (!var_info.location.IsValid())
+    var_info.location = DWARFExpressionList(module, DWARFExpression(), nullptr);
+  var_info.location.SetFuncFileAddress(
       func->GetAddressRange().GetBaseAddress().GetFileAddress());
   CompilandIndexItem *cii = m_index->compilands().GetCompiland(var_id.modi);
   CompUnitSP comp_unit_sp = GetOrCreateCompileUnit(*cii);
@@ -1739,11 +1765,10 @@ VariableSP SymbolFileNativePDB::CreateLocalVariable(PdbCompilandSymId scope_id,
   Variable::RangeList scope_ranges;
   VariableSP var_sp = std::make_shared<Variable>(
       toOpaqueUid(var_id), name.c_str(), name.c_str(), sftype, var_scope,
-      &block, scope_ranges, &decl, *var_info.location, external, artificial,
+      &block, scope_ranges, &decl, var_info.location, external, artificial,
       location_is_constant_data, static_member);
   if (!is_param)
     m_ast->GetOrCreateVariableDecl(scope_id, var_id);
-
   m_local_variables[toOpaqueUid(var_id)] = var_sp;
   return var_sp;
 }

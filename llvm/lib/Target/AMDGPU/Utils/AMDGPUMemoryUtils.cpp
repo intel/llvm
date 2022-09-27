@@ -9,7 +9,6 @@
 #include "AMDGPUMemoryUtils.h"
 #include "AMDGPU.h"
 #include "AMDGPUBaseInfo.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/MemorySSA.h"
@@ -30,35 +29,6 @@ namespace AMDGPU {
 Align getAlign(DataLayout const &DL, const GlobalVariable *GV) {
   return DL.getValueOrABITypeAlignment(GV->getPointerAlignment(DL),
                                        GV->getValueType());
-}
-
-static void collectFunctionUses(User *U, const Function *F,
-                                SetVector<Instruction *> &InstUsers) {
-  SmallVector<User *> Stack{U};
-
-  while (!Stack.empty()) {
-    U = Stack.pop_back_val();
-
-    if (auto *I = dyn_cast<Instruction>(U)) {
-      if (I->getFunction() == F)
-        InstUsers.insert(I);
-      continue;
-    }
-
-    if (!isa<ConstantExpr>(U))
-      continue;
-
-    append_range(Stack, U->users());
-  }
-}
-
-void replaceConstantUsesInFunction(ConstantExpr *C, const Function *F) {
-  SetVector<Instruction *> InstUsers;
-
-  collectFunctionUses(C, F, InstUsers);
-  for (Instruction *I : InstUsers) {
-    convertConstantExprsToInstructions(I, C);
-  }
 }
 
 static bool shouldLowerLDSToStruct(const GlobalVariable &GV,

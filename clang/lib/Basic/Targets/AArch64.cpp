@@ -35,6 +35,8 @@ const Builtin::Info AArch64TargetInfo::BuiltinInfo[] = {
    {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define LANGBUILTIN(ID, TYPE, ATTRS, LANG)                                     \
   {#ID, TYPE, ATTRS, nullptr, LANG, nullptr},
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
+  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
 #define TARGET_HEADER_BUILTIN(ID, TYPE, ATTRS, HEADER, LANGS, FEATURE)         \
   {#ID, TYPE, ATTRS, HEADER, LANGS, FEATURE},
 #include "clang/Basic/BuiltinsAArch64.def"
@@ -341,6 +343,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasCRC)
     Builder.defineMacro("__ARM_FEATURE_CRC32", "1");
 
+  if (HasRCPC)
+    Builder.defineMacro("__ARM_FEATURE_RCPC", "1");
+
   // The __ARM_FEATURE_CRYPTO is deprecated in favor of finer grained feature
   // macros for AES, SHA2, SHA3 and SM4
   if (HasAES && HasSHA2)
@@ -551,6 +556,7 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   HasMatmulFP32 = false;
   HasLSE = false;
   HasMOPS = false;
+  HasRCPC = false;
 
   ArchKind = llvm::AArch64::ArchKind::INVALID;
 
@@ -600,6 +606,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     }
     if (Feature == "+crc")
       HasCRC = true;
+    if (Feature == "+rcpc")
+      HasRCPC = true;
     if (Feature == "+aes")
       HasAES = true;
     if (Feature == "+sha2")
