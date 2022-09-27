@@ -233,7 +233,7 @@ private:
 
 public:
   const FunctionDecl *EmittingFunctionDecl;
-  unsigned defaultAddrSpace; // default addrspace of the current function decl.  
+  unsigned defaultAddrSpace; // default addrspace of the current function decl.
   std::map<const ValueDecl *, ValueCategory> params;
   llvm::DenseMap<const ValueDecl *, FieldDecl *> Captures;
   llvm::DenseMap<const ValueDecl *, LambdaCaptureKind> CaptureKinds;
@@ -250,7 +250,7 @@ public:
         FD.hasAttr<clang::SYCLKernelAttr>())
       return 4;
     return 0;
-  }  
+  }
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,

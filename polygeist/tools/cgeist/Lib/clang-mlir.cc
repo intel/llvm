@@ -164,36 +164,36 @@ void MLIRScanner::initSupportedFunctions() {
 void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   this->function = function;
   this->EmittingFunctionDecl = fd;
-   defaultAddrSpace = getDefaultAddrSpace(*EmittingFunctionDecl);
+  defaultAddrSpace = getDefaultAddrSpace(*EmittingFunctionDecl);
 
-   if (ShowAST)
-     llvm::dbgs() << "Emitting fn: " << function.getName()
-                  << " (defaultAddrSpace = " << defaultAddrSpace << "):\n"
-                  << *EmittingFunctionDecl << "\n";
+  if (ShowAST)
+    llvm::dbgs() << "Emitting fn: " << function.getName()
+                 << " (defaultAddrSpace = " << defaultAddrSpace << "):\n"
+                 << *EmittingFunctionDecl << "\n";
 
-   initSupportedFunctions();
-   setEntryAndAllocBlock(function.addEntryBlock());
+  initSupportedFunctions();
+  setEntryAndAllocBlock(function.addEntryBlock());
 
-   unsigned i = 0;
-   if (auto CM = dyn_cast<CXXMethodDecl>(fd)) {
-     if (CM->getParent()->isLambda()) {
-       for (auto C : CM->getParent()->captures()) {
-         if (C.capturesVariable()) {
-           CaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
-         }
-       }
-       CM->getParent()->getCaptureFields(Captures, ThisCapture);
-       if (ThisCapture) {
-         llvm::errs() << " thiscapture:\n";
-         ThisCapture->dump();
-       }
-     }
+  unsigned i = 0;
+  if (auto CM = dyn_cast<CXXMethodDecl>(fd)) {
+    if (CM->getParent()->isLambda()) {
+      for (auto C : CM->getParent()->captures()) {
+        if (C.capturesVariable()) {
+          CaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
+        }
+      }
+      CM->getParent()->getCaptureFields(Captures, ThisCapture);
+      if (ThisCapture) {
+        llvm::errs() << " thiscapture:\n";
+        ThisCapture->dump();
+      }
+    }
 
-     if (CM->isInstance()) {
-       mlir::Value val = function.getArgument(i);
-       ThisVal = ValueCategory(val, /*isReference*/ false);
-       i++;
-     }
+    if (CM->isInstance()) {
+      mlir::Value val = function.getArgument(i);
+      ThisVal = ValueCategory(val, /*isReference*/ false);
+      i++;
+    }
   }
 
   for (auto parm : fd->parameters()) {
@@ -3715,7 +3715,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     assert(se.val);
     auto Derived =
-         (E->isLValue() || E->isXValue())
+        (E->isLValue() || E->isXValue())
             ? cast<CXXRecordDecl>(
                   E->getSubExpr()->getType()->castAs<RecordType>()->getDecl())
             : E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
