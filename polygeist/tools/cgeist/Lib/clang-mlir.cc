@@ -229,7 +229,7 @@ void MLIRScanner::init(mlir::func::FuncOp func, const FunctionDecl *fd) {
 
   if (fd->hasAttr<CUDAGlobalAttr>() && Glob.getCGM().getLangOpts().CUDA &&
       !Glob.getCGM().getLangOpts().CUDAIsDevice) {
-    func::FuncOp deviceStub =
+    auto deviceStub =
         Glob.GetOrCreateMLIRFunction(fd, true, /* getDeviceStub */ true);
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -5030,7 +5030,7 @@ void MLIRASTConsumer::run() {
 
     done.insert(name);
     MLIRScanner ms(*this, module, deviceModule, LTInfo);
-    func::FuncOp function = GetOrCreateMLIRFunction(FD, true);
+    auto function = GetOrCreateMLIRFunction(FD, true);
     ms.init(function, FD);
 
     LLVM_DEBUG({
@@ -5202,7 +5202,7 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
   return FileLineColLoc::get(ctx, fileId, lineNumber, colNumber);
 }
 
-void MLIRASTConsumer::setMLIRFunctionAttributes(mlir::func::FuncOp &function,
+void MLIRASTConsumer::setMLIRFunctionAttributes(mlir::func::FuncOp function,
                                                 const FunctionDecl &FD,
                                                 LLVM::Linkage lnk,
                                                 MLIRContext *ctx) const {

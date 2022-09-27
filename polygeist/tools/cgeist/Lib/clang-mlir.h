@@ -150,7 +150,7 @@ public:
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 
 private:
-  void setMLIRFunctionAttributes(mlir::func::FuncOp &function,
+  void setMLIRFunctionAttributes(mlir::func::FuncOp function,
                                  const clang::FunctionDecl &FD,
                                  mlir::LLVM::Linkage lnk,
                                  mlir::MLIRContext *ctx) const;
@@ -255,7 +255,7 @@ public:
 
   mlir::OpBuilder &getBuilder() { return builder; };
   std::vector<LoopContext> &getLoops() { return loops; }
-  mlir::Location &getLoc() { return loc; }
+  mlir::Location getLoc() { return loc; }
 
   mlir::Value getConstantIndex(int x);
 
