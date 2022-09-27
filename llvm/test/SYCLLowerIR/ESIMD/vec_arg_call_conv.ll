@@ -18,10 +18,38 @@ target triple = "spir64-unknown-unknown"
 
 @GRF = dso_local global %"class.sycl::_V1::ext::intel::esimd::simd.0" zeroinitializer, align 2048
 
+; // Compilation: clang++ -fsycl -Xclang -opaque-pointers src.cpp
+; // Template for the source:
+;
+; #include <sycl/ext/intel/esimd.hpp>
+;
+; using namespace sycl::ext::intel::esimd;
+;
+; ESIMD_PRIVATE simd<float, 3 * 32 * 4> GRF;
+; #define V(x, w, i) (x).template select<w, 1>(i)
+;
+; // insert testcases here
+;
+; int main() {
+;   return 0;
+; }
+
 ;----- Test1: "Fall-through case", incoming optimizeable parameter is just returned
+; __attribute__((noinline))
 ; SYCL_EXTERNAL simd<float, 16> callee__sret__param(simd<float, 16> x) SYCL_ESIMD_FUNCTION {
 ;   return x;
 ; }
+;
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__arr(simd<float, 16> *x, int i) SYCL_ESIMD_FUNCTION {
+;   return callee__sret__param(x[i]);
+; }
+;
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__glob() SYCL_ESIMD_FUNCTION {
+;   return callee__sret__param(V(GRF, 16, 0));
+; }
+;
 ; Function Attrs: convergent noinline norecurse
 define dso_local spir_func void @_Z19callee__sret__param(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result, ptr noundef %x) local_unnamed_addr #0 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
 ; CHECK: define dso_local spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[PARAM:.+]])
@@ -86,6 +114,16 @@ entry:
 ; Check only signatures and calls in testcases below.
 
 ;----- Test2: Optimized parameter interleaves non-optimizeable ones.
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<int, 8> callee__sret__x_param_x(int i, simd<int, 8> x, int j) SYCL_ESIMD_FUNCTION {
+;   return x + (i + j);
+; }
+;
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<int, 8> test__sret__x_param_x(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
+;   return callee__sret__x_param_x(2, x, 1);
+; }
+;
 ; Function Attrs: convergent noinline norecurse
 define dso_local spir_func void @_Z23callee__sret__x_param_x(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd.2") align 32 %agg.result, i32 noundef %i, ptr noundef %x, i32 noundef %j) local_unnamed_addr #3 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
 ; CHECK: define dso_local spir_func <8 x i32> @_Z23callee__sret__x_param_x(i32 noundef %{{.*}}, <8 x i32> %{{.*}}, i32 noundef %{{.*}})
@@ -116,6 +154,21 @@ entry:
 }
 
 ;----- Test3: "2-level fall through", bottom-level callee
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<double, 32> callee__all_fall_through0(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
+;   return x;
+; }
+;
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<double, 32> callee__all_fall_through1(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
+;   return callee__all_fall_through0(x);
+; }
+;
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<double, 32> test__all_fall_through(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
+;   return callee__all_fall_through1(x);
+; }
+;
 ; Function Attrs: convergent noinline norecurse
 define dso_local spir_func void @_Z25callee__all_fall_through0(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd.4") align 256 %agg.result, ptr noundef %x) local_unnamed_addr #5 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
 ; CHECK: define dso_local spir_func <32 x double> @_Z25callee__all_fall_through0(<32 x double> %{{.*}})
@@ -159,6 +212,49 @@ entry:
 ; Function Attrs: alwaysinline nounwind readnone
 declare !genx_intrinsic_id !10 <16 x float> @llvm.genx.rdregionf.v16f32.v384f32.i16(<384 x float>, i32, i32, i32, i16, i32) #6
 
+%"class.sycl::_V1::ext::intel::esimd::simd.6" = type { %"class.sycl::_V1::ext::intel::esimd::detail::simd_obj_impl.6" }
+%"class.sycl::_V1::ext::intel::esimd::detail::simd_obj_impl.6" = type { <8 x i32> }
+
+;----- Test4. First argument is passed by reference and updated in the callee,
+;             must not be optimized.
+; __attribute__((noinline))
+; SYCL_EXTERNAL void callee_void__noopt_opt(simd<int, 8> &x, simd<int, 8> y) SYCL_ESIMD_FUNCTION {
+;   x = x + y;
+; }
+;
+; __attribute__((noinline))
+; SYCL_EXTERNAL simd<int, 8> test__sret__noopt_opt(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
+;   callee_void__noopt_opt(x, x);
+;   return x;
+; }
+;
+
+define dso_local spir_func void @_Z22callee_void__noopt_opt(ptr addrspace(4) noundef %x, ptr noundef %y) !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
+; CHECK: define dso_local spir_func void @_Z22callee_void__noopt_opt(ptr addrspace(4) noundef %{{.*}}, <8 x i32> %{{.*}})
+entry:
+  %y.ascast = addrspacecast ptr %y to ptr addrspace(4)
+  %call.i.i1 = load <8 x i32>, ptr addrspace(4) %x, align 32
+  %call.i5.i2 = load <8 x i32>, ptr addrspace(4) %y.ascast, align 32
+  %add.i.i.i.i = add <8 x i32> %call.i.i1, %call.i5.i2
+  store <8 x i32> %add.i.i.i.i, ptr addrspace(4) %x, align 32
+  ret void
+}
+
+define dso_local spir_func void @_Z21test__sret__noopt_opt(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd.6") align 32 %agg.result, ptr noundef %x) !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
+; CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__noopt_opt(ptr noundef %{{.*}})
+entry:
+  %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd.6", align 32
+  %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
+  %x.ascast = addrspacecast ptr %x to ptr addrspace(4)
+  %call.i.i.i2 = load <8 x i32>, ptr addrspace(4) %x.ascast, align 32
+  store <8 x i32> %call.i.i.i2, ptr addrspace(4) %agg.tmp.ascast, align 32
+  call spir_func void @_Z22callee_void__noopt_opt(ptr addrspace(4) noundef align 32 dereferenceable(32) %x.ascast, ptr noundef nonnull %agg.tmp) #5
+; CHECK:  call spir_func void @_Z22callee_void__noopt_opt(ptr addrspace(4) %{{.*}}, <8 x i32> %{{.*}})
+  %call.i.i.i13 = load <8 x i32>, ptr addrspace(4) %x.ascast, align 32
+  store <8 x i32> %call.i.i.i13, ptr addrspace(4) %agg.result, align 32
+  ret void
+}
+
 attributes #0 = { convergent noinline norecurse "frame-pointer"="all" "min-legal-vector-width"="512" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="../opaque_ptr.cpp" }
 attributes #1 = { alwaysinline convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { convergent noinline norecurse "frame-pointer"="all" "min-legal-vector-width"="12288" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="../opaque_ptr.cpp" }
@@ -188,62 +284,3 @@ attributes #7 = { convergent }
 !8 = !{}
 !9 = !{i32 1}
 !10 = !{i32 11881}
-
-;------------------------------------------------------------------------------
-; Source is given below.
-; Compilation: clang++ -fsycl -Xclang -opaque-pointers src.cpp
-;
-; #include <sycl/ext/intel/esimd.hpp>
-;
-; using namespace sycl::ext::intel::esimd;
-;
-; ESIMD_PRIVATE simd<float, 3 * 32 * 4> GRF;
-; #define V(x, w, i) (x).template select<w, 1>(i)
-;
-; //------------------------
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<float, 16> callee__sret__param(simd<float, 16> x) SYCL_ESIMD_FUNCTION {
-;   return x;
-; }
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__arr(simd<float, 16> *x, int i) SYCL_ESIMD_FUNCTION {
-;   return callee__sret__param(x[i]);
-; }
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__glob() SYCL_ESIMD_FUNCTION {
-;   return callee__sret__param(V(GRF, 16, 0));
-; }
-;
-; //------------------------
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<int, 8> callee__sret__x_param_x(int i, simd<int, 8> x, int j) SYCL_ESIMD_FUNCTION {
-;   return x + (i + j);
-; }
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<int, 8> test__sret__x_param_x(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
-;   return callee__sret__x_param_x(2, x, 1);
-; }
-; //------------------------
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<double, 32> callee__all_fall_through0(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
-;   return x;
-; }
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<double, 32> callee__all_fall_through1(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
-;   return callee__all_fall_through0(x);
-; }
-;
-; __attribute__((noinline))
-; SYCL_EXTERNAL simd<double, 32> test__all_fall_through(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
-;   return callee__all_fall_through1(x);
-; }
-;
-; int main() {
-;   return 0;
-; }
