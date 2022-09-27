@@ -312,15 +312,6 @@ a compile error if `PropertyListT` does not contain a property with the
 Available only if `propertyT` is the property key class of a compile-time
 constant property.
 
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-~annotated_arg();
-----
-|
-Compiler supplied destructor function.
-
 |===
 
 == Issues
