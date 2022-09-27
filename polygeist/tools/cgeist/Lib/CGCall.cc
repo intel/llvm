@@ -15,8 +15,8 @@
 
 #define DEBUG_TYPE "CGCall"
 
+using namespace clang;
 using namespace mlir;
-using namespace std;
 using namespace mlir::arith;
 using namespace mlir::func;
 using namespace mlirclang;
@@ -357,12 +357,12 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
   case clang::Builtin::BIforward:
   case clang::Builtin::BIas_const: {
     auto V = Visit(expr->getArg(0));
-    return make_pair(V, true);
+    return std::make_pair(V, true);
   }
   default:
     break;
   }
-  return make_pair(ValueCategory(), false);
+  return std::make_pair(ValueCategory(), false);
 }
 
 ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
@@ -1549,10 +1549,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
     assert(obj.val);
     assert(obj.isReference);
-    args.emplace_back(make_pair(obj, (clang::Expr *)nullptr));
+    args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
   }
   for (auto *a : expr->arguments())
-    args.push_back(make_pair(Visit(a), a));
+    args.push_back(std::make_pair(Visit(a), a));
   return CallHelper(ToCall, objType, args, expr->getType(),
                     expr->isLValue() || expr->isXValue(), expr);
 }

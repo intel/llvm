@@ -41,8 +41,6 @@
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
-using namespace clang;
-
 extern llvm::cl::opt<std::string> PrefixABI;
 
 struct LoopContext {
@@ -123,10 +121,10 @@ public:
   /// name, creating the string if necessary.
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
                                           mlir::OpBuilder &builder,
-                                          StringRef value);
+                                          clang::StringRef value);
 
   std::pair<mlir::memref::GlobalOp, bool>
-  GetOrCreateGlobal(const ValueDecl *VD, std::string prefix,
+  GetOrCreateGlobal(const clang::ValueDecl *VD, std::string prefix,
                     bool tryInit = true);
 
   void run();
@@ -167,12 +165,12 @@ private:
   llvm::SmallSet<std::string, 4> supportedFuncs;
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   std::map<int, mlir::Value> constants;
-  std::map<LabelStmt *, mlir::Block *> labels;
+  std::map<clang::LabelStmt *, mlir::Block *> labels;
   const clang::FunctionDecl *EmittingFunctionDecl;
   std::map<const clang::ValueDecl *, ValueCategory> params;
   llvm::DenseMap<const clang::ValueDecl *, clang::FieldDecl *> Captures;
   llvm::DenseMap<const clang::ValueDecl *, clang::LambdaCaptureKind> CaptureKinds;
-  FieldDecl *ThisCapture;
+  clang::FieldDecl *ThisCapture;
   std::vector<mlir::Value> arrayinit;
   ValueCategory ThisVal;
   mlir::Value returnVal;
@@ -238,16 +236,17 @@ private:
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
-
-  mlir::OpBuilder &getBuilder() { return builder; };
-  std::vector<LoopContext> &getLoops() { return loops; }
-  mlir::Location &getLoc() { return loc; }
+  
   void init(mlir::func::FuncOp function, const clang::FunctionDecl *fd);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
     allocationScope = entryBlock = B;
     builder.setInsertionPointToStart(B);
   }
+
+  mlir::OpBuilder &getBuilder() { return builder; };
+  std::vector<LoopContext> &getLoops() { return loops; }
+  mlir::Location &getLoc() { return loc; }
 
   mlir::Value getConstantIndex(int x);
 
@@ -308,7 +307,7 @@ public:
 
   ValueCategory
   CallHelper(mlir::func::FuncOp tocall, clang::QualType objType,
-             ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
+             clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
              clang::QualType retType, bool retReference, clang::Expr *expr);
 
   std::pair<ValueCategory, bool>
@@ -330,7 +329,7 @@ public:
   ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
   ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
-                                     VarDecl *name, unsigned space,
+                                     clang::VarDecl *name, unsigned space,
                                      mlir::Value mem = nullptr,
                                      mlir::Value count = nullptr);
 
@@ -362,10 +361,11 @@ public:
 
   ValueCategory VisitCastExpr(clang::CastExpr *E);
 
-  mlir::Value GetAddressOfBaseClass(mlir::Value obj,
-                                    const clang::CXXRecordDecl *DerivedClass,
-                                    ArrayRef<const clang::Type *> BaseTypes,
-                                    ArrayRef<bool> BaseVirtuals);
+  mlir::Value
+  GetAddressOfBaseClass(mlir::Value obj,
+                        const clang::CXXRecordDecl *DerivedClass,
+                        clang::ArrayRef<const clang::Type *> BaseTypes,
+                        clang::ArrayRef<bool> BaseVirtuals);
 
   mlir::Value GetAddressOfDerivedClass(mlir::Value obj,
                                        const clang::CXXRecordDecl *DerivedClass,
@@ -438,7 +438,7 @@ public:
 
   static void getMangledFuncName(std::string &name,
                                  const clang::FunctionDecl *FD,
-                                 CodeGen::CodeGenModule &CGM);
+                                 clang::CodeGen::CodeGenModule &CGM);
 };
 
 #endif /* CLANG_MLIR_H */

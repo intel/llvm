@@ -46,7 +46,6 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
-using namespace std;
 using namespace clang;
 using namespace llvm;
 using namespace clang::driver;
@@ -1544,9 +1543,9 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
       Glob.GetOrCreateMLIRFunction(cons->getConstructor(), ShouldEmit);
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
-  args.emplace_back(make_pair(obj, (clang::Expr *)nullptr));
+  args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
   for (auto a : cons->arguments())
-    args.push_back(make_pair(Visit(a), a));
+    args.push_back(std::make_pair(Visit(a), a));
   CallHelper(tocall, innerType, args,
              /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons);
 
@@ -1719,7 +1718,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<mlir::math::Log2Op>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1729,7 +1728,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<mlir::math::LogOp>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1740,7 +1739,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<math::CeilOp>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1752,7 +1751,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<mlir::math::SqrtOp>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1764,7 +1763,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<mlir::math::ExpOp>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1774,7 +1773,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<mlir::math::SinOp>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1785,7 +1784,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
-        return make_pair(
+        return std::make_pair(
             ValueCategory(builder.create<mlir::math::CosOp>(loc, args[0]),
                           /*isReference*/ false),
             true);
@@ -1793,7 +1792,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
     }
   }
 
-  return make_pair(ValueCategory(), false);
+  return std::make_pair(ValueCategory(), false);
 }
 
 std::pair<ValueCategory, bool>
@@ -1804,12 +1803,12 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "__syncthreads") {
         builder.create<mlir::NVVM::Barrier0Op>(loc);
-        return make_pair(ValueCategory(), true);
+        return std::make_pair(ValueCategory(), true);
       }
       if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "cudaFuncSetCacheConfig") {
         llvm::errs() << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
-        return make_pair(ValueCategory(), true);
+        return std::make_pair(ValueCategory(), true);
       }
       // TODO move free out.
       if (sr->getDecl()->getIdentifier() &&
@@ -1835,10 +1834,10 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
             sr->getDecl()->getName() == "cudaFreeHost") {
           auto ty = getMLIRType(expr->getType());
           auto op = builder.create<ConstantIntOp>(loc, 0, ty);
-          return make_pair(ValueCategory(op, /*isReference*/ false), true);
+          return std::make_pair(ValueCategory(op, /*isReference*/ false), true);
         }
         // TODO remove me when the free is removed.
-        return make_pair(ValueCategory(), true);
+        return std::make_pair(ValueCategory(), true);
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMalloc" ||
@@ -1888,7 +1887,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                   .store(builder,
                          builder.create<mlir::memref::CastOp>(loc, mt, alloc));
               auto retTy = getMLIRType(expr->getType());
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(builder.create<ConstantIntOp>(loc, 0, retTy),
                                 /*isReference*/ false),
                   true);
@@ -1938,19 +1937,19 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "blockIdx") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createBlockIdOp(gpu::Dimension::x, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createBlockIdOp(gpu::Dimension::y, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createBlockIdOp(gpu::Dimension::z, mlirType),
                                 /*isReference*/ false),
                   true);
@@ -1959,19 +1958,19 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "blockDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createBlockDimOp(gpu::Dimension::x, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createBlockDimOp(gpu::Dimension::y, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createBlockDimOp(gpu::Dimension::z, mlirType),
                                 /*isReference*/ false),
                   true);
@@ -1980,19 +1979,19 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "threadIdx") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createThreadIdOp(gpu::Dimension::x, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createThreadIdOp(gpu::Dimension::y, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createThreadIdOp(gpu::Dimension::z, mlirType),
                                 /*isReference*/ false),
                   true);
@@ -2001,19 +2000,19 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "gridDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createGridDimOp(gpu::Dimension::x, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createGridDimOp(gpu::Dimension::y, mlirType),
                                 /*isReference*/ false),
                   true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(
+              return std::make_pair(
                   ValueCategory(createGridDimOp(gpu::Dimension::z, mlirType),
                                 /*isReference*/ false),
                   true);
@@ -2023,7 +2022,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       }
     }
   }
-  return make_pair(ValueCategory(), false);
+  return std::make_pair(ValueCategory(), false);
 }
 
 mlir::Operation *
@@ -5011,30 +5010,32 @@ mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     const FunctionDecl *FD = functionsToEmit.front();
-
-    LLVM_DEBUG(llvm::dbgs() << "\n-- FUNCTION BEING EMITTED: "
-                            << FD->getNameAsString() << " --\n\n";);
-
-    assert(FD->getBody());
     functionsToEmit.pop_front();
+
+  
+    assert(FD->getBody());
     assert(FD->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
     assert(FD->getTemplatedKind() !=
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
-    std::string name;
 
+    std::string name;
     MLIRScanner::getMangledFuncName(name, FD, CGM);
 
     if (done.count(name))
       continue;
+
+    LLVM_DEBUG(llvm::dbgs() << "\n-- FUNCTION BEING EMITTED: "
+                            << FD->getNameAsString() << " --\n\n";);
+
     done.insert(name);
     MLIRScanner ms(*this, module, LTInfo);
-    auto Function = GetOrCreateMLIRFunction(FD, true);
-    ms.init(Function, FD);
+    func::FuncOp function = GetOrCreateMLIRFunction(FD, true);
+    ms.init(function, FD);
 
     LLVM_DEBUG({
       llvm::dbgs() << "\n";
-      Function.dump();
+      function.dump();
       llvm::dbgs() << "\n";
 
       if (functionsToEmit.size()) {
@@ -5072,20 +5073,14 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       continue;
     }
     const FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(D);
-    if (!fd) {
+    if (!fd) 
       continue;
-    }
-    if (!fd->doesThisDeclarationHaveABody()) {
-      if (!fd->doesDeclarationForceExternallyVisibleDefinition()) {
-        continue;
-      }
-    }
+    if (!fd->doesThisDeclarationHaveABody() && !fd->doesDeclarationForceExternallyVisibleDefinition()) 
+      continue;
     if (!fd->hasBody())
       continue;
-
-    if (fd->isTemplated()) {
+    if (fd->isTemplated())
       continue;
-    }
 
     bool externLinkage = true;
     /*
@@ -5116,7 +5111,6 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
          externLinkage) ||
         emitIfFound.count(name)) {
       functionsToEmit.push_back(fd);
-    } else {
     }
   }
 }
@@ -5141,19 +5135,14 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       continue;
     }
     const FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
-    if (!fd) {
+    if (!fd)
       continue;
-    }
-    if (!fd->doesThisDeclarationHaveABody()) {
-      if (!fd->doesDeclarationForceExternallyVisibleDefinition()) {
-        continue;
-      }
-    }
+    if (!fd->doesThisDeclarationHaveABody() && !fd->doesDeclarationForceExternallyVisibleDefinition())
+      continue;
     if (!fd->hasBody())
       continue;
-    if (fd->isTemplated()) {
+    if (fd->isTemplated())
       continue;
-    }
 
     //  if (fd->getIdentifier())
     //    llvm::errs() << "Func name: " << fd->getName() << "\n";
@@ -5191,7 +5180,6 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
         emitIfFound.count(name) || fd->hasAttr<OpenCLKernelAttr>() ||
         fd->hasAttr<SYCLDeviceAttr>()) {
       functionsToEmit.push_back(fd);
-    } else {
     }
   }
 
@@ -5858,7 +5846,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   bool Success;
   //{
   const char *binary = Argv0; // CudaLower ? "clang++" : "clang";
-  const unique_ptr<Driver> driver(
+  const std::unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   std::vector<const char *> Argv;
   Argv.push_back(binary);
@@ -5963,7 +5951,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   llvm::SmallVector<const ArgStringList *, 4> CommandList;
   ArgStringList InputCommandArgList;
 
-  unique_ptr<Compilation> compilation;
+  std::unique_ptr<Compilation> compilation;
 
   if (InputCommandArgs.empty()) {
     compilation.reset(std::move(
