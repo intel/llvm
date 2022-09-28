@@ -728,8 +728,8 @@ void joint_matrix_store(Group sg,
                                      NumCols, Layout, Group> &src,
                         multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols,
-                                                     Layout, Space>{}
+  sycl::ext::oneapi::detail::joint_matrix_store_impl<
+      T, NumRows, NumCols, Layout, Space, IsDecorated>{}
       .store(src, dst, stride);
 #else
   std::ignore = sg;
