@@ -172,7 +172,7 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
 
 __SYCL_EXPORT int gpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
-  if (dev.get_info<info::device::name>().find("ESIMD_EMULATOR") != std::string::npos) {
+  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
     return 0;
   }
   if (dev.is_gpu()) {
