@@ -36,17 +36,15 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-template <typename _DataT, int _Dimensions, access::mode _AccessMode,
-          access::target _AccessTarget, access::placeholder _IsPlaceholder,
-          typename _PropertyListT>
+
+template <typename _AccessorDataT, int _AccessorDimensions,
+          access::mode _AccessMode, access::target _AccessTarget,
+          access::placeholder _IsPlaceholder, typename _PropertyListT>
 class accessor;
 
 namespace detail {
 
-template <typename _DataT, int _Dimensions, access::mode _AccessMode,
-          access::target _AccessTarget, access::placeholder _IsPlaceholder,
-          typename _PropertyListT>
-class __accessor_iterator {
+template <typename _DataT, int _Dimensions> class __accessor_iterator {
 public:
   using difference_type = std::ptrdiff_t;
   using value_type = _DataT;
@@ -57,8 +55,8 @@ public:
 
   __accessor_iterator() = default;
 
-  _DataT &operator*() {
-    return *(_MAccessorPtr->get_pointer() + __get_absolute_offset_to_buffer());
+  reference operator*() {
+    return *(_MDataPtr + __get_absolute_offset_to_buffer());
   }
 
   __accessor_iterator &operator++() {
@@ -168,12 +166,12 @@ public:
   }
 
 private:
-  using _AccessorT = accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
-                              _IsPlaceholder, _PropertyListT>;
-  friend class accessor<_DataT, _Dimensions, _AccessMode, _AccessTarget,
-                        _IsPlaceholder, _PropertyListT>;
+  template <typename _AccessorDataT, int _AccessorDimensions,
+            access::mode _AccessMode, access::target _AccessTarget,
+            access::placeholder _IsPlaceholder, typename _PropertyListT>
+  friend class sycl::accessor;
 
-  const _AccessorT *_MAccessorPtr = nullptr;
+  _DataT *_MDataPtr = nullptr;
 
   // Stores a linear id of an accessor's buffer element the iterator points to.
   // This id is relative to a range accessible through an accessor, i.e. it is
@@ -285,11 +283,10 @@ private:
     return _AbsoluteId;
   }
 
-  __accessor_iterator(const _AccessorT *_AccessorPtr,
-                      const range<_Dimensions> &_MemoryRange,
+  __accessor_iterator(_DataT *_DataPtr, const range<_Dimensions> &_MemoryRange,
                       const range<_Dimensions> &_AccessRange,
                       const id<_Dimensions> &_Offset)
-      : _MAccessorPtr(_AccessorPtr) {
+      : _MDataPtr(_DataPtr) {
     constexpr int _XIndex = _Dimensions - 1;
     constexpr int _YIndex = _Dimensions - 2;
     (void)_YIndex;
@@ -333,22 +330,22 @@ private:
     _MEnd = _MBegin + _AccessRange.size();
   }
 
-  static __accessor_iterator __get_begin(const _AccessorT *_AccessorPtr,
+  static __accessor_iterator __get_begin(_DataT *_DataPtr,
                                          const range<_Dimensions> &_MemoryRange,
                                          const range<_Dimensions> &_AccessRange,
                                          const id<_Dimensions> &_Offset) {
     auto _It =
-        __accessor_iterator(_AccessorPtr, _MemoryRange, _AccessRange, _Offset);
+        __accessor_iterator(_DataPtr, _MemoryRange, _AccessRange, _Offset);
     _It._MLinearId = _It._MBegin;
     return _It;
   }
 
-  static __accessor_iterator __get_end(const _AccessorT *_AccessorPtr,
+  static __accessor_iterator __get_end(_DataT *_DataPtr,
                                        const range<_Dimensions> &_MemoryRange,
                                        const range<_Dimensions> &_AccessRange,
                                        const id<_Dimensions> &_Offset) {
     auto _It =
-        __accessor_iterator(_AccessorPtr, _MemoryRange, _AccessRange, _Offset);
+        __accessor_iterator(_DataPtr, _MemoryRange, _AccessRange, _Offset);
     _It._MLinearId = _It._MEnd;
     return _It;
   }

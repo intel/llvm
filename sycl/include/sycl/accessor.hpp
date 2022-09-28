@@ -1151,10 +1151,7 @@ public:
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  using iterator =
-      typename detail::__accessor_iterator<DataT, Dimensions, AccessMode,
-                                           AccessTarget, IsPlaceholder,
-                                           PropertyListT>;
+  using iterator = typename detail::__accessor_iterator<DataT, Dimensions>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
@@ -2031,14 +2028,16 @@ public:
 
   iterator begin() const noexcept {
     return iterator::__get_begin(
-        this, detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()),
-        get_range(), get_offset());
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
   }
 
   iterator end() const noexcept {
     return iterator::__get_end(
-        this, detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()),
-        get_range(), get_offset());
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
   }
 
 private:
