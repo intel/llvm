@@ -10,11 +10,11 @@
 
 #include <clcmacro.h>
 
-extern int __clc_nvvm_reflect_ftz();
+extern int __nvvm_reflect(__constant char *);
 
 _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_exp2(float x) {
-  return (__clc_nvvm_reflect_ftz()) ? __nvvm_ex2_approx_ftz_f(x)
-                                    : __nvvm_ex2_approx_f(x);
+  return (__nvvm_reflect("__CUDA_FTZ")) ? __nvvm_ex2_approx_ftz_f(x)
+                                        : __nvvm_ex2_approx_f(x);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_native_exp2,
@@ -23,8 +23,8 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_native_exp2,
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-int __clc_nvvm_reflect_arch();
-#define __USE_HALF_EXP2_APPROX (__clc_nvvm_reflect_arch() >= 750)
+int __nvvm_reflect(__constant char *);
+#define __USE_HALF_EXP2_APPROX (__nvvm_reflect("__CUDA_ARCH") >= 750)
 
 _CLC_DEF _CLC_OVERLOAD half __clc_native_exp2(half x) {
   return (__USE_HALF_EXP2_APPROX) ? __nvvm_ex2_approx_f16(x)

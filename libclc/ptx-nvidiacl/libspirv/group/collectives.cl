@@ -14,7 +14,7 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-int __clc_nvvm_reflect_arch();
+int __nvvm_reflect(__constant char *);
 
 // CLC helpers
 __local bool *
@@ -193,7 +193,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
       __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
     /* Fast path for warp reductions for sm_80+ */                             \
-    if (__clc_nvvm_reflect_arch() >= 800 && op == Reduce) {                    \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 800 && op == Reduce) {                \
       TYPE result = __nvvm_redux_sync_##REDUX_OP(x, __clc__membermask());      \
       *carry = result;                                                         \
       return result;                                                           \

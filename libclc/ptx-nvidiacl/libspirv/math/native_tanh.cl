@@ -10,9 +10,9 @@
 #include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-extern int __clc_nvvm_reflect_arch();
+extern int __nvvm_reflect(__constant char *);
 
-#define __USE_TANH_APPROX (__clc_nvvm_reflect_arch() >= 750)
+#define __USE_TANH_APPROX (__nvvm_reflect("__CUDA_ARCH") >= 750)
 
 _CLC_DEF _CLC_OVERLOAD float __clc_native_tanh(float x) {
   return (__USE_TANH_APPROX) ? __nvvm_tanh_approx_f(x) : __nv_tanhf(x);

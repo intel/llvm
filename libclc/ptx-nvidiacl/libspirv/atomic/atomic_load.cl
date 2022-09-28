@@ -9,7 +9,7 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-extern int __clc_nvvm_reflect_arch();
+extern int __nvvm_reflect(__constant char *);
 _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 
 #define __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,      \
@@ -44,7 +44,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
     /* Semantics mask may include memory order, storage class and other info                                              \
 Memory order is stored in the lowest 5 bits */                                                                            \
     unsigned int order = semantics & 0x1F;                                                                                \
-    if (__clc_nvvm_reflect_arch() >= 700) {                                                                               \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                           \
       switch (order) {                                                                                                    \
       case None:                                                                                                          \
         __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                 \

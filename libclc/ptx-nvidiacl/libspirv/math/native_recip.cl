@@ -10,11 +10,11 @@
 
 #include <clcmacro.h>
 
-extern int __clc_nvvm_reflect_ftz();
+extern int __nvvm_reflect(__constant char *);
 
 _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_recip(float x) {
-  return (__clc_nvvm_reflect_ftz()) ? __nvvm_rcp_approx_ftz_f(x)
-                                    : __nvvm_rcp_approx_f(x);
+  return (__nvvm_reflect("__CUDA_FTZ")) ? __nvvm_rcp_approx_ftz_f(x)
+                                        : __nvvm_rcp_approx_f(x);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_native_recip,

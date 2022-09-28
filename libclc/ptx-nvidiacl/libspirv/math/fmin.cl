@@ -10,7 +10,7 @@
 #include <spirv/spirv.h>
 #include "../../include/libdevice.h"
 
-extern int __clc_nvvm_reflect_arch();
+extern int __nvvm_reflect(__constant char *);
 
 _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_fmin(float x, float y) {
   return __nvvm_fmin_f(x, y);
@@ -35,13 +35,13 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_fmin, double,
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 _CLC_DEF _CLC_OVERLOAD half __spirv_ocl_fmin(half x, half y) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
     return __nvvm_fmin_f16(x, y);
   }
   return __nvvm_fmin_f(x,y);
 }
 _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fmin(half2 x, half2 y) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
     return __nvvm_fmin_f16x2(x, y);
   }
   return (half2)(__spirv_ocl_fmin(x.x, y.x), __spirv_ocl_fmin(x.y, y.y));
@@ -52,7 +52,7 @@ _CLC_BINARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fmin, half
 #endif
 
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fmin(ushort x, ushort y) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
     return __nvvm_fmin_bf16(x, y);
   }
   __builtin_trap();
@@ -62,7 +62,7 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fmin, ushort,
                       ushort)
 
 _CLC_DEF _CLC_OVERLOAD uint __clc_fmin(uint x, uint y) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
     return __nvvm_fmin_bf16x2(x, y);
   }
   __builtin_trap();

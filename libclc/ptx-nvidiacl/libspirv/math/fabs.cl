@@ -11,7 +11,7 @@
 #include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-extern int __clc_nvvm_reflect_arch();
+extern int __nvvm_reflect(__constant char *);
 
 #define __CLC_FUNCTION __spirv_ocl_fabs
 #define __CLC_BUILTIN __nv_fabs
@@ -19,7 +19,7 @@ extern int __clc_nvvm_reflect_arch();
 #include <math/unary_builtin.inc>
 
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fabs(ushort x) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
     return __nvvm_abs_bf16(x);
   }
   __builtin_trap();
@@ -28,7 +28,7 @@ _CLC_DEF _CLC_OVERLOAD ushort __clc_fabs(ushort x) {
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fabs, ushort)
 
 _CLC_DEF _CLC_OVERLOAD uint __clc_fabs(uint x) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
     return __nvvm_abs_bf16x2(x);
   }
   __builtin_trap();

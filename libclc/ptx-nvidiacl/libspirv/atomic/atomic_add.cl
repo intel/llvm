@@ -36,14 +36,14 @@ __CLC_NVVM_ATOMIC(float, f, float, f, add, _Z21__spirv_AtomicFAddEXT)
     /* Semantics mask may include memory order, storage class and other info                                                                                  \
 Memory order is stored in the lowest 5 bits */                                                                                                                \
     unsigned int order = semantics & 0x1F;                                                                                                                    \
-    if (__clc_nvvm_reflect_arch() >= 600) {                                                                                                                   \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 600) {                                                                                                               \
       switch (order) {                                                                                                                                        \
       case None:                                                                                                                                              \
         __CLC_NVVM_ATOMIC_IMPL_ORDER(double, double, d, add, ADDR_SPACE,                                                                                      \
                                      ADDR_SPACE_NV, )                                                                                                         \
         break;                                                                                                                                                \
       case Acquire:                                                                                                                                           \
-        if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                               \
+        if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                                                           \
           __CLC_NVVM_ATOMIC_IMPL_ORDER(double, double, d, add, ADDR_SPACE,                                                                                    \
                                        ADDR_SPACE_NV, _acquire)                                                                                               \
         } else {                                                                                                                                              \
@@ -52,7 +52,7 @@ Memory order is stored in the lowest 5 bits */                                  
         }                                                                                                                                                     \
         break;                                                                                                                                                \
       case Release:                                                                                                                                           \
-        if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                               \
+        if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                                                           \
           __CLC_NVVM_ATOMIC_IMPL_ORDER(double, double, d, add, ADDR_SPACE,                                                                                    \
                                        ADDR_SPACE_NV, _release)                                                                                               \
         } else {                                                                                                                                              \
@@ -62,7 +62,7 @@ Memory order is stored in the lowest 5 bits */                                  
         }                                                                                                                                                     \
         break;                                                                                                                                                \
       case AcquireRelease:                                                                                                                                    \
-        if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                               \
+        if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                                                           \
           __CLC_NVVM_ATOMIC_IMPL_ORDER(double, double, d, add, ADDR_SPACE,                                                                                    \
                                        ADDR_SPACE_NV, _acq_rel)                                                                                               \
         } else {                                                                                                                                              \

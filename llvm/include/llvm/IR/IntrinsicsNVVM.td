@@ -1680,6 +1680,7 @@ def int_nvvm_compiler_warn :
     Intrinsic<[], [llvm_anyptr_ty], [], "llvm.nvvm.compiler.warn">;
 
 def int_nvvm_reflect :
+  ClangBuiltin<"__nvvm_reflect">,
   Intrinsic<[llvm_i32_ty], [llvm_anyptr_ty], [IntrNoMem], "llvm.nvvm.reflect">;
 
 // isspacep.{const, global, local, shared}

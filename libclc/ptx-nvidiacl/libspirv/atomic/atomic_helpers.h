@@ -12,7 +12,7 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-extern int __clc_nvvm_reflect_arch();
+extern int __nvvm_reflect(__constant char *);
 _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 
 #define __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,       \
@@ -20,7 +20,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   switch (scope) {                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
-    if (__clc_nvvm_reflect_arch() >= 600) {                                    \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 600) {                                \
       TYPE_NV res =                                                            \
           __nvvm_atom##ORDER##_cta_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(       \
               (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);              \
@@ -34,7 +34,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   case CrossDevice:                                                            \
   default: {                                                                   \
-    if (__clc_nvvm_reflect_arch() >= 600) {                                    \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 600) {                                \
       TYPE_NV res =                                                            \
           __nvvm_atom##ORDER##_sys_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(       \
               (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);              \
@@ -48,7 +48,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   switch (scope) {                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
-    if (__clc_nvvm_reflect_arch() >= 600) {                                    \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 600) {                                \
       TYPE_NV res = __nvvm_atom##_cta_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(    \
           (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                  \
       __spirv_MemoryBarrier(Workgroup, Acquire);                               \
@@ -63,7 +63,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   case CrossDevice:                                                            \
   default: {                                                                   \
-    if (__clc_nvvm_reflect_arch() >= 600) {                                    \
+    if (__nvvm_reflect("__CUDA_ARCH") >= 600) {                                \
       TYPE_NV res = __nvvm_atom##_sys_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(    \
           (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                  \
       __spirv_MemoryBarrier(CrossDevice, Acquire);                             \
@@ -88,7 +88,7 @@ Memory order is stored in the lowest 5 bits */                                  
                                    ADDR_SPACE, ADDR_SPACE_NV, )                                                              \
       break;                                                                                                                 \
     case Acquire:                                                                                                            \
-      if (__clc_nvvm_reflect_arch() >= 700) {                                                                                \
+      if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                            \
         __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
                                      ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                                    \
       } else {                                                                                                               \
@@ -97,7 +97,7 @@ Memory order is stored in the lowest 5 bits */                                  
       }                                                                                                                      \
       break;                                                                                                                 \
     case Release:                                                                                                            \
-      if (__clc_nvvm_reflect_arch() >= 700) {                                                                                \
+      if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                            \
         __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
                                      ADDR_SPACE, ADDR_SPACE_NV, _release)                                                    \
       } else {                                                                                                               \
@@ -107,7 +107,7 @@ Memory order is stored in the lowest 5 bits */                                  
       }                                                                                                                      \
       break;                                                                                                                 \
     case AcquireRelease:                                                                                                     \
-      if (__clc_nvvm_reflect_arch() >= 700) {                                                                                \
+      if (__nvvm_reflect("__CUDA_ARCH") >= 700) {                                                                            \
         __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
                                      ADDR_SPACE, ADDR_SPACE_NV, _acq_rel)                                                    \
       } else {                                                                                                               \

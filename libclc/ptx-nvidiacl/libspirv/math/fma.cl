@@ -11,7 +11,10 @@
 #include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-extern int __clc_nvvm_reflect_arch();
+extern int __nvvm_reflect(char *__attribute__((addrspace(1))));
+
+__constant char *__constant str = "__CUDA_ARCH";
+__constant __attribute__((addrspace(1))) char *__constant cuda_str = str;
 
 _CLC_DEFINE_TERNARY_BUILTIN(float, __spirv_ocl_fma, __nv_fmaf, float, float,
                             float)
@@ -30,14 +33,14 @@ _CLC_DEFINE_TERNARY_BUILTIN(double, __spirv_ocl_fma, __nv_fma, double, double,
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 _CLC_DEF _CLC_OVERLOAD half __spirv_ocl_fma(half x, half y, half z) {
-  if (__clc_nvvm_reflect_arch() >= 530) {
+  if (__nvvm_reflect(cuda_str) >= 530) {
     return __nvvm_fma_rn_f16(x, y, z);
   }
   return __nv_fmaf(x, y, z);
 }
 
 _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fma(half2 x, half2 y, half2 z) {
-  if (__clc_nvvm_reflect_arch() >= 530) {
+  if (__nvvm_reflect(cuda_str) >= 530) {
     return __nvvm_fma_rn_f16x2(x, y, z);
   }
   return (half2)(__spirv_ocl_fma(x.x, y.x, z.x),
@@ -49,7 +52,7 @@ _CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fma,
 #endif
 
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fma(ushort x, ushort y, ushort z) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect(cuda_str) >= 800) {
     return __nvvm_fma_rn_bf16(x, y, z);
   }
   __builtin_trap();
@@ -59,7 +62,7 @@ _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma, ushort,
                        ushort, ushort)
 
 _CLC_DEF _CLC_OVERLOAD uint __clc_fma(uint x, uint y, uint z) {
-  if (__clc_nvvm_reflect_arch() >= 800) {
+  if (__nvvm_reflect(cuda_str) >= 800) {
     return __nvvm_fma_rn_bf16x2(x, y, z);
   }
   __builtin_trap();
