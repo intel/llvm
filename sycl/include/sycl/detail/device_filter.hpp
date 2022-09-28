@@ -32,17 +32,17 @@ std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
 // will will match devices.
 struct ods_target {
 public:
-  std::optional<backend> Backend = {};
-  std::optional<info::device_type> DeviceType = {};
+  std::optional<backend> Backend;
+  std::optional<info::device_type> DeviceType;
 
   bool HasDeviceWildCard = false;
-  std::optional<int> DeviceNum = {};
+  std::optional<int> DeviceNum;
 
   bool HasSubDeviceWildCard = false;
-  std::optional<unsigned> SubDeviceNum = {};
+  std::optional<unsigned> SubDeviceNum;
 
   bool HasSubSubDeviceWildCard = false; // two levels of sub-devices.
-  std::optional<unsigned> SubSubDeviceNum = {};
+  std::optional<unsigned> SubSubDeviceNum;
 
   ods_target(backend be) { Backend = be; };
   ods_target(){};
@@ -67,9 +67,9 @@ std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
 // SYCL_DEVICE_FILTER support
 
 struct device_filter {
-  std::optional<backend> Backend = {};
-  std::optional<info::device_type> DeviceType = {};
-  std::optional<int> DeviceNum = {};
+  std::optional<backend> Backend;
+  std::optional<info::device_type> DeviceType;
+  std::optional<int> DeviceNum;
   int MatchesSeen = 0;
 
   device_filter(){};

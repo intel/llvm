@@ -95,9 +95,8 @@ static void Parse_ODS_Device(ods_target &Target,
     try {
       Target.DeviceNum = std::stoi(TDS);
     } catch (...) {
-      std::stringstream ss;
-      ss << "error parsing device number: " << TDS;
-      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "error parsing device number: " + TDS);
     }
   }
 
@@ -112,9 +111,8 @@ static void Parse_ODS_Device(ods_target &Target,
       try {
         Target.SubDeviceNum = std::stoi(SDS);
       } catch (...) {
-        std::stringstream ss;
-        ss << "error parsing sub-device index: " << SDS;
-        throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "error parsing sub-device index: " + SDS);
       }
     }
   }
@@ -128,9 +126,8 @@ static void Parse_ODS_Device(ods_target &Target,
       try {
         Target.SubSubDeviceNum = std::stoi(SSDS);
       } catch (...) {
-        std::stringstream ss;
-        ss << "error parsing sub-sub-device index: " << SSDS;
-        throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "error parsing sub-sub-device index: " + SSDS);
       }
     }
   } else if (DeviceSubPair.size() > 3) {
@@ -213,12 +210,11 @@ ods_target_list::ods_target_list(const std::string &envStr) {
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
 bool ods_target_list::backendCompatible(backend Backend) {
-  for (const ods_target &Target : TargetList) {
-    backend TargetBackend = Target.Backend.value_or(backend::all);
-    if (TargetBackend == Backend || TargetBackend == backend::all)
-      return true;
-  }
-  return false;
+  return std::any_of(
+      TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
+        backend TargetBackend = Target.Backend.value_or(backend::all);
+        return (TargetBackend == Backend) || (TargetBackend == backend::all);
+      });
 }
 
 // ---------------------------------------
@@ -322,30 +318,28 @@ void device_filter_list::addFilter(device_filter &Filter) {
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
 bool device_filter_list::backendCompatible(backend Backend) {
-  for (const device_filter &Filter : FilterList) {
-    backend FilterBackend = Filter.Backend.value_or(backend::all);
-    if (FilterBackend == Backend || FilterBackend == backend::all)
-      return true;
-  }
-  return false;
+  return std::any_of(
+      FilterList.begin(), FilterList.end(), [&](device_filter &Filter) {
+        backend FilterBackend = Filter.Backend.value_or(backend::all);
+        return (FilterBackend == Backend) || (FilterBackend == backend::all);
+      });
 }
 
 bool device_filter_list::deviceTypeCompatible(info::device_type DeviceType) {
-  for (const device_filter &Filter : FilterList) {
-    info::device_type FilterDevType =
-        Filter.DeviceType.value_or(info::device_type::all);
-    if (FilterDevType == DeviceType || FilterDevType == info::device_type::all)
-      return true;
-  }
-  return false;
+  return std::any_of(FilterList.begin(), FilterList.end(),
+                     [&](device_filter &Filter) {
+                       info::device_type FilterDevType =
+                           Filter.DeviceType.value_or(info::device_type::all);
+                       return (FilterDevType == DeviceType) ||
+                              (FilterDevType == info::device_type::all);
+                     });
 }
 
 bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
-  for (const device_filter &Filter : FilterList) {
-    if (!Filter.DeviceNum || Filter.DeviceNum.value() == DeviceNum)
-      return true;
-  }
-  return false;
+  return std::any_of(
+      FilterList.begin(), FilterList.end(), [&](device_filter &Filter) {
+        return (!Filter.DeviceNum) || (Filter.DeviceNum.value() == DeviceNum);
+      });
 }
 
 } // namespace detail
