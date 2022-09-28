@@ -1522,7 +1522,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   if (isSyclCtor) {
     LLVM_DEBUG(llvm::dbgs() << "Adding device attribute to ctor "
                             << ctorDecl->getNameAsString() << "\n");
-    ctorDecl->addAttr(SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
+    ctorDecl->addAttr(
+        SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
   }
 
   if (FunctionDecl *fd = dyn_cast<FunctionDecl>(ctorDecl)) {

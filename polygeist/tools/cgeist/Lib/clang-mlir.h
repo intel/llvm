@@ -180,7 +180,7 @@ private:
       CaptureKinds;
   clang::FieldDecl *ThisCapture;
   std::vector<mlir::Value> arrayinit;
-  unsigned defaultAddrSpace;  
+  unsigned defaultAddrSpace;
   ValueCategory ThisVal;
   mlir::Value returnVal;
   LowerToInfo &LTInfo;
