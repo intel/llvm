@@ -596,8 +596,9 @@ struct is_property_key_of<
 | Property | Description
 |`alignment`
 |
-Indicates the alignment of the pointer in bytes. Alignment cannot be smaller
-than the size of type `T`.
+This property is an assertion by the application that the `annotated_ptr` has
+the given alignment, specified in bytes. The behavior is undefined if the
+pointer value does not have the indicated alignment.
 
 |`runtime_aligned`
 |
