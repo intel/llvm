@@ -216,13 +216,17 @@ private:
   //   . X X X .
   //   . . . . .
   //
-  // _MStaticOffset stores a number of elements in _full_ rows (and in _full_
-  // slices in case of 3-dimensional buffers) before the first accessible
-  // element. For the example above, _MStaticOffset would be equal to 5, because
-  // there is only one full row before the first accessible element. "Static" in
-  // the name highlights that this is a constant element in an equation which
-  // calculates an absoulte offset to an accessor's buffer, it doesn't depend
-  // on the current state of the iterator.
+  // _MStaticOffset stores a number of elements which precede the first
+  // accessible element, calculated as if the buffer was linearized.
+  // For the example above, _MStaticOffset would be equal to 6, because
+  // there is one full row before the first accessible element and a one more on
+  // the second line. "Static" in the name highlights that this is a constant
+  // element in an equation which calculates an absoulte offset to an accessor's
+  // buffer, it doesn't depend on the current state of the iterator.
+  //
+  // NOTE: _MStaticOffset is set to 0 in 1D case even if the accessor was
+  // created with offset: it is done to further optimize 1D case by
+  // incorporating that offset into _MLinearId right away.
   //
   // _MPerRowOffset stores a number of _inaccessible_ elements in each
   // _accessible_ row. For the example above it would be equal to 2 (leftmost
@@ -278,9 +282,6 @@ private:
     _AbsoluteId += _MPerRowOffset * (_Remaining / _MRowSize);
     _Remaining %= _MRowSize;
 
-    // And finally, there could be inaccessible elements on the current row
-    _AbsoluteId += _MAccessorPtr->get_offset()[_Dimensions - 1];
-
     return _AbsoluteId;
   }
 
@@ -314,8 +315,11 @@ private:
             _AccessRange[_XIndex] * _AccessRange[_YIndex] - _MSliceSize;
       }
       if constexpr (_Dimensions > 1) {
+        // Elements in fully inaccessible rows
         _MStaticOffset +=
             _AccessRange[_XIndex] * _MAccessorPtr->get_offset()[_YIndex];
+        // Elements from the first accessible row
+        _MStaticOffset += _MAccessorPtr->get_offset()[_XIndex];
         _MPerRowOffset = _AccessRange[_XIndex] - _MRowSize;
       }
     }
