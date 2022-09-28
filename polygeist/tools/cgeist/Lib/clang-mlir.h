@@ -49,7 +49,22 @@ struct LoopContext {
   mlir::Value noBreak;
 };
 
-class MLIRASTConsumer : public clang::ASTConsumer {
+/// Context in which a function is located.
+enum class FunctionContext : unsigned {
+  Host = 0,      ///< Host code
+  SYCLDevice = 1 ///< SYCL device code
+};
+
+/// Struct encapsulating a function declaration and its context.
+struct FunctionToEmit {
+  FunctionToEmit(const clang::FunctionDecl &decl, FunctionContext context)
+      : decl(decl), context(context) {}
+
+  const clang::FunctionDecl &decl;
+  FunctionContext context;
+};
+
+struct MLIRASTConsumer : public clang::ASTConsumer {
 private:
   std::set<std::string> &emitIfFound;
   std::set<std::string> &done;
@@ -60,7 +75,7 @@ private:
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
-  std::deque<const clang::FunctionDecl *> functionsToEmit;
+  std::deque<FunctionToEmit> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   clang::SourceManager &SM;
@@ -113,9 +128,9 @@ public:
   }
   ScopLocList &getScopLocList() { return scopLocList; }
 
-  mlir::func::FuncOp GetOrCreateMLIRFunction(const clang::FunctionDecl *FD,
-                                             const bool ShouldEmit,
-                                             bool getDeviceStub = false);
+  mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &F,
+                                                    const bool ShouldEmit,
+                                                    bool getDeviceStub = false);
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
   mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction();
@@ -150,10 +165,12 @@ public:
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 
 private:
-  void setMLIRFunctionAttributes(mlir::func::FuncOp function,
+  void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
                                  const clang::FunctionDecl &FD,
                                  mlir::LLVM::Linkage lnk,
                                  mlir::MLIRContext *ctx) const;
+  llvm::Optional<mlir::FunctionOpInterface>
+  getFunction(const std::string &name, FunctionContext context) const;
 };
 
 class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
@@ -161,7 +178,7 @@ class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
 
 private:
   MLIRASTConsumer &Glob;
-  mlir::func::FuncOp function;
+  mlir::FunctionOpInterface function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
   mlir::OpBuilder builder;
@@ -218,7 +235,8 @@ private:
 
   const clang::FunctionDecl *EmitCallee(const clang::Expr *E);
 
-  mlir::func::FuncOp EmitDirectCallee(const clang::FunctionDecl *FD);
+  mlir::FunctionOpInterface EmitDirectCallee(const clang::FunctionDecl *FD,
+                                             FunctionContext Context);
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
@@ -246,7 +264,7 @@ public:
               mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
               LowerToInfo &LTInfo);
 
-  void init(mlir::func::FuncOp function, const clang::FunctionDecl *fd);
+  void init(mlir::FunctionOpInterface function, const FunctionToEmit &fd);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
     allocationScope = entryBlock = B;
