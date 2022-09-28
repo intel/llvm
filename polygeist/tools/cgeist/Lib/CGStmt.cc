@@ -16,6 +16,7 @@
 
 #define DEBUG_TYPE "CGStmt"
 
+using namespace clang;
 using namespace mlir;
 using namespace mlir::arith;
 
@@ -214,7 +215,7 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   auto loc = getMLIRLocation(fors->getForLoc());
 
   mlirclang::AffineLoopDescriptor affineLoopDescr;
-  if (Glob.scopLocList.isInScop(fors->getForLoc()) &&
+  if (Glob.getScopLocList().isInScop(fors->getForLoc()) &&
       isTrivialAffineLoop(fors, affineLoopDescr)) {
     buildAffineLoop(fors, loc, affineLoopDescr);
   } else {
@@ -490,8 +491,8 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
 
     bool LLVMABI = false;
     bool isArray = false;
-    if (Glob.getMLIRType(
-                Glob.CGM.getContext().getLValueReferenceType(name->getType()))
+    if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                             name->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
     else
@@ -554,7 +555,7 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
         bool LLVMABI = false;
         bool isArray = false;
         mlir::Type ty;
-        if (Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
+        if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
                                  name->getType()))
                 .isa<mlir::LLVM::LLVMPointerType>()) {
           LLVMABI = true;
@@ -660,8 +661,8 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
     bool LLVMABI = false;
     bool isArray = false;
-    if (Glob.getMLIRType(
-                Glob.CGM.getContext().getLValueReferenceType(name->getType()))
+    if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                             name->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
     else
