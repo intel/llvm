@@ -438,11 +438,11 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'StructWithSimplePointer *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithSimplePointer[2]' lvalue .StructWithSimplePointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:126:9)' lvalue Var
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_StructWithSimplePointerArray' '__generated_StructWithSimplePointer'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 16
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
 
 // Memcopy second array element
 // CHECK-NEXT: CallExpr
@@ -454,11 +454,11 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'StructWithSimplePointer *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithSimplePointer[2]' lvalue .StructWithSimplePointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:126:9)' lvalue Var
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_StructWithSimplePointerArray' '__generated_StructWithSimplePointer'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 16
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
 
 // Check Kernel_StructWithNestedPointer parameters.
 // CHECK: FunctionDecl {{.*}}Kernel_StructWithNestedPointer{{.*}} 'void (__generated_StructWithSimplePointer, __generated_StructWithSimplePointer, __generated_StructWithSimplePointer, __generated_StructWithSimplePointer)'
@@ -496,12 +496,12 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'StructWithNestedPointer *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithNestedPointer[2]' lvalue .StructWithNestedPointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:133:9)'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 16
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
 
 // Memcpy StructWithNestedPointerArray[0].SWPointer[1]
 // CHECK-NEXT: CallExpr {{.*}} 'void *'
@@ -516,12 +516,12 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'StructWithNestedPointer *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithNestedPointer[2]' lvalue .StructWithNestedPointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:133:9)'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 16
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
 
 // Memcpy StructWithNestedPointerArray[1].SWPointer[0]
 // CHECK-NEXT: CallExpr {{.*}} 'void *'
@@ -536,12 +536,12 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'StructWithNestedPointer *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithNestedPointer[2]' lvalue .StructWithNestedPointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:133:9)'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 16
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
 
 // Memcpy StructWithNestedPointerArray[1].SWPointer[1]
 // CHECK-NEXT: CallExpr {{.*}} 'void *'
@@ -556,9 +556,9 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'StructWithNestedPointer *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} 'StructWithNestedPointer[2]' lvalue .StructWithNestedPointerArray
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:133:9)'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 16
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
