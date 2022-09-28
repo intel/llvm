@@ -180,7 +180,6 @@ private:
       CaptureKinds;
   clang::FieldDecl *ThisCapture;
   std::vector<mlir::Value> arrayinit;
-  unsigned defaultAddrSpace;
   ValueCategory ThisVal;
   mlir::Value returnVal;
   LowerToInfo &LTInfo;
@@ -201,8 +200,7 @@ private:
     subbuilder.setInsertionPointToStart(allocationScope);
 
     auto one = subbuilder.create<mlir::arith::ConstantIntOp>(loc, 1, 64);
-    auto rs =
-        subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, defaultAddrSpace);
+    auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
     vec.push_back(rs);
     return rs;
   }
@@ -242,15 +240,6 @@ private:
   void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                            mlir::Value lb, mlir::Value ub,
                            const mlirclang::AffineLoopDescriptor &descr);
-
-  static unsigned getDefaultAddrSpace(const clang::FunctionDecl &FD) {
-    // For SYCL we generate LLVM code that is then translated to SPIRV.
-    // The generic SPIRV address space is addrspace(4).
-    if (FD.hasAttr<clang::SYCLDeviceAttr>() ||
-        FD.hasAttr<clang::SYCLKernelAttr>())
-      return 4;
-    return 0;
-  }
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,

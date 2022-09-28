@@ -14,10 +14,10 @@
 #define N 32
 // clang-format off
 // CHECK: func.func private {{.*}}vec_add_device_simple{{.*}}sycl{{.*}}handler{{.*}}
-// CHECK-DAG: %[[VEC1:.*]] = affine.load %[[ACCESSOR1:.*]][0] : memref<?xf32, 4>
-// CHECK-DAG: %[[VEC2:.*]] = affine.load %[[ACCESSOR2:.*]][0] : memref<?xf32, 4>
+// CHECK-DAG: %[[VEC1:.*]] = affine.load %[[ACCESSOR1:.*]][0] : memref<?xf32>
+// CHECK-DAG: %[[VEC2:.*]] = affine.load %[[ACCESSOR2:.*]][0] : memref<?xf32>
 // CHECK-NEXT: %[[RESULT:.*]] = arith.addf %[[VEC1]], %[[VEC2]] : f32
-// CHECK-NEXT: affine.store %[[RESULT]], %[[VEC3:.*]][0] : memref<?xf32, 4>
+// CHECK-NEXT: affine.store %[[RESULT]], %[[VEC3:.*]][0] : memref<?xf32>
 // CHECK-NEXT: return
 // clang-format on
 
