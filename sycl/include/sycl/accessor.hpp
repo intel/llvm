@@ -31,8 +31,8 @@
 #include <sycl/property_list_conversion.hpp>
 #include <sycl/sampler.hpp>
 
-#include <type_traits>
 #include <iterator>
+#include <type_traits>
 
 #include <utility>
 

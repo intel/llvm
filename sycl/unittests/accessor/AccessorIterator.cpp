@@ -170,6 +170,7 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
   It += 3;
 
   { // It += n should be equivalent to incrementint/decrementing It n times
+    // The test also checks the same for operator +, i.e. It + n
     for (int n = -3; n <= 3; ++n) {
       auto It1 = It;
       auto It2 = It;
@@ -186,6 +187,7 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
       }
 
       ASSERT_EQ(It1, It2) << " with n = " << n;
+      ASSERT_EQ(It + n, It2) << " with n = " << n;
     }
   }
 
@@ -198,8 +200,10 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
   {
     auto It1 = accessor.begin();
     auto It2 = accessor.end();
-    ASSERT_EQ(It - It1, It1 - It);
-    ASSERT_EQ(It - It2, It2 - It);
+    ASSERT_EQ(std::abs(It - It1), std::abs(It1 - It));
+    ASSERT_EQ(std::abs(It - It2), std::abs(It2 - It));
+    ASSERT_EQ(It1 - It, -3);
+    ASSERT_EQ(It - It1, 3);
     ASSERT_EQ(It2, It + (It2 - It));
     ASSERT_EQ(It, It1 + (It - It1));
   }

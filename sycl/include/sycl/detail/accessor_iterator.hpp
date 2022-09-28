@@ -164,11 +164,7 @@ public:
   }
 
   difference_type operator-(const __accessor_iterator &_Rhs) {
-    // FIXME: values of difference_type can be negative
-    if (_Rhs._MLinearId > _MLinearId)
-      return _Rhs._MLinearId - _MLinearId;
-    else
-      return _MLinearId - _Rhs._MLinearId;
+    return _MLinearId - _Rhs._MLinearId;
   }
 
 private:
