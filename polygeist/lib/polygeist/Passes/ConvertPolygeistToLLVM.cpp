@@ -217,6 +217,10 @@ struct Memref2PointerOpLowering
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
     ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
+    assert(ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace() ==
+               op.getType().getAddressSpace() &&
+           "Expecting Memref2PointerOp source and result types to have the "
+           "same address space");
     ptr = rewriter.create<LLVM::BitcastOp>(loc, op.getType(), ptr);
 
     rewriter.replaceOp(op, {ptr});
@@ -237,6 +241,13 @@ struct Pointer2MemrefOpLowering
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
+    assert(adaptor.source()
+                   .getType()
+                   .cast<LLVM::LLVMPointerType>()
+                   .getAddressSpace() ==
+               op.getType().cast<MemRefType>().getMemorySpaceAsInt() &&
+           "Expecting Pointer2MemrefOp source and result types to have the "
+           "same address space");
     auto ptr = rewriter.create<LLVM::BitcastOp>(
         op.getLoc(), descr.getElementPtrType(), adaptor.source());
 

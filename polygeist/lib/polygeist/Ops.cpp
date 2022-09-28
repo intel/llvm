@@ -1887,12 +1887,8 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
-  /// Simplify pointer2memref(cast(x)) to pointer2memref(x)
+  /// Simplify pointer2memref(bitcast(x)) to pointer2memref(x)
   if (auto mc = source().getDefiningOp<LLVM::BitcastOp>()) {
-    sourceMutable().assign(mc.getArg());
-    return result();
-  }
-  if (auto mc = source().getDefiningOp<LLVM::AddrSpaceCastOp>()) {
     sourceMutable().assign(mc.getArg());
     return result();
   }
