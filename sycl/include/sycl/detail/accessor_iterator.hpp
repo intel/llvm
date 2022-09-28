@@ -244,9 +244,6 @@ private:
   // Contains a number of _accessible_ elements in a slice
   size_t _MSliceSize = 0;
 
-  // Contains a full range of the underlying buffer
-  range<3> _MAccessRange = range<3>{0, 0, 0};
-
   // _MLinearId stores an offset which is relative to the accessible range of
   // the accessor, which means that it could be the case that _MlinearId equal
   // to 0 should not correspond to the beginning of the underlying buffer, but
@@ -289,7 +286,7 @@ private:
 
   __accessor_iterator(const _AccessorT *_AccessorPtr,
                       const range<3> &_AccessRange)
-      : _MAccessorPtr(_AccessorPtr), _MAccessRange(_AccessRange) {
+      : _MAccessorPtr(_AccessorPtr) {
     constexpr int _XIndex = _Dimensions - 1;
     constexpr int _YIndex = _Dimensions - 2;
     (void)_YIndex;
@@ -305,21 +302,21 @@ private:
       _MAccessorIsRanged = true;
     else {
       for (size_t _I = 0; _I < _Dimensions; ++_I)
-        if (_MAccessorPtr->get_range()[_I] != _MAccessRange[_I])
+        if (_MAccessorPtr->get_range()[_I] != _AccessRange[_I])
           _MAccessorIsRanged = true;
     }
 
     if (_MAccessorIsRanged) {
       if constexpr (_Dimensions > 2) {
-        _MStaticOffset += _MAccessRange[_XIndex] * _MAccessRange[_YIndex] *
+        _MStaticOffset += _AccessRange[_XIndex] * _AccessRange[_YIndex] *
                           _MAccessorPtr->get_offset()[_ZIndex];
         _MPerSliceOffset =
-            _MAccessRange[_XIndex] * _MAccessRange[_YIndex] - _MSliceSize;
+            _AccessRange[_XIndex] * _AccessRange[_YIndex] - _MSliceSize;
       }
       if constexpr (_Dimensions > 1) {
         _MStaticOffset +=
-            _MAccessRange[_XIndex] * _MAccessorPtr->get_offset()[_YIndex];
-        _MPerRowOffset = _MAccessRange[_XIndex] - _MRowSize;
+            _AccessRange[_XIndex] * _MAccessorPtr->get_offset()[_YIndex];
+        _MPerRowOffset = _AccessRange[_XIndex] - _MRowSize;
       }
     }
 
