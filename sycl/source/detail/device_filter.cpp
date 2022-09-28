@@ -72,8 +72,8 @@ static backend Parse_ODS_Backend(const std::string_view &BackendStr,
 static void Parse_ODS_Device(ods_target &Target,
                              const std::string_view &DeviceStr) {
   // DeviceStr will be: 'gpu', '*', '0', '0.1', 'gpu.*', '0.*', or 'gpu.2', etc.
-  std::vector<std::string_view> DeviceSubPair = tokenize(DeviceStr, ".");
-  std::string_view TopDeviceStr = DeviceSubPair[0];
+  std::vector<std::string_view> DeviceSubTuple = tokenize(DeviceStr, ".");
+  std::string_view TopDeviceStr = DeviceSubTuple[0];
 
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
@@ -100,13 +100,31 @@ static void Parse_ODS_Device(ods_target &Target,
     }
   }
 
-  if (DeviceSubPair.size() >= 2) {
+  if (DeviceSubTuple.size() >= 2) {
     // We have a subdevice.
-    std::string_view SubDeviceStr = DeviceSubPair[1];
+    // The grammar for sub-devices is ... restrictive. Neither 'gpu.0' nor
+    // 'gpu.*' are allowed. If wanting a sub-device, then the device itself must
+    // be specified by a number or a wildcard, and if by wildcard, the only
+    // allowable sub-device is another wildcard.
+
+    if (Target.DeviceType)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "sub-devices can only be requested when parent device is specified "
+          "by number or wildcard, not a device type like 'gpu'");
+
+    std::string_view SubDeviceStr = DeviceSubTuple[1];
     // SubDeviceStr is wildcard or number.
     if (SubDeviceStr[0] == '*') {
       Target.HasSubDeviceWildCard = true;
     } else {
+      // sub-device requested by number. So parent device must be a number too
+      // or it's a parsing error.
+      if (Target.HasDeviceWildCard)
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "sub-device can't be requested by number if "
+                              "parent device is specified by a wildcard.");
+
       std::string SDS(SubDeviceStr);
       try {
         Target.SubDeviceNum = std::stoi(SDS);
@@ -116,12 +134,21 @@ static void Parse_ODS_Device(ods_target &Target,
       }
     }
   }
-  if (DeviceSubPair.size() == 3) {
+  if (DeviceSubTuple.size() == 3) {
     // We have a sub-sub-device.
-    std::string_view SubSubDeviceStr = DeviceSubPair[2];
+    // Similar rules for sub-sub-devices as for sub-devices above.
+
+    std::string_view SubSubDeviceStr = DeviceSubTuple[2];
     if (SubSubDeviceStr[0] == '*') {
       Target.HasSubSubDeviceWildCard = true;
     } else {
+      // sub-sub-device requested by number. So partition above must be a number
+      // too or it's a parsing error.
+      if (Target.HasSubDeviceWildCard)
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "sub-sub-device can't be requested by number if "
+                              "sub-device before is specified by a wildcard.");
+
       std::string SSDS(SubSubDeviceStr);
       try {
         Target.SubSubDeviceNum = std::stoi(SSDS);
@@ -130,7 +157,7 @@ static void Parse_ODS_Device(ods_target &Target,
                               "error parsing sub-sub-device index: " + SSDS);
       }
     }
-  } else if (DeviceSubPair.size() > 3) {
+  } else if (DeviceSubTuple.size() > 3) {
     std::stringstream ss;
     ss << "error parsing " << DeviceStr
        << "  Only two levels of sub-devices supported at this time";
