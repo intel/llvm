@@ -91,8 +91,8 @@ int main() {
 
 // Check kernel body for call to __builtin_memcpy to initialize second_base 
 // CHECK: CallExpr {{.*}} 'void *'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *(*)(void *, const void *, unsigned long) noexcept' <BuiltinFnToFnPtr>
-// CHECK-NEXT: DeclRefExpr {{.*}} Function {{.*}} '__builtin_memcpy' 'void *(void *, const void *, unsigned long) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *(*)(void *, const void *, {{.*}}) noexcept' <BuiltinFnToFnPtr>
+// CHECK-NEXT: DeclRefExpr {{.*}} Function {{.*}} '__builtin_memcpy' 'void *(void *, const void *, {{.*}}) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *' <BitCast>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'second_base *' <LValueToRValue>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'second_base *' lvalue <DerivedToBase (second_base)>
@@ -101,7 +101,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_second_base *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_second_base' lvalue ParmVar {{.*}} '_arg__base' '__generated_second_base'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 8
+// CHECK-NEXT: IntegerLiteral {{.*}} 8
 
 // Check kernel body for call to __init function of accessor
 // CHECK: CXXMemberCallExpr
