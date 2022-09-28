@@ -2030,11 +2030,15 @@ public:
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
   iterator begin() const noexcept {
-    return iterator::__get_begin(this, getMemoryRange());
+    return iterator::__get_begin(
+        this, detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()),
+        get_range(), get_offset());
   }
 
   iterator end() const noexcept {
-    return iterator::__get_end(this, getMemoryRange());
+    return iterator::__get_end(
+        this, detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()),
+        get_range(), get_offset());
   }
 
 private:

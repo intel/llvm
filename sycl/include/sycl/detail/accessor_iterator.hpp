@@ -286,7 +286,9 @@ private:
   }
 
   __accessor_iterator(const _AccessorT *_AccessorPtr,
-                      const range<3> &_AccessRange)
+                      const range<_Dimensions> &_MemoryRange,
+                      const range<_Dimensions> &_AccessRange,
+                      const id<_Dimensions> &_Offset)
       : _MAccessorPtr(_AccessorPtr) {
     constexpr int _XIndex = _Dimensions - 1;
     constexpr int _YIndex = _Dimensions - 2;
@@ -295,52 +297,58 @@ private:
     (void)_ZIndex;
 
     if constexpr (_Dimensions > 1)
-      _MRowSize = _MAccessorPtr->get_range()[_XIndex];
+      _MRowSize = _AccessRange[_XIndex];
     if constexpr (_Dimensions > 2)
-      _MSliceSize = _MAccessorPtr->get_range()[_YIndex] * _MRowSize;
+      _MSliceSize = _AccessRange[_YIndex] * _MRowSize;
 
-    if (id<_Dimensions>{} != _MAccessorPtr->get_offset())
+    if (id<_Dimensions>{} != _Offset)
       _MAccessorIsRanged = true;
     else {
       for (size_t _I = 0; _I < _Dimensions; ++_I)
-        if (_MAccessorPtr->get_range()[_I] != _AccessRange[_I])
+        if (_AccessRange[_I] != _MemoryRange[_I])
           _MAccessorIsRanged = true;
     }
 
     if (_MAccessorIsRanged) {
       if constexpr (_Dimensions > 2) {
-        _MStaticOffset += _AccessRange[_XIndex] * _AccessRange[_YIndex] *
-                          _MAccessorPtr->get_offset()[_ZIndex];
+        _MStaticOffset +=
+            _MemoryRange[_XIndex] * _MemoryRange[_YIndex] * _Offset[_ZIndex];
         _MPerSliceOffset =
-            _AccessRange[_XIndex] * _AccessRange[_YIndex] - _MSliceSize;
+            _MemoryRange[_XIndex] * _MemoryRange[_YIndex] - _MSliceSize;
       }
       if constexpr (_Dimensions > 1) {
         // Elements in fully inaccessible rows
-        _MStaticOffset +=
-            _AccessRange[_XIndex] * _MAccessorPtr->get_offset()[_YIndex];
-        // Elements from the first accessible row
-        _MStaticOffset += _MAccessorPtr->get_offset()[_XIndex];
-        _MPerRowOffset = _AccessRange[_XIndex] - _MRowSize;
+        _MStaticOffset += _MemoryRange[_XIndex] * _Offset[_YIndex];
+        _MPerRowOffset = _MemoryRange[_XIndex] - _MRowSize;
       }
+
+      // Elements from the first accessible row
+      if constexpr (_Dimensions == 1)
+        // To further optimize 1D case, offset is already included into _Begin
+        _MBegin = _Offset[_XIndex];
+      else
+        _MStaticOffset += _Offset[_XIndex];
     }
 
-    // To further optimize 1D case, offset is already included into _Begin
-    if constexpr (_Dimensions == 1)
-      _MBegin = _MAccessorPtr->get_offset()[_XIndex];
-
-    _MEnd = _MBegin + _MAccessorPtr->size();
+    _MEnd = _MBegin + _AccessRange.size();
   }
 
   static __accessor_iterator __get_begin(const _AccessorT *_AccessorPtr,
-                                         const range<3> &_AccessRange) {
-    auto _It = __accessor_iterator(_AccessorPtr, _AccessRange);
+                                         const range<_Dimensions> &_MemoryRange,
+                                         const range<_Dimensions> &_AccessRange,
+                                         const id<_Dimensions> &_Offset) {
+    auto _It =
+        __accessor_iterator(_AccessorPtr, _MemoryRange, _AccessRange, _Offset);
     _It._MLinearId = _It._MBegin;
     return _It;
   }
 
   static __accessor_iterator __get_end(const _AccessorT *_AccessorPtr,
-                                       const range<3> &_AccessRange) {
-    auto _It = __accessor_iterator(_AccessorPtr, _AccessRange);
+                                       const range<_Dimensions> &_MemoryRange,
+                                       const range<_Dimensions> &_AccessRange,
+                                       const id<_Dimensions> &_Offset) {
+    auto _It =
+        __accessor_iterator(_AccessorPtr, _MemoryRange, _AccessRange, _Offset);
     _It._MLinearId = _It._MEnd;
     return _It;
   }
