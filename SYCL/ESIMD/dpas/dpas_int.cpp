@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || esimd_emulator
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2 || esimd_emulator
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // This test verifies DPAS support for 2,4,8-bit integers.
@@ -20,7 +20,9 @@ int main(int argc, const char *argv[]) {
   bool Print = argc > 1 && std::string(argv[1]) == "-debug";
   bool Passed = true;
 
-  // Test unsigned 2-bit integers./
+  constexpr bool LetDeduceArgs = true;
+
+  // Test unsigned 2-bit integers.
   Passed &= tests<8, 8, u2, u2>(Q, Print);
   Passed &= tests<8, 4, u2, u2>(Q, Print);
   // TODO: enable this case when the problem with simd constructor
@@ -46,7 +48,7 @@ int main(int argc, const char *argv[]) {
 
   // Test couple combinations with 8-bit integers.
   Passed &= tests<8, 8, s8, s8>(Q, Print);
-  Passed &= tests<8, 2, u8, s8>(Q, Print);
+  Passed &= tests<8, 2, u8, s8, LetDeduceArgs>(Q, Print);
 
   // Test some mixes of 2/4/8-bit integers.
   Passed &= tests<8, 8, s2, s4>(Q, Print);

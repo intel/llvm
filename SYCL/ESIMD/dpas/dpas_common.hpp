@@ -50,8 +50,8 @@ std::string toString(dpas_argument_type T) {
     return "bf16";
   case dpas_argument_type::tf32:
     return "tf32";
-  case dpas_argument_type::S1:
-  case dpas_argument_type::U1:
+  case dpas_argument_type::s1:
+  case dpas_argument_type::u1:
   case dpas_argument_type::Invalid:
     return "UNSUPPORTED";
   }
@@ -65,7 +65,7 @@ template <dpas_argument_type T> struct DpasPrintType {
   static constexpr bool is_uint = T == dpas_argument_type::u2 ||
                                   T == dpas_argument_type::u4 ||
                                   T == dpas_argument_type::u8;
-  static constexpr bool is_fp = T == dpas_argument_type::FP16 ||
+  static constexpr bool is_fp = T == dpas_argument_type::fp16 ||
                                 T == dpas_argument_type::bf16 ||
                                 T == dpas_argument_type::tf32;
 
@@ -100,7 +100,7 @@ template <dpas_argument_type T> struct DpasNaturalOperandType {
           is_uint, unsigned char,
           std::conditional_t<
               is_fp16, sycl::half,
-              std::conditional<
+              std::conditional_t<
                   is_bf16, sycl::ext::oneapi::experimental::bfloat16, void>>>>;
 };
 
@@ -123,6 +123,11 @@ template <dpas_argument_type T> constexpr int getBitSize() {
 
   case dpas_argument_type::tf32:
     return 32;
+
+  case dpas_argument_type::Invalid:
+  case dpas_argument_type::s1:
+  case dpas_argument_type::u1:
+    break;
   }
   return 0;
 }
@@ -282,7 +287,8 @@ void printMatrix(void *Vec, std::string Msg) {
 }
 
 template <int SystolicDepth, int RepeatCount, dpas_argument_type BPrec,
-          dpas_argument_type APrec, bool UseSrc0>
+          dpas_argument_type APrec, bool UseSrc0, int ExecSize,
+          bool LetDeduceArgs>
 bool test(queue &Q, bool Print) {
   constexpr unsigned Size = 128;
   constexpr unsigned VL = 16;
@@ -300,12 +306,13 @@ bool test(queue &Q, bool Print) {
   // where:
   constexpr int M = RepeatCount;
   constexpr int K = SystolicDepth * OpsPerChannel;
-  constexpr int N = 16; // Execution size: 16 for PVC.
+  constexpr int N = ExecSize; // 16 for PVC, 8 for DG2.
 
   auto Dev = Q.get_device();
-  std::cout << "Running test case " << toString(BPrec, APrec)
-            << " with UseSrc0 = " << UseSrc0 << " on "
-            << Dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << Dev.get_info<info::device::name>()
+            << " (ExecSize = " << ExecSize << "): " << toString(BPrec, APrec)
+            << ", UseSrc0 = " << UseSrc0
+            << ", LetDeduceArgs = " << LetDeduceArgs << std::endl;
 
   using ANaturalType = typename DpasNaturalOperandType<APrec>::type;
   using BNaturalType = typename DpasNaturalOperandType<BPrec>::type;
@@ -317,10 +324,10 @@ bool test(queue &Q, bool Print) {
   auto BPacked = aligned_alloc_shared<BNaturalType>(128, BPackedSize, Q);
   auto Res = aligned_alloc_shared<ResNaturalType>(128, M * N, Q);
   // Init APacked;
-  int Value = 0;
+  float Value = 1.2;
   for (int II = 0; II < M; II++) {
     for (int JJ = 0; JJ < K; JJ++) {
-      Value++;
+      Value += 1.1;
       writeToHorizontallyPackedMatrix<M, K, APrec>(
           APacked, II, JJ, static_cast<ANaturalType>(Value));
     }
@@ -345,15 +352,27 @@ bool test(queue &Q, bool Print) {
      simd<BNaturalType, BPackedSize> B(BPacked, overaligned_tag<16>{});
      simd<ResNaturalType, M * N> C;
 
-     if constexpr (UseSrc0) {
-       // Compute C = C + AxB;
-       C = 1;
-       C = dpas<8, RepeatCount, ResNaturalType, ResNaturalType, BNaturalType,
-                ANaturalType, BPrec, APrec>(C, B, A);
+     if constexpr (LetDeduceArgs) {
+       if constexpr (UseSrc0) {
+         // Compute C = C + AxB;
+         C = 1;
+         C = dpas<8, RepeatCount, ResNaturalType>(C, B, A);
+       } else {
+         // Compute C = AxB;
+         C = dpas<8, RepeatCount, ResNaturalType>(B, A);
+       }
+
      } else {
-       // Compute C = AxB;
-       C = dpas<8, RepeatCount, ResNaturalType, BNaturalType, ANaturalType,
-                BPrec, APrec>(B, A);
+       if constexpr (UseSrc0) {
+         // Compute C = C + AxB;
+         C = 1;
+         C = dpas<8, RepeatCount, ResNaturalType, ResNaturalType, BNaturalType,
+                  ANaturalType, BPrec, APrec>(C, B, A);
+       } else {
+         // Compute C = AxB;
+         C = dpas<8, RepeatCount, ResNaturalType, BNaturalType, ANaturalType,
+                  BPrec, APrec>(B, A);
+       }
      }
 
      C.copy_to(Res);
@@ -396,11 +415,40 @@ bool test(queue &Q, bool Print) {
 }
 
 template <int SystolicDepth, int RepeatCount, dpas_argument_type T1,
-          dpas_argument_type T2>
+          dpas_argument_type T2, bool LetDeduceArgs = false>
 bool tests(queue Q, bool Print) {
   bool Passed = true;
   constexpr bool UseSrc0 = true;
-  Passed &= test<SystolicDepth, RepeatCount, T1, T2, UseSrc0>(Q, Print);
-  Passed &= test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0>(Q, Print);
+  auto Dev = Q.get_device();
+
+  // Detect the execution size.
+  // The device trait is not implemented for esimd_emulator. Use both 8 and 16.
+  int ExecSize;
+  bool IsEmulator = false;
+  try {
+    ExecSize = Dev.get_info<ext::intel::info::device::gpu_eu_simd_width>();
+  } catch (sycl::exception e) {
+    IsEmulator = true;
+  }
+  assert((IsEmulator || (ExecSize == 8 || ExecSize == 16)) &&
+         "Execution size must be 8 or 16");
+
+  if (ExecSize == 16 || IsEmulator) {
+    Passed &=
+        test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 16, LetDeduceArgs>(
+            Q, Print);
+    Passed &=
+        test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0, 16, LetDeduceArgs>(
+            Q, Print);
+  }
+  if (ExecSize == 8 || IsEmulator) {
+    Passed &=
+        test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 8, LetDeduceArgs>(
+            Q, Print);
+    Passed &=
+        test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0, 8, LetDeduceArgs>(
+            Q, Print);
+  }
+
   return Passed;
 }
