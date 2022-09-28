@@ -304,7 +304,6 @@ int main() {
 
     // Test attribute is not propagated.
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name32() #0 !kernel_arg_buffer_location ![[NUM]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}Functor10{{.*}}(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) %this) #3 comdat align 2
     // CHECK-NOT: noalias
     // CHECK-SAME: {
     // CHECK: define dso_local spir_func void @_Z4foo8v()
@@ -312,12 +311,12 @@ int main() {
     h.single_task<class kernel_name32>(f10);
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name33() #0 !kernel_arg_buffer_location ![[NUM]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}Foo8{{.*}}(ptr addrspace(4) noalias noundef align 1 dereferenceable_or_null(1) %this) #3 comdat align 2
+    // CHECK: store ptr addrspace(4) %Foo8{{.*}} !noalias
     Foo8 boo8;
     h.single_task<class kernel_name33>(boo8);
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name34() #0 !kernel_arg_buffer_location ![[NUM]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}(ptr addrspace(4) noalias noundef align 1 dereferenceable_or_null(1) %this) #4 align 2
+    // CHECK: store ptr addrspace(4){{.*}} !noalias
     h.single_task<class kernel_name34>(
         []() [[intel::kernel_args_restrict]]{});
   });

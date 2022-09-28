@@ -58,6 +58,3 @@ int main() {
 // CHECK-SAME: %"struct.sycl::_V1::range"* noundef byval({{.*}}) align 4 [[ARANGE]],
 // CHECK-SAME: %"struct.sycl::_V1::range"* noundef byval({{.*}}) align 4 [[MRANGE]],
 // CHECK-SAME: %"struct.sycl::_V1::id"* noundef byval({{.*}}) align 4 [[OID]])
-
-// Check lambda "()" operator call
-// CHECK: call spir_func void @{{.*}}(%class.anon addrspace(4)* {{[^,]*}})

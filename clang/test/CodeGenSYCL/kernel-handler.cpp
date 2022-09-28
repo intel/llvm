@@ -33,6 +33,3 @@ void test(int val) {
 // NATIVESUPPORT-NOT: load ptr addrspace(1), ptr addrspace(1) %_arg__specialization_constants_buffer.addr, align 8
 // NATIVESUPPORT-NOT: addrspacecast ptr addrspace(1) %{{[0-9]+}} to ptr
 // NATIVESUPPORT-NOT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(ptr noundef align 4 nonnull align 1 dereferenceable(1) %kh, ptr noundef align 4 %{{[0-9]+}})
-
-// ALL: call{{ spir_func | }}void @{{[a-zA-Z0-9_$]+}}kernel_handler{{[a-zA-Z0-9_$]+}}
-// ALL-SAME: noundef byval(%"class.sycl::_V1::kernel_handler")

@@ -5,14 +5,16 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
+void myFunc() { }
+
 int main() {
 
   // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function()
 
-  // CHECK: call spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon addrspace(4)* {{[^,]*}} %{{.+}})
+  // CHECK: call spir_func void @_Z6myFuncv()
 
-  // CHECK: define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.{{.*}}anon addrspace(4)* {{[^,]*}} %this)
+  // CHECK: define {{.*}}spir_func void @_Z6myFuncv()
 
-  kernel_single_task<class kernel_function>([]() {});
+  kernel_single_task<class kernel_function>([]() { myFunc(); });
   return 0;
 }

@@ -837,6 +837,13 @@ class SingleDeviceFunctionTracker {
     CallGraphNode *KernelNode = Parent.getNodeForKernel(SYCLKernel);
     llvm::SmallVector<FunctionDecl *> CallStack;
     VisitCallNode(KernelNode, GetFDFromNode(KernelNode), CallStack);
+
+    // Always inline the KernelBody in the kernel entry point.
+    if (KernelBody) {
+      KernelBody->addAttr(AlwaysInlineAttr::CreateImplicit(
+          KernelBody->getASTContext(), {}, AttributeCommonInfo::AS_Keyword,
+          AlwaysInlineAttr::Keyword_forceinline));
+    }
   }
 
 public:

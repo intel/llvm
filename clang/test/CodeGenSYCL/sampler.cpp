@@ -1,11 +1,11 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck --enable-var-scope %s
 // CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(ptr addrspace(2) [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
-// CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca ptr addrspace(2), align 8
+// CHECK: [[SAMPLER_ARG]].addr = alloca ptr addrspace(2), align 8
 // CHECK: [[ANON:%[a-zA-Z0-9_]+]] = alloca %class.anon, align 8
 // CHECK: [[ANONCAST:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[ANON]] to ptr addrspace(4)
 // CHECK: store ptr addrspace(2) [[SAMPLER_ARG]], ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
-// CHECK-NEXT: call void @llvm.lifetime.start.p0(i64 8, ptr [[ANON]]) #4
+// CHECK-NEXT: call void @llvm.lifetime.start.p0(i64 8, ptr [[ANON]])
 // CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load ptr addrspace(2), ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
 // CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP]], ptr addrspace(2) [[LOAD_SAMPLER_ARG]])
