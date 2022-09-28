@@ -120,6 +120,11 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FMAXNUM_IEEE, MVT::f32, Legal);
     setOperationAction(ISD::STRICT_FSETCCS, MVT::f32, Legal);
     setOperationAction(ISD::STRICT_FSETCC, MVT::f32, Legal);
+    setOperationAction(ISD::FSIN, MVT::f32, Expand);
+    setOperationAction(ISD::FCOS, MVT::f32, Expand);
+    setOperationAction(ISD::FSINCOS, MVT::f32, Expand);
+    setOperationAction(ISD::FPOW, MVT::f32, Expand);
+    setOperationAction(ISD::FREM, MVT::f32, Expand);
   }
   if (Subtarget.hasBasicD()) {
     setCondCodeAction(FPCCToExpand, MVT::f64, Expand);
@@ -132,6 +137,11 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FMA, MVT::f64, Legal);
     setOperationAction(ISD::FMINNUM_IEEE, MVT::f64, Legal);
     setOperationAction(ISD::FMAXNUM_IEEE, MVT::f64, Legal);
+    setOperationAction(ISD::FSIN, MVT::f64, Expand);
+    setOperationAction(ISD::FCOS, MVT::f64, Expand);
+    setOperationAction(ISD::FSINCOS, MVT::f64, Expand);
+    setOperationAction(ISD::FPOW, MVT::f64, Expand);
+    setOperationAction(ISD::FREM, MVT::f64, Expand);
   }
 
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
@@ -1953,6 +1963,16 @@ bool LoongArchTargetLowering::isFMAFasterThanFMulAndFAdd(
   }
 
   return false;
+}
+
+Register LoongArchTargetLowering::getExceptionPointerRegister(
+    const Constant *PersonalityFn) const {
+  return LoongArch::R4;
+}
+
+Register LoongArchTargetLowering::getExceptionSelectorRegister(
+    const Constant *PersonalityFn) const {
+  return LoongArch::R5;
 }
 
 //===----------------------------------------------------------------------===//

@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Matchers.h"
@@ -452,6 +453,20 @@ LogicalResult ConcatenateOp::verify() {
   return success();
 }
 
+LogicalResult InsertOp::verify() {
+  RankedTensorType ttp = getTensor().getType().cast<RankedTensorType>();
+  if (ttp.getRank() != static_cast<int64_t>(getIndices().size()))
+    return emitOpError("incorrect number of indices");
+  return success();
+}
+
+LogicalResult CompressOp::verify() {
+  RankedTensorType ttp = getTensor().getType().cast<RankedTensorType>();
+  if (ttp.getRank() != 1 + static_cast<int64_t>(getIndices().size()))
+    return emitOpError("incorrect number of indices");
+  return success();
+}
+
 LogicalResult ForeachOp::verify() {
   auto t = getTensor().getType().cast<RankedTensorType>();
   auto args = getBody()->getArguments();
@@ -470,7 +485,6 @@ LogicalResult ForeachOp::verify() {
     emitError(llvm::formatv("Unmatched element type between input tensor and "
                             "block argument, expected:{0}, got: {1}",
                             elemTp, valueTp));
-
   return success();
 }
 
@@ -501,6 +515,41 @@ LogicalResult SelectOp::verify() {
                                     TypeRange{inputType}, boolType);
   if (failed(regionResult))
     return regionResult;
+
+  return success();
+}
+
+LogicalResult SortOp::verify() {
+  if (getXs().empty())
+    return emitError("need at least one xs buffer.");
+
+  auto n = getN().getDefiningOp<arith::ConstantIndexOp>();
+
+  Type xtp = getXs().front().getType().cast<MemRefType>().getElementType();
+  auto checkTypes = [&](ValueRange operands,
+                        bool checkEleType = true) -> LogicalResult {
+    for (Value opnd : operands) {
+      MemRefType mtp = opnd.getType().cast<MemRefType>();
+      int64_t dim = mtp.getShape()[0];
+      // We can't check the size of dynamic dimension at compile-time, but all
+      // xs and ys should have a dimension not less than n at runtime.
+      if (n && dim != ShapedType::kDynamicSize && dim < n.value())
+        return emitError(llvm::formatv("xs and ys need to have a dimension >= n"
+                                       ": {0} < {1}",
+                                       dim, n.value()));
+
+      if (checkEleType && xtp != mtp.getElementType())
+        return emitError("mismatch xs element types");
+    }
+    return success();
+  };
+
+  LogicalResult result = checkTypes(getXs());
+  if (failed(result))
+    return result;
+
+  if (n)
+    return checkTypes(getYs(), false);
 
   return success();
 }

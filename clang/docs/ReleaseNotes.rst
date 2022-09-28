@@ -356,6 +356,8 @@ C++20 Feature Support
   the time of checking, which should now allow the libstdc++ ranges implementation
   to work for at least trivial examples.  This fixes
   `Issue 44178 <https://github.com/llvm/llvm-project/issues/44178>`_.
+- Clang implements DR2621, correcting a defect in ``using enum`` handling.  The
+  name is found via ordinary lookup so typedefs are found.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -404,6 +406,8 @@ Arm and AArch64 Support in Clang
 - ``-march`` values for targeting armv2, armv2A, armv3 and armv3M have been removed.
   Their presence gave the impression that Clang can correctly generate code for
   them, which it cannot.
+- Add driver and tuning support for Neoverse V2 via the flag ``-mcpu=neoverse-v2``.
+  Native detection is also supported via ``-mcpu=native``.
 
 Floating Point Support in Clang
 -------------------------------
@@ -443,10 +447,15 @@ Static Analyzer
   ``scanbuild`` was also updated accordingly.
   Passing these flags will result in a hard error.
 
-.. _release-notes-ubsan:
+.. _release-notes-sanitizers:
 
-Undefined Behavior Sanitizer (UBSan)
-------------------------------------
+Sanitizers
+----------
+- ``-fsanitize-memory-param-retval`` is turned on by default. With
+  ``-fsanitize=memory``, passing uninitialized variables to functions and
+  returning uninitialized variables from functions is more aggressively
+  reported. ``-fno-sanitize-memory-param-retval`` restores the previous
+  behavior.
 
 Core Analysis Improvements
 ==========================

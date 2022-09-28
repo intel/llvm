@@ -1473,16 +1473,12 @@ public:
 
   /// Returns true if \p I is a memory instruction with consecutive memory
   /// access that can be widened.
-  bool
-  memoryInstructionCanBeWidened(Instruction *I,
-                                ElementCount VF = ElementCount::getFixed(1));
+  bool memoryInstructionCanBeWidened(Instruction *I, ElementCount VF);
 
   /// Returns true if \p I is a memory instruction in an interleaved-group
   /// of memory accesses that can be vectorized with wide vector loads/stores
   /// and shuffles.
-  bool
-  interleavedAccessCanBeWidened(Instruction *I,
-                                ElementCount VF = ElementCount::getFixed(1));
+  bool interleavedAccessCanBeWidened(Instruction *I, ElementCount VF);
 
   /// Check if \p Instr belongs to any interleaved access group.
   bool isAccessInterleaved(Instruction *Instr) {
@@ -6823,6 +6819,13 @@ void LoopVectorizationCostModel::setCostBasedWideningDecision(ElementCount VF) {
             // Scalarization of fixed length vectors "just works".
             return true;
 
+          // We have dedicated lowering for unpredicated uniform loads and
+          // stores.  Note that even with tail folding we know that at least
+          // one lane is active (i.e. generalized predication is not possible
+          // here), and the logic below depends on this fact.
+          if (!foldTailByMasking())
+            return true;
+
           // For scalable vectors, a uniform memop load is always
           // uniform-by-parts  and we know how to scalarize that.
           if (isa<LoadInst>(I))
@@ -6840,11 +6843,10 @@ void LoopVectorizationCostModel::setCostBasedWideningDecision(ElementCount VF) {
 
         // Load: Scalar load + broadcast
         // Store: Scalar store + isLoopInvariantStoreValue ? 0 : extract
-        // TODO: Avoid replicating loads and stores instead of relying on
-        // instcombine to remove them.
+        // FIXME: This cost is a significant under-estimate for tail folded
+        // memory ops.
         const InstructionCost ScalarizationCost = isLegalToScalarize() ?
           getUniformMemOpCost(&I, VF) : InstructionCost::getInvalid();
-
 
         // Choose better solution for the current VF,  Note that Invalid
         // costs compare as maximumal large.  If both are invalid, we get

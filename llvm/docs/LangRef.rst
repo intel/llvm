@@ -14727,6 +14727,8 @@ Semantics:
 This function returns the same values as the libm ``copysign``
 functions would, and handles error conditions in the same way.
 
+.. _int_floor:
+
 '``llvm.floor.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -14761,6 +14763,8 @@ Semantics:
 
 This function returns the same values as the libm ``floor`` functions
 would, and handles error conditions in the same way.
+
+.. _int_ceil:
 
 '``llvm.ceil.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -14906,6 +14910,8 @@ Semantics:
 This function returns the same values as the libm ``nearbyint``
 functions would, and handles error conditions in the same way.
 
+.. _int_round:
+
 '``llvm.round.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -14941,6 +14947,8 @@ Semantics:
 
 This function returns the same values as the libm ``round``
 functions would, and handles error conditions in the same way.
+
+.. _int_roundeven:
 
 '``llvm.roundeven.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -16691,6 +16699,8 @@ The canonicalization operation may be optimized away if:
   floating-point operation that is required by the standard to be canonical.
 - The result is consumed only by (or fused with) other floating-point
   operations. That is, the bits of the floating-point value are not examined.
+
+.. _int_fmuladd:
 
 '``llvm.fmuladd.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -19389,6 +19399,57 @@ Examples:
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
 
+.. _int_vp_fmuladd:
+
+'``llvm.vp.fmuladd.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.fmuladd.v16f32 (<16 x float> <left_op>, <16 x float> <middle_op>, <16 x float> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.fmuladd.nxv4f32 (<vscale x 4 x float> <left_op>, <vscale x 4 x float> <middle_op>, <vscale x 4 x float> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.fmuladd.v256f64 (<256 x double> <left_op>, <256 x double> <middle_op>, <256 x double> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point multiply-add of two vectors of floating-point values
+that can be fused if code generator determines that (a) the target instruction
+set has support for a fused operation, and (b) that the fused operation is more
+efficient than the equivalent, separate pair of mul and add instructions.
+
+Arguments:
+""""""""""
+
+The first three operands and the result have the same vector of floating-point
+type. The fourth operand is the vector mask and has the same number of elements
+as the result vector type. The fifth operand is the explicit vector length of
+the operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fmuladd``' intrinsic performs floating-point multiply-add (:ref:`llvm.fuladd <int_fmuladd>`)
+of the first, second, and third vector operand on each enabled lane.  The result
+on disabled lanes is a :ref:`poison value <poisonvalues>`.  The operation is
+performed in the default floating-point environment.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.fmuladd.v4f32(<4 x float> %a, <4 x float> %b, <4 x float> %c, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.fmuladd(<4 x float> %a, <4 x float> %b, <4 x float> %c)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
+
+
 .. _int_vp_reduce_add:
 
 '``llvm.vp.reduce.add.*``' Intrinsics
@@ -21360,6 +21421,193 @@ Examples:
       %t = icmp ne <4 x i32> %a, %b
       %also.r = select <4 x i1> %mask, <4 x i1> %t, <4 x i1> poison
 
+.. _int_vp_ceil:
+
+'``llvm.vp.ceil.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.ceil.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.ceil.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.ceil.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point ceiling of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.ceil``' intrinsic performs floating-point ceiling
+(:ref:`ceil <int_ceil>`) of the first vector operand on each enabled lane.  The
+result on disabled lanes is undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.ceil.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.ceil.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+.. _int_vp_floor:
+
+'``llvm.vp.floor.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.floor.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.floor.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.floor.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point floor of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.floor``' intrinsic performs floating-point floor
+(:ref:`floor <int_floor>`) of the first vector operand on each enabled lane.  The
+result on disabled lanes is undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.floor.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.floor.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+.. _int_vp_round:
+
+'``llvm.vp.round.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.round.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.round.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.round.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point round of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.round``' intrinsic performs floating-point round
+(:ref:`round <int_round>`) of the first vector operand on each enabled lane.  The
+result on disabled lanes is undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.round.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.round.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+.. _int_vp_roundeven:
+
+'``llvm.vp.roundeven.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.roundeven.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.roundeven.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.roundeven.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point roundeven of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.roundeven``' intrinsic performs floating-point roundeven
+(:ref:`roundeven <int_roundeven>`) of the first vector operand on each enabled lane.  The
+result on disabled lanes is undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.roundeven.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.roundeven.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
 
 .. _int_mload_mstore:
 

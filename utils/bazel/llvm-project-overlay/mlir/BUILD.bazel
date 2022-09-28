@@ -2030,6 +2030,7 @@ cc_library(
     hdrs = ["include/mlir/Dialect/SparseTensor/IR/SparseTensor.h"],
     includes = ["include"],
     deps = [
+        ":ArithmeticDialect",
         ":IR",
         ":InferTypeOpInterface",
         ":SparseTensorAttrDefsIncGen",
@@ -2344,6 +2345,7 @@ cc_library(
     ]),
     includes = ["include"],
     deps = [
+        ":ArithmeticUtils",
         ":DialectUtilsIncGen",
         ":IR",
         ":Support",
@@ -5033,7 +5035,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":AffineDialect",
-        ":ArithmeticUtils",
+        ":DialectUtils",
         ":IR",
         ":InferTypeOpInterface",
         ":TensorDialect",
@@ -6263,7 +6265,10 @@ cc_library(
 
 cc_library(
     name = "MlirOptLib",
-    srcs = ["lib/Tools/mlir-opt/MlirOptMain.cpp"],
+    srcs = [
+        "include/mlir/Tools/ParseUtilties.h",
+        "lib/Tools/mlir-opt/MlirOptMain.cpp",
+    ],
     hdrs = ["include/mlir/Tools/mlir-opt/MlirOptMain.h"],
     includes = ["include"],
     deps = [
@@ -8597,7 +8602,6 @@ cc_library(
         ":ArithmeticCanonicalizationIncGen",
         ":ArithmeticOpsIncGen",
         ":CommonFolders",
-        ":DialectUtils",
         ":IR",
         ":InferIntRangeInterface",
         ":InferTypeOpInterface",

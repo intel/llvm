@@ -1,4 +1,4 @@
-//===----------------------------------------------------------------------===//
+//===-- Definition of __pthread_once_func_t type --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
+#ifndef __LLVM_LIBC_TYPES_PTHREAD_ONCE_FUNC_T_H__
+#define __LLVM_LIBC_TYPES_PTHREAD_ONCE_FUNC_T_H__
 
-// Includes Microsoft's test that tests the entire header.
+typedef void (*__pthread_once_func_t)(void);
 
-#include "test.cpp"
+#endif // __LLVM_LIBC_TYPES_PTHREAD_ONCE_FUNC_T_H__
