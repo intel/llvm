@@ -350,6 +350,13 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
   constexpr access::address_space ToAS = deduce_AS<ToT>::value;
   constexpr access::address_space FromAS = deduce_AS<FromT>::value;
   if constexpr (FromAS == access::address_space::generic_space) {
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+  // TODO: NVPTX and AMDGCN backends do not currently support the
+  //       __spirv_GenericCastToPtrExplicit_* builtins, so to work around this
+  //       we do C-style casting. This may produce warnings when targetting
+  //       these backends.
+  return (ToT)from;
+#else
     using ToElemT = std::remove_pointer_t<remove_decoration_t<ToT>>;
     if constexpr (ToAS == access::address_space::global_space)
       return __SYCL_GenericCastToPtrExplicit_ToGlobal<ToElemT>(from);
@@ -369,6 +376,7 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
 #endif // __ENABLE_USM_ADDR_SPACE__
     else
       return reinterpret_cast<ToT>(from);
+#endif // defined(__NVPTX__) || defined(__AMDGCN__)
   } else
 #endif // __SYCL_DEVICE_ONLY__
   {
