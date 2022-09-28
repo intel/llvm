@@ -5448,7 +5448,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fsycl-use-main-file-name");
   }
 
-  if (Args.hasArg(options::OPT_fsycl_footer_path_EQ)) {
+  if (IsSYCL || Args.hasArg(options::OPT_fsycl_footer_path_EQ)) {
     CmdArgs.push_back("-full-main-file-name");
     CmdArgs.push_back(Input.getBaseInput());
   }
