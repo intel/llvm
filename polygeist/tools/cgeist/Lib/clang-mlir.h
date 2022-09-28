@@ -244,7 +244,7 @@ private:
                            const mlirclang::AffineLoopDescriptor &descr);
 
   static unsigned getDefaultAddrSpace(const clang::FunctionDecl &FD) {
-    // For SYCL we generates LLVM code that is then translated to SPIRV.
+    // For SYCL we generate LLVM code that is then translated to SPIRV.
     // The generic SPIRV address space is addrspace(4).
     if (FD.hasAttr<clang::SYCLDeviceAttr>() ||
         FD.hasAttr<clang::SYCLKernelAttr>())
