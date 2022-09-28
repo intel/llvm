@@ -1152,6 +1152,8 @@ public:
   using const_reference = const DataT &;
 
   using iterator = typename detail::__accessor_iterator<DataT, Dimensions>;
+  using const_iterator =
+      typename detail::__accessor_iterator<const DataT, Dimensions>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
@@ -2035,6 +2037,20 @@ public:
 
   iterator end() const noexcept {
     return iterator::__get_end(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  const_iterator cbegin() const noexcept {
+    return const_iterator::__get_begin(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  const_iterator cend() const noexcept {
+    return const_iterator::__get_end(
         get_pointer(),
         detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
         get_offset());

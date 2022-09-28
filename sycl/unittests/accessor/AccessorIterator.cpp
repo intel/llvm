@@ -15,13 +15,11 @@ public:
     std::iota(reference.begin(), reference.end(), 0);
     sycl::buffer<T, Dimensions> buffer(reference.data(), shape);
     auto accessor = buffer.template get_access<sycl::access_mode::read_write>();
-    std::vector<T> copied =
-        copyThroughIterators<T>(accessor.begin(), accessor.end());
 
-    ASSERT_EQ(copied.size(), reference.size());
-    for (size_t i = 0, e = reference.size(); i < e; ++i) {
-      ASSERT_EQ(copied[i], reference[i]);
-    }
+    ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIteratorImpl(
+        reference, accessor.begin(), accessor.end()));
+    ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIteratorImpl(
+        reference, accessor.cbegin(), accessor.cend()));
   }
 
   template <int Dimensions, typename T = int>
@@ -33,47 +31,72 @@ public:
     std::iota(reference.begin(), reference.end(), 0);
     sycl::buffer<T, Dimensions> buffer(reference.data(), fullShape);
     std::vector<T> copied;
+
     {
       auto accessor = buffer.template get_access<sycl::access_mode::read_write>(
           copyShape, offset);
       copied = copyThroughIterators<T>(accessor.begin(), accessor.end());
     }
-
-    ASSERT_EQ(copied.size(), copyShape.size());
+    ASSERT_NO_FATAL_FAILURE(
+        validatePartialCopyThroughIterator(copied, buffer, copyShape, offset));
 
     {
-      auto fullAccessor = buffer.template get_access<sycl::access_mode::read>();
-      size_t linearId = 0;
-
-      sycl::id<3> offsetToUse(Dimensions > 2 ? offset[Dimensions - 3] : 1,
-                              Dimensions > 1 ? offset[Dimensions - 2] : 1,
-                              offset[Dimensions - 1]);
-
-      sycl::id<3> shapeToCheck(
-          (Dimensions > 2 ? copyShape[Dimensions - 3] : 1) + offsetToUse[0],
-          (Dimensions > 1 ? copyShape[Dimensions - 2] : 1) + offsetToUse[1],
-          copyShape[Dimensions - 1] + offsetToUse[2]);
-
-      for (size_t z = offsetToUse[0]; z < shapeToCheck[0]; ++z) {
-        for (size_t y = offsetToUse[1]; y < shapeToCheck[1]; ++y) {
-          for (size_t x = offsetToUse[2]; x < shapeToCheck[2]; ++x) {
-            auto value = accessHelper<Dimensions>(fullAccessor, z, y, x);
-            ASSERT_EQ(copied[linearId], value);
-            ++linearId;
-          }
-        }
-      }
+      auto accessor = buffer.template get_access<sycl::access_mode::read_write>(
+          copyShape, offset);
+      copied = copyThroughIterators<T>(accessor.cbegin(), accessor.cend());
     }
+    ASSERT_NO_FATAL_FAILURE(
+        validatePartialCopyThroughIterator(copied, buffer, copyShape, offset));
   }
 
 private:
+  template <typename IteratorT, typename T = int>
+  void checkFullCopyThroughIteratorImpl(const std::vector<T> &reference,
+                                        IteratorT begin, IteratorT end) {
+    std::vector<T> copied = copyThroughIterators<T>(begin, end);
+
+    ASSERT_EQ(copied.size(), reference.size());
+    for (size_t i = 0, e = reference.size(); i < e; ++i) {
+      ASSERT_EQ(copied[i], reference[i]);
+    }
+  }
+
   template <typename T, typename IteratorT>
   std::vector<T> copyThroughIterators(IteratorT begin, IteratorT end) {
     std::vector<T> copied;
-    for (auto it = begin; it != end; ++it) {
+    for (auto it = begin; it != end; ++it)
       copied.push_back(*it);
-    }
+
     return copied;
+  }
+
+  template <int Dimensions, typename T = int>
+  void
+  validatePartialCopyThroughIterator(const std::vector<T> &copied,
+                                     sycl::buffer<T, Dimensions> &buffer,
+                                     const sycl::range<Dimensions> &copyShape,
+                                     const sycl::id<Dimensions> &offset = {}) {
+    auto fullAccessor = buffer.template get_access<sycl::access_mode::read>();
+    size_t linearId = 0;
+
+    sycl::id<3> offsetToUse(Dimensions > 2 ? offset[Dimensions - 3] : 1,
+                            Dimensions > 1 ? offset[Dimensions - 2] : 1,
+                            offset[Dimensions - 1]);
+
+    sycl::id<3> shapeToCheck(
+        (Dimensions > 2 ? copyShape[Dimensions - 3] : 1) + offsetToUse[0],
+        (Dimensions > 1 ? copyShape[Dimensions - 2] : 1) + offsetToUse[1],
+        copyShape[Dimensions - 1] + offsetToUse[2]);
+
+    for (size_t z = offsetToUse[0]; z < shapeToCheck[0]; ++z) {
+      for (size_t y = offsetToUse[1]; y < shapeToCheck[1]; ++y) {
+        for (size_t x = offsetToUse[2]; x < shapeToCheck[2]; ++x) {
+          auto value = accessHelper<Dimensions>(fullAccessor, z, y, x);
+          ASSERT_EQ(copied[linearId], value);
+          ++linearId;
+        }
+      }
+    }
   }
 
   template <int TotalDimensions, int CurrentDimension = 3, typename Container,
