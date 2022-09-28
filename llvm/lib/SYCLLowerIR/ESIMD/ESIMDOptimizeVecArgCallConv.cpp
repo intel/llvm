@@ -476,8 +476,13 @@ static bool processFunction(Function *F) {
   // Optimize the function.
   Function *NewF = optimizeFunction(F, OptimizeableParams, NewParamTs);
 
+  // Copy users to a separate container, to enable safe eraseFromParent
+  // within optimizeCall.
+  SmallVector<User*> FUsers;
+  std::copy(F->users().begin(), F->users().end(), std::back_inserter(FUsers));
+
   // Optimize calls to the function.
-  for (auto *U : F->users()) {
+  for (auto *U : FUsers) {
     auto *Call = cast<CallInst>(U);
     assert(Call->getCalledFunction() == F);
     optimizeCall(Call, NewF, OptimizeableParams);
