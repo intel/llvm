@@ -225,7 +225,7 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     }
 
     auto i1Ty = builder.getIntegerType(1);
-    auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
+    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
     auto truev = builder.create<ConstantIntOp>(loc, true, 1);
 
     LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
@@ -311,7 +311,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
   Visit(fors->getEndStmt());
 
   auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
+  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
 
   LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
@@ -697,7 +697,7 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   auto loc = getMLIRLocation(fors->getDoLoc());
 
   auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
+  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
   loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
                    builder.create<mlir::memref::AllocaOp>(loc, type)});
@@ -758,7 +758,7 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
   auto loc = getMLIRLocation(fors->getLParenLoc());
 
   auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
+  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
   loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
                    builder.create<mlir::memref::AllocaOp>(loc, type)});
@@ -909,7 +909,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       builder.setInsertionPointToStart(&condB);
 
       auto i1Ty = builder.getIntegerType(1);
-      auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
+      auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
       auto truev = builder.create<ConstantIntOp>(loc, true, 1);
       loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
                        builder.create<mlir::memref::AllocaOp>(loc, type)});
@@ -932,7 +932,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       builder.setInsertionPointToStart(&condB);
 
       auto i1Ty = builder.getIntegerType(1);
-      auto type = mlir::MemRefType::get({}, i1Ty, {}, defaultAddrSpace);
+      auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
       auto truev = builder.create<ConstantIntOp>(loc, true, 1);
       loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
                        builder.create<mlir::memref::AllocaOp>(loc, type)});

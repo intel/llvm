@@ -127,9 +127,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     // a memref element type is a struct type, the return type of a
     // polygeist.subindex operation should be a memref of the element type of
     // the struct.
-    auto elemPtrTy = LLVM::LLVMPointerType::get(
-        convViewElemType,
-        prev.getType().cast<LLVM::LLVMPointerType>().getAddressSpace());
+    auto elemPtrTy = LLVM::LLVMPointerType::get(convViewElemType);
     auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, indices);
     auto memRefDesc = createMemRefDescriptor(loc, viewMemRefType, gep, gep,
                                              sizes, strides, rewriter);

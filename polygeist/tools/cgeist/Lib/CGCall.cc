@@ -1517,28 +1517,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   }
 
   /// If the callee is part of the SYCL namespace, we may not want the
-  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
+  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit dequeu,
   /// since we will create it's equivalent with SYCL operations. Please note
   /// that we still generate some functions that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported functions.
-  bool isSyclFunc =
-      mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
-  bool ShouldEmit = !isSyclFunc;
-
-  std::string mangledName;
-  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
-
-  if (isSyclFunc) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "Adding device attribute to " << mangledName << "\n");
-    const_cast<FunctionDecl *>(callee)->addAttr(
-        SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
-  }
-
-  if (isSupportedFunctions(mangledName))
+  auto ShouldEmit =
+      !mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
+  std::string name;
+  MLIRScanner::getMangledFuncName(name, callee, Glob.getCGM());
+  if (isSupportedFunctions(name))
     ShouldEmit = true;
-
   auto ToCall = Glob.GetOrCreateMLIRFunction(callee, ShouldEmit);
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
