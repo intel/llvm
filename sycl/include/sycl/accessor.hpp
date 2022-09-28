@@ -2117,7 +2117,7 @@ private:
   // but for get_pointer() we must return the original pointer.
   // On device, getQualifiedPtr() returns MData, so we need to backjust it.
   // On host, getQualifiedPtr() does not return MData, no need to adjust.
-  PtrType getPointerAdjusted() const {
+  auto getPointerAdjusted() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return getQualifiedPtr() - getTotalOffset();
 #else
