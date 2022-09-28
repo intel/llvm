@@ -2949,9 +2949,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   Expr *createDerefOp(Expr *E) {
     return UnaryOperator::Create(SemaRef.Context, E, UO_Deref,
-                                 E->getType()->getPointeeType(),
-                                 VK_LValue, OK_Ordinary, KernelCallerSrcLoc,
-                                 false, SemaRef.CurFPFeatureOverrides());
+                                 E->getType()->getPointeeType(), VK_LValue,
+                                 OK_Ordinary, KernelCallerSrcLoc, false,
+                                 SemaRef.CurFPFeatureOverrides());
   }
 
   Expr *createReinterpretCastExpr(Expr *E, QualType To) {
