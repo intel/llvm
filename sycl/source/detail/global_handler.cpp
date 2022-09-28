@@ -158,7 +158,8 @@ void shutdown() {
 
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
-  GlobalHandler::instance().MScheduler.Inst->releaseResources();
+  if (GlobalHandler::instance().MScheduler.Inst)
+    GlobalHandler::instance().MScheduler.Inst->releaseResources();
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 

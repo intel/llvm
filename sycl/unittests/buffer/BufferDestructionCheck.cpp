@@ -83,26 +83,26 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   }
 }
 
-// TEST_F(BufferDestructionCheck, BufferWithSizeOnlyUSM) {
-//   sycl::context Context{Plt};
-//    if (Plt.is_host()) {
-//     std::cout << "Not run due to host-only environment\n";
-//     return;
-//   }
-//   sycl::queue Queue{Context, sycl::default_selector{}};
+TEST_F(BufferDestructionCheck, BufferWithSizeOnlyUSM) {
+  sycl::context Context{Plt};
+   if (Plt.is_host()) {
+    std::cout << "Not run due to host-only environment\n";
+    return;
+  }
+  sycl::queue Queue{Context, sycl::default_selector{}};
 
-//   {
-//     using AllocatorTypeTest = sycl::usm_allocator<int, sycl::usm::alloc::shared>;
-//     AllocatorTypeTest allocator(Queue);
-//     sycl::buffer<int, 1, AllocatorTypeTest> Buf(3, allocator);
-//     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-//         sycl::detail::getSyclObjImpl(Buf);
-//     ASSERT_NE(BufImpl, nullptr);
-//     std::function<bool(const std::shared_ptr<sycl::detail::SYCLMemObjI>&)> checkerNotEqual =
-//     [&BufImpl](const std::shared_ptr<sycl::detail::SYCLMemObjI>& memObj)
-//     {
-//       return BufImpl.get() != memObj.get();
-//     };
-//     EXPECT_CALL(*MockSchedulerPtr, deferMemObjRelease(testing::Truly(checkerNotEqual))).Times(testing::AnyNumber());
-//   }
-// }
+  {
+    using AllocatorTypeTest = sycl::usm_allocator<int, sycl::usm::alloc::shared>;
+    AllocatorTypeTest allocator(Queue);
+    sycl::buffer<int, 1, AllocatorTypeTest> Buf(3, allocator);
+    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
+        sycl::detail::getSyclObjImpl(Buf);
+    ASSERT_NE(BufImpl, nullptr);
+    std::function<bool(const std::shared_ptr<sycl::detail::SYCLMemObjI>&)> checkerNotEqual =
+    [&BufImpl](const std::shared_ptr<sycl::detail::SYCLMemObjI>& memObj)
+    {
+      return BufImpl.get() != memObj.get();
+    };
+    EXPECT_CALL(*MockSchedulerPtr, deferMemObjRelease(testing::Truly(checkerNotEqual))).Times(testing::AnyNumber());
+  }
+}
