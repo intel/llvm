@@ -705,8 +705,8 @@ void joint_matrix_load(
     Group sg, joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_load_impl<S, T, Use, NumRows, NumCols,
-                                                    Layout, Space>{}
+  sycl::ext::oneapi::detail::joint_matrix_load_impl<
+      S, T, Use, NumRows, NumCols, Layout, Space, IsDecorated>{}
       .load(res, src, stride);
 #else
   std::ignore = sg;
