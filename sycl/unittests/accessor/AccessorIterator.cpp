@@ -9,41 +9,19 @@
 
 class AccessorIteratorTest : public ::testing::Test {
 public:
-  AccessorIteratorTest() {}
-
   template <int Dimensions, typename T = int>
   void checkFullCopyThroughIterator(const sycl::range<Dimensions> &shape) {
     std::vector<T> reference(shape.size());
     std::iota(reference.begin(), reference.end(), 0);
     sycl::buffer<T, Dimensions> buffer(reference.data(), shape);
     auto accessor = buffer.template get_access<sycl::access_mode::read_write>();
-    std::vector<T> copied;
-    auto I = accessor.begin();
-    I = accessor.end();
-    for (auto i = accessor.begin(), e = accessor.end(); i != e; ++i) {
-      copied.push_back(*i);
-    }
+    std::vector<T> copied =
+        copyThroughIterators<T>(accessor.begin(), accessor.end());
 
     ASSERT_EQ(copied.size(), reference.size());
     for (size_t i = 0, e = reference.size(); i < e; ++i) {
       ASSERT_EQ(copied[i], reference[i]);
     }
-  }
-
-  template <int TotalDimensions, int CurrentDimension = 3, typename Container,
-            typename... Indices>
-  auto &&accessHelper(Container &&C, int Idx, Indices... Ids) {
-    if constexpr (CurrentDimension > TotalDimensions) {
-      (void)Idx;
-      return accessHelper<TotalDimensions, CurrentDimension - 1>(C, Ids...);
-    } else
-      return accessHelper<TotalDimensions, CurrentDimension - 1>(C[Idx],
-                                                                 Ids...);
-  }
-
-  template <int TotalDimensions, int CurrentDimension = 3, typename Container>
-  auto &&accessHelper(Container &&C, int Idx) {
-    return C[Idx];
   }
 
   template <int Dimensions, typename T = int>
@@ -58,11 +36,7 @@ public:
     {
       auto accessor = buffer.template get_access<sycl::access_mode::read_write>(
           copyShape, offset);
-      auto I = accessor.begin();
-      I = accessor.end();
-      for (auto i = accessor.begin(), e = accessor.end(); i != e; ++i) {
-        copied.push_back(*i);
-      }
+      copied = copyThroughIterators<T>(accessor.begin(), accessor.end());
     }
 
     ASSERT_EQ(copied.size(), copyShape.size());
@@ -90,6 +64,32 @@ public:
         }
       }
     }
+  }
+
+private:
+  template <typename T, typename IteratorT>
+  std::vector<T> copyThroughIterators(IteratorT begin, IteratorT end) {
+    std::vector<T> copied;
+    for (auto it = begin; it != end; ++it) {
+      copied.push_back(*it);
+    }
+    return copied;
+  }
+
+  template <int TotalDimensions, int CurrentDimension = 3, typename Container,
+            typename... Indices>
+  auto &&accessHelper(Container &&C, int Idx, Indices... Ids) {
+    if constexpr (CurrentDimension > TotalDimensions) {
+      (void)Idx;
+      return accessHelper<TotalDimensions, CurrentDimension - 1>(C, Ids...);
+    } else
+      return accessHelper<TotalDimensions, CurrentDimension - 1>(C[Idx],
+                                                                 Ids...);
+  }
+
+  template <int TotalDimensions, int CurrentDimension = 3, typename Container>
+  auto &&accessHelper(Container &&C, int Idx) {
+    return C[Idx];
   }
 };
 
