@@ -2940,22 +2940,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, ParamRef);
   }
 
-  Expr *addDerivedToBaseCastExpr(const CXXRecordDecl *RD,
-                                 const CXXBaseSpecifier &BS,
-                                 Expr *LocalCloneRef) {
-    CXXCastPath BasePath;
-    QualType DerivedTy(RD->getTypeForDecl(), 0);
-    QualType BaseTy = BS.getType();
-    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, KernelCallerSrcLoc,
-                                         SourceRange(), &BasePath,
-                                         /*IgnoreBaseAccess*/ true);
-    auto Cast = ImplicitCastExpr::Create(
-        SemaRef.Context, SemaRef.Context.getPointerType(BaseTy),
-        CK_DerivedToBase, LocalCloneRef,
-        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
-    return Cast;
-  }
-
   Expr *createGetAddressOf(Expr *E) {
     return UnaryOperator::Create(SemaRef.Context, E, UO_AddrOf,
                                  SemaRef.Context.getPointerType(E->getType()),
@@ -2970,35 +2954,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                  false, SemaRef.CurFPFeatureOverrides());
   }
 
-  Expr *buildMemCpyCall(Expr *From, Expr *To, QualType T) {
-    // Compute the size of the memory buffer to be copied.
-    QualType SizeType = SemaRef.Context.getSizeType();
-    llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
-                     SemaRef.Context.getTypeSizeInChars(T).getQuantity());
-
-    LookupResult R(SemaRef, &SemaRef.Context.Idents.get("__builtin_memcpy"),
-                   KernelCallerSrcLoc, Sema::LookupOrdinaryName);
-    SemaRef.LookupName(R, SemaRef.TUScope, true);
-
-    FunctionDecl *MemCpy = R.getAsSingle<FunctionDecl>();
-
-    assert(MemCpy && "__builtin_memcpy should be found");
-
-    ExprResult MemCpyRef =
-        SemaRef.BuildDeclRefExpr(MemCpy, SemaRef.Context.BuiltinFnTy,
-                                 VK_PRValue, KernelCallerSrcLoc, nullptr);
-
-    assert(MemCpyRef.isUsable() && "Builtin reference cannot fail");
-
-    Expr *CallArgs[] = {To, From,
-                        IntegerLiteral::Create(SemaRef.Context, Size, SizeType,
-                                               KernelCallerSrcLoc)};
-    ExprResult Call =
-        SemaRef.BuildCallExpr(/*Scope=*/nullptr, MemCpyRef.get(),
-                              KernelCallerSrcLoc, CallArgs, KernelCallerSrcLoc);
-
-    assert(!Call.isInvalid() && "Call to __builtin_memcpy cannot fail!");
-    return Call.getAs<Expr>();
+  Expr *createReinterpretCastExpr(Expr *E, QualType To) {
+    return CXXReinterpretCastExpr::Create(
+        SemaRef.Context, To, VK_PRValue, CK_BitCast, E,
+        /*Path=*/nullptr, SemaRef.Context.CreateTypeSourceInfo(To),
+        SourceLocation(), SourceLocation(), SourceRange());
   }
 
   void handleGeneratedType(FieldDecl *FD, QualType Ty) {
@@ -3007,30 +2967,22 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     //   Kernel KernelObjClone { *(reinterpret_cast<UsersType*>(&GT)) };
     // }
 
-    Expr *ParamRef = createParamReferenceExpr();
-    Expr *ParamAddress = createGetAddressOf(ParamRef);
-
-    QualType ResultType = SemaRef.Context.getPointerType(Ty);
-    TypeSourceInfo *TSI = SemaRef.Context.CreateTypeSourceInfo(ResultType);
-    CXXReinterpretCastExpr *RCE = CXXReinterpretCastExpr::Create(
-        SemaRef.Context, ResultType, VK_PRValue, CK_BitCast, ParamAddress,
-        /*Path=*/nullptr, TSI, SourceLocation(), SourceLocation(),
-        SourceRange());
+    Expr *RCE = createReinterpretCastExpr(
+        createGetAddressOf(createParamReferenceExpr()),
+        SemaRef.Context.getPointerType(Ty));
     Expr *Initializer = createDerefOp(RCE);
     addFieldInit(FD, Ty, Initializer);
   }
 
   void handleGeneratedType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                            QualType Ty) {
-    Expr *ParamRef = createParamReferenceExpr();
-    Expr *ParamAddress = createGetAddressOf(ParamRef);
-
-    QualType ResultType = SemaRef.Context.getPointerType(Ty);
-    TypeSourceInfo *TSI = SemaRef.Context.CreateTypeSourceInfo(ResultType);
-    CXXReinterpretCastExpr *RCE = CXXReinterpretCastExpr::Create(
-        SemaRef.Context, ResultType, VK_PRValue, CK_BitCast, ParamAddress,
-        /*Path=*/nullptr, TSI, SourceLocation(), SourceLocation(),
-        SourceRange());
+    // Equivalent of the following code is generated here:
+    // void ocl_kernel(__generated_type GT) {
+    //   Kernel KernelObjClone { *(reinterpret_cast<UsersType*>(&GT)) };
+    // }
+    Expr *RCE = createReinterpretCastExpr(
+        createGetAddressOf(createParamReferenceExpr()),
+        SemaRef.Context.getPointerType(Ty));
     Expr *Initializer = createDerefOp(RCE);
     InitializationKind InitKind =
         InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
