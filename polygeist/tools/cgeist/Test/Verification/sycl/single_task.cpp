@@ -1,12 +1,15 @@
 // RUN: sycl-clang.py %s -S -emit-llvm -o %t.ll
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -verify -disable-output < %t.ll
+// Verify that LLVMIR generated is translatable to SPIRV.
+// RUN: llvm-as %t.ll
+// RUN: llvm-spirv %t.bc
 // RUN: cat %t.ll | FileCheck %s
 // XFAIL: *
 
 // Test that the kernel named `kernel_single_task` is generated.
 // CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task
-// Test that all referred sycl header functions are generated.
+// Test that all referenced sycl header functions are generated.
 // CHECK-NOT: declare {{.*}} spir_func
 
 #include <sycl/sycl.hpp>
