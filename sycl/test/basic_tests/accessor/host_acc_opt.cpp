@@ -9,8 +9,6 @@
 // CHECK: define {{.*}}foo{{.*}} {
 // CHECK-NOT: call
 // CHECK-NOT: invoke
-// CHECK-NOT: call
-// CHECK-NOT: invoke
 // CHECK: load <4 x i32>
 // CHECK-NOT: call
 // CHECK-NOT: invoke

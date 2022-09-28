@@ -1114,14 +1114,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             UserTargetName = "spir64_gen";
           }
 
-          llvm::Triple TT(MakeSYCLDeviceTriple(Val));
           if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
           }
-          std::string NormalizedName = TT.normalize();
 
           // Make sure we don't have a duplicate triple.
+          std::string NormalizedName = MakeSYCLDeviceTriple(Val).normalize();
           auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
           if (Duplicate != FoundNormalizedTriples.end()) {
             Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
@@ -1130,6 +1129,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           }
 
           // Warn about deprecated `sycldevice` environment component.
+          llvm::Triple TT(MakeSYCLDeviceTriple(UserTargetName));
           if (TT.getEnvironmentName() == "sycldevice") {
             // Build a string with suggested target triple.
             std::string SuggestedTriple = TT.getArchName().str();
@@ -1153,7 +1153,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
+          UniqueSYCLTriplesVec.push_back(TT);
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
