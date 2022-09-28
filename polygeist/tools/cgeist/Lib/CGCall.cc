@@ -1526,16 +1526,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
   bool ShouldEmit = !isSyclFunc;
 
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
+
   if (isSyclFunc) {
-    LLVM_DEBUG(llvm::dbgs() << "Adding device attribute to "
-                            << callee->getNameAsString() << "\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "Adding device attribute to " << mangledName << "\n");
     const_cast<FunctionDecl *>(callee)->addAttr(
         SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
   }
 
-  std::string name;
-  MLIRScanner::getMangledFuncName(name, callee, Glob.getCGM());
-  if (isSupportedFunctions(name))
+  if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
   auto ToCall = Glob.GetOrCreateMLIRFunction(callee, ShouldEmit);

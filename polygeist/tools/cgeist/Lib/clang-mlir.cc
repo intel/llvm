@@ -1519,24 +1519,20 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
       mlirclang::isNamespaceSYCL(ctorDecl->getEnclosingNamespaceContext());
   bool ShouldEmit = !isSyclCtor;
 
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, cast<FunctionDecl>(ctorDecl),
+                                  Glob.getCGM());
+  mangledName = (PrefixABI + mangledName);
+
   if (isSyclCtor) {
-    LLVM_DEBUG(llvm::dbgs() << "Adding device attribute to ctor "
-                            << ctorDecl->getNameAsString() << "\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "Adding device attribute to ctor " << mangledName << "\n");
     ctorDecl->addAttr(
         SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
   }
 
-  if (FunctionDecl *fd = dyn_cast<FunctionDecl>(ctorDecl)) {
-    std::string name;
-    MLIRScanner::getMangledFuncName(name, fd, Glob.getCGM());
-    name = (PrefixABI + name);
-
-    if (isSupportedFunctions(name)) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "Function found in registry, codegen-ing...\n");
-      ShouldEmit = true;
-    }
-  }
+  if (isSupportedFunctions(mangledName))
+    ShouldEmit = true;
 
   auto tocall = Glob.GetOrCreateMLIRFunction(ctorDecl, ShouldEmit);
 
@@ -5575,11 +5571,11 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       return typeTranslator.translateType(T);
     }
     bool subRef = false;
-    auto subType =
-        getMLIRType(isa<clang::PointerType>(t)
-                        ? cast<clang::PointerType>(t)->getPointeeType()
-                        : cast<clang::ReferenceType>(t)->getPointeeType(),
-                    &subRef, /*allowMerge*/ true);
+
+    auto pointeeType = isa<clang::PointerType>(t)
+                           ? cast<clang::PointerType>(t)->getPointeeType()
+                           : cast<clang::ReferenceType>(t)->getPointeeType();
+    auto subType = getMLIRType(pointeeType, &subRef, /*allowMerge*/ true);
 
     if (!memRefABI ||
         subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
@@ -5642,13 +5638,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
 
     assert(!subRef);
 
-    unsigned defaultAddrSpace = 0;
-    if (isa<clang::RecordType>(PTT)) {
-      ASTContext &Context = PTT->getAsRecordDecl()->getASTContext();
-      defaultAddrSpace = Context.getTargetAddressSpace(qt);
-    }
-
-    return mlir::MemRefType::get({outer}, subType, {}, defaultAddrSpace);
+    return mlir::MemRefType::get(
+        {outer}, subType, {},
+        CGM.getContext().getTargetAddressSpace(pointeeType));
   }
 
   if (t->isBuiltinType() || isa<clang::EnumType>(t)) {
