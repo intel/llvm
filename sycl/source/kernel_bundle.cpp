@@ -112,13 +112,12 @@ bool kernel_bundle_plain::is_specialization_constant_set(
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////
-inline auto getDeviceComparisonLambda() {
-  return [](device a, device b) { return a.impl < b.impl; };
-}
 
 const std::vector<device>
 removeDuplicateDevices(const std::vector<device> &Devs) {
-  auto compareDevices = getDeviceComparisonLambda();
+  auto compareDevices = [](device a, device b) {
+    return getSyclObjImpl(a) < getSyclObjImpl(b);
+  };
   std::set<device, decltype(compareDevices)> UniqueDeviceSet(
       Devs.begin(), Devs.end(), compareDevices);
   std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
