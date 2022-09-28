@@ -449,6 +449,7 @@ public:
   Scheduler();
   virtual ~Scheduler();
   void releaseResources();
+  inline bool isNoDeferredMemObjects();
 
 protected:
   // TODO: after switching to C++17, change std::shared_timed_mutex to

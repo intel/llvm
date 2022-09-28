@@ -449,12 +449,18 @@ void Scheduler::releaseResources()
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
-  cleanupDeferredMemObjects(true);
   // There might be some commands scheduled for post enqueue cleanup that
   // haven't been freed because of the graph mutex being locked at the time,
   // clean them up now.
   cleanupCommands({});
   DefaultHostQueue.reset();
+
+  // We need loop since sometimes we may need new objects to be added to deferred mem objects storage during cleanup.
+  // Known example is: we cleanup existing deferred mem objects under write lock, during this process we cleanup commands related to this record,
+  // command may have last reference to queue_impl, ~queue_impl is called and buffer for assert (which is created with size only so all confitions for deferred release are satisfied)
+  // is added to deferred mem obj storage. So we may end up with leak.
+  while(!isNoDeferredMemObjects())
+    cleanupDeferredMemObjects(true);
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
@@ -521,17 +527,24 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   cleanupDeferredMemObjects(false);
 }
 
+inline bool Scheduler::isNoDeferredMemObjects()
+{
+  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  return MDeferredMemObjRelease.empty();
+}
+
 void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
-  {
-    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
-    if (MDeferredMemObjRelease.empty())
-      return;
-  }
+  if (isNoDeferredMemObjects())
+    return;
 
   // Need to aggregate ready to release object to acquire write lock once.
   std::list<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
-  {
-    ReadLockT Lock(MGraphLock);
+    {
+    ReadLockT Lock(MGraphLock, std::try_to_lock);
+    // if we need blocking mode - force lock waiting
+    if (!Lock.owns_lock() && ForceWait)
+      Lock.lock();
+    if (Lock.owns_lock()) {
     {
       // Not expected that ForceWait == true with be used in parallel with
       // adding MemObj to storage, no such scenario.
@@ -561,8 +574,9 @@ void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
   std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
   {
     WriteLockT Lock(MGraphLock, std::try_to_lock);
-    // In order to avoid deadlocks related to blocked commands, defer cleanup if
-    // the lock wasn't acquired.
+    // if we need blocking mode - force lock waiting
+    if (!Lock.owns_lock() && ForceWait)
+      acquireWriteLock(Lock);
     if (Lock.owns_lock()) {
       for (auto &MemObj : ObjsReadyToRelease)
         releaseMemObjRecord(MemObj.get(), StreamsToDeallocate,
@@ -575,8 +589,8 @@ void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
   }
   deallocateStreams(StreamsToDeallocate);
   // ObjsReadyToRelease leaving scope and being deleted
+  }
 }
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
