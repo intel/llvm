@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 // RUN: sycl-clang.py %s -S | FileCheck %s
+// XFAIL: *
+// xfailed because of issue #6915
 
 #include <sycl/sycl.hpp>
 
