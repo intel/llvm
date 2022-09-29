@@ -191,7 +191,6 @@ void BarrierOp::getEffects(
     return;
 }
 
-// bool isReadNone(Operation *op);
 bool isReadNone(Operation *op) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
   if (hasRecursiveEffects) {
