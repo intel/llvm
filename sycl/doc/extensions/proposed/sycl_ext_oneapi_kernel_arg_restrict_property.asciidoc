@@ -91,9 +91,11 @@ implementation supports.
 
 The `restrict` property defined below is supported with the
 `sycl::ext::oneapi::experimental::annotated_ptr` and
-`sycl::ext::oneapi::experimental::annotated_arg` classes. They are only
-meaningful on the kernel argument when the kernel argument is a pointer type or
-a pointer wrapper type and are not meaningful within the kernel body.
+`sycl::ext::oneapi::experimental::annotated_arg` classes. It is only meaningful
+on the kernel argument when the kernel argument is a pointer type or a pointer
+wrapper type and is ignored for other types.
+
+This property is not meaningful within the kernel body.
 
 
 ```c++
