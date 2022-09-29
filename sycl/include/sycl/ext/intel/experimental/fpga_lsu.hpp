@@ -53,7 +53,7 @@ public:
 
   template <typename _T, access::address_space _space,
             access::decorated _Is_decorated, typename _propertiesT>
-  static _T load(sycl::multi_ptr<_T, _space, _is_decorated> Ptr,
+  static _T load(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr,
                  _propertiesT Properties) {
     check_space<_space>();
     check_load();
@@ -91,14 +91,14 @@ public:
   }
 
   template <typename _T, access::address_space _space,
-            access::decorated _is_decorated>
-  static _T load(sycl::multi_ptr<_T, _space, _is_decorated> Ptr) {
+            access::decorated _Is_decorated>
+  static _T load(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr) {
     return load<_T, _space>(Ptr, oneapi::experimental::properties{});
   }
 
   template <typename _T, access::address_space _space,
-            access::decorated _is_decorated, typename _propertiesT>
-  static void store(sycl::multi_ptr<_T, _space, _is_decorated> Ptr, _T Val,
+            access::decorated _Is_decorated, typename _propertiesT>
+  static void store(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr, _T Val,
                     _propertiesT Properties) {
     check_space<_space>();
     check_store();
@@ -136,8 +136,8 @@ public:
   }
 
   template <typename _T, access::address_space _space,
-            access::decorated _is_decorated>
-  static void store(sycl::multi_ptr<_T, _space, _is_decorated> Ptr, _T Val) {
+            access::decorated _Is_decorated>
+  static void store(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr, _T Val) {
     store<_T, _space>(Ptr, Val, oneapi::experimental::properties{});
   }
 
