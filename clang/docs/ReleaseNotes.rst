@@ -70,8 +70,6 @@ code bases.
   results do not change before/after setting
   ``-Werror=incompatible-function-pointer-types`` to avoid incompatibility with
   Clang 16.
-- Clang now disallows types whose sizes aren't a multiple of their alignments to
-  be used as the element type of arrays.
 
   .. code-block:: c
 
@@ -79,6 +77,14 @@ code bases.
     void other(void) {
       void (*fp)(int *) = func; // Previously a warning, now a downgradable error.
     }
+
+- Clang now disallows types whose sizes aren't a multiple of their alignments
+  to be used as the element type of arrays.
+
+  .. code-block:: c
+
+  typedef char int8_a16 __attribute__((aligned(16)));
+  int8_a16 array[4]; // Now diagnosed as the element size not being a multiple of the array alignment.
 
 
 What's New in Clang |release|?
@@ -93,6 +99,9 @@ Major New Features
 
 Bug Fixes
 ---------
+- Correct ``_Static_assert`` to accept the same set of extended integer
+  constant expressions as is accpted in other contexts that accept them.
+  This fixes `Issue 57687 <https://github.com/llvm/llvm-project/issues/57687>`_.
 - Fixes an accepts-invalid bug in C when using a ``_Noreturn`` function
   specifier on something other than a function declaration. This fixes
   `Issue 56800 <https://github.com/llvm/llvm-project/issues/56800>`_.
@@ -233,6 +242,21 @@ Non-comprehensive list of changes in this release
 - Unicode support has been updated to support Unicode 15.0.
   New unicode codepoints are supported as appropriate in diagnostics,
   C and C++ identifiers, and escape sequences.
+- Clang now supports loading multiple configuration files. The files from
+  default configuration paths are loaded first, unless ``--no-default-config``
+  option is used. All files explicitly specified using ``--config=`` option
+  are loaded afterwards.
+- When loading default configuration files, clang now unconditionally uses
+  the real target triple (respecting options such as ``--target=`` and ``-m32``)
+  rather than the executable prefix. The respective configuration files are
+  also loaded when clang is called via an executable without a prefix (e.g.
+  plain ``clang``).
+- Default configuration paths were partially changed. Clang now attempts to load
+  ``<triple>-<driver>.cfg`` first, and falls back to loading both
+  ``<driver>.cfg`` and ``<triple>.cfg`` if the former is not found. `Triple`
+  is the target triple and `driver` first tries the canonical name
+  for the driver (respecting ``--driver-mode=``), and then the name found
+  in the executable.
 
 New Compiler Flags
 ------------------
@@ -248,12 +272,16 @@ New Compiler Flags
   `::operator new(size_­t, std::aligned_val_t, nothrow_­t)` if there is
   `get_­return_­object_­on_­allocation_­failure`. We feel this is more consistent
   with the intention.
+- Added ``--no-default-config`` to disable automatically loading configuration
+  files using default paths.
 
 Deprecated Compiler Flags
 -------------------------
 
 Modified Compiler Flags
 -----------------------
+- Clang now permits specifying ``--config=`` multiple times, to load multiple
+  configuration files.
 
 Removed Compiler Flags
 -------------------------
@@ -311,6 +339,22 @@ C2x Feature Support
   ``-Wunused-label`` warning.
 - Implemented `WG14 N2508 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2508.pdf>`_,
   so labels can placed everywhere inside a compound statement.
+- Implemented `WG14 N2927 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2927.htm>`_,
+  the Not-so-magic ``typeof`` operator. Also implemented
+  `WG14 N2930 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2930.pdf>`_,
+  renaming ``remove_quals``, so the ``typeof_unqual`` operator is also
+  supported. Both of these operators are supported only in C2x mode. The
+  ``typeof`` operator specifies the type of the given parenthesized expression
+  operand or type name, including all qualifiers. The ``typeof_unqual``
+  operator is similar to ``typeof`` except that all qualifiers are removed,
+  including atomic type qualification and type attributes which behave like a
+  qualifier, such as an address space attribute.
+
+  .. code-block:: c
+
+    __attribute__((address_space(1))) const _Atomic int Val;
+    typeof(Val) OtherVal; // type is '__attribute__((address_space(1))) const _Atomic int'
+    typeof_unqual(Val) OtherValUnqual; // type is 'int'
 
 C++ Language Changes in Clang
 -----------------------------
@@ -358,6 +402,8 @@ C++20 Feature Support
   `Issue 44178 <https://github.com/llvm/llvm-project/issues/44178>`_.
 - Clang implements DR2621, correcting a defect in ``using enum`` handling.  The
   name is found via ordinary lookup so typedefs are found.
+- Implemented `P0634r3 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0634r3.html>`_,
+  which removes the requirement for the ``typename`` keyword in certain contexts.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^

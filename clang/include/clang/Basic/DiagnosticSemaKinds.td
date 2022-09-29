@@ -5485,6 +5485,12 @@ def err_typename_refers_to_using_value_decl : Error<
   "%0 in %1">;
 def note_using_value_decl_missing_typename : Note<
   "add 'typename' to treat this using declaration as a type">;
+def warn_cxx17_compat_implicit_typename : Warning<"use of implicit 'typename' is "
+  "incompatible with C++ standards before C++20">, InGroup<CXX20Compat>,
+  DefaultIgnore;
+def ext_implicit_typename : ExtWarn<"missing 'typename' prior to dependent "
+  "type name %0%1; implicit 'typename' is a C++20 extension">,
+  InGroup<CXX20>;
 
 def err_template_kw_refers_to_non_template : Error<
   "%0%select{| following the 'template' keyword}1 "
@@ -6577,7 +6583,8 @@ def err_sizeof_alignof_function_type : Error<
 def err_openmp_default_simd_align_expr : Error<
   "invalid application of '__builtin_omp_required_simd_align' to an expression, only type is allowed">;
 def err_sizeof_alignof_typeof_bitfield : Error<
-  "invalid application of '%select{sizeof|alignof|typeof}0' to bit-field">;
+  "invalid application of '%select{sizeof|alignof|typeof|typeof_unqual}0' to "
+  "bit-field">;
 def err_alignof_member_of_incomplete_type : Error<
   "invalid application of 'alignof' to a field of a class still being defined">;
 def err_vecstep_non_scalar_vector_type : Error<

@@ -10,7 +10,7 @@
 
 #include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -1001,8 +1001,9 @@ transform::SplitReductionOp::applyToOne(linalg::LinalgOp target,
                                         SmallVectorImpl<Operation *> &results,
                                         transform::TransformState &state) {
   ControlSplitReductionFn splitFn = [&](LinalgOp) {
-    return std::pair<int64_t, unsigned>(getSplitFactor(),
-                                        getInsertSplitDimension());
+    return linalg::SplitReductionOptions{int64_t(getSplitFactor()),
+                                         unsigned(getInsertSplitDimension()),
+                                         /*innerParallel=*/false};
   };
   SimpleRewriter rewriter(getContext());
   rewriter.setInsertionPoint(target);
@@ -1773,7 +1774,7 @@ public:
     declareDependentDialect<pdl::PDLDialect>();
     declareDependentDialect<LinalgDialect>();
     declareGeneratedDialect<AffineDialect>();
-    declareGeneratedDialect<arith::ArithmeticDialect>();
+    declareGeneratedDialect<arith::ArithDialect>();
     declareGeneratedDialect<scf::SCFDialect>();
     declareGeneratedDialect<vector::VectorDialect>();
     declareGeneratedDialect<gpu::GPUDialect>();
