@@ -5983,6 +5983,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (D.IsCLMode())
     AddClangCLArgs(Args, InputType, CmdArgs, &DebugInfoKind, &EmitCodeView);
 
+  // Add debug macro for debug library usage when using non-cl driver on
+  // Windows as we are using the debug sycld.lib with -g
+  if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment() &&
+      Args.hasArg(options::OPT_fsycl) && Args.hasArg(options::OPT_g_Flag))
+    CmdArgs.push_back("-D_DEBUG");
+
   DwarfFissionKind DwarfFission = DwarfFissionKind::None;
   renderDebugOptions(TC, D, RawTriple, Args, EmitCodeView,
                      types::isLLVMIR(InputType), CmdArgs, DebugInfoKind,

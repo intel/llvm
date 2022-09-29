@@ -666,6 +666,8 @@
 // RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG-CL %s
 // CHECK-LINK-SYCL-DEBUG-CL: "--dependent-lib=sycl{{[0-9]*}}d"
 // CHECK-LINK-SYCL-DEBUG-CL-NOT: "-defaultlib:sycl{{[0-9]*}}d.lib"
+// CHECK-LINK-SYCL-DEBUG: "-D_DEBUG"
+// CHECK-LINK-SYCL-DEBUG: "-defaultlib:msvcrtd"
 // CHECK-LINK-SYCL-DEBUG: "-defaultlib:sycl{{[0-9]*}}d.lib"
 // CHECK-LINK-SYCL-DEBUG-NOT: "--dependent-lib=sycl{{[0-9]*}}d"
 
