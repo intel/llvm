@@ -8,7 +8,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S -use-gpu-module | FileCheck %s
 // XFAIL: *
 // xfailed because of issue #6915
 
