@@ -350,7 +350,7 @@ int main() {
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
           const std::string expectedMsg(
-              "No device of requested type available");
+              "No device of requested type 'info::device_type::gpu' available");
           const std::string gotMessage(E.what());
           if (gotMessage.find(expectedMsg) != std::string::npos) {
             passed = true;
@@ -422,7 +422,7 @@ int main() {
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
           const std::string expectedMsg(
-              "No device of requested type available");
+              "No device of requested type 'info::device_type::gpu' available");
           const std::string gotMessage(E.what());
           if (gotMessage.find(expectedMsg) != std::string::npos) {
             passed = true;

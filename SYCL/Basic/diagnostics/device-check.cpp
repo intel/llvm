@@ -33,7 +33,7 @@ int main() {
     if (std::string(E.what()).find("SYCL_DEVICE_TYPE is not recognized.  Must "
                                    "be GPU, CPU, ACC or HOST.") ==
             std::string::npos &&
-        std::string(E.what()).find("No device of requested type available.") ==
+        std::string(E.what()).find("No device of requested type") ==
             std::string::npos) {
       std::cout << "Test failed: received error is incorrect." << std::endl;
       return 1;
