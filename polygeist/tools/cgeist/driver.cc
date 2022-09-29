@@ -877,7 +877,7 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
                               const cl::list<std::string> &inputCommandArgs,
                               mlir::MLIRContext &context,
                               mlir::OwningOpRef<ModuleOp> &module,
-                              mlir::OwningOpRef<gpu::GPUModuleOp> &deviceModule,
+                              gpu::GPUModuleOp deviceModule,
                               llvm::DataLayout &DL, llvm::Triple &triple,
                               const char *Argv0, bool syclKernelsOnly) {
   assert(!inputFiles.empty() && "inputFiles should not be empty");
@@ -927,6 +927,15 @@ static bool hasDeviceFuncs(mlir::gpu::GPUModuleOp deviceModule) {
   return !deviceModule.getRegion().getOps<mlir::gpu::GPUFuncOp>().empty();
 }
 
+static void eraseHostCode(mlir::ModuleOp module) {
+  SmallVector<std::reference_wrapper<Operation>> ToRemove;
+  std::copy_if(module.begin(), module.end(), std::back_inserter(ToRemove),
+               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
+  for (auto Op : ToRemove) {
+    Op.get().erase();
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc >= 1 && std::string(argv[1]) == "-cc1") {
     SmallVector<const char *> Argv;
@@ -969,8 +978,9 @@ int main(int argc, char **argv) {
   mlir::OpBuilder Builder(&context);
   const auto loc = Builder.getUnknownLoc();
   mlir::OwningOpRef<mlir::ModuleOp> module(mlir::ModuleOp::create(loc));
-  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> deviceModule(
-      Builder.create<mlir::gpu::GPUModuleOp>(loc, DeviceModuleName));
+  Builder.setInsertionPointToEnd(module->getBody());
+  auto deviceModule =
+      Builder.create<mlir::gpu::GPUModuleOp>(loc, DeviceModuleName);
 
   llvm::DataLayout DL("");
   llvm::Triple triple;
@@ -984,11 +994,15 @@ int main(int argc, char **argv) {
 
   // For now, we will work on the device code if SYCL kernels are found and on
   // the host code otherwise.
-  //
+  if (hasDeviceFuncs(deviceModule)) {
+    eraseHostCode(*module);
+    module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
+                          Builder.getUnitAttr());
+  } else {
+    deviceModule.erase();
+  }
+
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return hasDeviceFuncs(*deviceModule)
-             ? compileModule<mlir::gpu::GPUModuleOp>(
-                   deviceModule, context, DL, triple, LinkageArgs, argv[0])
-             : compileModule<mlir::ModuleOp>(module, context, DL, triple,
-                                             LinkageArgs, argv[0]);
+  return compileModule<mlir::ModuleOp>(module, context, DL, triple, LinkageArgs,
+                                       argv[0]);
 }

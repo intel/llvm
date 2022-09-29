@@ -8,18 +8,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S | FileCheck %s
+// RUN: sycl-clang.py %s -S | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: sycl-clang.py %s -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 #define N 32
 // clang-format off
-// CHECK: func.func private {{.*}}vec_add_device_simple{{.*}}sycl{{.*}}handler{{.*}}
-// CHECK-DAG: %[[VEC1:.*]] = affine.load %[[ACCESSOR1:.*]][0] : memref<?xf32>
-// CHECK-DAG: %[[VEC2:.*]] = affine.load %[[ACCESSOR2:.*]][0] : memref<?xf32>
-// CHECK-NEXT: %[[RESULT:.*]] = arith.addf %[[VEC1]], %[[VEC2]] : f32
-// CHECK-NEXT: affine.store %[[RESULT]], %[[VEC3:.*]][0] : memref<?xf32>
-// CHECK-NEXT: return
+// CHECK-MLIR: func.func private {{.*}}vec_add_device_simple{{.*}}sycl{{.*}}handler{{.*}}
+// CHECK-MLIR-DAG: %[[VEC1:.*]] = affine.load %[[ACCESSOR1:.*]][0] : memref<?xf32>
+// CHECK-MLIR-DAG: %[[VEC2:.*]] = affine.load %[[ACCESSOR2:.*]][0] : memref<?xf32>
+// CHECK-MLIR-NEXT: %[[RESULT:.*]] = arith.addf %[[VEC1]], %[[VEC2]] : f32
+// CHECK-MLIR-NEXT: affine.store %[[RESULT]], %[[VEC3:.*]][0] : memref<?xf32>
+// CHECK-MLIR-NEXT: return
 // clang-format on
+
+// CHECK-LLVM:       define internal void @{{.*}}vec_add_device_simple{{.*}}sycl{{.*}}handler
+// CHECK-LLVM-DAG:   %[[VEC1:.*]] = load float, float* %[[ACCESSOR1:.*]], align 4
+// CHECK-LLVM-DAG:   %[[VEC2:.*]] = load float, float* %[[ACCESSOR2:.*]], align 4
+// CHECK-LLVM:       %[[RESULT:.*]] = fadd float %[[VEC1]], %[[VEC2]]
+// CHECK-LLVM:       store float %[[RESULT]], float* %[[VEC3:.*]], align 4
+// CHECK-LLVM:       ret void
 
 void vec_add_device_simple(std::array<float, N> &VA, std::array<float, N> &VB,
                            std::array<float, N> &VC) {

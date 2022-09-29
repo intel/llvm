@@ -8,23 +8,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S | FileCheck %s
+// RUN: sycl-clang.py %s -S | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: sycl-clang.py %s -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
-// CHECK-NOT: module
-
-// CHECK: gpu.module @device_functions
+// CHECK-MLIR: gpu.module @device_functions
 //
-// CHECK-DAG: gpu.func @_ZTS8kernel_1
-// CHECK-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
-// CHECK-DAG: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2
-// CHECK-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
-// CHECK-DAG: func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEC1ENS1_8accessorIiLi1ELS3_1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS1_3ext6oneapi22accessor_property_listIJEEEEENS1_2idILi1EEERKi
-// CHECK-SAME: attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
+// CHECK-MLIR-DAG:  gpu.func @_ZTS8kernel_1
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+// CHECK-MLIR-DAG:  gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+// CHECK-MLIR-DAG:  func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEC1ENS1_8accessorIiLi1ELS3_1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS1_3ext6oneapi22accessor_property_listIJEEEEENS1_2idILi1EEERKi
+// CHECK-MLIR-SAME: attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
 // COM: StoreWrapper constructor:
-// CHECK-DAG: func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv
-// CHECK-SAME: attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
+// CHECK-MLIR-DAG: func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv
+// CHECK-MLIR-SAME: attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
+
+// COM: StoreWrapper constructor:
+// CHECK-LLVM:      define linkonce_odr void @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv({ %"class.cl::sycl::accessor.1", %"class.cl::sycl::id.1", i32 }* %0, { %"class.cl::sycl::accessor.1", %"class.cl::sycl::id.1", i32 }* %1, i64 %2, i64 %3, i64 %4) {
+
+// CHECK-LLVM:      define weak_odr spir_kernel void @_ZTS8kernel_1(i32* %0, i32* %1, i64 %2, i64 %3, i64 %4, %"class.cl::sycl::range.1" %5, %"class.cl::sycl::range.1" %6, %"class.cl::sycl::id.1" %7) #0 {
+// CHECK-LLVM:      ; Function Attrs: convergent mustprogress norecurse nounwind
+// CHECK-LLVM-NEXT: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(i32* %0, i32* %1, i64 %2, i64 %3, i64 %4, %"class.cl::sycl::range.1" %5, %"class.cl::sycl::range.1" %6, %"class.cl::sycl::id.1" %7) #0 {
 
 template <typename DataT,
           int Dimensions = 1,
