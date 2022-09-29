@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_kernel_arg_restrict_property
+= sycl_ext_oneapi_kernel_arg_properties
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -62,9 +62,9 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension introduces the `restrict` kernel argument property for the
-classes `sycl::ext::oneapi::annotated_ptr` and
-`sycl::ext::oneapi::annotated_arg`.
+This extension introduces properties that are applied to kernel arguments by
+using the `sycl::ext::oneapi::experimental::annotated_ptr` and
+`sycl::ext::oneapi::experimental::annotated_arg` classes.
 
 == Specification
 
@@ -72,10 +72,10 @@ classes `sycl::ext::oneapi::annotated_ptr` and
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_KERNEL_ARG_RESTRICT_PROPERTY` to one of the values
-defined in the table below.  Applications can test for the existence of this
-macro to determine if the implementation supports this feature, or applications
-can test the macro's value to determine which of the extension's features the
+macro `SYCL_EXT_ONEAPI_KERNEL_ARG_PROPERTIES` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
 implementation supports.
 
 [%header,cols="1,5"]
@@ -89,11 +89,9 @@ implementation supports.
 
 === `restrict` property
 
-The `restrict` property defined below is supported with the
-`sycl::ext::oneapi::experimental::annotated_ptr` and
-`sycl::ext::oneapi::experimental::annotated_arg` classes. It is only meaningful
-on the kernel argument when the kernel argument is a pointer type or a pointer
-wrapper type and is ignored for other types.
+The `restrict` property defined here is only meaningful on the kernel arguments
+when the kernel argument is a pointer type or a pointer wrapper type and is
+ignored for other types.
 
 This property is not meaningful within the kernel body.
 
