@@ -25,8 +25,6 @@ kernel void block_kernel(__global int* res) {
   *res = b1(5);
 }
 
-// CHECK-SPIRV1_4: EntryPoint 6 [[#]] "block_kernel" [[#InterfaceId:]]
-// CHECK-SPIRV1_4: Name [[#InterfaceId]] "__block_literal_global"
 // CHECK-SPIRV: Name [[block_invoke:[0-9]+]] "_block_invoke"
 // CHECK-SPIRV: TypeInt [[int:[0-9]+]] 32
 // CHECK-SPIRV: TypeInt [[int8:[0-9]+]] 8
