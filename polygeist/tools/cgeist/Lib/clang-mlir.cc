@@ -70,6 +70,11 @@ static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
 
+static cl::opt<bool>
+    useGPUModule("use-gpu-module", cl::init(false),
+                   cl::desc("Use GPUModuleOp for SYCL kernels."));
+
+
 bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   if (!CombinedStructABI)
     return true;
@@ -5033,8 +5038,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
     auto funcType = builder.getFunctionType(types, rettypes);
     Location loc = getMLIRLocation(F.decl.getLocation());
 
-    #if 1
-    if (F.decl.hasAttr<SYCLKernelAttr>()) {
+    if (useGPUModule && F.decl.hasAttr<SYCLKernelAttr>()) {
       auto function = builder.create<gpu::GPUFuncOp>(loc, name, funcType,
                                                      TypeRange{}, TypeRange{});
       // SYCL kernels must be always located in a device context.
@@ -5042,7 +5046,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
 
       return insert(function, *deviceModule, deviceFunctions);
     }
-    #endif
+
     auto function = builder.create<func::FuncOp>(loc, name, funcType);
     switch (F.context) {
     case FunctionContext::Host:
