@@ -50,31 +50,47 @@ struct LoopContext {
 };
 
 /// Context in which a function is located.
-enum class FunctionContext : unsigned {
-  Host = 0,  ///< Host function
-  Device = 1 ///< Device function
+enum class FunctionContext {
+  Host,      ///< Host function
+  SYCLDevice ///< SYCL Device function
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &out,
                                      const FunctionContext &context) {
   switch (context) {
   case FunctionContext::Host:
-    out << "host";
+    out << "Host";
     break;
-  case FunctionContext::Device:
-    out << "device";
+  case FunctionContext::SYCLDevice:
+    out << "SYCLDevice";
     break;
   }
   return out;
 }
 
 /// Struct encapsulating a function declaration and its context.
-struct FunctionToEmit {
-  FunctionToEmit(const clang::FunctionDecl &decl, FunctionContext context)
-      : decl(decl), context(context) {}
+class FunctionToEmit {
+public:
+  /// SYCL kernel & device functions will have SYCLDevice context.
+  FunctionToEmit(const clang::FunctionDecl &decl)
+      : decl(decl), context(FunctionContext::Host) {
+    if (decl.hasAttr<SYCLKernelAttr>() || decl.hasAttr<SYCLDeviceAttr>())
+      context = FunctionContext::SYCLDevice;
+  }
 
+  /// SYCL kernel & device functions must have SYCLDevice context.
+  /// Any other function can either run on the device or on the host.
+  FunctionToEmit(const clang::FunctionDecl &decl, FunctionContext context)
+      : decl(decl), context(context) {
+    assert(
+        ((decl.hasAttr<SYCLKernelAttr>() || decl.hasAttr<SYCLDeviceAttr>()) &&
+         context == FunctionContext::SYCLDevice) &&
+        "Expecting SYCL kernel and device functions to have context == SYCLDevice");
+  }
+
+private:
   const clang::FunctionDecl &decl;
-  FunctionContext context;
+  const FunctionContext context;
 };
 
 struct MLIRASTConsumer : public clang::ASTConsumer {
@@ -90,7 +106,7 @@ private:
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   std::deque<FunctionToEmit> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
+  mlir::gpu::GPUModuleOp deviceModule;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -114,8 +130,8 @@ public:
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       clang::Preprocessor &PP, clang::ASTContext &astContext,
       mlir::OwningOpRef<mlir::ModuleOp> &module,
-      mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
-      clang::SourceManager &SM, clang::CodeGenOptions &codegenops)
+      mlir::gpu::GPUModuleOp deviceModule, clang::SourceManager &SM,
+      clang::CodeGenOptions &codegenops)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), deviceFunctions(deviceFunctions),
@@ -193,7 +209,7 @@ private:
   MLIRASTConsumer &Glob;
   mlir::FunctionOpInterface function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
+  mlir::gpu::GPUModuleOp deviceModule;
   mlir::OpBuilder builder;
   mlir::Location loc;
   mlir::Block *entryBlock;
@@ -274,8 +290,7 @@ private:
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
-              mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
-              LowerToInfo &LTInfo);
+              mlir::gpu::GPUModuleOp deviceModule, LowerToInfo &LTInfo);
 
   void init(mlir::FunctionOpInterface function, const FunctionToEmit &fd);
 

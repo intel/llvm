@@ -70,10 +70,6 @@ static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
 
-static cl::opt<bool>
-    useGPUModule("use-gpu-module", cl::init(false),
-                 cl::desc("Use GPUModuleOp for SYCL kernels."));
-
 bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   if (!CombinedStructABI)
     return true;
@@ -110,10 +106,10 @@ mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
   return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
 }
 
-MLIRScanner::MLIRScanner(
-    MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
-    LowerToInfo &LTInfo)
+MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
+                         mlir::OwningOpRef<mlir::ModuleOp> &module,
+                         mlir::gpu::GPUModuleOp deviceModule,
+                         LowerToInfo &LTInfo)
     : Glob(Glob), function(), module(module), deviceModule(deviceModule),
       builder(module->getContext()), loc(builder.getUnknownLoc()),
       entryBlock(nullptr), loops(), allocationScope(nullptr), supportedFuncs(),
@@ -143,39 +139,102 @@ void MLIRScanner::initSupportedFunctions() {
       "_ZN4sycl3_V15rangeILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
 
   // Other SYCL functions:
+  // TODO: Add support to the commented out functions below, including
+  // improvement of address space generation.
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V13ext6oneapi22accessor_property_listIJEE12has_propertyINS2_"
+      "8property9no_offsetEEEbPNSt9enable_ifIXsr24is_compile_time_propertyIT_"
+      "EE5valueEvE4typeE");
+#endif
   supportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEEixILi1EvEERiNS0_2idILi1EEE");
-  // TODO: Improve polygeist.subindex lowering to add support to the commented
-  // out functions below.
 #if 0
   supportedFuncs.insert(
       "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
   supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getAccessRangeEv");
+#endif
+  supportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEE");
+  supportedFuncs.insert(
+      "_ZZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEEENKUlmE_clEm");
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getMemoryRangeEv");
+#endif
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getMemoryRangeEv");
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE9getOffsetEv");
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getTotalOffsetEv");
+  supportedFuncs.insert(
+      "_ZZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getTotalOffsetEvENKUlmE_clEm");
   supportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE15getQualifiedPtrEv");
 #endif
+  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEixEi");
+  supportedFuncs.insert("_ZNK4sycl3_V16detail5arrayILi1EEixEi");
+  supportedFuncs.insert("_ZNK4sycl3_V16detail5arrayILi1EE15check_dimensionEi");
   supportedFuncs.insert("_ZN4sycl3_V16detail14InitializedValILi1ENS0_"
                         "5rangeEE3getILi0EEENS3_ILi1EEEv");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
+      "2idIXT_EEEEUlmE_EEvOT0_");
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
+      "EEvOT0_");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
+      "EEvSt16integer_sequenceImJXspT_EEEOT0_");
+#endif
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
+      "2idIXT_EEEEUlmE_EEvSt16integer_sequenceImJXspT_EEEOT0_");
 }
 
-static void
-checkFunctionParent(const FunctionOpInterface F, FunctionContext Context,
-                    const OwningOpRef<ModuleOp> &module,
-                    const OwningOpRef<gpu::GPUModuleOp> &deviceModule) {
+static void checkFunctionParent(const FunctionOpInterface F,
+                                FunctionContext Context,
+                                const OwningOpRef<ModuleOp> &module,
+                                gpu::GPUModuleOp deviceModule) {
   assert(
       (Context != FunctionContext::Host || F->getParentOp() == module.get()) &&
       "New function must be inserted into global module");
-  assert((Context != FunctionContext::Device ||
-          F->getParentOfType<gpu::GPUModuleOp>() == deviceModule.get()) &&
+  assert((Context != FunctionContext::SYCLDevice ||
+          F->getParentOfType<gpu::GPUModuleOp>() == deviceModule) &&
          "New device function must be inserted into device module");
 }
 
@@ -4837,7 +4896,7 @@ MLIRASTConsumer::getFunction(const std::string &name,
   switch (context) {
   case FunctionContext::Host:
     return find(functions);
-  case FunctionContext::Device:
+  case FunctionContext::SYCLDevice:
     return find(deviceFunctions);
   }
   llvm_unreachable("Invalid function context");
@@ -5037,21 +5096,21 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
     auto funcType = builder.getFunctionType(types, rettypes);
     Location loc = getMLIRLocation(F.decl.getLocation());
 
-    if (useGPUModule && F.decl.hasAttr<SYCLKernelAttr>()) {
+    if (F.decl.hasAttr<SYCLKernelAttr>()) {
       auto function = builder.create<gpu::GPUFuncOp>(loc, name, funcType,
                                                      TypeRange{}, TypeRange{});
       // SYCL kernels must be always located in a device context.
-      F.context = FunctionContext::Device;
+      F.context = FunctionContext::SYCLDevice;
 
-      return insert(function, *deviceModule, deviceFunctions);
+      return insert(function, deviceModule, deviceFunctions);
     }
 
     auto function = builder.create<func::FuncOp>(loc, name, funcType);
     switch (F.context) {
     case FunctionContext::Host:
       return insert(function, *module, functions);
-    case FunctionContext::Device:
-      return insert(function, *deviceModule, deviceFunctions);
+    case FunctionContext::SYCLDevice:
+      return insert(function, deviceModule, deviceFunctions);
     }
     llvm_unreachable("Invalid function context");
   };
@@ -5852,7 +5911,7 @@ public:
   std::set<std::string> emitIfFound;
   std::set<std::string> done;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
+  mlir::gpu::GPUModuleOp deviceModule;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
   std::map<std::string, mlir::func::FuncOp> functions;
@@ -5860,7 +5919,7 @@ public:
   std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
   MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module,
-             mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule)
+             mlir::gpu::GPUModuleOp deviceModule)
       : module(module), deviceModule(deviceModule) {
     emitIfFound.insert(fn);
   }
@@ -5944,8 +6003,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
                       mlir::OwningOpRef<mlir::ModuleOp> &module,
-                      mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
-                      llvm::Triple &triple, llvm::DataLayout &DL,
+                      mlir::gpu::GPUModuleOp deviceModule, llvm::Triple &triple,
+                      llvm::DataLayout &DL,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
