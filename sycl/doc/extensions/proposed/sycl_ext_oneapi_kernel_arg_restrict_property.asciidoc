@@ -131,7 +131,8 @@ restrict
 ----
 a|
 This is a hint to the compiler that the pointer kernel arguments marked with
-this property do not alias with one another.
+this property do not alias with one another with the same semantics as the C99
+`restrict` keyword.
 
 |===
 --
