@@ -170,7 +170,7 @@ checkFunctionParent(const FunctionOpInterface F, FunctionContext Context,
   assert(
       (Context != FunctionContext::Host || F->getParentOp() == module.get()) &&
       "New function must be inserted into global module");
-  assert((Context != FunctionContext::SYCLDevice ||
+  assert((Context != FunctionContext::Device ||
           F->getParentOfType<gpu::GPUModuleOp>() == deviceModule.get()) &&
          "New device function must be inserted into device module");
 }
@@ -1475,7 +1475,6 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   if (op == nullptr)
     op = createAllocOp(subType, name, memtype, isArray, LLVMABI);
 
-  auto decl = cons->getConstructor();
   if (cons->requiresZeroInitialization()) {
     mlir::Value val = op;
     if (val.getType().isa<MemRefType>()) {
@@ -1503,7 +1502,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     builder.create<LLVM::MemsetOp>(loc, val, i8_0, sizev, falsev);
   }
 
-  if (decl->isTrivial() && decl->isDefaultConstructor())
+  CXXConstructorDecl *ctorDecl = cons->getConstructor();
+  if (ctorDecl->isTrivial() && ctorDecl->isDefaultConstructor())
     return ValueCategory(op, /*isReference*/ true);
 
   mlir::Block::iterator oldpoint;
@@ -1535,33 +1535,36 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     assert(obj.isReference);
   }
 
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, cast<FunctionDecl>(ctorDecl),
+                                  Glob.getCGM());
+  mangledName = (PrefixABI + mangledName);
+
+  // If the constructor called is in a SYCL kernel or SYCL device function it
+  // must itself be a SYCL device function.
+  if (EmittingFunctionDecl->hasAttr<SYCLKernelAttr>() ||
+      EmittingFunctionDecl->hasAttr<SYCLDeviceAttr>()) {
+    LLVM_DEBUG(llvm::dbgs() << __LINE__ << ": adding device attribute to '"
+                            << ctorDecl->getNameAsString() << "' ctor "
+                            << mangledName << "\n");
+    ctorDecl->addAttr(
+        SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
+  }
+
   /// If the constructor is part of the SYCL namespace, we may not want the
-  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit dequeu,
+  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
   /// since we will create it's equivalent with SYCL operations. Please note
   /// that we still generate some constructors that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported constructors.
+  bool isSyclCtor =
+      mlirclang::isNamespaceSYCL(ctorDecl->getEnclosingNamespaceContext());
+  bool ShouldEmit = !isSyclCtor;
 
-  bool ShouldEmit = !mlirclang::isNamespaceSYCL(
-      cons->getConstructor()->getEnclosingNamespaceContext());
+  if (isSupportedFunctions(mangledName))
+    ShouldEmit = true;
 
-  if (const FunctionDecl *FuncDecl =
-          dyn_cast<FunctionDecl>(cons->getConstructor())) {
-    std::string name;
-    MLIRScanner::getMangledFuncName(name, FuncDecl, Glob.getCGM());
-    name = (PrefixABI + name);
-
-    LLVM_DEBUG(llvm::dbgs() << "Starting codegen of " << name << "\n");
-
-    if (isSupportedFunctions(name)) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "Function found in registry, continue codegen-ing...\n");
-      ShouldEmit = true;
-    }
-  }
-
-  FunctionToEmit F{*cons->getConstructor(),
-                   mlirclang::getInputContext(builder)};
+  FunctionToEmit F{*ctorDecl, mlirclang::getInputContext(builder)};
   auto tocall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
@@ -1697,7 +1700,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   return CommonArrayLookup(moo, idx, isArray);
 }
 
-const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
+clang::FunctionDecl *MLIRScanner::EmitCallee(Expr *E) {
   E = E->IgnoreParens();
   // Look through function-to-pointer decay.
   if (auto ICE = dyn_cast<ImplicitCastExpr>(E)) {
@@ -4830,7 +4833,7 @@ MLIRASTConsumer::getFunction(const std::string &name,
   switch (context) {
   case FunctionContext::Host:
     return find(functions);
-  case FunctionContext::SYCLDevice:
+  case FunctionContext::Device:
     return find(deviceFunctions);
   }
   llvm_unreachable("Invalid function context");
@@ -4908,9 +4911,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
   if (!FD->isDefined(Def, /*checkforfriend*/ true))
     Def = FD;
 
-  FunctionContext &Context = F.context;
-
-  if (Optional<FunctionOpInterface> optFunction = getFunction(name, Context)) {
+  if (Optional<FunctionOpInterface> optFunction = getFunction(name, F.context)) {
     auto function = *optFunction;
 
     if (Def->isThisDeclarationADefinition()) {
@@ -4930,10 +4931,13 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
                 mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
       function->setAttrs(attrs.getDictionary(builder.getContext()));
       if (ShouldEmit) {
-        functionsToEmit.emplace_back(*Def, Context);
+        LLVM_DEBUG(llvm::dbgs()
+                   << __LINE__ << ": Pushing " << F.context << " function "
+                   << Def->getNameAsString() << " to functionsToEmit\n");
+        functionsToEmit.emplace_back(*Def, F.context);
       }
     }
-    checkFunctionParent(function, Context, module, deviceModule);
+    checkFunctionParent(function, F.context, module, deviceModule);
     return function;
   }
 
@@ -5017,33 +5021,39 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
   }
   mlir::OpBuilder builder(module->getContext());
 
-  const auto createFunctionDecl = [&]() -> FunctionOpInterface {
-    const auto insert = [&](auto Function, auto Module, auto &Map) {
-      Module.push_back(Function);
-      Map[name] = Function;
-      return Function;
+  // Inject a function declaration in the deviceModule (a GPUModuleOp) if the
+  // function is a device function and in the module (a ModuleOp) otherwise.
+  const auto createFunction =
+      [&](FunctionToEmit &F) -> FunctionOpInterface {
+    const auto insert = [name](auto function, auto module, auto &map) {
+      module.push_back(function);
+      map[name] = function;
+      return function;
     };
     auto funcType = builder.getFunctionType(types, rettypes);
-    const auto loc = getMLIRLocation(FD->getLocation());
+    Location loc = getMLIRLocation(F.decl.getLocation());
 
-    if (FD->hasAttr<SYCLKernelAttr>()) {
+    #if 1
+    if (F.decl.hasAttr<SYCLKernelAttr>()) {
       auto function = builder.create<gpu::GPUFuncOp>(loc, name, funcType,
                                                      TypeRange{}, TypeRange{});
-      // SYCL kernels must be always located in a SYCL device context.
-      Context = FunctionContext::SYCLDevice;
+      // SYCL kernels must be always located in a device context.
+      F.context = FunctionContext::Device;
 
       return insert(function, *deviceModule, deviceFunctions);
     }
+    #endif
     auto function = builder.create<func::FuncOp>(loc, name, funcType);
-    switch (Context) {
+    switch (F.context) {
     case FunctionContext::Host:
       return insert(function, *module, functions);
-    case FunctionContext::SYCLDevice:
+    case FunctionContext::Device:
       return insert(function, *deviceModule, deviceFunctions);
     }
     llvm_unreachable("Invalid function context");
   };
-  FunctionOpInterface function = createFunctionDecl();
+
+  FunctionOpInterface function = createFunction(F);
 
   if (LV == llvm::GlobalValue::InternalLinkage ||
       LV == llvm::GlobalValue::PrivateLinkage || !FD->isDefined() ||
@@ -5064,21 +5074,24 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
     if (ShouldEmit) {
-      functionsToEmit.emplace_back(*Def, Context);
+      LLVM_DEBUG(llvm::dbgs()
+                 << __LINE__ << ": Pushing " << F.context << " function "
+                 << Def->getNameAsString() << " to functionsToEmit\n");
+      functionsToEmit.emplace_back(*Def, F.context);
     }
   } else if (ShouldEmit) {
     emitIfFound.insert(name);
   }
-  checkFunctionParent(function, Context, module, deviceModule);
+  checkFunctionParent(function, F.context, module, deviceModule);
   return function;
 }
 
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
-    auto &F = functionsToEmit.front();
-    const FunctionDecl *FD = &F.decl;
-
+    FunctionToEmit &F = functionsToEmit.front();
     functionsToEmit.pop_front();
+
+    const FunctionDecl *FD = &F.decl;
 
     assert(FD->getBody());
     assert(FD->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
@@ -5086,18 +5099,24 @@ void MLIRASTConsumer::run() {
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
 
-    std::string name;
-    MLIRScanner::getMangledFuncName(name, FD, CGM);
+    std::string mangledName;
+    MLIRScanner::getMangledFuncName(mangledName, FD, CGM);
 
-    if (done.count(name))
+    if (done.count(mangledName))
       continue;
 
-    LLVM_DEBUG(llvm::dbgs() << "\n-- FUNCTION BEING EMITTED: "
-                            << FD->getNameAsString() << " --\n\n";);
+    LLVM_DEBUG({
+      StringRef prefix = FD->hasAttr<clang::SYCLKernelAttr>()   ? "SYCL KERNEL"
+                         : FD->hasAttr<clang::SYCLDeviceAttr>() ? "SYCL DEVICE"
+                                                                : "";
+      llvm::dbgs() << "\n-- " << prefix
+                   << " FUNCTION BEING EMITTED: " << FD->getNameAsString()
+                   << " --\n\n";
+    });
 
-    done.insert(name);
+    done.insert(mangledName);
     MLIRScanner ms(*this, module, deviceModule, LTInfo);
-    auto function = GetOrCreateMLIRFunction(F, true);
+    FunctionOpInterface function = GetOrCreateMLIRFunction(F, true);
     ms.init(function, F);
 
     LLVM_DEBUG({
@@ -5180,7 +5199,11 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
          externLinkage) ||
         emitIfFound.count(name)) {
       // Functions are created in the host context by default.
-      functionsToEmit.emplace_back(*fd, FunctionContext::Host);
+      FunctionToEmit F{*fd, FunctionContext::Host};
+      LLVM_DEBUG(llvm::dbgs()
+                 << __LINE__ << ": Pushing " << F.context << " function "
+                 << fd->getNameAsString() << " to functionsToEmit\n");
+      functionsToEmit.push_back(F);
     }
   }
 }
@@ -5251,7 +5274,11 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
         emitIfFound.count(name) || fd->hasAttr<OpenCLKernelAttr>() ||
         fd->hasAttr<SYCLDeviceAttr>()) {
       // Functions are created in the host context by default.
-      functionsToEmit.emplace_back(*fd, FunctionContext::Host);
+      FunctionToEmit F{*fd, FunctionContext::Host};
+      LLVM_DEBUG(llvm::dbgs()
+                 << __LINE__ << ": Pushing " << F.context << " function "
+                 << fd->getNameAsString() << " to functionsToEmit\n");
+      functionsToEmit.emplace_back(F);
     }
   }
 

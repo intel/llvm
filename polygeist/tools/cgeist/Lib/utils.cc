@@ -82,5 +82,5 @@ bool mlirclang::isNamespaceSYCL(const clang::DeclContext *DC) {
 FunctionContext mlirclang::getInputContext(const OpBuilder &Builder) {
   return Builder.getInsertionBlock()->getParentOp()->getParentOfType<ModuleOp>()
              ? FunctionContext::Host
-             : FunctionContext::SYCLDevice;
+             : FunctionContext::Device;
 }

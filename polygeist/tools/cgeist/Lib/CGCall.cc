@@ -1384,7 +1384,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 #endif
 
-  const auto *callee = EmitCallee(expr->getCallee());
+  FunctionDecl *callee = EmitCallee(expr->getCallee());
 
   std::set<std::string> funcs = {
       "fread",
@@ -1516,18 +1516,32 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return ValueCategory(called, isReference);
   }
 
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
+
+  // If the function called is in a SYCL kernel or SYCL device function it
+  // must itself be a SYCL device function.
+  if (EmittingFunctionDecl->hasAttr<SYCLKernelAttr>() ||
+      EmittingFunctionDecl->hasAttr<SYCLDeviceAttr>()) {
+    LLVM_DEBUG(llvm::dbgs()
+               << __LINE__ << ": adding device attribute to '"
+               << callee->getNameAsString() << "' (" << mangledName << ")\n");
+    callee->addAttr(SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
+  }
+
   /// If the callee is part of the SYCL namespace, we may not want the
-  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit dequeu,
+  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
   /// since we will create it's equivalent with SYCL operations. Please note
   /// that we still generate some functions that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported functions.
-  auto ShouldEmit =
-      !mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
-  std::string name;
-  MLIRScanner::getMangledFuncName(name, callee, Glob.getCGM());
-  if (isSupportedFunctions(name))
+  bool isSyclFunc =
+      mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
+  bool ShouldEmit = !isSyclFunc;
+
+  if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
+
   FunctionToEmit F{*callee, mlirclang::getInputContext(builder)};
   auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 

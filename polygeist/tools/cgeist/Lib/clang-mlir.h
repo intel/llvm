@@ -51,9 +51,22 @@ struct LoopContext {
 
 /// Context in which a function is located.
 enum class FunctionContext : unsigned {
-  Host = 0,      ///< Host code
-  SYCLDevice = 1 ///< SYCL device code
+  Host = 0,  ///< Host function
+  Device = 1 ///< Device function
 };
+
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &out,
+                                     const FunctionContext &context) {
+  switch (context) {
+  case FunctionContext::Host:
+    out << "host";
+    break;
+  case FunctionContext::Device:
+    out << "device";
+    break;
+  }
+  return out;
+}
 
 /// Struct encapsulating a function declaration and its context.
 struct FunctionToEmit {
@@ -233,7 +246,7 @@ private:
   mlir::Value createAllocOp(mlir::Type t, clang::VarDecl *name,
                             uint64_t memspace, bool isArray, bool LLVMABI);
 
-  const clang::FunctionDecl *EmitCallee(const clang::Expr *E);
+  clang::FunctionDecl *EmitCallee(clang::Expr *E);
 
   mlir::FunctionOpInterface EmitDirectCallee(const clang::FunctionDecl *FD,
                                              FunctionContext Context);

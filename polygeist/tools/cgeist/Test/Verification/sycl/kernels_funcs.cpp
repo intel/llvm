@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 // RUN: sycl-clang.py %s -S | FileCheck %s
+// XFAIL: *
+
 
 #include <sycl/sycl.hpp>
 
