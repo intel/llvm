@@ -3,14 +3,14 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "polygeist/Passes/Passes.h"
 #include "polygeist/Ops.h"
+#include "polygeist/Passes/Passes.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 using namespace mlir;
@@ -69,8 +69,6 @@ bool isReadOnly(Operation *op) {
   }
   return false;
 }
-
-
 
 bool mayReadFrom(Operation *op, Value val) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
