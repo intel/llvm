@@ -19,6 +19,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -41,7 +42,6 @@ constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
-constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
 
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
@@ -726,11 +726,11 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getESIMDDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      MD, ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints,
-      [](EntryPointGroup &G) {
-        if (G.GroupId == ATTR_DOUBLE_GRF) {
+      MD, llvm::sycl_kernel_props::ATTR_DOUBLE_GRF,
+      EmitOnlyKernelsAsEntryPoints, [](EntryPointGroup &G) {
+        if (G.GroupId == llvm::sycl_kernel_props::ATTR_DOUBLE_GRF) {
           G.Props.UsesDoubleGRF = true;
         }
       });

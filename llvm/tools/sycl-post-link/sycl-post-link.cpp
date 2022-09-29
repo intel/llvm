@@ -38,6 +38,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -436,8 +437,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
   if (MD.isDoubleGRF())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-        {"isDoubleGRFEsimdImage", true});
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isDoubleGRF", true});
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
@@ -561,8 +561,8 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
                                    StringRef IRFilename = "") {
   IrPropSymFilenameTriple Res;
-  StringRef Suffix =
-      MD.isDoubleGRF() ? "_esimd_x2grf" : (MD.isESIMD() ? "_esimd" : "");
+  StringRef Suffix = MD.isDoubleGRF() ? MD.isESIMD() ? "_esimd_x2grf" : "_x2grf"
+                                      : (MD.isESIMD() ? "_esimd" : "");
 
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
@@ -725,7 +725,7 @@ processInputModule(std::unique_ptr<Module> M) {
   // Lower kernel properties setting APIs before "double GRF" splitting, as:
   // - the latter uses the result of the former
   // - saves processing time
-  Modified |= runModulePass<SYCLLowerESIMDKernelPropsPass>(*M);
+  Modified |= runModulePass<SYCLLowerKernelPropsPass>(*M);
 
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
@@ -762,8 +762,8 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     std::unique_ptr<module_split::ModuleSplitterBase> DoubleGRFSplitter =
-        module_split::getESIMDDoubleGRFSplitter(std::move(MDesc),
-                                                EmitOnlyKernelsAsEntryPoints);
+        module_split::getDoubleGRFSplitter(std::move(MDesc),
+                                           EmitOnlyKernelsAsEntryPoints);
     const bool SplitByDoubleGRF = DoubleGRFSplitter->totalSplits() > 1;
     Modified |= SplitByDoubleGRF;
 

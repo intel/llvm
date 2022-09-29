@@ -4,7 +4,7 @@
 ; - ESIMD/SYCL splitting happens as usual
 ; - ESIMD module is further split into callgraphs for entry points requesting
 ;   "double GRF" and callgraphs for entry points which are not
-; - Compiler adds 'isDoubleGRFEsimdImage' property to the ESIMD device binary
+; - Compiler adds 'isDoubleGRF' property to the ESIMD device binary
 ;   images requesting "double GRF" 
 
 ; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S %s -o %t.table
@@ -21,7 +21,7 @@
 ; CHECK: {{.*}}esimd_0.ll|{{.*}}esimd_0.prop|{{.*}}esimd_0.sym
 
 ; CHECK-ESIMD-2xGRF-PROP: isEsimdImage=1|1
-; CHECK-ESIMD-2xGRF-PROP: isDoubleGRFEsimdImage=1|1
+; CHECK-ESIMD-2xGRF-PROP: isDoubleGRF=1|1
 
 ; CHECK-SYCL-SYM: __SYCL_kernel
 ; CHECK-SYCL-SYM-EMPTY:
@@ -49,13 +49,13 @@ entry:
 
 define dso_local spir_func void @_Z17double_grf_markerv() {
 entry:
-  call spir_func void @_Z29__esimd_set_kernel_propertiesi(i32 noundef 0)
+  call spir_func void @_Z28__sycl_set_kernel_propertiesi(i32 noundef 0)
 ; -- Check that ESIMD lowering removed the marker call above:
-; CHECK-ESIMD-2xGRF-IR-NOT: {{.*}} @_Z29__esimd_set_kernel_propertiesi
+; CHECK-ESIMD-2xGRF-IR-NOT: {{.*}} @_Z28__sycl_set_kernel_propertiesi
   ret void
 }
 
-declare dso_local spir_func void @_Z29__esimd_set_kernel_propertiesi(i32 noundef)
+declare dso_local spir_func void @_Z28__sycl_set_kernel_propertiesi(i32 noundef)
 
 define weak_odr dso_local spir_kernel void @__ESIMD_double_grf_kernel() #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
 entry:

@@ -1,16 +1,16 @@
-//===---- LowerESIMDKernelProps.h - lower __esimd_set_kernel_properties ---===//
+//===---- LowerESIMDKernelProps.h - lower __sycl_set_kernel_properties ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Finds and lowers __esimd_set_kernel_properties calls: converts the call to
+// Finds and lowers __sycl_set_kernel_properties calls: converts the call to
 // function attributes and adds those attributes to all kernels which can
 // potentially call this intrinsic.
 
+#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
@@ -18,17 +18,17 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/Pass.h"
 
-#define DEBUG_TYPE "LowerESIMDKernelProps"
+#define DEBUG_TYPE "LowerKernelProps"
 
 using namespace llvm;
 
 namespace {
 
 constexpr char SET_KERNEL_PROPS_FUNC_NAME[] =
-    "_Z29__esimd_set_kernel_propertiesi";
+    "_Z28__sycl_set_kernel_propertiesi";
 
 // Kernel property identifiers. Should match ones in
-// sycl/include/sycl/ext/intel/experimental/esimd/kernel_properties.hpp
+// sycl/include/sycl/ext/intel/experimental/kernel_properties.hpp
 enum property_ids { use_double_grf = 0 };
 
 void processSetKernelPropertiesCall(CallInst &CI) {
@@ -47,9 +47,7 @@ void processSetKernelPropertiesCall(CallInst &CI) {
     // TODO: Keep track of traversed functions to avoid repeating traversals
     // over same function.
     llvm::esimd::traverseCallgraphUp(F, [](Function *GraphNode) {
-      if (llvm::esimd::isESIMDKernel(*GraphNode)) {
-        GraphNode->addFnAttr(llvm::esimd::ATTR_DOUBLE_GRF);
-      }
+      GraphNode->addFnAttr(llvm::sycl_kernel_props::ATTR_DOUBLE_GRF);
     });
     break;
   default:
@@ -60,8 +58,8 @@ void processSetKernelPropertiesCall(CallInst &CI) {
 } // namespace
 
 namespace llvm {
-PreservedAnalyses
-SYCLLowerESIMDKernelPropsPass::run(Module &M, ModuleAnalysisManager &MAM) {
+PreservedAnalyses SYCLLowerKernelPropsPass::run(Module &M,
+                                                ModuleAnalysisManager &MAM) {
   Function *F = M.getFunction(SET_KERNEL_PROPS_FUNC_NAME);
 
   if (!F) {
@@ -71,7 +69,7 @@ SYCLLowerESIMDKernelPropsPass::run(Module &M, ModuleAnalysisManager &MAM) {
   SmallVector<User *, 4> Users(F->users());
 
   for (User *Usr : Users) {
-    // a call can be the only use of the __esimd_set_kernel_properties built-in
+    // a call can be the only use of the __sycl_set_kernel_properties built-in
     CallInst *CI = cast<CallInst>(Usr);
     processSetKernelPropertiesCall(*CI);
     CI->eraseFromParent();
