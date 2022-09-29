@@ -169,6 +169,10 @@ class annotated_arg {
 `annotated_arg` is a class template, parameterized by the type of the underlying
 allocation `T` and a list of associated properties specified by `PropertyListT`.
 
+`T` can be any type except the following types or a structure containing one of
+the following types: sycl::accessor, sycl::stream, sycl::sampler, and
+sycl::half_type.
+
 The properties supported with `annotated_arg` may be defined in
 separate extensions.
 
