@@ -137,7 +137,7 @@ The following member functions are added to the queue class.
 
 namespace sycl {
 
-event submit(const ext::oneapi::experimental::command_graph<ext::oneapi::experimental::graph_state::executable>& my_graph);
+event queue::submit(const ext::oneapi::experimental::command_graph<ext::oneapi::experimental::graph_state::executable>& my_graph);
 
 } // namespace sycl
 
