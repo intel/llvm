@@ -110,8 +110,8 @@ int main() {
 
 // Check call to __builtin_memcpy to initialize structWithPtr_mem
 // CHECK-NEXT: CallExpr
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *(*)(void *, const void *, unsigned long) noexcept' <BuiltinFnToFnPtr>
-// CHECK-NEXT: DeclRefExpr {{.*}} Function {{.*}} '__builtin_memcpy' 'void *(void *, const void *, unsigned long) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *(*)(void *, const void *, {{.*}}) noexcept' <BuiltinFnToFnPtr>
+// CHECK-NEXT: DeclRefExpr {{.*}} Function {{.*}} '__builtin_memcpy' 'void *(void *, const void *, {{.*}}) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr *' prefix '&' cannot overflow
 // CHECK-NEXT: MemberExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue .structWithPtr_mem
@@ -119,4 +119,4 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const void *' <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 24
+// CHECK-NEXT: IntegerLiteral {{.*}} 24
