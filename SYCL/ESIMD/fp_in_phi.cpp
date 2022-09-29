@@ -69,7 +69,7 @@ bool test(queue q, bool flag) {
     });
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;
-    return e.get_cl_code();
+    return false;
   }
 
   int etalon = in1 + (flag ? 3 : 1) + in2 + 2;

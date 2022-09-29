@@ -216,7 +216,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
     }
 
     template <typename T>
-    static bool checkResult(char *f_out_str, char *f_gold_str, T tolerance) {
+    static bool checkResult(const char *f_out_str, const char *f_gold_str,
+                            T tolerance) {
       unsigned char header_out[54];
       unsigned char header_gold[54];
       unsigned int width;

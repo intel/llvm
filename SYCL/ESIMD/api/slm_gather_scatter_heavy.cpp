@@ -88,7 +88,7 @@ template <class T, unsigned VL, unsigned STRIDE> struct KernelBase {
   }
 
   unsigned inline get_wi_offset(nd_item<1> i) const {
-    unsigned group_id = static_cast<unsigned>(i.get_group().get_id(0));
+    unsigned group_id = static_cast<unsigned>(i.get_group().get_group_id(0));
     unsigned wg_offset = group_id * WG_CHUNK_SIZE;
     unsigned wi_offset = wg_offset + get_wi_local_offset(i);
     return wi_offset;
