@@ -7,6 +7,10 @@ on:
         type: string
         required: false
         default: "default"
+      checks2run:
+        type: string
+        required: false
+        default: "all"
 
 jobs:
   build:
@@ -51,11 +55,11 @@ jobs:
         sccache --show-stats
     - name: check-llvm
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.checks2run == 'all'}}
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.checks2run == 'all'}}
       shell: bash
       run: |
         cmake --build build --target check-clang

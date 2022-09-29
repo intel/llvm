@@ -66,3 +66,5 @@ jobs:
     name: Windows
     needs: lint
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    with:
+      checks2run: "min"
