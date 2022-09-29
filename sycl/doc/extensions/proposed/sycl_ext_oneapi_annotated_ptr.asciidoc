@@ -638,6 +638,9 @@ a way to annotate address spaces. That can be built with annotated_ptr.
 global space we may want to distinguish between general, host, and device memory
 spaces.
 
+6) Ctor should clarify whether when constructing the object from two different
+property lists, duplicates will exist or not.
+
 == Revision History
 
 [cols="5,15,15,70"]
