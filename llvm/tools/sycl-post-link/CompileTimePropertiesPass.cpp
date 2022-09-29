@@ -104,7 +104,8 @@ Optional<StringRef> getGlobalVariableString(const Value *StringV) {
 }
 
 /// Tries to generate a SPIR-V decorate metadata node from an attribute
-//  of kernel arguments. If the attribute is unknown \c nullptr will be returned.
+//  of kernel arguments. If the attribute is unknown \c nullptr will be
+//  returned.
 ///
 /// @param Ctx   [in] the LLVM context.
 /// @param Attr  [in] the LLVM attribute to generate metadata for.
@@ -113,7 +114,7 @@ Optional<StringRef> getGlobalVariableString(const Value *StringV) {
 ///          known corresponding SPIR-V decorate and the arguments are valid.
 ///          Otherwise \c nullptr is returned.
 static MDNode *kernelArgAttributeToDecorateMetadata(LLVMContext &Ctx,
-                                                     const Attribute &Attr) {
+                                                    const Attribute &Attr) {
   // Currently, only string attributes are supported
   if (!Attr.isStringAttribute())
     return nullptr;
@@ -123,13 +124,13 @@ static MDNode *kernelArgAttributeToDecorateMetadata(LLVMContext &Ctx,
   auto Decor = DecorIt->second;
   auto DecorCode = Decor.Code;
   switch (Decor.Type) {
-    case DecorValueTy::uint32:
-      return buildSpirvDecorMetadata(Ctx, DecorCode,
-                                     getAttributeAsInteger<uint32_t>(Attr));
-    case DecorValueTy::boolean:
-      return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
-    default:
-      llvm_unreachable("Unhandled decorator type.");
+  case DecorValueTy::uint32:
+    return buildSpirvDecorMetadata(Ctx, DecorCode,
+                                   getAttributeAsInteger<uint32_t>(Attr));
+  case DecorValueTy::boolean:
+    return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+  default:
+    llvm_unreachable("Unhandled decorator type.");
   }
 }
 
@@ -193,19 +194,20 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       continue;
 
     SmallVector<Metadata *, 8> MDOps;
-	for (unsigned i = 0 ; i < F.arg_size(); i++) {
-    	SmallVector<Metadata *, 8> MDArgOps;
-		for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
-		  if (MDNode *SPIRVMetadata = kernelArgAttributeToDecorateMetadata(Ctx, Attribute))
-			MDArgOps.push_back(SPIRVMetadata);
-		}
-		MDOps.push_back(MDNode::get(Ctx, MDArgOps));
-	}
-	// Add the generated metadata to the kernel function.
-	if (!MDOps.empty()) {
-	  F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
-	  CompileTimePropertiesMet = true;
-	}
+    for (unsigned i = 0; i < F.arg_size(); i++) {
+      SmallVector<Metadata *, 8> MDArgOps;
+      for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
+        if (MDNode *SPIRVMetadata =
+                kernelArgAttributeToDecorateMetadata(Ctx, Attribute))
+          MDArgOps.push_back(SPIRVMetadata);
+      }
+      MDOps.push_back(MDNode::get(Ctx, MDArgOps));
+    }
+    // Add the generated metadata to the kernel function.
+    if (!MDOps.empty()) {
+      F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
+      CompileTimePropertiesMet = true;
+    }
   }
 
   // Check pointer annotations.
