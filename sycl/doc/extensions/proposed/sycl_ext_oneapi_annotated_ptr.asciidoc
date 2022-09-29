@@ -243,7 +243,7 @@ class annotated_ptr {
     explicit annotated_ptr(const annotated_ptr<T2, PropertyListU>&,
       properties<PropertyListV>) noexcept;
 
-    annotated_ptr(const annotated_ptr&) noexcept;
+    annotated_ptr(const annotated_ptr&) noexcept = default;
 
     reference operator*() const noexcept;
 
@@ -513,7 +513,8 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
-    void operator=(const T &) const;
+    void operator=(const T&) const;
+    void operator=(const annotated_ref&) const;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -552,6 +553,15 @@ void operator=(const T &) const;
 |
 Writes an object of type `T` to the location referenced by this wrapper,
 applying the annotations when the object is stored to memory.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+void operator=(const annotated_ref&) const;
+----
+|
+Assign from another `annotated_ref` object.
 
 |===
 
