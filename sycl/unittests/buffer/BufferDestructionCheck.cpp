@@ -21,13 +21,8 @@
 
 class FairMockScheduler : public sycl::detail::Scheduler {
 public:
-  // FairMockScheduler() : Scheduler()
-  // {
-  //     // ON_CALL(*this, deferMemObjRelease(_)).
-  //     //     WillByDefault(Invoke([&](qcsinternal::Duration timeout) {
-  //     //     return qcsinternal::PidNamedEvent::TryLockFor(timeout);
-  //     // }));
-  // }
+  using sycl::detail::Scheduler::MDeferredMemObjRelease;
+  using sycl::detail::Scheduler::MGraphLock;
   MOCK_METHOD1(deferMemObjRelease,
                void(const std::shared_ptr<sycl::detail::SYCLMemObjI> &));
 };
@@ -45,10 +40,6 @@ protected:
     MockSchedulerPtr = new FairMockScheduler();
     sycl::detail::GlobalHandler::instance().attachScheduler(
         dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
-    // Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
-    //     redefinedMemBufferCreate);
-    // Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
-    //     redefinedDeviceGetInfo);
   }
   void TearDown() override {
     sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
@@ -102,7 +93,6 @@ protected:
   FairMockScheduler *MockSchedulerPtr;
 };
 
-// Test that buffer_location was passed correctly
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
@@ -303,3 +293,66 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
 //     CheckBufferDestruction(BufImpl, false);
 //   }
 // }
+
+TEST_F(BufferDestructionCheck, BufferDeferringCheckWriteLock) {
+  sycl::context Context{Plt};
+  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+  {
+    testing::Sequence S;
+    sycl::detail::buffer_impl *unsafePtr = nullptr;
+    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+    std::unique_lock<std::shared_timed_mutex> Lock(MockSchedulerPtr->MGraphLock,
+                                                   std::defer_lock);
+    {
+      sycl::buffer<int, 1> Buf(1);
+      {
+        std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
+            sycl::detail::getSyclObjImpl(Buf);
+        unsafePtr = BufImpl.get();
+      }
+      Lock.lock();
+      // gmock warning will be generated - simply tell gtest that now we do not
+      // want to mock the function
+      ON_CALL(*MockSchedulerPtr, deferMemObjRelease)
+          .WillByDefault(
+              [this](const std::shared_ptr<sycl::detail::SYCLMemObjI> &MemObj) {
+                return MockSchedulerPtr
+                    ->sycl::detail::Scheduler::deferMemObjRelease(MemObj);
+              });
+    }
+    // Record is empty but lock should prevent from being deleted
+    ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
+    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.front().get(),
+              unsafePtr);
+    Lock.unlock();
+    MockSchedulerPtr->releaseResources();
+
+    ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+  }
+}
+
+TEST_F(BufferDestructionCheck, BufferDeferringCheckReadLock) {
+  sycl::context Context{Plt};
+  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+  {
+    testing::Sequence S;
+    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+    std::shared_lock<std::shared_timed_mutex> Lock(MockSchedulerPtr->MGraphLock,
+                                                   std::defer_lock);
+    {
+      sycl::buffer<int, 1> Buf(1);
+      Lock.lock();
+      // gmock warning will be generated - simply tell gtest that now we do not
+      // want to mock the function
+      ON_CALL(*MockSchedulerPtr, deferMemObjRelease)
+          .WillByDefault(
+              [this](const std::shared_ptr<sycl::detail::SYCLMemObjI> &MemObj) {
+                return MockSchedulerPtr
+                    ->sycl::detail::Scheduler::deferMemObjRelease(MemObj);
+              });
+    }
+    // Record is empty and read lock do not prevent from being deleted
+    ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+    Lock.unlock();
+  }
+}
