@@ -67,7 +67,7 @@ Table 2. Terminology.
 [%header,cols="1,3"]
 |===
 |Concept|Description
-|graph| Class that stores structured work units and their dependencies
+|graph| Class that stores structured work units and their dependencies.
 |node| The unit of work. Can have different attributes.
 |edge| Dependency between work units. Happens-before relation.
 |===
