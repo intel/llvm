@@ -52,7 +52,7 @@ public:
   lsu() = delete;
 
   template <typename _T, access::address_space _space,
-            access::decorated _is_decorated, typename _propertiesT>
+            access::decorated _Is_decorated, typename _propertiesT>
   static _T load(sycl::multi_ptr<_T, _space, _is_decorated> Ptr,
                  _propertiesT Properties) {
     check_space<_space>();
