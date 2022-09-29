@@ -195,8 +195,8 @@ bool isReadNone(Operation *op) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
-      for (auto &block : region) {
-        for (auto &nestedOp : block)
+      for (Block &block : region) {
+        for (Operation &nestedOp : block)
           if (!isReadNone(&nestedOp))
             return false;
       }
