@@ -37,5 +37,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
   MLIRSYCLDialect
+  MLIRNVVMDialect
+  MLIRSYCLToLLVM
+  MLIROpenMPToLLVM
   MLIRTransformUtils
   )

@@ -11,5 +11,10 @@ MLIRPolygeistOpsIncGen
 LINK_LIBS PUBLIC
 MLIRIR
 MLIRMemRefDialect
+MLIRAffineDialect
+MLIRSCFDialect
+MLIRLLVMDialect
+MLIROpenMPDialect
+MLIRDataLayoutInterfaces
 )
 add_subdirectory(Passes)

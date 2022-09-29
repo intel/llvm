@@ -72,6 +72,8 @@ target_link_libraries(cgeist PRIVATE
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
   MLIRSYCLToLLVM
+  
+  LLVMSYCLLowerIR
 
   clangAST
   clangBasic
