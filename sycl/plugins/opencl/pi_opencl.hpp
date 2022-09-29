@@ -31,21 +31,21 @@
 namespace OCLV {
 class OpenCLVersion {
 protected:
-  unsigned int major;
-  unsigned int minor;
+  unsigned int majorVer;
+  unsigned int minorVer;
 
 public:
-  OpenCLVersion() : major(0), minor(0) {}
+  OpenCLVersion() : majorVer(0), minorVer(0) {}
 
-  OpenCLVersion(unsigned int major, unsigned int minor)
-      : major(major), minor(minor) {
+  OpenCLVersion(unsigned int majorVer, unsigned int minorVer)
+      : majorVer(majorVer), minorVer(minorVer) {
     if (!isValid())
-      major = minor = 0;
+      majorVer = minorVer = 0;
   }
 
   OpenCLVersion(const char *version) : OpenCLVersion(std::string(version)) {}
 
-  OpenCLVersion(const std::string &version) : major(0), minor(0) {
+  OpenCLVersion(const std::string &version) : majorVer(0), minorVer(0) {
     /* The OpenCL specification defines the full version string as
      * 'OpenCL<space><major_version.minor_version><space><platform-specific
      * information>' for platforms and as
@@ -56,25 +56,25 @@ public:
     std::smatch match;
 
     if (std::regex_search(version, match, rx) && (match.size() == 3)) {
-      major = strtoul(match[1].str().c_str(), nullptr, 10);
-      minor = strtoul(match[2].str().c_str(), nullptr, 10);
+      majorVer = strtoul(match[1].str().c_str(), nullptr, 10);
+      minorVer = strtoul(match[2].str().c_str(), nullptr, 10);
 
       if (!isValid())
-        major = minor = 0;
+        majorVer = minorVer = 0;
     }
   }
 
   bool operator==(const OpenCLVersion &v) const {
-    return major == v.major && minor == v.minor;
+    return majorVer == v.majorVer && minorVer == v.minorVer;
   }
 
   bool operator!=(const OpenCLVersion &v) const { return !(*this == v); }
 
   bool operator<(const OpenCLVersion &v) const {
-    if (major == v.major)
-      return minor < v.minor;
+    if (majorVer == v.majorVer)
+      return minorVer < v.minorVer;
 
-    return major < v.major;
+    return majorVer < v.majorVer;
   }
 
   bool operator>(const OpenCLVersion &v) const { return v < *this; }
@@ -88,21 +88,21 @@ public:
   }
 
   bool isValid() const {
-    switch (major) {
+    switch (majorVer) {
     case 0:
       return false;
     case 1:
     case 2:
-      return minor <= 2;
+      return minorVer <= 2;
     case UINT_MAX:
       return false;
     default:
-      return minor != UINT_MAX;
+      return minorVer != UINT_MAX;
     }
   }
 
-  int getMajor() const { return major; }
-  int getMinor() const { return minor; }
+  int getMajor() const { return majorVer; }
+  int getMinor() const { return minorVer; }
 };
 
 inline const OpenCLVersion V1_0(1, 0);
