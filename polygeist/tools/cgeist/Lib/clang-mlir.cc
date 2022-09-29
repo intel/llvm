@@ -139,28 +139,91 @@ void MLIRScanner::initSupportedFunctions() {
       "_ZN4sycl3_V15rangeILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
 
   // Other SYCL functions:
+  // TODO: Add support to the commented out functions below, including
+  // improvement of address space generation.
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V13ext6oneapi22accessor_property_listIJEE12has_propertyINS2_"
+      "8property9no_offsetEEEbPNSt9enable_ifIXsr24is_compile_time_propertyIT_"
+      "EE5valueEvE4typeE");
+#endif
   supportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEEixILi1EvEERiNS0_2idILi1EEE");
-  // TODO: Improve polygeist.subindex lowering to add support to the commented
-  // out functions below.
 #if 0
   supportedFuncs.insert(
       "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
   supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getAccessRangeEv");
+#endif
+  supportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEE");
+  supportedFuncs.insert(
+      "_ZZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEEENKUlmE_clEm");
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getMemoryRangeEv");
+#endif
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getMemoryRangeEv");
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE9getOffsetEv");
+  supportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getTotalOffsetEv");
+  supportedFuncs.insert(
+      "_ZZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getTotalOffsetEvENKUlmE_clEm");
   supportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE15getQualifiedPtrEv");
 #endif
+  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEixEi");
+  supportedFuncs.insert("_ZNK4sycl3_V16detail5arrayILi1EEixEi");
+  supportedFuncs.insert("_ZNK4sycl3_V16detail5arrayILi1EE15check_dimensionEi");
   supportedFuncs.insert("_ZN4sycl3_V16detail14InitializedValILi1ENS0_"
                         "5rangeEE3getILi0EEENS3_ILi1EEEv");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
+      "2idIXT_EEEEUlmE_EEvOT0_");
+#if 0
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
+      "EEvOT0_");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
+      "EEvSt16integer_sequenceImJXspT_EEEOT0_");
+#endif
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
+      "2idIXT_EEEEUlmE_EEvSt16integer_sequenceImJXspT_EEEOT0_");
 }
 
 static void
