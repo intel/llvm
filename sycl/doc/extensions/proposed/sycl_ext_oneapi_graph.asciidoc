@@ -126,8 +126,6 @@ namespace sycl::ext::oneapi::experimental {
       command_graph() = delete;
   };
   
-  command_graph<graph_state::executable> compile(const command_graph<graph_state::modifiable> Graph);
-  
 }
 
 ----
@@ -176,7 +174,7 @@ Table 4. Member functions of the `command_graph` class.
 |
 [source,c++]
 ----
-node add_node(const std::vector<node>& dep = {});
+node add(const std::vector<node>& dep = {});
 ----
 |This creates an empty node which is associated to no task. Its intended use is either a connection point inside a graph between groups of nodes, and can significantly reduce the number of edges ( O(n) vs. O(n^2) ). Another use-case is building the structure of a graph first and adding tasks later.
 
@@ -184,9 +182,16 @@ node add_node(const std::vector<node>& dep = {});
 [source,c++]
 ----
 template<typename T>
-    node add_node(T cgf, const std::vector<node>& dep = {});
+    node add(T cgf, const std::vector<node>& dep = {});
 ----
-|This node captures a command group function object containing host task which is scheduled by the SYCL runtime or a SYCL function for invoking kernels with all restrictions that apply as described in the spec.
+|This function adds a command group function object to a graph. The function object can contain single or multiple commands such as a host task which is scheduled by the SYCL runtime or a SYCL function for invoking kernels with all restrictions that apply as described in the spec.
+
+|
+[source,c++]
+----
+command_graph<graph_state::executable> finalize(context &syclContext) const;
+----
+| This function creates an executable graph object with an immutable topology that can be executed on a queue that matches the given context.
 
 |===
 
@@ -200,158 +205,16 @@ Table 5. Member functions of the `command_graph` class (memory operations).
 |
 [source,c++]
 ----
-node memcpy(void* dest, const void* src, size_t numBytes, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `memcpy` operation.
-
-|
-[source,c++]
-----
-template<typename T> node
-copy(const T* src, T* dest, size_t count, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `copy` operation.
-
-|
-[source,c++]
-----
-node memset(void* ptr, int value, size_t numBytes, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `memset` operation.
-
-|
-[source,c++]
-----
-template<typename T>
-node fill(void* ptr, const T& pattern, size_t count, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `fill` operation.
-
-|
-[source,c++]
-----
-node malloc(void *data, size_t numBytes, usm::alloc kind, const std::vector<node>& dep = {});
+node add_malloc_device(void *&data, size_t numBytes, const std::vector<node>& dep = {});
 ----
 |Adding a node that encapsulates a `malloc` operation.
 
 |
 [source,c++]
 ----
-node malloc_shared(void *data, size_t numBytes, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `malloc` operation.
-
-|
-[source,c++]
-----
-node malloc_host(void *data, size_t numBytes, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `malloc` operation.
-
-|
-[source,c++]
-----
-node malloc_device(void *data, size_t numBytes, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `malloc` operation.
-
-|
-[source,c++]
-----
-node free(void *data, const std::vector<node>& dep = {});
+node add_free(void *data, const std::vector<node>& dep = {});
 ----
 |Adding a node that encapsulates a `free` operation.
-
-|===
-
-Table 6. Member functions of the `command_graph` class (convenience shortcuts).
-[cols="2a,a"]
-|===
-|Member function|Description
-
-|
-[source,c++]
-----
-template <typename KernelName, typename KernelType>
-node single_task(const KernelType &kernelFunc, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `single_task` operation.
-
-|
-[source,c++]
-----
-template <typename KernelName, int Dims, typename... Rest>
-node parallel_for(range<Dims> numWorkItems, Rest&& rest, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `parallel_for` operation.
-
-|
-[source,c++]
-----
-template <typename KernelName, int Dims, typename... Rest>
-node parallel_for(nd_range<Dims> executionRange, Rest&& rest, const std::vector<node>& dep = {});
-----
-|Adding a node that encapsulates a `parallel_for` operation.
-
-// |===
-// 
-// Table 7. Helper functions of the `graph` class.
-// [cols="a,a"]
-// |===
-// |Function name|Description
-//
-// |
-// [source,c++]
-// ----
-// graph<graph_state::modifiable> make_graph();
-// ----
-// |Creates a `graph` object in the  `graph_state::modifiable` state.
- 
-|===
-
-=== Node member functions
-
-Table 8. Constructor of the `node` class.
-[cols="a,a"]
-|===
-|Constructor|Description
-
-|
-[source,c++]
-----
-node();
-----
-|Creates an empty `node` object. That encapsulates no tasks and is not assigned to a graph. Prior to execution it has to be assigned to a graph.
-
-|===
-
-Table 9. Member functions of the `node` class.
-[cols="2a,a"]
-|===
-|Function name|Description
-
-|
-[source,c++]
-----
-void set_graph(command_graph<graph_state::modifiable>& Graph);
-----
-|Assigns a `node` object to a `graph`.
-
-|
-[source,c++]
-----
-template<typename T>
-void update(T cgf);
-----
-|Update a `node` object.
-
-|
-[source,c++]
-----
-template<typename T>
-void update(T cgf, graph<graph_state::modifiable>& Graph);
-----
-|Update a `node` object and assign it to a task.
 
 |===
 
@@ -378,36 +241,38 @@ int main() {
   sycl::ext::oneapi::experimental::command_graph g;
 
   float *x , *y, *z;
-
-  auto n_x = g.malloc_shared<float>(x, n, q);
-  auto n_y = g.malloc_shared<float>(y, n, q);
-  auto n_z = g.malloc_shared<float>(z, n, q);
-
+  
   float *dotp = sycl::malloc_shared<float>(1, q);
 
-  /* init data by using usm shortcut */
-  auto n_i = g.parallel_for(n, [=](sycl::id<1> it){
-    const size_t i = it[0];
-    x[i] = 1.0f;
-    y[i] = 2.0f;
-    z[i] = 3.0f;
+  auto n_x = g.add_malloc_device<float>(x, n);
+  auto n_y = g.add_malloc_device<float>(y, n);
+  auto n_z = g.add_malloc_device<float>(z, n);
+
+  /* init data on the device */
+  auto n_i = g.add([&](sycl::handler &h) {
+    h.parallel_for(n, [=](sycl::id<1> it){
+      const size_t i = it[0];
+      x[i] = 1.0f;
+      y[i] = 2.0f;
+      z[i] = 3.0f;
+    });
   }, {n_x, n_y, n_z});
 
-  auto node_a = g.add_node([&](sycl::handler &h) {
+  auto node_a = g.add([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       x[i] = alpha * x[i] + beta * y[i];
     });
   }, {n_i});
 
-  auto node_b = g.add_node([&](sycl::handler &h) {
+  auto node_b = g.add([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       z[i] = gamma * z[i] + beta * y[i];
     });
   }, {n_i});
 
-  auto node_c = g.add_node(
+  auto node_c = g.add(
       [&](sycl::handler &h) {
         h.parallel_for(sycl::range<1>{n},
                        sycl::reduction(dotp, 0.0f, std::plus()),
@@ -418,15 +283,15 @@ int main() {
       },
       {node_a, node_b});
       
-  auto node_f1 = g.free(x, {node_c});
-  auto node_f1 = g.free(y, {node_b});
+  auto node_f1 = g.add_free(x, {node_c});
+  auto node_f2 = g.add_free(y, {node_b});
 
-  auto exec = g.compile(q);
+  auto exec = g.finalize(q.get_context());
 
   q.submit(exec).wait();
 
   // memory can be freed inside or outside the graph
-  sycl::free(z, q);
+  sycl::free(z, q.get_context());
   sycl::free(dotp, q);
 
   return 0;
