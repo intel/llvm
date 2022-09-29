@@ -261,7 +261,7 @@ class annotated_ptr {
     T* get() const noexcept;
 
     annotated_ptr& operator=(T*) noexcept;
-    annotated_ptr& operator=(const annotated_ptr&) noexcept;
+    annotated_ptr& operator=(const annotated_ptr&) noexcept = default;
 
     annotated_ptr& operator++() noexcept;
     annotated_ptr operator++(int) noexcept;
@@ -430,7 +430,7 @@ Allows assignment from a pointer to type `T`.
 a|
 [source,c++]
 ----
-annotated_ptr& operator=(const annotated_ptr &) noexcept;
+annotated_ptr& operator=(const annotated_ptr &) noexcept = default;
 ----
 |
 Allows assignment from an `annotated_ptr` with the same parameterization.
@@ -514,7 +514,7 @@ class annotated_ref {
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
     void operator=(const T&) const;
-    void operator=(const annotated_ref&) const;
+    void operator=(const annotated_ref&) const = default;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -558,7 +558,7 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-void operator=(const annotated_ref&) const;
+void operator=(const annotated_ref&) const = default;
 ----
 |
 Assign from another `annotated_ref` object.
