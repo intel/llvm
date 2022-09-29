@@ -72,8 +72,7 @@ static cl::opt<bool>
 
 static cl::opt<bool>
     useGPUModule("use-gpu-module", cl::init(false),
-                   cl::desc("Use GPUModuleOp for SYCL kernels."));
-
+                 cl::desc("Use GPUModuleOp for SYCL kernels."));
 
 bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   if (!CombinedStructABI)
@@ -4916,7 +4915,8 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
   if (!FD->isDefined(Def, /*checkforfriend*/ true))
     Def = FD;
 
-  if (Optional<FunctionOpInterface> optFunction = getFunction(name, F.context)) {
+  if (Optional<FunctionOpInterface> optFunction =
+          getFunction(name, F.context)) {
     auto function = *optFunction;
 
     if (Def->isThisDeclarationADefinition()) {
@@ -5028,8 +5028,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
 
   // Inject a function declaration in the deviceModule (a GPUModuleOp) if the
   // function is a device function and in the module (a ModuleOp) otherwise.
-  const auto createFunction =
-      [&](FunctionToEmit &F) -> FunctionOpInterface {
+  const auto createFunction = [&](FunctionToEmit &F) -> FunctionOpInterface {
     const auto insert = [name](auto function, auto module, auto &map) {
       module.push_back(function);
       map[name] = function;
