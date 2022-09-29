@@ -26,6 +26,7 @@ namespace {
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
+constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
@@ -102,12 +103,43 @@ Optional<StringRef> getGlobalVariableString(const Value *StringV) {
   return {};
 }
 
+/// Tries to generate a SPIR-V decorate metadata node from an attribute
+//  of kernel arguments. If the attribute is unknown \c nullptr will be returned.
+///
+/// @param Ctx   [in] the LLVM context.
+/// @param Attr  [in] the LLVM attribute to generate metadata for.
+///
+/// @returns a pointer to a new metadata node if \c Attr is an attribute with a
+///          known corresponding SPIR-V decorate and the arguments are valid.
+///          Otherwise \c nullptr is returned.
+static MDNode *kernelArgAttributeToDecorateMetadata(LLVMContext &Ctx,
+                                                     const Attribute &Attr) {
+  // Currently, only string attributes are supported
+  if (!Attr.isStringAttribute())
+    return nullptr;
+  auto DecorIt = SpirvDecorMap.find(Attr.getKindAsString());
+  if (DecorIt == SpirvDecorMap.end())
+    return nullptr;
+  auto Decor = DecorIt->second;
+  auto DecorCode = Decor.Code;
+  switch (Decor.Type) {
+    case DecorValueTy::uint32:
+      return buildSpirvDecorMetadata(Ctx, DecorCode,
+                                     getAttributeAsInteger<uint32_t>(Attr));
+    case DecorValueTy::boolean:
+      return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+    default:
+      llvm_unreachable("Unhandled decorator type.");
+  }
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                                  ModuleAnalysisManager &MAM) {
   LLVMContext &Ctx = M.getContext();
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+  unsigned MDParamKindID = Ctx.getMDKindID(SPIRV_PARAM_DECOR_MD_KIND);
   bool CompileTimePropertiesMet = false;
 
   // Let's process all the globals
@@ -152,6 +184,28 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
       CompileTimePropertiesMet = true;
     }
+  }
+
+  // Process all properties on kernels arugments
+  for (Function &F : M) {
+    // Only consider kernels.
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    SmallVector<Metadata *, 8> MDOps;
+	for (unsigned i = 0 ; i < F.arg_size(); i++) {
+    	SmallVector<Metadata *, 8> MDArgOps;
+		for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
+		  if (MDNode *SPIRVMetadata = kernelArgAttributeToDecorateMetadata(Ctx, Attribute))
+			MDArgOps.push_back(SPIRVMetadata);
+		}
+		MDOps.push_back(MDNode::get(Ctx, MDArgOps));
+	}
+	// Add the generated metadata to the kernel function.
+	if (!MDOps.empty()) {
+	  F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
+	  CompileTimePropertiesMet = true;
+	}
   }
 
   // Check pointer annotations.
