@@ -31,40 +31,40 @@ target triple = "spir"
 ; Function Attrs: convergent norecurse nounwind
 define spir_kernel void @test1(i32 %ia, i32 %ua, i32 %ib, i32 %ub, i32 %ires, i32 %ures) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
-  %call = tail call spir_func i32 @_Z3dotiii(i32 %ia, i32 %ib, i32 0) #2
-  %call1 = tail call spir_func i32 @_Z3dotiji(i32 %ia, i32 %ub, i32 0) #2
-  %call2 = tail call spir_func i32 @_Z3dotjii(i32 %ua, i32 %ib, i32 0) #2
-  %call3 = tail call spir_func i32 @_Z3dotjji(i32 %ua, i32 %ub, i32 0) #2
-  %call4 = tail call spir_func i32 @_Z11dot_acc_satiiii(i32 %ia, i32 %ib, i32 %ires, i32 0) #2
-  %call5 = tail call spir_func i32 @_Z11dot_acc_satijii(i32 %ia, i32 %ub, i32 %ires, i32 0) #2
-  %call6 = tail call spir_func i32 @_Z11dot_acc_satjiii(i32 %ua, i32 %ib, i32 %ires, i32 0) #2
-  %call7 = tail call spir_func i32 @_Z11dot_acc_satjjji(i32 %ua, i32 %ub, i32 %ures, i32 0) #2
+  %call = tail call spir_func i32 @_Z20dot_4x8packed_ss_intjj(i32 %ia, i32 %ib) #2
+  %call1 = tail call spir_func i32 @_Z20dot_4x8packed_su_intjj(i32 %ia, i32 %ub) #2
+  %call2 = tail call spir_func i32 @_Z20dot_4x8packed_us_intjj(i32 %ua, i32 %ib) #2
+  %call3 = tail call spir_func i32 @_Z21dot_4x8packed_uu_uintjj(i32 %ua, i32 %ub) #2
+  %call4 = tail call spir_func i32 @_Z28dot_acc_sat_4x8packed_ss_intjji(i32 %ia, i32 %ib, i32 %ires) #2
+  %call5 = tail call spir_func i32 @_Z28dot_acc_sat_4x8packed_su_intjji(i32 %ia, i32 %ub, i32 %ires) #2
+  %call6 = tail call spir_func i32 @_Z28dot_acc_sat_4x8packed_us_intjji(i32 %ua, i32 %ib, i32 %ires) #2
+  %call7 = tail call spir_func i32 @_Z29dot_acc_sat_4x8packed_uu_uintjjj(i32 %ua, i32 %ub, i32 %ures) #2
   ret void
 }
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z3dotiii(i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z20dot_4x8packed_ss_intjj(i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z3dotiji(i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z20dot_4x8packed_su_intjj(i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z3dotjii(i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z20dot_4x8packed_us_intjj(i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z3dotjji(i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z21dot_4x8packed_uu_uintjj(i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z11dot_acc_satiiii(i32, i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z28dot_acc_sat_4x8packed_ss_intjji(i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z11dot_acc_satijii(i32, i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z28dot_acc_sat_4x8packed_su_intjji(i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z11dot_acc_satjiii(i32, i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z28dot_acc_sat_4x8packed_us_intjji(i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z11dot_acc_satjjji(i32, i32, i32, i32) local_unnamed_addr #1
+declare spir_func i32 @_Z29dot_acc_sat_4x8packed_uu_uintjjj(i32, i32, i32) local_unnamed_addr #1
 
 attributes #0 = { convergent norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
