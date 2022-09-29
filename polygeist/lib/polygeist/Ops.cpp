@@ -212,9 +212,9 @@ bool isReadNone(Operation *op) {
     SmallVector<MemoryEffects::EffectInstance, 1> effects;
     effectInterface.getEffects(effects);
     return llvm::all_of(effects, [op](const MemoryEffects::EffectInstance &it) {
-          return isa<MemoryEffects::Read>(it.getEffect()) ||
-                 isa<MemoryEffects::Write>(it.getEffect());
-        });
+      return isa<MemoryEffects::Read>(it.getEffect()) ||
+             isa<MemoryEffects::Write>(it.getEffect());
+    });
   }
   return false;
 }
