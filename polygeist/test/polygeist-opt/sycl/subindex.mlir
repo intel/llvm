@@ -68,3 +68,20 @@ func.func @test_4(%arg0: memref<1x!llvm.struct<(!sycl.id<1>)>>, %arg1: index) ->
 }
 
 // -----
+
+// CHECK: llvm.func @test_5([[A0:%.*]]: !llvm.ptr<[[ARRTYPE:struct<"class.cl::sycl::detail::array.1", \(array<1 x i64>\)>]], 4>, [[A1:%.*]]: !llvm.ptr<[[ARRTYPE]], 4>, [[A2:%.*]]: i64, [[A3:%.*]]: i64, [[A4:%.*]]: i64) -> !llvm.struct<(ptr<i64, 4>, ptr<i64, 4>, i64, array<1 x i64>, array<1 x i64>)> {
+// CHECK:      [[ORIG_MEMREF0:%.*]] = llvm.mlir.undef
+// CHECK-NEXT: [[ORIG_MEMREF1:%.*]] = llvm.insertvalue [[A0]], [[ORIG_MEMREF0]][0]
+// CHECK-NEXT: [[ORIG_MEMREF2:%.*]] = llvm.insertvalue [[A1]], [[ORIG_MEMREF1]][1]
+// CHECK-NEXT: [[ORIG_MEMREF3:%.*]] = llvm.insertvalue [[A2]], [[ORIG_MEMREF2]][2]
+// CHECK-NEXT: [[ORIG_MEMREF4:%.*]] = llvm.insertvalue [[A3]], [[ORIG_MEMREF3]][3, 0]
+// CHECK-NEXT: [[ORIG_MEMREF5:%.*]] = llvm.insertvalue [[A4]], [[ORIG_MEMREF4]][4, 0]
+// CHECK-DAG: [[ZERO1:%.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-DAG: [[ZERO2:%.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-DAG: [[AlignedPtr:%.*]] = llvm.extractvalue %5[1] : !llvm.struct<(ptr<[[ARRTYPE]], 4>, ptr<[[ARRTYPE]], 4>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK: [[GEP:%.*]] = llvm.getelementptr [[AlignedPtr]][[[ZERO2]], 0, [[ZERO1]]] : (!llvm.ptr<[[ARRTYPE]], 4>, i64, i64) -> !llvm.ptr<i64, 4>
+func.func @test_5(%arg0: memref<?x!sycl.array<[1], (memref<1xi64, 4>)>, 4>) -> memref<1xi64, 4> {
+  %c0 = arith.constant 0 : index
+  %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl.array<[1], (memref<1xi64, 4>)>, 4>, index) -> memref<1xi64, 4>
+  return %0 : memref<1xi64, 4>
+}
