@@ -26,6 +26,7 @@ configure_file(
 
 add_clang_executable(cgeist
   driver.cc
+  Lib/CGExpr.cc
   Lib/CGStmt.cc
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
