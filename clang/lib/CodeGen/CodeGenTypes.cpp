@@ -57,11 +57,14 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
       if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
         ArrayRef<TemplateArgument> TemplateArgs =
             TemplateDecl->getTemplateArgs().asArray();
+        constexpr size_t MaxMatrixParameter = 6;
+        assert(TemplateArgs.size() <= MaxMatrixParameter &&
+               "Too many template parameters for JointMatrixINTEL type");
         OS << "spirv.JointMatrixINTEL.";
-        for (auto &TemplateArg : TemplateArgs) {
-          OS << "_";
-          if (TemplateArg.getKind() == TemplateArgument::Type) {
-            llvm::Type *TTy = ConvertType(TemplateArg.getAsType());
+        for (size_t I = 0; I != TemplateArgs.size(); ++I) {
+          if (TemplateArgs[I].getKind() == TemplateArgument::Type) {
+            OS << "_";
+            llvm::Type *TTy = ConvertType(TemplateArgs[I].getAsType());
             if (TTy->isIntegerTy()) {
               switch (TTy->getIntegerBitWidth()) {
               case 8:
@@ -91,8 +94,14 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
               OS << LlvmTyName;
             } else
               TTy->print(OS, false, true);
-          } else if (TemplateArg.getKind() == TemplateArgument::Integral)
-            OS << TemplateArg.getAsIntegral();
+          } else if (TemplateArgs[I].getKind() == TemplateArgument::Integral) {
+            const auto IntTemplateParam = TemplateArgs[I].getAsIntegral();
+            // Last parameter 'Use' is optional in SPIR-V, but is not optional
+            // in DPCPP headers. If it has Unnecessary value - skip it
+            constexpr size_t Unnecessary = 3;
+            if (!(I == MaxMatrixParameter && IntTemplateParam == Unnecessary))
+              OS << "_" << IntTemplateParam;
+          }
         }
         Ty->setName(OS.str());
         return;
