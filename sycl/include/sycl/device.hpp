@@ -99,6 +99,8 @@ public:
   /// Check if device is a host device
   ///
   /// \return true if SYCL device is a host device
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Check if device is a CPU device
@@ -231,8 +233,6 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  friend auto detail::getDeviceComparisonLambda();
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

@@ -10,11 +10,23 @@ link_llvm_libs(sycl-trace
   LLVMSupport
 )
 
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(EXTRA_SRC
+    ze_trace_collector.cpp
+  )
+endif()
+
+if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(EXTRA_SRC
+    ${EXTRA_SRC}
+    cuda_trace_collector.cpp
+  )
+endif()
+
 add_library(sycl_pi_trace_collector SHARED
   collector.cpp
   pi_trace_collector.cpp
-  ze_trace_collector.cpp
-  $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cuda_trace_collector.cpp>
+  ${EXTRA_SRC}
 )
 
 find_package(Python3 REQUIRED)
@@ -30,18 +42,23 @@ add_custom_target(pi-pretty-printers
   )
 
 # To get L0 loader
-add_dependencies(sycl_pi_trace_collector pi_level_zero)
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl_pi_trace_collector pi_level_zero)
 
-target_link_libraries(sycl_pi_trace_collector PRIVATE LevelZeroLoader::Headers)
+  target_link_libraries(sycl_pi_trace_collector PRIVATE LevelZeroLoader::Headers)
+  target_compile_definitions(sycl_pi_trace_collector PRIVATE SYCL_HAS_LEVEL_ZERO)
 
-add_custom_target(ze-pretty-printers
-  COMMAND ${Python3_EXECUTABLE}
-  ${CMAKE_CURRENT_SOURCE_DIR}/generate_ze_pretty_printers.py
-  ${SYCL_INCLUDE_BUILD_DIR}/sycl/level_zero/ze_api.h
-  DEPENDS pi_level_zero
-  BYPRODUCTS
-    ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
-  )
+  add_custom_target(ze-pretty-printers
+    COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/generate_ze_pretty_printers.py
+    ${SYCL_INCLUDE_BUILD_DIR}/sycl/level_zero/ze_api.h
+    DEPENDS pi_level_zero
+    BYPRODUCTS
+      ${CMAKE_CURRENT_BINARY_DIR}/ze_printers.def
+    )
+
+  add_dependencies(sycl_pi_trace_collector ze-pretty-printers)
+endif()
 
 target_compile_definitions(sycl_pi_trace_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_pi_trace_collector PRIVATE xptifw)
@@ -56,7 +73,7 @@ target_include_directories(sycl_pi_trace_collector PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
-add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers)
+add_dependencies(sycl_pi_trace_collector pi-pretty-printers)
 
 if(SYCL_BUILD_PI_CUDA)
 

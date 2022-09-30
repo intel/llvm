@@ -35,10 +35,6 @@ namespace detail {
 static int getDevicePreference(const device &Device) {
   int Score = 0;
 
-  // No preferences for host devices.
-  if (Device.is_host())
-    return Score;
-
   // Strongly prefer devices with available images.
   auto &program_manager = sycl::detail::ProgramManager::getInstance();
   if (program_manager.hasCompatibleImage(Device))
@@ -109,6 +105,25 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
     return *res;
   }
 
+  auto Selector = DeviceSelectorInvocable.target<int (*)(const sycl::device &)>();
+  if ((Selector && *Selector == gpu_selector_v)
+          || DeviceSelectorInvocable.target<sycl::gpu_selector>()) {
+    throw sycl::runtime_error(
+        "No device of requested type 'info::device_type::gpu' available.",
+        PI_ERROR_DEVICE_NOT_FOUND);
+  }
+  if ((Selector && *Selector == cpu_selector_v)
+          || DeviceSelectorInvocable.target<sycl::cpu_selector>()) {
+    throw sycl::runtime_error(
+        "No device of requested type 'info::device_type::cpu' available.",
+        PI_ERROR_DEVICE_NOT_FOUND);
+  }
+  if ((Selector && *Selector == accelerator_selector_v)
+          || DeviceSelectorInvocable.target<sycl::accelerator_selector>()) {
+    throw sycl::runtime_error("No device of requested type "
+                              "'info::device_type::accelerator' available.",
+                              PI_ERROR_DEVICE_NOT_FOUND);
+  }
   throw sycl::runtime_error("No device of requested type available.",
                             PI_ERROR_DEVICE_NOT_FOUND);
 }
@@ -140,12 +155,19 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 /// 2. CPU
 /// 3. Host
 /// 4. Accelerator
+
+static void traceDeviceSelector(const std::string &DeviceType) {
+  bool ShouldTrace = false;
+  ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+  if (ShouldTrace) {
+    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType << std::endl;
+  }
+}
+
 __SYCL_EXPORT int default_selector_v(const device &dev) {
   // The default selector doesn't reject any devices.
   int Score = 0;
-  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 0;
-  }
+  traceDeviceSelector("info::device_type::automatic");
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 2000;
 
@@ -154,9 +176,6 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
 
   if (dev.is_cpu())
     Score += 300;
-
-  if (dev.is_host())
-    Score += 100;
 
   // Since we deprecate SYCL_BE and SYCL_DEVICE_TYPE,
   // we should not disallow accelerator to be chosen.
@@ -172,9 +191,7 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
 
 __SYCL_EXPORT int gpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
-  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 0;
-  }
+  traceDeviceSelector("info::device_type::gpu");
   if (dev.is_gpu()) {
     Score = 1000;
     Score += detail::getDevicePreference(dev);
@@ -185,6 +202,7 @@ __SYCL_EXPORT int gpu_selector_v(const device &dev) {
 __SYCL_EXPORT int cpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
 
+  traceDeviceSelector("info::device_type::cpu");
   if (dev.is_cpu()) {
     Score = 1000;
     Score += detail::getDevicePreference(dev);
@@ -195,11 +213,20 @@ __SYCL_EXPORT int cpu_selector_v(const device &dev) {
 __SYCL_EXPORT int accelerator_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
 
+  traceDeviceSelector("info::device_type::accelerator");
   if (dev.is_accelerator()) {
     Score = 1000;
     Score += detail::getDevicePreference(dev);
   }
   return Score;
+}
+
+int host_selector::operator()(const device &dev) const {
+  // Host device has been removed and host_selector has been deprecated, so this
+  // should never be able to select a device.
+  std::ignore = dev;
+  traceDeviceSelector("info::device_type::host");
+  return detail::REJECT_DEVICE_SCORE;
 }
 
 // -------------- SYCL 1.2.1
@@ -224,16 +251,6 @@ int cpu_selector::operator()(const device &dev) const {
 
 int accelerator_selector::operator()(const device &dev) const {
   return accelerator_selector_v(dev);
-}
-
-int host_selector::operator()(const device &dev) const {
-  int Score = detail::REJECT_DEVICE_SCORE;
-
-  if (dev.is_host()) {
-    Score = 1000;
-    Score += detail::getDevicePreference(dev);
-  }
-  return Score;
 }
 
 namespace ext {

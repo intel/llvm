@@ -123,6 +123,9 @@ filter_selector_impl::filter_selector_impl(const std::string &Input)
 }
 
 int filter_selector_impl::operator()(const device &Dev) const {
+  assert(!sycl::detail::getSyclObjImpl(Dev)->is_host() &&
+         "filter_selector_impl should not be used with host.");
+
   int Score = REJECT_DEVICE_SCORE;
 
   for (auto &Filter : mFilters) {
@@ -130,14 +133,8 @@ int filter_selector_impl::operator()(const device &Dev) const {
     bool DeviceTypeOK = true;
     bool DeviceNumOK = true;
 
-    // handle host device specially
     if (Filter.HasBackend) {
-      backend BE;
-      if (Dev.is_host()) {
-        BE = backend::host;
-      } else {
-        BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
-      }
+      backend BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
       // Backend is okay if the filter BE is set 'all'.
       if (Filter.Backend == backend::all)
         BackendOK = true;

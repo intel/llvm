@@ -18,6 +18,8 @@
 #endif
 #elif defined(__SYCL_RT_OS_WINDOWS)
 #include <intrin.h>
+#elif defined(__SYCL_RT_OS_DARWIN)
+#include <cpuid.h>
 #endif
 
 namespace sycl {
@@ -27,7 +29,7 @@ namespace detail {
 #if defined(__x86_64__) || defined(__i386__)
 // Used by methods that duplicate OpenCL behaviour in order to get CPU info
 static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
   __cpuid_count(Type, SubType, CPUInfo[0], CPUInfo[1], CPUInfo[2], CPUInfo[3]);
 #elif defined(__SYCL_RT_OS_WINDOWS)
   __cpuidex(reinterpret_cast<int *>(CPUInfo), Type, SubType);
@@ -115,7 +117,7 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   // AVX512 has 64 byte (ZMM) registers
   static constexpr uint32_t VECTOR_WIDTH_AVX512[] = {64, 32, 16, 8, 16, 8, 0};
 
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
   if (__builtin_cpu_supports("avx512f"))
     return VECTOR_WIDTH_AVX512[Index];
   if (__builtin_cpu_supports("avx2"))
