@@ -1723,7 +1723,7 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
     // For SYCL compilations, save user specified names for
     // lambda capture.
     if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost) {
-      StringRef CaptureName = Var->getName();
+      StringRef CaptureName = Var ? Var->getName() : "";
       if (!CaptureName.empty())
         Id = &Context.Idents.get(CaptureName.str());
     }
