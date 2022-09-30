@@ -70,7 +70,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &out,
 
 /// class encapsulating a function declaration and its context.
 /// Note: SYCL kernel & device functions should always be in a SYCLDevice
-///       context. Any other functions may be in a host or  device context.
+///       context. Any other functions may be in a host or device context.
 class FunctionToEmit {
 public:
   // Note: the context is determined from the given function declarator.
