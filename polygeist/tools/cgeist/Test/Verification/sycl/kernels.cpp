@@ -63,7 +63,6 @@ void host_1() {
 // CHECK-MLIR-NOT: gpu.func kernel
 
 // CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #0
-// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }
 
 void host_2() {
   auto q = sycl::queue{};
@@ -84,3 +83,6 @@ void host_2() {
 SYCL_EXTERNAL void function_1(sycl::item<2, true> item) {
   auto id = item.get_id(0);
 }
+
+// Keep at the end of the file.
+// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }

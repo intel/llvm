@@ -5153,11 +5153,12 @@ void MLIRASTConsumer::run() {
       continue;
 
     LLVM_DEBUG({
-      StringRef prefix = FD->hasAttr<clang::SYCLKernelAttr>()   ? "SYCL KERNEL"
-                         : FD->hasAttr<clang::SYCLDeviceAttr>() ? "SYCL DEVICE"
-                                                                : "";
-      llvm::dbgs() << "\n-- " << prefix
-                   << " FUNCTION BEING EMITTED: " << FD->getNameAsString()
+      StringRef funcKind =
+          (FD->hasAttr<clang::SYCLKernelAttr>()   ? "SYCL KERNEL"
+           : FD->hasAttr<clang::SYCLDeviceAttr>() ? "SYCL DEVICE"
+                                                  : "");
+      llvm::dbgs() << "\n-- " << funcKind << " FUNCTION (" << F.getContext()
+                   << " context) BEING EMITTED: " << FD->getNameAsString()
                    << " --\n\n";
     });
 
