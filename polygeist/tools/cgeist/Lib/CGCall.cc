@@ -1516,21 +1516,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return ValueCategory(called, isReference);
   }
 
-  std::string mangledName;
-  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
-
-#if 0
-  // If the function called is in a SYCL kernel or SYCL device function it
-  // must itself be a SYCL device function.
-  if (EmittingFunctionDecl->hasAttr<SYCLKernelAttr>() ||
-      EmittingFunctionDecl->hasAttr<SYCLDeviceAttr>()) {
-    LLVM_DEBUG(llvm::dbgs()
-               << __LINE__ << ": adding device attribute to '"
-               << callee->getNameAsString() << "' (" << mangledName << ")\n");
-    callee->addAttr(SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
-  }
-#endif
-
   /// If the callee is part of the SYCL namespace, we may not want the
   /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
   /// since we will create it's equivalent with SYCL operations. Please note
@@ -1541,6 +1526,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
   bool ShouldEmit = !isSyclFunc;
 
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
   if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
 

@@ -1598,24 +1598,6 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     assert(obj.isReference);
   }
 
-  std::string mangledName;
-  MLIRScanner::getMangledFuncName(mangledName, cast<FunctionDecl>(ctorDecl),
-                                  Glob.getCGM());
-  mangledName = (PrefixABI + mangledName);
-
-#if 0
-  // If the constructor called is in a SYCL kernel or SYCL device function it
-  // must itself be a SYCL device function.
-  if (EmittingFunctionDecl->hasAttr<SYCLKernelAttr>() ||
-      EmittingFunctionDecl->hasAttr<SYCLDeviceAttr>()) {
-    LLVM_DEBUG(llvm::dbgs() << __LINE__ << ": adding device attribute to '"
-                            << ctorDecl->getNameAsString() << "' ctor "
-                            << mangledName << "\n");
-    ctorDecl->addAttr(
-        SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
-  }
-#endif 
-
   /// If the constructor is part of the SYCL namespace, we may not want the
   /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
   /// since we will create it's equivalent with SYCL operations. Please note
@@ -1626,6 +1608,10 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
       mlirclang::isNamespaceSYCL(ctorDecl->getEnclosingNamespaceContext());
   bool ShouldEmit = !isSyclCtor;
 
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, cast<FunctionDecl>(ctorDecl),
+                                  Glob.getCGM());
+  mangledName = (PrefixABI + mangledName);
   if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
@@ -5101,9 +5087,6 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
     if (F.getDecl().hasAttr<SYCLKernelAttr>()) {
       auto function = builder.create<gpu::GPUFuncOp>(loc, name, funcType,
                                                      TypeRange{}, TypeRange{});
-      // SYCL kernels must be always located in a device context.
-//      F.context = FunctionContext::SYCLDevice;
-
       return insert(function, deviceModule, deviceFunctions);
     }
 
