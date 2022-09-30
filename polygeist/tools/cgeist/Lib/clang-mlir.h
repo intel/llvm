@@ -106,7 +106,7 @@ private:
 struct MLIRASTConsumer : public clang::ASTConsumer {
 private:
   std::set<std::string> &emitIfFound;
-  std::set<std::string> &done;
+  std::set<std::pair<FunctionContext, std::string>> &done;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
   std::map<std::string, mlir::func::FuncOp> &functions;
@@ -131,7 +131,8 @@ private:
 
 public:
   MLIRASTConsumer(
-      std::set<std::string> &emitIfFound, std::set<std::string> &done,
+      std::set<std::string> &emitIfFound,
+      std::set<std::pair<FunctionContext, std::string>> &done,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::func::FuncOp> &functions,
