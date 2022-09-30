@@ -456,6 +456,26 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {internal::CapabilityGlobalVariableDecorationsINTEL});
   ADD_VEC_INIT(internal::DecorationArgumentAttributeINTEL,
                {CapabilityFunctionPointersINTEL});
+  ADD_VEC_INIT(DecorationConduitKernelArgumentINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationRegisterMapKernelArgumentINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceAddressWidthINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceDataWidthINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceLatencyINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceReadWriteModeINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceMaxBurstINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceAlignmentINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceWaitRequestINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
+  ADD_VEC_INIT(DecorationStableKernelArgumentINTEL,
+               {CapabilityFPGAKernelArgumentPropertiesINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
