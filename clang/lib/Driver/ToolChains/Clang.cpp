@@ -5003,6 +5003,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
+
+    // Add any predefined macros associated with intel_gpu* type targets
+    // passed in with -fsycl-targets
+    if (RawTriple.isSPIR() &&
+        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+      StringRef Device = JA.getOffloadingArch();
+      if (!Device.empty())
+        CmdArgs.push_back(Args.MakeArgString(
+            Twine("-D") + SYCL::gen::getGenDeviceMacro(Device)));
+    }
+    if (RawTriple.isSPIR() &&
+        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      CmdArgs.push_back("-D__SYCL_TARGET_INTEL_X86_64__");
   }
 
   if (IsSYCL) {
@@ -5436,8 +5449,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Set the main file name, so that debug info works even with
   // -save-temps.
   CmdArgs.push_back("-main-file-name");
-  CmdArgs.push_back(getBaseInputName(Args, Input));
+  if (!IsSYCL || Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+    CmdArgs.push_back(getBaseInputName(Args, Input));
+  } else {
+    SmallString<256> AbsPath = llvm::StringRef(Input.getBaseInput());
+    D.getVFS().makeAbsolute(AbsPath);
+    CmdArgs.push_back(
+        Args.MakeArgString(llvm::sys::path::filename(Input.getBaseInput())));
+    CmdArgs.push_back("-fsycl-use-main-file-name");
+  }
 
+  if (IsSYCL || Args.hasArg(options::OPT_fsycl_footer_path_EQ)) {
+    CmdArgs.push_back("-full-main-file-name");
+    CmdArgs.push_back(Input.getBaseInput());
+  }
   // Some flags which affect the language (via preprocessor
   // defines).
   if (Args.hasArg(options::OPT_static))
@@ -9070,7 +9095,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
-      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs);
+      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA);
       TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-compile-opts=");
       BuildArgs.clear();

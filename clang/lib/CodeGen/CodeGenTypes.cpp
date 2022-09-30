@@ -321,6 +321,10 @@ void CodeGenTypes::UpdateCompletedType(const TagDecl *TD) {
       if (!ConvertType(ED->getIntegerType())->isIntegerTy(32))
         TypeCache.clear();
     }
+    // If this is the SYCL aspect enum it is saved for later processing.
+    if (const auto *Attr = ED->getAttr<SYCLTypeAttr>())
+      if (Attr->getType() == SYCLTypeAttr::SYCLType::aspect)
+        CGM.setAspectsEnumDecl(ED);
     // If necessary, provide the full definition of a type only used with a
     // declaration so far.
     if (CGDebugInfo *DI = CGM.getModuleDebugInfo())
