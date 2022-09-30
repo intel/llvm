@@ -923,16 +923,19 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
             triple, DL, commands);
 }
 
-static bool hasDeviceFuncs(mlir::gpu::GPUModuleOp deviceModule) {
-  return !deviceModule.getRegion().getOps<mlir::gpu::GPUFuncOp>().empty();
+static bool containsFunctions(mlir::gpu::GPUModuleOp deviceModule) {
+  Region &rgn = deviceModule.getRegion();
+  return !rgn.getOps<mlir::gpu::GPUFuncOp>().empty() ||
+         !rgn.getOps<mlir::func::FuncOp>().empty();
 }
 
 static void eraseHostCode(mlir::ModuleOp module) {
-  SmallVector<std::reference_wrapper<Operation>> ToRemove;
-  std::copy_if(module.begin(), module.end(), std::back_inserter(ToRemove),
-               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
-  for (auto Op : ToRemove)
-    Op.get().erase();
+  LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
+  SmallVector<std::reference_wrapper<Operation>> toRemove;
+  std::copy_if(module.begin(), module.end(), std::back_inserter(toRemove),
+               [](Operation &op) { return !isa<mlir::gpu::GPUModuleOp>(op); });
+  for (auto op : toRemove)
+    op.get().erase();
 }
 
 int main(int argc, char **argv) {
@@ -991,15 +994,19 @@ int main(int argc, char **argv) {
     module->dump();
   });
 
-  // For now, we will work on the device code if SYCL kernels are found and on
-  // the host code otherwise.
-  if (hasDeviceFuncs(deviceModule)) {
+  // For now, we will work on the device code if it contains any functions and
+  // on the host code otherwise.
+  if (containsFunctions(deviceModule)) {
     eraseHostCode(*module);
     module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
-  } else {
+  } else
     deviceModule.erase();
-  }
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "MLIR before compilation:\n";
+    module->dump();
+  });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
   return compileModule<mlir::ModuleOp>(module, context, DL, triple, LinkageArgs,

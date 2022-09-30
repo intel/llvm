@@ -50,18 +50,57 @@ struct LoopContext {
 };
 
 /// Context in which a function is located.
-enum class FunctionContext : unsigned {
-  Host = 0,      ///< Host code
-  SYCLDevice = 1 ///< SYCL device code
+enum class FunctionContext {
+  Host,      ///< Host function
+  SYCLDevice ///< SYCL Device function
 };
 
-/// Struct encapsulating a function declaration and its context.
-struct FunctionToEmit {
-  FunctionToEmit(const clang::FunctionDecl &decl, FunctionContext context)
-      : decl(decl), context(context) {}
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &out,
+                                     const FunctionContext &context) {
+  switch (context) {
+  case FunctionContext::Host:
+    out << "Host";
+    break;
+  case FunctionContext::SYCLDevice:
+    out << "SYCLDevice";
+    break;
+  }
+  return out;
+}
 
-  const clang::FunctionDecl &decl;
-  FunctionContext context;
+/// class encapsulating a function declaration and its context.
+/// Note: SYCL kernel & device functions should always be in a SYCLDevice
+///       context. Any other functions may be in a host or device context.
+class FunctionToEmit {
+public:
+  // Note: the context is determined from the given function declarator.
+  explicit FunctionToEmit(const clang::FunctionDecl &funcDecl)
+      : funcDecl(funcDecl),
+        funcContext((funcDecl.hasAttr<clang::SYCLKernelAttr>() ||
+                     funcDecl.hasAttr<clang::SYCLDeviceAttr>())
+                        ? FunctionContext::SYCLDevice
+                        : FunctionContext::Host) {}
+
+  /// Note: set the context requested, ensuring a host context is not requested
+  /// for SYCL kernel/functions.
+  FunctionToEmit(const clang::FunctionDecl &funcDecl,
+                 FunctionContext funcContext)
+      : funcDecl(funcDecl), funcContext(funcContext) {
+    bool isSYCLFunc = funcDecl.hasAttr<clang::SYCLKernelAttr>() ||
+                      funcDecl.hasAttr<clang::SYCLDeviceAttr>();
+    (void)isSYCLFunc;
+
+    assert((funcContext == FunctionContext::SYCLDevice ||
+            (funcContext == FunctionContext::Host && !isSYCLFunc)) &&
+           "SYCL kernel/device functions should not have host context");
+  }
+
+  const clang::FunctionDecl &getDecl() const { return funcDecl; }
+  FunctionContext getContext() const { return funcContext; }
+
+private:
+  const clang::FunctionDecl &funcDecl;
+  const FunctionContext funcContext;
 };
 
 struct MLIRASTConsumer : public clang::ASTConsumer {
@@ -166,9 +205,10 @@ public:
 
 private:
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
-                                 const clang::FunctionDecl &FD,
+                                 const FunctionToEmit &F,
                                  mlir::LLVM::Linkage lnk,
                                  mlir::MLIRContext *ctx) const;
+
   llvm::Optional<mlir::FunctionOpInterface>
   getFunction(const std::string &name, FunctionContext context) const;
 };

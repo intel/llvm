@@ -13,21 +13,27 @@
 
 #include <sycl/sycl.hpp>
 #define N 32
-// clang-format off
-// CHECK-MLIR: func.func private {{.*}}vec_add_device_simple{{.*}}sycl{{.*}}handler{{.*}}
-// CHECK-MLIR-DAG: %[[VEC1:.*]] = affine.load %[[ACCESSOR1:.*]][0] : memref<?xf32>
-// CHECK-MLIR-DAG: %[[VEC2:.*]] = affine.load %[[ACCESSOR2:.*]][0] : memref<?xf32>
-// CHECK-MLIR-NEXT: %[[RESULT:.*]] = arith.addf %[[VEC1]], %[[VEC2]] : f32
-// CHECK-MLIR-NEXT: affine.store %[[RESULT]], %[[VEC3:.*]][0] : memref<?xf32>
-// CHECK-MLIR-NEXT: return
-// clang-format on
 
-// CHECK-LLVM:       define internal void @{{.*}}vec_add_device_simple{{.*}}sycl{{.*}}handler
-// CHECK-LLVM-DAG:   %[[VEC1:.*]] = load float, float* %[[ACCESSOR1:.*]], align 4
-// CHECK-LLVM-DAG:   %[[VEC2:.*]] = load float, float* %[[ACCESSOR2:.*]], align 4
-// CHECK-LLVM:       %[[RESULT:.*]] = fadd float %[[VEC1]], %[[VEC2]]
-// CHECK-LLVM:       store float %[[RESULT]], float* %[[VEC3:.*]], align 4
-// CHECK-LLVM:       ret void
+// CHECK-MLIR:      gpu.func {{.*}}vec_add_simple({{.*}})
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR:      func.call [[FUNC:@.*vec_add_device_simple.*]]({{.*}}) :
+// CHECK-MLIR-NEXT: gpu.return
+
+// CHECK-MLIR:      func.func private [[FUNC]]({{.*}})
+// CHECK-SAME:      attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<internal>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR-DAG:  [[V1:%.*]] = affine.load {{.*}}[0] : memref<?xf32>
+// CHECK-MLIR-DAG:  [[V2:%.*]] = affine.load {{.*}}[0] : memref<?xf32>
+// CHECK-MLIR-NEXT: [[RESULT:%.*]] = arith.addf [[V1]], [[V2]] : f32
+// CHECK-MLIR-NEXT: affine.store [[RESULT]], {{.*}}[0] : memref<?xf32>
+
+// CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*]]({{.*}}) #0
+// CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float* {{.*}}, align 4
+// CHECK-LLVM-DAG:   [[V2:%.*]] = load float, float* {{.*}}, align 4
+// CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
+// CHECK-LLVM:       store float [[RESULT]], float* {{.*}}, align 4
+
+// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #0
+// CHECK-LLVM:       call void [[FUNC]]
 
 void vec_add_device_simple(std::array<float, N> &VA, std::array<float, N> &VB,
                            std::array<float, N> &VC) {
@@ -97,3 +103,6 @@ int main() {
   std::cout << "Results are correct\n";
   return 0;
 }
+
+// Keep at the end of the file.
+// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }

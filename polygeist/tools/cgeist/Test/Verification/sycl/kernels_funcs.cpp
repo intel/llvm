@@ -20,17 +20,16 @@
 // CHECK-MLIR-DAG:  gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-DAG:  func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEC1ENS1_8accessorIiLi1ELS3_1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS1_3ext6oneapi22accessor_property_listIJEEEEENS1_2idILi1EEERKi
-// CHECK-MLIR-SAME: attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
+// CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<linkonce_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // COM: StoreWrapper constructor:
 // CHECK-MLIR-DAG: func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv
-// CHECK-MLIR-SAME: attributes {llvm.linkage = #llvm.linkage<linkonce_odr>}
+// CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<linkonce_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 
 // COM: StoreWrapper constructor:
-// CHECK-LLVM:      define linkonce_odr void @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv({ %"class.cl::sycl::accessor.1", %"class.cl::sycl::id.1", i32 }* %0, { %"class.cl::sycl::accessor.1", %"class.cl::sycl::id.1", i32 }* %1, i64 %2, i64 %3, i64 %4) {
-
-// CHECK-LLVM:      define weak_odr spir_kernel void @_ZTS8kernel_1(i32* %0, i32* %1, i64 %2, i64 %3, i64 %4, %"class.cl::sycl::range.1" %5, %"class.cl::sycl::range.1" %6, %"class.cl::sycl::id.1" %7) #0 {
-// CHECK-LLVM:      ; Function Attrs: convergent mustprogress norecurse nounwind
-// CHECK-LLVM-NEXT: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(i32* %0, i32* %1, i64 %2, i64 %3, i64 %4, %"class.cl::sycl::range.1" %5, %"class.cl::sycl::range.1" %6, %"class.cl::sycl::id.1" %7) #0 {
+// CHECK-LLVM-DAG:      define linkonce_odr spir_func void @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv({{.*}}) #0 
+// CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #0
+// CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #0
+// CHECK-LLVM:          attributes #0 = { convergent mustprogress norecurse nounwind }
 
 template <typename DataT,
           int Dimensions = 1,

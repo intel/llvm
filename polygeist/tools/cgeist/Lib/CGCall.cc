@@ -1384,7 +1384,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 #endif
 
-  const auto *callee = EmitCallee(expr->getCallee());
+  const FunctionDecl *callee = EmitCallee(expr->getCallee());
 
   std::set<std::string> funcs = {
       "fread",
@@ -1517,18 +1517,21 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   }
 
   /// If the callee is part of the SYCL namespace, we may not want the
-  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit dequeu,
+  /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
   /// since we will create it's equivalent with SYCL operations. Please note
   /// that we still generate some functions that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported functions.
-  auto ShouldEmit =
-      !mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
-  std::string name;
-  MLIRScanner::getMangledFuncName(name, callee, Glob.getCGM());
-  if (isSupportedFunctions(name))
+  bool isSyclFunc =
+      mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
+  bool ShouldEmit = !isSyclFunc;
+
+  std::string mangledName;
+  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
+  if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
-  FunctionToEmit F{*callee, mlirclang::getInputContext(builder)};
+
+  FunctionToEmit F(*callee, mlirclang::getInputContext(builder));
   auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
