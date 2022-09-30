@@ -243,14 +243,13 @@ private:
                : memory_scope::device;
   }
 
-  template <access::address_space Space, access::decorated IsDecorated, class T,
-            class AtomicFunctor>
+  template <access::address_space Space, class T, class AtomicFunctor>
   void atomic_combine_impl(T *ReduVarPtr, AtomicFunctor Functor) const {
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
                                         getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space, IsDecorated>(ReduVarPtr)[E]);
+          address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
@@ -270,7 +269,7 @@ public:
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
               IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space, access::decorated::legacy>(
+    atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
   }
 
@@ -281,7 +280,7 @@ public:
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space, access::decorated::legacy>(
+    atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
   }
 
@@ -292,7 +291,7 @@ public:
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space, access::decorated::legacy>(
+    atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
   }
 
@@ -305,7 +304,7 @@ public:
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space, access::decorated::legacy>(
+    atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
   }
 
@@ -317,7 +316,7 @@ public:
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
               IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space, access::decorated::legacy>(
+    atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
   }
 
@@ -329,7 +328,7 @@ public:
                IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
               IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    atomic_combine_impl<Space, access::decorated::legacy>(
+    atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };

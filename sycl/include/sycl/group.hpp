@@ -366,9 +366,9 @@ public:
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using VecT = detail::change_base_type_t<T, uint8_t>;
-    auto DestP = multi_ptr<VecT, DestS, DestIsDecorated>(
+    auto DestP = address_space_cast<DestS, DestIsDecorated>(
         reinterpret_cast<VecT *>(Dest.get()));
-    auto SrcP = multi_ptr<VecT, SrcS, SrcIsDecorated>(
+    auto SrcP = address_space_cast<SrcS, SrcIsDecorated>(
         reinterpret_cast<VecT *>(Src.get()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }

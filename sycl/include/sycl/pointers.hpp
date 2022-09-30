@@ -44,10 +44,10 @@ template <typename ElementType,
 using local_ptr =
     multi_ptr<ElementType, access::address_space::local_space, IsDecorated>;
 
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
+template <typename ElementType>
 using constant_ptr =
-    multi_ptr<ElementType, access::address_space::constant_space, IsDecorated>;
+    multi_ptr<ElementType, access::address_space::constant_space,
+              access::decorated::legacy>;
 
 template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>

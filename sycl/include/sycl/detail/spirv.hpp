@@ -27,6 +27,23 @@ struct sub_group;
 } // namespace ext
 
 namespace detail {
+
+// Helper for reinterpret casting the decorated pointer inside a multi_ptr
+// without losing the decorations.
+template <typename ToT, typename FromT, access::address_space Space,
+          access::decorated IsDecorated>
+inline typename multi_ptr<ToT, Space, access::decorated::yes>::pointer
+GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
+  if constexpr (IsDecorated == access::decorated::legacy)
+    return reinterpret_cast<
+        typename multi_ptr<ToT, Space, access::decorated::yes>::pointer>(
+        MPtr.get());
+  else
+    return reinterpret_cast<
+        typename multi_ptr<ToT, Space, access::decorated::yes>::pointer>(
+        MPtr.get_decorated());
+}
+
 namespace spirv {
 
 template <typename Group> struct group_scope {};
@@ -286,9 +303,7 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
-  auto *PtrInt = reinterpret_cast<
-      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
-      MPtr.get());
+  auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   I DesiredInt = bit_cast<I>(Desired);
   I ExpectedInt = bit_cast<I>(Expected);
   I ResultInt = __spirv_AtomicCompareExchange(
@@ -313,9 +328,7 @@ inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto *PtrInt = reinterpret_cast<
-      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
-      MPtr.get());
+  auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ResultInt = __spirv_AtomicLoad(PtrInt, SPIRVScope, SPIRVOrder);
@@ -339,9 +352,7 @@ inline typename detail::enable_if_t<std::is_floating_point<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto *PtrInt = reinterpret_cast<
-      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
-      MPtr.get());
+  auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ValueInt = bit_cast<I>(Value);
@@ -365,9 +376,7 @@ inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto *PtrInt = reinterpret_cast<
-      typename multi_ptr<I, AddressSpace, access::decorated::yes>::pointer>(
-      MPtr.get());
+  auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ValueInt = bit_cast<I>(Value);
