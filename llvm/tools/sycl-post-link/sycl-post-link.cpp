@@ -552,6 +552,14 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   return !Res.areAllPreserved();
 }
 
+// Compute the filename suffix for the module
+StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
+  if (MD.isDoubleGRF()) {
+    return MD.isESIMD() ? "_esimd_x2grf" : "_x2grf";
+  }
+  return MD.isESIMD() ? "_esimd" : "";
+}
+
 // @param MD Module descriptor to save
 // @param IRFilename filename of already available IR component. If not empty,
 //   IR component saving is skipped, and this file name is recorded as such in
@@ -561,8 +569,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
                                    StringRef IRFilename = "") {
   IrPropSymFilenameTriple Res;
-  StringRef Suffix = MD.isDoubleGRF() ? MD.isESIMD() ? "_esimd_x2grf" : "_x2grf"
-                                      : (MD.isESIMD() ? "_esimd" : "");
+  StringRef Suffix = getModuleSuffix(MD);
 
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename

@@ -10,7 +10,7 @@
 // potentially call this intrinsic.
 
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
-#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/CallgraphUtils.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
@@ -46,7 +46,7 @@ void processSetKernelPropertiesCall(CallInst &CI) {
   case property_ids::use_double_grf:
     // TODO: Keep track of traversed functions to avoid repeating traversals
     // over same function.
-    llvm::esimd::traverseCallgraphUp(F, [](Function *GraphNode) {
+    llvm::CallgraphUtils::traverseCallgraphUp(F, [](Function *GraphNode) {
       GraphNode->addFnAttr(llvm::sycl_kernel_props::ATTR_DOUBLE_GRF);
     });
     break;
