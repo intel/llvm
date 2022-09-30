@@ -799,7 +799,7 @@ struct ConvertPolygeistToLLVMPass
           .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
               converter);
 
-      // TODO: This is a temporal solution. In the future, we might want to
+      // TODO: This is a temporary solution. In the future, we might want to
       // handle GPUDialect lowering by extending the GpuToLLVMConversionPass.
       patterns.add<GPUFuncOpToFuncOpConversion, GPUModuleOpToModuleOpConversion,
                    GPUReturnOpLowering, GPUModuleEndOpLowering>(converter);
