@@ -1384,7 +1384,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 #endif
 
-  FunctionDecl *callee = EmitCallee(expr->getCallee());
+  const FunctionDecl *callee = EmitCallee(expr->getCallee());
 
   std::set<std::string> funcs = {
       "fread",
@@ -1519,6 +1519,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   std::string mangledName;
   MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
 
+#if 0
   // If the function called is in a SYCL kernel or SYCL device function it
   // must itself be a SYCL device function.
   if (EmittingFunctionDecl->hasAttr<SYCLKernelAttr>() ||
@@ -1528,6 +1529,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                << callee->getNameAsString() << "' (" << mangledName << ")\n");
     callee->addAttr(SYCLDeviceAttr::CreateImplicit(Glob.getCGM().getContext()));
   }
+#endif
 
   /// If the callee is part of the SYCL namespace, we may not want the
   /// GetOrCreateMLIRFunction to add this FuncOp to the functionsToEmit deque,
@@ -1542,7 +1544,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
-  FunctionToEmit F{*callee, mlirclang::getInputContext(builder)};
+  FunctionToEmit F(*callee, mlirclang::getInputContext(builder));
   auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;

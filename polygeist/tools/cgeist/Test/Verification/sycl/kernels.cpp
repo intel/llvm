@@ -31,8 +31,7 @@
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM:      ; Function Attrs: convergent mustprogress norecurse nounwind
-// CHECK-LLVM-NEXT: define weak_odr spir_kernel void @_ZTS8kernel_1(i32* %0, i32* %1, i64 %2, i64 %3, i64 %4, %"class.cl::sycl::range.1" %5, %"class.cl::sycl::range.1" %6, %"class.cl::sycl::id.1" %7) #0 {
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #0
 
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
@@ -63,8 +62,8 @@ void host_1() {
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM:      ; Function Attrs: convergent mustprogress norecurse nounwind
-// CHECK-LLVM-NEXT: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(i32* %0, i32* %1, i64 %2, i64 %3, i64 %4, %"class.cl::sycl::range.1" %5, %"class.cl::sycl::range.1" %6, %"class.cl::sycl::id.1" %7) #0 {
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #0
+// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }
 
 void host_2() {
   auto q = sycl::queue{};

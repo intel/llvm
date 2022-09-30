@@ -68,29 +68,39 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &out,
   return out;
 }
 
-/// Struct encapsulating a function declaration and its context.
+/// class encapsulating a function declaration and its context.
+/// Note: SYCL kernel & device functions should always be in a SYCLDevice
+///       context. Any other functions may be in a host or  device context.
 class FunctionToEmit {
 public:
-  /// SYCL kernel & device functions will have SYCLDevice context.
-  FunctionToEmit(const clang::FunctionDecl &decl)
-      : decl(decl), context(FunctionContext::Host) {
-    if (decl.hasAttr<SYCLKernelAttr>() || decl.hasAttr<SYCLDeviceAttr>())
-      context = FunctionContext::SYCLDevice;
+  // Note: the context is determined from the given function declarator.
+  explicit FunctionToEmit(const clang::FunctionDecl &funcDecl)
+      : funcDecl(funcDecl),
+        funcContext((funcDecl.hasAttr<clang::SYCLKernelAttr>() ||
+                     funcDecl.hasAttr<clang::SYCLDeviceAttr>())
+                        ? FunctionContext::SYCLDevice
+                        : FunctionContext::Host) {}
+
+  /// Note: set the context requested, ensuring a host context is not requested
+  /// for SYCL kernel/functions.
+  FunctionToEmit(const clang::FunctionDecl &funcDecl,
+                 FunctionContext funcContext)
+      : funcDecl(funcDecl), funcContext(funcContext) {
+    bool isSYCLFunc = funcDecl.hasAttr<clang::SYCLKernelAttr>() ||
+                      funcDecl.hasAttr<clang::SYCLDeviceAttr>();
+    (void)isSYCLFunc;
+
+    assert((funcContext == FunctionContext::SYCLDevice ||
+            (funcContext == FunctionContext::Host && !isSYCLFunc)) &&
+           "SYCL kernel/device functions should not have host context");
   }
 
-  /// SYCL kernel & device functions must have SYCLDevice context.
-  /// Any other function can either run on the device or on the host.
-  FunctionToEmit(const clang::FunctionDecl &decl, FunctionContext context)
-      : decl(decl), context(context) {
-    assert(
-        ((decl.hasAttr<SYCLKernelAttr>() || decl.hasAttr<SYCLDeviceAttr>()) &&
-         context == FunctionContext::SYCLDevice) &&
-        "Expecting SYCL kernel and device functions to have context == SYCLDevice");
-  }
+  const clang::FunctionDecl &getDecl() const { return funcDecl; }
+  FunctionContext getContext() const { return funcContext; }
 
 private:
-  const clang::FunctionDecl &decl;
-  const FunctionContext context;
+  const clang::FunctionDecl &funcDecl;
+  const FunctionContext funcContext;
 };
 
 struct MLIRASTConsumer : public clang::ASTConsumer {
@@ -195,9 +205,10 @@ public:
 
 private:
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
-                                 const clang::FunctionDecl &FD,
+                                 const FunctionToEmit &F,
                                  mlir::LLVM::Linkage lnk,
                                  mlir::MLIRContext *ctx) const;
+
   llvm::Optional<mlir::FunctionOpInterface>
   getFunction(const std::string &name, FunctionContext context) const;
 };
@@ -262,7 +273,7 @@ private:
   mlir::Value createAllocOp(mlir::Type t, clang::VarDecl *name,
                             uint64_t memspace, bool isArray, bool LLVMABI);
 
-  clang::FunctionDecl *EmitCallee(clang::Expr *E);
+  const clang::FunctionDecl *EmitCallee(const clang::Expr *E);
 
   mlir::FunctionOpInterface EmitDirectCallee(const clang::FunctionDecl *FD,
                                              FunctionContext Context);
