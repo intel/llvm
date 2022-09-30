@@ -76,7 +76,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
   if (Uses.size() == 0) {
     return nullptr;
   }
-  Value *Addr = esimd::stripCasts((*Uses.begin())->get());
+  Value *Addr = esimd::stripCastsAndZeroGEPs((*Uses.begin())->get());
 
   for (const auto *UU : Uses) {
     const User *U = UU->getUser();
@@ -92,7 +92,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
     }
 
     if (const auto *SI = dyn_cast<StoreInst>(U)) {
-      if (esimd::stripCasts(SI->getPointerOperand()) != Addr) {
+      if (esimd::stripCastsAndZeroGEPs(SI->getPointerOperand()) != Addr) {
         // the pointer escapes into memory
         return nullptr;
       }
@@ -167,7 +167,7 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
   //   }
   {
     SmallPtrSet<const Use *, 4> Uses;
-    esimd::collectUsesLookThroughCasts(&FormalParam, Uses);
+    esimd::collectUsesLookThroughCastsAndZeroGEPs(&FormalParam, Uses);
     bool LoadMet = 0;
     bool StoreMet = 0;
     ContentT = getMemTypeIfSameAddressLoadsStores(Uses, LoadMet, StoreMet);
@@ -225,14 +225,14 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
     if (!Call || (Call->getCalledFunction() != F)) {
       return nullptr;
     }
-    auto ArgNo = FormalParam.getArgNo();
-    Value *ActualParam = esimd::stripCasts(Call->getArgOperand(ArgNo));
+    Value *ActualParam = esimd::stripCastsAndZeroGEPs(
+        Call->getArgOperand(FormalParam.getArgNo()));
 
     if (!IsSret && !isa<AllocaInst>(ActualParam)) {
       return nullptr;
     }
     SmallPtrSet<const Use *, 4> Uses;
-    esimd::collectUsesLookThroughCasts(ActualParam, Uses);
+    esimd::collectUsesLookThroughCastsAndZeroGEPs(ActualParam, Uses);
     bool LoadMet = 0;
     bool StoreMet = 0;
 
