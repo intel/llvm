@@ -20,7 +20,7 @@
 #include "mlir/Transforms/InliningUtils.h"
 
 void mlir::sycl::SYCLDialect::initialize() {
-  mlir::Dialect::addOperations<
+  mlir::sycl::SYCLDialect::addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
       >();
@@ -125,6 +125,45 @@ void mlir::sycl::SYCLDialect::printType(
   }
 }
 
+llvm::Optional<llvm::StringRef>
+mlir::sycl::SYCLDialect::findMethod(mlir::TypeID BaseType,
+                                    llvm::StringRef MethodName) const {
+  const auto Iter = Methods.find({BaseType, MethodName});
+  return Iter == Methods.end() ? llvm::None
+                               : llvm::Optional<llvm::StringRef>{Iter->second};
+}
+
+void mlir::sycl::SYCLDialect::addSYCLMethod(
+    mlir::TypeID TypeID, llvm::ArrayRef<llvm::StringLiteral> MethodNames,
+    llvm::StringRef OpName) {
+  for (auto Name : MethodNames) {
+    const bool inserted = Methods.try_emplace({TypeID, Name}, OpName).second;
+    assert(inserted && "Duplicated SYCL method entry");
+  }
+}
+
+// If the operation is a SYCL method, register it.
+template <typename T>
+static typename std::enable_if_t<mlir::sycl::isSYCLMethod<T>::value>
+addSYCLMethod(mlir::sycl::SYCLDialect &Dialect) {
+  Dialect.addSYCLMethod(T::getTypeID(), T::getMethodNames(),
+                        T::getOperationName());
+}
+
+// If the operation is not a SYCL method, do nothing.
+template <typename T>
+static typename std::enable_if_t<!mlir::sycl::isSYCLMethod<T>::value>
+addSYCLMethod(mlir::sycl::SYCLDialect &) {}
+
+template <typename T> void mlir::sycl::SYCLDialect::addSYCLMethod() {
+  ::addSYCLMethod<T>(*this);
+}
+
+template <typename... Args> void mlir::sycl::SYCLDialect::addOperations() {
+  mlir::Dialect::addOperations<Args...>();
+  (void)std::initializer_list<int>{0, (addSYCLMethod<Args>(), 0)...};
+}
+
 bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
                                                ::mlir::TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1) {
@@ -158,6 +197,8 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   const auto IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
   return HasArrayTrait && IsArray;
 }
+
+#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.cpp.inc"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.cpp.inc"
 

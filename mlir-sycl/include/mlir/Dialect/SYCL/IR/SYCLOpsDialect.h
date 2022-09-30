@@ -21,6 +21,10 @@
 /// sycl dialect.
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
 
+/// Include the header file containing the declaration of the sycl operation
+/// interfaces.
+#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
+
 /// Include the auto-generated header file containing the declarations of the
 /// sycl operations.
 #define GET_OP_CLASSES
