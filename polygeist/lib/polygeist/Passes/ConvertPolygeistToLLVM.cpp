@@ -25,6 +25,7 @@
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -692,6 +693,68 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
   }
 };
 
+struct GPUModuleOpToModuleOpConversion
+    : public ConvertOpToLLVMPattern<gpu::GPUModuleOp> {
+  using ConvertOpToLLVMPattern<gpu::GPUModuleOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::GPUModuleOp deviceModule, gpu::GPUModuleOp::Adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Copy contents to the parent module and erase the operation.
+    auto module = deviceModule->getParentOfType<ModuleOp>();
+    rewriter.mergeBlocks(deviceModule.getBody(), module.getBody(), {});
+    rewriter.eraseOp(deviceModule);
+    return success();
+  }
+};
+
+struct GPUFuncOpToFuncOpConversion
+    : public ConvertOpToLLVMPattern<gpu::GPUFuncOp> {
+  using ConvertOpToLLVMPattern<gpu::GPUFuncOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, gpu::GPUFuncOp::Adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto module = gpuFuncOp->getParentOfType<ModuleOp>();
+
+    rewriter.setInsertionPointToEnd(module.getBody());
+    auto NewFuncOp = rewriter.create<func::FuncOp>(
+        gpuFuncOp.getLoc(), gpuFuncOp.getName(), gpuFuncOp.getFunctionType());
+    NewFuncOp->setAttrs(gpuFuncOp->getAttrs());
+    rewriter.notifyOperationInserted(NewFuncOp);
+
+    rewriter.inlineRegionBefore(gpuFuncOp.getBody(), NewFuncOp.getBody(),
+                                NewFuncOp.getBody().end());
+
+    rewriter.eraseOp(gpuFuncOp);
+
+    return success();
+  }
+};
+
+struct GPUModuleEndOpLowering
+    : public ConvertOpToLLVMPattern<gpu::ModuleEndOp> {
+  using ConvertOpToLLVMPattern<gpu::ModuleEndOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::ModuleEndOp op, gpu::ModuleEndOp::Adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct GPUReturnOpLowering : public ConvertOpToLLVMPattern<gpu::ReturnOp> {
+  using ConvertOpToLLVMPattern<gpu::ReturnOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::ReturnOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getOperands());
+    return success();
+  }
+};
+
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
@@ -735,6 +798,12 @@ struct ConvertPolygeistToLLVMPass
       patterns
           .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
               converter);
+
+      // TODO: This is a temporary solution. In the future, we might want to
+      // handle GPUDialect lowering by extending the GpuToLLVMConversionPass.
+      patterns.add<GPUFuncOpToFuncOpConversion, GPUModuleOpToModuleOpConversion,
+                   GPUReturnOpLowering, GPUModuleEndOpLowering>(converter);
+
       patterns.add<URLLVMOpLowering>(converter);
 
       // Legality callback for operations that checks whether their operand and
@@ -755,6 +824,7 @@ struct ConvertPolygeistToLLVMPass
       LLVMConversionTarget target(getContext());
       target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
           [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
+      target.addIllegalDialect<gpu::GPUDialect>();
       target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
                           scf::ExecuteRegionOp, func::FuncOp>();
       target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,

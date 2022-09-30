@@ -106,10 +106,10 @@ mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
   return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
 }
 
-MLIRScanner::MLIRScanner(
-    MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
-    LowerToInfo &LTInfo)
+MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
+                         mlir::OwningOpRef<mlir::ModuleOp> &module,
+                         mlir::gpu::GPUModuleOp deviceModule,
+                         LowerToInfo &LTInfo)
     : Glob(Glob), function(), module(module), deviceModule(deviceModule),
       builder(module->getContext()), loc(builder.getUnknownLoc()),
       entryBlock(nullptr), loops(), allocationScope(nullptr), supportedFuncs(),
@@ -226,15 +226,15 @@ void MLIRScanner::initSupportedFunctions() {
       "2idIXT_EEEEUlmE_EEvSt16integer_sequenceImJXspT_EEEOT0_");
 }
 
-static void
-checkFunctionParent(const FunctionOpInterface F, FunctionContext Context,
-                    const OwningOpRef<ModuleOp> &module,
-                    const OwningOpRef<gpu::GPUModuleOp> &deviceModule) {
+static void checkFunctionParent(const FunctionOpInterface F,
+                                FunctionContext Context,
+                                const OwningOpRef<ModuleOp> &module,
+                                gpu::GPUModuleOp deviceModule) {
   assert(
       (Context != FunctionContext::Host || F->getParentOp() == module.get()) &&
       "New function must be inserted into global module");
   assert((Context != FunctionContext::SYCLDevice ||
-          F->getParentOfType<gpu::GPUModuleOp>() == deviceModule.get()) &&
+          F->getParentOfType<gpu::GPUModuleOp>() == deviceModule) &&
          "New device function must be inserted into device module");
 }
 
@@ -5095,14 +5095,14 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
       // SYCL kernels must be always located in a SYCL device context.
       Context = FunctionContext::SYCLDevice;
 
-      return insert(function, *deviceModule, deviceFunctions);
+      return insert(function, deviceModule, deviceFunctions);
     }
     auto function = builder.create<func::FuncOp>(loc, name, funcType);
     switch (Context) {
     case FunctionContext::Host:
       return insert(function, *module, functions);
     case FunctionContext::SYCLDevice:
-      return insert(function, *deviceModule, deviceFunctions);
+      return insert(function, deviceModule, deviceFunctions);
     }
     llvm_unreachable("Invalid function context");
   };
@@ -5885,7 +5885,7 @@ public:
   std::set<std::string> emitIfFound;
   std::set<std::string> done;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule;
+  mlir::gpu::GPUModuleOp deviceModule;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
   std::map<std::string, mlir::func::FuncOp> functions;
@@ -5893,7 +5893,7 @@ public:
   std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
   MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module,
-             mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule)
+             mlir::gpu::GPUModuleOp deviceModule)
       : module(module), deviceModule(deviceModule) {
     emitIfFound.insert(fn);
   }
@@ -5977,8 +5977,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
                       mlir::OwningOpRef<mlir::ModuleOp> &module,
-                      mlir::OwningOpRef<mlir::gpu::GPUModuleOp> &deviceModule,
-                      llvm::Triple &triple, llvm::DataLayout &DL,
+                      mlir::gpu::GPUModuleOp deviceModule, llvm::Triple &triple,
+                      llvm::DataLayout &DL,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
