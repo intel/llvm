@@ -184,11 +184,20 @@ class __SYCL2020_DEPRECATED(
   static constexpr auto SpirvScope =
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
+  template <typename pointerT, access::decorated IsDecorated>
+  static auto
+  GetDecoratedPtr(multi_ptr<pointerT, addressSpace, IsDecorated> ptr) {
+    if constexpr (IsDecorated == access::decorated::legacy)
+      return ptr.get();
+    else
+      return ptr.get_decorated();
+  }
+
 public:
   template <typename pointerT, access::decorated IsDecorated>
 #ifdef __SYCL_DEVICE_ONLY__
   atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
-      : Ptr(ptr.get())
+      : Ptr(GetDecoratedPtr(ptr))
 #else
   atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
       : Ptr(reinterpret_cast<std::atomic<T> *>(ptr.get()))
