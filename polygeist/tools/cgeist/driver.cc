@@ -931,9 +931,8 @@ static void eraseHostCode(mlir::ModuleOp module) {
   SmallVector<std::reference_wrapper<Operation>> ToRemove;
   std::copy_if(module.begin(), module.end(), std::back_inserter(ToRemove),
                [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
-  for (auto Op : ToRemove) {
+  for (auto Op : ToRemove)
     Op.get().erase();
-  }
 }
 
 int main(int argc, char **argv) {
