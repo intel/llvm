@@ -57,11 +57,14 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
       if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
         ArrayRef<TemplateArgument> TemplateArgs =
             TemplateDecl->getTemplateArgs().asArray();
+        [[maybe_unused]] constexpr size_t MinMatrixParameter = 5;
         constexpr size_t MaxMatrixParameter = 6;
-        assert(TemplateArgs.size() <= MaxMatrixParameter &&
+        const size_t TemplateArgsSize = TemplateArgs.size();
+        assert((TemplateArgsSize >= MinMatrixParameter &&
+                TemplateArgsSize <= MaxMatrixParameter) &&
                "Too many template parameters for JointMatrixINTEL type");
         OS << "spirv.JointMatrixINTEL.";
-        for (size_t I = 0; I != TemplateArgs.size(); ++I) {
+        for (size_t I = 0; I != TemplateArgsSize; ++I) {
           if (TemplateArgs[I].getKind() == TemplateArgument::Type) {
             OS << "_";
             llvm::Type *TTy = ConvertType(TemplateArgs[I].getAsType());
