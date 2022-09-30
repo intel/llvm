@@ -840,6 +840,13 @@ foreach AS = [GlobalAS, LocalAS, PrivateAS] in {
   def : SPVBuiltin<"GenericCastToPtrExplicit", [PointerType<Char, AS>, PointerType<Char, GenericAS>], Attr.Const>;
 }
 
+def : SPVBuiltin<"GenericCastToPtrExplicit_ToGlobal", [PointerType<Void, GlobalAS>, PointerType<ConstType<Void>, DefaultAS>, Int], Attr.Const>;
+def : SPVBuiltin<"GenericCastToPtrExplicit_ToGlobal", [PointerType<VolatileType<Void>, GlobalAS>, PointerType<VolatileType<ConstType<Void>>, DefaultAS>, Int], Attr.Const>;
+def : SPVBuiltin<"GenericCastToPtrExplicit_ToLocal", [PointerType<Void, LocalAS>, PointerType<ConstType<Void>, DefaultAS>, Int], Attr.Const>;
+def : SPVBuiltin<"GenericCastToPtrExplicit_ToLocal", [PointerType<VolatileType<Void>, LocalAS>, PointerType<VolatileType<ConstType<Void>>, DefaultAS>, Int], Attr.Const>;
+def : SPVBuiltin<"GenericCastToPtrExplicit_ToPrivate", [PointerType<Void, PrivateAS>, PointerType<ConstType<Void>, DefaultAS>, Int], Attr.Const>;
+def : SPVBuiltin<"GenericCastToPtrExplicit_ToPrivate", [PointerType<VolatileType<Void>, PrivateAS>, PointerType<VolatileType<ConstType<Void>>, DefaultAS>, Int], Attr.Const>;
+
 foreach Type = TLFloat.List in {
   foreach v = [2, 3, 4, 8, 16] in {
     def : SPVBuiltin<"VectorTimesScalar", [VectorType<Type, v>, VectorType<Type, v>, Type], Attr.Const>;

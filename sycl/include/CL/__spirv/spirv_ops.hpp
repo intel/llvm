@@ -315,30 +315,6 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 #undef __SPIRV_ATOMIC_UNSIGNED
 #undef __SPIRV_ATOMIC_XOR
 
-extern SYCL_EXTERNAL __attribute__((opencl_global)) void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(const void *Ptr,
-                                          __spv::StorageClass::Flag S) noexcept;
-
-extern SYCL_EXTERNAL __attribute__((opencl_global)) volatile void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(const volatile void *Ptr,
-                                          __spv::StorageClass::Flag S) noexcept;
-
-extern SYCL_EXTERNAL __attribute__((opencl_local)) void *
-__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
-                                         __spv::StorageClass::Flag S) noexcept;
-
-extern SYCL_EXTERNAL __attribute__((opencl_local)) volatile void *
-__spirv_GenericCastToPtrExplicit_ToLocal(const volatile void *Ptr,
-                                         __spv::StorageClass::Flag S) noexcept;
-
-extern SYCL_EXTERNAL __attribute__((opencl_private)) void *
-__spirv_GenericCastToPtrExplicit_ToPrivate(
-    const void *Ptr, __spv::StorageClass::Flag S) noexcept;
-
-extern SYCL_EXTERNAL __attribute__((opencl_private)) volatile void *
-__spirv_GenericCastToPtrExplicit_ToPrivate(
-    const volatile void *Ptr, __spv::StorageClass::Flag S) noexcept;
-
 template <typename dataT>
 extern __attribute__((opencl_global)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
