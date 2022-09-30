@@ -1,7 +1,17 @@
-#include <sycl/sycl.hpp>
+// Copyright (C) Intel
+
+//===--- sycl_extern_func.cpp ---------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 // RUN: sycl-clang.py %s -S | FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: sycl-clang.py %s -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
+
+#include <sycl/sycl.hpp>
 
 // CHECK-MLIR-LABEL: func.func @cons_5() attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-MLIR:           sycl.constructor(%{{.*}})
