@@ -215,7 +215,7 @@ struct DecoratedType<ElementType, access::address_space::local_space> {
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
-template <class T> struct deduce_AS {
+template <class T> struct deduce_AS_impl {
   // Undecorated pointers are considered generic.
   // TODO: This assumes that the implementation uses generic as default. If
   //       address space inference is used this may need to change.
@@ -223,61 +223,42 @@ template <class T> struct deduce_AS {
       access::address_space::generic_space;
 };
 
-// Propagate through const qualifier.
-template <typename T> struct deduce_AS<const T> {
-  static constexpr access::address_space value = deduce_AS<T>::value;
-};
-
-// Propagate through pointer.
-template <typename T> struct deduce_AS<T *> {
-  static constexpr access::address_space value = deduce_AS<T>::value;
-};
-
-// Propagate through const qualified pointer.
-template <typename T> struct deduce_AS<const T *> {
-  static constexpr access::address_space value = deduce_AS<T>::value;
-};
-
-// Propagate through reference.
-template <typename T> struct deduce_AS<T &> {
-  static constexpr access::address_space value = deduce_AS<T>::value;
-};
-
-// Propagate through const qualified reference.
-template <typename T> struct deduce_AS<const T &> {
-  static constexpr access::address_space value = deduce_AS<T>::value;
-};
-
 #ifdef __ENABLE_USM_ADDR_SPACE__
-template <class T> struct deduce_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
+template <class T> struct deduce_AS_impl<__OPENCL_GLOBAL_DEVICE_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::ext_intel_global_device_space;
 };
 
-template <class T> struct deduce_AS<__OPENCL_GLOBAL_HOST_AS__ T> {
+template <class T> struct deduce_AS_impl<__OPENCL_GLOBAL_HOST_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::ext_intel_global_host_space;
 };
 #endif // __ENABLE_USM_ADDR_SPACE__
 
-template <class T> struct deduce_AS<__OPENCL_GLOBAL_AS__ T> {
+template <class T> struct deduce_AS_impl<__OPENCL_GLOBAL_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::global_space;
 };
 
-template <class T> struct deduce_AS<__OPENCL_PRIVATE_AS__ T> {
+template <class T> struct deduce_AS_impl<__OPENCL_PRIVATE_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::private_space;
 };
 
-template <class T> struct deduce_AS<__OPENCL_LOCAL_AS__ T> {
+template <class T> struct deduce_AS_impl<__OPENCL_LOCAL_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::local_space;
 };
 
-template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
+template <class T> struct deduce_AS_impl<__OPENCL_CONSTANT_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::constant_space;
+};
+
+template <class T>
+struct deduce_AS
+    : deduce_AS_impl<
+          std::remove_pointer_t<std::remove_reference_t<std::remove_cv_t<T>>>> {
 };
 #endif
 
