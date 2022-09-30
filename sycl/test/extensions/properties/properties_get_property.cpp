@@ -20,7 +20,6 @@ int main() {
       P1::get_property<sycl::ext::oneapi::experimental::baz_key>().value == 1);
 
   // Check runtime and compile-time properties on property-list object
-  sycl::queue Q;
   sycl::ext::oneapi::experimental::foo FooProp{3};
   auto PropertyList = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::baz<1>,

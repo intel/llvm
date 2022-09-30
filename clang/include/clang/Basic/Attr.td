@@ -1429,6 +1429,14 @@ def SYCLRequiresDecomposition : InheritableAttr {
   let Documentation = [InternalOnly];
 }
 
+def SYCLGenerateNewType : InheritableAttr {
+  // No spellings, as this is for internal use.
+  let Spellings = [];
+  let Subjects = SubjectList<[Named]>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [InternalOnly];
+}
+
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [CXX11<"intel", "kernel_args_restrict">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

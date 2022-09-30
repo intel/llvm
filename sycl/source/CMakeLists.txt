@@ -63,10 +63,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-    set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    target_link_libraries(
-        ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
+    if (NOT APPLE)
+      set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
+      target_link_libraries(
+          ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
+      set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
+    endif()
     if (SYCL_ENABLE_XPTI_TRACING)
       target_link_libraries(${LIB_NAME} PRIVATE dl)
     endif()

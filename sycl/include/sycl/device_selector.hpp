@@ -96,7 +96,7 @@ public:
 ///
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT
-__SYCL2020_DEPRECATED("Use a callable function instead.") host_selector
+__SYCL2020_DEPRECATED("Host device is no longer supported.") host_selector
     : public device_selector {
 public:
   int operator()(const device &dev) const override;
