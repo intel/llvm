@@ -54,7 +54,7 @@ However, `bfloat16` allots 8 bits to the exponent instead of the 5 bits used by
 Thus, `bfloat16` has the same dynamic range as a 32-bit `float` but with
 reduced precision. This type is useful when memory required to store the values
 must be reduced, and when the calculations require high dynamic range but can
-tolerate lower-precision. Some implementations may still perform operations
+tolerate lower precision. Some implementations may still perform operations
  on this type using 32-bit math. For example, they may convert the `bfloat16`
  value to `float`, and then perform the operation on the 32-bit `float`.
 

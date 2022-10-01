@@ -5082,10 +5082,8 @@ class OffloadingActionBuilder final {
     }
 
     // Return whether to use native bfloat16 library.
-    bool useNativeBfloat(const ToolChain *TC, bool &isAOT) {
-      isAOT = false;
-      if (!TC->getTriple().isSPIR())
-        return false;
+    bool selectBfloatLibs(const ToolChain *TC, bool &useNative) {
+      bool needLibs = false;
 
       const OptTable &Opts = C.getDriver().getOpts();
       const char *TargetOpt = nullptr;
@@ -5103,38 +5101,37 @@ class OffloadingActionBuilder final {
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
           // Passing arg: -fsycl-targets=<targets>.
-          isAOT = true;
+          needLibs = true;
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
           else
             continue;
         } else if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
-          // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
+          // Passing device args: -Xsycl-target-backend=<triple> <opt>
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             DeviceOpt = A->getValue(1);
           else
             continue;
         } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
-          // Passing device args: -Xsycl-target-backend -opt=val.
+          // Passing device args: -Xsycl-target-backend <opt>
           TargetBE = &SYCLTripleList.front();
+          DeviceOpt = A->getValue(0);
+        } else if (A->getOption().matches(options::OPT_Xs_separate)) {
+          // Passing device args: -Xs <opt>
           DeviceOpt = A->getValue(0);
         } else {
           continue;
         };
       }
-      if (TC->getTriple().getSubArch() != llvm::Triple::SPIRSubArch_gen)
-        return false;
-
-      if (TargetOpt && DeviceOpt) {
-        // Currently we support only single AOT target for bfloat16.
-        if (!(strstr(TargetOpt, "*") || strstr(TargetOpt, ",")))
-          return strstr(DeviceOpt, "pvc") || strstr(DeviceOpt, "ats");
-        else
-          return false;
+      useNative = false;
+      if (needLibs && TC->getTriple().getArch() == llvm::Triple::spir64 &&
+          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+          TargetOpt && DeviceOpt) {
+        useNative = strstr(DeviceOpt, "pvc") || strstr(DeviceOpt, "ats");
       }
-      return false;
+      return needLibs;
     }
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
@@ -5264,12 +5261,12 @@ class OffloadingActionBuilder final {
       if (isSpirvAOT || TC->getTriple().isNVPTX())
         addInputs(sycl_device_fallback_libs);
 
-      bool isAOT;
-      bool useNativeBfloatLib = useNativeBfloat(TC, isAOT);
-      if (isAOT &&
+      bool nativeBfloatLibs;
+      bool needBfloatLibs = selectBfloatLibs(TC, nativeBfloatLibs);
+      if (needBfloatLibs &&
           TC->getTriple().getSubArch() != llvm::Triple::SPIRSubArch_fpga) {
         // Add native or fallback bfloat16 library.
-        if (useNativeBfloatLib)
+        if (nativeBfloatLibs)
           addInputs(sycl_device_bfloat16_native_lib);
         else
           addInputs(sycl_device_bfloat16_fallback_lib);

@@ -283,9 +283,15 @@ struct get_device_info_impl<std::vector<memory_scope>,
 template <>
 struct get_device_info_impl<bool, info::device::ext_oneapi_bfloat16> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
-    // This aspect indicates support for bfloat16 math functions,
-    // which we don't do yet.
-    return false;
+    bool result = false;
+
+    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::ext_oneapi_bfloat16>::value,
+        sizeof(result), &result, nullptr);
+    if (Err != PI_SUCCESS) {
+      return false;
+    }
+    return result;
   }
 };
 
