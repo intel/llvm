@@ -255,6 +255,38 @@ entry:
   ret void
 }
 
+;----- Test4: IR contains all-zero GEP instructions in parameter use-def chains
+; Based on Test2.
+define dso_local spir_func void @_Z23callee__sret__x_param_x1(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd.2") align 32 %agg.result, i32 noundef %i, ptr noundef %x, i32 noundef %j) local_unnamed_addr #3 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
+; CHECK: define dso_local spir_func <8 x i32> @_Z23callee__sret__x_param_x1(i32 noundef %{{.*}}, <8 x i32> %{{.*}}, i32 noundef %{{.*}})
+entry:
+  %x.ascast = addrspacecast ptr %x to ptr addrspace(4)
+  %add = add nsw i32 %i, %j
+  %splat.splatinsert.i.i.i = insertelement <8 x i32> poison, i32 %add, i64 0
+  %splat.splat.i.i.i = shufflevector <8 x i32> %splat.splatinsert.i.i.i, <8 x i32> poison, <8 x i32> zeroinitializer
+  %M_data.i.i.i = getelementptr inbounds %"class.sycl::_V1::ext::intel::esimd::detail::simd_obj_impl.3", ptr addrspace(4) %x.ascast, i64 0, i32 0
+  %call.i.i.i1 = load <8 x i32>, ptr addrspace(4) %M_data.i.i.i, align 32
+  %add.i.i.i.i.i = add <8 x i32> %call.i.i.i1, %splat.splat.i.i.i
+  store <8 x i32> %add.i.i.i.i.i, ptr addrspace(4) %agg.result, align 32
+  ret void
+}
+
+;----- Test4 caller.
+; Function Attrs: convergent noinline norecurse
+define dso_local spir_func void @_Z21test__sret__x_param_x1(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd.2") align 32 %agg.result, ptr noundef %x) local_unnamed_addr #3 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
+; CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__x_param_x1(<8 x i32> %{{.*}})
+entry:
+  %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd.2", align 32
+  %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
+  %x.ascast = addrspacecast ptr %x to ptr addrspace(4)
+  %M_data.i.i.i = getelementptr inbounds %"class.sycl::_V1::ext::intel::esimd::detail::simd_obj_impl.3", ptr addrspace(4) %x.ascast, i64 0, i32 0
+  %call.i.i.i1 = load <8 x i32>, ptr addrspace(4) %M_data.i.i.i, align 32
+  store <8 x i32> %call.i.i.i1, ptr addrspace(4) %agg.tmp.ascast, align 32
+  call spir_func void @_Z23callee__sret__x_param_x1(ptr addrspace(4) sret(%"class.sycl::_V1::ext::intel::esimd::simd.2") align 32 %agg.result, i32 noundef 2, ptr noundef nonnull %agg.tmp, i32 noundef 1) #7
+; CHECK:  %{{.*}} = call spir_func <8 x i32> @_Z23callee__sret__x_param_x1(i32 2, <8 x i32> %{{.*}}, i32 1)
+  ret void
+}
+
 attributes #0 = { convergent noinline norecurse "frame-pointer"="all" "min-legal-vector-width"="512" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="../opaque_ptr.cpp" }
 attributes #1 = { alwaysinline convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { convergent noinline norecurse "frame-pointer"="all" "min-legal-vector-width"="12288" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="../opaque_ptr.cpp" }
