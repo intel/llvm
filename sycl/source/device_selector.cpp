@@ -167,7 +167,7 @@ static void traceDeviceSelector(const std::string &DeviceType) {
 __SYCL_EXPORT int default_selector_v(const device &dev) {
   // The default selector doesn't reject any devices.
   int Score = 0;
-  
+
   if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
     return 0;
   }
