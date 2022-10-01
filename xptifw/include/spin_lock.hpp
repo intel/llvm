@@ -12,7 +12,7 @@
 #define __has_include(x)
 #endif
 
-#if __has_include(<immintrin.h>)
+#if __has_include(<immintrin.h>) && defined(__x86_64__)
 #define HAS_PAUSE
 #include <immintrin.h>
 #endif
