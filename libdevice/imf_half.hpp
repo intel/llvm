@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
-
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
 #if defined(__SPIR__)
@@ -243,7 +242,7 @@ static Ty __iml_half2integral_s(uint16_t h, __iml_rounding_mode rounding_mode) {
   uint16_t h_sign = h >> 15;
   uint16_t h_exp = (h >> 10) & 0x1F;
   uint16_t h_mant = h & 0x3FF;
-  int16_t h_exp1 = (int16_t)h_exp - 15;
+  int h_exp1 = (int16_t)h_exp - 15;
   if (!h_exp) {
     if (!h_mant)
       return 0;
@@ -276,7 +275,7 @@ static Ty __iml_half2integral_s(uint16_t h, __iml_rounding_mode rounding_mode) {
   x_val |= (0x1 << 10);
   h_exp1 -= 10;
   // Overflow happens
-  if (h_exp1 >= (sizeof(Ty) * 8 - 11)) {
+  if (h_exp1 >= (int)((sizeof(Ty) * 8) - 11)) {
     return h_sign ? std::numeric_limits<Ty>::min()
                   : std::numeric_limits<Ty>::max();
   }
