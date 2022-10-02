@@ -351,7 +351,7 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
     return 0x7C00; // return +infinity for overflow values.
   }
 
-  uint16_t h_exp = msb_pos + 15;
+  uint16_t h_exp = msb_pos;
   uint16_t h_mant;
   if (msb_pos <= 10) {
     mant <<= (10 - msb_pos);
@@ -382,6 +382,7 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
     if (h_exp > 15)
       return 0x7C00;
   }
+  h_exp += 15;
   return (h_exp << 10) | h_mant;
 }
 
@@ -404,7 +405,7 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
                     : 0x7C00; // return +/-infinity for overflow values.
   }
 
-  uint16_t h_exp = msb_pos + 15;
+  uint16_t h_exp = msb_pos;
   uint16_t h_mant;
 
   if (msb_pos <= 10) {
@@ -438,6 +439,7 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
       return h_sign ? 0xBC00 : 0x7C00;
   }
 
+  h_exp += 15;
   return h_sign | (h_exp << 10) | h_mant;
 }
 
