@@ -18,8 +18,10 @@
 #endif
 #elif defined(__SYCL_RT_OS_WINDOWS)
 #include <intrin.h>
-#elif defined(__SYCL_RT_OS_DARWIN) && defined(__x86_64__)
+#elif defined(__SYCL_RT_OS_DARWIN)
+#if defined(__x86_64__) || defined(__i386__)
 #include <cpuid.h>
+#endif
 #endif
 
 namespace sycl {
