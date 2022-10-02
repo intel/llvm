@@ -18,7 +18,7 @@
 #endif
 #elif defined(__SYCL_RT_OS_WINDOWS)
 #include <intrin.h>
-#elif defined(__SYCL_RT_OS_DARWIN)
+#elif defined(__SYCL_RT_OS_DARWIN) && defined(__x86_64__)
 #include <cpuid.h>
 #endif
 
