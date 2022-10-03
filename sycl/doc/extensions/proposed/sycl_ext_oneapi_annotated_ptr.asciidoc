@@ -200,8 +200,14 @@ Properties may be specified for an `annotated_ptr` to provide semantic
 modification or optimization hint information.
 
 `T` can be any type except the following types or a structure containing one of
-the following types: sycl::accessor, sycl::stream, sycl::sampler, and
-sycl::half_type.
+the following types:
+
+* sycl::accessor
+* sycl::stream
+* sycl::local_accessor
+* sycl::unsampled_image_accessor
+* sycl::sampled_image_accessor
+* sycl::half
 
 Here's an example of how a property could be used:
 
