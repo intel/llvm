@@ -27,7 +27,7 @@
 // CHECK-LLVM-DAG: %"class.cl::sycl::detail::ItemBase.1.true" = type { %"class.cl::sycl::range.1", %"class.cl::sycl::id.1", %"class.cl::sycl::id.1" }
 
 // CHECK-MLIR: gpu.module @device_functions
-// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
+// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-NOT: gpu.func kernel
 
@@ -58,7 +58,7 @@ void host_1() {
   }
 }
 
-// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
+// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-NOT: gpu.func kernel
 

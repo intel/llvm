@@ -35,7 +35,8 @@
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5() #0 {
 // CHECK-LLVM-NEXT:  [[ACCESSOR:%.*]] = alloca %"class.cl::sycl::accessor.1", align 8
-// CHECK-LLVM-NEXT:  call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.cl::sycl::accessor.1"* [[ACCESSOR]], %"class.cl::sycl::accessor.1"* [[ACCESSOR]], i64 0, i64 1, i64 1)
+// CHECK-LLVM-NEXT:  [[ACAST:%.*]] = addrspacecast %"class.cl::sycl::accessor.1"* [[ACCESSOR]] to %"class.cl::sycl::accessor.1" addrspace(4)*
+// CHECK-LLVM-NEXT:  call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.cl::sycl::accessor.1" addrspace(4)* [[ACAST]], %"class.cl::sycl::accessor.1" addrspace(4)* [[ACAST]], i64 0, i64 -1, i64 1)
 
 extern "C" SYCL_EXTERNAL void cons_5() {
   sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write> accessor;

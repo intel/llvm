@@ -299,6 +299,8 @@ private:
                            mlir::Value lb, mlir::Value ub,
                            const mlirclang::AffineLoopDescriptor &descr);
 
+  mlir::Value performAddrSpaceCast(mlir::Value val, mlir::Type postTy);
+
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);

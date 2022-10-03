@@ -188,6 +188,12 @@ ValueCategory MLIRScanner::CallHelper(
         val =
             builder.create<polygeist::Pointer2MemrefOp>(loc, expectedType, val);
       }
+
+      if (val.getType().isa<MemRefType>() ||
+          val.getType().isa<LLVM::LLVMPointerType>())
+        if (expectedType.isa<MemRefType>() ||
+            expectedType.isa<LLVM::LLVMPointerType>())
+          val = performAddrSpaceCast(val, expectedType);
     }
     assert(val);
     args.push_back(val);

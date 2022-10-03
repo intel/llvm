@@ -2209,8 +2209,11 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   } else if (auto AT = mt.getElementType().dyn_cast<mlir::sycl::ArrayType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
     const auto ElementType = AT.getBody()[fnum];
-
-    Result = builder.create<polygeist::SubIndexOp>(loc, ElementType, val,
+    auto memRef = ElementType.cast<MemRefType>();
+    const auto ResultType =
+        mlir::MemRefType::get(memRef.getShape(), memRef.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    Result = builder.create<polygeist::SubIndexOp>(loc, ResultType, val,
                                                    getConstantIndex(fnum));
   } else if (auto IT = mt.getElementType().dyn_cast<mlir::sycl::IDType>()) {
     llvm_unreachable("not implemented");
@@ -3737,23 +3740,17 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
 
   if (isa<clang::PointerType, clang::ReferenceType>(t)) {
     int64_t outer = (isa<clang::PointerType>(t)) ? -1 : -1;
-    auto PTT = isa<clang::PointerType>(t) ? cast<clang::PointerType>(t)
-                                                ->getPointeeType()
-                                                ->getUnqualifiedDesugaredType()
-                                          : cast<clang::ReferenceType>(t)
-                                                ->getPointeeType()
-                                                ->getUnqualifiedDesugaredType();
+    auto pointeeType = isa<clang::PointerType>(t)
+                           ? cast<clang::PointerType>(t)->getPointeeType()
+                           : cast<clang::ReferenceType>(t)->getPointeeType();
+    auto PTT = pointeeType->getUnqualifiedDesugaredType();
 
     if (PTT->isCharType() || PTT->isVoidType()) {
       llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
       return typeTranslator.translateType(T);
     }
     bool subRef = false;
-    auto subType =
-        getMLIRType(isa<clang::PointerType>(t)
-                        ? cast<clang::PointerType>(t)->getPointeeType()
-                        : cast<clang::ReferenceType>(t)->getPointeeType(),
-                    &subRef, /*allowMerge*/ true);
+    auto subType = getMLIRType(pointeeType, &subRef, /*allowMerge*/ true);
 
     if (!memRefABI ||
         subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
@@ -3779,7 +3776,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       }
 
       if (!InnerSYCL) {
-        return LLVM::LLVMPointerType::get(subType);
+        return LLVM::LLVMPointerType::get(
+            subType, CGM.getContext().getTargetAddressSpace(pointeeType));
       }
     }
 
@@ -3815,7 +3813,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       }
 
     assert(!subRef);
-    return mlir::MemRefType::get({outer}, subType);
+    return mlir::MemRefType::get(
+        {outer}, subType, {},
+        CGM.getContext().getTargetAddressSpace(pointeeType));
   }
 
   if (t->isBuiltinType() || isa<clang::EnumType>(t)) {
