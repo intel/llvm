@@ -1302,9 +1302,8 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 }
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
-  // TODO: implement host device partitioning
   throw invalid_object_error(
-      "Partitioning to subdevices of the host device is not implemented yet",
+      "Partitioning to subdevices of the host device is not implemented",
       PI_ERROR_INVALID_DEVICE);
 }
 

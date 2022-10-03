@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/access/access.hpp>
+#include <sycl/accessor.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
@@ -45,8 +46,7 @@ public:
                    int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {})
-      : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
-        MAccessMode(AccessMode),
+      : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
         MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
         MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList) {}
@@ -54,11 +54,22 @@ public:
   ~AccessorImplHost();
 
   AccessorImplHost(const AccessorImplHost &Other)
-      : MOffset(Other.MOffset), MAccessRange(Other.MAccessRange),
-        MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
+      : MAccData(Other.MAccData), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
         MIsSubBuffer(Other.MIsSubBuffer), MPropertyList(Other.MPropertyList) {}
+
+  AccessorImplHost &operator=(const AccessorImplHost &Other) {
+    MAccData = Other.MAccData;
+    MAccessMode = Other.MAccessMode;
+    MSYCLMemObj = Other.MSYCLMemObj;
+    MDims = Other.MDims;
+    MElemSize = Other.MElemSize;
+    MOffsetInBytes = Other.MOffsetInBytes;
+    MIsSubBuffer = Other.MIsSubBuffer;
+    MPropertyList = Other.MPropertyList;
+    return *this;
+  }
 
   // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
@@ -71,11 +82,13 @@ public:
 
   void resize(size_t GlobalSize);
 
-  id<3> MOffset;
+  detail::AccHostDataT MAccData;
+
+  id<3> &MOffset = MAccData.MOffset;
   // The size of accessing region.
-  range<3> MAccessRange;
+  range<3> &MAccessRange = MAccData.MAccessRange;
   // The size of memory object this requirement is created for.
-  range<3> MMemoryRange;
+  range<3> &MMemoryRange = MAccData.MMemoryRange;
   access::mode MAccessMode;
 
   detail::SYCLMemObjI *MSYCLMemObj;
@@ -85,7 +98,7 @@ public:
   unsigned int MOffsetInBytes;
   bool MIsSubBuffer;
 
-  void *MData = nullptr;
+  void *&MData = MAccData.MData;
 
   Command *MBlockedCmd = nullptr;
 

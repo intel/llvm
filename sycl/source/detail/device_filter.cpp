@@ -61,6 +61,11 @@ device_filter::device_filter(const std::string &FilterString) {
   else {
     Backend = It->second;
     TripleValueID++;
+
+    if (Backend == backend::host)
+      std::cerr << "WARNING: The 'host' backend type is no longer supported in "
+                   "device filter."
+                << std::endl;
   }
 
   // Handle the optional 2nd field of the filter - device type.
@@ -77,6 +82,11 @@ device_filter::device_filter(const std::string &FilterString) {
     else {
       DeviceType = Iter->second;
       TripleValueID++;
+
+      if (DeviceType == info::device_type::host)
+        std::cerr << "WARNING: The 'host' device type is no longer supported "
+                     "in device filter."
+                  << std::endl;
     }
   }
 
@@ -91,8 +101,8 @@ device_filter::device_filter(const std::string &FilterString) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
           "\nPossible backend values are "
-          "{host,opencl,level_zero,cuda,hip,esimd_emulator,*}.\n"
-          "Possible device types are {host,cpu,gpu,acc,*}.\n"
+          "{opencl,level_zero,cuda,hip,esimd_emulator,*}.\n"
+          "Possible device types are {cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw sycl::invalid_parameter_error(Message, PI_ERROR_INVALID_VALUE);
     }
@@ -153,19 +163,6 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
     int FilterDevNum = Filter.DeviceNum;
     if (!Filter.HasDeviceNum || FilterDevNum == DeviceNum)
       return true;
-  }
-  return false;
-}
-
-bool device_filter_list::containsHost() {
-  for (const device_filter &Filter : FilterList) {
-    if (Filter.Backend == backend::host || Filter.Backend == backend::all)
-      if (Filter.DeviceType == info::device_type::host ||
-          Filter.DeviceType == info::device_type::all)
-        // SYCL RT never creates more than one HOST device.
-        // All device numbers other than 0 are rejected.
-        if (!Filter.HasDeviceNum || Filter.DeviceNum == 0)
-          return true;
   }
   return false;
 }
