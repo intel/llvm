@@ -5149,7 +5149,9 @@ void MLIRASTConsumer::run() {
     std::string mangledName;
     MLIRScanner::getMangledFuncName(mangledName, FD, CGM);
 
-    if (done.count(mangledName))
+    const std::pair<FunctionContext, std::string> doneKey(F.getContext(),
+                                                          mangledName);
+    if (done.count(doneKey))
       continue;
 
     LLVM_DEBUG({
@@ -5162,7 +5164,7 @@ void MLIRASTConsumer::run() {
                    << " --\n\n";
     });
 
-    done.insert(mangledName);
+    done.insert(doneKey);
     MLIRScanner ms(*this, module, deviceModule, LTInfo);
     FunctionOpInterface function = GetOrCreateMLIRFunction(F, true);
     ms.init(function, F);
@@ -5929,7 +5931,7 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
 class MLIRAction : public clang::ASTFrontendAction {
 public:
   std::set<std::string> emitIfFound;
-  std::set<std::string> done;
+  std::set<std::pair<FunctionContext, std::string>> done;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::gpu::GPUModuleOp deviceModule;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
