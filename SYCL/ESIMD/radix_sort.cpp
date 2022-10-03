@@ -576,6 +576,8 @@ void radix_sort(queue &q, unsigned *in, unsigned *out, unsigned size) {
     //
     std::swap(in, out);
   }
+  q.wait();
+  free(histogram, ctxt);
 }
 
 //************************************
@@ -621,12 +623,7 @@ int main(int argc, char *argv[]) {
   memcpy(pExpectOutputs, pInputs, sizeof(unsigned int) * size);
   std::sort(pExpectOutputs, pExpectOutputs + size);
 
-  unsigned int *histogram = static_cast<unsigned int *>(
-      malloc_shared(size * sizeof(unsigned int), dev, ctxt));
-
   radix_sort(q, pInputs, tmp_buf, size);
-
-  q.wait();
 
   bool pass = memcmp(pInputs, pExpectOutputs, size * sizeof(unsigned int)) == 0;
 
@@ -641,6 +638,7 @@ int main(int argc, char *argv[]) {
             << std::endl;
 
   free(pInputs, ctxt);
+  free(tmp_buf, ctxt);
   free(pExpectOutputs);
   return 0;
 }
