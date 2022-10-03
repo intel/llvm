@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -ferror-limit=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// RUN: %clangxx -fsycl -ferror-limit=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=warning,note %s
 
 #include <sycl/sycl.hpp>
 

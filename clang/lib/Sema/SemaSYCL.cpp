@@ -4333,6 +4333,7 @@ void Sema::MarkDevices() {
     for (auto *A : T.GetCollectedAttributes())
       PropagateAndDiagnoseDeviceAttr(*this, T, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());
+    CheckSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
   }
 }
 

@@ -11857,6 +11857,9 @@ def err_sycl_add_ir_attribute_invalid_value : Error<
 def err_sycl_add_ir_attribute_invalid_filter : Error<
   "initializer list in the first argument of %0 must contain only string "
   "literals">;
+def warn_sycl_old_and_new_kernel_attributes : Warning<
+  "kernel has attribute %0 but also has kernel properties. Conflicting "
+  "properties are ignored">, InGroup<IgnoredAttributes>;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
