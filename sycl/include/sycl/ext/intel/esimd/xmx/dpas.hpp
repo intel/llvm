@@ -26,29 +26,29 @@ namespace detail {
 template <typename T> constexpr dpas_argument_type dpas_precision_from_type() {
   // TODO: add support for tfloat32 here.
   if constexpr (std::is_same_v<T, sycl::half>)
-    return dpas_argument_type::FP16;
+    return dpas_argument_type::fp16;
   else if constexpr (std::is_same_v<T,
                                     sycl::ext::oneapi::experimental::bfloat16>)
-    return dpas_argument_type::BF16;
+    return dpas_argument_type::bf16;
   else if constexpr (std::is_same_v<T, unsigned char>)
-    return dpas_argument_type::U8;
+    return dpas_argument_type::u8;
   else if constexpr (__ESIMD_DNS::is_type<T, char, signed char>())
-    return dpas_argument_type::S8;
+    return dpas_argument_type::s8;
   else
     return dpas_argument_type::Invalid;
 }
 
 template <dpas_argument_type T> constexpr int dpas_bitsize_from_precision() {
-  if constexpr (T == dpas_argument_type::U2 || T == dpas_argument_type::S2)
+  if constexpr (T == dpas_argument_type::u2 || T == dpas_argument_type::s2)
     return 2;
-  else if constexpr (T == dpas_argument_type::U4 || T == dpas_argument_type::S4)
+  else if constexpr (T == dpas_argument_type::u4 || T == dpas_argument_type::s4)
     return 4;
-  else if constexpr (T == dpas_argument_type::U8 || T == dpas_argument_type::S8)
+  else if constexpr (T == dpas_argument_type::u8 || T == dpas_argument_type::s8)
     return 8;
-  else if constexpr (T == dpas_argument_type::BF16 ||
-                     T == dpas_argument_type::FP16)
+  else if constexpr (T == dpas_argument_type::bf16 ||
+                     T == dpas_argument_type::fp16)
     return 16;
-  else if constexpr (T == dpas_argument_type::TF32)
+  else if constexpr (T == dpas_argument_type::tf32)
     return 32;
   else
     return -1;
@@ -124,8 +124,8 @@ constexpr int verify_parameters_and_deduce_exec_size() {
   static_assert(ExecutionSize == 8 || (!IsDPASW && ExecutionSize == 16),
                 "Execution size must be 8 or 16 for DPAS and 8 for DPASW.");
 
-  if constexpr (APrecision == dpas_argument_type::FP16 ||
-                BPrecision == dpas_argument_type::FP16) {
+  if constexpr (APrecision == dpas_argument_type::fp16 ||
+                BPrecision == dpas_argument_type::fp16) {
     if constexpr (ExecutionSize == 8) {
       static_assert(APrecision == BPrecision &&
                         __ESIMD_DNS::is_type<T, float>() &&
@@ -141,8 +141,8 @@ constexpr int verify_parameters_and_deduce_exec_size() {
                     " Result |   C   |   B  |  A  \n"
                     " f, hf  | f, hf |  hf  |  hf \n");
     }
-  } else if constexpr (APrecision == dpas_argument_type::BF16 ||
-                       BPrecision == dpas_argument_type::BF16) {
+  } else if constexpr (APrecision == dpas_argument_type::bf16 ||
+                       BPrecision == dpas_argument_type::bf16) {
     using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
     if constexpr (ExecutionSize == 8) {
       static_assert(APrecision == BPrecision &&
@@ -159,8 +159,8 @@ constexpr int verify_parameters_and_deduce_exec_size() {
                     " Result |   C   |   B  |  A        \n"
                     " f, bf  | f, bf |  bf  |  bf       \n");
     }
-  } else if constexpr (APrecision == dpas_argument_type::TF32 ||
-                       BPrecision == dpas_argument_type::TF32) {
+  } else if constexpr (APrecision == dpas_argument_type::tf32 ||
+                       BPrecision == dpas_argument_type::tf32) {
     static_assert(ExecutionSize == 16,
                   "tf32 type can be used only with ExecutionSize=16");
     static_assert(APrecision == BPrecision && std::is_same_v<T, float> &&
@@ -169,18 +169,18 @@ constexpr int verify_parameters_and_deduce_exec_size() {
                   " Result |   C   |   B  |  A   \n"
                   "   f    |   f   | tf32 | tf32 \n");
   } else {
-    static_assert((APrecision == dpas_argument_type::U2 ||
-                   APrecision == dpas_argument_type::S2 ||
-                   APrecision == dpas_argument_type::U4 ||
-                   APrecision == dpas_argument_type::S4 ||
-                   APrecision == dpas_argument_type::U8 ||
-                   APrecision == dpas_argument_type::S8) &&
-                      (BPrecision == dpas_argument_type::U2 ||
-                       BPrecision == dpas_argument_type::S2 ||
-                       BPrecision == dpas_argument_type::U4 ||
-                       BPrecision == dpas_argument_type::S4 ||
-                       BPrecision == dpas_argument_type::U8 ||
-                       BPrecision == dpas_argument_type::S8),
+    static_assert((APrecision == dpas_argument_type::u2 ||
+                   APrecision == dpas_argument_type::s2 ||
+                   APrecision == dpas_argument_type::u4 ||
+                   APrecision == dpas_argument_type::s4 ||
+                   APrecision == dpas_argument_type::u8 ||
+                   APrecision == dpas_argument_type::s8) &&
+                      (BPrecision == dpas_argument_type::u2 ||
+                       BPrecision == dpas_argument_type::s2 ||
+                       BPrecision == dpas_argument_type::u4 ||
+                       BPrecision == dpas_argument_type::s4 ||
+                       BPrecision == dpas_argument_type::u8 ||
+                       BPrecision == dpas_argument_type::s8),
                   "Unsupported DPAS types! The supported types are:\n"
                   " Result |   C   |        B         |           A      \n"
                   " ud, d  | ud, d | ub,b,u4,s4,u2,s2 | ub,b,u4,s4,u2,s2 \n");
@@ -221,7 +221,8 @@ __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<CT, N> C,
   __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
   __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
   using CRawT = typename __ESIMD_NS::simd<CT, N>::raw_element_type;
-  return __esimd_dpas2<BPrecision, APrecision, SystolicDepth, RepeatCount, T,
+  using RawT = typename __ESIMD_NS::simd<T, N>::raw_element_type;
+  return __esimd_dpas2<BPrecision, APrecision, SystolicDepth, RepeatCount, RawT,
                        CRawT, int, int, N, BNCasted, ANCasted>(
       C.data(), BCasted.data(), ACasted.data());
 }
@@ -257,8 +258,9 @@ auto dpas(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
 
   constexpr int Info = (RepeatCount << 24) + (SystolicDepth << 16) +
                        ((int)APrecision << 8) + (int)BPrecision;
+  using RawT = typename __ESIMD_NS::simd<T, ResultN>::raw_element_type;
   __ESIMD_NS::simd<T, ResultN> Result =
-      __esimd_dpas_nosrc0<Info, T, int, int, ResultN, BNCasted, ANCasted>(
+      __esimd_dpas_nosrc0<Info, RawT, int, int, ResultN, BNCasted, ANCasted>(
           BCasted.data(), ACasted.data());
   return Result;
 }
@@ -289,9 +291,10 @@ __ESIMD_NS::simd<T, N> dpasw(__ESIMD_NS::simd<T, N> C,
   __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
   __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
 
+  using RawT = typename __ESIMD_NS::simd<T, N>::raw_element_type;
   constexpr int Info = (RepeatCount << 24) + (SystolicDepth << 16) +
                        ((int)APrecision << 8) + (int)BPrecision;
-  return __esimd_dpasw<Info, T, int, int, N, BNCasted, ANCasted>(
+  return __esimd_dpasw<Info, RawT, int, int, N, BNCasted, ANCasted>(
       C.data(), BCasted.data(), ACasted.data());
 }
 
@@ -325,10 +328,11 @@ auto dpasw(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
   __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
   __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
 
+  using RawT = typename __ESIMD_NS::simd<T, ResultN>::raw_element_type;
   constexpr int Info = (RepeatCount << 24) + (SystolicDepth << 16) +
                        ((int)APrecision << 8) + (int)BPrecision;
   __ESIMD_NS::simd<T, ResultN> Result =
-      __esimd_dpasw_nosrc0<Info, T, int, int, ResultN, BNCasted, ANCasted>(
+      __esimd_dpasw_nosrc0<Info, RawT, int, int, ResultN, BNCasted, ANCasted>(
           BCasted.data(), ACasted.data());
   return Result;
 }

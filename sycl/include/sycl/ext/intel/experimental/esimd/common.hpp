@@ -214,7 +214,7 @@ enum class cache_hint : uint8_t {
 namespace detail {
 
 template <cache_hint Hint> class cache_hint_wrap {
-  template <cache_hint...> class is_one_of_t;
+  template <cache_hint...> struct is_one_of_t;
   template <cache_hint Last>
   struct is_one_of_t<Last>
       : std::conditional<Last == Hint, std::true_type, std::false_type>::type {
