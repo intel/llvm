@@ -728,9 +728,9 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 std::unique_ptr<ModuleSplitterBase>
 getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      MD, llvm::sycl_kernel_props::ATTR_DOUBLE_GRF,
-      EmitOnlyKernelsAsEntryPoints, [](EntryPointGroup &G) {
-        if (G.GroupId == llvm::sycl_kernel_props::ATTR_DOUBLE_GRF) {
+      MD, sycl::kernel_props::ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints,
+      [](EntryPointGroup &G) {
+        if (G.GroupId == sycl::kernel_props::ATTR_DOUBLE_GRF) {
           G.Props.UsesDoubleGRF = true;
         }
       });

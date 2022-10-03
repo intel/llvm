@@ -1,4 +1,4 @@
-//===---- LowerESIMDKernelProps.h - lower __sycl_set_kernel_properties ---===//
+//===---- LowerKernelProps.h - lower __sycl_set_kernel_properties ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,8 +46,8 @@ void processSetKernelPropertiesCall(CallInst &CI) {
   case property_ids::use_double_grf:
     // TODO: Keep track of traversed functions to avoid repeating traversals
     // over same function.
-    llvm::CallgraphUtils::traverseCallgraphUp(F, [](Function *GraphNode) {
-      GraphNode->addFnAttr(llvm::sycl_kernel_props::ATTR_DOUBLE_GRF);
+    llvm::sycl::utils::traverseCallgraphUp(F, [](Function *GraphNode) {
+      GraphNode->addFnAttr(::sycl::kernel_props::ATTR_DOUBLE_GRF);
     });
     break;
   default:

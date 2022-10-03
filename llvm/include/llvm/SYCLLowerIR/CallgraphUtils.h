@@ -15,7 +15,8 @@
 
 #include <functional>
 namespace llvm {
-namespace CallgraphUtils {
+namespace sycl {
+namespace utils {
 using CallGraphNodeAction = std::function<void(Function *)>;
 
 // Traverses call graph starting from given function up the call chain applying
@@ -44,5 +45,6 @@ void traverseCallgraphUp(Function *F, CallGraphNodeActionF ActionF,
   traverseCallgraphUp(F, CallGraphNodeAction(ActionF), Visited,
                       ErrorOnNonCallUse);
 }
-} // namespace CallgraphUtils
+} // namespace utils
+} // namespace sycl
 } // namespace llvm

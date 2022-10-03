@@ -978,7 +978,7 @@ static void translateSLMInit(CallInst &CI) {
       *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
   // TODO: Keep track of traversed functions (use 4-argument version of
   // traverseCallgraphUp) to avoid repeating traversals over same function.
-  CallgraphUtils::traverseCallgraphUp(F, SetMaxSLMSize);
+  sycl::utils::traverseCallgraphUp(F, SetMaxSLMSize);
 }
 
 // This function sets/updates VCNamedBarrierCount attribute to the kernels
@@ -996,7 +996,7 @@ static void translateNbarrierInit(CallInst &CI) {
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
   // TODO: Keep track of traversed functions to avoid repeating traversals
   // over same function.
-  CallgraphUtils::traverseCallgraphUp(F, SetMaxNBarrierCnt);
+  sycl::utils::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 
 static void translatePackMask(CallInst &CI) {

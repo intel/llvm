@@ -27,7 +27,7 @@ SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
     if (llvm::esimd::isESIMD(F)) {
       // TODO: Keep track of traversed functions to avoid repeating traversals
       // over same function.
-      llvm::CallgraphUtils::traverseCallgraphUp(
+      sycl::utils::traverseCallgraphUp(
           &F,
           [&](Function *GraphNode) {
             if (!llvm::esimd::isESIMD(*GraphNode)) {

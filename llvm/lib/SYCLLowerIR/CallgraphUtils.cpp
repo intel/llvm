@@ -12,7 +12,8 @@
 #include "llvm/IR/Instructions.h"
 
 namespace llvm {
-namespace CallgraphUtils {
+namespace sycl {
+namespace utils {
 void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
                          SmallPtrSetImpl<Function *> &FunctionsVisited,
                          bool ErrorOnNonCallUse) {
@@ -67,5 +68,6 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
     }
   }
 }
-} // namespace CallgraphUtils
+} // namespace utils
+} // namespace sycl
 } // namespace llvm

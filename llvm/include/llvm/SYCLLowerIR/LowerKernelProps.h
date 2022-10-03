@@ -12,17 +12,16 @@
 
 #include "llvm/IR/PassManager.h"
 
-namespace llvm {
-
-namespace sycl_kernel_props {
+namespace sycl {
+namespace kernel_props {
 constexpr char ATTR_DOUBLE_GRF[] = "double-grf";
 }
-
+} // namespace sycl
+namespace llvm {
 // Lowers calls to __sycl_set_kernel_properties
 class SYCLLowerKernelPropsPass
     : public PassInfoMixin<SYCLLowerKernelPropsPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
-
 } // namespace llvm
