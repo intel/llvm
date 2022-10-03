@@ -2361,9 +2361,8 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-    detail::dim_loop<AdjustedDim>([&, this](size_t I) {
-      getSize()[I] = AccessRange[I];
-    });
+    detail::dim_loop<AdjustedDim>(
+        [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
 public:
