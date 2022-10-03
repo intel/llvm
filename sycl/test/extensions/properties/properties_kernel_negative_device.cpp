@@ -4,7 +4,7 @@
 
 struct KernelFunctorWithOnlyWGSizeAttr {
   // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
-  void operator()[[sycl::reqd_work_group_size(32)]] () const {}
+  void operator() [[sycl::reqd_work_group_size(32)]] () const {}
 };
 
 template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
@@ -18,7 +18,7 @@ template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
 
 struct KernelFunctorWithOnlySGSizeAttr {
   // expected-warning@+1 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
-  void operator()[[sycl::reqd_sub_group_size(32)]] () const {}
+  void operator() [[sycl::reqd_sub_group_size(32)]] () const {}
 };
 
 template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
@@ -30,16 +30,19 @@ template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
   }
 };
 
-
 void check_work_group_size() {
   sycl::queue Q;
 
   // expected-warning@+2 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
-  Q.single_task(sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::work_group_size<1>}, []() [[sycl::reqd_work_group_size(32)]] {});
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<1>},
+      []() [[sycl::reqd_work_group_size(32)]]{});
 
-  Q.single_task(sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::work_group_size<1>}, KernelFunctorWithOnlyWGSizeAttr{});
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<1>},
+      KernelFunctorWithOnlyWGSizeAttr{});
 
   Q.single_task(KernelFunctorWithWGSizeWithAttr<1>{});
 }
@@ -48,11 +51,15 @@ void check_sub_group_size() {
   sycl::queue Q;
 
   // expected-warning@+2 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
-  Q.single_task(sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::sub_group_size<1>}, []() [[sycl::reqd_sub_group_size(32)]] {});
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::sub_group_size<1>},
+      []() [[sycl::reqd_sub_group_size(32)]]{});
 
-  Q.single_task(sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::sub_group_size<1>}, KernelFunctorWithOnlySGSizeAttr{});
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::sub_group_size<1>},
+      KernelFunctorWithOnlySGSizeAttr{});
 
   Q.single_task(KernelFunctorWithSGSizeWithAttr<1>{});
 }
