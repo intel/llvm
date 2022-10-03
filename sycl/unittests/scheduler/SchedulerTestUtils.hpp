@@ -10,6 +10,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/detail/cl.h>
 
@@ -269,5 +270,39 @@ public:
                               PI_ERROR_INVALID_OPERATION);
 
     return nullptr;
+  }
+};
+
+class MockHandlerCustomFinalize : public MockHandler {
+public:
+  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+                            bool IsHost)
+      : MockHandler(Queue, IsHost) {}
+
+  std::unique_ptr<sycl::detail::CG> finalize() {
+    std::unique_ptr<sycl::detail::CG> CommandGroup;
+    switch (getType()) {
+    case sycl::detail::CG::Kernel: {
+      CommandGroup.reset(new sycl::detail::CGExecKernel(
+          getNDRDesc(), std::move(getHostKernel()), getKernel(),
+          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
+          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
+          getKernelName(), getOSModuleHandle(), getStreamStorage(),
+          MImpl->MAuxiliaryResources, getCGType(), getCodeLoc()));
+      break;
+    }
+    case sycl::detail::CG::CodeplayHostTask: {
+      CommandGroup.reset(new sycl::detail::CGHostTask(
+          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
+          getArgs(), getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
+          getRequirements(), getEvents(), getCGType(), getCodeLoc()));
+      break;
+    }
+    default:
+      throw sycl::runtime_error("Unhandled type of command group",
+                                PI_ERROR_INVALID_OPERATION);
+    }
+
+    return CommandGroup;
   }
 };
