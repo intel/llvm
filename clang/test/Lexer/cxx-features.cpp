@@ -47,11 +47,11 @@
 #error "wrong value for __cpp_multidimensional_subscript"
 #endif
 
-#if check(static_call_operator, 0, 0, 0, 0, 0, 0)
+#if check(static_call_operator, 0, 202207, 202207, 202207, 202207, 202207)
 #error "wrong value for __cpp_static_call_operator"
 #endif
 
-#if check(named_character_escapes, 0, 0, 0, 0, 0, 0)
+#if check(named_character_escapes, 202207, 202207, 202207, 202207, 202207, 202207)
 #error "wrong value for __cpp_named_character_escapes"
 #endif
 

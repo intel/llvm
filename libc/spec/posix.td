@@ -4,6 +4,9 @@ def ConstSigSetPtrType : ConstType<SigSetPtrType>;
 def RestrictedSigSetType : RestrictedPtrType<SigSetType>;
 def ConstRestrictedSigSetType : ConstType<RestrictedSigSetType>;
 
+def SigInfoType : NamedType<"siginfo_t">;
+def UnionSigVal : NamedType<"union sigval">;
+
 def StructSigaction : NamedType<"struct sigaction">;
 def StructSigactionPtr : PtrType<StructSigaction>;
 def ConstStructSigactionPtr : ConstType<StructSigactionPtr>;
@@ -26,7 +29,6 @@ def ClockIdT : NamedType<"clockid_t">;
 def BlkSizeT : NamedType<"blksize_t">;
 def BlkCntT : NamedType<"blkcnt_t">;
 def NLinkT : NamedType<"nlink_t">;
-def PidT : NamedType<"pid_t">;
 
 def StatType : NamedType<"struct stat">;
 def StatTypePtr : PtrType<StatType>;
@@ -249,8 +251,10 @@ def POSIX : StandardSpec<"POSIX"> {
       "signal.h",
       [], // Macros
       [
+        SigInfoType,
         SigSetType,
         StructSigaction,
+        UnionSigVal,
       ],
       [], // Enumerations
       [
@@ -477,6 +481,11 @@ def POSIX : StandardSpec<"POSIX"> {
           "symlinkat",
           RetValSpec<IntType>,
           [ArgSpec<IntType>, ArgSpec<ConstCharPtr>, ArgSpec<IntType>, ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "__llvm_libc_syscall",
+          RetValSpec<LongType>,
+          [ArgSpec<LongType>,ArgSpec<LongType>,ArgSpec<LongType>,ArgSpec<LongType>,ArgSpec<LongType>,ArgSpec<LongType>,ArgSpec<LongType>]
         >,
         FunctionSpec<
           "truncate",

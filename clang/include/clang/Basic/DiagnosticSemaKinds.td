@@ -3092,7 +3092,7 @@ def warn_unsupported_branch_protection_spec : Warning<
   "unsupported branch protection specification '%0'">, InGroup<BranchProtection>;
 
 def warn_unsupported_target_attribute
-    : Warning<"%select{unsupported|duplicate|unknown}0%select{| architecture|"
+    : Warning<"%select{unsupported|duplicate|unknown}0%select{| CPU|"
               " tune CPU}1 '%2' in the '%select{target|target_clones}3' "
               "attribute string; '%select{target|target_clones}3' "
               "attribute ignored">,
@@ -9155,6 +9155,11 @@ def err_operator_overload_needs_class_or_enum : Error<
   "or enumeration type">;
 
 def err_operator_overload_variadic : Error<"overloaded %0 cannot be variadic">;
+def ext_operator_overload_static : ExtWarn<
+  "declaring overloaded %0 as 'static' is a C++2b extension">,
+  InGroup<CXXPre2bCompat>, DefaultIgnore;
+def err_call_operator_overload_static : ExtWarn<
+  "declaring overloaded %0 as 'static' is a C++2b extension">, InGroup<CXX2b>;
 def err_operator_overload_static : Error<
   "overloaded %0 cannot be a static member function">;
 def err_operator_overload_default_arg : Error<

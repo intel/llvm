@@ -368,7 +368,7 @@ C++ Language Changes in Clang
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 - Support capturing structured bindings in lambdas
-  (`P1091R3 <https://wg21.link/p1091r3>`_ and `P1381R1 <https://wg21.link/P1381R1>`).
+  (`P1091R3 <https://wg21.link/p1091r3>`_ and `P1381R1 <https://wg21.link/P1381R1>`_).
   This fixes issues `Issue 52720 <https://github.com/llvm/llvm-project/issues/52720>`_,
   `Issue 54300 <https://github.com/llvm/llvm-project/issues/54300>`_,
   `Issue 54301 <https://github.com/llvm/llvm-project/issues/54301>`_,
@@ -409,6 +409,7 @@ C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 
 - Support label at end of compound statement (`P2324 <https://wg21.link/p2324r2>`_).
+- Implemented `P1169R4: static operator() <https://wg21.link/P1169R4>`_.
 
 CUDA/HIP Language Changes in Clang
 ----------------------------------
@@ -449,6 +450,14 @@ DWARF Support in Clang
 
 Arm and AArch64 Support in Clang
 --------------------------------
+
+- The target(..) function attributes for AArch64 now accept:
+
+  * ``"arch=<arch>"`` strings, that specify the architecture for a function as per the ``-march`` option.
+  * ``"cpu=<cpu>"`` strings, that specify the cpu for a function as per the ``-mcpu`` option.
+  * ``"tune=<cpu>"`` strings, that specify the tune cpu for a function as per ``-mtune``.
+  * ``"+<feature>"``, ``"+no<feature>"`` enables/disables the specific feature, for compatibility with GCC target attributes.
+  * ``"<feature>"``, ``"no-<feature>"`` enabled/disables the specific feature, for backward compatibility with previous releases.
 - ``-march`` values for targeting armv2, armv2A, armv3 and armv3M have been removed.
   Their presence gave the impression that Clang can correctly generate code for
   them, which it cannot.
