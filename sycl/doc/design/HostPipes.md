@@ -156,9 +156,7 @@ __sycl_host_pipe_registration::__sycl_host_pipe_registration() noexcept {
 ```
 
 Further details on adherence to C++ rules for unconstructed objects can be found
-in the [device_global][3] design.
-
-[3]: <DeviceGlobal.md>
+in the [device_global][2] design.
 
 Generating a unique pipe id is addressed in Open Questions below.
 
