@@ -988,8 +988,11 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
     });
   };
 
-  // Integrated/discrete GPUs have different faster path.
-  if (getDeviceFromHandler(CGH).get_info<info::device::host_unified_memory>())
+  auto device = getDeviceFromHandler(CGH);
+  // Integrated/discrete GPUs have different faster path. For discrete GPUs fast
+  // path requires USM device allocations though, so check for that as well.
+  if (device.get_info<info::device::host_unified_memory>() ||
+      !device.has(aspect::usm_device_allocations))
     Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
   else
     Rest(Redu.getGroupsCounterAccDiscrete(CGH));
@@ -1130,12 +1133,12 @@ bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
-  if constexpr (Reduction::has_fast_atomics)
-    return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
-                                                     NDRange, Redu);
-  else if constexpr (Reduction::has_fast_reduce)
+  if constexpr (Reduction::has_fast_reduce)
     return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
                                                     NDRange, Redu);
+  else if constexpr (Reduction::has_fast_atomics)
+    return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
+                                                     NDRange, Redu);
   else
     return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
                                                Redu);

@@ -89,6 +89,11 @@ bool isCast(const Value *V) {
   return (Opc == Instruction::BitCast) || (Opc == Instruction::AddrSpaceCast);
 }
 
+bool isZeroGEP(const Value *V) {
+  const auto *GEPI = dyn_cast<GetElementPtrInst>(V);
+  return GEPI && GEPI->hasAllZeroIndices();
+}
+
 const Value *stripCasts(const Value *V) {
   if (!V->getType()->isPtrOrPtrVectorTy())
     return V;
@@ -110,6 +115,30 @@ Value *stripCasts(Value *V) {
   return const_cast<Value *>(stripCasts(const_cast<const Value *>(V)));
 }
 
+const Value *stripCastsAndZeroGEPs(const Value *V) {
+  if (!V->getType()->isPtrOrPtrVectorTy())
+    return V;
+  // Even though we don't look through PHI nodes, we could be called on an
+  // instruction in an unreachable block, which may be on a cycle.
+  SmallPtrSet<const Value *, 4> Visited;
+  Visited.insert(V);
+
+  do {
+    if (isCast(V)) {
+      V = cast<Operator>(V)->getOperand(0);
+    } else if (isZeroGEP(V)) {
+      V = cast<GetElementPtrInst>(V)->getOperand(0);
+    }
+    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
+  } while (Visited.insert(V).second);
+  return V;
+}
+
+Value *stripCastsAndZeroGEPs(Value *V) {
+  return const_cast<Value *>(
+      stripCastsAndZeroGEPs(const_cast<const Value *>(V)));
+}
+
 void collectUsesLookThroughCasts(const Value *V,
                                  SmallPtrSetImpl<const Use *> &Uses) {
   for (const Use &U : V->uses()) {
@@ -117,6 +146,21 @@ void collectUsesLookThroughCasts(const Value *V,
 
     if (isCast(VV)) {
       collectUsesLookThroughCasts(VV, Uses);
+    } else {
+      Uses.insert(&U);
+    }
+  }
+}
+
+void collectUsesLookThroughCastsAndZeroGEPs(
+    const Value *V, SmallPtrSetImpl<const Use *> &Uses) {
+  assert(V->getType()->isPtrOrPtrVectorTy() && "pointer type expected");
+
+  for (const Use &U : V->uses()) {
+    Value *VV = U.getUser();
+
+    if (isCast(VV) || isZeroGEP(VV)) {
+      collectUsesLookThroughCastsAndZeroGEPs(VV, Uses);
     } else {
       Uses.insert(&U);
     }

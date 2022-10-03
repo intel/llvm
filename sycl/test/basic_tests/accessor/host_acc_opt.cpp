@@ -9,15 +9,13 @@
 // CHECK: define {{.*}}foo{{.*}} {
 // CHECK-NOT: call
 // CHECK-NOT: invoke
-// CHECK: vector.body:
-// CHECK-NOT: call
-// CHECK-NOT: invoke
 // CHECK: load <4 x i32>
 // CHECK-NOT: call
 // CHECK-NOT: invoke
 // CHECK: store <4 x i32>
 // CHECK-NOT: call
 // CHECK-NOT: invoke
+// CHECK: }
 void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
                         sycl::target::host_buffer> &Acc,
          int *Src) {

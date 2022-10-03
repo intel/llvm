@@ -5449,8 +5449,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Set the main file name, so that debug info works even with
   // -save-temps.
   CmdArgs.push_back("-main-file-name");
-  CmdArgs.push_back(getBaseInputName(Args, Input));
+  if (!IsSYCL || Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+    CmdArgs.push_back(getBaseInputName(Args, Input));
+  } else {
+    SmallString<256> AbsPath = llvm::StringRef(Input.getBaseInput());
+    D.getVFS().makeAbsolute(AbsPath);
+    CmdArgs.push_back(
+        Args.MakeArgString(llvm::sys::path::filename(Input.getBaseInput())));
+    CmdArgs.push_back("-fsycl-use-main-file-name");
+  }
 
+  if (IsSYCL || Args.hasArg(options::OPT_fsycl_footer_path_EQ)) {
+    CmdArgs.push_back("-full-main-file-name");
+    CmdArgs.push_back(Input.getBaseInput());
+  }
   // Some flags which affect the language (via preprocessor
   // defines).
   if (Args.hasArg(options::OPT_static))
@@ -5982,6 +5994,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   types::ID InputType = Input.getType();
   if (D.IsCLMode())
     AddClangCLArgs(Args, InputType, CmdArgs, &DebugInfoKind, &EmitCodeView);
+
+  // Add debug macro for debug library usage when using non-cl driver on
+  // Windows as we are using the debug sycld.lib with -g
+  if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment() &&
+      Args.hasArg(options::OPT_fsycl) && Args.hasArg(options::OPT_g_Flag))
+    CmdArgs.push_back("-D_DEBUG");
 
   DwarfFissionKind DwarfFission = DwarfFissionKind::None;
   renderDebugOptions(TC, D, RawTriple, Args, EmitCodeView,

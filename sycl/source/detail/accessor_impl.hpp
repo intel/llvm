@@ -59,6 +59,18 @@ public:
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
         MIsSubBuffer(Other.MIsSubBuffer), MPropertyList(Other.MPropertyList) {}
 
+  AccessorImplHost &operator=(const AccessorImplHost &Other) {
+    MAccData = Other.MAccData;
+    MAccessMode = Other.MAccessMode;
+    MSYCLMemObj = Other.MSYCLMemObj;
+    MDims = Other.MDims;
+    MElemSize = Other.MElemSize;
+    MOffsetInBytes = Other.MOffsetInBytes;
+    MIsSubBuffer = Other.MIsSubBuffer;
+    MPropertyList = Other.MPropertyList;
+    return *this;
+  }
+
   // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
   // These are normally fixed for the accessor, but this capability

@@ -68,15 +68,33 @@ inline void assert_and_diag(bool Condition, StringRef Msg,
 /// Tells if this value is a bit cast or address space cast.
 bool isCast(const Value *V);
 
+/// Tells if this value is a GEP instructions with all zero indices.
+bool isZeroGEP(const Value *V);
+
 /// Climbs up the use-def chain of given value until a value which is not a
 /// bit cast or address space cast is met.
 const Value *stripCasts(const Value *V);
 Value *stripCasts(Value *V);
 
+/// Climbs up the use-def chain of given value until a value is met which is
+/// neither of:
+/// - bit cast
+/// - address space cast
+/// - GEP instruction with all zero indices
+const Value *stripCastsAndZeroGEPs(const Value *V);
+Value *stripCastsAndZeroGEPs(Value *V);
+
 /// Collects uses of given value "looking through" casts. I.e. if a use is a
 /// cast (chain), then uses of the result of the cast (chain) are collected.
 void collectUsesLookThroughCasts(const Value *V,
                                  SmallPtrSetImpl<const Use *> &Uses);
+
+/// Collects uses of given pointer-typed value "looking through" casts and GEPs
+/// with all zero indices - those pointer transformation instructions which
+/// don't change pointed-to value. E.g. if a use is a cast (chain), then uses of
+/// the result of the cast (chain) are collected.
+void collectUsesLookThroughCastsAndZeroGEPs(const Value *V,
+                                            SmallPtrSetImpl<const Use *> &Uses);
 
 /// Unwraps a presumably simd* type to extract the native vector type encoded
 /// in it. Returns nullptr if failed to do so.
