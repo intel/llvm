@@ -19,10 +19,14 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <gmock/gmock.h>
 
+#include "../scheduler/SchedulerTestUtils.hpp"
+
 class FairMockScheduler : public sycl::detail::Scheduler {
 public:
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
+  using sycl::detail::Scheduler::MGraphBuilder;
   using sycl::detail::Scheduler::MGraphLock;
+  using sycl::detail::Scheduler::waitForRecordToFinish;
   MOCK_METHOD1(deferMemObjRelease,
                void(const std::shared_ptr<sycl::detail::SYCLMemObjI> &));
 };
@@ -37,7 +41,7 @@ protected:
       std::cout << "Not run due to host-only environment\n";
       GTEST_SKIP();
     }
-    MockSchedulerPtr = new FairMockScheduler();
+    MockSchedulerPtr = new testing::NiceMock<FairMockScheduler>();
     sycl::detail::GlobalHandler::instance().attachScheduler(
         dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
   }
@@ -90,7 +94,7 @@ protected:
 protected:
   sycl::unittest::PiMock Mock;
   sycl::platform Plt;
-  FairMockScheduler *MockSchedulerPtr;
+  testing::NiceMock<FairMockScheduler> *MockSchedulerPtr;
 };
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
@@ -355,4 +359,72 @@ TEST_F(BufferDestructionCheck, BufferDeferringCheckReadLock) {
     ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
     Lock.unlock();
   }
+}
+
+std::map<pi_event, pi_int32> ExpectedEventStatus;
+pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
+                           void *PV, size_t *PVSizeRet) {
+  EXPECT_EQ(PName, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
+      << "Unknown param name";
+  // could not use assert here
+  EXPECT_EQ(PVSize, 4u);
+  auto it = ExpectedEventStatus.find(Event);
+  if (it != ExpectedEventStatus.end()) {
+    *(static_cast<pi_int32 *>(PV)) = it->second;
+    return PI_SUCCESS;
+  } else
+    return PI_ERROR_INVALID_OPERATION;
+}
+
+TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
+  sycl::context Context{Plt};
+  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  sycl::buffer<int, 1> Buf(1);
+  sycl::detail::Requirement MockReq = getMockRequirement(Buf);
+  std::vector<sycl::detail::Command *> AuxCmds;
+  sycl::detail::MemObjRecord *Rec =
+      MockSchedulerPtr->MGraphBuilder.getOrInsertMemObjRecord(
+          sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+  MockCommand *ReadCmd = nullptr;
+  MockCommand *WriteCmd = nullptr;
+  ReadCmd = new MockCommand(sycl::detail::getSyclObjImpl(Q), MockReq);
+  ReadCmd->getEvent()->getHandleRef() = reinterpret_cast<sycl::RT::PiEvent>(
+      0x01); // just assign to be able to use mock
+  WriteCmd = new MockCommand(sycl::detail::getSyclObjImpl(Q), MockReq);
+  WriteCmd->getEvent()->getHandleRef() =
+      reinterpret_cast<sycl::RT::PiEvent>(0x02);
+
+  std::vector<sycl::detail::Command *> ToCleanUp;
+  std::vector<sycl::detail::Command *> ToEnqueue;
+  MockSchedulerPtr->MGraphBuilder.addNodeToLeaves(
+      Rec, ReadCmd, sycl::access::mode::read, ToEnqueue);
+  MockSchedulerPtr->MGraphBuilder.addNodeToLeaves(
+      Rec, WriteCmd, sycl::access::mode::write, ToEnqueue);
+
+  Mock.redefine<sycl::detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  std::shared_lock<std::shared_timed_mutex> Lock(MockSchedulerPtr->MGraphLock);
+  testing::InSequence S;
+
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_SUBMITTED;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
+      PI_EVENT_SUBMITTED;
+
+  EXPECT_CALL(*ReadCmd, enqueue).Times(1).RetiresOnSaturation();
+  EXPECT_FALSE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, false));
+  EXPECT_CALL(*ReadCmd, enqueue).Times(0);
+
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
+      PI_EVENT_SUBMITTED;
+
+  EXPECT_CALL(*WriteCmd, enqueue).Times(1).RetiresOnSaturation();
+  EXPECT_FALSE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, false));
+  EXPECT_CALL(*WriteCmd, enqueue).Times(0);
+
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
+  EXPECT_TRUE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, true));
+  // previous expect_call is still valid and will generate failure if we recieve
+  // call here, no need for extra limitation
 }

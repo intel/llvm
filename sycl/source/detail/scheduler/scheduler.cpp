@@ -34,12 +34,13 @@ bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   for (Command *Cmd : Record->MReadLeaves) {
     if (Cmd->getEvent()->isCompleted())
       continue;
+
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
     if (ForceWait) {
-      EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.",
-                            PI_ERROR_INVALID_OPERATION);
       GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
     } else
       return false;
@@ -47,12 +48,13 @@ bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   for (Command *Cmd : Record->MWriteLeaves) {
     if (Cmd->getEvent()->isCompleted())
       continue;
+
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
     if (ForceWait) {
-      EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.",
-                            PI_ERROR_INVALID_OPERATION);
       GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
     } else
       return false;
@@ -425,15 +427,16 @@ Scheduler::Scheduler() {
 }
 
 Scheduler::~Scheduler() {
-  // Please be aware that releaseResources should be called before deletion of Scheduler.
-  // Otherwise there can be the case when objects Scheduler keeps as fields may need Scheduler
-  // for their release and they work with Scheduler via GlobalHandler::getScheduler that will create new Scheduler object.
-  // Still keep it here but it should no almost nothing if releaseResources called before.
+  // Please be aware that releaseResources should be called before deletion of
+  // Scheduler. Otherwise there can be the case when objects Scheduler keeps as
+  // fields may need Scheduler for their release and they work with Scheduler
+  // via GlobalHandler::getScheduler that will create new Scheduler object.
+  // Still keep it here but it should no almost nothing if releaseResources
+  // called before.
   releaseResources();
 }
 
-void Scheduler::releaseResources()
-{
+void Scheduler::releaseResources() {
   // By specification there are several possible sync points: buffer
   // destruction, wait() method of a queue or event. Stream doesn't introduce
   // any synchronization point. It is guaranteed that stream is flushed and
@@ -455,11 +458,14 @@ void Scheduler::releaseResources()
   cleanupCommands({});
   DefaultHostQueue.reset();
 
-  // We need loop since sometimes we may need new objects to be added to deferred mem objects storage during cleanup.
-  // Known example is: we cleanup existing deferred mem objects under write lock, during this process we cleanup commands related to this record,
-  // command may have last reference to queue_impl, ~queue_impl is called and buffer for assert (which is created with size only so all confitions for deferred release are satisfied)
-  // is added to deferred mem obj storage. So we may end up with leak.
-  while(!isNoDeferredMemObjects())
+  // We need loop since sometimes we may need new objects to be added to
+  // deferred mem objects storage during cleanup. Known example is: we cleanup
+  // existing deferred mem objects under write lock, during this process we
+  // cleanup commands related to this record, command may have last reference to
+  // queue_impl, ~queue_impl is called and buffer for assert (which is created
+  // with size only so all confitions for deferred release are satisfied) is
+  // added to deferred mem obj storage. So we may end up with leak.
+  while (!isNoDeferredMemObjects())
     cleanupDeferredMemObjects(true);
 }
 
@@ -527,8 +533,7 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   cleanupDeferredMemObjects(false);
 }
 
-inline bool Scheduler::isNoDeferredMemObjects()
-{
+inline bool Scheduler::isNoDeferredMemObjects() {
   std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
   return MDeferredMemObjRelease.empty();
 }
@@ -539,13 +544,12 @@ void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
 
   // Need to aggregate ready to release object to acquire write lock once.
   std::list<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
-    {
+  {
     ReadLockT Lock(MGraphLock, std::try_to_lock);
     // if we need blocking mode - force lock waiting
     if (!Lock.owns_lock() && ForceWait)
       Lock.lock();
     if (Lock.owns_lock()) {
-    {
       // Not expected that ForceWait == true with be used in parallel with
       // adding MemObj to storage, no such scenario.
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
@@ -589,7 +593,6 @@ void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
   }
   deallocateStreams(StreamsToDeallocate);
   // ObjsReadyToRelease leaving scope and being deleted
-  }
 }
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

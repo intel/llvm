@@ -103,6 +103,7 @@ public:
   using sycl::detail::Scheduler::addCG;
   using sycl::detail::Scheduler::addCopyBack;
   using sycl::detail::Scheduler::cleanupCommands;
+  using sycl::detail::Scheduler::waitForRecordToFinish;
 
   sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
