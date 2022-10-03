@@ -120,8 +120,7 @@ endif()
 # Unlike PACKAGE_VERSION, CLANG_VERSION does not include LLVM_VERSION_SUFFIX.
 set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION_PATCHLEVEL}")
 
-set(SYCL_INCLUDE_DIR "include")
-set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
+set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/include)
 
 add_llvm_external_project(opencl)
 list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_FOUND)
@@ -137,7 +136,7 @@ file(COPY ${OpenCL_INCLUDE_DIR}/CL
 
 # Include OpenCL Headers into final bundle.
 install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-        DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sycl
         COMPONENT OpenCL-Headers)
 
 # Needed for feature_test.hpp
@@ -156,10 +155,10 @@ set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
-set(version_header "${sycl_inc_dir}/sycl/version.hpp")
-configure_file("${version_header}.in" "${version_header}")
-set(feature_header "${sycl_inc_dir}/sycl/feature_test.hpp")
-configure_file("${feature_header}.in" "${feature_header}")
+configure_file("${sycl_inc_dir}/sycl/version.hpp.in"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
+configure_file("${sycl_inc_dir}/sycl/feature_test.hpp.in"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
 include(AddBoostMp11Headers)
 
@@ -169,37 +168,49 @@ include(AddBoostMp11Headers)
 file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 file(GLOB_RECURSE HEADERS_IN_STD_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/std/*")
-string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
-  OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
-string(REPLACE "${sycl_inc_dir}/CL" "${SYCL_INCLUDE_BUILD_DIR}/sycl/CL"
-  OUT_HEADERS_IN_CL_DIR "${HEADERS_IN_CL_DIR}")
-string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
-  OUT_HEADERS_IN_STD_DIR "${HEADERS_IN_STD_DIR}")
+# configure_file templates shouldn't be installed
+# We overglob and then remove our configure_file templates, because
+# file(GLOB_RECURSE doesn't have a usable EXCLUDE REGEX flag
+list(FILTER HEADERS_IN_SYCL_DIR EXCLUDE REGEX "\.in$")
+list(FILTER HEADERS_IN_CL_DIR EXCLUDE REGEX "\.in$")
+list(FILTER HEADERS_IN_STD_DIR EXCLUDE REGEX "\.in$")
 
-# Copy SYCL headers from sources to build directory
+# copy the headers to the build directory...
+set(SYCL_OUT_HEADERS)
+foreach(F IN LISTS HEADERS_IN_SYCL_DIR HEADERS_IN_CL_DIR HEADERS_IN_STD_DIR)
+  file(RELATIVE_PATH REL "${sycl_inc_dir}" "${F}")
+  set(out "${SYCL_INCLUDE_BUILD_DIR}/${REL}")
+  list(APPEND SYCL_OUT_HEADERS "${out}")
+
+  add_custom_command(
+    OUTPUT "${out}"
+    DEPENDS "${F}"
+    COMMAND ${CMAKE_COMMAND} -E copy "${F}" "${out}"
+  )
+endforeach()
+# ... then create the phony target the depends on the headers being copied to
+# the build directory
 add_custom_target(sycl-headers
-  DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
-          ${OUT_HEADERS_IN_CL_DIR}
-          ${OUT_HEADERS_IN_STD_DIR}
+  DEPENDS "${SYCL_OUT_HEADERS}"
           boost_mp11-headers)
 
-add_custom_command(
-  OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
-          ${OUT_HEADERS_IN_CL_DIR}
-          ${OUT_HEADERS_IN_STD_DIR}
-  DEPENDS ${HEADERS_IN_SYCL_DIR}
-          ${HEADERS_IN_CL_DIR}
-          ${HEADERS_IN_STD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
-  COMMENT "Copying SYCL headers ...")
-
-# Copy SYCL headers from source to install directory
-install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
+# The SYCL install target includes all headers from the build directory
+install(
+  DIRECTORY "${SYCL_INCLUDE_BUILD_DIR}/sycl"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  COMPONENT sycl-headers)
+install(
+  DIRECTORY "${SYCL_INCLUDE_BUILD_DIR}/sycl/CL"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/sycl"
+  COMPONENT sycl-headers)
+install(
+  DIRECTORY "${SYCL_INCLUDE_BUILD_DIR}/std"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  COMPONENT sycl-headers)
+install(
+  DIRECTORY ${BOOST_MP11_DESTINATION_DIR}
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/sycl/detail"
+  COMPONENT boost_mp11-headers)
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})

@@ -121,7 +121,7 @@ set_target_properties(pi_esimd_emulator PROPERTIES LINKER_LANGUAGE CXX)
 
 # Copy CM Header files to $(INSTALL)/include/sycl/CL/
 install(DIRECTORY    ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/include/libcm/cm/
-        DESTINATION  ${SYCL_INCLUDE_DIR}/sycl/CL
+        DESTINATION  ${CMAKE_INSTALL_INCLUDEDIR}/sycl/CL
         COMPONENT    libcmrt-headers
         FILES_MATCHING PATTERN "*.h"
 )
