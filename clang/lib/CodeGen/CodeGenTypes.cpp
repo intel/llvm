@@ -57,12 +57,10 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
       if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
         ArrayRef<TemplateArgument> TemplateArgs =
             TemplateDecl->getTemplateArgs().asArray();
-        [[maybe_unused]] constexpr size_t MinMatrixParameter = 5;
-        constexpr size_t MaxMatrixParameter = 6;
+        constexpr size_t NumOfMatrixParameters = 6;
         const size_t TemplateArgsSize = TemplateArgs.size();
-        assert((TemplateArgsSize >= MinMatrixParameter &&
-                TemplateArgsSize <= MaxMatrixParameter) &&
-               "Too many template parameters for JointMatrixINTEL type");
+        assert(TemplateArgsSize == NumOfMatrixParameters &&
+               "Incorrect number of template parameters for JointMatrixINTEL");
         OS << "spirv.JointMatrixINTEL.";
         for (size_t I = 0; I != TemplateArgsSize; ++I) {
           if (TemplateArgs[I].getKind() == TemplateArgument::Type) {
@@ -99,10 +97,12 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
               TTy->print(OS, false, true);
           } else if (TemplateArgs[I].getKind() == TemplateArgument::Integral) {
             const auto IntTemplateParam = TemplateArgs[I].getAsIntegral();
-            // Last parameter 'Use' is optional in SPIR-V, but is not optional
-            // in DPCPP headers. If it has Unnecessary value - skip it
+            // Last template parameter of __spirv_JointMatrixINTEL 'Use' is
+            // optional in SPIR-V, so If it has 'Unnecessary' value - skip it.
+            // MatrixUse::Unnecessary defined as '3' in spirv_types.hpp.
             constexpr size_t Unnecessary = 3;
-            if (!(I == MaxMatrixParameter && IntTemplateParam == Unnecessary))
+            if (!(I == NumOfMatrixParameters &&
+                  IntTemplateParam == Unnecessary))
               OS << "_" << IntTemplateParam;
           }
         }
