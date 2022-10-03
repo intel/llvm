@@ -8,9 +8,9 @@
 // Finds and adds  sycl_explicit_simd attributes to wrapper functions that wrap
 // ESIMD kernel functions
 
-#include "llvm/SYCLLowerIR/CallgraphUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"

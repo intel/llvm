@@ -10,7 +10,7 @@
 // potentially call this intrinsic.
 
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
-#include "llvm/SYCLLowerIR/CallgraphUtils.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"

@@ -1,4 +1,4 @@
-//===------------ CallgraphUtils.cpp - Callgraph utility functions
+//===------------ SYCLUtils.cpp - SYCL utility functions
 //------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -6,9 +6,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Utility functions for traversing callgraphs.
+// Utility functions for SYCL.
 //===----------------------------------------------------------------------===//
-#include "llvm/SYCLLowerIR/CallgraphUtils.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/IR/Instructions.h"
 
 namespace llvm {

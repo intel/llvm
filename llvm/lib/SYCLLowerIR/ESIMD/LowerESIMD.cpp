@@ -14,8 +14,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
-#include "llvm/SYCLLowerIR/CallgraphUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
