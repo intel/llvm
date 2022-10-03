@@ -70,6 +70,8 @@ static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
 
+constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
+
 bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   if (!CombinedStructABI)
     return true;
@@ -108,14 +110,13 @@ mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
 
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
                          mlir::OwningOpRef<mlir::ModuleOp> &module,
-                         mlir::gpu::GPUModuleOp deviceModule,
                          LowerToInfo &LTInfo)
-    : Glob(Glob), function(), module(module), deviceModule(deviceModule),
-      builder(module->getContext()), loc(builder.getUnknownLoc()),
-      entryBlock(nullptr), loops(), allocationScope(nullptr), supportedFuncs(),
-      bufs(), constants(), labels(), EmittingFunctionDecl(nullptr), params(),
-      Captures(), CaptureKinds(), ThisCapture(nullptr), arrayinit(), ThisVal(),
-      returnVal(), LTInfo(LTInfo) {}
+    : Glob(Glob), function(), module(module), builder(module->getContext()),
+      loc(builder.getUnknownLoc()), entryBlock(nullptr), loops(),
+      allocationScope(nullptr), supportedFuncs(), bufs(), constants(), labels(),
+      EmittingFunctionDecl(nullptr), params(), Captures(), CaptureKinds(),
+      ThisCapture(nullptr), arrayinit(), ThisVal(), returnVal(),
+      LTInfo(LTInfo) {}
 
 void MLIRScanner::initSupportedFunctions() {
   // Functions needed for single_task with one dimensional write buffer.
@@ -228,13 +229,12 @@ void MLIRScanner::initSupportedFunctions() {
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
-                                const OwningOpRef<ModuleOp> &module,
-                                gpu::GPUModuleOp deviceModule) {
+                                const OwningOpRef<ModuleOp> &module) {
   assert(
       (Context != FunctionContext::Host || F->getParentOp() == module.get()) &&
       "New function must be inserted into global module");
   assert((Context != FunctionContext::SYCLDevice ||
-          F->getParentOfType<gpu::GPUModuleOp>() == deviceModule) &&
+          F->getParentOfType<gpu::GPUModuleOp>() == getDeviceModule(*module)) &&
          "New device function must be inserted into device module");
 }
 
@@ -483,7 +483,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   } else
     builder.create<ReturnOp>(loc);
 
-  checkFunctionParent(function, f.getContext(), module, deviceModule);
+  checkFunctionParent(function, f.getContext(), module);
 }
 
 mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
@@ -2653,7 +2653,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     builder.setInsertionPointToStart(blk);
     mlir::Value res;
     if (auto init = VD->getInit()) {
-      MLIRScanner ms(*this, module, deviceModule, LTInfo);
+      MLIRScanner ms(*this, module, LTInfo);
       ms.setEntryAndAllocBlock(blk);
       res = ms.Visit(const_cast<Expr *>(init)).getValue(builder);
     } else {
@@ -2816,7 +2816,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   if (tryInit)
     if (auto init = VD->getInit()) {
-      MLIRScanner ms(*this, module, deviceModule, LTInfo);
+      MLIRScanner ms(*this, module, LTInfo);
       mlir::Block *B = new Block();
       ms.setEntryAndAllocBlock(B);
       OpBuilder builder(module->getContext());
@@ -2994,7 +2994,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
         functionsToEmit.emplace_back(*Def, F.getContext());
       }
     }
-    checkFunctionParent(function, F.getContext(), module, deviceModule);
+    checkFunctionParent(function, F.getContext(), module);
     return function;
   }
 
@@ -3092,7 +3092,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
     if (F.getDecl().hasAttr<SYCLKernelAttr>()) {
       auto function = builder.create<gpu::GPUFuncOp>(loc, name, funcType,
                                                      TypeRange{}, TypeRange{});
-      return insert(function, deviceModule, deviceFunctions);
+      return insert(function, getDeviceModule(*module), deviceFunctions);
     }
 
     auto function = builder.create<func::FuncOp>(loc, name, funcType);
@@ -3100,7 +3100,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
     case FunctionContext::Host:
       return insert(function, *module, functions);
     case FunctionContext::SYCLDevice:
-      return insert(function, deviceModule, deviceFunctions);
+      return insert(function, getDeviceModule(*module), deviceFunctions);
     }
     llvm_unreachable("Invalid function context");
   };
@@ -3134,7 +3134,7 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
   } else if (ShouldEmit) {
     emitIfFound.insert(name);
   }
-  checkFunctionParent(function, F.getContext(), module, deviceModule);
+  checkFunctionParent(function, F.getContext(), module);
   return function;
 }
 
@@ -3170,7 +3170,7 @@ void MLIRASTConsumer::run() {
     });
 
     done.insert(doneKey);
-    MLIRScanner ms(*this, module, deviceModule, LTInfo);
+    MLIRScanner ms(*this, module, LTInfo);
     FunctionOpInterface function = GetOrCreateMLIRFunction(F, true);
     ms.init(function, F);
 
@@ -3938,16 +3938,14 @@ public:
   std::set<std::string> emitIfFound;
   std::set<std::pair<FunctionContext, std::string>> done;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::gpu::GPUModuleOp deviceModule;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
   std::map<std::string, mlir::func::FuncOp> functions;
   std::map<std::string, mlir::FunctionOpInterface> deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
-  MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module,
-             mlir::gpu::GPUModuleOp deviceModule)
-      : module(module), deviceModule(deviceModule) {
+  MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module)
+      : module(module) {
     emitIfFound.insert(fn);
   }
   std::unique_ptr<clang::ASTConsumer>
@@ -3955,7 +3953,7 @@ public:
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
         emitIfFound, done, llvmStringGlobals, globals, functions,
         deviceFunctions, llvmGlobals, llvmFunctions, CI.getPreprocessor(),
-        CI.getASTContext(), module, deviceModule, CI.getSourceManager(),
+        CI.getASTContext(), module, CI.getSourceManager(),
         CI.getCodeGenOpts()));
   }
 };
@@ -4030,8 +4028,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
                       mlir::OwningOpRef<mlir::ModuleOp> &module,
-                      mlir::gpu::GPUModuleOp deviceModule, llvm::Triple &triple,
-                      llvm::DataLayout &DL,
+                      llvm::Triple &triple, llvm::DataLayout &DL,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
@@ -4171,7 +4168,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     CommandList.push_back(&InputCommandArgList);
   }
 
-  MLIRAction Act(fn, module, deviceModule);
+  MLIRAction Act(fn, module);
 
   for (const ArgStringList *args : CommandList) {
     std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
