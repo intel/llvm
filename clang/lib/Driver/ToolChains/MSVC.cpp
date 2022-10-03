@@ -124,7 +124,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
-      CmdArgs.push_back("-defaultlib:msvcrt");
+      if (Args.hasArg(options::OPT_g_Flag))
+        CmdArgs.push_back("-defaultlib:msvcrtd");
+      else
+        CmdArgs.push_back("-defaultlib:msvcrt");
     else
       CmdArgs.push_back("-defaultlib:libcmt");
     CmdArgs.push_back("-defaultlib:oldnames");
