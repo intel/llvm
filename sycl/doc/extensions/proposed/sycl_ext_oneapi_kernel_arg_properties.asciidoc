@@ -90,8 +90,7 @@ implementation supports.
 === `restrict` property
 
 The `restrict` property defined here is only meaningful on the kernel arguments
-when the kernel argument is a pointer type or a pointer wrapper type and is
-ignored for other types.
+when the kernel argument is a pointer type. It is ignored for other types.
 
 This property is not meaningful within the kernel body.
 
