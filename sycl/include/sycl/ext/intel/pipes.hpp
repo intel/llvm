@@ -23,16 +23,16 @@ public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static DataT read(bool &_Success) {
+  static DataT read(bool &Success) {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_RPipeTy<DataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
     DataT TempData;
-    _Success = !static_cast<bool>(
+    Success = !static_cast<bool>(
         __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
-    (void)_Success;
+    (void)Success;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Pipes are not supported on a host device.");
@@ -41,15 +41,15 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const DataT &_Data, bool &_Success) {
+  static void write(const DataT &Data, bool &Success) {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_WPipeTy<DataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
-    _Success = !static_cast<bool>(
-        __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
+    Success = !static_cast<bool>(
+        __spirv_WritePipe(_WPipe, &Data, m_Size, m_Alignment));
 #else
-    (void)_Success;
-    (void)_Data;
+    (void)Success;
+    (void)Data;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Pipes are not supported on a host device.");
@@ -75,13 +75,13 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const DataT &_Data) {
+  static void write(const DataT &Data) {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_WPipeTy<DataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
-    __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
+    __spirv_WritePipeBlockingINTEL(_WPipe, &Data, m_Size, m_Alignment);
 #else
-    (void)_Data;
+    (void)Data;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Pipes are not supported on a host device.");
@@ -125,16 +125,16 @@ public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static DataT read(bool &_Success) {
+  static DataT read(bool &Success) {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_RPipeTy<DataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<DataT>(&m_Storage);
     DataT TempData;
-    _Success = !static_cast<bool>(
+    Success = !static_cast<bool>(
         __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
-    (void)_Success;
+    (void)Success;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Pipes are not supported on a host device.");
@@ -176,15 +176,15 @@ public:
   // Non-blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const DataT &_Data, bool &_Success) {
+  static void write(const DataT &Data, bool &Success) {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_WPipeTy<DataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
-    _Success = !static_cast<bool>(
-        __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
+    Success = !static_cast<bool>(
+        __spirv_WritePipe(_WPipe, &Data, m_Size, m_Alignment));
 #else
-    (void)_Data;
-    (void)_Success;
+    (void)Data;
+    (void)Success;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Pipes are not supported on a host device.");
@@ -194,13 +194,13 @@ public:
   // Blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const DataT &_Data) {
+  static void write(const DataT &Data) {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_WPipeTy<DataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<DataT>(&m_Storage);
-    __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
+    __spirv_WritePipeBlockingINTEL(_WPipe, &Data, m_Size, m_Alignment);
 #else
-    (void)_Data;
+    (void)Data;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Pipes are not supported on a host device.");

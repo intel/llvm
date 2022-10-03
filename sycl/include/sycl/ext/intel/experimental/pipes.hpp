@@ -20,31 +20,31 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::experimental {
 
 template <class Name, class DataT, int32_t MinCapacity = 0,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class PropertiesT = decltype(oneapi::experimental::properties{}),
           class = void>
 class pipe {
-  static_assert(std::is_same_v<_propertiesT,
+  static_assert(std::is_same_v<PropertiesT,
                                decltype(oneapi::experimental::properties{})>,
                 "experimental pipe properties are not yet implemented");
 };
 
-template <class Name, class DataT, int32_t MinCapacity, class _propertiesT>
-class pipe<Name, DataT, MinCapacity, _propertiesT,
+template <class Name, class DataT, int32_t MinCapacity, class PropertiesT>
+class pipe<Name, DataT, MinCapacity, PropertiesT,
            std::enable_if_t<std::is_same_v<
-               _propertiesT, decltype(oneapi::experimental::properties{})>>> {
+               PropertiesT, decltype(oneapi::experimental::properties{})>>> {
 public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT>
-  static DataT read(bool &Success, _functionPropertiesT Properties) {
+  template <typename FunctionPropertiesT>
+  static DataT read(bool &Success, FunctionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_anchor_id_key,
+        FunctionPropertiesT, latency_anchor_id_key,
         detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_constraint_key,
+        FunctionPropertiesT, latency_constraint_key,
         detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
@@ -85,16 +85,16 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT>
+  template <typename FunctionPropertiesT>
   static void write(const DataT &Data, bool &Success,
-                    _functionPropertiesT Properties) {
+                    FunctionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_anchor_id_key,
+        FunctionPropertiesT, latency_anchor_id_key,
         detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_constraint_key,
+        FunctionPropertiesT, latency_constraint_key,
         detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
@@ -135,15 +135,15 @@ public:
   // Blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT>
-  static DataT read(_functionPropertiesT Properties) {
+  template <typename FunctionPropertiesT>
+  static DataT read(FunctionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_anchor_id_key,
+        FunctionPropertiesT, latency_anchor_id_key,
         detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_constraint_key,
+        FunctionPropertiesT, latency_constraint_key,
         detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
@@ -181,15 +181,15 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  template <typename _functionPropertiesT>
-  static void write(const DataT &Data, _functionPropertiesT Properties) {
+  template <typename FunctionPropertiesT>
+  static void write(const DataT &Data, FunctionPropertiesT Properties) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_anchor_id_key,
+        FunctionPropertiesT, latency_anchor_id_key,
         detail::defaultLatencyAnchorIdProperty>::type;
     using _latency_constraint_prop = typename detail::GetOrDefaultValT<
-        _functionPropertiesT, latency_constraint_key,
+        FunctionPropertiesT, latency_constraint_key,
         detail::defaultLatencyConstraintProperty>::type;
 
     // Get latency control property values
@@ -236,9 +236,9 @@ private:
 
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
-  template <typename _T>
+  template <typename T>
   static int32_t
-  __latency_control_nb_read_wrapper(__ocl_RPipeTy<_T> Pipe, _T *Data,
+  __latency_control_nb_read_wrapper(__ocl_RPipeTy<T> Pipe, T *Data,
                                     int32_t AnchorID, int32_t TargetAnchor,
                                     int32_t Type, int32_t Cycle) {
     return __spirv_ReadPipe(Pipe, Data, m_Size, m_Alignment);
@@ -246,9 +246,9 @@ private:
 
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
-  template <typename _T>
+  template <typename T>
   static int32_t
-  __latency_control_nb_write_wrapper(__ocl_WPipeTy<_T> Pipe, const _T *Data,
+  __latency_control_nb_write_wrapper(__ocl_WPipeTy<T> Pipe, const T *Data,
                                      int32_t AnchorID, int32_t TargetAnchor,
                                      int32_t Type, int32_t Cycle) {
     return __spirv_WritePipe(Pipe, Data, m_Size, m_Alignment);
@@ -256,9 +256,9 @@ private:
 
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
-  template <typename _T>
-  static void __latency_control_bl_read_wrapper(__ocl_RPipeTy<_T> Pipe,
-                                                _T *Data, int32_t AnchorID,
+  template <typename T>
+  static void __latency_control_bl_read_wrapper(__ocl_RPipeTy<T> Pipe,
+                                                T *Data, int32_t AnchorID,
                                                 int32_t TargetAnchor,
                                                 int32_t Type, int32_t Cycle) {
     return __spirv_ReadPipeBlockingINTEL(Pipe, Data, m_Size, m_Alignment);
@@ -266,9 +266,9 @@ private:
 
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
-  template <typename _T>
+  template <typename T>
   static void
-  __latency_control_bl_write_wrapper(__ocl_WPipeTy<_T> Pipe, const _T *Data,
+  __latency_control_bl_write_wrapper(__ocl_WPipeTy<T> Pipe, const T *Data,
                                      int32_t AnchorID, int32_t TargetAnchor,
                                      int32_t Type, int32_t Cycle) {
     return __spirv_WritePipeBlockingINTEL(Pipe, Data, m_Size, m_Alignment);
