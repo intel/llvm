@@ -116,7 +116,6 @@ private:
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   std::deque<FunctionToEmit> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::gpu::GPUModuleOp deviceModule;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -130,6 +129,8 @@ private:
   mlir::LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
 
 public:
+  static constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
+
   MLIRASTConsumer(
       std::set<std::string> &emitIfFound,
       std::set<std::pair<FunctionContext, std::string>> &done,
@@ -140,15 +141,14 @@ public:
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       clang::Preprocessor &PP, clang::ASTContext &astContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &module,
-      mlir::gpu::GPUModuleOp deviceModule, clang::SourceManager &SM,
+      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
       clang::CodeGenOptions &codegenops)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), deviceFunctions(deviceFunctions),
         llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), typeCache(),
-        functionsToEmit(), module(module), deviceModule(deviceModule), SM(SM),
-        lcontext(), llvmMod("tmp", lcontext),
+        functionsToEmit(), module(module), SM(SM), lcontext(),
+        llvmMod("tmp", lcontext),
         CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
@@ -221,7 +221,6 @@ private:
   MLIRASTConsumer &Glob;
   mlir::FunctionOpInterface function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::gpu::GPUModuleOp deviceModule;
   mlir::OpBuilder builder;
   mlir::Location loc;
   mlir::Block *entryBlock;
@@ -302,7 +301,7 @@ private:
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
-              mlir::gpu::GPUModuleOp deviceModule, LowerToInfo &LTInfo);
+              LowerToInfo &LTInfo);
 
   void init(mlir::FunctionOpInterface function, const FunctionToEmit &fd);
 

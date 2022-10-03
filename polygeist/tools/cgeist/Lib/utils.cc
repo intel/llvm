@@ -86,3 +86,8 @@ FunctionContext mlirclang::getInputContext(const OpBuilder &Builder) {
              ? FunctionContext::SYCLDevice
              : FunctionContext::Host;
 }
+
+mlir::gpu::GPUModuleOp mlirclang::getDeviceModule(mlir::ModuleOp Module) {
+  return cast<mlir::gpu::GPUModuleOp>(
+      Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
+}

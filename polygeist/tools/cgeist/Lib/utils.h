@@ -12,6 +12,7 @@
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
 #include "Lib/clang-mlir.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "clang/AST/DeclBase.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -54,6 +55,9 @@ bool isNamespaceSYCL(const clang::DeclContext *DC);
 
 /// Return the insertion context of the input builder.
 FunctionContext getInputContext(const mlir::OpBuilder &Builder);
+
+/// Return the device module in the input module.
+mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
 } // namespace mlirclang
 
 #endif
