@@ -24,8 +24,10 @@ namespace ext::intel::esimd::xmx {
 namespace detail {
 
 template <typename T> constexpr dpas_argument_type dpas_precision_from_type() {
-  // TODO: add support for tfloat32 here.
-  if constexpr (std::is_same_v<T, sycl::half>)
+  if constexpr (std::is_same_v<T,
+                               sycl::ext::intel::experimental::esimd::tfloat32>)
+    return dpas_argument_type::tf32;
+  else if constexpr (std::is_same_v<T, sycl::half>)
     return dpas_argument_type::fp16;
   else if constexpr (std::is_same_v<T,
                                     sycl::ext::oneapi::experimental::bfloat16>)
