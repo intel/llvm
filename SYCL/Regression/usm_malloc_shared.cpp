@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     }
   };
 
-  queue myQueue(default_selector{}, exception_handler);
+  queue myQueue(default_selector_v, exception_handler);
   std::cout << "Device: " << myQueue.get_device().get_info<info::device::name>()
             << std::endl;
 

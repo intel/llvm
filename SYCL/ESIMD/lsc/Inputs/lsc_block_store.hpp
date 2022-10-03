@@ -36,7 +36,7 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
   T old_val = get_rand<T>();
   T new_val = get_rand<T>();
 
-  auto GPUSelector = gpu_selector{};
+  auto GPUSelector = gpu_selector_v;
   auto q = queue{GPUSelector};
   auto dev = q.get_device();
   std::cout << "Running case #" << case_num << " on "

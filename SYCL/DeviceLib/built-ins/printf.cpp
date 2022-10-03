@@ -34,9 +34,8 @@ static const CONSTANT char format_vec[] = "%d,%d,%d,%d\n";
 const CONSTANT char format_hello_world_2[] = "%lu: Hello, World!\n";
 
 int main() {
-  default_selector Selector;
   {
-    queue Queue(Selector);
+    queue Queue(default_selector_v);
 
     Queue.submit([&](handler &CGH) {
       CGH.single_task<class integral>([=]() {
@@ -109,7 +108,7 @@ int main() {
   }
 
   {
-    queue Queue(Selector);
+    queue Queue(default_selector_v);
     // printf in parallel_for
     Queue.submit([&](handler &CGH) {
       CGH.parallel_for<class stream_string>(range<1>(10), [=](id<1> i) {

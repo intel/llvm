@@ -7,7 +7,7 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  sycl::queue Q{sycl::default_selector()};
+  sycl::queue Q{sycl::default_selector_v};
 
   auto *I = sycl::malloc_device<int>(1, Q);
   Q.single_task([=]() { I[0] = 42; });

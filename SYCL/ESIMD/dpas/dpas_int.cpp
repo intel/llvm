@@ -15,7 +15,7 @@
 #include "dpas_common.hpp"
 
 int main(int argc, const char *argv[]) {
-  queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   bool Print = argc > 1 && std::string(argv[1]) == "-debug";
   bool Passed = true;

@@ -55,8 +55,8 @@ public:
 };
 
 int main() {
-  TestQueue Queue1(sycl::default_selector{});
-  TestQueue Queue2(sycl::default_selector{});
+  TestQueue Queue1(sycl::default_selector_v);
+  TestQueue Queue2(sycl::default_selector_v);
 
   std::vector<int> Data(1);
 

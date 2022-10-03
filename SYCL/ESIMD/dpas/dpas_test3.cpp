@@ -94,7 +94,7 @@ void dpas_ker(nd_item<1> &idx, BF16 *matA, BF16 *matB, float *matC) {
 
 int main() {
   // A [8][16] * B[16][16]= C[8][16]
-  queue q(gpu_selector{});
+  queue q(gpu_selector_v);
   nd_range<1> Range(range<1>{1}, range<1>{1});
   constexpr int MB = 8;
   constexpr int NB = 16; // KB = NB = 16 in pvc

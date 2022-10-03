@@ -12,7 +12,7 @@
 
 int main() {
   sycl::context Context;
-  sycl::queue Q1(Context, sycl::default_selector{});
+  sycl::queue Q1(Context, sycl::default_selector_v);
 
   Q1.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel1>([]() {}); });
@@ -30,8 +30,8 @@ int main() {
   // call queue::ext_oneapi_submit_barrier()
   Q1.ext_oneapi_submit_barrier();
 
-  sycl::queue Q2(Context, sycl::default_selector{});
-  sycl::queue Q3(Context, sycl::default_selector{});
+  sycl::queue Q2(Context, sycl::default_selector_v);
+  sycl::queue Q3(Context, sycl::default_selector_v);
 
   auto Event1 = Q1.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel5>([]() {}); });

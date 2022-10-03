@@ -10,7 +10,7 @@
 constexpr auto BE = sycl::backend::ext_oneapi_level_zero;
 
 int main() {
-  sycl::device Dev{sycl::default_selector{}};
+  sycl::device Dev{sycl::default_selector_v};
 
   sycl::queue Q{Dev};
 

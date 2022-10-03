@@ -51,7 +51,7 @@ int main() {
   if (res != 0)
     return res;
 
-  device dev{sycl::default_selector{}};
+  device dev{sycl::default_selector_v};
   context ctx{dev};
 
   auto exception_handler = [](sycl::exception_list exceptions) {};

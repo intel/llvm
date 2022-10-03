@@ -48,8 +48,7 @@
 #include <thread>
 
 int main(void) {
-  sycl::default_selector ds{};
-  sycl::queue q{ds};
+  sycl::queue q{sycl::default_selector_v};
   std::vector<sycl::event> events(10);
 
   sycl::event ev1 = q.submit([&](sycl::handler &cgh) {

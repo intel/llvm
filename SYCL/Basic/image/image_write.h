@@ -119,8 +119,6 @@ bool test3d_coord(s::queue myQueue, dataT *hostPtr, coordT coord,
                   dataT colour) {
   dataT resultData;
 
-  s::default_selector selector;
-
   { // Scope everything to force destruction
     s::image<3> image(hostPtr, s::image_channel_order::rgba, channelType,
                       s::range<3>{3, 3, 3});

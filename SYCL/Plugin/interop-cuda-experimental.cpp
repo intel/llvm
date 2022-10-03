@@ -55,7 +55,7 @@ int main() {
   // Create sycl queue with queue construct from Q's native types and submit
   // some work
   {
-    sycl::queue new_Q(Q_sycl_ctx, sycl::default_selector());
+    sycl::queue new_Q(Q_sycl_ctx, sycl::default_selector_v);
     assert(check_queue(new_Q));
   }
 
@@ -92,7 +92,7 @@ int main() {
 
   // Create sycl queue with new queue and submit some work
   {
-    sycl::queue new_Q(sycl_ctx, sycl::default_selector());
+    sycl::queue new_Q(sycl_ctx, sycl::default_selector_v);
     assert(check_queue(new_Q));
   }
 
@@ -112,7 +112,7 @@ int main() {
 
   // Check sycl queue with sycl_ctx still works
   {
-    sycl::queue new_Q(sycl_ctx, sycl::default_selector());
+    sycl::queue new_Q(sycl_ctx, sycl::default_selector_v);
     assert(check_queue(new_Q));
   }
 

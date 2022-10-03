@@ -139,7 +139,7 @@ int main() {
     // Test case #3
     // Use buffer in two different contexts
     context Context1;
-    queue Queue1(Context1, default_selector{});
+    queue Queue1(Context1, default_selector_v);
     Queue1.submit([&](sycl::handler &CGH) {
       auto Acc =
           HostBufferInterop2.get_access<sycl::access::mode::read_write>(CGH);
@@ -151,7 +151,7 @@ int main() {
     });
 
     context Context2;
-    queue Queue2(Context2, default_selector{});
+    queue Queue2(Context2, default_selector_v);
     Queue2.submit([&](sycl::handler &CGH) {
       auto Acc =
           HostBufferInterop2.get_access<sycl::access::mode::read_write>(CGH);

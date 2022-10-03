@@ -176,7 +176,7 @@ template <class T> bool test(queue q) {
 }
 
 int main(int argc, char **argv) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto dev = q.get_device();
   const bool doublesSupported = dev.has(sycl::aspect::fp64);
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()

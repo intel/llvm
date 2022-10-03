@@ -17,7 +17,7 @@ int main() {
   int Data[1] = {0};
   sycl::buffer<int, 1> Buffer(&Data[0], sycl::range<1>(1));
   {
-    sycl::queue Queue{sycl::gpu_selector()};
+    sycl::queue Queue{sycl::gpu_selector_v};
     Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
       cgh.single_task<class kernel>([=]() { (void)Acc; });

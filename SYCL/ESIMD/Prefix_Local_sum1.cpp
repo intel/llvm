@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
 
   sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
 
   auto dev = q.get_device();

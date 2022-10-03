@@ -146,7 +146,7 @@ void check_half4(char *HostPtr) {
 int main() {
   // Checking if default selected device supports half datatype.
   // Same device will be selected in the write/read functions.
-  s::device Dev{s::default_selector()};
+  s::device Dev{s::default_selector_v};
   if (!Dev.has(sycl::aspect::fp16)) {
     std::cout << "This device doesn't support the extension cl_khr_fp16"
               << std::endl;

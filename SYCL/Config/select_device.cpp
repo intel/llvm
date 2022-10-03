@@ -180,6 +180,9 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
+        if (passed) {
+          break;
+        } // no need to write more than one match
         for (const auto &dev : plt.get_devices()) {
           if (dev.has(aspect::gpu)) {
             std::string name = dev.get_info<info::device::name>();
@@ -226,7 +229,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector_v);
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if ((std::regex_match(dev.get_info<info::device::name>(),
@@ -284,7 +287,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector_v);
         device dev = deviceQueue.get_device();
         const auto &plt = dev.get_platform();
         for (const DevDescT &desc : components) {
@@ -310,6 +313,9 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
+        if (passed) {
+          break;
+        } // no need for additional entries
         for (const auto &dev : plt.get_devices()) {
           if (dev.has(aspect::gpu)) {
             std::string name = dev.get_info<info::device::name>();
@@ -345,10 +351,10 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector_v);
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
-        } catch (sycl::runtime_error &E) {
+        } catch (sycl::exception &E) {
           const std::string expectedMsg(
               "No device of requested type 'info::device_type::gpu' available");
           const std::string gotMessage(E.what());
@@ -417,10 +423,10 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector_v);
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
-        } catch (sycl::runtime_error &E) {
+        } catch (sycl::exception &E) {
           const std::string expectedMsg(
               "No device of requested type 'info::device_type::gpu' available");
           const std::string gotMessage(E.what());
@@ -441,6 +447,9 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
+        if (passed) {
+          break;
+        } // no need for additional entries
         for (const auto &dev : plt.get_devices()) {
           if (dev.has(aspect::gpu)) {
             std::string name = dev.get_info<info::device::name>();
@@ -491,7 +500,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector_v);
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if ((std::regex_match(dev.get_info<info::device::name>(),
@@ -517,6 +526,9 @@ int main() {
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
       for (const auto &plt : platform::get_platforms()) {
+        if (passed) {
+          break;
+        } // no need for additional entries
         for (const auto &dev : plt.get_devices()) {
           if (dev.has(aspect::gpu)) {
             std::string name = dev.get_info<info::device::name>();
@@ -549,7 +561,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector_v);
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if (std::regex_match(dev.get_info<info::device::name>(),
@@ -600,7 +612,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector_v);
         device dev = deviceQueue.get_device();
         const auto &plt = dev.get_platform();
         for (const DevDescT &desc : components) {
@@ -663,7 +675,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector_v);
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if ((std::regex_match(dev.get_info<info::device::name>(),
@@ -722,10 +734,10 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector_v);
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
-        } catch (sycl::runtime_error &E) {
+        } catch (sycl::exception &E) {
           // Workaround to make CI pass.
           // TODO: after the submission of PR intel/llvm:3826, create PR to
           // intel/llvm-test-suite with removal of 1st parameter of the vector,
@@ -785,10 +797,10 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector_v);
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
-        } catch (sycl::runtime_error &E) {
+        } catch (sycl::exception &E) {
           // Workaround to make CI pass.
           // TODO: after the submission of PR intel/llvm:3826, create PR to
           // intel/llvm-test-suite with removal of 1st parameter of the vector,
@@ -852,10 +864,10 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector_v);
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
-        } catch (sycl::runtime_error &E) {
+        } catch (sycl::exception &E) {
           // Workaround to make CI pass.
           // TODO: after the submission of PR intel/llvm:3826, create PR to
           // intel/llvm-test-suite with removal of 1st parameter of the vector,
@@ -917,10 +929,10 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector_v);
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
-        } catch (sycl::runtime_error &E) {
+        } catch (sycl::exception &E) {
           // Workaround to make CI pass.
           // TODO: after the submission of PR intel/llvm:3826, create PR to
           // intel/llvm-test-suite with removal of 1st parameter of the vector,

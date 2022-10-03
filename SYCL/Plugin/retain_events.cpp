@@ -67,7 +67,7 @@ int test(sycl::device &D) {
 
 int main() {
   try {
-    sycl::device D1{sycl::gpu_selector{}};
+    sycl::device D1{sycl::gpu_selector_v};
     print_device_properties(D1);
     for (int i = 0; i < 10; ++i) {
       test(D1);

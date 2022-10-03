@@ -104,7 +104,7 @@ class NumBlocksConst;
 class histogram_slm;
 
 int main(int argc, char **argv) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           sycl::property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();

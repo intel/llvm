@@ -13,7 +13,7 @@ SYCL_EXTERNAL
 int f(int a) { return a + 1; }
 
 int main() {
-  const sycl::device Dev{sycl::default_selector{}};
+  const sycl::device Dev{sycl::default_selector_v};
   const sycl::context Ctx{Dev};
   sycl::queue Q{Ctx, Dev};
 

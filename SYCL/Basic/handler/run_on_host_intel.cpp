@@ -26,7 +26,7 @@ int main() {
   sycl::buffer<int, 1> SrcBuf(data1, sycl::range<1>{BufSize});
   sycl::buffer<int, 1> DstBuf(sycl::range<1>{BufSize});
 
-  TestQueue Queue{sycl::default_selector{}};
+  TestQueue Queue{sycl::default_selector_v};
   Queue.submit([&](sycl::handler &CGH) {
     auto SrcAcc = SrcBuf.get_access<sycl::access::mode::read>(CGH);
     auto DstAcc = DstBuf.get_access<sycl::access::mode::write>(CGH);

@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   // Read in image luma plane
 
   // Allocate Input Buffer
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
 
   auto dev = q.get_device();

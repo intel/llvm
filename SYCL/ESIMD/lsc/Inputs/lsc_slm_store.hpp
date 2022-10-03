@@ -36,7 +36,7 @@ bool test(uint32_t PMask = ~0) {
   else if constexpr (DS == lsc_data_size::u16u32h)
     VMask = static_cast<T>(0xffff0000);
 
-  queue Q(gpu_selector{});
+  queue Q(gpu_selector_v);
   auto D = Q.get_device();
   std::cout << "Running case #" << CaseNum << " on "
             << D.get_info<sycl::info::device::name>() << std::endl;

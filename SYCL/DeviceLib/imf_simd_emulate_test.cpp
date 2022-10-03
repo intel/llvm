@@ -1810,8 +1810,7 @@ void run_vgtle_2_4_test(s::queue &queue) {
 }
 
 int main(int, char **) {
-  s::default_selector device_selector;
-  s::queue device_queue(device_selector);
+  s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
             << device_queue.get_device().get_info<s::info::device::name>()
             << "\n";

@@ -343,7 +343,7 @@ void test_sort_by_type(sycl::queue &q, std::size_t dataSize) {
 }
 
 int main(int argc, char *argv[]) {
-  sycl::queue q(sycl::default_selector{}, async_handler_);
+  sycl::queue q(sycl::default_selector_v, async_handler_);
   if (!isSupportedDevice(q.get_device())) {
     std::cout << "Skipping test\n";
     return 0;

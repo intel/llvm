@@ -8,7 +8,7 @@
 using namespace sycl;
 
 int main() {
-  device d(default_selector{});
+  device d(default_selector_v);
   context ctx{d};
   queue q{ctx, d};
 

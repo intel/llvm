@@ -272,7 +272,7 @@ ESIMD_INLINE void transpose16(AccessorInTy in, AccessorOutTy out, int MZ,
 
 bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
              double &kernel_times, double &total_times) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
   int *M = new int[MZ * MZ];
 

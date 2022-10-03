@@ -78,7 +78,7 @@ template <typename T> bool test(queue Q) {
 }
 
 int main(void) {
-  queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto Dev = Q.get_device();
   std::cout << "Running on " << Dev.get_info<info::device::name>() << "\n";
 

@@ -591,7 +591,7 @@ int main(int argc, char *argv[]) {
 
   cl::sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::in_order());
 
   auto dev = q.get_device();

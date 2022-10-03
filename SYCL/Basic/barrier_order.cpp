@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  sycl::device dev{sycl::default_selector{}};
+  sycl::device dev{sycl::default_selector_v};
   sycl::queue q{dev};
 
   int *x = sycl::malloc_shared<int>(1, q);

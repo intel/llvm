@@ -37,7 +37,7 @@ inline void foo(sycl::ext::intel::esimd::simd<std::uint32_t, 16> &k) {
 
 int main(int argc, char **argv) {
   size_t nsamples = N_SAMPLES;
-  sycl::queue queue(esimd_test::ESIMDSelector{},
+  sycl::queue queue(esimd_test::ESIMDSelector,
                     esimd_test::createExceptionHandler());
 
   std::cout << "Running on "

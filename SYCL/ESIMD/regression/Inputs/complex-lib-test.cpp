@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
   try {
     size_t i;
     size_t N = 1024;
-    sycl::device D(sycl::default_selector{});
+    sycl::device D(sycl::default_selector_v);
     sycl::context Ctx(D);
     sycl::queue Q(Ctx, D);
 

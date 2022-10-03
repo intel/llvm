@@ -169,7 +169,7 @@ void verify_logic(queue &q, buffer<float, 1> &a, buffer<float, 1> &b,
 }
 
 int run_tests() {
-  device dev{default_selector()};
+  device dev{default_selector_v};
 
   // TODO: replace is_gpu check with extension check when the appropriate part
   // of implementation ready (aspect)

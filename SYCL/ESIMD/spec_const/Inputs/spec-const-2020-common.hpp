@@ -36,7 +36,7 @@ class TestKernel;
 constexpr specialization_id<spec_const_t> ConstID(DEF_VAL);
 
 int main(int argc, char **argv) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
   if (std::is_same_v<spec_const_t, double> && !dev.has(aspect::fp64))

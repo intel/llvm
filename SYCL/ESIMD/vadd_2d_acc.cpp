@@ -48,7 +48,7 @@ int main(void) {
 
     sycl::nd_range<2> Range(GlobalRange, LocalRange);
 
-    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();

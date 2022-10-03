@@ -92,7 +92,7 @@ auto exception_handler = [](sycl::exception_list exceptions) {
 
 template <typename F>
 bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
-  sycl::queue deviceQueue(sycl::gpu_selector{}, exception_handler);
+  sycl::queue deviceQueue(sycl::gpu_selector_v, exception_handler);
   sycl::device device = deviceQueue.get_device();
 
   if (!isInlineASMSupported(device)) {

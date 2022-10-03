@@ -27,7 +27,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 using namespace esimd_test::api::functional;
 
 int main(int, char **) {
-  sycl::queue queue(esimd_test::ESIMDSelector{},
+  sycl::queue queue(esimd_test::ESIMDSelector,
                     esimd_test::createExceptionHandler());
 
   bool passed = functions::run_test_for_types<tested_types::core>(queue);

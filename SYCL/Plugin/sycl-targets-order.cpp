@@ -21,7 +21,7 @@
 int main(int argc, char **argv) {
 
   // select the default SYCL device
-  sycl::device device{sycl::default_selector{}};
+  sycl::device device{sycl::default_selector_v};
   std::cout << "Running on SYCL device "
             << device.get_info<sycl::info::device::name>()
             << ", driver version "

@@ -45,7 +45,7 @@ const CONSTANT char format_int[] = "%d\n";
 
 int main() {
   {
-    queue Queue(esimd_test::ESIMDSelector{},
+    queue Queue(esimd_test::ESIMDSelector,
                 esimd_test::createExceptionHandler());
 
     Queue.submit([&](handler &CGH) {
@@ -84,7 +84,7 @@ int main() {
   }
 
   {
-    queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+    queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
     // printf in parallel_for
     constexpr int SIMD_SIZE = 16;
     constexpr int WORK_SIZE = SIMD_SIZE;

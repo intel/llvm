@@ -104,7 +104,7 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
 int main() {
 
   auto q =
-      queue{esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler()};
+      queue{esimd_test::ESIMDSelector, esimd_test::createExceptionHandler()};
   auto device = q.get_device();
   std::cout << "Device name: " << device.get_info<info::device::name>()
             << std::endl;

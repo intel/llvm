@@ -237,7 +237,7 @@ void testcopyH2DBuffer() {
     buffer<float, 1> buffer_from_1D(data_from_1D.data(), range<1>(width));
     buffer<float, 1> buffer_to_1D(data_to_1D.data(), range<1>(width));
 
-    device Dev{default_selector{}};
+    device Dev{default_selector_v};
     context myCtx{Dev};
     context otherCtx{Dev};
 

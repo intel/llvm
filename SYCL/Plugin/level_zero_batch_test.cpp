@@ -297,7 +297,7 @@ int main(int argc, char *argv[]) {
 #else
   sycl::property_list Props{};
 #endif
-  sycl::queue q(sycl::default_selector{}, Props);
+  sycl::queue q(sycl::default_selector_v, Props);
   auto ctx = q.get_context();
   auto dev = q.get_device();
 

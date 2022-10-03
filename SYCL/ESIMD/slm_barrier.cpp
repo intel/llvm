@@ -75,7 +75,7 @@ int main(void) {
   constexpr unsigned VL = 16;
   constexpr unsigned Size = NUM_THREADS * VL;
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()

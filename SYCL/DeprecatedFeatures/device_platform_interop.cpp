@@ -22,21 +22,20 @@
 using namespace sycl;
 
 int main() {
-  default_selector device_selector;
 
-  device D1(device_selector);
+  device D1(default_selector_v);
   cl_device_id cl_device;
   {
-    device D2(device_selector);
+    device D2(default_selector_v);
     cl_device = get_native<backend::opencl>(D2);
   }
   device D3(cl_device);
   assert(D1 == D3 && "Device impls are different");
 
-  platform P1(device_selector);
+  platform P1(default_selector_v);
   cl_platform_id cl_platform;
   {
-    platform P2(device_selector);
+    platform P2(default_selector_v);
     cl_platform = get_native<backend::opencl>(P2);
   }
   platform P3(cl_platform);

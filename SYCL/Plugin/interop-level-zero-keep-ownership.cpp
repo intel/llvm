@@ -16,7 +16,7 @@ using namespace sycl;
 int main() {
 
   // Creat SYCL platform/device
-  device Device(gpu_selector{});
+  device Device(gpu_selector_v);
   platform Platform = Device.get_info<info::device::platform>();
 
   // Create native Level-Zero context

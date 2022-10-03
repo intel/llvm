@@ -320,7 +320,7 @@ int main(int argc, char *argv[]) {
     MZ = (MZ < (1U << 12)) ? MZ : (1U << 12);
   }
 
-  queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
 
   unsigned num_iters = 10;

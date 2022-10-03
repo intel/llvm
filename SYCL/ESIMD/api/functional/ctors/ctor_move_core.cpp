@@ -42,7 +42,7 @@ int main(int, char **) {
       unnamed_type_pack<ctors::initializer, ctors::var_decl,
                         ctors::rval_in_expr, ctors::const_ref>::generate();
 
-  sycl::queue queue(esimd_test::ESIMDSelector{},
+  sycl::queue queue(esimd_test::ESIMDSelector,
                     esimd_test::createExceptionHandler());
 
   // Run test for all combinations possible

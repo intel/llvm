@@ -36,7 +36,7 @@ using namespace sycl::ext::oneapi;
 int queryFromQueue(std::vector<sycl::platform> *platform_list,
                    std::vector<sycl::device> *device_list) {
   int failures = 0;
-  sycl::queue Q{sycl::default_selector{}};
+  sycl::queue Q{sycl::default_selector_v};
   sycl::device dev = Q.get_info<sycl::info::queue::device>();
   auto plt = dev.get_platform();
 

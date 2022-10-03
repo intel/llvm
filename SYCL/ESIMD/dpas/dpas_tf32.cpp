@@ -24,7 +24,7 @@ using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 int main() {
-  queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   constexpr int REPEAT_COUNT = 8;
   constexpr int SYSTOLIC_DEPTH = 8;

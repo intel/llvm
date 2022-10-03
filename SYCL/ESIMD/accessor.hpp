@@ -31,7 +31,7 @@ int main() {
   }
 
   try {
-    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
     buffer<Ty, 1> buf0(data0, range<1>(VL));
     buffer<Ty, 1> buf1(data1, range<1>(VL));

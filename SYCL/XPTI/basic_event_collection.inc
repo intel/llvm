@@ -7,7 +7,7 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  sycl::queue Q{sycl::default_selector{}};
+  sycl::queue Q{sycl::default_selector_v};
 
   auto Ptr = sycl::malloc_device<int>(1, Q);
 

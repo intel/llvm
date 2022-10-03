@@ -46,7 +46,7 @@ int main() {
 
     sycl::buffer<int, 1> ResBuf(ResBufData.data(), {ResBufSize});
 
-    TestQueue Q{sycl::default_selector()};
+    TestQueue Q{sycl::default_selector_v};
 
     constexpr auto SYCLRead = sycl::access::mode::read;
     constexpr auto SYCLWrite = sycl::access::mode::write;

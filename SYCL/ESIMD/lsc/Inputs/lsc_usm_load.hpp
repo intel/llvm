@@ -50,8 +50,7 @@ bool test(uint32_t pmask = 0xffffffff) {
   T old_val = get_rand<T>();
   T zero_val = (T)0;
 
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
+  auto q = queue{gpu_selector_v};
   auto dev = q.get_device();
   std::cout << "Running case #" << case_num << " on "
             << dev.get_info<sycl::info::device::name>() << "\n";

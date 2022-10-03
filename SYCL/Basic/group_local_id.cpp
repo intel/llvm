@@ -8,7 +8,7 @@
 using namespace sycl;
 
 int main() {
-  queue q(cpu_selector{});
+  queue q(cpu_selector_v);
 
   const int sz = 16;
   q.submit([&](handler &h) {

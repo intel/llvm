@@ -53,7 +53,7 @@ supports_partition_property(const sycl::device &dev,
 
 int main() {
 
-  auto dev = sycl::device(sycl::default_selector());
+  auto dev = sycl::device(sycl::default_selector_v);
 
   // 1 - check exceed max_compute_units
   sycl::info::partition_property partitionEqually =

@@ -27,7 +27,7 @@ using namespace esimd_test::api::functional;
 using init_val = ctors::init_val;
 
 int main(int, char **) {
-  sycl::queue queue(esimd_test::ESIMDSelector{},
+  sycl::queue queue(esimd_test::ESIMDSelector,
                     esimd_test::createExceptionHandler());
 
   bool passed = true;

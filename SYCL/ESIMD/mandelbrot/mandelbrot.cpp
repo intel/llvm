@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
   double kernel_times = 0;
   unsigned num_iters = 10;
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
 
   try {

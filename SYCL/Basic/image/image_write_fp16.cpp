@@ -6,8 +6,7 @@
 #include "image_write.h"
 
 int main() {
-  s::default_selector selector;
-  s::queue myQueue(selector);
+  s::queue myQueue(s::default_selector_v);
 
   // Device doesn't support cl_khr_fp16 extension - skip.
   if (!myQueue.get_device().has(sycl::aspect::fp16))

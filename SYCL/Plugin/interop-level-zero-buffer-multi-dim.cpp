@@ -16,7 +16,7 @@ using namespace sycl;
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   try {
-    platform Plt{gpu_selector{}};
+    platform Plt{gpu_selector_v};
 
     auto Devices = Plt.get_devices();
 

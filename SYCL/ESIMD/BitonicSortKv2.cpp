@@ -620,7 +620,7 @@ int main(int argc, char *argv[]) {
   sycl::property_list props{sycl::property::queue::enable_profiling{},
                             sycl::property::queue::in_order()};
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           props);
 
   BitonicSort bitonicSort;

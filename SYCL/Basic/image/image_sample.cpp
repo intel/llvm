@@ -43,8 +43,6 @@ bool test1d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
   s::sampler testSampler(s::coordinate_normalization_mode::unnormalized,
                          s::addressing_mode::clamp, s::filtering_mode::linear);
 
-  s::default_selector selector;
-
   { // Scope everything to force destruction
     s::image<1> image(hostPtr, s::image_channel_order::rgba, channelType,
                       s::range<1>{3});
@@ -52,7 +50,7 @@ bool test1d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
     s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     // Do the test by reading a single pixel from the image
-    s::queue myQueue(selector);
+    s::queue myQueue(s::default_selector_v);
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
       s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
@@ -80,8 +78,6 @@ bool test2d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
   s::sampler testSampler(s::coordinate_normalization_mode::unnormalized,
                          s::addressing_mode::clamp, s::filtering_mode::linear);
 
-  s::default_selector selector;
-
   { // Scope everything to force destruction
     s::image<2> image(hostPtr, s::image_channel_order::rgba, channelType,
                       s::range<2>{3, 3});
@@ -89,7 +85,7 @@ bool test2d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
     s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     // Do the test by reading a single pixel from the image
-    s::queue myQueue(selector);
+    s::queue myQueue(s::default_selector_v);
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
       s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
@@ -117,8 +113,6 @@ bool test3d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
   s::sampler testSampler(s::coordinate_normalization_mode::unnormalized,
                          s::addressing_mode::clamp, s::filtering_mode::linear);
 
-  s::default_selector selector;
-
   { // Scope everything to force destruction
     s::image<3> image(hostPtr, s::image_channel_order::rgba, channelType,
                       s::range<3>{3, 3, 3});
@@ -126,7 +120,7 @@ bool test3d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
     s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     // Do the test by reading a single pixel from the image
-    s::queue myQueue(selector);
+    s::queue myQueue(s::default_selector_v);
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
       s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,

@@ -20,8 +20,7 @@ using namespace sycl;
 
 int main() {
   {
-    default_selector Selector;
-    queue Queue(Selector);
+    queue Queue(default_selector_v);
     context Context = Queue.get_context();
 
     // Check constructor and getters

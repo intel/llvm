@@ -24,12 +24,10 @@ int main() {
 
   // Checks creating of the second host accessor while first one is alive.
   try {
-    sycl::default_selector device_selector;
-
     sycl::range<1> BufSize{1};
     sycl::buffer<int, 1> Buf(BufSize);
 
-    TestQueue Queue(device_selector);
+    TestQueue Queue(sycl::default_selector_v);
 
     Queue.submit([&](sycl::handler &CGH) {
       auto BufAcc = Buf.get_access<sycl_access_mode::read_write>(CGH);

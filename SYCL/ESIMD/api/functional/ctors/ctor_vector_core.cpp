@@ -27,7 +27,7 @@
 using namespace esimd_test::api::functional;
 
 int main(int, char **) {
-  sycl::queue queue(esimd_test::ESIMDSelector{},
+  sycl::queue queue(esimd_test::ESIMDSelector,
                     esimd_test::createExceptionHandler());
 
   const auto types = get_tested_types<tested_types::core>();

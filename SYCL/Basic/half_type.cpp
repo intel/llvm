@@ -237,7 +237,7 @@ int main() {
   constexpr_verify_mul();
   constexpr_verify_div();
 
-  device dev{default_selector()};
+  device dev{default_selector_v};
   if (!dev.has(sycl::aspect::fp16)) {
     std::cout << "This device doesn't support the extension cl_khr_fp16"
               << std::endl;

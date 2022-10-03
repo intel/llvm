@@ -21,7 +21,7 @@ int main() {
   buffer<int, 1> Buffer(&Data, range<1>(1));
 
   const auto &Devices =
-      platform(gpu_selector{}).get_devices(info::device_type::gpu);
+      platform(gpu_selector_v).get_devices(info::device_type::gpu);
   std::cout << Devices.size() << " devices found" << std::endl;
   context C(Devices);
 

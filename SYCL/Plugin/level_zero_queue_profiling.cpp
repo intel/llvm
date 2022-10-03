@@ -56,12 +56,11 @@ int main(int argc, char **argv) {
   bool profiling = argc > 1;
 
   {
-    gpu_selector dev_sel;
     property_list propList{};
     if (profiling)
       propList = sycl::property::queue::enable_profiling();
 
-    queue q(dev_sel, propList);
+    queue q(gpu_selector_v, propList);
     // Perform the computation
     foo(q, 2);
   } // SYCL scope

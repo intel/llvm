@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
   size_t N = 4;
   size_t AL = M * N * sizeof(uint32_t);
 
-  sycl::queue q(sycl::default_selector{});
+  sycl::queue q(sycl::default_selector_v);
   auto ctx = q.get_context();
   auto dev = q.get_device();
 

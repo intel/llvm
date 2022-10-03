@@ -8,7 +8,7 @@
 
 int main() {
 
-  sycl::device dev{sycl::default_selector{}};
+  sycl::device dev{sycl::default_selector_v};
   sycl::queue q{dev};
 
   q.submit(

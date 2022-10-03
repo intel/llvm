@@ -33,8 +33,7 @@
 #include <sycl/sycl.hpp>
 
 int main(int argc, char **argv) {
-  sycl::gpu_selector device_selector;
-  sycl::queue queue(device_selector);
+  sycl::queue queue(sycl::gpu_selector_v);
 
   int N = (argc >= 2 ? std::atoi(argv[1]) : 100);
   std::cout << N << " kernels" << std::endl;

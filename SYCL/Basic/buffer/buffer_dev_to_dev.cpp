@@ -25,8 +25,7 @@ int main() {
     buffer<int, 1> Buffer(Data, range<1>(10),
                           {property::buffer::use_host_ptr()});
 
-    default_selector Selector;
-    device Device(Selector);
+    device Device(default_selector_v);
 
     context FirstContext(Device);
     context SecondContext(Device);

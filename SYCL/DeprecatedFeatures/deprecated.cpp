@@ -16,8 +16,8 @@
 using namespace sycl;
 
 int main() {
-  device Device{default_selector()};
-  platform Platform{default_selector()};
+  device Device{default_selector_v};
+  platform Platform{default_selector_v};
 
   bool b = Device.has_extension("cl_intel_subgroups");
   b = Platform.has_extension("some_extension");

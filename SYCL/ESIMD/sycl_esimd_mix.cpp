@@ -63,7 +63,7 @@ int main(void) {
     // We need that many threads in each group
     sycl::range<1> LocalRange{1};
 
-    queue q(gpu_selector{}, esimd_test::createExceptionHandler());
+    queue q(gpu_selector_v, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
@@ -94,7 +94,7 @@ int main(void) {
     // We need that many threads in each group
     sycl::range<1> LocalRange{1};
 
-    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";

@@ -700,7 +700,7 @@ int main(int argc, char *argv[]) {
   int size = 1 << LOG2_ELEMENTS;
   cout << "BitonicSort (" << size << ") Start..." << std::endl;
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
 
   BitonicSort bitonicSort;

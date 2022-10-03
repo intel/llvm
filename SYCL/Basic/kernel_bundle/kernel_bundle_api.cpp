@@ -34,8 +34,8 @@ void checkException(TryBodyT TryBody, const std::string &ExpectedErrMsg) {
 }
 
 int main() {
-  const sycl::device Dev{sycl::default_selector{}};
-  const sycl::device Dev2{sycl::default_selector{}};
+  const sycl::device Dev{sycl::default_selector_v};
+  const sycl::device Dev2{sycl::default_selector_v};
 
   const sycl::context Ctx{Dev};
   const sycl::context Ctx2{Dev2};

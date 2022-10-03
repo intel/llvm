@@ -11,8 +11,7 @@
 
 int main() {
 
-  s::default_selector selector;
-  s::queue myQueue(selector);
+  s::queue myQueue(s::default_selector_v);
 
   bool passed = true;
 

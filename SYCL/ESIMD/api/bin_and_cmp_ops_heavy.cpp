@@ -255,7 +255,7 @@ template <class T1, class T2, class C> using IDf = init_default<T1, T2, C>;
 template <class T1, class T2, class C> using ISf = init_for_shift<T1, T2, C>;
 
 int main(void) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()

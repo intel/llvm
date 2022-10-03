@@ -27,7 +27,7 @@ int main() {
   auto constexpr SIMDSize = unsigned{4};
 
   auto q =
-      queue{esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler()};
+      queue{esimd_test::ESIMDSelector, esimd_test::createExceptionHandler()};
   auto device = q.get_device();
   std::cout << "Device name: " << device.get_info<sycl::info::device::name>()
             << std::endl;
