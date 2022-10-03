@@ -478,6 +478,12 @@ bool test_int_types(queue q, const Config &cfg) {
   passed &= test<uint32_t, N, Op>(q, cfg);
   passed &= test<int64_t, N, Op>(q, cfg);
   passed &= test<uint64_t, N, Op>(q, cfg);
+  if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
+                !std::is_same_v<unsigned long, uint32_t>) {
+    // Test 'long' types if they are not aliased with int types tested above.
+    passed &= test<unsigned long, N, Op>(q, cfg);
+    passed &= test<signed long, N, Op>(q, cfg);
+  }
   return passed;
 }
 
