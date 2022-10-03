@@ -60,6 +60,7 @@ public:
   }
 
   virtual std::size_t getValueSize() const override { return MValueSize; }
+
 protected:
   virtual void *getAllocatorImpl() override { return &MAllocator; }
 

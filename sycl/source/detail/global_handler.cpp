@@ -48,8 +48,8 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
 }
 
 void GlobalHandler::attachScheduler(Scheduler *scheduler) {
-  // Test method, do not protect with lock since releaseResources will cause dead lock due to host queue release
-  // const LockGuard Lock{MScheduler.Lock};
+  // Test method, do not protect with lock since releaseResources will cause
+  // dead lock due to host queue release const LockGuard Lock{MScheduler.Lock};
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources();
 

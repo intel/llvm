@@ -149,7 +149,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
 }
 
 void SYCLMemObjT::detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &self,
-                                       bool DefaultAllocator) const {
+                                     bool DefaultAllocator) const {
   if (MNoHostPtrProvided && DefaultAllocator)
     Scheduler::getInstance().deferMemObjRelease(self);
 }
