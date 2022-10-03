@@ -181,8 +181,7 @@ The section below describes the constructors and member functions for
 `annotated_arg`.
 
 The template parameter `T` in the definition of `annotated_arg` template below
-must be a device copyable type or a legal parameter type as defined by the SYCL
-specification.
+must be a legal parameter type as defined by the SYCL specification.
 
 [source,c++]
 ----
