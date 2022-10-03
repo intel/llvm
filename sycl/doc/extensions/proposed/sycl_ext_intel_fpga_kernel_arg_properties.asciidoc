@@ -370,12 +370,16 @@ a|
 stable
 ----
 a|
-Specifies that the input to the kernel will not change during the execution of
-the kernel. The input can still change after all active kernel invocations have
-finished.
+While the SYCL software model makes kernel arguments read-only, the IP which is
+output by the FPGA device compiler can be plugged into external systems where
+kernel arguments can change while the kernel executes.
 
-If the input is changed while the kernel is executing, the behavior is
-undefined.
+This property specifies that the input to the kernel will not change between
+pipelined invocations of the kernel. The input can still change after all active
+kernel invocations have finished.
+
+If the input is changed while the pipelined kernel invocations are executing,
+the behavior is undefined.
 
 a|
 [source,c++]

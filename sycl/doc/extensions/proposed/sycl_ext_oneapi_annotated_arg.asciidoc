@@ -140,21 +140,16 @@ struct MyType {
 };
 
 struct MyKernel {
-  annotated_arg<MyType, properties<PropA>> a;
-  annotated_arg<MyType, properties<PropB>> b;
+  MyType arg_a;
+  MyType arg_b;
   ...
   void operator()() const {
     ...
   }
 };
 ----
-When a nested structure is created by wrapping other types with `annotated_arg`,
-only the top-most level `annotated_arg` properties will be applied to the
-kernel arguments.
-
-In the example above, only properties `PropA` and `PropB` will be applied to the
-kernel arguments and the other properties on members of `MyType` will not be
-processed.
+It is illegal to apply `annotated_arg` to members of kernel arguments. In the
+above example, encapsulating `annotated_arg` within `MyType` is illegal.
 
 === Representation of `annotated_arg`
 
