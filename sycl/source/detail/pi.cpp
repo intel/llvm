@@ -310,7 +310,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
         CudaFound = true;
       }
       if (!EsimdCpuFound && (Backend == backend::ext_intel_esimd_emulator ||
-                             Backend == backend::all)) { 
+                             Backend == backend::all)) {
         std::string env = std::string(std::getenv("SYCL_DEVICE_FILTER"));
         std::transform(env.begin(), env.end(), env.begin(), ::tolower);
         if (env.find("esimd_emulator") != std::string::npos) {
