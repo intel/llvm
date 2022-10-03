@@ -9,7 +9,7 @@
 #include <vector>
 
 int main() {
-  sycl::queue Q{sycl::default_selector{}};
+  sycl::queue Q{sycl::default_selector_v};
 
   sycl::buffer<int, 1> Buf{sycl::range{100}};
   std::vector<int> Vec;

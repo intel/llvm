@@ -34,7 +34,7 @@ int main() {
   {
     sycl::image<2> Img1(Img1HostData.data(), ChanOrder, ChanType, Img1Size);
     sycl::image<2> Img2(Img2HostData.data(), ChanOrder, ChanType, Img2Size);
-    TestQueue Q{sycl::default_selector()};
+    TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {
       auto Img1Acc = Img1.get_access<sycl::float4, SYCLRead>(CGH);
       auto Img2Acc = Img2.get_access<sycl::float4, SYCLWrite>(CGH);
@@ -63,7 +63,7 @@ int main() {
   {
     const sycl::range<1> ImgPitch(4 * 4 * 4 * 2);
     sycl::image<2> Img(ChanOrder, ChanType, Img1Size, ImgPitch);
-    TestQueue Q{sycl::default_selector()};
+    TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
       CGH.single_task<class EmptyKernel>([=]() { ImgAcc.get_range(); });
@@ -74,7 +74,7 @@ int main() {
     const sycl::range<1> ImgPitch(4 * 4 * 4 * 2);
     sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, Img1Size,
                        ImgPitch);
-    TestQueue Q{sycl::default_selector()};
+    TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
       CGH.single_task<class ConstTestPitch>([=] { ImgAcc.get_range(); });

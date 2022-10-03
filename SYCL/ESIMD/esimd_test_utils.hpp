@@ -26,30 +26,27 @@ using namespace sycl;
 
 namespace esimd_test {
 
-// This is the class provided to SYCL runtime by the application to decide
+// This is function provided to SYCL runtime by the application to decide
 // on which device to run, or whether to run at all.
 // When selecting a device, SYCL runtime first takes (1) a selector provided by
 // the program or a default one and (2) the set of all available devices. Then
-// it passes each device to the '()' operator of the selector. Device, for
-// which '()' returned the highest number, is selected. If a negative number
-// was returned for all devices, then the selection process will cause an
-// exception.
-class ESIMDSelector : public device_selector {
-  // Require GPU device
-  virtual int operator()(const device &device) const {
-    if (const char *dev_filter = getenv("SYCL_DEVICE_FILTER")) {
-      std::string filter_string(dev_filter);
-      if (filter_string.find("gpu") != std::string::npos)
-        return device.is_gpu() ? 1000 : -1;
-      std::cerr
-          << "Supported 'SYCL_DEVICE_FILTER' env var values is 'gpu' and '"
-          << filter_string << "' does not contain such substrings.\n";
-      return -1;
-    }
-    // If "SYCL_DEVICE_FILTER" not defined, only allow gpu device
-    return device.is_gpu() ? 1000 : -1;
+// it passes each device to the selector. A device for which the highest number
+// is returned is selected. If a negative number was returned for all devices,
+// then the selection process will cause an exception.
+inline int ESIMDSelector(const device &device) {
+  if (const char *dev_filter = getenv("SYCL_DEVICE_FILTER")) {
+    std::string filter_string(dev_filter);
+    if (filter_string.find("gpu") != std::string::npos)
+      return device.is_gpu() ? 1000 : -1;
+
+    std::cerr
+        << "Supported 'SYCL_DEVICE_FILTER' env var device type is 'gpu' and "
+        << filter_string << "' does not contain that.\n";
+    return -1;
   }
-};
+  // If "SYCL_DEVICE_FILTER" not defined, only allow gpu device
+  return device.is_gpu() ? 1000 : -1;
+}
 
 inline auto createExceptionHandler() {
   return [](exception_list l) {
