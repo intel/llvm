@@ -193,9 +193,10 @@ if cl_options:
     config.substitutions.append( ('%fPIC', '') )
     config.substitutions.append( ('%shared_lib', '/LD') )
 else:
-    config.substitutions.append( ('%sycl_options', ' -lsycl -I' +
-                                config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl') +
-                                ' -L' + config.sycl_libs_dir) )
+    config.substitutions.append( ('%sycl_options',
+                                  (' -lsycl6' if platform.system() == "Windows" else " -lsycl") + ' -I' +
+                                  config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl') +
+                                  ' -L' + config.sycl_libs_dir) )
     config.substitutions.append( ('%include_option',  '-include' ) )
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
