@@ -199,7 +199,6 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
 }
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.cpp.inc"
-
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.cpp.inc"
 
 #define GET_OP_CLASSES
