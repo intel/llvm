@@ -309,16 +309,11 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_cuda);
         CudaFound = true;
       }
-      if (!EsimdCpuFound && (Backend == backend::ext_intel_esimd_emulator ||
-                             Backend == backend::all)) {
-        std::string env = std::string(std::getenv("SYCL_DEVICE_FILTER"));
-        std::transform(env.begin(), env.end(), env.begin(), ::tolower);
-        if (env.find("esimd_emulator") != std::string::npos) {
+      if (!EsimdCpuFound && Backend == backend::ext_intel_esimd_emulator) {
           PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                                   backend::ext_intel_esimd_emulator);
+                             backend::ext_intel_esimd_emulator);
           EsimdCpuFound = true;
         }
-      }
       if (!HIPFound &&
           (Backend == backend::ext_oneapi_hip || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME,
