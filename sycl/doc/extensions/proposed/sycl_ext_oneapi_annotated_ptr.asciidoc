@@ -333,9 +333,12 @@ explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &Ptr,
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
-underlying pointer is initialized with `Ptr`. `PropertyListU` and
-`PropertyListV` will be merged together to construct `PropertyListT`. If any
-common properties have different values then an error will be issued.
+underlying pointer is initialized with `Ptr`.
+
+The new `PropertyListT` is the union of all properties contained within
+`PropertyListU` and `PropertyListV`. If there are any common properties in the
+two lists with different values, a compile-time error is triggered. Common
+properties with the same value (or no value) are allowed.
 
 `T2*` must be implicitly convertible to `T*`.
 
@@ -648,8 +651,9 @@ a way to annotate address spaces. That can be built with annotated_ptr.
 global space we may want to distinguish between general, host, and device memory
 spaces.
 
-6) Ctor should clarify whether when constructing the object from two different
-property lists, duplicates will exist or not.
+6) [RESOLVED] Ctor should clarify whether when constructing the object from two
+different property lists, duplicates will exist or not.
+Updated ctor description with the resolution.
 
 == Revision History
 
