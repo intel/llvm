@@ -376,6 +376,24 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
     return PI_ERROR_INVALID_OPERATION;
 }
 
+class MockCmdWithRelTracking : public MockCommand
+{
+  public:
+  MockCmdWithRelTracking(
+    sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+    sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
+    : MockCommand(Queue, Req, Type) {};
+  MockCmdWithRelTracking(
+    sycl::detail::QueueImplPtr Queue,
+    sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
+    : MockCommand(Queue, Type) {};
+  ~MockCmdWithRelTracking()
+  {
+    Release();
+  }
+  MOCK_METHOD0(Release, void());
+};
+
 TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
@@ -386,12 +404,12 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::detail::MemObjRecord *Rec =
       MockSchedulerPtr->MGraphBuilder.getOrInsertMemObjRecord(
           sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
-  MockCommand *ReadCmd = nullptr;
-  MockCommand *WriteCmd = nullptr;
-  ReadCmd = new MockCommand(sycl::detail::getSyclObjImpl(Q), MockReq);
+  MockCmdWithRelTracking *ReadCmd = nullptr;
+  MockCmdWithRelTracking *WriteCmd = nullptr;
+  ReadCmd = new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   ReadCmd->getEvent()->getHandleRef() = reinterpret_cast<sycl::RT::PiEvent>(
       0x01); // just assign to be able to use mock
-  WriteCmd = new MockCommand(sycl::detail::getSyclObjImpl(Q), MockReq);
+  WriteCmd = new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   WriteCmd->getEvent()->getHandleRef() =
       reinterpret_cast<sycl::RT::PiEvent>(0x02);
 
@@ -427,4 +445,6 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   EXPECT_TRUE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, true));
   // previous expect_call is still valid and will generate failure if we recieve
   // call here, no need for extra limitation
+  EXPECT_CALL(*ReadCmd, Release).Times(1);
+  EXPECT_CALL(*WriteCmd, Release).Times(1);
 }
