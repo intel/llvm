@@ -12,6 +12,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/aspects.hpp>
 
 #include <functional>
 #include <limits>
@@ -265,7 +266,7 @@ using Vec8StorageT = half_vec<8>;
 using Vec16StorageT = half_vec<16>;
 #endif
 
-class half {
+class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
 public:
   half() = default;
   constexpr half(const half &) = default;

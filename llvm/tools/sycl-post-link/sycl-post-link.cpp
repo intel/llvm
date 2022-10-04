@@ -17,6 +17,7 @@
 #include "DeviceGlobals.h"
 #include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
+#include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 #include "Support.h"
@@ -361,6 +362,10 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     uint32_t MRMask = getSYCLDeviceLibReqMask(M);
     std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
+  }
+  {
+    std::map<StringRef, std::vector<uint32_t>> Requirements = getSYCLDeviceRequirements(M);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
   }
   if (MD.Props.SpecConstsMet) {
     // extract spec constant maps per each module
