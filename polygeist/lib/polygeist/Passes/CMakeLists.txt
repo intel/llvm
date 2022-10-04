@@ -1,18 +1,19 @@
 add_mlir_dialect_library(MLIRPolygeistTransforms
   AffineCFG.cpp
   AffineReduction.cpp
+  BarrierRemovalContinuation.cpp  
   CanonicalizeFor.cpp
+  ConvertPolygeistToLLVM.cpp  
+  InnerSerialization.cpp  
+  LegalizeForSPIRV.cpp  
   LoopRestructure.cpp
   Mem2Reg.cpp
-  ParallelLoopDistribute.cpp
-  ParallelLICM.cpp
   OpenMPOpt.cpp
-  BarrierRemovalContinuation.cpp
-  RaiseToAffine.cpp
+  ParallelLICM.cpp
+  ParallelLoopDistribute.cpp
   ParallelLower.cpp
+  RaiseToAffine.cpp
   TrivialUse.cpp
-  ConvertPolygeistToLLVM.cpp
-  InnerSerialization.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
