@@ -1200,13 +1200,40 @@ static void createAliases() {
   for (const auto &pair : config->aliasedSymbols) {
     if (const auto &sym = symtab->find(pair.first)) {
       if (const auto &defined = dyn_cast<Defined>(sym)) {
-        symtab->aliasDefined(defined, pair.second);
-        continue;
+        symtab->aliasDefined(defined, pair.second, defined->getFile());
+      } else {
+        error("TODO: support aliasing to symbols of kind " +
+              Twine(sym->kind()));
+      }
+    } else {
+      warn("undefined base symbol '" + pair.first + "' for alias '" +
+           pair.second + "'\n");
+    }
+  }
+
+  for (const InputFile *file : inputFiles) {
+    if (auto *objFile = dyn_cast<ObjFile>(file)) {
+      for (const AliasSymbol *alias : objFile->aliases) {
+        if (const auto &aliased = symtab->find(alias->getAliasedName())) {
+          if (const auto &defined = dyn_cast<Defined>(aliased)) {
+            symtab->aliasDefined(defined, alias->getName(), alias->getFile(),
+                                 alias->privateExtern);
+          } else {
+            // Common, dylib, and undefined symbols are all valid alias
+            // referents (undefineds can become valid Defined symbols later on
+            // in the link.)
+            error("TODO: support aliasing to symbols of kind " +
+                  Twine(aliased->kind()));
+          }
+        } else {
+          // This shouldn't happen since MC generates undefined symbols to
+          // represent the alias referents. Thus we fatal() instead of just
+          // warning here.
+          fatal("unable to find alias referent " + alias->getAliasedName() +
+                " for " + alias->getName());
+        }
       }
     }
-
-    warn("undefined base symbol '" + pair.first + "' for alias '" +
-         pair.second + "'\n");
   }
 }
 
@@ -1410,6 +1437,17 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     addFile(arg->getValue(), LoadType::CommandLine, /*isLazy=*/false,
             /*isExplicit=*/false, /*isBundleLoader=*/true);
   }
+  for (auto *arg : args.filtered(OPT_dyld_env)) {
+    StringRef envPair(arg->getValue());
+    if (!envPair.contains('='))
+      error("-dyld_env's argument is  malformed. Expected "
+            "-dyld_env <ENV_VAR>=<VALUE>, got `" +
+            envPair + "`");
+    config->dyldEnvs.push_back(envPair);
+  }
+  if (!config->dyldEnvs.empty() && config->outputType != MH_EXECUTE)
+    error("-dyld_env can only be used when creating executable output");
+
   if (const Arg *arg = args.getLastArg(OPT_umbrella)) {
     if (config->outputType != MH_DYLIB)
       warn("-umbrella used, but not creating dylib");

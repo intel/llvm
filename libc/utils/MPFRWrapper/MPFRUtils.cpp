@@ -176,9 +176,23 @@ public:
     return *this;
   }
 
+  bool is_nan() const { return mpfr_nan_p(value); }
+
   MPFRNumber abs() const {
     MPFRNumber result(*this);
     mpfr_abs(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber acos() const {
+    MPFRNumber result(*this);
+    mpfr_acos(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber asin() const {
+    MPFRNumber result(*this);
+    mpfr_asin(result.value, value, mpfr_rounding);
     return result;
   }
 
@@ -221,6 +235,12 @@ public:
   MPFRNumber exp2() const {
     MPFRNumber result(*this);
     mpfr_exp2(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber exp10() const {
+    MPFRNumber result(*this);
+    mpfr_exp10(result.value, value, mpfr_rounding);
     return result;
   }
 
@@ -436,6 +456,12 @@ public:
     if (thisAsT == input)
       return T(0.0);
 
+    if (is_nan()) {
+      if (fputil::FPBits<T>(input).is_nan())
+        return T(0.0);
+      return T(fputil::FPBits<T>::inf());
+    }
+
     int thisExponent = fputil::FPBits<T>(thisAsT).get_exponent();
     int inputExponent = fputil::FPBits<T>(input).get_exponent();
     // Adjust the exponents for denormal numbers.
@@ -512,6 +538,10 @@ unary_operation(Operation op, InputType input, unsigned int precision,
   switch (op) {
   case Operation::Abs:
     return mpfrInput.abs();
+  case Operation::Acos:
+    return mpfrInput.acos();
+  case Operation::Asin:
+    return mpfrInput.asin();
   case Operation::Atan:
     return mpfrInput.atan();
   case Operation::Atanh:
@@ -526,6 +556,8 @@ unary_operation(Operation op, InputType input, unsigned int precision,
     return mpfrInput.exp();
   case Operation::Exp2:
     return mpfrInput.exp2();
+  case Operation::Exp10:
+    return mpfrInput.exp10();
   case Operation::Expm1:
     return mpfrInput.expm1();
   case Operation::Floor:

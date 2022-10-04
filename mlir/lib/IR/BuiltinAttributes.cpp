@@ -269,14 +269,9 @@ AffineMap StridedLayoutAttr::getAffineMap() const {
 LogicalResult
 StridedLayoutAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                           int64_t offset, ArrayRef<int64_t> strides) {
-  if (offset < 0 && offset != ShapedType::kDynamicStrideOrOffset)
-    return emitError() << "offset must be non-negative or dynamic";
+  if (llvm::any_of(strides, [&](int64_t stride) { return stride == 0; }))
+    return emitError() << "strides must not be zero";
 
-  if (llvm::any_of(strides, [&](int64_t stride) {
-        return stride <= 0 && stride != ShapedType::kDynamicStrideOrOffset;
-      })) {
-    return emitError() << "strides must be positive or dynamic";
-  }
   return success();
 }
 
@@ -1526,7 +1521,12 @@ static ShapedType mappingHelper(Fn mapping, Attr &attr, ShapedType inType,
 
   // Check for the splat case.
   if (attr.isSplat()) {
-    processElt(*attr.begin(), /*index=*/0);
+    if (bitWidth == 1) {
+      // Handle the special encoding of splat of bool.
+      data[0] = mapping(*attr.begin()).isZero() ? 0 : -1;
+    } else {
+      processElt(*attr.begin(), /*index=*/0);
+    }
     return newArrayType;
   }
 

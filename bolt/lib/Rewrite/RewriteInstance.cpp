@@ -1152,7 +1152,6 @@ void RewriteInstance::discoverFileObjects() {
                << Twine::utohexstr(Address) << ") does not have any section\n";
         continue;
       }
-      assert(Section && "section for functions must be registered");
 
       // Skip symbols from zero-sized sections.
       if (!Section->getSize())
@@ -2837,6 +2836,11 @@ void RewriteInstance::processProfileData() {
 
   if (!opts::SaveProfile.empty()) {
     YAMLProfileWriter PW(opts::SaveProfile);
+    PW.writeProfile(*this);
+  }
+  if (opts::AggregateOnly &&
+      opts::ProfileFormat == opts::ProfileFormatKind::PF_YAML) {
+    YAMLProfileWriter PW(opts::OutputFilename);
     PW.writeProfile(*this);
   }
 
@@ -5322,6 +5326,7 @@ void RewriteInstance::rewriteFile() {
       assert(llvm::all_of(Function->getLayout().getSplitFragments(),
                           HasNoAddress) &&
              "Some split fragments have an address while others do not");
+      (void)HasNoAddress;
       continue;
     }
 

@@ -2881,6 +2881,8 @@ def err_template_arg_list_constraints_not_satisfied : Error<
   "template template parameter|template}0 %1%2">;
 def note_substituted_constraint_expr_is_ill_formed : Note<
   "because substituted constraint expression is ill-formed%0">;
+def note_constraint_references_error
+    : Note<"constraint depends on a previously diagnosed expression">;
 def note_atomic_constraint_evaluated_to_false : Note<
   "%select{and|because}0 '%1' evaluated to false">;
 def note_concept_specialization_constraint_evaluated_to_false : Note<
@@ -3063,6 +3065,9 @@ def warn_attribute_too_few_arguments : Warning<
   "%0 attribute takes at least %1 argument%s1; attribute ignored">,
  InGroup<IgnoredAttributes>;
 def err_attribute_invalid_vector_type : Error<"invalid vector element type %0">;
+def err_attribute_invalid_bitint_vector_type : Error<
+  "'_BitInt' vector element width must be %select{a power of 2|"
+  "at least as wide as 'CHAR_BIT'}0">;
 def err_attribute_invalid_matrix_type : Error<"invalid matrix element type %0">;
 def err_attribute_bad_neon_vector_size : Error<
   "Neon vector size must be 64 or 128 bits">;
@@ -5954,7 +5959,7 @@ def err_loader_uninitialized_extern_decl
     : Error<"variable %0 cannot be declared both 'extern' and with the "
             "'loader_uninitialized' attribute">;
 def err_block_extern_cant_init : Error<
-  "'extern' variable cannot have an initializer">;
+  "declaration of block scope identifier with linkage cannot have an initializer">;
 def warn_extern_init : Warning<"'extern' variable has an initializer">,
   InGroup<DiagGroup<"extern-initializer">>;
 def err_variable_object_no_init : Error<
@@ -6973,7 +6978,7 @@ def err_typecheck_unary_expr : Error<
 def err_typecheck_indirection_requires_pointer : Error<
   "indirection requires pointer operand (%0 invalid)">;
 def ext_typecheck_indirection_through_void_pointer : ExtWarn<
-  "ISO C++ does not allow indirection on operand of type %0">,
+  "ISO %select{C|C++}0 does not allow indirection on operand of type %1">,
   InGroup<DiagGroup<"void-ptr-dereference">>;
 def warn_indirection_through_null : Warning<
   "indirection of non-volatile null pointer will be deleted, not trap">,
@@ -7764,6 +7769,8 @@ def warn_overaligned_type : Warning<
   "type %0 requires %1 bytes of alignment and the default allocator only "
   "guarantees %2 bytes">,
   InGroup<OveralignedType>, DefaultIgnore;
+def err_array_element_alignment : Error<
+  "size of array element of type %0 (%1 bytes) isn't a multiple of its alignment (%2 bytes)">;
 def err_aligned_allocation_unavailable : Error<
   "aligned %select{allocation|deallocation}0 function of type '%1' is "
   "%select{only|not}4 available on %2%select{ %3 or newer|}4">;
@@ -11348,7 +11355,16 @@ def err_coroutine_unusable_new : Error<
   "'operator new' provided by %0 is not usable with the function signature of %1"
 >;
 def err_coroutine_unfound_nothrow_new : Error <
-  "unable to find '::operator new(size_t, nothrow_t)' for %0"
+  "unable to find %select{'::operator new(size_t, nothrow_t)'|"
+  "'::operator new(size_t, align_val_t, nothrow_t)'}1 for %0"
+>;
+def warn_non_aligned_allocation_function : Warning <
+  "under -fcoro-aligned-allocation, the non-aligned allocation function "
+  "for the promise type %0 has higher precedence than the global aligned "
+  "allocation function">,
+  InGroup<CoroNonAlignedAllocationFunction>;
+def err_conflicting_aligned_options : Error <
+  "conflicting option '-fcoro-aligned-allocation' and '-fno-aligned-allocation'"
 >;
 } // end of coroutines issue category
 
@@ -11875,7 +11891,7 @@ def warn_tcb_enforcement_violation : Warning<
 
 // RISC-V builtin required extension warning
 def err_riscv_builtin_requires_extension : Error<
-  "builtin requires at least one of the following extensions support to be enabled : %0">;
+  "builtin requires%select{| at least one of the following extensions to be enabled}0: %1">;
 def err_riscv_builtin_invalid_lmul : Error<
   "LMUL argument must be in the range [0,3] or [5,7]">;
 
@@ -11894,7 +11910,12 @@ def err_hlsl_attribute_param_mismatch : Error<"%0 attribute parameters do not ma
 def err_hlsl_missing_semantic_annotation : Error<
   "semantic annotations must be present for all parameters of an entry "
   "function or patch constant function">;
+def err_hlsl_init_priority_unsupported : Error<
+  "initializer priorities are not supported in HLSL">;
 
+def err_hlsl_unsupported_register_type : Error<"invalid resource class specifier '%0' used; expected 'b', 's', 't', or 'u'">;
+def err_hlsl_unsupported_register_number : Error<"register number should be an integer">;
+def err_hlsl_expected_space : Error<"invalid space specifier '%0' used; expected 'space' followed by an integer, like space1">;
 def err_hlsl_pointers_unsupported : Error<
   "%select{pointers|references}0 are unsupported in HLSL">;
 

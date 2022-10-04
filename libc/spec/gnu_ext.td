@@ -25,6 +25,7 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
             RetValSpec<VoidType>,
             [ArgSpec<FloatType>, ArgSpec<FloatPtr>, ArgSpec<FloatPtr>]
         >,
+        FunctionSpec<"exp10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
       ]
   >;
   
@@ -144,6 +145,20 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
       ]
   >;
 
+  HeaderSpec UniStd = HeaderSpec<
+    "unistd.h",
+    [], // Macros
+    [], // Types
+    [], // Enumerations
+    [
+        FunctionSpec<
+            "dup2",
+            RetValSpec<IntType>,
+            [ArgSpec<IntType>, ArgSpec<IntType>, ArgSpec<IntType>]
+        >,
+    ]
+  >;
+
   let Headers = [
     CType,
     FEnv,
@@ -152,5 +167,6 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
     SendFile,
     StdIO,
     String,
+    UniStd,
   ];
 }
